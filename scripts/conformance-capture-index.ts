@@ -2729,7 +2729,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-inventory-connection-query-windowing-conformance.ts',
     purpose:
-      'inventoryItems query filters and inventoryTransfers query/sort/reverse/windowing behavior over disposable product-backed inventory and transfers.',
+      'inventoryItems query filters and inventoryTransfers cold LiveHybrid hydration, post-create overlay, query/sort/reverse/windowing behavior over disposable product-backed inventory and transfers.',
     requiredAuthScopes: [
       'read_products',
       'write_products',
@@ -2745,11 +2745,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/inventory-connection-product-set.graphql',
       'config/parity-requests/products/inventory-connection-item-update.graphql',
       'config/parity-requests/products/inventory-connection-items-query.graphql',
+      'config/parity-requests/products/inventory-connection-transfers-window.graphql',
       'config/parity-requests/products/inventory-connection-transfers-page.graphql',
       'config/parity-requests/products/inventory-connection-transfers-reverse-status.graphql',
     ],
     cleanupBehavior:
-      'Creates two disposable locations, one disposable two-variant product, updates one inventory item, creates one draft and one ready transfer, records filtered connection reads, then cancels/deletes transfers and deletes the product and locations best-effort.',
+      'Creates two disposable locations, one disposable two-variant product, updates one inventory item, creates one baseline draft transfer, records a cold window, creates one draft and one ready transfer, records filtered connection reads, then cancels/deletes transfers and deletes the product and locations best-effort.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -5669,7 +5670,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-mutation-first-hydration-conformance.mts',
     purpose:
-      'Mutation-first marketUpdate and marketDelete hydration for existing disposable markets with catalog and web-presence relations, plus unknown-id validation branches.',
+      'Mutation-first marketUpdate and marketDelete hydration for existing disposable markets with catalog, price-list, and web-presence relations, top-level list/count readback, plus unknown-id validation branches.',
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-mutation-first-hydration.json`,
@@ -5677,9 +5678,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/markets/market-mutation-targets-hydrate.graphql',
       'config/parity-requests/markets/market-mutation-first-update.graphql',
       'config/parity-requests/markets/market-mutation-first-update-read.graphql',
+      'config/parity-requests/markets/market-mutation-first-update-top-level-read.graphql',
     ],
     cleanupBehavior:
-      'Creates two disposable non-primary markets, two market catalogs, and two web presences; records mutation-first update/delete and validation probes, then deletes the remaining disposable resources.',
+      'Creates three disposable non-primary markets, three market catalogs, three price lists, and three web presences; records mutation-first update/delete, top-level readback, and validation probes, then deletes the remaining disposable resources.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -7181,6 +7183,55 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'storefront',
+    captureId: 'storefront-catalog-enrichment',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-storefront-catalog-enrichment-conformance.mts',
+    purpose:
+      'Authenticated Storefront merchandising and context evidence for recommendations, tags/types, media/images, visible and hidden product/variant metafields, selling plans, market pricing, quantity rules/breaks, availability, and request-context isolation after public Admin setup.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_inventory',
+      'write_inventory',
+      'read_locations',
+      'write_locations',
+      'read_publications',
+      'write_publications',
+      'read_markets',
+      'write_markets',
+      'read_metafields',
+      'write_metafields',
+      'unauthenticated_read_product_inventory',
+      'unauthenticated_read_product_listings',
+      'unauthenticated_read_product_pickup_locations',
+      'unauthenticated_read_product_tags',
+      'unauthenticated_read_selling_plans',
+      'stored Storefront access token from corepack pnpm conformance:grant-storefront-token',
+    ],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-catalog-enrichment.json',
+      'config/parity-specs/storefront/storefront-catalog-enrichment.json',
+      'config/parity-requests/storefront/storefront-enrichment-catalog-create-admin.graphql',
+      'config/parity-requests/storefront/storefront-enrichment-context-hydrate.graphql',
+      'config/parity-requests/storefront/storefront-enrichment-context-read.graphql',
+      'config/parity-requests/storefront/storefront-enrichment-market-create-admin.graphql',
+      'config/parity-requests/storefront/storefront-enrichment-merchandising-read.graphql',
+      'config/parity-requests/storefront/storefront-enrichment-metafield-definition-create-admin.graphql',
+      'config/parity-requests/storefront/storefront-enrichment-metafields-set-admin.graphql',
+      'config/parity-requests/storefront/storefront-enrichment-price-list-create-admin.graphql',
+      'config/parity-requests/storefront/storefront-enrichment-product-create-admin.graphql',
+      'config/parity-requests/storefront/storefront-enrichment-quantity-pricing-admin.graphql',
+      'config/parity-requests/storefront/storefront-enrichment-selling-plan-group-create-admin.graphql',
+      'config/parity-requests/storefront/storefront-enrichment-taxonomy-hydrate.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable products, media, metafield definitions/values, a selling-plan group, inventory location, market, price list, and market catalog through public Admin GraphQL; polls authenticated Storefront targets; then deletes every created resource in dependency order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The fixture stores exact Admin publication and Storefront taxonomy/context hydration calls for proxy replay. The invalid buyer/company context uses a fixed non-secret token and missing company-location GID to capture negative access behavior without retaining customer credentials.',
+  },
+  {
+    domain: 'storefront',
     captureId: 'storefront-collections-read-after-admin-setup',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-storefront-collections-conformance.mts',
@@ -7841,7 +7892,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-collection-top-level-staged-read-conformance.mts',
     purpose:
-      'Top-level collections/collectionsCount plus collectionByIdentifier and deprecated collectionByHandle read-after-write for staged collection create, update, delete, query filters, sortKey, reverse, cursor windows, and count limit precision.',
+      'Top-level collections/collectionsCount plus collectionByIdentifier and deprecated collectionByHandle read-after-write for staged collection create, existing-handle fallback reads, count-only reads, update, delete, query filters, sortKey, reverse, cursor windows, and count limit precision.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}collection-top-level-staged-read.json`,
@@ -7849,6 +7900,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/collection-top-level-staged-read-create.graphql',
       'config/parity-requests/products/collection-top-level-staged-read-update.graphql',
       'config/parity-requests/products/collection-top-level-staged-read-delete.graphql',
+      'config/parity-requests/products/collection-top-level-staged-read-existing-handle-lookups.graphql',
+      'config/parity-requests/products/collection-top-level-staged-read-count-only.graphql',
       'config/parity-requests/products/collection-top-level-staged-read-initial-page1.graphql',
       'config/parity-requests/products/collection-top-level-staged-read-initial-page2.graphql',
       'config/parity-requests/products/collection-top-level-staged-read-post-update.graphql',
@@ -8713,6 +8766,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'The 2026-04 live shop returned invalid-field warnings for total_price during manual probing, so total_price comparator behavior is covered by runtime tests and documented rather than asserted as strict parity here.',
+  },
+  {
+    domain: 'orders',
+    captureId: 'draft-order-live-hybrid-mixed-catalog',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-order-live-hybrid-mixed-catalog-conformance.ts',
+    purpose:
+      'LiveHybrid draftOrders/draftOrder/draftOrdersCount mixed catalog evidence: a real upstream draft order plus a staged candidate draft, update-wins-by-id behavior, and delete tombstone suppression over upstream list/count reads.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-live-hybrid-mixed-catalog.json',
+      'config/parity-specs/orders/draft-order-live-hybrid-mixed-catalog.json',
+      'config/parity-requests/orders/draft-order-live-hybrid-mixed-catalog-create.graphql',
+      'config/parity-requests/orders/draft-order-live-hybrid-mixed-catalog-update.graphql',
+      'config/parity-requests/orders/draft-order-live-hybrid-mixed-catalog-delete.graphql',
+      'config/parity-requests/orders/draft-order-live-hybrid-mixed-catalog-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable draft orders, updates and deletes the upstream-baseline draft, then deletes the candidate draft after recording expected reads.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'orders',

@@ -1,0 +1,37 @@
+mutation StorefrontEnrichmentProductCreate($product: ProductCreateInput!, $media: [CreateMediaInput!]) {
+  productCreate(product: $product, media: $media) {
+    product {
+      id
+      title
+      handle
+      status
+      vendor
+      productType
+      tags
+      variants(first: 5) {
+        nodes {
+          id
+          title
+          inventoryItem {
+            id
+            tracked
+            requiresShipping
+          }
+        }
+      }
+      media(first: 5) {
+        nodes {
+          __typename
+          id
+          alt
+          mediaContentType
+          status
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -765,6 +765,24 @@ pub(in crate::proxy) fn draft_order_search_decision(
     StagedSearchDecision::Match
 }
 
+fn draft_order_matches_count_query(draft_order: &Value, query: Option<&str>) -> bool {
+    matches!(
+        draft_order_search_decision(draft_order, query),
+        StagedSearchDecision::Match
+    )
+}
+
+fn draft_order_count_baseline_key(arguments: &BTreeMap<String, ResolvedValue>) -> String {
+    if arguments.is_empty() {
+        return "args:{}".to_string();
+    }
+    arguments
+        .iter()
+        .map(|(name, value)| format!("{name}:{}", resolved_value_json(value)))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 fn draft_order_matches_query_term(draft_order: &Value, key: &str, value: &str) -> Option<bool> {
     match key.to_ascii_lowercase().as_str() {
         "id" => Some(draft_order_matches_id(draft_order, value)),
@@ -1209,6 +1227,183 @@ pub(in crate::proxy) fn draft_order_max_input_error(
 }
 
 impl DraftProxy {
+    fn live_hybrid_draft_order_read_should_observe_upstream(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return false;
+        }
+        fields.iter().any(|field| match field.name.as_str() {
+            "draftOrders" | "draftOrdersCount" => true,
+            "draftOrder" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
+                !self.store.staged.draft_orders.contains_key(&id)
+                    && !self.store.staged.draft_orders.is_tombstoned(&id)
+            }),
+            _ => false,
+        })
+    }
+
+    fn observe_live_hybrid_draft_order_read(&mut self, request: &Request) {
+        let response = (self.upstream_transport)(request.clone());
+        self.observe_draft_order_read_response(request, &response);
+    }
+
+    fn observe_live_hybrid_draft_order_read_fields(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) {
+        let mut has_singular_draft_order_root = false;
+        for field in fields {
+            if field.name != "draftOrder" {
+                continue;
+            }
+            let Some(id) = resolved_string_field(&field.arguments, "id") else {
+                continue;
+            };
+            has_singular_draft_order_root = true;
+            if self.store.staged.draft_orders.contains_key(&id)
+                || self.store.staged.draft_orders.is_tombstoned(&id)
+                || self.store.base.draft_orders.records.contains_key(&id)
+            {
+                continue;
+            }
+            self.ensure_draft_order_hydrated(request, &id);
+        }
+        if self.live_hybrid_draft_order_read_needs_upstream_baseline(
+            fields,
+            has_singular_draft_order_root,
+        ) {
+            self.observe_live_hybrid_draft_order_read(request);
+        }
+    }
+
+    fn live_hybrid_draft_order_read_needs_upstream_baseline(
+        &self,
+        fields: &[RootFieldSelection],
+        has_singular_draft_order_root: bool,
+    ) -> bool {
+        if !self.live_hybrid_draft_order_read_should_observe_upstream(fields) {
+            return false;
+        }
+
+        let mut has_count_root = false;
+        for field in fields {
+            if field.name != "draftOrdersCount" {
+                continue;
+            }
+            has_count_root = true;
+            let key = draft_order_count_baseline_key(&field.arguments);
+            if self.store.draft_order_count_baseline(&key).is_none() {
+                return true;
+            }
+        }
+        if has_count_root {
+            return false;
+        }
+
+        !has_singular_draft_order_root && fields.iter().any(|field| field.name == "draftOrders")
+    }
+
+    pub(in crate::proxy) fn observe_draft_order_read_response(
+        &mut self,
+        request: &Request,
+        response: &Response,
+    ) {
+        if response.status >= 400 {
+            return;
+        }
+        if let Some(graphql_request) = parse_graphql_request_body(&request.body) {
+            if let Some(fields) = root_fields(&graphql_request.query, &graphql_request.variables) {
+                self.observe_draft_order_count_baselines(&fields, &response.body);
+                self.observe_singular_draft_order_roots(&fields, &response.body);
+            }
+        }
+        self.observe_draft_order_value(&response.body);
+    }
+
+    fn observe_singular_draft_order_roots(&mut self, fields: &[RootFieldSelection], body: &Value) {
+        let Some(data) = body.get("data").and_then(Value::as_object) else {
+            return;
+        };
+        for field in fields {
+            if field.name != "draftOrder" {
+                continue;
+            }
+            let Some(id) = resolved_string_field(&field.arguments, "id") else {
+                continue;
+            };
+            if !is_shopify_gid_of_type(&id, "DraftOrder") {
+                continue;
+            }
+            let Some(value) = data.get(&field.response_key) else {
+                continue;
+            };
+            if !value.is_object() {
+                continue;
+            }
+            let mut draft_order = value.clone();
+            if draft_order.get("id").and_then(Value::as_str).is_none() {
+                if let Some(object) = draft_order.as_object_mut() {
+                    object.insert("id".to_string(), json!(id));
+                }
+            }
+            self.observe_draft_order_value(&draft_order);
+        }
+    }
+
+    fn observe_draft_order_count_baselines(&mut self, fields: &[RootFieldSelection], body: &Value) {
+        let Some(data) = body.get("data").and_then(Value::as_object) else {
+            return;
+        };
+        for field in fields {
+            if field.name != "draftOrdersCount" {
+                continue;
+            }
+            let Some(count) = data.get(&field.response_key) else {
+                continue;
+            };
+            if count.get("count").and_then(Value::as_u64).is_some() {
+                self.store.observe_draft_order_count_baseline(
+                    draft_order_count_baseline_key(&field.arguments),
+                    count.clone(),
+                );
+            }
+        }
+    }
+
+    fn observe_draft_order_value(&mut self, value: &Value) {
+        if let Some(id) = value.get("id").and_then(Value::as_str) {
+            if is_shopify_gid_of_type(id, "DraftOrder") {
+                self.store.observe_base_draft_order(value.clone());
+                return;
+            }
+        }
+        match value {
+            Value::Array(values) => {
+                for value in values {
+                    self.observe_draft_order_value(value);
+                }
+            }
+            Value::Object(object) => {
+                for value in object.values() {
+                    self.observe_draft_order_value(value);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn tombstone_observed_draft_order(&mut self, id: &str) -> bool {
+        if self.store.observed_draft_order_by_id(id).is_none() {
+            return false;
+        }
+        self.store.staged.draft_orders.remove_staged(id);
+        self.store.staged.draft_orders.tombstone(id.to_string());
+        true
+    }
+
     pub(in crate::proxy) fn draft_order_complete_local_data(
         &mut self,
         request: &Request,
@@ -1315,23 +1510,28 @@ impl DraftProxy {
                     | "draftOrderInvoicePreview"
             )
         });
-        // List/count reads are only served locally once at least one draft order
-        // has been staged in this scenario; otherwise they fall through to the
-        // upstream passthrough so the recorded live catalog replays verbatim.
-        let has_staged_read = fields.iter().any(|field| match field.name.as_str() {
-            "draftOrder" => resolved_string_field(&field.arguments, "id")
-                .is_some_and(|id| self.store.staged.draft_orders.contains_key(&id)),
-            // List/count reads resolve locally once any draft order has existed this
-            // scenario (counter advanced past its base) — a session that created then
-            // bulk-deleted every draft must still report `{count: 0}` rather than
-            // falling through to the upstream catalog.
-            "draftOrders" | "draftOrdersCount" => {
-                !self.store.staged.draft_orders.is_empty()
-                    || self.store.staged.next_draft_order_id > 1
-            }
-            _ => false,
+        let all_reads = fields.iter().all(|field| {
+            matches!(
+                field.name.as_str(),
+                "draftOrder" | "draftOrders" | "draftOrdersCount"
+            )
         });
-        if !has_lifecycle_root && !has_staged_read {
+        if all_reads {
+            let has_local_read = fields.iter().any(|field| match field.name.as_str() {
+                "draftOrder" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
+                    self.store.staged.draft_orders.contains_key(&id)
+                        || self.store.staged.draft_orders.is_tombstoned(&id)
+                        || self.store.observed_draft_order_by_id(&id).is_some()
+                        || !self.store.staged.draft_orders.is_empty()
+                }),
+                "draftOrders" | "draftOrdersCount" => !self.store.staged.draft_orders.is_empty(),
+                _ => false,
+            });
+            if !has_local_read {
+                return None;
+            }
+            self.observe_live_hybrid_draft_order_read_fields(request, &fields);
+        } else if !has_lifecycle_root {
             return None;
         }
 
@@ -1491,7 +1691,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        let Some(existing) = self.store.staged.draft_orders.get(&id).cloned() else {
+        let Some(existing) = self.store.observed_draft_order_by_id(&id).cloned() else {
             return selected_json(
                 &draft_order_not_found_payload("draftOrder"),
                 &field.selection,
@@ -1586,7 +1786,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let Some(source) = self.store.staged.draft_orders.get(&id).cloned() else {
+        let Some(source) = self.store.observed_draft_order_by_id(&id).cloned() else {
             return selected_json(
                 &draft_order_not_found_payload("draftOrder"),
                 &field.selection,
@@ -1643,7 +1843,7 @@ impl DraftProxy {
         let id = resolved_string_field(&input, "id")
             .or_else(|| resolved_string_field(&field.arguments, "id"))
             .unwrap_or_default();
-        if self.store.staged.draft_orders.remove(&id).is_none() {
+        if !self.tombstone_observed_draft_order(&id) {
             return selected_json(
                 &draft_order_not_found_payload("deletedId"),
                 &field.selection,
@@ -1674,7 +1874,7 @@ impl DraftProxy {
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, id) in ids.iter().enumerate() {
-            if self.store.staged.draft_orders.remove(id).is_some() {
+            if self.tombstone_observed_draft_order(id) {
                 self.store.staged.draft_order_tags.remove(id);
                 deleted_ids.push(id.clone());
             } else {
@@ -1750,7 +1950,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let Some(draft_order) = self.store.staged.draft_orders.get(&id).cloned() else {
+        let Some(draft_order) = self.store.observed_draft_order_by_id(&id).cloned() else {
             return selected_json(
                 &json!({
                     "previewSubject": Value::Null,
@@ -1790,9 +1990,7 @@ impl DraftProxy {
             return Value::Null;
         };
         self.store
-            .staged
-            .draft_orders
-            .get(&id)
+            .observed_draft_order_by_id(&id)
             .map(|draft_order| {
                 selected_json(
                     &self.payment_terms_owner_record_with_effective_due(draft_order),
@@ -1806,18 +2004,45 @@ impl DraftProxy {
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> StagedConnectionResult<Value> {
+        let arguments = self.draft_order_arguments_with_saved_search_query(arguments);
         staged_connection_query(
-            self.store
-                .staged
-                .draft_orders
-                .values()
-                .cloned()
-                .collect::<Vec<_>>(),
-            arguments,
+            self.store.effective_draft_orders(),
+            &arguments,
             draft_order_search_decision,
             draft_order_staged_sort_key,
             value_id_cursor,
         )
+    }
+
+    fn draft_order_arguments_with_saved_search_query(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> BTreeMap<String, ResolvedValue> {
+        let Some(saved_search_id) = resolved_string_field(arguments, "savedSearchId") else {
+            return arguments.clone();
+        };
+        let mut merged = arguments.clone();
+        merged.remove("savedSearchId");
+        let Some(saved_search_query) = self
+            .store
+            .saved_search_by_id(&saved_search_id)
+            .filter(|record| record.resource_type == "DRAFT_ORDER")
+            .map(|record| record.query)
+        else {
+            return merged;
+        };
+        let argument_query = resolved_string_field(arguments, "query").unwrap_or_default();
+        let query = match (
+            saved_search_query.trim().is_empty(),
+            argument_query.trim().is_empty(),
+        ) {
+            (true, true) => String::new(),
+            (true, false) => argument_query,
+            (false, true) => saved_search_query,
+            (false, false) => format!("{saved_search_query} {argument_query}"),
+        };
+        merged.insert("query".to_string(), ResolvedValue::String(query));
+        merged
     }
 
     pub(super) fn staged_draft_orders_connection(&self, field: &RootFieldSelection) -> Value {
@@ -1839,16 +2064,80 @@ impl DraftProxy {
 
     pub(super) fn staged_draft_orders_count(&self, field: &RootFieldSelection) -> Value {
         selected_json(
-            &count_object(
-                self.matching_draft_orders_query(&field.arguments)
-                    .total_count,
-            ),
+            &self.effective_draft_orders_count_value(&field.arguments),
             &field.selection,
         )
     }
 
+    fn effective_draft_orders_count_value(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let baseline_key = draft_order_count_baseline_key(arguments);
+        let Some(baseline) = self.store.draft_order_count_baseline(&baseline_key) else {
+            return count_object(self.matching_draft_orders_query(arguments).total_count);
+        };
+        let Some(base_count) = baseline.get("count").and_then(Value::as_u64) else {
+            return count_object(self.matching_draft_orders_query(arguments).total_count);
+        };
+        let delta = self.staged_draft_order_count_delta(
+            &self.draft_order_arguments_with_saved_search_query(arguments),
+        );
+        let effective_total = if delta.is_negative() {
+            (base_count as usize).saturating_sub(delta.unsigned_abs())
+        } else {
+            (base_count as usize).saturating_add(delta as usize)
+        };
+        let mut count = count_object(effective_total);
+        if baseline.get("precision").and_then(Value::as_str) == Some("AT_LEAST") {
+            count["precision"] = json!("AT_LEAST");
+        }
+        count
+    }
+
+    fn staged_draft_order_count_delta(&self, arguments: &BTreeMap<String, ResolvedValue>) -> isize {
+        let query = resolved_string_field(arguments, "query");
+        let mut delta = 0isize;
+        for id in &self.store.staged.draft_orders.tombstones {
+            if let Some(base_draft_order) = self.store.base.draft_orders.records.get(id) {
+                if draft_order_matches_count_query(base_draft_order, query.as_deref()) {
+                    delta -= 1;
+                }
+            }
+        }
+        for (id, staged_draft_order) in &self.store.staged.draft_orders.records {
+            if self.store.staged.draft_orders.is_tombstoned(id) {
+                continue;
+            }
+            let staged_matches =
+                draft_order_matches_count_query(staged_draft_order, query.as_deref());
+            if let Some(base_draft_order) = self.store.base.draft_orders.records.get(id) {
+                let base_matches =
+                    draft_order_matches_count_query(base_draft_order, query.as_deref());
+                delta += staged_matches as isize - base_matches as isize;
+            } else if let Some(base_draft_order) = self
+                .store
+                .base_draft_order_logical_duplicate_for_staged(id, staged_draft_order)
+            {
+                let base_matches =
+                    draft_order_matches_count_query(base_draft_order, query.as_deref());
+                delta += staged_matches as isize - base_matches as isize;
+            } else if staged_matches {
+                delta += 1;
+            }
+        }
+        delta
+    }
+
     pub(super) fn next_draft_order_id(&mut self) -> String {
-        let id = shopify_gid("DraftOrder", self.store.staged.next_draft_order_id);
+        let mut id = shopify_gid("DraftOrder", self.store.staged.next_draft_order_id);
+        while self.store.base.draft_orders.records.contains_key(&id)
+            || self.store.staged.draft_orders.contains_staged(&id)
+            || self.store.staged.draft_orders.is_tombstoned(&id)
+        {
+            self.store.staged.next_draft_order_id += 1;
+            id = shopify_gid("DraftOrder", self.store.staged.next_draft_order_id);
+        }
         self.store.staged.next_draft_order_id += 1;
         id
     }
@@ -1881,6 +2170,8 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot
             || id.is_empty()
             || self.store.staged.draft_orders.contains_key(id)
+            || self.store.staged.draft_orders.is_tombstoned(id)
+            || self.store.base.draft_orders.records.contains_key(id)
         {
             return;
         }
@@ -1899,11 +2190,7 @@ impl DraftProxy {
         if !draft_order.is_object() {
             return;
         }
-        self.store
-            .staged
-            .draft_orders
-            .insert(id.to_string(), draft_order);
-        self.sync_draft_order_tags(id);
+        self.store.observe_base_draft_order(draft_order);
     }
 
     pub(super) fn ensure_order_hydrated(&mut self, request: &Request, id: &str) {
@@ -2261,7 +2548,13 @@ impl DraftProxy {
     pub(super) fn draft_order_bulk_target_ids(&self, field: &RootFieldSelection) -> Vec<String> {
         let mut ids = resolved_string_list_arg(&field.arguments, "ids");
         if ids.is_empty() && resolved_string_field(&field.arguments, "search").is_some() {
-            ids = self.store.staged.draft_orders.keys().cloned().collect();
+            ids = self
+                .store
+                .effective_draft_orders()
+                .iter()
+                .filter_map(|draft_order| draft_order.get("id").and_then(Value::as_str))
+                .map(str::to_string)
+                .collect();
         }
         ids
     }
@@ -2302,7 +2595,7 @@ impl DraftProxy {
                 &field.selection,
             );
         };
-        let Some(mut draft_order) = self.store.staged.draft_orders.get(&id).cloned() else {
+        let Some(mut draft_order) = self.store.observed_draft_order_by_id(&id).cloned() else {
             return draft_order_complete_payload(
                 Value::Null,
                 vec![user_error_omit_code(
@@ -2528,7 +2821,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let Some(draft_order) = self.store.staged.draft_orders.get(&id).cloned() else {
+        let Some(draft_order) = self.store.observed_draft_order_by_id(&id).cloned() else {
             self.record_orders_local_log_entry(OrdersLocalLogEntry {
                 request,
                 query,

@@ -1,0 +1,41 @@
+query InventoryConnectionTransfersWindow($query: String!) {
+  inventoryTransfers(first: 10, query: $query, sortKey: CREATED_AT) {
+    nodes {
+      id
+      name
+      dateCreated
+      status
+      tags
+      totalQuantity
+      origin {
+        name
+        location {
+          id
+          name
+        }
+      }
+      destination {
+        name
+        location {
+          id
+          name
+        }
+      }
+      lineItems(first: 10) {
+        nodes {
+          id
+          totalQuantity
+          inventoryItem {
+            id
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

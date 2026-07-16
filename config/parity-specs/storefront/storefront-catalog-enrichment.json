@@ -1,0 +1,955 @@
+{
+  "scenarioId": "storefront-catalog-enrichment",
+  "operationNames": ["product", "productByHandle", "productRecommendations", "productTags", "productTypes"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "pagination-parity",
+    "context-isolation",
+    "visibility-parity",
+    "storefront-api-local-overlay",
+    "authenticated-read"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-catalog-enrichment.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/storefront.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/storefront/storefront-enrichment-product-create-admin.graphql",
+    "variablesCapturePath": "$.setup.primaryProductCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "admin-primary-product-create-enrichment-setup",
+        "capturePath": "$.setup.primaryProductCreate.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
+        "name": "admin-candidate-product-create-enrichment-setup",
+        "capturePath": "$.setup.candidateProductCreate.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-product-create-admin.graphql",
+          "variablesCapturePath": "$.setup.candidateProductCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-primary-variant-update-enrichment-setup",
+        "capturePath": "$.setup.variantUpdate.response.data.updateVariant.userErrors",
+        "proxyPath": "$.data.updateVariant.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-variant-update-admin.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variants": [
+              {
+                "id": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "price": {
+                  "fromCapturePath": "$.setup.variantUpdate.request.variables.variants[0].price"
+                },
+                "compareAtPrice": {
+                  "fromCapturePath": "$.setup.variantUpdate.request.variables.variants[0].compareAtPrice"
+                },
+                "barcode": {
+                  "fromCapturePath": "$.setup.variantUpdate.request.variables.variants[0].barcode"
+                },
+                "inventoryItem": {
+                  "fromCapturePath": "$.setup.variantUpdate.request.variables.variants[0].inventoryItem"
+                }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-location-add-enrichment-setup",
+        "capturePath": "$.setup.locationAdd.response.data.locationAdd.userErrors",
+        "proxyPath": "$.data.locationAdd.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-location-add-admin.graphql",
+          "variablesCapturePath": "$.setup.locationAdd.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-primary-online-store-publish",
+        "capturePath": "$.setup.primaryOnlineStorePublish.response.data.publishablePublish.userErrors",
+        "proxyPath": "$.data.publishablePublish.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-publish-admin.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "input": {
+              "fromCapturePath": "$.setup.primaryOnlineStorePublish.request.variables.input"
+            },
+            "publicationId": {
+              "fromCapturePath": "$.setup.primaryOnlineStorePublish.request.variables.publicationId"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-candidate-online-store-publish",
+        "capturePath": "$.setup.candidateOnlineStorePublish.response.data.publishablePublish.userErrors",
+        "proxyPath": "$.data.publishablePublish.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-publish-admin.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-candidate-product-create-enrichment-setup",
+              "path": "$.data.productCreate.product.id"
+            },
+            "input": {
+              "fromCapturePath": "$.setup.candidateOnlineStorePublish.request.variables.input"
+            },
+            "publicationId": {
+              "fromCapturePath": "$.setup.candidateOnlineStorePublish.request.variables.publicationId"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-visible-product-definition-setup",
+        "capturePath": "$.setup.visibleProductDefinition.response.data.metafieldDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-metafield-definition-create-admin.graphql",
+          "variablesCapturePath": "$.setup.visibleProductDefinition.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-hidden-product-definition-setup",
+        "capturePath": "$.setup.hiddenProductDefinition.response.data.metafieldDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-metafield-definition-create-admin.graphql",
+          "variablesCapturePath": "$.setup.hiddenProductDefinition.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-visible-variant-definition-setup",
+        "capturePath": "$.setup.visibleVariantDefinition.response.data.metafieldDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-metafield-definition-create-admin.graphql",
+          "variablesCapturePath": "$.setup.visibleVariantDefinition.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-owner-metafields-enrichment-setup",
+        "capturePath": "$.setup.metafieldsSet.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-metafields-set-admin.graphql",
+          "variables": {
+            "metafields": [
+              {
+                "ownerId": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                },
+                "namespace": {
+                  "fromCapturePath": "$.setup.metafieldsSet.request.variables.metafields[0].namespace"
+                },
+                "key": {
+                  "fromCapturePath": "$.setup.metafieldsSet.request.variables.metafields[0].key"
+                },
+                "type": {
+                  "fromCapturePath": "$.setup.metafieldsSet.request.variables.metafields[0].type"
+                },
+                "value": {
+                  "fromCapturePath": "$.setup.metafieldsSet.request.variables.metafields[0].value"
+                }
+              },
+              {
+                "ownerId": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                },
+                "namespace": {
+                  "fromCapturePath": "$.setup.metafieldsSet.request.variables.metafields[1].namespace"
+                },
+                "key": {
+                  "fromCapturePath": "$.setup.metafieldsSet.request.variables.metafields[1].key"
+                },
+                "type": {
+                  "fromCapturePath": "$.setup.metafieldsSet.request.variables.metafields[1].type"
+                },
+                "value": {
+                  "fromCapturePath": "$.setup.metafieldsSet.request.variables.metafields[1].value"
+                }
+              },
+              {
+                "ownerId": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "namespace": {
+                  "fromCapturePath": "$.setup.metafieldsSet.request.variables.metafields[2].namespace"
+                },
+                "key": {
+                  "fromCapturePath": "$.setup.metafieldsSet.request.variables.metafields[2].key"
+                },
+                "type": {
+                  "fromCapturePath": "$.setup.metafieldsSet.request.variables.metafields[2].type"
+                },
+                "value": {
+                  "fromCapturePath": "$.setup.metafieldsSet.request.variables.metafields[2].value"
+                }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-selling-plan-enrichment-setup",
+        "capturePath": "$.setup.sellingPlanCreate.response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-selling-plan-group-create-admin.graphql",
+          "variables": {
+            "input": {
+              "fromCapturePath": "$.setup.sellingPlanCreate.request.variables.input"
+            },
+            "resources": {
+              "productIds": [
+                {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                }
+              ]
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-market-enrichment-setup",
+        "capturePath": "$.setup.marketCreate.response.data.marketCreate.userErrors",
+        "proxyPath": "$.data.marketCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-market-create-admin.graphql",
+          "variablesCapturePath": "$.setup.marketCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-price-list-enrichment-setup",
+        "capturePath": "$.setup.priceListCreate.response.data.priceListCreate.userErrors",
+        "proxyPath": "$.data.priceListCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-price-list-create-admin.graphql",
+          "variablesCapturePath": "$.setup.priceListCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-market-catalog-enrichment-setup",
+        "capturePath": "$.setup.catalogCreate.response.data.catalogCreate.userErrors",
+        "proxyPath": "$.data.catalogCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-catalog-create-admin.graphql",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.setup.catalogCreate.request.variables.input.title"
+              },
+              "status": {
+                "fromCapturePath": "$.setup.catalogCreate.request.variables.input.status"
+              },
+              "context": {
+                "marketIds": [
+                  {
+                    "fromProxyResponse": "admin-market-enrichment-setup",
+                    "path": "$.data.marketCreate.market.id"
+                  }
+                ]
+              },
+              "priceListId": {
+                "fromProxyResponse": "admin-price-list-enrichment-setup",
+                "path": "$.data.priceListCreate.priceList.id"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-market-quantity-rules-reject-unsupported-context",
+        "capturePath": "$.setup.unsupportedMarketQuantityPricing.response.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-quantity-pricing-admin.graphql",
+          "variables": {
+            "priceListId": {
+              "fromProxyResponse": "admin-price-list-enrichment-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "input": {
+              "pricesToAdd": [],
+              "pricesToDeleteByVariantId": [],
+              "quantityRulesToAdd": [
+                {
+                  "variantId": {
+                    "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+                  },
+                  "minimum": 5,
+                  "maximum": 50,
+                  "increment": 5
+                }
+              ],
+              "quantityRulesToDeleteByVariantId": [],
+              "quantityPriceBreaksToAdd": [
+                {
+                  "variantId": {
+                    "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+                  },
+                  "minimumQuantity": 10,
+                  "price": {
+                    "fromCapturePath": "$.setup.unsupportedMarketQuantityPricing.request.variables.input.quantityPriceBreaksToAdd[0].price"
+                  }
+                }
+              ],
+              "quantityPriceBreaksToDelete": [],
+              "quantityPriceBreaksToDeleteByVariantId": []
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-market-fixed-price-enrichment-setup",
+        "capturePath": "$.setup.quantityPricing.response.data.quantityPricingByVariantUpdate.userErrors",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-quantity-pricing-admin.graphql",
+          "variables": {
+            "priceListId": {
+              "fromProxyResponse": "admin-price-list-enrichment-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "input": {
+              "pricesToAdd": [
+                {
+                  "variantId": {
+                    "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+                  },
+                  "price": {
+                    "fromCapturePath": "$.setup.quantityPricing.request.variables.input.pricesToAdd[0].price"
+                  },
+                  "compareAtPrice": {
+                    "fromCapturePath": "$.setup.quantityPricing.request.variables.input.pricesToAdd[0].compareAtPrice"
+                  }
+                }
+              ],
+              "pricesToDeleteByVariantId": [],
+              "quantityRulesToAdd": [],
+              "quantityRulesToDeleteByVariantId": [],
+              "quantityPriceBreaksToAdd": [],
+              "quantityPriceBreaksToDelete": [],
+              "quantityPriceBreaksToDeleteByVariantId": []
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-enrichment-recommendations-opaque-ranking",
+        "capturePath": "$.setup.merchandisingRead.response.body.data.recommendations",
+        "proxyPath": "$.data.recommendations",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-merchandising-read.graphql",
+          "operationName": "StorefrontEnrichmentMerchandising",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "handle": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.handle"
+            },
+            "missingId": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.missingId"
+            },
+            "visibleProductKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.visibleProductKey"
+            },
+            "hiddenProductKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.hiddenProductKey"
+            },
+            "visibleVariantKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.visibleVariantKey"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify's RELATED recommendation ranking is opaque and returned ten unrelated pre-existing catalog products. The proxy intentionally uses a deterministic shared-tag/type/vendor score over locally visible product state."
+          }
+        ]
+      },
+      {
+        "name": "storefront-enrichment-recommendations-by-handle-opaque-ranking",
+        "capturePath": "$.setup.merchandisingRead.response.body.data.recommendationsByHandle",
+        "proxyPath": "$.data.recommendationsByHandle",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-merchandising-read.graphql",
+          "operationName": "StorefrontEnrichmentMerchandising",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "handle": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.handle"
+            },
+            "missingId": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.missingId"
+            },
+            "visibleProductKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.visibleProductKey"
+            },
+            "hiddenProductKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.hiddenProductKey"
+            },
+            "visibleVariantKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.visibleVariantKey"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify's RELATED recommendation ranking is opaque and returned ten unrelated pre-existing catalog products. The proxy intentionally uses a deterministic shared-tag/type/vendor score over locally visible product state."
+          }
+        ]
+      },
+      {
+        "name": "storefront-enrichment-missing-recommendations-null",
+        "capturePath": "$.setup.merchandisingRead.response.body.data.missingRecommendations",
+        "proxyPath": "$.data.missingRecommendations",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-merchandising-read.graphql",
+          "operationName": "StorefrontEnrichmentMerchandising",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "handle": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.handle"
+            },
+            "missingId": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.missingId"
+            },
+            "visibleProductKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.visibleProductKey"
+            },
+            "hiddenProductKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.hiddenProductKey"
+            },
+            "visibleVariantKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.visibleVariantKey"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-enrichment-product-tags-whole-connection",
+        "capturePath": "$.setup.merchandisingRead.response.body.data.productTags",
+        "proxyPath": "$.data.productTags",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-merchandising-read.graphql",
+          "operationName": "StorefrontEnrichmentMerchandising",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "handle": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.handle"
+            },
+            "missingId": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.missingId"
+            },
+            "visibleProductKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.visibleProductKey"
+            },
+            "hiddenProductKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.hiddenProductKey"
+            },
+            "visibleVariantKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.visibleVariantKey"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-enrichment-product-types-whole-connection",
+        "capturePath": "$.setup.merchandisingRead.response.body.data.productTypes",
+        "proxyPath": "$.data.productTypes",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-merchandising-read.graphql",
+          "operationName": "StorefrontEnrichmentMerchandising",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "handle": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.handle"
+            },
+            "missingId": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.missingId"
+            },
+            "visibleProductKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.visibleProductKey"
+            },
+            "hiddenProductKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.hiddenProductKey"
+            },
+            "visibleVariantKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.visibleVariantKey"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-enrichment-product-whole-selected-payload",
+        "capturePath": "$.setup.merchandisingRead.response.body.data.aliasedProduct",
+        "proxyPath": "$.data.aliasedProduct",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-merchandising-read.graphql",
+          "operationName": "StorefrontEnrichmentMerchandising",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "handle": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.handle"
+            },
+            "missingId": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.missingId"
+            },
+            "visibleProductKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.visibleProductKey"
+            },
+            "hiddenProductKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.hiddenProductKey"
+            },
+            "visibleVariantKey": {
+              "fromCapturePath": "$.setup.merchandisingRead.variables.visibleVariantKey"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.featuredImage.id",
+            "matcher": "shopify-gid:ProductImage",
+            "reason": "The proxy projects a staged ProductImage identity derived from the staged media record."
+          },
+          {
+            "path": "$.featuredImage.url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify rehosts the submitted image on its CDN; the proxy retains the merchant-supplied source URL."
+          },
+          {
+            "path": "$.images.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify image cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.images.edges[*].node.id",
+            "matcher": "shopify-gid:ProductImage",
+            "reason": "The proxy projects staged ProductImage identities."
+          },
+          {
+            "path": "$.images.edges[*].node.url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify rehosts the submitted image while the proxy retains its source URL."
+          },
+          {
+            "path": "$.images.nodes[*].id",
+            "matcher": "shopify-gid:ProductImage",
+            "reason": "The proxy projects staged ProductImage identities."
+          },
+          {
+            "path": "$.images.nodes[*].url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify rehosts the submitted image while the proxy retains its source URL."
+          },
+          {
+            "path": "$.images.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify image cursors are opaque."
+          },
+          {
+            "path": "$.images.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify image cursors are opaque."
+          },
+          {
+            "path": "$.media.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify media cursors are opaque."
+          },
+          {
+            "path": "$.media.edges[*].node.id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy projects staged MediaImage identities."
+          },
+          {
+            "path": "$.media.edges[*].node.previewImage.id",
+            "matcher": "shopify-gid:ImageSource",
+            "reason": "The proxy projects a staged ImageSource identity."
+          },
+          {
+            "path": "$.media.edges[*].node.previewImage.url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify rehosts the submitted image while the proxy retains its source URL."
+          },
+          {
+            "path": "$.media.edges[*].node.image.id",
+            "matcher": "shopify-gid:ImageSource",
+            "reason": "The proxy projects a staged ImageSource identity."
+          },
+          {
+            "path": "$.media.edges[*].node.image.url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify rehosts the submitted image while the proxy retains its source URL."
+          },
+          {
+            "path": "$.media.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify media cursors are opaque."
+          },
+          {
+            "path": "$.media.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify media cursors are opaque."
+          },
+          {
+            "path": "$.mediaTail.nodes[*].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy projects staged MediaImage identities."
+          },
+          {
+            "path": "$.mediaTail.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify media cursors are opaque."
+          },
+          {
+            "path": "$.mediaTail.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify media cursors are opaque."
+          },
+          {
+            "path": "$.visibleProductMetafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages a synthetic product Metafield ID."
+          },
+          {
+            "path": "$.selectedProductMetafields[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages a synthetic product Metafield ID."
+          },
+          {
+            "path": "$.sellingPlanGroups.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify selling-plan-group cursors are opaque."
+          },
+          {
+            "path": "$.sellingPlanGroups.edges[*].node.sellingPlans.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify selling-plan cursors are opaque."
+          },
+          {
+            "path": "$.sellingPlanGroups.edges[*].node.sellingPlans.edges[*].node.id",
+            "matcher": "shopify-gid:SellingPlan",
+            "reason": "The proxy stages a synthetic SellingPlan ID."
+          },
+          {
+            "path": "$.sellingPlanGroups.edges[*].node.sellingPlans.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify selling-plan cursors are opaque."
+          },
+          {
+            "path": "$.sellingPlanGroups.edges[*].node.sellingPlans.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify selling-plan cursors are opaque."
+          },
+          {
+            "path": "$.sellingPlanGroups.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify selling-plan-group cursors are opaque."
+          },
+          {
+            "path": "$.sellingPlanGroups.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify selling-plan-group cursors are opaque."
+          },
+          {
+            "path": "$.variants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify variant cursors are opaque."
+          },
+          {
+            "path": "$.variants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The proxy projects staged ProductVariant IDs."
+          },
+          {
+            "path": "$.variants.edges[*].node.image.id",
+            "matcher": "shopify-gid:ProductImage",
+            "reason": "The proxy projects staged ProductImage identities."
+          },
+          {
+            "path": "$.variants.edges[*].node.image.url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify rehosts the submitted image while the proxy retains its source URL."
+          },
+          {
+            "path": "$.variants.edges[*].node.visibleVariantMetafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages a synthetic variant Metafield ID."
+          },
+          {
+            "path": "$.variants.edges[*].node.selectedVariantMetafields[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages a synthetic variant Metafield ID."
+          },
+          {
+            "path": "$.variants.edges[*].node.sellingPlanAllocations.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify selling-plan-allocation cursors are opaque."
+          },
+          {
+            "path": "$.variants.edges[*].node.sellingPlanAllocations.edges[*].node.sellingPlan.id",
+            "matcher": "shopify-gid:SellingPlan",
+            "reason": "The proxy stages a synthetic SellingPlan ID."
+          },
+          {
+            "path": "$.variants.edges[*].node.sellingPlanAllocations.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify selling-plan-allocation cursors are opaque."
+          },
+          {
+            "path": "$.variants.edges[*].node.sellingPlanAllocations.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify selling-plan-allocation cursors are opaque."
+          },
+          {
+            "path": "$.variants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify variant cursors are opaque."
+          },
+          {
+            "path": "$.variants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify variant cursors are opaque."
+          }
+        ]
+      },
+      {
+        "name": "storefront-enrichment-default-context-whole-payload",
+        "capturePath": "$.setup.defaultContextRead.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-context-read.graphql",
+          "operationName": "StorefrontEnrichmentContext",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "country": null,
+            "language": null,
+            "preferredLocationId": null,
+            "buyer": null
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.product.variants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The proxy projects staged ProductVariant IDs."
+          },
+          {
+            "path": "$.product.variants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify variant cursors are opaque."
+          },
+          {
+            "path": "$.product.variants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify variant cursors are opaque."
+          }
+        ]
+      },
+      {
+        "name": "storefront-enrichment-country-language-context-whole-payload",
+        "capturePath": "$.setup.countryContextRead.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-context-read.graphql",
+          "operationName": "StorefrontEnrichmentContext",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "country": {
+              "fromCapturePath": "$.setup.countryContextRead.variables.country"
+            },
+            "language": {
+              "fromCapturePath": "$.setup.countryContextRead.variables.language"
+            },
+            "preferredLocationId": null,
+            "buyer": null
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.product.variants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The proxy projects staged ProductVariant IDs."
+          },
+          {
+            "path": "$.product.variants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify variant cursors are opaque."
+          },
+          {
+            "path": "$.product.variants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify variant cursors are opaque."
+          }
+        ]
+      },
+      {
+        "name": "storefront-enrichment-preferred-location-context-whole-payload",
+        "capturePath": "$.setup.preferredContextRead.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-context-read.graphql",
+          "operationName": "StorefrontEnrichmentContext",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "country": {
+              "fromCapturePath": "$.setup.preferredContextRead.variables.country"
+            },
+            "language": {
+              "fromCapturePath": "$.setup.preferredContextRead.variables.language"
+            },
+            "preferredLocationId": {
+              "fromProxyResponse": "admin-location-add-enrichment-setup",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "buyer": null
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.product.variants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The proxy projects staged ProductVariant IDs."
+          },
+          {
+            "path": "$.product.variants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify variant cursors are opaque."
+          },
+          {
+            "path": "$.product.variants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify variant cursors are opaque."
+          }
+        ]
+      },
+      {
+        "name": "storefront-enrichment-invalid-buyer-company-context-error",
+        "capturePath": "$.setup.invalidBuyerRead.response.body.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-context-read.graphql",
+          "operationName": "StorefrontEnrichmentContext",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "country": {
+              "fromCapturePath": "$.setup.invalidBuyerRead.variables.country"
+            },
+            "language": {
+              "fromCapturePath": "$.setup.invalidBuyerRead.variables.language"
+            },
+            "preferredLocationId": {
+              "fromProxyResponse": "admin-location-add-enrichment-setup",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "buyer": {
+              "fromCapturePath": "$.setup.invalidBuyerRead.variables.buyer"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Authenticated Storefront 2026-04 merchandising/context capture. Public Admin setup creates two visible products, image media, public/private product and variant metafields, a product selling-plan group, a DK market catalog with fixed prices, and a preferred location. Whole selected product and context payloads are compared. Shopify's opaque RELATED recommendation arrays are the sole regrettable ignored payloads; the proxy uses deterministic similarity ranking. Captured market catalogs reject quantity rules/price breaks, so those Storefront fields remain default/empty here. Invalid buyer plus company location returns the exact top-level token error."
+}

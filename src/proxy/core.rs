@@ -242,26 +242,40 @@ impl DraftProxy {
         let cart_sensitive = root_fields
             .iter()
             .any(|root| storefront_cart::storefront_cart_root_is_sensitive(root));
-        let query = if cart_sensitive {
-            json!("<redacted:storefront-cart-query>")
-        } else {
-            parsed_body
-                .as_ref()
-                .map(|body| json!(body.query.clone()))
-                .unwrap_or(Value::Null)
-        };
+        let raw_query = parsed_body
+            .as_ref()
+            .map(|body| body.query.clone())
+            .unwrap_or_default();
+        let raw_variables = parsed_body
+            .as_ref()
+            .map(|body| resolved_variables_json(&body.variables))
+            .unwrap_or_else(|| json!({}));
         let variables = if cart_sensitive {
             json!({ "redacted": true })
         } else {
-            parsed_body
-                .as_ref()
-                .map(|body| resolved_variables_json(&body.variables))
-                .unwrap_or_else(|| json!({}))
+            super::storefront::storefront_redact_sensitive_json(raw_variables.clone(), None)
+        };
+        let contains_sensitive_context = cart_sensitive
+            || variables != raw_variables
+            || raw_query.contains("customerAccessToken")
+            || raw_query.contains("multipassToken")
+            || raw_query.contains("resetToken")
+            || raw_query.contains("activationToken");
+        let query = if cart_sensitive {
+            json!("<redacted:storefront-cart-query>")
+        } else if contains_sensitive_context {
+            json!("<redacted:storefront-sensitive-query>")
+        } else if raw_query.is_empty() {
+            Value::Null
+        } else {
+            json!(raw_query)
         };
         let raw_body = if cart_sensitive {
-            "<redacted:storefront-cart-request>".to_string()
+            json!("<redacted:storefront-cart-request>")
+        } else if contains_sensitive_context {
+            json!("<redacted:storefront-sensitive-request>")
         } else {
-            request.body.clone()
+            json!(request.body)
         };
         self.log_entries.push(json!({
             "id": id,
@@ -476,6 +490,8 @@ impl DraftProxy {
                 "shop": self.store.base.shop.clone(),
                 "storefrontShop": self.store.base.storefront_shop.clone(),
                 "storefrontLocalizations": self.store.base.storefront_localizations.clone(),
+                "storefrontProductTags": self.store.base.storefront_product_tags.clone(),
+                "storefrontProductTypes": self.store.base.storefront_product_types.clone(),
                 "storefrontPaymentSettings": self.store.base.storefront_payment_settings.clone(),
                 "storefrontLocations": self.store.base.storefront_locations.records.clone(),
                 "storefrontLocationOrder": self.store.base.storefront_locations.order.clone(),
@@ -501,6 +517,7 @@ impl DraftProxy {
                 "deletedProductFeedIds": self.store.staged.product_feeds.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "collections": self.store.staged.collections.records.clone(),
                 "deletedCollectionIds": self.store.staged.collections.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "deletedCollectionHandles": self.store.staged.deleted_collection_handles.iter().cloned().collect::<Vec<_>>(),
                 "collectionJobs": self.store.staged.collection_jobs.clone(),
                 "savedSearches": saved_search_state_map_json(&self.store.staged.saved_searches.records),
                 "savedSearchOrder": self.store.staged.saved_searches.order,
@@ -594,6 +611,10 @@ impl DraftProxy {
             "baseState": base_state,
             "stagedState": staged_state
         });
+        snapshot["baseState"]["draftOrders"] = json!(self.store.base.draft_orders.records.clone());
+        snapshot["baseState"]["draftOrderOrder"] = json!(self.store.base.draft_orders.order);
+        snapshot["baseState"]["draftOrderCountBaselines"] =
+            json!(self.store.base.draft_order_count_baselines.clone());
         snapshot["baseState"]["metafieldDefinitions"] = base_metafield_definitions_value;
         snapshot["baseState"]["metafieldDefinitionOwnerCatalogs"] =
             base_metafield_definition_owner_catalogs_value;
@@ -1005,9 +1026,29 @@ impl DraftProxy {
             snapshot["stagedState"]["inactiveInventoryLevels"] =
                 inactive_inventory_levels_json(&self.store.staged.inactive_inventory_levels);
         }
+        if !self.store.base.inventory_transfers.records.is_empty() {
+            snapshot["baseState"]["inventoryTransfers"] =
+                serde_json::to_value(&self.store.base.inventory_transfers.records)
+                    .unwrap_or_default();
+            snapshot["baseState"]["inventoryTransferOrder"] =
+                json!(self.store.base.inventory_transfers.order);
+        }
         if !self.store.staged.inventory_transfers.is_empty() {
             snapshot["stagedState"]["inventoryTransfers"] =
-                serde_json::to_value(&self.store.staged.inventory_transfers).unwrap_or_default();
+                serde_json::to_value(&self.store.staged.inventory_transfers.records)
+                    .unwrap_or_default();
+            snapshot["stagedState"]["inventoryTransferOrder"] =
+                json!(self.store.staged.inventory_transfers.order);
+        }
+        if !self.store.staged.inventory_transfers.tombstones.is_empty() {
+            snapshot["stagedState"]["deletedInventoryTransferIds"] = json!(self
+                .store
+                .staged
+                .inventory_transfers
+                .tombstones
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
         }
         if !self.store.staged.inventory_shipments.is_empty() {
             snapshot["stagedState"]["inventoryShipments"] =
@@ -1130,11 +1171,14 @@ impl DraftProxy {
                     })
                     .collect::<serde_json::Map<_, _>>(),
             );
-            snapshot["stagedState"]["draftOrderOrder"] = json!(self
+            snapshot["stagedState"]["draftOrderOrder"] =
+                json!(self.store.staged.draft_orders.order.to_vec());
+            snapshot["stagedState"]["deletedDraftOrderIds"] = json!(self
                 .store
                 .staged
                 .draft_orders
-                .keys()
+                .tombstones
+                .iter()
                 .cloned()
                 .collect::<Vec<_>>());
         }
@@ -1160,12 +1204,25 @@ impl DraftProxy {
         if !self.store.staged.catalogs.is_empty() {
             snapshot["stagedState"]["catalogs"] = json!(self.store.staged.catalogs.clone());
         }
+        if !self.store.staged.created_catalog_ids.is_empty() {
+            snapshot["stagedState"]["createdCatalogIds"] = json!(self
+                .store
+                .staged
+                .created_catalog_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.price_lists.is_empty() {
             snapshot["stagedState"]["priceLists"] = json!(self.store.staged.price_lists.clone());
         }
         if !self.store.staged.web_presences.is_empty() {
             snapshot["stagedState"]["webPresences"] =
                 json!(self.store.staged.web_presences.clone());
+        }
+        if !self.store.staged.markets_upstream_counts.is_empty() {
+            snapshot["stagedState"]["marketsUpstreamCounts"] =
+                json!(self.store.staged.markets_upstream_counts.clone());
         }
         if !self.store.staged.available_backup_regions.is_empty() {
             snapshot["stagedState"]["availableBackupRegions"] =
@@ -1424,8 +1481,27 @@ impl DraftProxy {
         );
         self.store.base.order_count_baselines =
             value_map_from_json(state["baseState"].get("orderCountBaselines"));
+        self.store.base.draft_orders.replace_with_order(
+            value_map_from_json(state["baseState"].get("draftOrders")),
+            state["baseState"]
+                .get("draftOrderOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.draft_order_count_baselines =
+            value_map_from_json(state["baseState"].get("draftOrderCountBaselines"));
         self.store.base.discount_count_baselines =
             value_map_from_json(state["baseState"].get("discountCountBaselines"));
+        self.store.base.inventory_transfers.replace_with_order(
+            state["baseState"]
+                .get("inventoryTransfers")
+                .and_then(|value| serde_json::from_value(value.clone()).ok())
+                .unwrap_or_default(),
+            state["baseState"]
+                .get("inventoryTransferOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
         self.store.base.bulk_operations.replace_with_order(
             value_map_from_json(state["baseState"].get("bulkOperations")),
             state["baseState"]
@@ -1469,6 +1545,10 @@ impl DraftProxy {
             None,
             Some("deletedCollectionIds"),
         );
+        self.store.staged.deleted_collection_handles =
+            string_array_from_json(&state["stagedState"]["deletedCollectionHandles"])
+                .into_iter()
+                .collect();
         self.store.staged.collection_jobs =
             value_map_from_json(state["stagedState"].get("collectionJobs"));
         self.store.staged.installed_apps =
@@ -1657,6 +1737,16 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.base.storefront_product_tags = state["baseState"]
+            .get("storefrontProductTags")
+            .filter(|connection| connection.is_object() || connection.is_null())
+            .cloned()
+            .unwrap_or(Value::Null);
+        self.store.base.storefront_product_types = state["baseState"]
+            .get("storefrontProductTypes")
+            .filter(|connection| connection.is_object() || connection.is_null())
+            .cloned()
+            .unwrap_or(Value::Null);
         self.store.base.storefront_payment_settings = state["baseState"]
             .get("storefrontPaymentSettings")
             .filter(|settings| settings.is_object() || settings.is_null())
@@ -2185,7 +2275,7 @@ impl DraftProxy {
         // These MUST round-trip because the parity runner restores mainState
         // before every downstream target, so read-after-write across targets
         // (draftOrder reads, duplicate/delete chains) would otherwise lose state.
-        self.store.staged.draft_orders = state["stagedState"]["draftOrders"]
+        let staged_draft_orders = state["stagedState"]["draftOrders"]
             .as_object()
             .map(|drafts| {
                 drafts
@@ -2200,6 +2290,22 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store
+            .staged
+            .draft_orders
+            .replace_with_order_and_tombstones(
+                staged_draft_orders,
+                state["stagedState"]
+                    .get("draftOrderOrder")
+                    .map(string_array_from_json)
+                    .unwrap_or_default(),
+                state["stagedState"]
+                    .get("deletedDraftOrderIds")
+                    .map(string_array_from_json)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect(),
+            );
         self.store.staged.next_draft_order_id =
             counter_from_json_with_floor(&state["stagedState"], "nextDraftOrderId", 1);
         self.advance_draft_order_counter_from_staged_draft_orders();
@@ -2317,10 +2423,25 @@ impl DraftProxy {
             .unwrap_or_default();
         self.store.staged.inactive_inventory_levels =
             inactive_inventory_levels_from_json(&state["stagedState"]["inactiveInventoryLevels"]);
-        self.store.staged.inventory_transfers = state["stagedState"]
-            .get("inventoryTransfers")
-            .and_then(|value| serde_json::from_value(value.clone()).ok())
-            .unwrap_or_default();
+        self.store
+            .staged
+            .inventory_transfers
+            .replace_with_order_and_tombstones(
+                state["stagedState"]
+                    .get("inventoryTransfers")
+                    .and_then(|value| serde_json::from_value(value.clone()).ok())
+                    .unwrap_or_default(),
+                state["stagedState"]
+                    .get("inventoryTransferOrder")
+                    .map(string_array_from_json)
+                    .unwrap_or_default(),
+                state["stagedState"]
+                    .get("deletedInventoryTransferIds")
+                    .map(string_array_from_json)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect(),
+            );
         self.store.staged.inventory_shipments = state["stagedState"]
             .get("inventoryShipments")
             .and_then(|value| serde_json::from_value(value.clone()).ok())
@@ -2551,9 +2672,17 @@ impl DraftProxy {
             .into_iter()
             .collect();
         self.store.staged.catalogs = value_map_from_json(state["stagedState"].get("catalogs"));
+        self.store.staged.created_catalog_ids = state["stagedState"]
+            .get("createdCatalogIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.price_lists = value_map_from_json(state["stagedState"].get("priceLists"));
         self.store.staged.web_presences =
             value_map_from_json(state["stagedState"].get("webPresences"));
+        self.store.staged.markets_upstream_counts =
+            value_map_from_json(state["stagedState"].get("marketsUpstreamCounts"));
         self.store.staged.available_backup_regions =
             value_map_from_json(state["stagedState"].get("availableBackupRegions"));
         self.store.staged.shop_locales = state["stagedState"]
@@ -2712,6 +2841,12 @@ impl DraftProxy {
 
     fn advance_draft_order_counter_from_staged_draft_orders(&mut self) {
         let mut next_draft_order_id = self.store.staged.next_draft_order_id.max(1);
+        for (draft_order_id, draft_order) in &self.store.base.draft_orders.records {
+            advance_counter_past_gid_tail(&mut next_draft_order_id, draft_order_id);
+            if let Some(record_id) = draft_order.get("id").and_then(Value::as_str) {
+                advance_counter_past_gid_tail(&mut next_draft_order_id, record_id);
+            }
+        }
         for (draft_order_id, draft_order) in &self.store.staged.draft_orders {
             advance_counter_past_gid_tail(&mut next_draft_order_id, draft_order_id);
             if let Some(record_id) = draft_order.get("id").and_then(Value::as_str) {

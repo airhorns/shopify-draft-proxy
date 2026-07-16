@@ -1,0 +1,15 @@
+mutation DraftOrderLiveHybridMixedCatalogCreate($input: DraftOrderInput!) {
+    draftOrderCreate(input: $input) {
+      draftOrder {
+        id
+        email
+        tags
+        status
+        updatedAt
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }

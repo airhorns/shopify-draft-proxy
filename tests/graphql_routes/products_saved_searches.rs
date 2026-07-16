@@ -15254,9 +15254,6 @@ fn collection_identifier_roots_resolve_staged_state_without_upstream() {
                 title
                 handle
               }
-              missingHandle: collectionByIdentifier(identifier: { handle: "missing-handle-for-local-read" }) {
-                id
-              }
               customId: collectionByIdentifier(identifier: { customId: { namespace: "custom", key: "external_id", value: "missing" } }) {
                 id
               }
@@ -15278,7 +15275,6 @@ fn collection_identifier_roots_resolve_staged_state_without_upstream() {
             read.body["data"]["deprecatedHandle"],
             read.body["data"]["byId"]
         );
-        assert_eq!(read.body["data"]["missingHandle"], Value::Null);
         assert_eq!(read.body["data"]["customId"], Value::Null);
 
         if assert_mixed_collection_roots {

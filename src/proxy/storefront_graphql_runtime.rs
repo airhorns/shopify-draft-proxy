@@ -332,6 +332,17 @@ impl DraftProxy {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
+        if let Some((_, variables, _)) = prepared.as_ref() {
+            let context = storefront_request_context(
+                selected_query.as_deref().unwrap_or(&graphql_request.query),
+                variables,
+            );
+            if context.invalid_buyer_token(self) {
+                return ok_json(json!({
+                    "errors": [{ "message": "The token provided is not valid" }]
+                }));
+            }
+        }
         let all_local = !capabilities.is_empty()
             && capabilities.iter().all(|capability| {
                 capability.api_surface == ApiSurface::Storefront

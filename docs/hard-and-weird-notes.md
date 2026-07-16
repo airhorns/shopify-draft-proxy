@@ -4260,3 +4260,41 @@ Practical rule:
   cart-specific stock value
 - apply size limits before domain mutation and keep note-length failures in the
   cart user-error payload
+
+## 101. Storefront enrichment combines immediate product reads with indexed and opaque surfaces
+
+Authenticated Storefront GraphQL 2026-04 capture showed three distinct fidelity
+classes in one catalog-enrichment flow. Product media, public product/variant
+metafields, selling-plan membership, and market fixed prices were immediately
+visible on direct product reads. The global `productTags` connection did not
+include the newly unique product tag in its first 250 values, even though the
+direct product returned that tag, while the shared tags and new product type
+were present. `productRecommendations(intent: RELATED)` returned ten unrelated
+pre-existing products whose ranking could not be derived from the staged
+product's tags, type, or vendor; the missing-product form returned `null`.
+
+The same capture established contextual boundaries. Default context used CAD;
+country `DK` plus language `EN` selected the staged market catalog's DKK fixed
+price and compare-at price. Supplying the preferred Storefront-visible location
+did not change price, availability, or the empty `storeAvailability`
+connection. Supplying an invalid customer access token plus company location
+returned only `The token provided is not valid`. Admin
+`quantityPricingByVariantUpdate` rejected a quantity rule on the market catalog
+with `QUANTITY_RULE_ADD_CATALOG_CONTEXT_NOT_SUPPORTED`, so the Storefront
+variant retained the default `1/null/1` quantity rule and no price breaks.
+
+Practical rule:
+
+- model direct product/media/metafield/selling-plan/price-list effects from
+  shared state, but preserve authenticated taxonomy hydration as an observed
+  indexed catalog page rather than pretending direct product tags prove its
+  immediate index contents
+- use deterministic visible-product similarity for local recommendations and
+  document the unavoidable ranking delta; never replay or key behavior to the
+  captured recommendation array
+- reconcile hydrated Storefront market context with locally staged Admin
+  markets through stable state such as the handle, because synthetic local IDs
+  cannot equal Shopify's captured IDs
+- do not send locally allocated preferred-location IDs upstream, and do not
+  claim positive company-catalog quantity pricing or availability without a
+  separate authenticated capture

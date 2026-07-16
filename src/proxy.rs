@@ -287,6 +287,8 @@ struct BaseState {
     delivery_promise_participants: OrderedRecords<Value>,
     orders: OrderedRecords<Value>,
     order_count_baselines: BTreeMap<String, Value>,
+    draft_orders: OrderedRecords<Value>,
+    draft_order_count_baselines: BTreeMap<String, Value>,
     discounts: OrderedRecords<Value>,
     discount_count_baselines: BTreeMap<String, Value>,
     marketing_activities: OrderedRecords<Value>,
@@ -300,6 +302,8 @@ struct BaseState {
     shop: Value,
     storefront_shop: Value,
     storefront_localizations: BTreeMap<String, Value>,
+    storefront_product_tags: Value,
+    storefront_product_types: Value,
     storefront_payment_settings: Value,
     storefront_locations: OrderedRecords<Value>,
     storefront_location_cursors: BTreeMap<String, String>,
@@ -326,6 +330,7 @@ struct BaseState {
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     metafield_definition_owner_catalogs: BTreeSet<String>,
     metafield_definition_namespaces: BTreeSet<(String, String)>,
+    inventory_transfers: OrderedRecords<InventoryTransferRecord>,
     b2b_companies: OrderedRecords<Value>,
     b2b_company_count_baselines: BTreeMap<String, Value>,
     b2b_locations: OrderedRecords<Value>,
@@ -398,6 +403,7 @@ struct StagedState {
     delivery_customizations: StagedRecords<Value>,
     segments: StagedRecords<Value>,
     collections: StagedRecords<Value>,
+    deleted_collection_handles: BTreeSet<String>,
     collection_jobs: BTreeMap<String, Value>,
     fulfillment_order_deadlines: BTreeMap<String, String>,
     fulfillment_order_cursors: BTreeMap<String, BTreeMap<String, String>>,
@@ -412,10 +418,12 @@ struct StagedState {
     markets: BTreeMap<String, Value>,
     deleted_market_ids: BTreeSet<String>,
     catalogs: BTreeMap<String, Value>,
+    created_catalog_ids: BTreeSet<String>,
     price_lists: BTreeMap<String, Value>,
     web_presences: BTreeMap<String, Value>,
     #[allow(dead_code)]
     markets_hydrated_scopes: BTreeSet<String>,
+    markets_upstream_counts: BTreeMap<String, Value>,
     markets_dirty_families: BTreeSet<String>,
     publication_ids: BTreeSet<String>,
     created_publication_ids: BTreeSet<String>,
@@ -475,7 +483,7 @@ struct StagedState {
     inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     next_inventory_quantity_timestamp: u64,
     inventory_adjustment_groups: BTreeMap<String, Value>,
-    inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
+    inventory_transfers: StagedRecords<InventoryTransferRecord>,
     inventory_shipments: BTreeMap<String, InventoryShipmentRecord>,
     metaobject_definitions: StagedRecords<Value>,
     metaobjects: StagedRecords<Value>,
@@ -519,7 +527,7 @@ struct StagedState {
     next_customer_payment_method_id: u64,
     abandonments: BTreeMap<String, Value>,
     orders: StagedRecords<Value>,
-    draft_orders: BTreeMap<String, Value>,
+    draft_orders: StagedRecords<Value>,
     returns: BTreeMap<String, Value>,
     returns_by_order: BTreeMap<String, Vec<String>>,
     reverse_deliveries: BTreeMap<String, Value>,
@@ -805,6 +813,14 @@ impl<T> StagedRecords<T> {
         self.iter().map(|(_, record)| record)
     }
 
+    fn values_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        let tombstones = &self.tombstones;
+        self.records
+            .iter_mut()
+            .filter(move |(id, _)| !tombstones.contains(*id))
+            .map(|(_, record)| record)
+    }
+
     fn is_empty(&self) -> bool {
         self.records.is_empty() && self.tombstones.is_empty()
     }
@@ -929,6 +945,30 @@ fn effective_records<T: Clone>(base: &OrderedRecords<T>, staged: &StagedRecords<
     records
 }
 
+fn draft_order_records_have_same_logical_create(left: &Value, right: &Value) -> bool {
+    let Some(left_email) = left.get("email").and_then(Value::as_str) else {
+        return false;
+    };
+    if left_email.is_empty() || right.get("email").and_then(Value::as_str) != Some(left_email) {
+        return false;
+    }
+    let Some(left_tags) = string_set_from_array(left.get("tags")) else {
+        return false;
+    };
+    let Some(right_tags) = string_set_from_array(right.get("tags")) else {
+        return false;
+    };
+    !left_tags.is_empty() && left_tags == right_tags
+}
+
+fn string_set_from_array(value: Option<&Value>) -> Option<BTreeSet<String>> {
+    value?
+        .as_array()?
+        .iter()
+        .map(|entry| entry.as_str().map(str::to_string))
+        .collect::<Option<BTreeSet<_>>>()
+}
+
 fn saved_search_semantic_key(record: &SavedSearchRecord) -> (String, String, String) {
     (
         record.resource_type.clone(),
@@ -985,6 +1025,11 @@ fn effective_count<T>(base: &OrderedRecords<T>, staged: &StagedRecords<T>) -> us
             .keys()
             .filter(|id| !staged.is_tombstoned(id))
             .count()
+}
+
+fn normalized_collection_handle(handle: &str) -> Option<String> {
+    let handle = handle.trim();
+    (!handle.is_empty()).then(|| handle.to_string())
 }
 
 fn merge_json_values(target: &mut Value, observed: &Value) {
@@ -1353,8 +1398,153 @@ impl Store {
         self.base.order_count_baselines.get(key)
     }
 
+    fn observed_draft_order_by_id(&self, id: &str) -> Option<&Value> {
+        effective_get(&self.base.draft_orders, &self.staged.draft_orders, id)
+    }
+
+    fn effective_draft_orders(&self) -> Vec<Value> {
+        let mut records = Vec::new();
+        for (id, record) in self.base.draft_orders.order.iter().filter_map(|id| {
+            self.base
+                .draft_orders
+                .records
+                .get(id)
+                .map(|record| (id.as_str(), record))
+        }) {
+            if self.staged.draft_orders.is_tombstoned(id) {
+                continue;
+            }
+            if let Some(staged_record) = self.staged.draft_orders.get(id) {
+                records.push(staged_record.clone());
+            } else if self
+                .staged_draft_order_logical_duplicate_for_base(id, record)
+                .is_none()
+            {
+                records.push(record.clone());
+            }
+        }
+        for (id, record) in self.staged.draft_orders.order.iter().filter_map(|id| {
+            self.staged
+                .draft_orders
+                .records
+                .get(id)
+                .map(|record| (id.as_str(), record))
+        }) {
+            if self.staged.draft_orders.is_tombstoned(id)
+                || self.base.draft_orders.records.contains_key(id)
+            {
+                continue;
+            }
+            records.push(record.clone());
+        }
+        records
+    }
+
+    fn observe_base_draft_order(&mut self, draft_order: Value) {
+        let Some(id) = draft_order
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        if self.staged.draft_orders.is_tombstoned(&id)
+            || self.staged.draft_orders.contains_staged(&id)
+        {
+            return;
+        }
+        self.base.draft_orders.insert(id, draft_order);
+    }
+
+    fn observe_draft_order_count_baseline(&mut self, key: String, count: Value) {
+        self.base.draft_order_count_baselines.insert(key, count);
+    }
+
+    fn draft_order_count_baseline(&self, key: &str) -> Option<&Value> {
+        self.base.draft_order_count_baselines.get(key)
+    }
+
+    fn base_draft_order_logical_duplicate_for_staged(
+        &self,
+        staged_id: &str,
+        staged_draft_order: &Value,
+    ) -> Option<&Value> {
+        self.base
+            .draft_orders
+            .records
+            .iter()
+            .filter(|(base_id, _)| base_id.as_str() != staged_id)
+            .filter(|(base_id, _)| !self.staged.draft_orders.is_tombstoned(base_id))
+            .map(|(_, base_draft_order)| base_draft_order)
+            .find(|base_draft_order| {
+                draft_order_records_have_same_logical_create(base_draft_order, staged_draft_order)
+            })
+    }
+
+    fn staged_draft_order_logical_duplicate_for_base(
+        &self,
+        base_id: &str,
+        base_draft_order: &Value,
+    ) -> Option<&Value> {
+        self.staged
+            .draft_orders
+            .records
+            .iter()
+            .filter(|(staged_id, _)| staged_id.as_str() != base_id)
+            .filter(|(staged_id, _)| !self.staged.draft_orders.is_tombstoned(staged_id))
+            .map(|(_, staged_draft_order)| staged_draft_order)
+            .find(|staged_draft_order| {
+                draft_order_records_have_same_logical_create(base_draft_order, staged_draft_order)
+            })
+    }
+
     fn observe_discount_count_baseline(&mut self, key: String, count: Value) {
         self.base.discount_count_baselines.insert(key, count);
+    }
+
+    fn inventory_transfer_by_id(&self, id: &str) -> Option<&InventoryTransferRecord> {
+        effective_get(
+            &self.base.inventory_transfers,
+            &self.staged.inventory_transfers,
+            id,
+        )
+    }
+
+    fn inventory_transfers(&self) -> Vec<InventoryTransferRecord> {
+        effective_records(
+            &self.base.inventory_transfers,
+            &self.staged.inventory_transfers,
+        )
+    }
+
+    fn inventory_transfer_count(&self) -> usize {
+        effective_count(
+            &self.base.inventory_transfers,
+            &self.staged.inventory_transfers,
+        )
+    }
+
+    fn has_inventory_transfer_state(&self) -> bool {
+        !self.base.inventory_transfers.records.is_empty()
+            || !self.staged.inventory_transfers.is_empty()
+    }
+
+    fn has_base_inventory_transfer_state(&self) -> bool {
+        !self.base.inventory_transfers.records.is_empty()
+    }
+
+    fn observe_base_inventory_transfer(&mut self, transfer: InventoryTransferRecord) {
+        if self.staged.inventory_transfers.is_tombstoned(&transfer.id)
+            || self
+                .staged
+                .inventory_transfers
+                .contains_staged(&transfer.id)
+        {
+            return;
+        }
+        self.base
+            .inventory_transfers
+            .insert(transfer.id.clone(), transfer);
     }
 
     fn domain_by_id(&self, id: &str) -> Option<Value> {
@@ -1401,7 +1591,9 @@ impl Store {
     }
 
     fn has_collection_state(&self) -> bool {
-        !self.staged.collections.is_empty() || !self.staged.collection_jobs.is_empty()
+        !self.staged.collections.is_empty()
+            || !self.staged.deleted_collection_handles.is_empty()
+            || !self.staged.collection_jobs.is_empty()
     }
 
     fn product_feed_by_id(&self, id: &str) -> Option<&Value> {
@@ -1614,7 +1806,8 @@ impl Store {
     }
 
     fn collection_by_handle(&self, handle: &str) -> Option<&Value> {
-        if handle.is_empty() {
+        let handle = handle.trim();
+        if handle.is_empty() || self.collection_handle_is_deleted(handle) {
             return None;
         }
         self.staged
@@ -1630,14 +1823,42 @@ impl Store {
         self.staged.collections.is_tombstoned(id)
     }
 
+    fn collection_handle_is_deleted(&self, handle: &str) -> bool {
+        normalized_collection_handle(handle)
+            .is_some_and(|handle| self.staged.deleted_collection_handles.contains(&handle))
+    }
+
+    fn delete_collection_handle(&mut self, handle: &str) {
+        if let Some(handle) = normalized_collection_handle(handle) {
+            self.staged.deleted_collection_handles.insert(handle);
+        }
+    }
+
     fn stage_collection(&mut self, collection: Value) {
         if let Some(id) = collection.get("id").and_then(Value::as_str) {
+            if let Some(handle) = collection.get("handle").and_then(Value::as_str) {
+                if let Some(handle) = normalized_collection_handle(handle) {
+                    self.staged.deleted_collection_handles.remove(&handle);
+                }
+            }
             self.staged.collections.insert(id.to_string(), collection);
         }
     }
 
     fn delete_collection(&mut self, id: &str) -> bool {
+        let deleted_handle = self
+            .staged
+            .collections
+            .get(id)
+            .and_then(|collection| collection.get("handle"))
+            .and_then(Value::as_str)
+            .and_then(normalized_collection_handle);
         let existed = self.staged.collections.tombstone_staged(id);
+        if existed {
+            if let Some(handle) = deleted_handle {
+                self.staged.deleted_collection_handles.insert(handle);
+            }
+        }
         for product in self.products() {
             if product
                 .collections

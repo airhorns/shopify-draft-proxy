@@ -3141,6 +3141,118 @@ fn quantity_pricing_by_variant_update_uses_store_backed_validation() {
 }
 
 #[test]
+fn market_catalog_quantity_rules_reject_the_captured_unsupported_context() {
+    let variant_id = "gid://shopify/ProductVariant/market-catalog-quantity-rule";
+    let mut proxy = snapshot_proxy().with_base_products(vec![observed_variant_product(
+        "gid://shopify/Product/market-catalog-quantity-rule",
+        variant_id,
+    )]);
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({ "currencyCode": "CAD" });
+    });
+
+    let market = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateQuantityRuleMarket($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market {
+              id
+              regions(first: 5) {
+                nodes { id ... on MarketRegionCountry { code name } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Denmark quantity pricing",
+                "status": "ACTIVE",
+                "conditions": {
+                    "regionsCondition": { "regions": [{ "countryCode": "DK" }] }
+                },
+                "currencySettings": { "localCurrencies": true }
+            }
+        }),
+    ));
+    assert_eq!(market.status, 200);
+    assert_eq!(market.body["data"]["marketCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        market.body["data"]["marketCreate"]["market"]["regions"]["nodes"][0]["code"],
+        json!("DK")
+    );
+    let market_id = market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let price_list_id = create_test_price_list(&mut proxy, "DKK");
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateQuantityRuleMarketCatalog($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Denmark quantity pricing catalog",
+                "status": "ACTIVE",
+                "context": { "marketIds": [market_id] },
+                "priceListId": price_list_id
+            }
+        }),
+    ));
+    assert_eq!(catalog.status, 200);
+    assert_eq!(
+        catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddMarketCatalogQuantityRule($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+          quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": price_list_id,
+            "input": {
+                "pricesToAdd": [],
+                "pricesToDeleteByVariantId": [],
+                "quantityRulesToAdd": [{
+                    "variantId": variant_id,
+                    "minimum": 5,
+                    "maximum": 50,
+                    "increment": 5
+                }],
+                "quantityRulesToDeleteByVariantId": [],
+                "quantityPriceBreaksToAdd": [],
+                "quantityPriceBreaksToDelete": [],
+                "quantityPriceBreaksToDeleteByVariantId": []
+            }
+        }),
+    ));
+    assert_eq!(
+        response.body["data"]["quantityPricingByVariantUpdate"],
+        json!({
+            "productVariants": null,
+            "userErrors": [{
+                "field": ["input", "quantityRulesToAdd", "0"],
+                "message": "Catalog context not supported",
+                "code": "QUANTITY_RULE_ADD_CATALOG_CONTEXT_NOT_SUPPORTED"
+            }]
+        })
+    );
+}
+
+#[test]
 fn quantity_rules_delete_rejects_non_sentinel_missing_price_list() {
     let mut proxy = snapshot_proxy().with_base_products(vec![observed_variant_product(
         "gid://shopify/Product/quantity-rule-price-list",
@@ -5485,9 +5597,6 @@ fn market_update_live_hybrid_hydrates_existing_market_before_local_stage() {
             id
             ... on MarketCatalog { markets(first: 5) { nodes { id name } } }
           }
-          webPresences(first: 5) {
-            nodes { id markets(first: 5) { nodes { id } } }
-          }
         }
         "#,
         json!({"marketId": market_id, "catalogId": catalog_id}),
@@ -5499,10 +5608,6 @@ fn market_update_live_hybrid_hydrates_existing_market_before_local_stage() {
     assert_eq!(
         readback.body["data"]["catalog"]["markets"]["nodes"][0],
         json!({"id": market_id, "name": "Existing Market Updated"})
-    );
-    assert_eq!(
-        readback.body["data"]["webPresences"]["nodes"][0]["markets"]["nodes"],
-        json!([{"id": market_id}])
     );
     assert_eq!(
         upstream_bodies.lock().unwrap().len(),
@@ -5541,6 +5646,494 @@ fn market_update_live_hybrid_hydrates_existing_market_before_local_stage() {
         upstream_calls_after_update,
         "wrong-resource validation must not call upstream"
     );
+}
+
+#[test]
+fn market_update_top_level_lists_fetch_after_preflight() {
+    let primary_market_id = "gid://shopify/Market/18001100";
+    let target_market_id = "gid://shopify/Market/18001101";
+    let other_market_id = "gid://shopify/Market/18001102";
+    let target_catalog_id = "gid://shopify/MarketCatalog/18001110";
+    let other_catalog_id = "gid://shopify/MarketCatalog/18001111";
+    let target_price_list_id = "gid://shopify/PriceList/18001120";
+    let other_price_list_id = "gid://shopify/PriceList/18001121";
+    let target_presence_id = "gid://shopify/MarketWebPresence/18001130";
+    let primary_presence_id = "gid://shopify/MarketWebPresence/18001131";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            let mut captured = captured_bodies.lock().unwrap();
+            captured.push(body.clone());
+            let call_index = captured.len();
+            drop(captured);
+
+            if call_index == 1 {
+                assert_eq!(
+                    body["operationName"],
+                    json!("MarketsMutationPreflightHydrate")
+                );
+                assert_eq!(body["variables"]["ids"], json!([target_market_id]));
+                assert!(
+                    query.contains("nodes(ids: $ids)"),
+                    "first upstream call should be the mutation-target preflight: {query}"
+                );
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "__typename": "Market",
+                                "id": target_market_id,
+                                "name": "Target Canada",
+                                "handle": "target-canada",
+                                "status": "ACTIVE",
+                                "enabled": true,
+                                "type": "REGION",
+                                "conditions": {
+                                    "regionsCondition": {
+                                        "regions": {
+                                            "nodes": [{
+                                                "__typename": "MarketRegionCountry",
+                                                "id": "gid://shopify/Market/Region/18001101001",
+                                                "name": "Canada",
+                                                "code": "CA"
+                                            }]
+                                        }
+                                    }
+                                },
+                                "currencySettings": {
+                                    "baseCurrency": {
+                                        "currencyCode": "CAD",
+                                        "currencyName": "Canadian Dollar"
+                                    },
+                                    "localCurrencies": true,
+                                    "roundingEnabled": false
+                                },
+                                "priceInclusions": null,
+                                "catalogs": {
+                                    "nodes": [{
+                                        "__typename": "MarketCatalog",
+                                        "id": target_catalog_id,
+                                        "title": "Target Catalog",
+                                        "status": "ACTIVE",
+                                        "contextDriverType": "MARKET",
+                                        "marketIds": [target_market_id],
+                                        "markets": {
+                                            "nodes": [{
+                                                "id": target_market_id,
+                                                "name": "Target Canada"
+                                            }]
+                                        },
+                                        "operations": [],
+                                        "priceList": { "id": target_price_list_id },
+                                        "publication": null
+                                    }]
+                                },
+                                "webPresences": {
+                                    "nodes": [{
+                                        "__typename": "MarketWebPresence",
+                                        "id": target_presence_id,
+                                        "subfolderSuffix": "ca",
+                                        "domain": null,
+                                        "rootUrls": [],
+                                        "defaultLocale": {
+                                            "locale": "en",
+                                            "name": "English",
+                                            "primary": true,
+                                            "published": true
+                                        },
+                                        "alternateLocales": [],
+                                        "marketIds": [target_market_id],
+                                        "markets": {
+                                            "nodes": [{
+                                                "id": target_market_id,
+                                                "name": "Target Canada"
+                                            }]
+                                        }
+                                    }]
+                                }
+                            }]
+                        }
+                    }),
+                };
+            }
+
+            assert_eq!(
+                call_index, 2,
+                "only the target preflight and the subsequent top-level family read should fetch upstream"
+            );
+            assert!(
+                query.contains("markets(")
+                    && query.contains("catalogs(")
+                    && query.contains("catalogsCount")
+                    && query.contains("priceLists(")
+                    && query.contains("webPresences("),
+                "second upstream call should hydrate every selected top-level markets family: {query}"
+            );
+            let primary_market = json!({
+                "__typename": "Market",
+                "id": primary_market_id,
+                "name": "Primary United States",
+                "handle": "primary-united-states",
+                "status": "ACTIVE",
+                "type": "REGION"
+            });
+            let target_market = json!({
+                "__typename": "Market",
+                "id": target_market_id,
+                "name": "Target Canada",
+                "handle": "target-canada",
+                "status": "ACTIVE",
+                "type": "REGION"
+            });
+            let other_market = json!({
+                "__typename": "Market",
+                "id": other_market_id,
+                "name": "Other France",
+                "handle": "other-france",
+                "status": "ACTIVE",
+                "type": "REGION"
+            });
+            let target_catalog = json!({
+                "__typename": "MarketCatalog",
+                "id": target_catalog_id,
+                "title": "Target Catalog",
+                "status": "ACTIVE",
+                "contextDriverType": "MARKET",
+                "marketIds": [target_market_id],
+                "markets": {
+                    "nodes": [target_market.clone()],
+                    "edges": [{ "cursor": target_market_id, "node": target_market.clone() }],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": target_market_id,
+                        "endCursor": target_market_id
+                    }
+                },
+                "priceList": { "id": target_price_list_id },
+                "publication": null
+            });
+            let other_catalog = json!({
+                "__typename": "MarketCatalog",
+                "id": other_catalog_id,
+                "title": "Other Catalog",
+                "status": "ACTIVE",
+                "contextDriverType": "MARKET",
+                "marketIds": [other_market_id],
+                "markets": {
+                    "nodes": [other_market.clone()],
+                    "edges": [{ "cursor": other_market_id, "node": other_market.clone() }],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": other_market_id,
+                        "endCursor": other_market_id
+                    }
+                },
+                "priceList": { "id": other_price_list_id },
+                "publication": null
+            });
+            let target_price_list = json!({
+                "__typename": "PriceList",
+                "id": target_price_list_id,
+                "name": "Target Prices",
+                "currency": "CAD",
+                "catalogId": target_catalog_id,
+                "catalog": {
+                    "id": target_catalog_id,
+                    "title": "Target Catalog",
+                    "status": "ACTIVE"
+                },
+                "fixedPricesCount": 0
+            });
+            let other_price_list = json!({
+                "__typename": "PriceList",
+                "id": other_price_list_id,
+                "name": "Other Prices",
+                "currency": "EUR",
+                "catalogId": other_catalog_id,
+                "catalog": {
+                    "id": other_catalog_id,
+                    "title": "Other Catalog",
+                    "status": "ACTIVE"
+                },
+                "fixedPricesCount": 0
+            });
+            let target_presence = json!({
+                "__typename": "MarketWebPresence",
+                "id": target_presence_id,
+                "subfolderSuffix": "ca",
+                "domain": null,
+                "rootUrls": [],
+                "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                },
+                "alternateLocales": [],
+                "markets": {
+                    "nodes": [target_market.clone()],
+                    "edges": [{ "cursor": target_market_id, "node": target_market.clone() }],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": target_market_id,
+                        "endCursor": target_market_id
+                    }
+                }
+            });
+            let primary_presence = json!({
+                "__typename": "MarketWebPresence",
+                "id": primary_presence_id,
+                "subfolderSuffix": null,
+                "domain": null,
+                "rootUrls": [],
+                "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                },
+                "alternateLocales": [],
+                "markets": {
+                    "nodes": [primary_market.clone()],
+                    "edges": [{ "cursor": primary_market_id, "node": primary_market.clone() }],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": primary_market_id,
+                        "endCursor": primary_market_id
+                    }
+                }
+            });
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "primaryMarketFromList": {
+                            "nodes": [primary_market],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": primary_market_id,
+                                "endCursor": primary_market_id
+                            }
+                        },
+                        "updateMarketFromList": {
+                            "nodes": [target_market],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": target_market_id,
+                                "endCursor": target_market_id
+                            }
+                        },
+                        "otherMarketFromList": {
+                            "nodes": [other_market],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": other_market_id,
+                                "endCursor": other_market_id
+                            }
+                        },
+                        "catalogs": {
+                            "nodes": [target_catalog.clone(), other_catalog.clone()],
+                            "edges": [
+                                { "cursor": target_catalog_id, "node": target_catalog },
+                                { "cursor": other_catalog_id, "node": other_catalog }
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": false,
+                                "startCursor": target_catalog_id,
+                                "endCursor": other_catalog_id
+                            }
+                        },
+                        "catalogsCount": {
+                            "count": 3,
+                            "precision": "EXACT"
+                        },
+                        "priceLists": {
+                            "nodes": [target_price_list, other_price_list],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": target_price_list_id,
+                                "endCursor": other_price_list_id
+                            }
+                        },
+                        "webPresences": {
+                            "nodes": [target_presence, primary_presence],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": target_presence_id,
+                                "endCursor": primary_presence_id
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ExistingNonPrimaryMarketUpdate($id: ID!, $input: MarketUpdateInput!) {
+          marketUpdate(id: $id, input: $input) {
+            market { id name handle status }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": target_market_id,
+            "input": {
+                "name": "Target Canada Updated",
+                "handle": "target-canada-updated"
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["marketUpdate"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["marketUpdate"]["market"]["name"],
+        json!("Target Canada Updated")
+    );
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        1,
+        "marketUpdate should only preflight the by-id target before staging locally"
+    );
+
+    let top_level_read = proxy.process_request(json_graphql_request(
+        r#"
+        query TopLevelMarketsFamilyAfterTargetPreflight {
+          primaryMarketFromList: markets(first: 1, query: "id:18001100", sortKey: ID) {
+            nodes { id name handle status type }
+          }
+          updateMarketFromList: markets(first: 1, query: "id:18001101", sortKey: ID) {
+            nodes { id name handle status type }
+          }
+          otherMarketFromList: markets(first: 1, query: "id:18001102", sortKey: ID) {
+            nodes { id name handle status type }
+          }
+          catalogs(first: 2) {
+            nodes {
+              id
+              title
+              status
+              ... on MarketCatalog {
+                markets(first: 5) { nodes { id name } }
+              }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          catalogsCount { count precision }
+          priceLists(first: 10) {
+            nodes { id name currency catalog { id title } }
+          }
+          webPresences(first: 10) {
+            nodes {
+              id
+              subfolderSuffix
+              markets(first: 5) { nodes { id name } }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(top_level_read.status, 200);
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        2,
+        "top-level markets-family roots after a narrow by-id preflight must fetch upstream baseline"
+    );
+    let market_names = [
+        "primaryMarketFromList",
+        "updateMarketFromList",
+        "otherMarketFromList",
+    ]
+    .into_iter()
+    .flat_map(|key| {
+        top_level_read.body["data"][key]["nodes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|market| market["name"].clone())
+    })
+    .collect::<Vec<_>>();
+    assert!(
+        market_names.contains(&json!("Primary United States")),
+        "top-level read data={}",
+        top_level_read.body["data"]
+    );
+    assert!(
+        market_names.contains(&json!("Target Canada Updated")),
+        "top-level read data={}",
+        top_level_read.body["data"]
+    );
+    assert!(
+        market_names.contains(&json!("Other France")),
+        "top-level read data={}",
+        top_level_read.body["data"]
+    );
+    let catalog_titles = top_level_read.body["data"]["catalogs"]["nodes"]
+        .as_array()
+        .expect("catalog nodes are an array")
+        .iter()
+        .map(|catalog| catalog["title"].clone())
+        .collect::<Vec<_>>();
+    assert!(catalog_titles.contains(&json!("Target Catalog")));
+    assert!(catalog_titles.contains(&json!("Other Catalog")));
+    assert_eq!(
+        top_level_read.body["data"]["catalogsCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    let price_list_nodes = top_level_read.body["data"]["priceLists"]["nodes"]
+        .as_array()
+        .expect("price list nodes are an array");
+    assert_eq!(price_list_nodes.len(), 2);
+    assert!(price_list_nodes.iter().all(|price_list| {
+        price_list["name"].as_str().is_some() && price_list["currency"].as_str().is_some()
+    }));
+    assert!(price_list_nodes.iter().any(|price_list| {
+        price_list["id"] == json!(target_price_list_id)
+            && price_list["name"] == json!("Target Prices")
+            && price_list["currency"] == json!("CAD")
+    }));
+    assert!(price_list_nodes
+        .iter()
+        .any(|price_list| price_list["id"] == json!(other_price_list_id)
+            && price_list["name"] == json!("Other Prices")));
+    let web_presence_market_names = top_level_read.body["data"]["webPresences"]["nodes"]
+        .as_array()
+        .expect("web presence nodes are an array")
+        .iter()
+        .flat_map(|presence| {
+            presence["markets"]["nodes"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|market| market["name"].clone())
+        })
+        .collect::<Vec<_>>();
+    assert!(web_presence_market_names.contains(&json!("Target Canada Updated")));
+    assert!(web_presence_market_names.contains(&json!("Primary United States")));
 }
 
 #[test]
@@ -9046,6 +9639,151 @@ fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write
     assert_eq!(
         read.body["data"]["marketsResolvedValues"]["webPresences"]["edges"],
         json!([])
+    );
+}
+
+#[test]
+fn catalogs_count_does_not_double_count_created_catalog_in_upstream_echo() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("catalog(id: $id)") && query.contains("catalogsCount"),
+                "only the downstream catalog/count read should fetch upstream: {query}"
+            );
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "catalog": {
+                            "title": "Remove Only Catalog",
+                            "status": "ACTIVE",
+                            "markets": {
+                                "nodes": [{ "name": "Remaining Market" }]
+                            }
+                        },
+                        "catalogsCount": { "count": 1, "precision": "EXACT" }
+                    }
+                }),
+            }
+        });
+
+    let market_create_query = r#"
+        mutation CatalogCountEchoMarketCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id name }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let target_market = proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Target Market", "regions": [{"countryCode": "CA"}]}}),
+    ));
+    assert_eq!(
+        target_market.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    let target_market_id = target_market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let remaining_market = proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Remaining Market", "regions": [{"countryCode": "FR"}]}}),
+    ));
+    assert_eq!(
+        remaining_market.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    let remaining_market_id = remaining_market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogCountEchoCatalogCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog {
+              id
+              title
+              ... on MarketCatalog { markets(first: 5) { nodes { id name } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Remove Only Catalog",
+                "status": "ACTIVE",
+                "context": { "marketIds": [target_market_id, remaining_market_id] }
+            }
+        }),
+    ));
+    assert_eq!(
+        catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let catalog_id = catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogCountEchoContextUpdate($catalogId: ID!, $marketId: ID!) {
+          catalogContextUpdate(
+            catalogId: $catalogId
+            contextsToRemove: { marketIds: [$marketId] }
+          ) {
+            catalog {
+              title
+              ... on MarketCatalog { markets(first: 5) { nodes { name } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"catalogId": catalog_id, "marketId": target_market_id}),
+    ));
+    assert_eq!(
+        update.body["data"]["catalogContextUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CatalogCountEchoRead($id: ID!) {
+          catalog(id: $id) {
+            title
+            status
+            ... on MarketCatalog { markets(first: 5) { nodes { name } } }
+          }
+          catalogsCount(type: MARKET) {
+            count
+            precision
+          }
+        }
+        "#,
+        json!({"id": catalog_id}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(upstream_bodies.lock().unwrap().len(), 1);
+    assert_eq!(
+        read.body["data"]["catalogsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["catalog"]["markets"]["nodes"],
+        json!([{ "name": "Remaining Market" }])
     );
 }
 

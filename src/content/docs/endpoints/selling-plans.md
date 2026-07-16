@@ -143,6 +143,13 @@ the proxy starts without local selling-plan state, replays the captured
 `sellingPlanGroup(id:)`, `sellingPlanGroupUpdate`, and downstream
 Product/ProductVariant readback against Shopify responses.
 
+The same membership graph drives supported Storefront product
+`sellingPlanGroups` and variant `sellingPlanAllocations` reads. Storefront plan
+options and percentage/fixed price adjustments are derived from these staged
+Admin records, and allocation money is calculated from the variant's effective
+Storefront context price. Admin group membership changes are therefore visible
+without a runtime Shopify write or a separate Storefront-only plan store.
+
 ### Boundaries
 
 Support is scoped to local staged groups, LiveHybrid-observed groups, and

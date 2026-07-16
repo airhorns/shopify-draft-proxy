@@ -9284,6 +9284,485 @@ fn inventory_transfer_edit_and_duplicate_stage_locally_without_upstream_passthro
 }
 
 #[test]
+fn inventory_transfers_cold_live_hybrid_read_forwards_upstream() {
+    let hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&hits);
+    let upstream_id = "gid://shopify/InventoryTransfer/777000111222";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *hit_counter.lock().unwrap() += 1;
+            assert!(
+                request.body.contains("inventoryTransfers"),
+                "cold inventory transfer read should forward upstream, got {}",
+                request.body
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "inventoryTransfers": {
+                            "nodes": [{
+                                "id": upstream_id,
+                                "name": "#T777",
+                                "status": "DRAFT"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryTransfersColdRead {
+          inventoryTransfers(first: 10) {
+            nodes { id name status }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(*hits.lock().unwrap(), 1);
+    assert_eq!(
+        response.body["data"]["inventoryTransfers"]["nodes"],
+        json!([{ "id": upstream_id, "name": "#T777", "status": "DRAFT" }])
+    );
+}
+
+#[test]
+fn inventory_transfer_live_hybrid_singular_miss_forwards_and_tombstone_wins() {
+    let hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&hits);
+    let upstream_id = "gid://shopify/InventoryTransfer/888000111222";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *hit_counter.lock().unwrap() += 1;
+            assert!(
+                request.body.contains("inventoryTransfer"),
+                "cold singular transfer read should forward upstream, got {}",
+                request.body
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "inventoryTransfer": {
+                            "id": upstream_id,
+                            "name": "#T888",
+                            "status": "DRAFT"
+                        }
+                    }
+                }),
+            }
+        });
+
+    let cold_read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryTransferColdById($id: ID!) {
+          inventoryTransfer(id: $id) { id name status }
+        }
+        "#,
+        json!({ "id": upstream_id }),
+    ));
+    assert_eq!(
+        cold_read.body["data"]["inventoryTransfer"],
+        json!({ "id": upstream_id, "name": "#T888", "status": "DRAFT" })
+    );
+    assert_eq!(*hits.lock().unwrap(), 1);
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteHydratedInventoryTransfer($id: ID!) {
+          inventoryTransferDelete(id: $id) {
+            deletedId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": upstream_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["inventoryTransferDelete"],
+        json!({ "deletedId": upstream_id, "userErrors": [] })
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryTransferDeletedById($id: ID!) {
+          inventoryTransfer(id: $id) { id name status }
+        }
+        "#,
+        json!({ "id": upstream_id }),
+    ));
+    assert_eq!(after_delete.body["data"]["inventoryTransfer"], Value::Null);
+    assert_eq!(
+        *hits.lock().unwrap(),
+        1,
+        "tombstoned transfer should not be rehydrated from upstream"
+    );
+}
+
+#[test]
+fn inventory_transfers_live_hybrid_staged_first_read_hydrates_upstream_overlay() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![inventory_activation_base_product()]);
+    let origin_location_id = add_inventory_test_location(&mut proxy, "Staged First Origin");
+    let destination_location_id =
+        add_inventory_test_location(&mut proxy, "Staged First Destination");
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "TRANSFER-STAGED-FIRST");
+    stock_transfer_item_at_origin(&mut proxy, &inventory_item_id, &origin_location_id, 6);
+
+    let staged_transfer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalTransferBeforeRead($input: InventoryTransferCreateInput!) {
+          inventoryTransferCreate(input: $input) {
+            inventoryTransfer { id name status totalQuantity }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_location_id,
+            "destinationLocationId": destination_location_id,
+            "dateCreated": "2024-01-02T00:00:00Z",
+            "lineItems": [{ "inventoryItemId": inventory_item_id, "quantity": 2 }]
+        }}),
+    ));
+    assert_eq!(
+        staged_transfer.body["data"]["inventoryTransferCreate"]["userErrors"],
+        json!([])
+    );
+    let staged_transfer_id = staged_transfer.body["data"]["inventoryTransferCreate"]
+        ["inventoryTransfer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&hits);
+    let upstream_transfer_id = "gid://shopify/InventoryTransfer/777000111222";
+    let upstream_origin_id = origin_location_id.clone();
+    let upstream_destination_id = destination_location_id.clone();
+    proxy = proxy.with_upstream_transport(move |request| {
+        *hit_counter.lock().unwrap() += 1;
+        assert!(
+            request.body.contains("inventoryTransfers"),
+            "staged-first connection read should hydrate upstream, got {}",
+            request.body
+        );
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "inventoryTransfers": {
+                        "nodes": [{
+                            "id": upstream_transfer_id,
+                            "name": "#T777",
+                            "dateCreated": "2024-01-01T00:00:00Z",
+                            "status": "DRAFT",
+                            "totalQuantity": 5,
+                            "origin": {
+                                "id": upstream_origin_id,
+                                "name": "Staged First Origin"
+                            },
+                            "destination": {
+                                "id": upstream_destination_id,
+                                "name": "Staged First Destination"
+                            },
+                            "lineItems": {
+                                "nodes": [{
+                                    "id": "gid://shopify/InventoryTransferLineItem/777000111223",
+                                    "inventoryItem": {
+                                        "id": "gid://shopify/InventoryItem/777000111224"
+                                    },
+                                    "totalQuantity": 5
+                                }]
+                            }
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }
+                }
+            }),
+        }
+    });
+
+    let mixed_read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryTransfersStagedFirstWindow {
+          inventoryTransfers(first: 10, sortKey: NAME) {
+            nodes { id name status totalQuantity }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        mixed_read.body["data"]["inventoryTransfers"]["nodes"],
+        json!([
+            { "id": staged_transfer_id, "name": "#T0001", "status": "DRAFT", "totalQuantity": 2 },
+            { "id": upstream_transfer_id, "name": "#T777", "status": "DRAFT", "totalQuantity": 5 }
+        ])
+    );
+    assert_eq!(*hits.lock().unwrap(), 1);
+
+    let second_read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryTransfersStagedFirstWarmWindow {
+          inventoryTransfers(first: 10, sortKey: NAME) {
+            nodes { id name status totalQuantity }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        second_read.body["data"]["inventoryTransfers"]["nodes"],
+        mixed_read.body["data"]["inventoryTransfers"]["nodes"]
+    );
+    assert_eq!(
+        *hits.lock().unwrap(),
+        1,
+        "warm effective inventory transfer reads should use hydrated base plus staged state"
+    );
+}
+
+#[test]
+fn inventory_transfers_live_hybrid_merges_upstream_and_staged_records() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![inventory_activation_base_product()]);
+    let origin_location_id = add_inventory_test_location(&mut proxy, "LiveHybrid Origin");
+    let destination_location_id = add_inventory_test_location(&mut proxy, "LiveHybrid Destination");
+    let (variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "TRANSFER-LIVE-HYBRID");
+    let seed_quantities = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedLiveHybridInventoryTransferStock($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "inventory-transfer-live-hybrid-stock", "input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": origin_location_id, "quantity": 8, "changeFromQuantity": null}
+        ]}}),
+    ));
+    assert_eq!(
+        seed_quantities.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let upstream_requests = Arc::new(Mutex::new(Vec::<String>::new()));
+    let request_log = Arc::clone(&upstream_requests);
+    let upstream_transfer_id = "gid://shopify/InventoryTransfer/777000111222";
+    let upstream_transfer_line_id = "gid://shopify/InventoryTransferLineItem/777000111223";
+    let upstream_item_id = inventory_item_id.clone();
+    let upstream_variant_id = variant_id.clone();
+    let upstream_origin_id = origin_location_id.clone();
+    let upstream_destination_id = destination_location_id.clone();
+    proxy = proxy.with_upstream_transport(move |request| {
+        request_log.lock().unwrap().push(request.body.clone());
+        if request.body.contains("InventoryTransferHydrateNodes")
+            || request.body.contains("ProductsHydrateNodes")
+        {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [
+                            {
+                                "__typename": "Location",
+                                "id": upstream_origin_id,
+                                "name": "LiveHybrid Origin",
+                                "isActive": true
+                            },
+                            {
+                                "__typename": "Location",
+                                "id": upstream_destination_id,
+                                "name": "LiveHybrid Destination",
+                                "isActive": true
+                            },
+                            {
+                                "__typename": "InventoryItem",
+                                "id": upstream_item_id,
+                                "tracked": true,
+                                "requiresShipping": true,
+                                "variant": {
+                                    "id": upstream_variant_id,
+                                    "sku": "TRANSFER-LIVE-HYBRID",
+                                    "product": {
+                                        "id": "gid://shopify/Product/1",
+                                        "title": "Seeded inventory product",
+                                        "handle": "seeded-inventory-product",
+                                        "status": "ACTIVE",
+                                        "totalInventory": 8,
+                                        "tracksInventory": true
+                                    }
+                                },
+                                "inventoryLevels": {
+                                    "nodes": [{
+                                        "id": inventory_level_id_for_test(&upstream_item_id, &upstream_origin_id),
+                                        "location": {
+                                            "id": upstream_origin_id,
+                                            "name": "LiveHybrid Origin",
+                                            "isActive": true
+                                        },
+                                        "quantities": [{ "name": "available", "quantity": 8 }]
+                                    }]
+                                }
+                            }
+                        ]
+                    }
+                }),
+            };
+        }
+        assert!(
+            request.body.contains("inventoryTransfers"),
+            "unexpected upstream inventory transfer request: {}",
+            request.body
+        );
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "inventoryTransfers": {
+                        "nodes": [{
+                            "id": upstream_transfer_id,
+                            "name": "#T777",
+                            "dateCreated": "2024-01-01T00:00:00Z",
+                            "status": "DRAFT",
+                            "totalQuantity": 5,
+                            "origin": {
+                                "id": upstream_origin_id,
+                                "name": "LiveHybrid Origin"
+                            },
+                            "destination": {
+                                "id": upstream_destination_id,
+                                "name": "LiveHybrid Destination"
+                            },
+                            "lineItems": {
+                                "nodes": [{
+                                    "id": upstream_transfer_line_id,
+                                    "inventoryItem": { "id": upstream_item_id },
+                                    "totalQuantity": 5
+                                }]
+                            }
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }
+                }
+            }),
+        }
+    });
+
+    let cold_read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryTransfersColdWindow {
+          inventoryTransfers(first: 10) {
+            nodes { id name status totalQuantity }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        cold_read.body["data"]["inventoryTransfers"]["nodes"],
+        json!([{
+            "id": upstream_transfer_id,
+            "name": "#T777",
+            "status": "DRAFT",
+            "totalQuantity": 5
+        }])
+    );
+
+    let staged_transfer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalTransfer($input: InventoryTransferCreateInput!) {
+          inventoryTransferCreate(input: $input) {
+            inventoryTransfer { id name status totalQuantity }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_location_id,
+            "destinationLocationId": destination_location_id,
+            "dateCreated": "2024-01-02T00:00:00Z",
+            "lineItems": [{ "inventoryItemId": inventory_item_id, "quantity": 2 }]
+        }}),
+    ));
+    assert_eq!(
+        staged_transfer.body["data"]["inventoryTransferCreate"]["userErrors"],
+        json!([])
+    );
+    let staged_transfer_id = staged_transfer.body["data"]["inventoryTransferCreate"]
+        ["inventoryTransfer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let mixed_read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryTransfersMixedWindow {
+          inventoryTransfers(first: 10, sortKey: NAME) {
+            nodes { id name status totalQuantity }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        mixed_read.body["data"]["inventoryTransfers"]["nodes"],
+        json!([
+            { "id": staged_transfer_id, "name": "#T0002", "status": "DRAFT", "totalQuantity": 2 },
+            { "id": upstream_transfer_id, "name": "#T777", "status": "DRAFT", "totalQuantity": 5 }
+        ])
+    );
+    assert_eq!(
+        mixed_read.body["data"]["inventoryTransfers"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": staged_transfer_id,
+            "endCursor": upstream_transfer_id
+        })
+    );
+    let inventory_transfer_reads = upstream_requests
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|body| body.contains("inventoryTransfers"))
+        .count();
+    assert_eq!(inventory_transfer_reads, 1);
+}
+
+#[test]
 fn inventory_transfers_connection_filters_sorts_and_windows_staged_records() {
     let mut proxy = inventory_seed_proxy();
     let origin_location_id = add_inventory_test_location(&mut proxy, "Origin Stockroom");

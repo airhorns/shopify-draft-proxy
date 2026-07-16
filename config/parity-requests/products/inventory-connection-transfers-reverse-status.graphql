@@ -1,5 +1,5 @@
 query InventoryConnectionTransfersReverseStatus($query: String!, $statusQuery: String!) {
-  reversePage: inventoryTransfers(first: 1, query: $query, sortKey: NAME, reverse: true) {
+  reversePage: inventoryTransfers(first: 1, query: $query, sortKey: CREATED_AT, reverse: true) {
     nodes {
       id
       name
@@ -13,7 +13,7 @@ query InventoryConnectionTransfersReverseStatus($query: String!, $statusQuery: S
       endCursor
     }
   }
-  statusMatch: inventoryTransfers(first: 5, query: $statusQuery, sortKey: NAME) {
+  statusMatch: inventoryTransfers(first: 5, query: $statusQuery, sortKey: CREATED_AT) {
     nodes {
       id
       name

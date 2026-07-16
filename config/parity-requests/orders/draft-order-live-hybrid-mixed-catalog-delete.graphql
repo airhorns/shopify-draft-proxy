@@ -1,0 +1,9 @@
+mutation DraftOrderLiveHybridMixedCatalogDelete($input: DraftOrderDeleteInput!) {
+    draftOrderDelete(input: $input) {
+      deletedId
+      userErrors {
+        field
+        message
+      }
+    }
+  }

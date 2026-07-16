@@ -1,0 +1,367 @@
+query StorefrontEnrichmentMerchandising(
+  $id: ID!
+  $handle: String!
+  $missingId: ID!
+  $visibleProductKey: String!
+  $hiddenProductKey: String!
+  $visibleVariantKey: String!
+) {
+  recommendations: productRecommendations(productId: $id, intent: RELATED) {
+    id
+    handle
+    title
+    productType
+    tags
+  }
+  recommendationsByHandle: productRecommendations(productHandle: $handle, intent: RELATED) {
+    id
+    handle
+    title
+  }
+  missingRecommendations: productRecommendations(productId: $missingId, intent: RELATED) {
+    id
+  }
+  productTags(first: 250) {
+    edges {
+      cursor
+      node
+    }
+    nodes
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  productTypes(first: 250) {
+    edges {
+      cursor
+      node
+    }
+    nodes
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  byHandle: productByHandle(handle: $handle) {
+    ...ProductEnrichmentFields
+  }
+  aliasedProduct: product(id: $id) {
+    ...ProductEnrichmentFields
+  }
+}
+
+fragment ProductEnrichmentFields on Product {
+  __typename
+  id
+  handle
+  title
+  productType
+  tags
+  requiresSellingPlan
+  featuredImage {
+    id
+    url
+    altText
+    width
+    height
+  }
+  images(first: 1) {
+    edges {
+      cursor
+      node {
+        id
+        url
+        altText
+        width
+        height
+      }
+    }
+    nodes {
+      id
+      url
+      altText
+      width
+      height
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  media(first: 1) {
+    edges {
+      cursor
+      node {
+        __typename
+        id
+        alt
+        mediaContentType
+        previewImage {
+          id
+          url
+          altText
+          width
+          height
+        }
+        ... on MediaImage {
+          image {
+            id
+            url
+            altText
+            width
+            height
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  mediaTail: media(first: 1, reverse: true) {
+    nodes {
+      __typename
+      id
+      alt
+      mediaContentType
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  visibleProductMetafield: metafield(namespace: "custom", key: $visibleProductKey) {
+    id
+    namespace
+    key
+    type
+    value
+  }
+  hiddenProductMetafield: metafield(namespace: "custom", key: $hiddenProductKey) {
+    id
+    namespace
+    key
+    type
+    value
+  }
+  selectedProductMetafields: metafields(
+    identifiers: [
+      { namespace: "custom", key: $visibleProductKey }
+      { namespace: "custom", key: $hiddenProductKey }
+    ]
+  ) {
+    id
+    namespace
+    key
+    type
+    value
+  }
+  sellingPlanGroups(first: 5) {
+    edges {
+      cursor
+      node {
+        appName
+        name
+        options {
+          name
+          values
+        }
+        sellingPlans(first: 5) {
+          edges {
+            cursor
+            node {
+              id
+              name
+              description
+              recurringDeliveries
+              options {
+                name
+                value
+              }
+              priceAdjustments {
+                orderCount
+                adjustmentValue {
+                  __typename
+                  ... on SellingPlanPercentagePriceAdjustment {
+                    adjustmentPercentage
+                  }
+                  ... on SellingPlanFixedAmountPriceAdjustment {
+                    adjustmentAmount {
+                      amount
+                      currencyCode
+                    }
+                  }
+                  ... on SellingPlanFixedPriceAdjustment {
+                    price {
+                      amount
+                      currencyCode
+                    }
+                  }
+                }
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  variants(first: 5) {
+    edges {
+      cursor
+      node {
+        __typename
+        id
+        title
+        price {
+          amount
+          currencyCode
+        }
+        compareAtPrice {
+          amount
+          currencyCode
+        }
+        availableForSale
+        quantityAvailable
+        image {
+          id
+          url
+          altText
+          width
+          height
+        }
+        visibleVariantMetafield: metafield(namespace: "custom", key: $visibleVariantKey) {
+          id
+          namespace
+          key
+          type
+          value
+        }
+        selectedVariantMetafields: metafields(
+          identifiers: [{ namespace: "custom", key: $visibleVariantKey }]
+        ) {
+          id
+          namespace
+          key
+          type
+          value
+        }
+        quantityRule {
+          minimum
+          maximum
+          increment
+        }
+        quantityPriceBreaks(first: 5) {
+          edges {
+            cursor
+            node {
+              minimumQuantity
+              price {
+                amount
+                currencyCode
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+        sellingPlanAllocations(first: 5) {
+          edges {
+            cursor
+            node {
+              checkoutChargeAmount {
+                amount
+                currencyCode
+              }
+              remainingBalanceChargeAmount {
+                amount
+                currencyCode
+              }
+              priceAdjustments {
+                price {
+                  amount
+                  currencyCode
+                }
+                compareAtPrice {
+                  amount
+                  currencyCode
+                }
+                perDeliveryPrice {
+                  amount
+                  currencyCode
+                }
+                unitPrice {
+                  amount
+                  currencyCode
+                }
+              }
+              sellingPlan {
+                id
+                name
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+        storeAvailability(first: 5) {
+          edges {
+            cursor
+            node {
+              available
+              pickUpTime
+              quantityAvailable
+              location {
+                id
+                name
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

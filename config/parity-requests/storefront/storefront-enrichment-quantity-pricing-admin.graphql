@@ -1,0 +1,15 @@
+mutation StorefrontEnrichmentQuantityPricing(
+  $priceListId: ID!
+  $input: QuantityPricingByVariantUpdateInput!
+) {
+  quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+    productVariants {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

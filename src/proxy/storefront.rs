@@ -4,6 +4,7 @@ use super::b2b_customers::{
 };
 use super::*;
 use crate::graphql::operation_directive_invocations;
+use base64::Engine as _;
 use sha2::{Digest, Sha256};
 
 const STOREFRONT_FIRST_SLICE_VERSION: &str = "2026-04";
@@ -15,6 +16,9 @@ const STOREFRONT_FIRST_SLICE_ROOTS: &[&str] = &[
     "publicApiVersions",
     "product",
     "productByHandle",
+    "productRecommendations",
+    "productTags",
+    "productTypes",
     "products",
 ];
 const STOREFRONT_CONTENT_ROOTS: &[&str] = &[
@@ -80,6 +84,12 @@ const STOREFRONT_FIRST_SLICE_HYDRATE_QUERY: &str =
 const STOREFRONT_FIRST_SLICE_CONTEXT_HYDRATE_QUERY: &str = include_str!(
     "../../config/parity-requests/storefront/storefront-first-slice-hydrate-context.graphql"
 );
+const STOREFRONT_ENRICHMENT_TAXONOMY_HYDRATE_QUERY: &str = include_str!(
+    "../../config/parity-requests/storefront/storefront-enrichment-taxonomy-hydrate.graphql"
+);
+const STOREFRONT_ENRICHMENT_CONTEXT_HYDRATE_QUERY: &str = include_str!(
+    "../../config/parity-requests/storefront/storefront-enrichment-context-hydrate.graphql"
+);
 const STOREFRONT_MENU_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/storefront/storefront-content-menu-hydrate.graphql");
 
@@ -90,26 +100,63 @@ enum StorefrontContentKind {
     Article,
 }
 
+#[derive(Clone, Copy)]
+enum StorefrontProductTaxonomyKind {
+    Tag,
+    ProductType,
+}
+
+#[derive(Clone)]
+struct StorefrontVariantPricing {
+    price: String,
+    compare_at_price: Option<String>,
+    currency_code: String,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(in crate::proxy) struct StorefrontRequestContext {
     country: Option<String>,
     language: Option<String>,
+    preferred_location_id: Option<String>,
+    buyer_customer_access_token: Option<String>,
+    buyer_company_location_id: Option<String>,
+    uses_enrichment_context: bool,
 }
 
 impl StorefrontRequestContext {
     fn key(&self) -> String {
-        match (self.country.as_deref(), self.language.as_deref()) {
-            (None, None) => STOREFRONT_DEFAULT_CONTEXT_KEY.to_string(),
-            (country, language) => format!(
+        match (
+            self.country.as_deref(),
+            self.language.as_deref(),
+            self.buyer_company_location_id.as_deref(),
+        ) {
+            (None, None, None) => STOREFRONT_DEFAULT_CONTEXT_KEY.to_string(),
+            (country, language, None) => format!(
                 "country={};language={}",
                 country.unwrap_or("*"),
                 language.unwrap_or("*")
+            ),
+            (country, language, Some(company_location_id)) => format!(
+                "country={};language={};companyLocation={}",
+                country.unwrap_or("*"),
+                language.unwrap_or("*"),
+                company_location_id
             ),
         }
     }
 
     fn has_in_context_values(&self) -> bool {
         self.country.is_some() || self.language.is_some()
+    }
+
+    pub(in crate::proxy) fn invalid_buyer_token(&self, proxy: &DraftProxy) -> bool {
+        self.buyer_customer_access_token
+            .as_deref()
+            .is_some_and(|token| {
+                proxy
+                    .storefront_customer_id_for_access_token(token)
+                    .is_none()
+            })
     }
 }
 
@@ -1571,6 +1618,7 @@ impl DraftProxy {
             self.hydrate_storefront_first_slice(request, &context);
         }
         if self.config.read_mode == ReadMode::LiveHybrid {
+            self.hydrate_storefront_taxonomy_for_fields(request, std::slice::from_ref(&field));
             self.hydrate_storefront_menus_for_fields(request, std::slice::from_ref(&field));
         }
 
@@ -1675,7 +1723,7 @@ impl DraftProxy {
         fields.iter().any(|field| {
             matches!(
                 field.name.as_str(),
-                "product" | "productByHandle" | "products"
+                "product" | "productByHandle" | "productRecommendations" | "products"
             )
         })
     }
@@ -1804,6 +1852,44 @@ impl DraftProxy {
         );
         if (200..300).contains(&response.status) {
             self.hydrate_storefront_first_slice_from_data(&response.body["data"], context);
+        }
+    }
+
+    fn hydrate_storefront_taxonomy_for_fields(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) {
+        let needs_tags = fields.iter().any(|field| field.name == "productTags")
+            && !self.store.base.storefront_product_tags.is_object();
+        let needs_types = fields.iter().any(|field| field.name == "productTypes")
+            && !self.store.base.storefront_product_types.is_object();
+        if !needs_tags && !needs_types {
+            return;
+        }
+        let response = self.storefront_upstream_post(
+            request,
+            json!({
+                "query": STOREFRONT_ENRICHMENT_TAXONOMY_HYDRATE_QUERY,
+                "variables": {}
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        if let Some(connection) = response
+            .body
+            .pointer("/data/productTags")
+            .filter(|value| value.is_object())
+        {
+            self.store.base.storefront_product_tags = connection.clone();
+        }
+        if let Some(connection) = response
+            .body
+            .pointer("/data/productTypes")
+            .filter(|value| value.is_object())
+        {
+            self.store.base.storefront_product_types = connection.clone();
         }
     }
 
@@ -1982,12 +2068,25 @@ impl DraftProxy {
                     .get(&field.response_key)
                     .cloned()
                     .unwrap_or(Value::Null),
-                "product" => self.storefront_product_field_json(field),
-                "productByHandle" => self.storefront_product_by_handle_field_json(field),
-                "products" => self.storefront_products_connection_json(field),
-                "collection" => self.storefront_collection_field_json(field),
-                "collectionByHandle" => self.storefront_collection_by_handle_field_json(field),
-                "collections" => self.storefront_collections_connection_json(field),
+                "product" => self.storefront_product_field_json(field, context),
+                "productByHandle" => self.storefront_product_by_handle_field_json(field, context),
+                "productRecommendations" => {
+                    self.storefront_product_recommendations_json(field, context)
+                }
+                "productTags" => self.storefront_product_taxonomy_connection_json(
+                    field,
+                    StorefrontProductTaxonomyKind::Tag,
+                ),
+                "productTypes" => self.storefront_product_taxonomy_connection_json(
+                    field,
+                    StorefrontProductTaxonomyKind::ProductType,
+                ),
+                "products" => self.storefront_products_connection_json(field, context),
+                "collection" => self.storefront_collection_field_json(field, context),
+                "collectionByHandle" => {
+                    self.storefront_collection_by_handle_field_json(field, context)
+                }
+                "collections" => self.storefront_collections_connection_json(field, context),
                 "metaobject" => self.storefront_metaobject_root_json(field),
                 "metaobjects" => self.storefront_metaobjects_connection_json(field),
                 _ => Value::Null,
@@ -2063,25 +2162,34 @@ impl DraftProxy {
         }
     }
 
-    fn storefront_collection_field_json(&self, field: &RootFieldSelection) -> Value {
+    fn storefront_collection_field_json(
+        &self,
+        field: &RootFieldSelection,
+        context: &StorefrontRequestContext,
+    ) -> Value {
         let collection = resolved_string_field(&field.arguments, "id")
             .and_then(|id| self.store.collection_by_id(&id))
             .or_else(|| {
                 resolved_string_field(&field.arguments, "handle")
                     .and_then(|handle| self.store.collection_by_handle(&handle))
             });
-        self.storefront_visible_collection_json(collection, &field.selection)
+        self.storefront_visible_collection_json(collection, context, &field.selection)
     }
 
-    fn storefront_collection_by_handle_field_json(&self, field: &RootFieldSelection) -> Value {
+    fn storefront_collection_by_handle_field_json(
+        &self,
+        field: &RootFieldSelection,
+        context: &StorefrontRequestContext,
+    ) -> Value {
         let collection = resolved_string_field(&field.arguments, "handle")
             .and_then(|handle| self.store.collection_by_handle(&handle));
-        self.storefront_visible_collection_json(collection, &field.selection)
+        self.storefront_visible_collection_json(collection, context, &field.selection)
     }
 
     fn storefront_visible_collection_json(
         &self,
         collection: Option<&Value>,
+        context: &StorefrontRequestContext,
         selections: &[SelectedField],
     ) -> Value {
         let Some(collection) =
@@ -2089,7 +2197,7 @@ impl DraftProxy {
         else {
             return Value::Null;
         };
-        self.storefront_collection_json(collection, selections)
+        self.storefront_collection_json(collection, context, selections)
     }
 
     fn storefront_collection_is_visible(&self, collection: &Value) -> bool {
@@ -2110,7 +2218,11 @@ impl DraftProxy {
             .unwrap_or(false)
     }
 
-    fn storefront_collections_connection_json(&self, field: &RootFieldSelection) -> Value {
+    fn storefront_collections_connection_json(
+        &self,
+        field: &RootFieldSelection,
+        context: &StorefrontRequestContext,
+    ) -> Value {
         selected_staged_connection_with_args(
             self.store
                 .staged
@@ -2123,7 +2235,9 @@ impl DraftProxy {
             &field.selection,
             |collection, query| self.collection_search_decision(collection, query),
             |collection, sort_key| self.storefront_collection_sort_key(collection, sort_key),
-            |collection, selections| self.storefront_collection_json(collection, selections),
+            |collection, selections| {
+                self.storefront_collection_json(collection, context, selections)
+            },
             value_id_cursor,
         )
     }
@@ -2172,6 +2286,7 @@ impl DraftProxy {
     fn storefront_collection_json(
         &self,
         collection: &Value,
+        context: &StorefrontRequestContext,
         selections: &[SelectedField],
     ) -> Value {
         let owner_id = collection
@@ -2199,9 +2314,9 @@ impl DraftProxy {
             )),
             "metafield" => Some(self.storefront_owner_metafield_json(owner_id, selection)),
             "metafields" => Some(self.storefront_owner_metafields_json(owner_id, selection)),
-            "products" => {
-                Some(self.storefront_collection_products_connection_json(collection, selection))
-            }
+            "products" => Some(
+                self.storefront_collection_products_connection_json(collection, context, selection),
+            ),
             _ => collection
                 .get(&selection.name)
                 .map(|value| nullable_selected_json(value, &selection.selection)),
@@ -2211,6 +2326,7 @@ impl DraftProxy {
     fn storefront_collection_products_connection_json(
         &self,
         collection: &Value,
+        context: &StorefrontRequestContext,
         selection: &SelectedField,
     ) -> Value {
         let filters = resolved_object_list_field(&selection.arguments, "filters");
@@ -2240,36 +2356,40 @@ impl DraftProxy {
             &selection.arguments,
             &selection.selection,
             |entry, selections| {
-                storefront_product_json(
-                    &entry.product,
-                    &entry.variants,
-                    &self.storefront_currency_code(),
-                    selections,
-                )
+                storefront_product_json(self, &entry.product, &entry.variants, context, selections)
             },
             collection_product_cursor,
         )
     }
 
-    fn storefront_product_field_json(&self, field: &RootFieldSelection) -> Value {
+    fn storefront_product_field_json(
+        &self,
+        field: &RootFieldSelection,
+        context: &StorefrontRequestContext,
+    ) -> Value {
         let product = resolved_string_field(&field.arguments, "id")
             .and_then(|id| self.store.product_by_id(&id))
             .or_else(|| {
                 resolved_string_field(&field.arguments, "handle")
                     .and_then(|handle| self.store.product_by_handle(&handle))
             });
-        self.storefront_visible_product_json(product, &field.selection)
+        self.storefront_visible_product_json(product, context, &field.selection)
     }
 
-    fn storefront_product_by_handle_field_json(&self, field: &RootFieldSelection) -> Value {
+    fn storefront_product_by_handle_field_json(
+        &self,
+        field: &RootFieldSelection,
+        context: &StorefrontRequestContext,
+    ) -> Value {
         let product = resolved_string_field(&field.arguments, "handle")
             .and_then(|handle| self.store.product_by_handle(&handle));
-        self.storefront_visible_product_json(product, &field.selection)
+        self.storefront_visible_product_json(product, context, &field.selection)
     }
 
     fn storefront_visible_product_json(
         &self,
         product: Option<&ProductRecord>,
+        context: &StorefrontRequestContext,
         selections: &[SelectedField],
     ) -> Value {
         let Some(product) = product.filter(|product| self.storefront_product_is_visible(product))
@@ -2277,15 +2397,14 @@ impl DraftProxy {
             return Value::Null;
         };
         let variants = self.store.product_variants_for_product(&product.id);
-        storefront_product_json(
-            product,
-            &variants,
-            &self.storefront_currency_code(),
-            selections,
-        )
+        storefront_product_json(self, product, &variants, context, selections)
     }
 
-    fn storefront_products_connection_json(&self, field: &RootFieldSelection) -> Value {
+    fn storefront_products_connection_json(
+        &self,
+        field: &RootFieldSelection,
+        context: &StorefrontRequestContext,
+    ) -> Value {
         selected_staged_connection_with_args(
             self.storefront_visible_products(),
             &field.arguments,
@@ -2294,15 +2413,192 @@ impl DraftProxy {
             |product, sort_key| self.storefront_product_sort_key(product, sort_key),
             |product, selections| {
                 let variants = self.store.product_variants_for_product(&product.id);
-                storefront_product_json(
-                    product,
-                    &variants,
-                    &self.storefront_currency_code(),
-                    selections,
-                )
+                storefront_product_json(self, product, &variants, context, selections)
             },
             |product| product_cursor(product).to_string(),
         )
+    }
+
+    fn storefront_product_recommendations_json(
+        &self,
+        field: &RootFieldSelection,
+        context: &StorefrontRequestContext,
+    ) -> Value {
+        let source = resolved_string_field(&field.arguments, "productId")
+            .and_then(|id| self.store.product_by_id(&id))
+            .or_else(|| {
+                resolved_string_field(&field.arguments, "productHandle")
+                    .and_then(|handle| self.store.product_by_handle(&handle))
+            })
+            .filter(|product| self.storefront_product_is_visible(product));
+        let Some(source) = source else {
+            return Value::Null;
+        };
+        let mut candidates = self
+            .storefront_visible_products()
+            .into_iter()
+            .filter(|candidate| candidate.id != source.id)
+            .map(|candidate| {
+                let shared_tags = candidate
+                    .tags
+                    .iter()
+                    .filter(|tag| source.tags.iter().any(|source_tag| source_tag == *tag))
+                    .count();
+                let score = shared_tags * 4
+                    + usize::from(
+                        !source.product_type.is_empty()
+                            && candidate.product_type == source.product_type,
+                    ) * 3
+                    + usize::from(!source.vendor.is_empty() && candidate.vendor == source.vendor)
+                        * 2;
+                (score, candidate)
+            })
+            .collect::<Vec<_>>();
+        candidates.sort_by(|(left_score, left), (right_score, right)| {
+            right_score
+                .cmp(left_score)
+                .then_with(|| {
+                    left.title
+                        .to_ascii_lowercase()
+                        .cmp(&right.title.to_ascii_lowercase())
+                })
+                .then_with(|| left.id.cmp(&right.id))
+        });
+        Value::Array(
+            candidates
+                .into_iter()
+                .take(10)
+                .map(|(_, product)| {
+                    let variants = self.store.product_variants_for_product(&product.id);
+                    storefront_product_json(self, &product, &variants, context, &field.selection)
+                })
+                .collect(),
+        )
+    }
+
+    fn storefront_product_taxonomy_connection_json(
+        &self,
+        field: &RootFieldSelection,
+        kind: StorefrontProductTaxonomyKind,
+    ) -> Value {
+        let observed = match kind {
+            StorefrontProductTaxonomyKind::Tag => &self.store.base.storefront_product_tags,
+            StorefrontProductTaxonomyKind::ProductType => &self.store.base.storefront_product_types,
+        };
+        let mut values = if observed.is_object() {
+            connection_nodes(observed)
+                .into_iter()
+                .filter_map(|value| value.as_str().map(str::to_string))
+                .collect::<Vec<_>>()
+        } else {
+            self.storefront_visible_products()
+                .into_iter()
+                .flat_map(|product| match kind {
+                    StorefrontProductTaxonomyKind::Tag => product.tags,
+                    StorefrontProductTaxonomyKind::ProductType => vec![product.product_type],
+                })
+                .collect::<Vec<_>>()
+        };
+        values.sort_by(|left, right| {
+            left.to_ascii_lowercase()
+                .cmp(&right.to_ascii_lowercase())
+                .then_with(|| left.cmp(right))
+        });
+        values.dedup();
+        selected_connection_json_with_args(
+            values.into_iter().map(Value::String).collect(),
+            &field.arguments,
+            &field.selection,
+            |value| {
+                base64::engine::general_purpose::STANDARD
+                    .encode(value.as_str().unwrap_or_default().as_bytes())
+            },
+        )
+    }
+
+    fn storefront_context_localization(
+        &self,
+        context: &StorefrontRequestContext,
+    ) -> Option<&Value> {
+        self.store
+            .base
+            .storefront_localizations
+            .get(&context.key())
+            .or_else(|| {
+                self.store
+                    .base
+                    .storefront_localizations
+                    .get(STOREFRONT_DEFAULT_CONTEXT_KEY)
+            })
+    }
+
+    fn storefront_context_price_list(&self, context: &StorefrontRequestContext) -> Option<&Value> {
+        let localization = self.storefront_context_localization(context)?;
+        let observed_market_id = localization.pointer("/market/id").and_then(Value::as_str);
+        let observed_market_handle = localization
+            .pointer("/market/handle")
+            .and_then(Value::as_str);
+        let market_id = self
+            .store
+            .staged
+            .markets
+            .iter()
+            .find_map(|(id, market)| {
+                (market.get("handle").and_then(Value::as_str) == observed_market_handle)
+                    .then_some(id.as_str())
+            })
+            .or(observed_market_id)?;
+        let catalog = self.store.staged.catalogs.values().find(|catalog| {
+            catalog.get("status").and_then(Value::as_str) == Some("ACTIVE")
+                && catalog_market_ids(catalog).iter().any(|id| id == market_id)
+        })?;
+        let price_list_id = catalog_relation_id(catalog, "priceListId", "priceList")?;
+        self.store.staged.price_lists.get(&price_list_id)
+    }
+
+    fn storefront_variant_pricing(
+        &self,
+        variant: &ProductVariantRecord,
+        context: &StorefrontRequestContext,
+    ) -> StorefrontVariantPricing {
+        let contextual_price_list = self.storefront_context_price_list(context);
+        let fixed_price = contextual_price_list.and_then(|price_list| {
+            price_edges(price_list).into_iter().find_map(|edge| {
+                (fixed_price_edge_variant_id(&edge).as_deref() == Some(variant.id.as_str()))
+                    .then(|| edge.get("node").cloned())
+                    .flatten()
+            })
+        });
+        let currency_code = self
+            .storefront_context_localization(context)
+            .and_then(|localization| localization.pointer("/country/currency/isoCode"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| contextual_price_list.map(price_list_currency))
+            .or_else(|| self.store.observed_shop_currency_code())
+            .or_else(|| {
+                variant
+                    .extra_fields
+                    .get("currencyCode")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .unwrap_or_default();
+        StorefrontVariantPricing {
+            price: fixed_price
+                .as_ref()
+                .and_then(|price| price.pointer("/price/amount"))
+                .and_then(Value::as_str)
+                .unwrap_or(&variant.price)
+                .to_string(),
+            compare_at_price: fixed_price
+                .as_ref()
+                .and_then(|price| price.pointer("/compareAtPrice/amount"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .or_else(|| variant.compare_at_price.clone()),
+            currency_code,
+        }
     }
 
     fn storefront_visible_products(&self) -> Vec<ProductRecord> {
@@ -2370,7 +2666,6 @@ impl DraftProxy {
             .observed_shop_currency_code()
             .unwrap_or_else(|| "USD".to_string())
     }
-
     fn storefront_shop_json(&self, selections: &[SelectedField]) -> Value {
         let storefront_shop = self.store.base.storefront_shop.clone();
         let admin_shop = if self.store.base.shop.is_object() {
@@ -3100,6 +3395,41 @@ impl DraftProxy {
         )
     }
 
+    fn storefront_resource_metafield_json(
+        &self,
+        owner_id: &str,
+        selection: &SelectedField,
+    ) -> Value {
+        let namespace =
+            resolved_string_field(&selection.arguments, "namespace").unwrap_or_default();
+        let key = resolved_string_field(&selection.arguments, "key").unwrap_or_default();
+        self.storefront_owner_metafield(owner_id, &namespace, &key)
+            .map(|metafield| self.storefront_selected_metafield(&metafield, &selection.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn storefront_resource_metafields_json(
+        &self,
+        owner_id: &str,
+        selection: &SelectedField,
+    ) -> Value {
+        Value::Array(
+            resolved_object_list_field(&selection.arguments, "identifiers")
+                .into_iter()
+                .map(|identifier| {
+                    let namespace =
+                        resolved_string_field(&identifier, "namespace").unwrap_or_default();
+                    let key = resolved_string_field(&identifier, "key").unwrap_or_default();
+                    self.storefront_owner_metafield(owner_id, &namespace, &key)
+                        .map(|metafield| {
+                            self.storefront_selected_metafield(&metafield, &selection.selection)
+                        })
+                        .unwrap_or(Value::Null)
+                })
+                .collect(),
+        )
+    }
+
     fn storefront_owner_metafield(
         &self,
         owner_id: &str,
@@ -3677,9 +4007,10 @@ fn storefront_selected_sitemap_resources(
 }
 
 fn storefront_product_json(
+    proxy: &DraftProxy,
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
-    currency_code: &str,
+    context: &StorefrontRequestContext,
     selections: &[SelectedField],
 ) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
@@ -3718,9 +4049,10 @@ fn storefront_product_json(
             product, variants, selection,
         )),
         "variants" => Some(storefront_product_variants_connection_json(
+            proxy,
             product,
             variants,
-            currency_code,
+            context,
             &selection.arguments,
             &selection.selection,
         )),
@@ -3729,16 +4061,18 @@ fn storefront_product_json(
             &selection.selection,
         )),
         "priceRange" => Some(storefront_product_price_range_json(
+            proxy,
             product,
             variants,
-            currency_code,
+            context,
             &selection.selection,
             StorefrontPriceRangeKind::Price,
         )),
         "compareAtPriceRange" => Some(storefront_product_price_range_json(
+            proxy,
             product,
             variants,
-            currency_code,
+            context,
             &selection.selection,
             StorefrontPriceRangeKind::CompareAtPrice,
         )),
@@ -3746,7 +4080,7 @@ fn storefront_product_json(
             product
                 .media
                 .iter()
-                .find_map(product_image_json_from_media)
+                .find_map(storefront_product_image_json_from_media)
                 .map(|image| selected_json(&image, &selection.selection))
                 .unwrap_or(Value::Null),
         ),
@@ -3769,20 +4103,17 @@ fn storefront_product_json(
         ),
         "selectedOrFirstAvailableVariant" => {
             Some(storefront_selected_or_first_available_variant_json(
-                product,
-                variants,
-                currency_code,
-                selection,
+                proxy, product, variants, context, selection,
             ))
         }
         "variantBySelectedOptions" => Some(storefront_variant_by_selected_options_json(
-            product,
-            variants,
-            currency_code,
-            selection,
+            proxy, product, variants, context, selection,
         )),
-        "metafield" => Some(Value::Null),
-        "metafields" => Some(Value::Array(Vec::new())),
+        "metafield" => Some(proxy.storefront_resource_metafield_json(&product.id, selection)),
+        "metafields" => Some(proxy.storefront_resource_metafields_json(&product.id, selection)),
+        "sellingPlanGroups" => Some(storefront_selling_plan_groups_connection_json(
+            proxy, product, variants, context, selection,
+        )),
         _ => product
             .extra_fields
             .get(&selection.name)
@@ -4017,9 +4348,10 @@ fn storefront_product_option_json(option: &Value, selections: &[SelectedField]) 
 }
 
 fn storefront_product_variants_connection_json(
+    proxy: &DraftProxy,
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
-    currency_code: &str,
+    context: &StorefrontRequestContext,
     arguments: &BTreeMap<String, ResolvedValue>,
     selections: &[SelectedField],
 ) -> Value {
@@ -4039,7 +4371,14 @@ fn storefront_product_variants_connection_json(
         arguments,
         selections,
         |variant, selections| {
-            storefront_product_variant_json(variant, Some(product), currency_code, selections)
+            storefront_product_variant_json(
+                proxy,
+                variant,
+                Some(product),
+                context,
+                None,
+                selections,
+            )
         },
         |variant| variant.id.clone(),
     )
@@ -4122,11 +4461,17 @@ fn storefront_raw_variant_sort_key(
 }
 
 pub(in crate::proxy) fn storefront_product_variant_json(
+    proxy: &DraftProxy,
     variant: &ProductVariantRecord,
     product: Option<&ProductRecord>,
-    currency_code: &str,
+    context: &StorefrontRequestContext,
+    currency_code_override: Option<&str>,
     selections: &[SelectedField],
 ) -> Value {
+    let mut pricing = proxy.storefront_variant_pricing(variant, context);
+    if let Some(currency_code) = currency_code_override {
+        pricing.currency_code = currency_code.to_string();
+    }
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("ProductVariant")),
         "id" => Some(json!(variant.id)),
@@ -4157,15 +4502,17 @@ pub(in crate::proxy) fn storefront_product_variant_json(
         "requiresShipping" => Some(json!(variant.inventory_item.requires_shipping)),
         "taxable" => Some(json!(variant.taxable)),
         "price" | "priceV2" => Some(storefront_money_json(
-            &variant.price,
-            currency_code,
+            &pricing.price,
+            &pricing.currency_code,
             &selection.selection,
         )),
         "compareAtPrice" | "compareAtPriceV2" => Some(
-            variant
+            pricing
                 .compare_at_price
                 .as_ref()
-                .map(|price| storefront_money_json(price, currency_code, &selection.selection))
+                .map(|price| {
+                    storefront_money_json(price, &pricing.currency_code, &selection.selection)
+                })
                 .unwrap_or(Value::Null),
         ),
         "selectedOptions" => Some(Value::Array(
@@ -4183,34 +4530,44 @@ pub(in crate::proxy) fn storefront_product_variant_json(
         "image" => Some(
             product
                 .and_then(|product| {
-                    variant.media_ids.iter().find_map(|media_id| {
-                        product
-                            .media
-                            .iter()
-                            .find(|media| {
-                                media.get("id").and_then(Value::as_str) == Some(media_id.as_str())
-                            })
-                            .and_then(product_image_json_from_media)
-                    })
+                    variant
+                        .media_ids
+                        .iter()
+                        .find_map(|media_id| {
+                            product
+                                .media
+                                .iter()
+                                .find(|media| {
+                                    media.get("id").and_then(Value::as_str)
+                                        == Some(media_id.as_str())
+                                })
+                                .and_then(storefront_product_image_json_from_media)
+                        })
+                        .or_else(|| {
+                            product
+                                .media
+                                .iter()
+                                .find_map(storefront_product_image_json_from_media)
+                        })
                 })
                 .map(|image| selected_json(&image, &selection.selection))
                 .unwrap_or(Value::Null),
         ),
         "product" => Some(match product {
             Some(product) => {
-                storefront_product_json(product, &[], currency_code, &selection.selection)
+                storefront_product_json(proxy, product, &[], context, &selection.selection)
             }
             None => Value::Null,
         }),
-        "metafield" | "unitPrice" | "unitPriceMeasurement" | "shopPayInstallmentsPricing" => {
-            Some(Value::Null)
+        "unitPrice" | "unitPriceMeasurement" | "shopPayInstallmentsPricing" => Some(Value::Null),
+        "metafield" => Some(proxy.storefront_resource_metafield_json(&variant.id, selection)),
+        "metafields" => Some(proxy.storefront_resource_metafields_json(&variant.id, selection)),
+        "sellingPlanAllocations" => Some(storefront_selling_plan_allocations_connection_json(
+            proxy, variant, product, context, selection,
+        )),
+        "components" | "groupedBy" | "quantityPriceBreaks" | "storeAvailability" => {
+            Some(selected_empty_connection_json(&selection.selection))
         }
-        "metafields" => Some(Value::Array(Vec::new())),
-        "sellingPlanAllocations"
-        | "components"
-        | "groupedBy"
-        | "quantityPriceBreaks"
-        | "storeAvailability" => Some(selected_empty_connection_json(&selection.selection)),
         "quantityRule" => Some(selected_json(
             &json!({ "increment": 1, "maximum": Value::Null, "minimum": 1 }),
             &selection.selection,
@@ -4234,9 +4591,10 @@ pub(in crate::proxy) fn storefront_product_variant_json(
 }
 
 fn storefront_selected_or_first_available_variant_json(
+    proxy: &DraftProxy,
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
-    currency_code: &str,
+    context: &StorefrontRequestContext,
     selection: &SelectedField,
 ) -> Value {
     let selected = storefront_variant_matching_selected_options(variants, selection)
@@ -4249,9 +4607,11 @@ fn storefront_selected_or_first_available_variant_json(
     selected
         .map(|variant| {
             storefront_product_variant_json(
+                proxy,
                 variant,
                 Some(product),
-                currency_code,
+                context,
+                None,
                 &selection.selection,
             )
         })
@@ -4259,17 +4619,20 @@ fn storefront_selected_or_first_available_variant_json(
 }
 
 fn storefront_variant_by_selected_options_json(
+    proxy: &DraftProxy,
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
-    currency_code: &str,
+    context: &StorefrontRequestContext,
     selection: &SelectedField,
 ) -> Value {
     storefront_variant_matching_selected_options(variants, selection)
         .map(|variant| {
             storefront_product_variant_json(
+                proxy,
                 variant,
                 Some(product),
-                currency_code,
+                context,
+                None,
                 &selection.selection,
             )
         })
@@ -4315,9 +4678,10 @@ enum StorefrontPriceRangeKind {
 }
 
 fn storefront_product_price_range_json(
+    proxy: &DraftProxy,
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
-    currency_code: &str,
+    context: &StorefrontRequestContext,
     selections: &[SelectedField],
     kind: StorefrontPriceRangeKind,
 ) -> Value {
@@ -4331,9 +4695,11 @@ fn storefront_product_price_range_json(
         }
     }
     let prices = match kind {
-        StorefrontPriceRangeKind::Price => storefront_product_variant_prices(product, variants),
+        StorefrontPriceRangeKind::Price => {
+            storefront_product_variant_prices(proxy, product, variants, context)
+        }
         StorefrontPriceRangeKind::CompareAtPrice => {
-            storefront_product_variant_compare_at_prices(product, variants)
+            storefront_product_variant_compare_at_prices(proxy, product, variants, context)
         }
     };
     let (min_price, max_price) = storefront_price_bounds(prices).unwrap_or((0.0, 0.0));
@@ -4341,12 +4707,12 @@ fn storefront_product_price_range_json(
         "__typename" => Some(json!("ProductPriceRange")),
         "minVariantPrice" => Some(storefront_money_json(
             &format!("{min_price:.2}"),
-            currency_code,
+            &storefront_product_currency_code(proxy, variants, context),
             &selection.selection,
         )),
         "maxVariantPrice" => Some(storefront_money_json(
             &format!("{max_price:.2}"),
-            currency_code,
+            &storefront_product_currency_code(proxy, variants, context),
             &selection.selection,
         )),
         _ => None,
@@ -4354,13 +4720,17 @@ fn storefront_product_price_range_json(
 }
 
 fn storefront_product_variant_prices(
+    proxy: &DraftProxy,
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
+    context: &StorefrontRequestContext,
 ) -> Vec<f64> {
     if !variants.is_empty() {
         return variants
             .iter()
-            .filter_map(|variant| storefront_parse_price(&variant.price))
+            .filter_map(|variant| {
+                storefront_parse_price(&proxy.storefront_variant_pricing(variant, context).price)
+            })
             .collect();
     }
     product
@@ -4372,14 +4742,20 @@ fn storefront_product_variant_prices(
 }
 
 fn storefront_product_variant_compare_at_prices(
+    proxy: &DraftProxy,
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
+    context: &StorefrontRequestContext,
 ) -> Vec<f64> {
     if !variants.is_empty() {
         return variants
             .iter()
-            .filter_map(|variant| variant.compare_at_price.as_deref())
-            .filter_map(storefront_parse_price)
+            .filter_map(|variant| {
+                proxy
+                    .storefront_variant_pricing(variant, context)
+                    .compare_at_price
+            })
+            .filter_map(|price| storefront_parse_price(&price))
             .collect();
     }
     product
@@ -4410,6 +4786,318 @@ fn storefront_parse_price(price: &str) -> Option<f64> {
     price.trim().parse::<f64>().ok()
 }
 
+fn storefront_product_currency_code(
+    proxy: &DraftProxy,
+    variants: &[ProductVariantRecord],
+    context: &StorefrontRequestContext,
+) -> String {
+    variants
+        .first()
+        .map(|variant| {
+            proxy
+                .storefront_variant_pricing(variant, context)
+                .currency_code
+        })
+        .filter(|currency| !currency.is_empty())
+        .or_else(|| {
+            proxy
+                .storefront_context_localization(context)
+                .and_then(|localization| localization.pointer("/country/currency/isoCode"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .or_else(|| proxy.store.observed_shop_currency_code())
+        .unwrap_or_default()
+}
+
+fn storefront_selling_plan_groups_connection_json(
+    proxy: &DraftProxy,
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    context: &StorefrontRequestContext,
+    selection: &SelectedField,
+) -> Value {
+    let variant_ids = variants
+        .iter()
+        .map(|variant| variant.id.as_str())
+        .collect::<BTreeSet<_>>();
+    let groups = proxy
+        .store
+        .selling_plan_groups()
+        .into_iter()
+        .filter(|group| {
+            group.product_ids.iter().any(|id| id == &product.id)
+                || group
+                    .product_variant_ids
+                    .iter()
+                    .any(|id| variant_ids.contains(id.as_str()))
+        })
+        .collect::<Vec<_>>();
+    let currency_code = storefront_product_currency_code(proxy, variants, context);
+    selected_typed_connection_with_args(
+        &groups,
+        &selection.arguments,
+        &selection.selection,
+        |group, selections| storefront_selling_plan_group_json(group, &currency_code, selections),
+        |group| group.id.clone(),
+    )
+}
+
+fn storefront_selling_plan_group_json(
+    group: &SellingPlanGroupRecord,
+    currency_code: &str,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("SellingPlanGroup")),
+        "appName" => Some(Value::Null),
+        "name" => Some(json!(group.name)),
+        "options" => Some(Value::Array(
+            group
+                .options
+                .iter()
+                .enumerate()
+                .map(|(index, name)| {
+                    let mut values = group
+                        .selling_plans
+                        .iter()
+                        .filter_map(|plan| plan.options.get(index).cloned())
+                        .collect::<Vec<_>>();
+                    values.dedup();
+                    selected_json(
+                        &json!({ "name": name, "values": values }),
+                        &selection.selection,
+                    )
+                })
+                .collect(),
+        )),
+        "sellingPlans" => Some(selected_typed_connection_with_args(
+            &group.selling_plans,
+            &selection.arguments,
+            &selection.selection,
+            |plan, selections| {
+                storefront_selling_plan_json(plan, &group.options, currency_code, selections)
+            },
+            |plan| plan.id.clone(),
+        )),
+        _ => None,
+    })
+}
+
+fn storefront_selling_plan_json(
+    plan: &SellingPlanRecord,
+    option_names: &[String],
+    currency_code: &str,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("SellingPlan")),
+        "id" => Some(json!(plan.id)),
+        "name" => Some(json!(plan.name)),
+        "description" => Some(json!(plan.description)),
+        "recurringDeliveries" => Some(json!(
+            plan.delivery_policy
+                .get("__typename")
+                .and_then(Value::as_str)
+                == Some("SellingPlanRecurringDeliveryPolicy")
+        )),
+        "options" => Some(Value::Array(
+            plan.options
+                .iter()
+                .enumerate()
+                .map(|(index, value)| {
+                    selected_json(
+                        &json!({
+                            "name": option_names.get(index).cloned().unwrap_or_default(),
+                            "value": value
+                        }),
+                        &selection.selection,
+                    )
+                })
+                .collect(),
+        )),
+        "priceAdjustments" => Some(Value::Array(
+            plan.pricing_policies
+                .iter()
+                .map(|policy| {
+                    selected_payload_json(&selection.selection, |field| match field.name.as_str() {
+                        "orderCount" => Some(
+                            policy
+                                .get("afterCycle")
+                                .and_then(Value::as_i64)
+                                .map(|after_cycle| json!(after_cycle + 1))
+                                .unwrap_or(Value::Null),
+                        ),
+                        "adjustmentValue" => Some(storefront_selling_plan_adjustment_value_json(
+                            policy,
+                            currency_code,
+                            &field.selection,
+                        )),
+                        _ => None,
+                    })
+                })
+                .collect(),
+        )),
+        _ => None,
+    })
+}
+
+fn storefront_selling_plan_adjustment_value_json(
+    policy: &Value,
+    currency_code: &str,
+    selections: &[SelectedField],
+) -> Value {
+    let adjustment_type = policy
+        .get("adjustmentType")
+        .and_then(Value::as_str)
+        .unwrap_or("PERCENTAGE");
+    selected_payload_json(selections, |selection| {
+        match (adjustment_type, selection.name.as_str()) {
+            (_, "__typename") => Some(json!(match adjustment_type {
+                "FIXED_AMOUNT" => "SellingPlanFixedAmountPriceAdjustment",
+                "PRICE" => "SellingPlanFixedPriceAdjustment",
+                _ => "SellingPlanPercentagePriceAdjustment",
+            })),
+            ("FIXED_AMOUNT", "adjustmentAmount") => Some(storefront_money_json(
+                policy
+                    .pointer("/adjustmentValue/amount")
+                    .and_then(Value::as_str)
+                    .unwrap_or("0"),
+                currency_code,
+                &selection.selection,
+            )),
+            ("PRICE", "price") => Some(storefront_money_json(
+                policy
+                    .pointer("/adjustmentValue/amount")
+                    .and_then(Value::as_str)
+                    .unwrap_or("0"),
+                currency_code,
+                &selection.selection,
+            )),
+            (_, "adjustmentPercentage") => Some(
+                policy
+                    .pointer("/adjustmentValue/percentage")
+                    .cloned()
+                    .unwrap_or_else(|| json!(0)),
+            ),
+            _ => None,
+        }
+    })
+}
+
+fn storefront_selling_plan_allocations_connection_json(
+    proxy: &DraftProxy,
+    variant: &ProductVariantRecord,
+    product: Option<&ProductRecord>,
+    context: &StorefrontRequestContext,
+    selection: &SelectedField,
+) -> Value {
+    let Some(product) = product else {
+        return selected_empty_connection_json(&selection.selection);
+    };
+    let allocations = proxy
+        .store
+        .selling_plan_groups()
+        .into_iter()
+        .filter(|group| {
+            group.product_ids.iter().any(|id| id == &product.id)
+                || group.product_variant_ids.iter().any(|id| id == &variant.id)
+        })
+        .flat_map(|group| group.selling_plans)
+        .collect::<Vec<_>>();
+    let pricing = proxy.storefront_variant_pricing(variant, context);
+    selected_typed_connection_with_args(
+        &allocations,
+        &selection.arguments,
+        &selection.selection,
+        |plan, selections| storefront_selling_plan_allocation_json(plan, &pricing, selections),
+        |plan| plan.id.clone(),
+    )
+}
+
+fn storefront_selling_plan_allocation_json(
+    plan: &SellingPlanRecord,
+    pricing: &StorefrontVariantPricing,
+    selections: &[SelectedField],
+) -> Value {
+    let original = storefront_parse_price(&pricing.price).unwrap_or_default();
+    let adjusted = plan
+        .pricing_policies
+        .first()
+        .map(|policy| storefront_adjusted_selling_plan_price(original, policy))
+        .unwrap_or(original);
+    let adjusted_amount = format_money_amount(adjusted);
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "checkoutChargeAmount" => Some(storefront_money_json(
+            &adjusted_amount,
+            &pricing.currency_code,
+            &selection.selection,
+        )),
+        "remainingBalanceChargeAmount" => Some(storefront_money_json(
+            "0",
+            &pricing.currency_code,
+            &selection.selection,
+        )),
+        "priceAdjustments" => Some(Value::Array(vec![selected_payload_json(
+            &selection.selection,
+            |field| match field.name.as_str() {
+                "price" | "perDeliveryPrice" => Some(storefront_money_json(
+                    &adjusted_amount,
+                    &pricing.currency_code,
+                    &field.selection,
+                )),
+                "compareAtPrice" => Some(storefront_money_json(
+                    &pricing.price,
+                    &pricing.currency_code,
+                    &field.selection,
+                )),
+                "unitPrice" => Some(Value::Null),
+                _ => None,
+            },
+        )])),
+        "sellingPlan" => Some(storefront_selling_plan_json(
+            plan,
+            &[],
+            &pricing.currency_code,
+            &selection.selection,
+        )),
+        _ => None,
+    })
+}
+
+fn storefront_adjusted_selling_plan_price(price: f64, policy: &Value) -> f64 {
+    let value = policy
+        .pointer("/adjustmentValue/percentage")
+        .and_then(Value::as_f64)
+        .or_else(|| {
+            policy
+                .pointer("/adjustmentValue/percentage")
+                .and_then(Value::as_i64)
+                .map(|value| value as f64)
+        })
+        .unwrap_or_default();
+    match policy
+        .get("adjustmentType")
+        .and_then(Value::as_str)
+        .unwrap_or("PERCENTAGE")
+    {
+        "FIXED_AMOUNT" => {
+            let amount = policy
+                .pointer("/adjustmentValue/amount")
+                .and_then(Value::as_str)
+                .and_then(storefront_parse_price)
+                .unwrap_or_default();
+            (price - amount).max(0.0)
+        }
+        "PRICE" => policy
+            .pointer("/adjustmentValue/amount")
+            .and_then(Value::as_str)
+            .and_then(storefront_parse_price)
+            .unwrap_or(price),
+        _ => price * (1.0 - value / 100.0),
+    }
+}
+
 pub(in crate::proxy) fn storefront_money_json(
     price: &str,
     currency_code: &str,
@@ -4432,7 +5120,7 @@ fn storefront_product_images_connection_json(
     let images = product
         .media
         .iter()
-        .filter_map(product_image_json_from_media)
+        .filter_map(storefront_product_image_json_from_media)
         .collect::<Vec<_>>();
     selected_connection_json_with_args(images, arguments, selections, value_id_cursor)
 }
@@ -4442,12 +5130,93 @@ fn storefront_product_media_connection_json(
     arguments: &BTreeMap<String, ResolvedValue>,
     selections: &[SelectedField],
 ) -> Value {
-    selected_connection_json_with_args(
-        product.media.clone(),
-        arguments,
-        selections,
-        value_id_cursor,
-    )
+    let media = product
+        .media
+        .iter()
+        .map(storefront_product_media_json)
+        .collect::<Vec<_>>();
+    selected_connection_json_with_args(media, arguments, selections, value_id_cursor)
+}
+
+fn storefront_product_media_json(media: &Value) -> Value {
+    let image = storefront_media_image_json(media);
+    let mut value = json!({
+        "__typename": media
+            .get("__typename")
+            .cloned()
+            .unwrap_or_else(|| json!("MediaImage")),
+        "id": media.get("id").cloned().unwrap_or(Value::Null),
+        "alt": media.get("alt").cloned().unwrap_or(Value::Null),
+        "mediaContentType": media
+            .get("mediaContentType")
+            .cloned()
+            .unwrap_or_else(|| json!("IMAGE")),
+        "previewImage": image.clone(),
+    });
+    if media.get("mediaContentType").and_then(Value::as_str) == Some("IMAGE")
+        || media.get("__typename").and_then(Value::as_str) == Some("MediaImage")
+    {
+        value["image"] = image;
+    }
+    value
+}
+
+fn storefront_media_image_json(media: &Value) -> Value {
+    let Some(mut image) = storefront_product_image_json_from_media(media) else {
+        return Value::Null;
+    };
+    if let Some(media_id) = media.get("id").and_then(Value::as_str) {
+        image["id"] = json!(shopify_gid("ImageSource", resource_id_tail(media_id)));
+    }
+    if image.get("width").is_none_or(Value::is_null)
+        || image.get("height").is_none_or(Value::is_null)
+    {
+        if let Some(source) = image.get("url").and_then(Value::as_str) {
+            if let Some((width, height)) = storefront_image_dimensions_from_url(source) {
+                image["width"] = json!(width);
+                image["height"] = json!(height);
+            }
+        }
+    }
+    image
+}
+
+fn storefront_product_image_json_from_media(media: &Value) -> Option<Value> {
+    let mut image = product_image_json_from_media(media).or_else(|| {
+        let source = media
+            .pointer("/originalSource/url")
+            .and_then(Value::as_str)
+            .or_else(|| media.get("originalSource").and_then(Value::as_str))?;
+        let media_id = media.get("id").and_then(Value::as_str)?;
+        Some(json!({
+            "id": shopify_gid("ProductImage", resource_id_tail(media_id)),
+            "url": source,
+            "altText": media.get("alt").cloned().unwrap_or(Value::Null),
+            "width": Value::Null,
+            "height": Value::Null
+        }))
+    })?;
+    image.as_object_mut()?.remove("__typename");
+    if image.get("width").is_none_or(Value::is_null)
+        || image.get("height").is_none_or(Value::is_null)
+    {
+        if let Some(source) = image.get("url").and_then(Value::as_str) {
+            if let Some((width, height)) = storefront_image_dimensions_from_url(source) {
+                image["width"] = json!(width);
+                image["height"] = json!(height);
+            }
+        }
+    }
+    Some(image)
+}
+
+fn storefront_image_dimensions_from_url(url: &str) -> Option<(i64, i64)> {
+    url.split(['/', '?', '&']).find_map(|part| {
+        let (width, height) = part.split_once('x')?;
+        let width = width.parse::<i64>().ok()?;
+        let height = height.parse::<i64>().ok()?;
+        (width > 0 && height > 0).then_some((width, height))
+    })
 }
 
 fn storefront_product_sort_key(
@@ -4523,6 +5292,18 @@ pub(in crate::proxy) fn storefront_request_context(
         if let Some(language) = resolved_value_string(directive.arguments.get("language")) {
             context.language = Some(language);
         }
+        if let Some(preferred_location_id) =
+            resolved_value_string(directive.arguments.get("preferredLocationId"))
+        {
+            context.preferred_location_id = Some(preferred_location_id);
+        }
+        if let Some(ResolvedValue::Object(buyer)) = directive.arguments.get("buyer") {
+            context.buyer_customer_access_token =
+                resolved_string_field(buyer, "customerAccessToken");
+            context.buyer_company_location_id = resolved_string_field(buyer, "companyLocationId");
+        }
+        context.uses_enrichment_context = directive.arguments.contains_key("preferredLocationId")
+            || directive.arguments.contains_key("buyer");
     }
     context
 }
@@ -4530,6 +5311,20 @@ pub(in crate::proxy) fn storefront_request_context(
 fn storefront_first_slice_hydrate_body(
     context: &StorefrontRequestContext,
 ) -> (&'static str, Value) {
+    if context.uses_enrichment_context {
+        return (
+            STOREFRONT_ENRICHMENT_CONTEXT_HYDRATE_QUERY,
+            json!({
+                "country": context.country,
+                "language": context.language,
+                // A locally allocated Admin Location id cannot be sent to Shopify's
+                // Storefront API. Captured behavior shows it does not alter the
+                // country/language localization or this scenario's empty availability.
+                "preferredLocationId": Value::Null,
+                "buyer": Value::Null
+            }),
+        );
+    }
     if context.has_in_context_values() {
         (
             STOREFRONT_FIRST_SLICE_CONTEXT_HYDRATE_QUERY,
@@ -5288,7 +6083,7 @@ fn storefront_redacted_variables_json(variables: &BTreeMap<String, ResolvedValue
     storefront_redact_sensitive_json(value, None)
 }
 
-fn storefront_redact_sensitive_json(value: Value, key: Option<&str>) -> Value {
+pub(in crate::proxy) fn storefront_redact_sensitive_json(value: Value, key: Option<&str>) -> Value {
     if key.is_some_and(storefront_sensitive_customer_auth_key) {
         return json!("<redacted:storefront-customer-auth>");
     }

@@ -473,7 +473,7 @@ pub(in crate::proxy) fn upstream_count_with_effective_total(
     ))
 }
 
-fn count_with_limit_precision_from_upstream(
+pub(in crate::proxy) fn count_with_limit_precision_from_upstream(
     effective_total: usize,
     upstream_precision: &str,
     arguments: &BTreeMap<String, ResolvedValue>,

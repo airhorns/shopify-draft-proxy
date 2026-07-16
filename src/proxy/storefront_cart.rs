@@ -1,6 +1,6 @@
 use super::storefront::{
     storefront_money_json, storefront_product_variant_json, storefront_sha256_hex,
-    STOREFRONT_CART_MUTATION_ROOTS,
+    StorefrontRequestContext, STOREFRONT_CART_MUTATION_ROOTS,
 };
 use super::*;
 
@@ -830,9 +830,11 @@ impl DraftProxy {
                 variant
                     .map(|variant| {
                         storefront_product_variant_json(
+                            self,
                             variant,
                             product,
-                            &currency_code,
+                            &StorefrontRequestContext::default(),
+                            Some(&currency_code),
                             &selection.selection,
                         )
                     })

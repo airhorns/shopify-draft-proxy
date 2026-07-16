@@ -1,0 +1,22 @@
+query StorefrontEnrichmentContextHydrate(
+  $country: CountryCode
+  $language: LanguageCode
+  $preferredLocationId: ID
+  $buyer: BuyerInput
+) @inContext(country: $country, language: $language, preferredLocationId: $preferredLocationId, buyer: $buyer) {
+  localization {
+    country {
+      isoCode
+      currency {
+        isoCode
+      }
+    }
+    language {
+      isoCode
+    }
+    market {
+      id
+      handle
+    }
+  }
+}
