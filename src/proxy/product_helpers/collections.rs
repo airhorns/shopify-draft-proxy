@@ -1,5 +1,50 @@
 use super::*;
 
+const COLLECTIONS_IDENTITY_HYDRATE_QUERY: &str = r#"
+query CollectionsIdentityHydrate(
+  $first: Int
+  $after: String
+  $last: Int
+  $before: String
+  $reverse: Boolean
+  $sortKey: CollectionSortKeys
+  $query: String
+  $savedSearchId: ID
+) {
+  collections(
+    first: $first
+    after: $after
+    last: $last
+    before: $before
+    reverse: $reverse
+    sortKey: $sortKey
+    query: $query
+    savedSearchId: $savedSearchId
+  ) {
+    nodes {
+      id
+      title
+      handle
+      createdAt
+      updatedAt
+      sortOrder
+      ruleSet {
+        appliedDisjunctively
+        rules {
+          column
+          relation
+          condition
+        }
+      }
+      productsCount {
+        count
+        precision
+      }
+    }
+  }
+}
+"#;
+
 pub(in crate::proxy) const STOREFRONT_COLLECTION_BASELINE_UPDATED_AT_FIELD: &str =
     "__storefrontBaselineUpdatedAt";
 
@@ -427,7 +472,7 @@ impl DraftProxy {
                     .filter(|handle| !handle.is_empty())
                 {
                     return self.store.collection_by_handle(&handle).is_none()
-                        && !self.store.has_collection_state();
+                        && !self.store.collection_handle_is_deleted(&handle);
                 }
                 false
             }
@@ -436,7 +481,7 @@ impl DraftProxy {
                 .filter(|handle| !handle.is_empty())
                 .map(|handle| {
                     self.store.collection_by_handle(&handle).is_none()
-                        && !self.store.has_collection_state()
+                        && !self.store.collection_handle_is_deleted(&handle)
                 })
                 .unwrap_or(false),
             _ => false,
@@ -447,13 +492,23 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
+        self.collection_membership_downstream_read_data_with_upstream(fields, None)
+    }
+
+    pub(in crate::proxy) fn collection_membership_downstream_read_data_with_upstream(
+        &self,
+        fields: &[RootFieldSelection],
+        upstream_data: Option<&Value>,
+    ) -> Value {
         root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
                 "collection" => self.collection_membership_value(field),
                 "collectionByIdentifier" => self.collection_by_identifier_value(field),
                 "collectionByHandle" => self.collection_by_handle_value(field),
                 "collections" => self.collections_connection_field(field),
-                "collectionsCount" => self.collections_count_field(field),
+                "collectionsCount" => {
+                    self.collections_count_field_with_upstream(field, upstream_data)
+                }
                 "product" => self.product_by_id_field(field),
                 "job" => self.collection_job_read(field),
                 _ => return None,
@@ -461,11 +516,18 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn hydrate_collections_for_read(&mut self, request: &Request) {
+    pub(in crate::proxy) fn hydrate_collections_for_read(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) -> Option<Value> {
         let response = (self.upstream_transport)(request.clone());
         if response.status < 400 {
             self.observe_collections_read_response(&response);
         }
+        let upstream_data = response.body.get("data").cloned();
+        self.hydrate_collection_identities_for_read(request, fields);
+        upstream_data
     }
 
     pub(in crate::proxy) fn observe_collections_read_response(&mut self, response: &Response) {
@@ -476,6 +538,10 @@ impl DraftProxy {
         if let Some(id) = value.get("id").and_then(Value::as_str) {
             if is_shopify_gid_of_type(id, "Collection")
                 && !self.store.collection_is_deleted(id)
+                && !value
+                    .get("handle")
+                    .and_then(Value::as_str)
+                    .is_some_and(|handle| self.store.collection_handle_is_deleted(handle))
                 && self.store.collection_by_id(id).is_none()
             {
                 self.stage_collection_from_observed_json(value);
@@ -537,6 +603,22 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn collections_count_field(&self, field: &RootFieldSelection) -> Value {
+        self.collections_count_field_with_upstream(field, None)
+    }
+
+    fn collections_count_field_with_upstream(
+        &self,
+        field: &RootFieldSelection,
+        upstream_data: Option<&Value>,
+    ) -> Value {
+        if let Some((base_count, precision)) = upstream_count_field(field, upstream_data) {
+            let count =
+                self.adjusted_collections_count_from_upstream(base_count, field, upstream_data);
+            return selected_json(
+                &count_with_limit_precision_from_upstream(count, &precision, &field.arguments),
+                &field.selection,
+            );
+        }
         selected_json(
             &snapshot_count_with_limit_precision(
                 self.matching_collections_query(&field.arguments)
@@ -545,6 +627,58 @@ impl DraftProxy {
             ),
             &field.selection,
         )
+    }
+
+    fn adjusted_collections_count_from_upstream(
+        &self,
+        base_count: u64,
+        field: &RootFieldSelection,
+        upstream_data: Option<&Value>,
+    ) -> usize {
+        let mut count = usize::try_from(base_count).unwrap_or(usize::MAX);
+        let query = resolved_string_field(&field.arguments, "query");
+        let query = query.as_deref();
+        let upstream_identities = upstream_collection_identities(upstream_data);
+        if query.map(str::trim).is_none_or(str::is_empty) {
+            for id in &self.store.staged.collections.tombstones {
+                if !is_synthetic_gid(id) {
+                    count = count.saturating_sub(1);
+                }
+            }
+        }
+        for (id, collection) in self.store.staged.collections.iter() {
+            if self.collection_search_decision(collection, query) != StagedSearchDecision::Match {
+                continue;
+            }
+            if is_synthetic_gid(id) && !upstream_identities.contains_collection_identity(collection)
+            {
+                count = count.saturating_add(1);
+            }
+        }
+        count
+    }
+
+    fn hydrate_collection_identities_for_read(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) {
+        for field in fields
+            .iter()
+            .filter(|field| collection_field_needs_identity_hydration(field))
+        {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": COLLECTIONS_IDENTITY_HYDRATE_QUERY,
+                    "operationName": "CollectionsIdentityHydrate",
+                    "variables": collection_identity_hydrate_variables(&field.arguments),
+                }),
+            );
+            if response.status < 400 {
+                self.observe_collections_read_response(&response);
+            }
+        }
     }
 
     pub(in crate::proxy) fn collection_search_decision(
@@ -1517,6 +1651,13 @@ impl DraftProxy {
         {
             return;
         }
+        if collection
+            .get("handle")
+            .and_then(Value::as_str)
+            .is_some_and(|handle| self.store.collection_handle_is_deleted(handle))
+        {
+            return;
+        }
         let collection = self.observed_collection_for_staging(collection);
         let products = collection
             .get("products")
@@ -1763,6 +1904,10 @@ impl DraftProxy {
                 object.insert("title".to_string(), json!(title));
             }
             if input.contains_key("handle") {
+                let previous_handle = object
+                    .get("handle")
+                    .and_then(Value::as_str)
+                    .map(str::to_string);
                 let title = object
                     .get("title")
                     .and_then(Value::as_str)
@@ -1773,6 +1918,11 @@ impl DraftProxy {
                     &title,
                     Some(&id),
                 );
+                if previous_handle.as_deref() != Some(handle.as_str()) {
+                    if let Some(previous_handle) = previous_handle {
+                        self.store.delete_collection_handle(&previous_handle);
+                    }
+                }
                 object.insert("handle".to_string(), json!(handle));
             }
             if let Some(sort_order) = resolved_string_field(&input, "sortOrder") {
@@ -2474,6 +2624,159 @@ impl DraftProxy {
                     && collection.get("handle").and_then(Value::as_str) == Some(handle)
             })
     }
+}
+
+fn upstream_count_field(
+    field: &RootFieldSelection,
+    upstream_data: Option<&Value>,
+) -> Option<(u64, String)> {
+    let value = upstream_data?.get(field.response_key.as_str())?;
+    let count_key = field
+        .selection
+        .iter()
+        .find(|selection| selection.name == "count")
+        .map(|selection| selection.response_key.as_str())
+        .unwrap_or("count");
+    let precision_key = field
+        .selection
+        .iter()
+        .find(|selection| selection.name == "precision")
+        .map(|selection| selection.response_key.as_str())
+        .unwrap_or("precision");
+    let count = value
+        .get(count_key)
+        .or_else(|| value.get("count"))
+        .and_then(Value::as_u64)?;
+    let precision = value
+        .get(precision_key)
+        .or_else(|| value.get("precision"))
+        .and_then(Value::as_str)
+        .unwrap_or("EXACT")
+        .to_string();
+    Some((count, precision))
+}
+
+#[derive(Default)]
+struct UpstreamCollectionIdentities {
+    ids: BTreeSet<String>,
+    handles: BTreeSet<String>,
+}
+
+impl UpstreamCollectionIdentities {
+    fn contains_collection_identity(&self, collection: &Value) -> bool {
+        collection
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| self.ids.contains(id))
+            || collection
+                .get("handle")
+                .and_then(Value::as_str)
+                .and_then(normalized_collection_handle)
+                .is_some_and(|handle| self.handles.contains(&handle))
+    }
+}
+
+fn upstream_collection_identities(upstream_data: Option<&Value>) -> UpstreamCollectionIdentities {
+    let mut identities = UpstreamCollectionIdentities::default();
+    if let Some(upstream_data) = upstream_data {
+        collect_upstream_collection_identities(upstream_data, &mut identities);
+    }
+    identities
+}
+
+fn collect_upstream_collection_identities(
+    value: &Value,
+    identities: &mut UpstreamCollectionIdentities,
+) {
+    match value {
+        Value::Array(values) => {
+            for value in values {
+                collect_upstream_collection_identities(value, identities);
+            }
+        }
+        Value::Object(object) => {
+            if object
+                .get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| is_shopify_gid_of_type(id, "Collection"))
+            {
+                if let Some(id) = object.get("id").and_then(Value::as_str) {
+                    identities.ids.insert(id.to_string());
+                }
+                if let Some(handle) = object
+                    .get("handle")
+                    .and_then(Value::as_str)
+                    .and_then(normalized_collection_handle)
+                {
+                    identities.handles.insert(handle);
+                }
+            }
+            for value in object.values() {
+                collect_upstream_collection_identities(value, identities);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn collection_field_needs_identity_hydration(field: &RootFieldSelection) -> bool {
+    field.name == "collections"
+        && collection_connection_selects_collection_nodes(&field.selection)
+        && !collection_connection_selects_collection_node_id(&field.selection)
+}
+
+fn collection_connection_selects_collection_nodes(selections: &[SelectedField]) -> bool {
+    selections
+        .iter()
+        .any(|selection| match selection.name.as_str() {
+            "nodes" => true,
+            "edges" => selection
+                .selection
+                .iter()
+                .any(|edge_selection| edge_selection.name == "node"),
+            _ => false,
+        })
+}
+
+fn collection_connection_selects_collection_node_id(selections: &[SelectedField]) -> bool {
+    selections
+        .iter()
+        .any(|selection| match selection.name.as_str() {
+            "nodes" => selection
+                .selection
+                .iter()
+                .any(|node_field| node_field.name == "id"),
+            "edges" => selection
+                .selection
+                .iter()
+                .filter(|edge_selection| edge_selection.name == "node")
+                .any(|node_selection| {
+                    node_selection
+                        .selection
+                        .iter()
+                        .any(|node_field| node_field.name == "id")
+                }),
+            _ => false,
+        })
+}
+
+fn collection_identity_hydrate_variables(arguments: &BTreeMap<String, ResolvedValue>) -> Value {
+    let mut variables = serde_json::Map::new();
+    for name in [
+        "first",
+        "after",
+        "last",
+        "before",
+        "reverse",
+        "sortKey",
+        "query",
+        "savedSearchId",
+    ] {
+        if let Some(value) = arguments.get(name) {
+            variables.insert(name.to_string(), resolved_value_json(value));
+        }
+    }
+    Value::Object(variables)
 }
 
 fn collection_input(

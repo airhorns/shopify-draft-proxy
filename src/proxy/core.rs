@@ -485,6 +485,7 @@ impl DraftProxy {
                 "deletedProductFeedIds": self.store.staged.product_feeds.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "collections": self.store.staged.collections.records.clone(),
                 "deletedCollectionIds": self.store.staged.collections.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "deletedCollectionHandles": self.store.staged.deleted_collection_handles.iter().cloned().collect::<Vec<_>>(),
                 "collectionJobs": self.store.staged.collection_jobs.clone(),
                 "savedSearches": saved_search_state_map_json(&self.store.staged.saved_searches.records),
                 "savedSearchOrder": self.store.staged.saved_searches.order,
@@ -1476,6 +1477,10 @@ impl DraftProxy {
             None,
             Some("deletedCollectionIds"),
         );
+        self.store.staged.deleted_collection_handles =
+            string_array_from_json(&state["stagedState"]["deletedCollectionHandles"])
+                .into_iter()
+                .collect();
         self.store.staged.collection_jobs =
             value_map_from_json(state["stagedState"].get("collectionJobs"));
         self.store.staged.installed_apps =

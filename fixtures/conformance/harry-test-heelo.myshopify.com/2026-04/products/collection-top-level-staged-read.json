@@ -2,25 +2,102 @@
   "fixtureKind": "collection-top-level-staged-read",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "runId": "1783700850655",
+  "runId": "1784177636450",
   "operations": {
+    "preCreateCountBaseline": {
+      "document": "query CollectionTopLevelStagedReadCountOnly {\n  collectionsCount {\n    count\n    precision\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "data": {
+          "collectionsCount": {
+            "count": 4,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
     "firstCreate": {
       "document": "mutation CollectionTopLevelStagedReadCreate($input: CollectionInput!) {\n  collectionCreate(input: $input) {\n    collection {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "HermesTopLevel1783700850655 Alpha",
-          "handle": "hermes-top-level-1783700850655-alpha"
+          "title": "HermesTopLevel1784177636450 Alpha",
+          "handle": "hermes-top-level-1784177636450-alpha"
         }
       },
       "response": {
         "data": {
           "collectionCreate": {
             "collection": {
-              "id": "gid://shopify/Collection/514283864370",
-              "title": "HermesTopLevel1783700850655 Alpha",
-              "handle": "hermes-top-level-1783700850655-alpha"
+              "id": "gid://shopify/Collection/514490270002",
+              "title": "HermesTopLevel1784177636450 Alpha",
+              "handle": "hermes-top-level-1784177636450-alpha"
             },
             "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "existingHandleAfterFirstCreate": {
+      "document": "query CollectionTopLevelStagedReadExistingHandleLookups($existingHandle: String!) {\n  existingByIdentifier: collectionByIdentifier(identifier: { handle: $existingHandle }) {\n    id\n    title\n    handle\n  }\n  existingByHandle: collectionByHandle(handle: $existingHandle) {\n    id\n    title\n    handle\n  }\n}\n",
+      "variables": {
+        "existingHandle": "frontpage"
+      },
+      "response": {
+        "data": {
+          "existingByIdentifier": {
+            "id": "gid://shopify/Collection/494967390514",
+            "title": "Home page",
+            "handle": "frontpage"
+          },
+          "existingByHandle": {
+            "id": "gid://shopify/Collection/494967390514",
+            "title": "Home page",
+            "handle": "frontpage"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "countOnlyAfterFirstCreate": {
+      "document": "query CollectionTopLevelStagedReadCountOnly {\n  collectionsCount {\n    count\n    precision\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "data": {
+          "collectionsCount": {
+            "count": 5,
+            "precision": "EXACT"
           }
         },
         "extensions": {
@@ -40,17 +117,17 @@
       "document": "mutation CollectionTopLevelStagedReadCreate($input: CollectionInput!) {\n  collectionCreate(input: $input) {\n    collection {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "HermesTopLevel1783700850655 Beta",
-          "handle": "hermes-top-level-1783700850655-beta"
+          "title": "HermesTopLevel1784177636450 Beta",
+          "handle": "hermes-top-level-1784177636450-beta"
         }
       },
       "response": {
         "data": {
           "collectionCreate": {
             "collection": {
-              "id": "gid://shopify/Collection/514283897138",
-              "title": "HermesTopLevel1783700850655 Beta",
-              "handle": "hermes-top-level-1783700850655-beta"
+              "id": "gid://shopify/Collection/514490302770",
+              "title": "HermesTopLevel1784177636450 Beta",
+              "handle": "hermes-top-level-1784177636450-beta"
             },
             "userErrors": []
           }
@@ -71,36 +148,36 @@
     "initialPage1": {
       "document": "query CollectionTopLevelStagedReadInitialPage1(\n  $firstCollectionId: ID!\n  $firstHandle: String!\n  $firstHandleQuery: String!\n  $sharedQuery: String!\n  $first: Int!\n  $limit: Int!\n) {\n  createdByIdentifierId: collectionByIdentifier(identifier: { id: $firstCollectionId }) {\n    id\n    title\n    handle\n  }\n  createdByIdentifierHandle: collectionByIdentifier(identifier: { handle: $firstHandle }) {\n    id\n    title\n    handle\n  }\n  createdByHandleRoot: collectionByHandle(handle: $firstHandle) {\n    id\n    title\n    handle\n  }\n  firstByHandle: collections(first: 10, query: $firstHandleQuery, sortKey: ID) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  sharedFirstPage: collections(first: $first, query: $sharedQuery, sortKey: ID) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  sharedCount: collectionsCount(query: $sharedQuery, limit: $limit) {\n    count\n    precision\n  }\n}\n",
       "variables": {
-        "firstCollectionId": "gid://shopify/Collection/514283864370",
-        "firstHandle": "hermes-top-level-1783700850655-alpha",
-        "firstHandleQuery": "handle:hermes-top-level-1783700850655-alpha",
-        "sharedQuery": "title:HermesTopLevel1783700850655*",
+        "firstCollectionId": "gid://shopify/Collection/514490270002",
+        "firstHandle": "hermes-top-level-1784177636450-alpha",
+        "firstHandleQuery": "handle:hermes-top-level-1784177636450-alpha",
+        "sharedQuery": "title:HermesTopLevel1784177636450*",
         "first": 1,
         "limit": 1
       },
       "response": {
         "data": {
           "createdByIdentifierId": {
-            "id": "gid://shopify/Collection/514283864370",
-            "title": "HermesTopLevel1783700850655 Alpha",
-            "handle": "hermes-top-level-1783700850655-alpha"
+            "id": "gid://shopify/Collection/514490270002",
+            "title": "HermesTopLevel1784177636450 Alpha",
+            "handle": "hermes-top-level-1784177636450-alpha"
           },
           "createdByIdentifierHandle": {
-            "id": "gid://shopify/Collection/514283864370",
-            "title": "HermesTopLevel1783700850655 Alpha",
-            "handle": "hermes-top-level-1783700850655-alpha"
+            "id": "gid://shopify/Collection/514490270002",
+            "title": "HermesTopLevel1784177636450 Alpha",
+            "handle": "hermes-top-level-1784177636450-alpha"
           },
           "createdByHandleRoot": {
-            "id": "gid://shopify/Collection/514283864370",
-            "title": "HermesTopLevel1783700850655 Alpha",
-            "handle": "hermes-top-level-1783700850655-alpha"
+            "id": "gid://shopify/Collection/514490270002",
+            "title": "HermesTopLevel1784177636450 Alpha",
+            "handle": "hermes-top-level-1784177636450-alpha"
           },
           "firstByHandle": {
             "nodes": [
               {
-                "id": "gid://shopify/Collection/514283864370",
-                "title": "HermesTopLevel1783700850655 Alpha",
-                "handle": "hermes-top-level-1783700850655-alpha"
+                "id": "gid://shopify/Collection/514490270002",
+                "title": "HermesTopLevel1784177636450 Alpha",
+                "handle": "hermes-top-level-1784177636450-alpha"
               }
             ],
             "pageInfo": {
@@ -111,19 +188,19 @@
           "sharedFirstPage": {
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjo1MTQyODM4NjQzNzAsImxhc3RfdmFsdWUiOjUxNDI4Mzg2NDM3MH0=",
+                "cursor": "eyJsYXN0X2lkIjo1MTQ0OTAyNzAwMDIsImxhc3RfdmFsdWUiOjUxNDQ5MDI3MDAwMn0=",
                 "node": {
-                  "id": "gid://shopify/Collection/514283864370",
-                  "title": "HermesTopLevel1783700850655 Alpha",
-                  "handle": "hermes-top-level-1783700850655-alpha"
+                  "id": "gid://shopify/Collection/514490270002",
+                  "title": "HermesTopLevel1784177636450 Alpha",
+                  "handle": "hermes-top-level-1784177636450-alpha"
                 }
               }
             ],
             "pageInfo": {
               "hasNextPage": true,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjo1MTQyODM4NjQzNzAsImxhc3RfdmFsdWUiOjUxNDI4Mzg2NDM3MH0=",
-              "endCursor": "eyJsYXN0X2lkIjo1MTQyODM4NjQzNzAsImxhc3RfdmFsdWUiOjUxNDI4Mzg2NDM3MH0="
+              "startCursor": "eyJsYXN0X2lkIjo1MTQ0OTAyNzAwMDIsImxhc3RfdmFsdWUiOjUxNDQ5MDI3MDAwMn0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MTQ0OTAyNzAwMDIsImxhc3RfdmFsdWUiOjUxNDQ5MDI3MDAwMn0="
             }
           },
           "sharedCount": {
@@ -147,27 +224,27 @@
     "initialPage2": {
       "document": "query CollectionTopLevelStagedReadInitialPage2($sharedQuery: String!, $after: String!) {\n  sharedSecondPage: collections(first: 1, query: $sharedQuery, sortKey: ID, after: $after) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "variables": {
-        "sharedQuery": "title:HermesTopLevel1783700850655*",
-        "after": "eyJsYXN0X2lkIjo1MTQyODM4NjQzNzAsImxhc3RfdmFsdWUiOjUxNDI4Mzg2NDM3MH0="
+        "sharedQuery": "title:HermesTopLevel1784177636450*",
+        "after": "eyJsYXN0X2lkIjo1MTQ0OTAyNzAwMDIsImxhc3RfdmFsdWUiOjUxNDQ5MDI3MDAwMn0="
       },
       "response": {
         "data": {
           "sharedSecondPage": {
             "edges": [
               {
-                "cursor": "eyJsYXN0X2lkIjo1MTQyODM4OTcxMzgsImxhc3RfdmFsdWUiOjUxNDI4Mzg5NzEzOH0=",
+                "cursor": "eyJsYXN0X2lkIjo1MTQ0OTAzMDI3NzAsImxhc3RfdmFsdWUiOjUxNDQ5MDMwMjc3MH0=",
                 "node": {
-                  "id": "gid://shopify/Collection/514283897138",
-                  "title": "HermesTopLevel1783700850655 Beta",
-                  "handle": "hermes-top-level-1783700850655-beta"
+                  "id": "gid://shopify/Collection/514490302770",
+                  "title": "HermesTopLevel1784177636450 Beta",
+                  "handle": "hermes-top-level-1784177636450-beta"
                 }
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": true,
-              "startCursor": "eyJsYXN0X2lkIjo1MTQyODM4OTcxMzgsImxhc3RfdmFsdWUiOjUxNDI4Mzg5NzEzOH0=",
-              "endCursor": "eyJsYXN0X2lkIjo1MTQyODM4OTcxMzgsImxhc3RfdmFsdWUiOjUxNDI4Mzg5NzEzOH0="
+              "startCursor": "eyJsYXN0X2lkIjo1MTQ0OTAzMDI3NzAsImxhc3RfdmFsdWUiOjUxNDQ5MDMwMjc3MH0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MTQ0OTAzMDI3NzAsImxhc3RfdmFsdWUiOjUxNDQ5MDMwMjc3MH0="
             }
           }
         },
@@ -188,18 +265,18 @@
       "document": "mutation CollectionTopLevelStagedReadUpdate($input: CollectionInput!) {\n  collectionUpdate(input: $input) {\n    collection {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "id": "gid://shopify/Collection/514283864370",
-          "title": "HermesTopLevel1783700850655 Alpha Updated",
-          "handle": "hermes-top-level-1783700850655-alpha-updated"
+          "id": "gid://shopify/Collection/514490270002",
+          "title": "HermesTopLevel1784177636450 Alpha Updated",
+          "handle": "hermes-top-level-1784177636450-alpha-updated"
         }
       },
       "response": {
         "data": {
           "collectionUpdate": {
             "collection": {
-              "id": "gid://shopify/Collection/514283864370",
-              "title": "HermesTopLevel1783700850655 Alpha Updated",
-              "handle": "hermes-top-level-1783700850655-alpha-updated"
+              "id": "gid://shopify/Collection/514490270002",
+              "title": "HermesTopLevel1784177636450 Alpha Updated",
+              "handle": "hermes-top-level-1784177636450-alpha-updated"
             },
             "userErrors": []
           }
@@ -220,28 +297,28 @@
     "postUpdate": {
       "document": "query CollectionTopLevelStagedReadPostUpdate(\n  $updatedCollectionId: ID!\n  $oldHandle: String!\n  $newHandle: String!\n  $oldHandleQuery: String!\n  $newHandleQuery: String!\n) {\n  updatedByIdentifierId: collectionByIdentifier(identifier: { id: $updatedCollectionId }) {\n    id\n    title\n    handle\n  }\n  updatedByIdentifierHandle: collectionByIdentifier(identifier: { handle: $newHandle }) {\n    id\n    title\n    handle\n  }\n  updatedByHandleRoot: collectionByHandle(handle: $newHandle) {\n    id\n    title\n    handle\n  }\n  oldIdentifierHandle: collectionByIdentifier(identifier: { handle: $oldHandle }) {\n    id\n  }\n  oldHandleRoot: collectionByHandle(handle: $oldHandle) {\n    id\n  }\n  oldByHandle: collections(first: 10, query: $oldHandleQuery, sortKey: ID) {\n    nodes {\n      id\n      title\n      handle\n    }\n  }\n  newByHandle: collections(first: 10, query: $newHandleQuery, sortKey: ID) {\n    nodes {\n      id\n      title\n      handle\n    }\n  }\n}\n",
       "variables": {
-        "updatedCollectionId": "gid://shopify/Collection/514283864370",
-        "oldHandle": "hermes-top-level-1783700850655-alpha",
-        "newHandle": "hermes-top-level-1783700850655-alpha-updated",
-        "oldHandleQuery": "handle:hermes-top-level-1783700850655-alpha",
-        "newHandleQuery": "handle:hermes-top-level-1783700850655-alpha-updated"
+        "updatedCollectionId": "gid://shopify/Collection/514490270002",
+        "oldHandle": "hermes-top-level-1784177636450-alpha",
+        "newHandle": "hermes-top-level-1784177636450-alpha-updated",
+        "oldHandleQuery": "handle:hermes-top-level-1784177636450-alpha",
+        "newHandleQuery": "handle:hermes-top-level-1784177636450-alpha-updated"
       },
       "response": {
         "data": {
           "updatedByIdentifierId": {
-            "id": "gid://shopify/Collection/514283864370",
-            "title": "HermesTopLevel1783700850655 Alpha Updated",
-            "handle": "hermes-top-level-1783700850655-alpha-updated"
+            "id": "gid://shopify/Collection/514490270002",
+            "title": "HermesTopLevel1784177636450 Alpha Updated",
+            "handle": "hermes-top-level-1784177636450-alpha-updated"
           },
           "updatedByIdentifierHandle": {
-            "id": "gid://shopify/Collection/514283864370",
-            "title": "HermesTopLevel1783700850655 Alpha Updated",
-            "handle": "hermes-top-level-1783700850655-alpha-updated"
+            "id": "gid://shopify/Collection/514490270002",
+            "title": "HermesTopLevel1784177636450 Alpha Updated",
+            "handle": "hermes-top-level-1784177636450-alpha-updated"
           },
           "updatedByHandleRoot": {
-            "id": "gid://shopify/Collection/514283864370",
-            "title": "HermesTopLevel1783700850655 Alpha Updated",
-            "handle": "hermes-top-level-1783700850655-alpha-updated"
+            "id": "gid://shopify/Collection/514490270002",
+            "title": "HermesTopLevel1784177636450 Alpha Updated",
+            "handle": "hermes-top-level-1784177636450-alpha-updated"
           },
           "oldIdentifierHandle": null,
           "oldHandleRoot": null,
@@ -251,9 +328,9 @@
           "newByHandle": {
             "nodes": [
               {
-                "id": "gid://shopify/Collection/514283864370",
-                "title": "HermesTopLevel1783700850655 Alpha Updated",
-                "handle": "hermes-top-level-1783700850655-alpha-updated"
+                "id": "gid://shopify/Collection/514490270002",
+                "title": "HermesTopLevel1784177636450 Alpha Updated",
+                "handle": "hermes-top-level-1784177636450-alpha-updated"
               }
             ]
           }
@@ -275,13 +352,13 @@
       "document": "mutation CollectionTopLevelStagedReadDelete($input: CollectionDeleteInput!) {\n  collectionDelete(input: $input) {\n    deletedCollectionId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "id": "gid://shopify/Collection/514283897138"
+          "id": "gid://shopify/Collection/514490302770"
         }
       },
       "response": {
         "data": {
           "collectionDelete": {
-            "deletedCollectionId": "gid://shopify/Collection/514283897138",
+            "deletedCollectionId": "gid://shopify/Collection/514490302770",
             "userErrors": []
           }
         },
@@ -301,19 +378,19 @@
     "postDelete": {
       "document": "query CollectionTopLevelStagedReadPostDelete(\n  $sharedQuery: String!\n  $deletedCollectionId: ID!\n  $deletedHandle: String!\n  $deletedHandleQuery: String!\n) {\n  remainingShared: collections(first: 10, query: $sharedQuery, sortKey: ID) {\n    nodes {\n      id\n      title\n      handle\n    }\n  }\n  sharedCount: collectionsCount(query: $sharedQuery) {\n    count\n    precision\n  }\n  deletedByHandle: collections(first: 10, query: $deletedHandleQuery, sortKey: ID) {\n    nodes {\n      id\n      title\n      handle\n    }\n  }\n  deletedCount: collectionsCount(query: $deletedHandleQuery) {\n    count\n    precision\n  }\n  deletedIdentifierId: collectionByIdentifier(identifier: { id: $deletedCollectionId }) {\n    id\n  }\n  deletedIdentifierHandle: collectionByIdentifier(identifier: { handle: $deletedHandle }) {\n    id\n  }\n  deletedHandleRoot: collectionByHandle(handle: $deletedHandle) {\n    id\n  }\n}\n",
       "variables": {
-        "sharedQuery": "title:HermesTopLevel1783700850655*",
-        "deletedCollectionId": "gid://shopify/Collection/514283897138",
-        "deletedHandle": "hermes-top-level-1783700850655-beta",
-        "deletedHandleQuery": "handle:hermes-top-level-1783700850655-beta"
+        "sharedQuery": "title:HermesTopLevel1784177636450*",
+        "deletedCollectionId": "gid://shopify/Collection/514490302770",
+        "deletedHandle": "hermes-top-level-1784177636450-beta",
+        "deletedHandleQuery": "handle:hermes-top-level-1784177636450-beta"
       },
       "response": {
         "data": {
           "remainingShared": {
             "nodes": [
               {
-                "id": "gid://shopify/Collection/514283864370",
-                "title": "HermesTopLevel1783700850655 Alpha Updated",
-                "handle": "hermes-top-level-1783700850655-alpha-updated"
+                "id": "gid://shopify/Collection/514490270002",
+                "title": "HermesTopLevel1784177636450 Alpha Updated",
+                "handle": "hermes-top-level-1784177636450-alpha-updated"
               }
             ]
           },
@@ -346,5 +423,72 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query CollectionTopLevelStagedReadExistingHandleLookups($existingHandle: String!) {\n  existingByIdentifier: collectionByIdentifier(identifier: { handle: $existingHandle }) {\n    id\n    title\n    handle\n  }\n  existingByHandle: collectionByHandle(handle: $existingHandle) {\n    id\n    title\n    handle\n  }\n}\n",
+      "variables": {
+        "existingHandle": "frontpage"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "existingByIdentifier": {
+              "id": "gid://shopify/Collection/494967390514",
+              "title": "Home page",
+              "handle": "frontpage"
+            },
+            "existingByHandle": {
+              "id": "gid://shopify/Collection/494967390514",
+              "title": "Home page",
+              "handle": "frontpage"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "query": "query CollectionTopLevelStagedReadCountOnly {\n  collectionsCount {\n    count\n    precision\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "collectionsCount": {
+              "count": 4,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

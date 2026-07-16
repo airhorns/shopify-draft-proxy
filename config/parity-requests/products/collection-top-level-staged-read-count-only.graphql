@@ -1,0 +1,6 @@
+query CollectionTopLevelStagedReadCountOnly {
+  collectionsCount {
+    count
+    precision
+  }
+}

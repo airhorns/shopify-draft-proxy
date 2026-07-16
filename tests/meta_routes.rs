@@ -920,6 +920,10 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
     assert_eq!(state.status, 200);
     assert_eq!(state.body["stagedState"]["collections"], json!({}));
     assert_eq!(state.body["stagedState"]["deletedCollectionIds"], json!([]));
+    assert_eq!(
+        state.body["stagedState"]["deletedCollectionHandles"],
+        json!([])
+    );
     assert_eq!(state.body["stagedState"]["collectionJobs"], json!({}));
     let mut state_body = state.body.clone();
     state_body["stagedState"]
@@ -930,6 +934,10 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
         .as_object_mut()
         .expect("stagedState is object")
         .remove("deletedCollectionIds");
+    state_body["stagedState"]
+        .as_object_mut()
+        .expect("stagedState is object")
+        .remove("deletedCollectionHandles");
     state_body["stagedState"]
         .as_object_mut()
         .expect("stagedState is object")

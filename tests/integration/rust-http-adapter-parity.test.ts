@@ -238,6 +238,7 @@ describe('Rust HTTP adapter route surface', { timeout: adapterTestTimeoutMs }, (
             deletedProductFeedIds: [],
             collections: {},
             deletedCollectionIds: [],
+            deletedCollectionHandles: [],
             collectionJobs: {},
             savedSearches: {},
             savedSearchOrder: [],
