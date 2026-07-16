@@ -1,0 +1,302 @@
+query StorefrontDiscoveryRead(
+  $productId: ID!
+  $nodeIds: [ID!]!
+  $query: String!
+  $prefixQuery: String!
+  $emptyQuery: String!
+  $suggestionsQuery: String!
+  $tag: String!
+  $after: String
+) {
+  aliasedNode: node(id: $productId) {
+    ...NodeIdentity
+    ... on Product {
+      aliasedTitle: title
+      handle
+      vendor
+      productType
+      tags
+      availableForSale
+    }
+  }
+  aliasedNodes: nodes(ids: $nodeIds) {
+    ...NodeIdentity
+    ... on Product {
+      title
+      handle
+      vendor
+      productType
+      tags
+      availableForSale
+    }
+    ... on Collection {
+      title
+      handle
+    }
+    ... on Article {
+      title
+      handle
+      tags
+      author {
+        name
+      }
+      blog {
+        id
+        title
+        handle
+      }
+    }
+    ... on Page {
+      title
+      handle
+      bodySummary
+    }
+  }
+  mixed: search(
+    first: 2
+    after: $after
+    query: $query
+    prefix: LAST
+    types: [PRODUCT, ARTICLE, PAGE]
+    unavailableProducts: SHOW
+  ) {
+    edges {
+      cursor
+      node {
+        ...SearchResultFields
+      }
+    }
+    nodes {
+      ...SearchResultFields
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+    productFilters {
+      id
+      label
+      presentation
+      type
+      values {
+        id
+        label
+        count
+        input
+      }
+    }
+    totalCount
+  }
+  prefixLast: search(first: 10, query: $prefixQuery, prefix: LAST, unavailableProducts: SHOW) {
+    nodes {
+      ...SearchResultFields
+    }
+    totalCount
+  }
+  prefixNone: search(first: 10, query: $prefixQuery, prefix: NONE, unavailableProducts: SHOW) {
+    nodes {
+      ...SearchResultFields
+    }
+    totalCount
+  }
+  filteredProducts: search(
+    first: 10
+    query: $query
+    productFilters: [{ tag: $tag }]
+    sortKey: PRICE
+    types: [PRODUCT]
+    unavailableProducts: SHOW
+  ) {
+    nodes {
+      ...SearchResultFields
+    }
+    totalCount
+  }
+  hiddenUnavailableProducts: search(
+    first: 10
+    query: $query
+    types: [PRODUCT]
+    unavailableProducts: HIDE
+  ) {
+    nodes {
+      ...SearchResultFields
+    }
+    totalCount
+  }
+  empty: search(first: 10, query: $emptyQuery) {
+    nodes {
+      ...SearchResultFields
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+    productFilters {
+      id
+      label
+      presentation
+      type
+      values {
+        id
+        label
+        count
+        input
+      }
+    }
+    totalCount
+  }
+  predictiveEach: predictiveSearch(
+    query: $prefixQuery
+    limit: 10
+    limitScope: EACH
+    searchableFields: [TITLE, TAG, PRODUCT_TYPE, VENDOR]
+    types: [PRODUCT, COLLECTION, ARTICLE, PAGE]
+    unavailableProducts: SHOW
+  ) {
+    products {
+      id
+      title
+      handle
+      vendor
+      productType
+      tags
+      availableForSale
+    }
+    collections {
+      id
+      title
+      handle
+    }
+    articles {
+      id
+      title
+      handle
+      tags
+    }
+    pages {
+      id
+      title
+      handle
+      bodySummary
+    }
+    queries {
+      text
+      styledText
+      trackingParameters
+    }
+  }
+  predictiveAll: predictiveSearch(
+    query: $query
+    limit: 3
+    limitScope: ALL
+    types: [PRODUCT, COLLECTION, ARTICLE, PAGE]
+    unavailableProducts: LAST
+  ) {
+    products {
+      id
+      title
+      handle
+    }
+    collections {
+      id
+      title
+      handle
+    }
+    articles {
+      id
+      title
+      handle
+    }
+    pages {
+      id
+      title
+      handle
+    }
+  }
+  suggestions: predictiveSearch(query: $suggestionsQuery, limit: 3, types: [QUERY]) {
+    queries {
+      text
+      styledText
+      trackingParameters
+    }
+  }
+  emptyPredictive: predictiveSearch(query: $emptyQuery, limit: 10) {
+    products {
+      id
+      title
+      handle
+    }
+    collections {
+      id
+      title
+      handle
+    }
+    articles {
+      id
+      title
+      handle
+    }
+    pages {
+      id
+      title
+      handle
+    }
+    queries {
+      text
+      styledText
+      trackingParameters
+    }
+  }
+}
+
+fragment NodeIdentity on Node {
+  __typename
+  id
+}
+
+fragment SearchResultFields on SearchResultItem {
+  __typename
+  ... on Product {
+    id
+    title
+    handle
+    vendor
+    productType
+    tags
+    availableForSale
+    priceRange {
+      minVariantPrice {
+        amount
+        currencyCode
+      }
+      maxVariantPrice {
+        amount
+        currencyCode
+      }
+    }
+  }
+  ... on Article {
+    id
+    title
+    handle
+    tags
+    author {
+      name
+    }
+    blog {
+      id
+      title
+      handle
+    }
+  }
+  ... on Page {
+    id
+    title
+    handle
+    bodySummary
+  }
+}

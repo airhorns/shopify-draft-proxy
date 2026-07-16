@@ -1,0 +1,1161 @@
+{
+  "scenarioId": "storefront-discovery",
+  "capturedAt": "2026-07-16T13:21:05.520Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "apiSurface": "storefront",
+  "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+  "authMode": "storefront-access-token",
+  "storefrontToken": {
+    "id": "gid://shopify/StorefrontAccessToken/130666922290",
+    "title": "hermes-conformance-storefront-recording",
+    "accessScopes": [
+      "unauthenticated_read_checkouts",
+      "unauthenticated_read_content",
+      "unauthenticated_read_customer_tags",
+      "unauthenticated_read_customers",
+      "unauthenticated_read_metaobjects",
+      "unauthenticated_read_product_inventory",
+      "unauthenticated_read_product_listings",
+      "unauthenticated_read_product_pickup_locations",
+      "unauthenticated_read_product_tags",
+      "unauthenticated_read_selling_plans",
+      "unauthenticated_write_checkouts",
+      "unauthenticated_write_customers"
+    ],
+    "obtainedAt": "2026-07-14T23:55:26.161Z"
+  },
+  "adminSetup": {
+    "name": "admin-setup",
+    "request": {
+      "query": "mutation StorefrontDiscoverySetup(\n  $product: ProductCreateInput!\n  $collection: CollectionInput!\n  $blog: BlogCreateInput!\n  $page: PageCreateInput!\n) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      variants(first: 1) {\n        nodes {\n          id\n          price\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  collectionCreate(input: $collection) {\n    collection {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  blogCreate(blog: $blog) {\n    blog {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  pageCreate(page: $page) {\n    page {\n      id\n      title\n      handle\n      body\n      bodySummary\n      isPublished\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Aurora Discovery 20260716132027 Product",
+          "handle": "aurora-discovery-product-20260716132027",
+          "status": "ACTIVE",
+          "vendor": "Hermes Discovery",
+          "productType": "Discovery Fixture",
+          "tags": ["aurora", "discovery", "discovery-20260716132027"],
+          "productOptions": [
+            {
+              "name": "Color",
+              "values": [
+                {
+                  "name": "Blue"
+                }
+              ]
+            }
+          ]
+        },
+        "collection": {
+          "title": "Aurora Discovery 20260716132027 Collection",
+          "handle": "aurora-discovery-collection-20260716132027"
+        },
+        "blog": {
+          "title": "Aurora Discovery 20260716132027 Blog",
+          "handle": "aurora-discovery-blog-20260716132027"
+        },
+        "page": {
+          "title": "Aurora Discovery 20260716132027 Alpha Page",
+          "handle": "aurora-discovery-alpha-page-20260716132027",
+          "body": "<p>Aurora Discovery 20260716132027 alpha page body</p>",
+          "isPublished": true
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10241849098546",
+            "title": "Aurora Discovery 20260716132027 Product",
+            "handle": "aurora-discovery-product-20260716132027",
+            "status": "ACTIVE",
+            "vendor": "Hermes Discovery",
+            "productType": "Discovery Fixture",
+            "tags": ["aurora", "discovery", "discovery-20260716132027"],
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51481245909298",
+                  "price": "0.00"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        },
+        "collectionCreate": {
+          "collection": {
+            "id": "gid://shopify/Collection/514506293554",
+            "title": "Aurora Discovery 20260716132027 Collection",
+            "handle": "aurora-discovery-collection-20260716132027"
+          },
+          "userErrors": []
+        },
+        "blogCreate": {
+          "blog": {
+            "id": "gid://shopify/Blog/121859506482",
+            "title": "Aurora Discovery 20260716132027 Blog",
+            "handle": "aurora-discovery-blog-20260716132027"
+          },
+          "userErrors": []
+        },
+        "pageCreate": {
+          "page": {
+            "id": "gid://shopify/Page/161463763250",
+            "title": "Aurora Discovery 20260716132027 Alpha Page",
+            "handle": "aurora-discovery-alpha-page-20260716132027",
+            "body": "<p>Aurora Discovery 20260716132027 alpha page body</p>",
+            "bodySummary": "Aurora Discovery 20260716132027 alpha page body",
+            "isPublished": true
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 43,
+          "actualQueryCost": 43,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1957,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "adminArticleSetup": {
+    "name": "admin-article-setup",
+    "request": {
+      "query": "mutation StorefrontDiscoveryArticleSetup($article: ArticleCreateInput!) {\n  articleCreate(article: $article) {\n    article {\n      id\n      title\n      handle\n      body\n      summary\n      tags\n      isPublished\n      author {\n        name\n      }\n      blog {\n        id\n        title\n        handle\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "article": {
+          "title": "Aurora Discovery 20260716132027 Article",
+          "handle": "aurora-discovery-article-20260716132027",
+          "body": "<p>Aurora Discovery 20260716132027 article body</p>",
+          "summary": "Aurora Discovery 20260716132027 article summary",
+          "tags": ["aurora", "discovery"],
+          "author": {
+            "name": "Discovery Author"
+          },
+          "blogId": "gid://shopify/Blog/121859506482",
+          "isPublished": true
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "articleCreate": {
+          "article": {
+            "id": "gid://shopify/Article/685072548146",
+            "title": "Aurora Discovery 20260716132027 Article",
+            "handle": "aurora-discovery-article-20260716132027",
+            "body": "<p>Aurora Discovery 20260716132027 article body</p>",
+            "summary": "Aurora Discovery 20260716132027 article summary",
+            "tags": ["aurora", "discovery"],
+            "isPublished": true,
+            "author": {
+              "name": "Discovery Author"
+            },
+            "blog": {
+              "id": "gid://shopify/Blog/121859506482",
+              "title": "Aurora Discovery 20260716132027 Blog",
+              "handle": "aurora-discovery-blog-20260716132027"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "adminPublicationHydrate": {
+    "name": "admin-publication-hydrate",
+    "method": "POST",
+    "apiSurface": "admin",
+    "apiVersion": "2026-04",
+    "path": "/admin/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/admin/api/2026-04/graphql.json",
+    "authMode": "admin-access-token",
+    "operationName": "StorePropertiesPublishableInputValidationHydrate",
+    "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate {\n    shop {\n      publicationCount\n      currencyCode\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "shop": {
+            "publicationCount": 6,
+            "currencyCode": "CAD"
+          },
+          "publications": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Publication/268039389490",
+                "name": "Online Store"
+              },
+              {
+                "id": "gid://shopify/Publication/268039455026",
+                "name": "Point of Sale"
+              },
+              {
+                "id": "gid://shopify/Publication/268039487794",
+                "name": "Shop"
+              },
+              {
+                "id": "gid://shopify/Publication/273897881906",
+                "name": "Shopify GraphiQL App"
+              },
+              {
+                "id": "gid://shopify/Publication/302536393010",
+                "name": "example.com"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 8,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "adminPublish": {
+    "name": "admin-publish",
+    "request": {
+      "query": "mutation StorefrontDiscoveryPublish(\n  $productId: ID!\n  $collectionId: ID!\n  $input: [PublicationInput!]!\n  $publicationId: ID!\n) {\n  product: publishablePublish(id: $productId, input: $input) {\n    publishable {\n      ... on Product {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  collection: publishablePublish(id: $collectionId, input: $input) {\n    publishable {\n      ... on Collection {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "productId": "gid://shopify/Product/10241849098546",
+        "collectionId": "gid://shopify/Collection/514506293554",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          }
+        ],
+        "publicationId": "gid://shopify/Publication/268039389490"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "product": {
+          "publishable": {
+            "id": "gid://shopify/Product/10241849098546",
+            "publishedOnPublication": true
+          },
+          "userErrors": []
+        },
+        "collection": {
+          "publishable": {
+            "id": "gid://shopify/Collection/514506293554",
+            "publishedOnPublication": true
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontDiscovery": {
+    "name": "storefront-discovery-read",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontDiscoveryRead",
+    "query": "query StorefrontDiscoveryRead(\n  $productId: ID!\n  $nodeIds: [ID!]!\n  $query: String!\n  $prefixQuery: String!\n  $emptyQuery: String!\n  $suggestionsQuery: String!\n  $tag: String!\n  $after: String\n) {\n  aliasedNode: node(id: $productId) {\n    ...NodeIdentity\n    ... on Product {\n      aliasedTitle: title\n      handle\n      vendor\n      productType\n      tags\n      availableForSale\n    }\n  }\n  aliasedNodes: nodes(ids: $nodeIds) {\n    ...NodeIdentity\n    ... on Product {\n      title\n      handle\n      vendor\n      productType\n      tags\n      availableForSale\n    }\n    ... on Collection {\n      title\n      handle\n    }\n    ... on Article {\n      title\n      handle\n      tags\n      author {\n        name\n      }\n      blog {\n        id\n        title\n        handle\n      }\n    }\n    ... on Page {\n      title\n      handle\n      bodySummary\n    }\n  }\n  mixed: search(\n    first: 2\n    after: $after\n    query: $query\n    prefix: LAST\n    types: [PRODUCT, ARTICLE, PAGE]\n    unavailableProducts: SHOW\n  ) {\n    edges {\n      cursor\n      node {\n        ...SearchResultFields\n      }\n    }\n    nodes {\n      ...SearchResultFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n    productFilters {\n      id\n      label\n      presentation\n      type\n      values {\n        id\n        label\n        count\n        input\n      }\n    }\n    totalCount\n  }\n  prefixLast: search(first: 10, query: $prefixQuery, prefix: LAST, unavailableProducts: SHOW) {\n    nodes {\n      ...SearchResultFields\n    }\n    totalCount\n  }\n  prefixNone: search(first: 10, query: $prefixQuery, prefix: NONE, unavailableProducts: SHOW) {\n    nodes {\n      ...SearchResultFields\n    }\n    totalCount\n  }\n  filteredProducts: search(\n    first: 10\n    query: $query\n    productFilters: [{ tag: $tag }]\n    sortKey: PRICE\n    types: [PRODUCT]\n    unavailableProducts: SHOW\n  ) {\n    nodes {\n      ...SearchResultFields\n    }\n    totalCount\n  }\n  hiddenUnavailableProducts: search(\n    first: 10\n    query: $query\n    types: [PRODUCT]\n    unavailableProducts: HIDE\n  ) {\n    nodes {\n      ...SearchResultFields\n    }\n    totalCount\n  }\n  empty: search(first: 10, query: $emptyQuery) {\n    nodes {\n      ...SearchResultFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n    productFilters {\n      id\n      label\n      presentation\n      type\n      values {\n        id\n        label\n        count\n        input\n      }\n    }\n    totalCount\n  }\n  predictiveEach: predictiveSearch(\n    query: $prefixQuery\n    limit: 10\n    limitScope: EACH\n    searchableFields: [TITLE, TAG, PRODUCT_TYPE, VENDOR]\n    types: [PRODUCT, COLLECTION, ARTICLE, PAGE]\n    unavailableProducts: SHOW\n  ) {\n    products {\n      id\n      title\n      handle\n      vendor\n      productType\n      tags\n      availableForSale\n    }\n    collections {\n      id\n      title\n      handle\n    }\n    articles {\n      id\n      title\n      handle\n      tags\n    }\n    pages {\n      id\n      title\n      handle\n      bodySummary\n    }\n    queries {\n      text\n      styledText\n      trackingParameters\n    }\n  }\n  predictiveAll: predictiveSearch(\n    query: $query\n    limit: 3\n    limitScope: ALL\n    types: [PRODUCT, COLLECTION, ARTICLE, PAGE]\n    unavailableProducts: LAST\n  ) {\n    products {\n      id\n      title\n      handle\n    }\n    collections {\n      id\n      title\n      handle\n    }\n    articles {\n      id\n      title\n      handle\n    }\n    pages {\n      id\n      title\n      handle\n    }\n  }\n  suggestions: predictiveSearch(query: $suggestionsQuery, limit: 3, types: [QUERY]) {\n    queries {\n      text\n      styledText\n      trackingParameters\n    }\n  }\n  emptyPredictive: predictiveSearch(query: $emptyQuery, limit: 10) {\n    products {\n      id\n      title\n      handle\n    }\n    collections {\n      id\n      title\n      handle\n    }\n    articles {\n      id\n      title\n      handle\n    }\n    pages {\n      id\n      title\n      handle\n    }\n    queries {\n      text\n      styledText\n      trackingParameters\n    }\n  }\n}\n\nfragment NodeIdentity on Node {\n  __typename\n  id\n}\n\nfragment SearchResultFields on SearchResultItem {\n  __typename\n  ... on Product {\n    id\n    title\n    handle\n    vendor\n    productType\n    tags\n    availableForSale\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n      maxVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n  }\n  ... on Article {\n    id\n    title\n    handle\n    tags\n    author {\n      name\n    }\n    blog {\n      id\n      title\n      handle\n    }\n  }\n  ... on Page {\n    id\n    title\n    handle\n    bodySummary\n  }\n}\n",
+    "variables": {
+      "productId": "gid://shopify/Product/10241849098546",
+      "nodeIds": [
+        "gid://shopify/Page/161463763250",
+        "gid://shopify/Product/999999999999999999",
+        "gid://shopify/Collection/514506293554",
+        "gid://shopify/Article/685072548146",
+        "gid://shopify/Product/10241849098546",
+        "gid://shopify/Page/161463763250"
+      ],
+      "query": "Aurora Discovery 202607161320",
+      "prefixQuery": "Aurora Discovery 202607161320",
+      "emptyQuery": "zz-no-result-20260716132027",
+      "suggestionsQuery": "a",
+      "tag": "discovery-20260716132027",
+      "after": null
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "aliasedNode": {
+            "__typename": "Product",
+            "id": "gid://shopify/Product/10241849098546",
+            "aliasedTitle": "Aurora Discovery 20260716132027 Product",
+            "handle": "aurora-discovery-product-20260716132027",
+            "vendor": "Hermes Discovery",
+            "productType": "Discovery Fixture",
+            "tags": ["aurora", "discovery", "discovery-20260716132027"],
+            "availableForSale": true
+          },
+          "aliasedNodes": [
+            {
+              "__typename": "Page",
+              "id": "gid://shopify/Page/161463763250",
+              "title": "Aurora Discovery 20260716132027 Alpha Page",
+              "handle": "aurora-discovery-alpha-page-20260716132027",
+              "bodySummary": "Aurora Discovery 20260716132027 alpha page body"
+            },
+            null,
+            {
+              "__typename": "Collection",
+              "id": "gid://shopify/Collection/514506293554",
+              "title": "Aurora Discovery 20260716132027 Collection",
+              "handle": "aurora-discovery-collection-20260716132027"
+            },
+            {
+              "__typename": "Article",
+              "id": "gid://shopify/Article/685072548146",
+              "title": "Aurora Discovery 20260716132027 Article",
+              "handle": "aurora-discovery-article-20260716132027",
+              "tags": ["aurora", "discovery"],
+              "author": {
+                "name": "Discovery Author"
+              },
+              "blog": {
+                "id": "gid://shopify/Blog/121859506482",
+                "title": "Aurora Discovery 20260716132027 Blog",
+                "handle": "aurora-discovery-blog-20260716132027"
+              }
+            },
+            {
+              "__typename": "Product",
+              "id": "gid://shopify/Product/10241849098546",
+              "title": "Aurora Discovery 20260716132027 Product",
+              "handle": "aurora-discovery-product-20260716132027",
+              "vendor": "Hermes Discovery",
+              "productType": "Discovery Fixture",
+              "tags": ["aurora", "discovery", "discovery-20260716132027"],
+              "availableForSale": true
+            },
+            {
+              "__typename": "Page",
+              "id": "gid://shopify/Page/161463763250",
+              "title": "Aurora Discovery 20260716132027 Alpha Page",
+              "handle": "aurora-discovery-alpha-page-20260716132027",
+              "bodySummary": "Aurora Discovery 20260716132027 alpha page body"
+            }
+          ],
+          "mixed": {
+            "edges": [
+              {
+                "cursor": "eyJwYWdlIjoyLCJsYXN0X2lkIjoxMDI0MTg0OTA5ODU0NiwicmV2ZXJzZSI6dHJ1ZSwib2Zmc2V0IjowfQ==",
+                "node": {
+                  "__typename": "Product",
+                  "id": "gid://shopify/Product/10241849098546",
+                  "title": "Aurora Discovery 20260716132027 Product",
+                  "handle": "aurora-discovery-product-20260716132027",
+                  "vendor": "Hermes Discovery",
+                  "productType": "Discovery Fixture",
+                  "tags": ["aurora", "discovery", "discovery-20260716132027"],
+                  "availableForSale": true,
+                  "priceRange": {
+                    "minVariantPrice": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    },
+                    "maxVariantPrice": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              }
+            ],
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10241849098546",
+                "title": "Aurora Discovery 20260716132027 Product",
+                "handle": "aurora-discovery-product-20260716132027",
+                "vendor": "Hermes Discovery",
+                "productType": "Discovery Fixture",
+                "tags": ["aurora", "discovery", "discovery-20260716132027"],
+                "availableForSale": true,
+                "priceRange": {
+                  "minVariantPrice": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "maxVariantPrice": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJwYWdlIjoyLCJsYXN0X2lkIjoxMDI0MTg0OTA5ODU0NiwicmV2ZXJzZSI6dHJ1ZSwib2Zmc2V0IjowfQ==",
+              "endCursor": "eyJwYWdlIjoyLCJsYXN0X2lkIjoxMDI0MTg0OTA5ODU0NiwicmV2ZXJzZSI6dHJ1ZSwib2Zmc2V0IjowfQ=="
+            },
+            "productFilters": [
+              {
+                "id": "filter.v.availability",
+                "label": "Availability",
+                "presentation": "TEXT",
+                "type": "LIST",
+                "values": [
+                  {
+                    "id": "filter.v.availability.1",
+                    "label": "In stock",
+                    "count": 1,
+                    "input": "{\"available\":true}"
+                  },
+                  {
+                    "id": "filter.v.availability.0",
+                    "label": "Out of stock",
+                    "count": 0,
+                    "input": "{\"available\":false}"
+                  }
+                ]
+              }
+            ],
+            "totalCount": 1
+          },
+          "prefixLast": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10241849098546",
+                "title": "Aurora Discovery 20260716132027 Product",
+                "handle": "aurora-discovery-product-20260716132027",
+                "vendor": "Hermes Discovery",
+                "productType": "Discovery Fixture",
+                "tags": ["aurora", "discovery", "discovery-20260716132027"],
+                "availableForSale": true,
+                "priceRange": {
+                  "minVariantPrice": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "maxVariantPrice": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              {
+                "__typename": "Article",
+                "id": "gid://shopify/Article/685072548146",
+                "title": "Aurora Discovery 20260716132027 Article",
+                "handle": "aurora-discovery-article-20260716132027",
+                "tags": ["aurora", "discovery"],
+                "author": {
+                  "name": "Discovery Author"
+                },
+                "blog": {
+                  "id": "gid://shopify/Blog/121859506482",
+                  "title": "Aurora Discovery 20260716132027 Blog",
+                  "handle": "aurora-discovery-blog-20260716132027"
+                }
+              },
+              {
+                "__typename": "Page",
+                "id": "gid://shopify/Page/161463763250",
+                "title": "Aurora Discovery 20260716132027 Alpha Page",
+                "handle": "aurora-discovery-alpha-page-20260716132027",
+                "bodySummary": "Aurora Discovery 20260716132027 alpha page body"
+              }
+            ],
+            "totalCount": 3
+          },
+          "prefixNone": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10241849098546",
+                "title": "Aurora Discovery 20260716132027 Product",
+                "handle": "aurora-discovery-product-20260716132027",
+                "vendor": "Hermes Discovery",
+                "productType": "Discovery Fixture",
+                "tags": ["aurora", "discovery", "discovery-20260716132027"],
+                "availableForSale": true,
+                "priceRange": {
+                  "minVariantPrice": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "maxVariantPrice": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ],
+            "totalCount": 1
+          },
+          "filteredProducts": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10241849098546",
+                "title": "Aurora Discovery 20260716132027 Product",
+                "handle": "aurora-discovery-product-20260716132027",
+                "vendor": "Hermes Discovery",
+                "productType": "Discovery Fixture",
+                "tags": ["aurora", "discovery", "discovery-20260716132027"],
+                "availableForSale": true,
+                "priceRange": {
+                  "minVariantPrice": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "maxVariantPrice": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ],
+            "totalCount": 1
+          },
+          "hiddenUnavailableProducts": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10241849098546",
+                "title": "Aurora Discovery 20260716132027 Product",
+                "handle": "aurora-discovery-product-20260716132027",
+                "vendor": "Hermes Discovery",
+                "productType": "Discovery Fixture",
+                "tags": ["aurora", "discovery", "discovery-20260716132027"],
+                "availableForSale": true,
+                "priceRange": {
+                  "minVariantPrice": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "maxVariantPrice": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ],
+            "totalCount": 1
+          },
+          "empty": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            },
+            "productFilters": [
+              {
+                "id": "filter.v.price",
+                "label": "Price",
+                "presentation": null,
+                "type": "PRICE_RANGE",
+                "values": [
+                  {
+                    "id": "filter.v.price",
+                    "label": "Price",
+                    "count": 0,
+                    "input": "{\"price\":{\"min\":0,\"max\":0.0}}"
+                  }
+                ]
+              }
+            ],
+            "totalCount": 0
+          },
+          "predictiveEach": {
+            "products": [
+              {
+                "id": "gid://shopify/Product/10241849098546",
+                "title": "Aurora Discovery 20260716132027 Product",
+                "handle": "aurora-discovery-product-20260716132027",
+                "vendor": "Hermes Discovery",
+                "productType": "Discovery Fixture",
+                "tags": ["aurora", "discovery", "discovery-20260716132027"],
+                "availableForSale": true
+              }
+            ],
+            "collections": [
+              {
+                "id": "gid://shopify/Collection/514506293554",
+                "title": "Aurora Discovery 20260716132027 Collection",
+                "handle": "aurora-discovery-collection-20260716132027"
+              }
+            ],
+            "articles": [
+              {
+                "id": "gid://shopify/Article/685072548146",
+                "title": "Aurora Discovery 20260716132027 Article",
+                "handle": "aurora-discovery-article-20260716132027",
+                "tags": ["aurora", "discovery"]
+              }
+            ],
+            "pages": [
+              {
+                "id": "gid://shopify/Page/161463763250",
+                "title": "Aurora Discovery 20260716132027 Alpha Page",
+                "handle": "aurora-discovery-alpha-page-20260716132027",
+                "bodySummary": "Aurora Discovery 20260716132027 alpha page body"
+              }
+            ],
+            "queries": []
+          },
+          "predictiveAll": {
+            "products": [
+              {
+                "id": "gid://shopify/Product/10241849098546",
+                "title": "Aurora Discovery 20260716132027 Product",
+                "handle": "aurora-discovery-product-20260716132027"
+              }
+            ],
+            "collections": [
+              {
+                "id": "gid://shopify/Collection/514506293554",
+                "title": "Aurora Discovery 20260716132027 Collection",
+                "handle": "aurora-discovery-collection-20260716132027"
+              }
+            ],
+            "articles": [],
+            "pages": [
+              {
+                "id": "gid://shopify/Page/161463763250",
+                "title": "Aurora Discovery 20260716132027 Alpha Page",
+                "handle": "aurora-discovery-alpha-page-20260716132027"
+              }
+            ]
+          },
+          "suggestions": {
+            "queries": [
+              {
+                "text": "atom",
+                "styledText": "<mark>a</mark><span>tom</span>",
+                "trackingParameters": "_pos=1&_psid=fb03ccb66&_psq=a&_ss=e&_v=1.0"
+              },
+              {
+                "text": "afterburner",
+                "styledText": "<mark>a</mark><span>fterburner</span>",
+                "trackingParameters": "_pos=2&_psid=fb03ccb66&_psq=a&_ss=e&_v=1.0"
+              },
+              {
+                "text": "armchair",
+                "styledText": "<mark>a</mark><span>rmchair</span>",
+                "trackingParameters": "_pos=3&_psid=fb03ccb66&_psq=a&_ss=e&_v=1.0"
+              }
+            ]
+          },
+          "emptyPredictive": {
+            "products": [],
+            "collections": [],
+            "articles": [],
+            "pages": [],
+            "queries": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 157
+          }
+        }
+      }
+    }
+  },
+  "adminPageTwoSetup": {
+    "name": "admin-second-page-setup",
+    "request": {
+      "query": "mutation StorefrontDiscoverySecondPageSetup($page: PageCreateInput!) {\n  pageCreate(page: $page) {\n    page {\n      id\n      title\n      handle\n      body\n      bodySummary\n      isPublished\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "page": {
+          "title": "Aurora Discovery 20260716132027 Beta Page",
+          "handle": "aurora-discovery-beta-page-20260716132027",
+          "body": "<p>Aurora Discovery 20260716132027 beta page body</p>",
+          "isPublished": true
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "pageCreate": {
+          "page": {
+            "id": "gid://shopify/Page/161463796018",
+            "title": "Aurora Discovery 20260716132027 Beta Page",
+            "handle": "aurora-discovery-beta-page-20260716132027",
+            "body": "<p>Aurora Discovery 20260716132027 beta page body</p>",
+            "bodySummary": "Aurora Discovery 20260716132027 beta page body",
+            "isPublished": true
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontDiscoveryPagination": {
+    "name": "storefront-discovery-pagination",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontDiscoveryPagination",
+    "query": "query StorefrontDiscoveryPagination($query: String!, $after: String) {\n  pagination: search(first: 1, after: $after, query: $query, prefix: LAST, types: [PAGE]) {\n    nodes {\n      __typename\n      ... on Page {\n        id\n        title\n        handle\n        bodySummary\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n    totalCount\n  }\n}\n",
+    "variables": {
+      "query": "Aurora Discovery 202607161320",
+      "after": null
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "pagination": {
+            "nodes": [
+              {
+                "__typename": "Page",
+                "id": "gid://shopify/Page/161463763250",
+                "title": "Aurora Discovery 20260716132027 Alpha Page",
+                "handle": "aurora-discovery-alpha-page-20260716132027",
+                "bodySummary": "Aurora Discovery 20260716132027 alpha page body"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJwYWdlIjoyLCJsYXN0X2lkIjoxNjE0NjM3NjMyNTAsInJldmVyc2UiOnRydWUsIm9mZnNldCI6MH0=",
+              "endCursor": "eyJwYWdlIjoyLCJsYXN0X2lkIjoxNjE0NjM3NjMyNTAsInJldmVyc2UiOnRydWUsIm9mZnNldCI6MH0="
+            },
+            "totalCount": 2
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4
+          }
+        }
+      }
+    }
+  },
+  "storefrontDiscoveryPageTwo": {
+    "name": "storefront-discovery-page-two",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontDiscoveryPagination",
+    "query": "query StorefrontDiscoveryPagination($query: String!, $after: String) {\n  pagination: search(first: 1, after: $after, query: $query, prefix: LAST, types: [PAGE]) {\n    nodes {\n      __typename\n      ... on Page {\n        id\n        title\n        handle\n        bodySummary\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n    totalCount\n  }\n}\n",
+    "variables": {
+      "query": "Aurora Discovery 202607161320",
+      "after": "eyJwYWdlIjoyLCJsYXN0X2lkIjoxNjE0NjM3NjMyNTAsInJldmVyc2UiOnRydWUsIm9mZnNldCI6MH0="
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "pagination": {
+            "nodes": [
+              {
+                "__typename": "Page",
+                "id": "gid://shopify/Page/161463796018",
+                "title": "Aurora Discovery 20260716132027 Beta Page",
+                "handle": "aurora-discovery-beta-page-20260716132027",
+                "bodySummary": "Aurora Discovery 20260716132027 beta page body"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": true,
+              "startCursor": "eyJwYWdlIjozLCJsYXN0X2lkIjoxNjE0NjM3OTYwMTgsInJldmVyc2UiOnRydWUsIm9mZnNldCI6MX0=",
+              "endCursor": "eyJwYWdlIjozLCJsYXN0X2lkIjoxNjE0NjM3OTYwMTgsInJldmVyc2UiOnRydWUsIm9mZnNldCI6MX0="
+            },
+            "totalCount": 2
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4
+          }
+        }
+      }
+    }
+  },
+  "storefrontInvalidId": {
+    "name": "storefront-discovery-invalid-id",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontDiscoveryInvalidId",
+    "query": "query StorefrontDiscoveryInvalidId {\n  node(id: \"not-a-gid\") {\n    id\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "body": {
+        "errors": [
+          {
+            "message": "Invalid global id 'not-a-gid'",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "path": ["query StorefrontDiscoveryInvalidId", "node", "id"],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "CoercionError"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "storefrontInvalidLimit": {
+    "name": "storefront-discovery-invalid-limit",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontDiscoveryInvalidLimit",
+    "query": "query StorefrontDiscoveryInvalidLimit {\n  predictiveSearch(query: \"a\", limit: 0) {\n    products {\n      id\n    }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "body": {
+        "errors": [
+          {
+            "message": "limit must be within 1..10",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "path": ["predictiveSearch"],
+            "extensions": {
+              "code": "INVALID_FIELD_ARGUMENTS"
+            }
+          }
+        ],
+        "data": {
+          "predictiveSearch": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "article-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontDiscoveryArticleCleanup($id: ID!) {\n    articleDelete(id: $id) { deletedArticleId userErrors { field message code } }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/685072548146"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/685072548146",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "second-page-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontDiscoveryPageCleanup($id: ID!) {\n    pageDelete(id: $id) { deletedPageId userErrors { field message code } }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Page/161463796018"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageDelete": {
+            "deletedPageId": "gid://shopify/Page/161463796018",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "page-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontDiscoveryPageCleanup($id: ID!) {\n    pageDelete(id: $id) { deletedPageId userErrors { field message code } }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Page/161463763250"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageDelete": {
+            "deletedPageId": "gid://shopify/Page/161463763250",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "blog-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontDiscoveryBlogCleanup($id: ID!) {\n    blogDelete(id: $id) { deletedBlogId userErrors { field message code } }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121859506482"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/121859506482",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "collection-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontDiscoveryCollectionCleanup($input: CollectionDeleteInput!) {\n    collectionDelete(input: $input) { deletedCollectionId userErrors { field message } }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Collection/514506293554"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "collectionDelete": {
+            "deletedCollectionId": "gid://shopify/Collection/514506293554",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "product-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontDiscoveryProductCleanup($input: ProductDeleteInput!) {\n    productDelete(input: $input) { deletedProductId userErrors { field message } }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10241849098546"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10241849098546",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "name": "admin-publication-hydrate",
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/admin/api/2026-04/graphql.json",
+      "authMode": "admin-access-token",
+      "operationName": "StorePropertiesPublishableInputValidationHydrate",
+      "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate {\n    shop {\n      publicationCount\n      currencyCode\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "publicationCount": 6,
+              "currencyCode": "CAD"
+            },
+            "publications": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Publication/268039389490",
+                  "name": "Online Store"
+                },
+                {
+                  "id": "gid://shopify/Publication/268039455026",
+                  "name": "Point of Sale"
+                },
+                {
+                  "id": "gid://shopify/Publication/268039487794",
+                  "name": "Shop"
+                },
+                {
+                  "id": "gid://shopify/Publication/273897881906",
+                  "name": "Shopify GraphiQL App"
+                },
+                {
+                  "id": "gid://shopify/Publication/302536393010",
+                  "name": "example.com"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

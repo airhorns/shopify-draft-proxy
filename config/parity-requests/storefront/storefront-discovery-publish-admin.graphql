@@ -1,0 +1,31 @@
+mutation StorefrontDiscoveryPublish(
+  $productId: ID!
+  $collectionId: ID!
+  $input: [PublicationInput!]!
+  $publicationId: ID!
+) {
+  product: publishablePublish(id: $productId, input: $input) {
+    publishable {
+      ... on Product {
+        id
+        publishedOnPublication(publicationId: $publicationId)
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  collection: publishablePublish(id: $collectionId, input: $input) {
+    publishable {
+      ... on Collection {
+        id
+        publishedOnPublication(publicationId: $publicationId)
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

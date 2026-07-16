@@ -1,0 +1,5 @@
+query StorefrontDiscoveryInvalidId {
+  node(id: "not-a-gid") {
+    id
+  }
+}
