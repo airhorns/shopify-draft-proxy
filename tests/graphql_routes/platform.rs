@@ -4147,6 +4147,79 @@ fn location_add_resource_limit_guard_uses_hydrated_resource_limit_without_loggin
 }
 
 #[test]
+fn location_limit_hydration_falls_back_to_minimal_status_query() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            captured_requests.lock().unwrap().push(body);
+            if query.contains("includeLegacy: true") {
+                return Response {
+                    status: 502,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "catalog unavailable" }] }),
+                };
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": { "resourceLimits": { "locationLimit": 1 } },
+                        "locations": {
+                            "nodes": [{
+                                "id": "gid://shopify/Location/fallback-limit",
+                                "isActive": true,
+                                "isFulfillmentService": false
+                            }],
+                            "pageInfo": { "hasNextPage": false }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationFallbackLimit($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Fallback overflow",
+                "address": { "countryCode": "US" }
+            }
+        }),
+    ));
+
+    assert_eq!(
+        add.body["data"]["locationAdd"],
+        json!({
+            "location": null,
+            "userErrors": [{
+                "field": ["input"],
+                "code": "INVALID",
+                "message": "You have reached the maximum number of locations (1)"
+            }]
+        })
+    );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert!(requests[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("includeInactive: true, includeLegacy: true")));
+    assert!(requests[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("includeInactive: true) { nodes { id isActive")));
+}
+
+#[test]
 fn location_overlay_preserves_hydrated_catalog_for_reads_validation_and_limits() {
     let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_requests = Arc::clone(&upstream_requests);
@@ -5745,7 +5818,11 @@ fn generic_location_activate_rejects_non_unique_active_name() {
         json!([]),
         "rejected activation must not append a staged mutation log entry"
     );
-    assert_eq!(upstream_calls.lock().unwrap().len(), 3);
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 4);
+    assert!(calls.iter().all(|request| request["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query "))));
 }
 
 #[test]
@@ -6080,7 +6157,14 @@ fn location_edit_and_delete_are_local_in_live_hybrid_mode() {
         .as_str()
         .unwrap()
         .to_string();
-    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+    assert_eq!(*upstream_calls.lock().unwrap(), 2);
+    assert!(upstream_requests
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|request| request["query"]
+            .as_str()
+            .is_some_and(|query| query.trim_start().starts_with("query "))));
     *upstream_calls.lock().unwrap() = 0;
     upstream_requests.lock().unwrap().clear();
 

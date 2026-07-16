@@ -3,6 +3,7 @@ use crate::proxy::search::{parse_search_query, ParsedSearchTerm};
 
 const LOCATION_HYDRATE_QUERY: &str = r#"query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: "custom", key: "hours") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: ["available", "committed", "on_hand"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"#;
 const LOCATION_LIMIT_STATUS_QUERY: &str = r#"query StorePropertiesLocationLimitStatus($first: Int!) { shop { resourceLimits { locationLimit } } locations(first: $first, includeInactive: true, includeLegacy: true) { nodes { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } } pageInfo { hasNextPage } } }"#;
+const LOCATION_LIMIT_STATUS_FALLBACK_QUERY: &str = r#"query StorePropertiesLocationLimitStatus($first: Int!) { shop { resourceLimits { locationLimit } } locations(first: $first, includeInactive: true) { nodes { id isActive isFulfillmentService } pageInfo { hasNextPage } } }"#;
 
 impl DraftProxy {
     pub(in crate::proxy) fn location_mutation(
@@ -976,7 +977,7 @@ impl DraftProxy {
         {
             return;
         }
-        let response = self.upstream_post(
+        let mut response = self.upstream_post(
             request,
             json!({
                 "query": LOCATION_LIMIT_STATUS_QUERY,
@@ -984,6 +985,18 @@ impl DraftProxy {
                 "variables": { "first": 250 }
             }),
         );
+        // Preserve exact limit enforcement if the richer catalog projection is
+        // unavailable; the fallback remains read-only and never invents rows.
+        if !(200..300).contains(&response.status) {
+            response = self.upstream_post(
+                request,
+                json!({
+                    "query": LOCATION_LIMIT_STATUS_FALLBACK_QUERY,
+                    "operationName": "StorePropertiesLocationLimitStatus",
+                    "variables": { "first": 250 }
+                }),
+            );
+        }
         if !(200..300).contains(&response.status) {
             return;
         }
