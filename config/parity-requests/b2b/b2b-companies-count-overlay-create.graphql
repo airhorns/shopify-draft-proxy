@@ -1,0 +1,14 @@
+mutation B2BCompaniesCountOverlayCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+      externalId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

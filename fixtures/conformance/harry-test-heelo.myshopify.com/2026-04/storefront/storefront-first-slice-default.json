@@ -1,6 +1,6 @@
 {
   "scenarioId": "storefront-first-slice-default",
-  "capturedAt": "2026-07-15T18:00:22.895Z",
+  "capturedAt": "2026-07-15T23:53:02.864Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "apiSurface": "storefront",
@@ -301,7 +301,7 @@
       "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
     },
     "operationName": "StorefrontFirstSliceHydrate",
-    "query": "query StorefrontFirstSliceHydrate {\n  shop {\n    id\n    name\n    description\n    moneyFormat\n    primaryDomain {\n      host\n      url\n      sslEnabled\n    }\n    brand {\n      shortDescription\n      slogan\n      logo {\n        id\n        image {\n          url\n          altText\n          width\n          height\n        }\n      }\n      squareLogo {\n        id\n        image {\n          url\n          altText\n          width\n          height\n        }\n      }\n      coverImage {\n        id\n        image {\n          url\n          altText\n          width\n          height\n        }\n      }\n    }\n    contactInformation {\n      id\n      title\n      body\n      handle\n      url\n    }\n    legalNotice {\n      id\n      title\n      body\n      handle\n      url\n    }\n    privacyPolicy {\n      id\n      title\n      body\n      handle\n      url\n    }\n    refundPolicy {\n      id\n      title\n      body\n      handle\n      url\n    }\n    shippingPolicy {\n      id\n      title\n      body\n      handle\n      url\n    }\n    termsOfSale {\n      id\n      title\n      body\n      handle\n      url\n    }\n    termsOfService {\n      id\n      title\n      body\n      handle\n      url\n    }\n    paymentSettings {\n      acceptedCardBrands\n      cardVaultUrl\n      countryCode\n      currencyCode\n      enabledPresentmentCurrencies\n      shopifyPaymentsAccountId\n      supportedDigitalWallets\n    }\n  }\n  localization {\n    availableCountries {\n      isoCode\n      name\n      unitSystem\n      currency {\n        isoCode\n        name\n        symbol\n      }\n      defaultLanguage {\n        isoCode\n        name\n        endonymName\n      }\n      availableLanguages {\n        isoCode\n        name\n        endonymName\n      }\n      market {\n        id\n        handle\n      }\n    }\n    availableLanguages {\n      isoCode\n      name\n      endonymName\n    }\n    country {\n      isoCode\n      name\n      unitSystem\n      currency {\n        isoCode\n        name\n        symbol\n      }\n      defaultLanguage {\n        isoCode\n        name\n        endonymName\n      }\n      availableLanguages {\n        isoCode\n        name\n        endonymName\n      }\n      market {\n        id\n        handle\n      }\n    }\n    language {\n      isoCode\n      name\n      endonymName\n    }\n    market {\n      id\n      handle\n    }\n  }\n  locations(first: 250) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        address {\n          address1\n          address2\n          city\n          country\n          countryCode\n          formatted\n          latitude\n          longitude\n          phone\n          province\n          provinceCode\n          zip\n        }\n      }\n    }\n    nodes {\n      id\n      name\n      address {\n        address1\n        address2\n        city\n        country\n        countryCode\n        formatted\n        latitude\n        longitude\n        phone\n        province\n        provinceCode\n        zip\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  paymentSettings {\n    acceptedCardBrands\n    cardVaultUrl\n    countryCode\n    currencyCode\n    enabledPresentmentCurrencies\n    shopifyPaymentsAccountId\n    supportedDigitalWallets\n  }\n  publicApiVersions {\n    handle\n    displayName\n    supported\n  }\n}\n",
+    "query": "query StorefrontFirstSliceHydrate {\n  shop {\n    id\n    name\n    description\n    moneyFormat\n    primaryDomain {\n      host\n      url\n      sslEnabled\n    }\n    brand {\n      shortDescription\n      slogan\n      logo {\n        id\n        image {\n          url\n          altText\n          width\n          height\n        }\n      }\n      squareLogo {\n        id\n        image {\n          url\n          altText\n          width\n          height\n        }\n      }\n      coverImage {\n        id\n        image {\n          url\n          altText\n          width\n          height\n        }\n      }\n    }\n    privacyPolicy {\n      id\n      title\n      body\n      handle\n      url\n    }\n    refundPolicy {\n      id\n      title\n      body\n      handle\n      url\n    }\n    shippingPolicy {\n      id\n      title\n      body\n      handle\n      url\n    }\n    termsOfService {\n      id\n      title\n      body\n      handle\n      url\n    }\n    paymentSettings {\n      acceptedCardBrands\n      cardVaultUrl\n      countryCode\n      currencyCode\n      enabledPresentmentCurrencies\n      shopifyPaymentsAccountId\n      supportedDigitalWallets\n    }\n  }\n  localization {\n    availableCountries {\n      isoCode\n      name\n      unitSystem\n      currency {\n        isoCode\n        name\n        symbol\n      }\n      defaultLanguage {\n        isoCode\n        name\n        endonymName\n      }\n      availableLanguages {\n        isoCode\n        name\n        endonymName\n      }\n      market {\n        id\n        handle\n      }\n    }\n    availableLanguages {\n      isoCode\n      name\n      endonymName\n    }\n    country {\n      isoCode\n      name\n      unitSystem\n      currency {\n        isoCode\n        name\n        symbol\n      }\n      defaultLanguage {\n        isoCode\n        name\n        endonymName\n      }\n      availableLanguages {\n        isoCode\n        name\n        endonymName\n      }\n      market {\n        id\n        handle\n      }\n    }\n    language {\n      isoCode\n      name\n      endonymName\n    }\n    market {\n      id\n      handle\n    }\n  }\n  locations(first: 250) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        address {\n          address1\n          address2\n          city\n          country\n          countryCode\n          formatted\n          latitude\n          longitude\n          phone\n          province\n          provinceCode\n          zip\n        }\n      }\n    }\n    nodes {\n      id\n      name\n      address {\n        address1\n        address2\n        city\n        country\n        countryCode\n        formatted\n        latitude\n        longitude\n        phone\n        province\n        provinceCode\n        zip\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  paymentSettings {\n    acceptedCardBrands\n    cardVaultUrl\n    countryCode\n    currencyCode\n    enabledPresentmentCurrencies\n    shopifyPaymentsAccountId\n    supportedDigitalWallets\n  }\n  publicApiVersions {\n    handle\n    displayName\n    supported\n  }\n}\n",
     "variables": {},
     "response": {
       "status": 200,
@@ -332,14 +332,6 @@
                 }
               }
             },
-            "contactInformation": {
-              "id": "gid://shopify/ShopPolicy/50719981874",
-              "title": "Contact Information",
-              "body": "<p></p>",
-              "handle": "contact-information",
-              "url": "https://checkout.shopify.com/92891250994/policies/50719981874.html?locale=en"
-            },
-            "legalNotice": null,
             "privacyPolicy": {
               "id": "gid://shopify/ShopPolicy/44470108466",
               "title": "Privacy Policy",
@@ -355,7 +347,6 @@
               "url": "https://checkout.shopify.com/92891250994/policies/50720014642.html?locale=en"
             },
             "shippingPolicy": null,
-            "termsOfSale": null,
             "termsOfService": null,
             "paymentSettings": {
               "acceptedCardBrands": [],
@@ -1200,7 +1191,7 @@
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 100
+            "requestedQueryCost": 97
           }
         }
       }
@@ -1218,7 +1209,7 @@
         "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
       },
       "operationName": "StorefrontFirstSliceHydrate",
-      "query": "query StorefrontFirstSliceHydrate {\n  shop {\n    id\n    name\n    description\n    moneyFormat\n    primaryDomain {\n      host\n      url\n      sslEnabled\n    }\n    brand {\n      shortDescription\n      slogan\n      logo {\n        id\n        image {\n          url\n          altText\n          width\n          height\n        }\n      }\n      squareLogo {\n        id\n        image {\n          url\n          altText\n          width\n          height\n        }\n      }\n      coverImage {\n        id\n        image {\n          url\n          altText\n          width\n          height\n        }\n      }\n    }\n    contactInformation {\n      id\n      title\n      body\n      handle\n      url\n    }\n    legalNotice {\n      id\n      title\n      body\n      handle\n      url\n    }\n    privacyPolicy {\n      id\n      title\n      body\n      handle\n      url\n    }\n    refundPolicy {\n      id\n      title\n      body\n      handle\n      url\n    }\n    shippingPolicy {\n      id\n      title\n      body\n      handle\n      url\n    }\n    termsOfSale {\n      id\n      title\n      body\n      handle\n      url\n    }\n    termsOfService {\n      id\n      title\n      body\n      handle\n      url\n    }\n    paymentSettings {\n      acceptedCardBrands\n      cardVaultUrl\n      countryCode\n      currencyCode\n      enabledPresentmentCurrencies\n      shopifyPaymentsAccountId\n      supportedDigitalWallets\n    }\n  }\n  localization {\n    availableCountries {\n      isoCode\n      name\n      unitSystem\n      currency {\n        isoCode\n        name\n        symbol\n      }\n      defaultLanguage {\n        isoCode\n        name\n        endonymName\n      }\n      availableLanguages {\n        isoCode\n        name\n        endonymName\n      }\n      market {\n        id\n        handle\n      }\n    }\n    availableLanguages {\n      isoCode\n      name\n      endonymName\n    }\n    country {\n      isoCode\n      name\n      unitSystem\n      currency {\n        isoCode\n        name\n        symbol\n      }\n      defaultLanguage {\n        isoCode\n        name\n        endonymName\n      }\n      availableLanguages {\n        isoCode\n        name\n        endonymName\n      }\n      market {\n        id\n        handle\n      }\n    }\n    language {\n      isoCode\n      name\n      endonymName\n    }\n    market {\n      id\n      handle\n    }\n  }\n  locations(first: 250) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        address {\n          address1\n          address2\n          city\n          country\n          countryCode\n          formatted\n          latitude\n          longitude\n          phone\n          province\n          provinceCode\n          zip\n        }\n      }\n    }\n    nodes {\n      id\n      name\n      address {\n        address1\n        address2\n        city\n        country\n        countryCode\n        formatted\n        latitude\n        longitude\n        phone\n        province\n        provinceCode\n        zip\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  paymentSettings {\n    acceptedCardBrands\n    cardVaultUrl\n    countryCode\n    currencyCode\n    enabledPresentmentCurrencies\n    shopifyPaymentsAccountId\n    supportedDigitalWallets\n  }\n  publicApiVersions {\n    handle\n    displayName\n    supported\n  }\n}\n",
+      "query": "query StorefrontFirstSliceHydrate {\n  shop {\n    id\n    name\n    description\n    moneyFormat\n    primaryDomain {\n      host\n      url\n      sslEnabled\n    }\n    brand {\n      shortDescription\n      slogan\n      logo {\n        id\n        image {\n          url\n          altText\n          width\n          height\n        }\n      }\n      squareLogo {\n        id\n        image {\n          url\n          altText\n          width\n          height\n        }\n      }\n      coverImage {\n        id\n        image {\n          url\n          altText\n          width\n          height\n        }\n      }\n    }\n    privacyPolicy {\n      id\n      title\n      body\n      handle\n      url\n    }\n    refundPolicy {\n      id\n      title\n      body\n      handle\n      url\n    }\n    shippingPolicy {\n      id\n      title\n      body\n      handle\n      url\n    }\n    termsOfService {\n      id\n      title\n      body\n      handle\n      url\n    }\n    paymentSettings {\n      acceptedCardBrands\n      cardVaultUrl\n      countryCode\n      currencyCode\n      enabledPresentmentCurrencies\n      shopifyPaymentsAccountId\n      supportedDigitalWallets\n    }\n  }\n  localization {\n    availableCountries {\n      isoCode\n      name\n      unitSystem\n      currency {\n        isoCode\n        name\n        symbol\n      }\n      defaultLanguage {\n        isoCode\n        name\n        endonymName\n      }\n      availableLanguages {\n        isoCode\n        name\n        endonymName\n      }\n      market {\n        id\n        handle\n      }\n    }\n    availableLanguages {\n      isoCode\n      name\n      endonymName\n    }\n    country {\n      isoCode\n      name\n      unitSystem\n      currency {\n        isoCode\n        name\n        symbol\n      }\n      defaultLanguage {\n        isoCode\n        name\n        endonymName\n      }\n      availableLanguages {\n        isoCode\n        name\n        endonymName\n      }\n      market {\n        id\n        handle\n      }\n    }\n    language {\n      isoCode\n      name\n      endonymName\n    }\n    market {\n      id\n      handle\n    }\n  }\n  locations(first: 250) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        address {\n          address1\n          address2\n          city\n          country\n          countryCode\n          formatted\n          latitude\n          longitude\n          phone\n          province\n          provinceCode\n          zip\n        }\n      }\n    }\n    nodes {\n      id\n      name\n      address {\n        address1\n        address2\n        city\n        country\n        countryCode\n        formatted\n        latitude\n        longitude\n        phone\n        province\n        provinceCode\n        zip\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  paymentSettings {\n    acceptedCardBrands\n    cardVaultUrl\n    countryCode\n    currencyCode\n    enabledPresentmentCurrencies\n    shopifyPaymentsAccountId\n    supportedDigitalWallets\n  }\n  publicApiVersions {\n    handle\n    displayName\n    supported\n  }\n}\n",
       "variables": {},
       "response": {
         "status": 200,
@@ -1249,14 +1240,6 @@
                   }
                 }
               },
-              "contactInformation": {
-                "id": "gid://shopify/ShopPolicy/50719981874",
-                "title": "Contact Information",
-                "body": "<p></p>",
-                "handle": "contact-information",
-                "url": "https://checkout.shopify.com/92891250994/policies/50719981874.html?locale=en"
-              },
-              "legalNotice": null,
               "privacyPolicy": {
                 "id": "gid://shopify/ShopPolicy/44470108466",
                 "title": "Privacy Policy",
@@ -1272,7 +1255,6 @@
                 "url": "https://checkout.shopify.com/92891250994/policies/50720014642.html?locale=en"
               },
               "shippingPolicy": null,
-              "termsOfSale": null,
               "termsOfService": null,
               "paymentSettings": {
                 "acceptedCardBrands": [],
@@ -2117,7 +2099,7 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 100
+              "requestedQueryCost": 97
             }
           }
         }

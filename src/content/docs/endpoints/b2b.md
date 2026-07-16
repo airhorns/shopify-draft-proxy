@@ -71,11 +71,14 @@ The local B2B graph stores a hydrated LiveHybrid base catalog plus staged
 company, company location, company address, company contact, contact role,
 location-role assignment, and location-staff assignment overlays. When a
 LiveHybrid `companies`, `companiesCount`, or `companyLocations` read enters
-local B2B handling, the proxy first observes the upstream read response into the
-base catalog, then answers from one effective graph. Staged creates append to
-the base catalog, staged updates replace matching base rows by ID, and staged
+local B2B handling, the proxy observes upstream connection rows into the base
+catalog and observes `companiesCount` Count responses as count baselines keyed
+by count arguments, then answers from one effective graph. Staged creates append
+to the base catalog, staged updates replace matching base rows by ID, and staged
 deletes tombstone base or staged rows so repeated upstream reads do not
-resurrect them. `company(id:)`, `companyLocation(id:)`, `companies`,
+resurrect them. `companiesCount` starts from the observed upstream count
+baseline instead of deriving the total from a page-limited `companies`
+connection. `company(id:)`, `companyLocation(id:)`, `companies`,
 `companiesCount`, and `companyLocations` expand that effective graph for
 read-after-write, including nested `locations`, `contacts`, `contactRoles`,
 `roleAssignments`, and `staffMemberAssignments` connections. `Company.orders`
@@ -97,8 +100,10 @@ empty staged connection rather than matching all staged records. `companies`,
 `CompanyLocation.staffMemberAssignments` honor local `sortKey` and `reverse`
 for the modeled staged fields, defaulting to ID order when a sort key has no
 modeled field in local state. `companiesCount` returns the effective company
-count selected through the Shopify `Count` object shape after applying filters
-and any `limit`. `companies(first:, query:)` and `companiesCount` are answered
+count selected through the Shopify `Count` object shape after applying modeled
+filters, staged inserts/deletes/updates, and any `limit`; upstream `AT_LEAST`
+precision remains `AT_LEAST` when the exact live total is not knowable from the
+count response. `companies(first:, query:)` and `companiesCount` are answered
 from the local B2B graph only after company state has been staged or hydrated in
 the current session. Cold LiveHybrid company connection/count reads forward
 upstream unchanged so real store companies are visible before local B2B writes
