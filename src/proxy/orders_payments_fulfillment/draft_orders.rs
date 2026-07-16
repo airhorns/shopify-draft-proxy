@@ -2115,6 +2115,13 @@ impl DraftProxy {
                 let base_matches =
                     draft_order_matches_count_query(base_draft_order, query.as_deref());
                 delta += staged_matches as isize - base_matches as isize;
+            } else if let Some(base_draft_order) = self
+                .store
+                .base_draft_order_logical_duplicate_for_staged(id, staged_draft_order)
+            {
+                let base_matches =
+                    draft_order_matches_count_query(base_draft_order, query.as_deref());
+                delta += staged_matches as isize - base_matches as isize;
             } else if staged_matches {
                 delta += 1;
             }
