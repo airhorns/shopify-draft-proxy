@@ -1,0 +1,60 @@
+mutation StorefrontCartBuyerIdentityUpdate($cartId: ID!, $buyerIdentity: CartBuyerIdentityInput!) {
+  cartBuyerIdentityUpdate(cartId: $cartId, buyerIdentity: $buyerIdentity) {
+    cart {
+      id
+      updatedAt
+      buyerIdentity {
+        countryCode
+        email
+        phone
+        customer {
+          id
+          email
+          firstName
+          lastName
+          displayName
+        }
+        purchasingCompany {
+          company {
+            id
+            name
+          }
+          location {
+            id
+            name
+          }
+        }
+      }
+      cost {
+        subtotalAmount {
+          amount
+          currencyCode
+        }
+        totalAmount {
+          amount
+          currencyCode
+        }
+      }
+      estimatedCost {
+        subtotalAmount {
+          amount
+          currencyCode
+        }
+        totalAmount {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+    warnings {
+      code
+      message
+      target
+    }
+  }
+}

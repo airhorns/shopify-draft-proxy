@@ -1559,7 +1559,7 @@ impl DraftProxy {
         })
     }
 
-    fn gift_card_is_expired(&self, card: &Value) -> bool {
+    pub(in crate::proxy) fn gift_card_is_expired(&self, card: &Value) -> bool {
         let Some(expires_on) = card.get("expiresOn").and_then(Value::as_str) else {
             return false;
         };
@@ -1780,14 +1780,14 @@ fn gift_card_processed_at_error(
     None
 }
 
-fn normalize_gift_card_code(code: &str) -> String {
+pub(in crate::proxy) fn normalize_gift_card_code(code: &str) -> String {
     code.chars()
         .filter(|character| !character.is_whitespace() && *character != '-')
         .flat_map(char::to_lowercase)
         .collect()
 }
 
-fn gift_card_code_last_characters(code: &str) -> String {
+pub(in crate::proxy) fn gift_card_code_last_characters(code: &str) -> String {
     let characters = code.chars().collect::<Vec<_>>();
     let start = characters.len().saturating_sub(4);
     characters[start..].iter().collect()
@@ -1846,14 +1846,14 @@ fn gift_card_template_suffix_json(value: Value) -> Value {
     json!(template.strip_prefix("gift_card.").unwrap_or(template))
 }
 
-fn gift_card_is_deactivated(card: &Value) -> bool {
+pub(in crate::proxy) fn gift_card_is_deactivated(card: &Value) -> bool {
     card.get("enabled").and_then(Value::as_bool) == Some(false)
         || card
             .get("deactivatedAt")
             .is_some_and(|value| !value.is_null())
 }
 
-fn gift_card_currency(card: &Value, shop_currency_code: &str) -> String {
+pub(in crate::proxy) fn gift_card_currency(card: &Value, shop_currency_code: &str) -> String {
     card["balance"]["currencyCode"]
         .as_str()
         .or_else(|| card["initialValue"]["currencyCode"].as_str())
@@ -1861,7 +1861,7 @@ fn gift_card_currency(card: &Value, shop_currency_code: &str) -> String {
         .to_string()
 }
 
-fn gift_card_balance_amount(card: &Value) -> f64 {
+pub(in crate::proxy) fn gift_card_balance_amount(card: &Value) -> f64 {
     card["balance"]["amount"]
         .as_str()
         .and_then(|value| value.parse::<f64>().ok())

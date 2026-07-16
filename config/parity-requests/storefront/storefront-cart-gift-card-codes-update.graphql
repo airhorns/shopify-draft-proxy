@@ -1,0 +1,54 @@
+mutation StorefrontCartGiftCardCodesUpdate($cartId: ID!, $giftCardCodes: [String!]!) {
+  cartGiftCardCodesUpdate(cartId: $cartId, giftCardCodes: $giftCardCodes) {
+    cart {
+      id
+      updatedAt
+      appliedGiftCards {
+        id
+        lastCharacters
+        amountUsed {
+          amount
+          currencyCode
+        }
+        presentmentAmountUsed {
+          amount
+          currencyCode
+        }
+        balance {
+          amount
+          currencyCode
+        }
+      }
+      cost {
+        subtotalAmount {
+          amount
+          currencyCode
+        }
+        totalAmount {
+          amount
+          currencyCode
+        }
+      }
+      estimatedCost {
+        subtotalAmount {
+          amount
+          currencyCode
+        }
+        totalAmount {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+    warnings {
+      code
+      message
+      target
+    }
+  }
+}

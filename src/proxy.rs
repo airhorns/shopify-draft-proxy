@@ -220,6 +220,43 @@ struct StorefrontCartRecord {
     updated_at: String,
     note: Option<String>,
     attributes: Vec<StorefrontCartAttributeRecord>,
+    #[serde(default)]
+    buyer_identity: StorefrontCartBuyerIdentityRecord,
+    #[serde(default)]
+    discount_codes: Vec<String>,
+    #[serde(default)]
+    applied_gift_cards: Vec<StorefrontCartAppliedGiftCardRecord>,
+    #[serde(default)]
+    metafields: Vec<StorefrontCartMetafieldRecord>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+struct StorefrontCartBuyerIdentityRecord {
+    country_code: Option<String>,
+    email: Option<String>,
+    phone: Option<String>,
+    customer_id: Option<String>,
+    company_location_id: Option<String>,
+    delivery_address_preferences: Vec<Value>,
+    preferences: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct StorefrontCartAppliedGiftCardRecord {
+    sequence: u64,
+    gift_card_id: String,
+    code: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct StorefrontCartMetafieldRecord {
+    sequence: u64,
+    namespace: String,
+    key: String,
+    value: String,
+    metafield_type: String,
+    created_at: String,
+    updated_at: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -370,6 +407,8 @@ struct StagedState {
     storefront_cart_line_order: BTreeMap<String, Vec<String>>,
     next_storefront_cart_id: u64,
     next_storefront_cart_line_id: u64,
+    next_storefront_cart_applied_gift_card_id: u64,
+    next_storefront_cart_metafield_id: u64,
     // Store-wide total customer count baseline reported by `customersCount`.
     // The live shop's total is store-specific and cannot be reconstructed from
     // the handful of customers a scenario stages, so a scenario seeds the
@@ -866,6 +905,8 @@ impl StagedState {
             next_storefront_customer_reset_token_id: 1,
             next_storefront_cart_id: 1,
             next_storefront_cart_line_id: 1,
+            next_storefront_cart_applied_gift_card_id: 1,
+            next_storefront_cart_metafield_id: 1,
             ..Default::default()
         }
     }

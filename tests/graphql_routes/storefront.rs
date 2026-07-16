@@ -531,7 +531,7 @@ fn storefront_graphql_snapshot_mode_rejects_mutations_without_upstream() {
         path: "/api/2026-04/graphql.json".to_string(),
         headers: Default::default(),
         body: json!({
-            "query": "mutation StorefrontDiscountCodes { cartDiscountCodesUpdate(cartId: \"gid://shopify/Cart/1\", discountCodes: []) { cart { id } } }",
+            "query": "mutation StorefrontBillingAddress { cartBillingAddressUpdate(cartId: \"gid://shopify/Cart/1\", billingAddress: null) { cart { id } } }",
             "variables": {}
         })
         .to_string(),
@@ -2181,6 +2181,402 @@ fn storefront_cart_validations_warnings_limits_and_stale_branches_match_capture(
 }
 
 #[test]
+fn storefront_cart_adjustments_reuse_shared_state_and_round_trip_without_upstream_writes() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_clock(|| utc_time(1_704_067_200))
+        .with_upstream_transport(|_| {
+            panic!("supported Storefront cart adjustments must never write upstream")
+        });
+    let variant_id = stage_storefront_cart_variant(&mut proxy, 5);
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({
+            "id": "gid://shopify/Shop/cart-adjustments",
+            "name": "Cart adjustments",
+            "currencyCode": "CAD"
+        });
+    });
+
+    let create_discount = |proxy: &mut DraftProxy,
+                           title: &str,
+                           code: &str,
+                           starts_at: &str,
+                           ends_at: Option<&str>,
+                           minimum: &str| {
+        let mut input = json!({
+            "title": title,
+            "code": code,
+            "startsAt": starts_at,
+            "combinesWith": {
+                "productDiscounts": false,
+                "orderDiscounts": true,
+                "shippingDiscounts": false
+            },
+            "context": { "all": "ALL" },
+            "minimumRequirement": {
+                "subtotal": { "greaterThanOrEqualToSubtotal": minimum }
+            },
+            "customerGets": {
+                "value": { "percentage": 0.2 },
+                "items": { "all": true }
+            }
+        });
+        if let Some(ends_at) = ends_at {
+            input["endsAt"] = json!(ends_at);
+        }
+        let response = proxy.process_request(json_graphql_request(
+            include_str!(
+                "../../config/parity-requests/storefront/storefront-cart-discount-create-admin.graphql"
+            ),
+            json!({ "input": input }),
+        ));
+        assert_eq!(
+            response.body["data"]["discountCodeBasicCreate"]["userErrors"],
+            json!([]),
+            "{}",
+            response.body
+        );
+    };
+    create_discount(
+        &mut proxy,
+        "Active cart discount",
+        "CARTACTIVE",
+        "2023-12-01T00:00:00Z",
+        None,
+        "1.00",
+    );
+    create_discount(
+        &mut proxy,
+        "Expired cart discount",
+        "CARTEXPIRED",
+        "2023-01-01T00:00:00Z",
+        Some("2023-06-01T00:00:00Z"),
+        "1.00",
+    );
+    create_discount(
+        &mut proxy,
+        "Inapplicable cart discount",
+        "CARTINAPPLICABLE",
+        "2023-12-01T00:00:00Z",
+        None,
+        "1000.00",
+    );
+
+    let gift_card = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-gift-card-create-admin.graphql"
+        ),
+        json!({
+            "input": {
+                "initialValue": "40.00",
+                "code": "cartgiftcard123",
+                "note": "Cart adjustment test"
+            }
+        }),
+    ));
+    assert_eq!(
+        gift_card.body["data"]["giftCardCreate"]["userErrors"],
+        json!([]),
+        "{}",
+        gift_card.body
+    );
+
+    let customer = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-customer-auth-create.graphql"
+        ),
+        json!({
+            "input": {
+                "email": "cart-buyer@example.com",
+                "password": "CartBuyer123!",
+                "firstName": "Cart",
+                "lastName": "Buyer"
+            }
+        }),
+    ));
+    let customer_id = customer.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("customer id")
+        .to_string();
+    let token = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-customer-auth-token-create.graphql"
+        ),
+        json!({
+            "input": { "email": "cart-buyer@example.com", "password": "CartBuyer123!" }
+        }),
+    ));
+    let customer_access_token = token.body["data"]["customerAccessTokenCreate"]
+        ["customerAccessToken"]["accessToken"]
+        .as_str()
+        .expect("customer access token")
+        .to_string();
+
+    let create = proxy.process_request(storefront_graphql_request(
+        include_str!("../../config/parity-requests/storefront/storefront-cart-create.graphql"),
+        json!({
+            "input": {
+                "lines": [{ "merchandiseId": variant_id, "quantity": 2 }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200, "{}", create.body);
+    let cart_id = create.body["data"]["cartCreate"]["cart"]["id"]
+        .as_str()
+        .expect("cart id")
+        .to_string();
+
+    let buyer = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-buyer-identity-update.graphql"
+        ),
+        json!({
+            "cartId": cart_id,
+            "buyerIdentity": {
+                "countryCode": "CA",
+                "email": "cart-buyer@example.com",
+                "phone": "+12025550123",
+                "customerAccessToken": customer_access_token
+            }
+        }),
+    ));
+    assert_eq!(
+        buyer.body["data"]["cartBuyerIdentityUpdate"]["userErrors"],
+        json!([]),
+        "{}",
+        buyer.body
+    );
+    assert_eq!(
+        buyer.body["data"]["cartBuyerIdentityUpdate"]["cart"]["buyerIdentity"]["customer"]["id"],
+        json!(customer_id)
+    );
+    let invalid_buyer = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-buyer-identity-update.graphql"
+        ),
+        json!({
+            "cartId": cart_id,
+            "buyerIdentity": { "countryCode": "CA", "customerAccessToken": "invalid-token" }
+        }),
+    ));
+    assert_eq!(
+        invalid_buyer.body["data"]["cartBuyerIdentityUpdate"]["userErrors"][0],
+        json!({
+            "field": ["buyerIdentity", "customerAccessToken"],
+            "message": "Customer is invalid",
+            "code": "INVALID"
+        })
+    );
+    assert_eq!(
+        invalid_buyer.body["data"]["cartBuyerIdentityUpdate"]["cart"]["buyerIdentity"]["customer"]
+            ["id"],
+        json!(customer_id)
+    );
+
+    let discounts = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-discount-codes-update.graphql"
+        ),
+        json!({
+            "cartId": cart_id,
+            "discountCodes": [
+                "CARTACTIVE",
+                "cartactive",
+                "CARTEXPIRED",
+                "CARTINAPPLICABLE",
+                " NOT-A-REAL-CODE "
+            ]
+        }),
+    ));
+    let discount_payload = &discounts.body["data"]["cartDiscountCodesUpdate"];
+    assert_eq!(
+        discount_payload["userErrors"],
+        json!([]),
+        "{}",
+        discounts.body
+    );
+    assert_eq!(
+        discount_payload["cart"]["discountCodes"]
+            .as_array()
+            .expect("discount codes")
+            .len(),
+        4
+    );
+    assert_eq!(
+        discount_payload["cart"]["discountCodes"][0]["applicable"],
+        json!(true)
+    );
+    assert_eq!(
+        discount_payload["warnings"]
+            .as_array()
+            .expect("discount warnings")
+            .iter()
+            .map(|warning| warning["code"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec![
+            "DISCOUNT_CURRENTLY_INACTIVE",
+            "DISCOUNT_PURCHASE_NOT_IN_RANGE",
+            "DISCOUNT_NOT_FOUND"
+        ]
+    );
+    assert_eq!(
+        discount_payload["cart"]["cost"]["totalAmount"]["amount"],
+        json!("20.0")
+    );
+
+    let gift_add = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-gift-card-codes-add.graphql"
+        ),
+        json!({
+            "cartId": cart_id,
+            "giftCardCodes": ["CARTGIFTCARD123", "NOT-A-REAL-GIFT-CARD"]
+        }),
+    ));
+    let applied_id = gift_add.body["data"]["cartGiftCardCodesAdd"]["cart"]["appliedGiftCards"][0]
+        ["id"]
+        .as_str()
+        .expect("applied gift card id")
+        .to_string();
+    assert_eq!(
+        gift_add.body["data"]["cartGiftCardCodesAdd"]["cart"]["cost"]["totalAmount"]["amount"],
+        json!("0.0")
+    );
+    let gift_remove = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-gift-card-codes-remove.graphql"
+        ),
+        json!({ "cartId": cart_id, "appliedGiftCardIds": [applied_id] }),
+    ));
+    assert_eq!(
+        gift_remove.body["data"]["cartGiftCardCodesRemove"]["cart"]["appliedGiftCards"],
+        json!([])
+    );
+    let gift_update = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-gift-card-codes-update.graphql"
+        ),
+        json!({
+            "cartId": cart_id,
+            "giftCardCodes": ["cartgiftcard123", "CARTGIFTCARD123"]
+        }),
+    ));
+    assert_eq!(
+        gift_update.body["data"]["cartGiftCardCodesUpdate"]["cart"]["appliedGiftCards"]
+            .as_array()
+            .expect("applied gift cards")
+            .len(),
+        1
+    );
+
+    let metafields = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-metafields-set.graphql"
+        ),
+        json!({
+            "metafields": [
+                {
+                    "ownerId": cart_id,
+                    "key": "custom.note",
+                    "type": "single_line_text_field",
+                    "value": "Cart note value"
+                },
+                {
+                    "ownerId": cart_id,
+                    "key": "custom.count",
+                    "type": "number_integer",
+                    "value": "2"
+                }
+            ]
+        }),
+    ));
+    assert_eq!(
+        metafields.body["data"]["cartMetafieldsSet"]["userErrors"],
+        json!([]),
+        "{}",
+        metafields.body
+    );
+    assert_eq!(
+        metafields.body["data"]["cartMetafieldsSet"]["metafields"]
+            .as_array()
+            .expect("cart metafields")
+            .len(),
+        2
+    );
+    let invalid_metafield = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-metafields-set.graphql"
+        ),
+        json!({
+            "metafields": [{
+                "ownerId": cart_id,
+                "key": "custom.count",
+                "type": "number_integer",
+                "value": "not-a-number"
+            }]
+        }),
+    ));
+    assert_eq!(
+        invalid_metafield.body["data"]["cartMetafieldsSet"]["userErrors"][0],
+        json!({
+            "field": ["metafields", "0", "value"],
+            "message": "Value must be an integer.",
+            "code": "INVALID_VALUE",
+            "elementIndex": null
+        })
+    );
+    let deleted = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-metafield-delete.graphql"
+        ),
+        json!({ "input": { "ownerId": cart_id, "key": "custom.note" } }),
+    ));
+    assert!(deleted.body["data"]["cartMetafieldDelete"]["deletedId"].is_string());
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_clock(|| utc_time(1_704_067_200))
+        .with_upstream_transport(|_| panic!("restored cart adjustments must stay local"));
+    assert_eq!(
+        restored
+            .process_request(request_with_body(
+                "POST",
+                "/__meta/restore",
+                &dump.body.to_string()
+            ))
+            .status,
+        200
+    );
+    let restored_read = restored.process_request(storefront_graphql_request(
+        include_str!("../../config/parity-requests/storefront/storefront-cart-read.graphql"),
+        json!({ "id": cart_id }),
+    ));
+    assert_eq!(
+        restored_read.body["data"]["cart"]["buyerIdentity"]["customer"]["id"],
+        json!(customer_id)
+    );
+    assert_eq!(restored_read.body["data"]["cart"]["metafield"], Value::Null);
+    assert_eq!(
+        restored_read.body["data"]["cart"]["metafields"]
+            .as_array()
+            .expect("restored metafields")
+            .len(),
+        1
+    );
+    assert_eq!(
+        restored
+            .process_request(request_with_body("POST", "/__meta/reset", ""))
+            .status,
+        200
+    );
+    let after_reset = restored.process_request(storefront_graphql_request(
+        r#"query ReadResetAdjustedCart($id: ID!) { cart(id: $id) { id } }"#,
+        json!({ "id": cart_id }),
+    ));
+    assert_eq!(after_reset.body["data"]["cart"], Value::Null);
+}
+
+#[test]
 fn storefront_cart_state_is_isolated_between_proxy_instances() {
     let mut first = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
         .with_upstream_transport(|_| panic!("first cart proxy must stay local"));
@@ -2240,7 +2636,7 @@ fn storefront_cart_mutations_cannot_mix_with_passthrough_roots() {
         r#"
         mutation MixedCartMutation($input: CartInput, $cartId: ID!) {
           cartCreate(input: $input) { cart { id } userErrors { message } }
-          cartDiscountCodesUpdate(cartId: $cartId, discountCodes: []) { cart { id } userErrors { message } }
+          cartDeliveryAddressesAdd(cartId: $cartId, addresses: []) { cart { id } userErrors { message } }
         }
         "#,
         json!({ "input": { "note": "must not stage" }, "cartId": "gid://shopify/Cart/missing?key=missing" }),
@@ -4461,7 +4857,7 @@ fn storefront_graphql_passthrough_does_not_enter_admin_staging_or_commit() {
         Response {
             status: 200,
             headers: Default::default(),
-            body: json!({ "data": { "cartDiscountCodesUpdate": { "cart": { "id": "gid://shopify/Cart/1" } } } }),
+            body: json!({ "data": { "cartBillingAddressUpdate": { "cart": { "id": "gid://shopify/Cart/1" } } } }),
         }
     })
     .with_commit_transport(move |request| {
@@ -4474,7 +4870,7 @@ fn storefront_graphql_passthrough_does_not_enter_admin_staging_or_commit() {
     });
 
     let body = json!({
-        "query": "mutation StorefrontMutationShape { cartDiscountCodesUpdate(cartId: \"gid://shopify/Cart/1\", discountCodes: []) { cart { id } } }",
+        "query": "mutation StorefrontMutationShape { cartBillingAddressUpdate(cartId: \"gid://shopify/Cart/1\", billingAddress: null) { cart { id } } }",
         "variables": {}
     })
     .to_string();

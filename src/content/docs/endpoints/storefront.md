@@ -50,6 +50,13 @@ Local staged mutation roots:
 - `cartLinesRemove`
 - `cartAttributesUpdate`
 - `cartNoteUpdate`
+- `cartBuyerIdentityUpdate`
+- `cartDiscountCodesUpdate`
+- `cartGiftCardCodesAdd`
+- `cartGiftCardCodesRemove`
+- `cartGiftCardCodesUpdate`
+- `cartMetafieldsSet`
+- `cartMetafieldDelete`
 - `customerCreate`
 - `customerAccessTokenCreate`
 - `customerAccessTokenRenew`
@@ -66,7 +73,7 @@ Local staged mutation roots:
 - `customerAddressDelete`
 - `customerDefaultAddressUpdate`
 
-Unimplemented Storefront mutation roots remain unsupported for local Storefront execution. In snapshot mode, schema-valid unimplemented mutations return the Storefront snapshot mutation rejection response. In live-hybrid mode, operations containing only unimplemented Storefront roots continue through the Storefront passthrough path and are logged as Storefront traffic. Customer-auth mutations cannot be mixed with unsupported Storefront roots because that would risk forwarding a supported local write.
+Unimplemented Storefront mutation roots remain unsupported for local Storefront execution. In snapshot mode, schema-valid unimplemented mutations return the Storefront snapshot mutation rejection response. In live-hybrid mode, operations containing only unimplemented Storefront roots continue through the Storefront passthrough path and are logged as Storefront traffic. Customer-auth and cart mutations cannot be mixed with unsupported Storefront roots because that would risk forwarding a supported local write.
 
 ### Local behavior
 
@@ -74,13 +81,21 @@ Storefront local roots execute only for Storefront API version `2026-04`. That r
 
 Customer-auth roots stage locally on the Storefront route and never write upstream or send email during normal runtime. They share the normalized Admin customer Store, so Storefront-created customers and Admin-created customers use one customer graph for downstream reads, Admin updates, Admin deletes, Storefront activation, password/reset state, and token-authenticated `customer(customerAccessToken:)` reads. Supported customer-auth mutations append local Storefront log entries and redact sensitive request bodies and variables from meta logs; they do not enter Admin local dispatch or Admin staged commit replay.
 
-Cart roots stage and read normalized, instance-owned cart and line state on the Storefront route. `cartCreate`, line add/update/remove, attribute update, and note update never write upstream during normal proxy use and do not enter Admin commit replay. `cart(id:)` returns locally staged cart state; unknown, malformed, reset, or other-instance cart IDs return `null`.
+Cart roots stage and read normalized, instance-owned cart, line, buyer, adjustment, and metafield state on the Storefront route. The supported cart mutations never write upstream during normal proxy use and do not enter Admin commit replay. `cart(id:)` returns locally staged cart state; unknown, malformed, reset, or other-instance cart IDs return `null`.
 
 Cart IDs, keys, checkout URLs, and line IDs are deterministic opaque synthetic values scoped to one proxy instance. Dump/restore serializes only non-secret internal sequences and normalized records, then reconstructs the same synthetic public identifiers for callers that retain a cart ID. Cart Storefront log entries retain operation type, root names, execution mode, and status while redacting the GraphQL document, variables, and raw body so cart keys and tokens never enter meta logs.
 
 Cart lines reference visible variants from the shared normalized product catalog. Prices, compare-at prices, currency, tracked inventory, availability, variant titles, and total costs derive from that shared state. Identical merchandise, selling-plan, and attribute combinations merge; distinct attributes keep separate lines. Tracked inventory caps quantities across matching variant lines, returns captured not-enough-stock warnings, and retains a zero-quantity line plus out-of-stock warning when a distinct line cannot receive inventory. Zero-quantity line-add input is a no-op, while line update quantity zero removes the line.
 
 Cart and line attributes preserve first-key order with the last duplicate value winning. Mutations enforce the captured 250-element line/attribute limits, the 5,000-character note limit, invalid merchandise and selling-plan branches, missing carts, and stale lines. Cart mutation payloads return captured `CartUserError` and `CartWarning` shapes. Line and cart totals use the shared money helpers; duty and tax amounts remain `null` and estimated flags remain true until checkout context is modeled.
+
+`cartBuyerIdentityUpdate` stores country, email, phone, preferences, and valid local customer/company-location relationships without retaining raw customer access tokens. Customer tokens resolve through the shared Storefront customer-auth store, so Admin/Storefront customer updates and deletes affect later cart projections. An invalid token returns the captured `Customer is invalid` cart user error and leaves the existing buyer identity unchanged. Country context flows through the shared Storefront market and price-list projection; absent market evidence does not cause the cart to invent a currency, customer, or company location.
+
+`cartDiscountCodesUpdate` replaces the code list, collapses case-insensitive duplicates, preserves caller-visible code text, and recomputes applicability and cart-level allocations from shared Admin discount records. Active percentage/fixed-amount discounts, minimum subtotal/quantity requirements, all/customer selection, expiry/deactivation, missing codes, and current cart contents drive `discountCodes`, `discountAllocations`, totals, and the captured inactive, out-of-range, and not-found warnings. Later Admin discount changes are read from the same state on every cart projection and recalculation.
+
+`cartGiftCardCodesAdd`, `cartGiftCardCodesRemove`, and `cartGiftCardCodesUpdate` apply case-insensitive codes from shared Admin gift-card records. Invalid, expired, deactivated, empty-balance, and duplicate codes are not fabricated into applied cards. Application occurs after discounts, is bounded by the effective balance, and projects `amountUsed`, remaining `balance`, suffix, presentment amount, and recalculated totals in the authoritative cart currency. Applying a card does not debit the Admin gift card until checkout; Admin balance/deactivation changes nevertheless affect later cart calculations immediately.
+
+`cartMetafieldsSet` and `cartMetafieldDelete` keep cart-owned typed metafields in the normalized cart record. Composite namespace/key inputs reuse shared metafield type/value validation, set is atomic on validation failure, updates preserve identity/creation time, delete returns the captured missing-metafield error, and `cart.metafield` / `cart.metafields(identifiers:)` expose read-after-write state. Dump/restore and reset preserve or clear the same non-secret records and counters. The 2026-04 `CartMetafieldsSetInput` has no compare-digest field, so compare-and-set behavior is not exposed on this Storefront surface; simple app-reserved keys also require app identity that this token-only local path does not invent.
 
 Storefront customer records keep non-secret password fingerprints, activation token metadata, reset-token hashes, and Storefront access-token records in instance-owned staged state. `POST /__meta/reset` clears that state, while dump/restore preserves enough non-secret state for tests to keep token lifetimes, revocation, expiry, activation, and reset behavior stable without storing raw passwords, reset tokens, or access tokens. Runtime mutation payloads still return the caller-visible access token value because Shopify does, but meta state, meta logs, captures, and parity fixtures do not retain it in cleartext.
 
@@ -174,7 +189,9 @@ Storefront metafields for Customer, Article, Blog, Page, and other HasMetafields
 
 Storefront field `jsonValue` is not selected by the supported Storefront custom-data projection because the live Storefront schema exposes `value`, `reference`, and `references` for these public types. Admin custom-data serializers still expose Admin `jsonValue` where those Admin roots support it.
 
-Positive company-catalog quantity rules/price breaks, authenticated B2B buyer pricing, non-empty preferred-location availability, bundle component/grouping details, theme rendering, Online Store routing, canonical URL generation, storefront policy pages, product/collection content linked from menus, checkout/completion, delivery selection, discount and gift-card application, cart buyer/customer identity, customer email delivery, real account/recovery email URLs, real Multipass validation, and Storefront mutation domains outside the named customer-auth and cart roots remain outside this slice unless another endpoint document names them explicitly. Market-catalog quantity-rule writes are rejected on the Admin surface with Shopify's captured unsupported-context error rather than being exposed as Storefront quantity pricing.
+Positive company-catalog quantity rules/price breaks, authenticated B2B price-list entitlement beyond an already modeled company location, non-empty preferred-location availability, bundle component/grouping details, theme rendering, Online Store routing, canonical URL generation, storefront policy pages, product/collection content linked from menus, customer email delivery, real account/recovery email URLs, real Multipass validation, and Storefront mutation domains outside the named customer-auth and cart roots remain outside this slice unless another endpoint document names them explicitly. Market-catalog quantity-rule writes are rejected on the Admin surface with Shopify's captured unsupported-context error rather than being exposed as Storefront quantity pricing.
+
+Cart checkout/completion, delivery-option selection, tax/duty finalization, payment authorization/capture, gift-card debit, discount usage consumption, order creation, and cart-to-order metafield copying remain unsupported. The local cart computes estimates only; it does not claim that a checkout or payment succeeded, reserve a discount redemption, debit a gift card, or materialize an order.
 
 Storefront customer support intentionally omits unsupported privacy-sensitive and Admin-only fields. Avatar/social-login fields, customer metafields, unsupported order subfields, and sensitive Admin-only customer/order data resolve as null, empty, or schema validation failures according to the Storefront schema and the selected local projection; the proxy does not fabricate private customer data to satisfy Storefront reads.
 

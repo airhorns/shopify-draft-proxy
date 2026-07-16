@@ -1,0 +1,10 @@
+mutation StorefrontCartMetafieldDelete($input: CartMetafieldDeleteInput!) {
+  cartMetafieldDelete(input: $input) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
