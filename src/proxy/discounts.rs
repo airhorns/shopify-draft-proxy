@@ -222,13 +222,11 @@ impl DraftProxy {
                 Some("automatic"),
                 "automaticDiscount",
             ),
-            "discountNodesCount" => {
-                if value.get("count").and_then(Value::as_u64).is_some() {
-                    self.store.observe_discount_count_baseline(
-                        discount_count_baseline_key(&field.arguments),
-                        value.clone(),
-                    );
-                }
+            "discountNodesCount" if value.get("count").and_then(Value::as_u64).is_some() => {
+                self.store.observe_discount_count_baseline(
+                    discount_count_baseline_key(&field.arguments),
+                    value.clone(),
+                );
             }
             _ => {}
         }
