@@ -72,6 +72,28 @@ impl DraftProxy {
         false
     }
 
+    fn inventory_read_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return false;
+        }
+        fields
+            .iter()
+            .any(|field| self.live_hybrid_inventory_field_needs_upstream(field))
+    }
+
+    fn live_hybrid_inventory_field_needs_upstream(&self, field: &RootFieldSelection) -> bool {
+        match field.name.as_str() {
+            "inventoryTransfers" => !self.store.has_base_inventory_transfer_state(),
+            "inventoryTransfer" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                id.is_empty()
+                    || (self.store.inventory_transfer_by_id(&id).is_none()
+                        && !self.store.staged.inventory_transfers.is_tombstoned(&id))
+            }
+            _ => false,
+        }
+    }
+
     pub(in crate::proxy) fn products_query_response(
         &mut self,
         request: &Request,
@@ -130,6 +152,16 @@ impl DraftProxy {
                     Ok(fields) => fields,
                     Err(response) => return response,
                 };
+                let had_inventory_transfer_state = self.store.has_inventory_transfer_state();
+                if self.inventory_read_needs_upstream(&fields) {
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status < 400 {
+                        self.observe_inventory_transfer_read_response(&response.body);
+                    }
+                    if !had_inventory_transfer_state {
+                        return response;
+                    }
+                }
                 ok_json(json!({ "data": self.inventory_query_data(&fields, variables) }))
             }
             "sellingPlanGroup" | "sellingPlanGroups" => {

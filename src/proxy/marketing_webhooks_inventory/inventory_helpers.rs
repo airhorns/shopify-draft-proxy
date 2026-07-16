@@ -409,12 +409,7 @@ impl DraftProxy {
                     self.inventory_transfer_by_id_selected_json(&id, &field.selection)
                 }
                 "inventoryTransfers" => self.inventory_transfers_connection_selected_json(
-                    self.store
-                        .staged
-                        .inventory_transfers
-                        .values()
-                        .cloned()
-                        .collect(),
+                    self.store.inventory_transfers(),
                     &field.arguments,
                     &field.selection,
                 ),

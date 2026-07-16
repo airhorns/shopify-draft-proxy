@@ -293,6 +293,7 @@ struct BaseState {
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     metafield_definition_owner_catalogs: BTreeSet<String>,
     metafield_definition_namespaces: BTreeSet<(String, String)>,
+    inventory_transfers: OrderedRecords<InventoryTransferRecord>,
     b2b_companies: OrderedRecords<Value>,
     b2b_locations: OrderedRecords<Value>,
     b2b_contacts: OrderedRecords<Value>,
@@ -445,7 +446,7 @@ struct StagedState {
     inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     next_inventory_quantity_timestamp: u64,
     inventory_adjustment_groups: BTreeMap<String, Value>,
-    inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
+    inventory_transfers: StagedRecords<InventoryTransferRecord>,
     inventory_shipments: BTreeMap<String, InventoryShipmentRecord>,
     metaobject_definitions: StagedRecords<Value>,
     metaobjects: StagedRecords<Value>,
@@ -1273,6 +1274,51 @@ impl Store {
 
     fn order_count_baseline(&self, key: &str) -> Option<&Value> {
         self.base.order_count_baselines.get(key)
+    }
+
+    fn inventory_transfer_by_id(&self, id: &str) -> Option<&InventoryTransferRecord> {
+        effective_get(
+            &self.base.inventory_transfers,
+            &self.staged.inventory_transfers,
+            id,
+        )
+    }
+
+    fn inventory_transfers(&self) -> Vec<InventoryTransferRecord> {
+        effective_records(
+            &self.base.inventory_transfers,
+            &self.staged.inventory_transfers,
+        )
+    }
+
+    fn inventory_transfer_count(&self) -> usize {
+        effective_count(
+            &self.base.inventory_transfers,
+            &self.staged.inventory_transfers,
+        )
+    }
+
+    fn has_inventory_transfer_state(&self) -> bool {
+        !self.base.inventory_transfers.records.is_empty()
+            || !self.staged.inventory_transfers.is_empty()
+    }
+
+    fn has_base_inventory_transfer_state(&self) -> bool {
+        !self.base.inventory_transfers.records.is_empty()
+    }
+
+    fn observe_base_inventory_transfer(&mut self, transfer: InventoryTransferRecord) {
+        if self.staged.inventory_transfers.is_tombstoned(&transfer.id)
+            || self
+                .staged
+                .inventory_transfers
+                .contains_staged(&transfer.id)
+        {
+            return;
+        }
+        self.base
+            .inventory_transfers
+            .insert(transfer.id.clone(), transfer);
     }
 
     fn domain_by_id(&self, id: &str) -> Option<Value> {
