@@ -1,0 +1,13 @@
+#graphql
+  query StorePropertiesPublishableInputValidationHydrate {
+    shop {
+      publicationCount
+      currencyCode
+    }
+    publications(first: 20) {
+      nodes {
+        id
+        name
+      }
+    }
+  }

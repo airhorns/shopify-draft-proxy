@@ -1174,6 +1174,17 @@ impl Store {
                 })
     }
 
+    fn product_is_published_on_known_publication(&self, product: &ProductRecord) -> bool {
+        if product.status != "ACTIVE" || !self.has_known_publication_catalog() {
+            return false;
+        }
+
+        self.staged
+            .resource_publications
+            .get(&product.id)
+            .is_some_and(|publications| publications.iter().any(|id| self.has_publication_id(id)))
+    }
+
     fn publication_id_for_channel_id(&self, channel_id: &str) -> Option<String> {
         self.staged.publications.iter().find_map(|(id, record)| {
             let matches = record
