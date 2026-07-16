@@ -3,12 +3,14 @@ import { once } from 'node:events';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const repoRoot = new URL('../..', import.meta.url);
+const integrationCargoTargetDir = fileURLToPath(new URL('../../target/integration-rust-server', import.meta.url));
 const testOrigin = 'https://example.myshopify.com';
 const pnpmCommand = 'corepack';
-const serverStartupTimeoutMs = 60_000;
+const serverStartupTimeoutMs = 90_000;
 
 function pnpmArgs(args: string[]): string[] {
   return ['pnpm', ...args];
@@ -30,7 +32,10 @@ function collectOutput(child: ChildProcessWithoutNullStreams): { getOutput: () =
 async function runPnpm(args: string[]): Promise<void> {
   const child = spawn(pnpmCommand, pnpmArgs(args), {
     cwd: repoRoot,
-    env: process.env,
+    env: {
+      ...process.env,
+      CARGO_TARGET_DIR: integrationCargoTargetDir,
+    },
   });
   const { getOutput } = collectOutput(child);
 
@@ -174,6 +179,7 @@ async function expectLaunchScriptHealth(script: 'dev' | 'start', port: number): 
       ...process.env,
       PORT: String(port),
       SHOPIFY_ADMIN_ORIGIN: testOrigin,
+      CARGO_TARGET_DIR: integrationCargoTargetDir,
     },
   });
   const { getOutput } = collectOutput(child);
@@ -205,6 +211,7 @@ async function withLaunchedProxy<T>(
       ...process.env,
       PORT: String(port),
       ...env,
+      CARGO_TARGET_DIR: integrationCargoTargetDir,
     },
   });
   const { getOutput } = collectOutput(child);
@@ -220,12 +227,12 @@ async function withLaunchedProxy<T>(
 describe('package launch scripts', () => {
   it('starts the dev server and serves health', async () => {
     await expectLaunchScriptHealth('dev', await unusedLocalPort());
-  }, 75_000);
+  }, 120_000);
 
   it('starts the built server and serves health', async () => {
     await runPnpm(['build']);
     await expectLaunchScriptHealth('start', await unusedLocalPort());
-  }, 90_000);
+  }, 150_000);
 
   it('forwards live-hybrid passthrough and commit replay through Rust HTTP transport', async () => {
     await withUpstream(async (upstreamOrigin, upstreamRequests) => {
@@ -280,5 +287,5 @@ describe('package launch scripts', () => {
       });
       expect(upstreamRequests[1]?.body).toContain('savedSearchCreate');
     });
-  }, 75_000);
+  }, 120_000);
 });
