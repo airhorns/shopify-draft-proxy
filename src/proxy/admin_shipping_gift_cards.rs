@@ -15,6 +15,10 @@ mod publishable;
 mod segments;
 
 pub(in crate::proxy) use self::delivery_customizations::*;
+pub(in crate::proxy) use self::gift_cards::{
+    gift_card_balance_amount, gift_card_code_last_characters, gift_card_currency,
+    gift_card_is_deactivated, normalize_gift_card_code,
+};
 pub(in crate::proxy) use self::locations::{
     country_name_for_code, location_connection_json, location_country_code_is_valid,
     province_name_for_code,

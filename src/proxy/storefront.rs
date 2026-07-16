@@ -72,6 +72,13 @@ pub(in crate::proxy) const STOREFRONT_CART_MUTATION_ROOTS: &[&str] = &[
     "cartLinesRemove",
     "cartAttributesUpdate",
     "cartNoteUpdate",
+    "cartBuyerIdentityUpdate",
+    "cartDiscountCodesUpdate",
+    "cartGiftCardCodesAdd",
+    "cartGiftCardCodesRemove",
+    "cartGiftCardCodesUpdate",
+    "cartMetafieldsSet",
+    "cartMetafieldDelete",
 ];
 const STOREFRONT_DEFAULT_CONTEXT_KEY: &str = "country=*;language=*";
 const STOREFRONT_CUSTOMER_PASSWORD_FINGERPRINT_FIELD: &str = "__storefrontPasswordFingerprint";
@@ -107,20 +114,20 @@ enum StorefrontProductTaxonomyKind {
 }
 
 #[derive(Clone)]
-struct StorefrontVariantPricing {
-    price: String,
-    compare_at_price: Option<String>,
-    currency_code: String,
+pub(in crate::proxy) struct StorefrontVariantPricing {
+    pub(in crate::proxy) price: String,
+    pub(in crate::proxy) compare_at_price: Option<String>,
+    pub(in crate::proxy) currency_code: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(in crate::proxy) struct StorefrontRequestContext {
-    country: Option<String>,
-    language: Option<String>,
-    preferred_location_id: Option<String>,
-    buyer_customer_access_token: Option<String>,
-    buyer_company_location_id: Option<String>,
-    uses_enrichment_context: bool,
+    pub(in crate::proxy) country: Option<String>,
+    pub(in crate::proxy) language: Option<String>,
+    pub(in crate::proxy) preferred_location_id: Option<String>,
+    pub(in crate::proxy) buyer_customer_access_token: Option<String>,
+    pub(in crate::proxy) buyer_company_location_id: Option<String>,
+    pub(in crate::proxy) uses_enrichment_context: bool,
 }
 
 impl StorefrontRequestContext {
@@ -1264,7 +1271,10 @@ impl DraftProxy {
         storefront_timestamp_is_future(expires_at, self.current_time())
     }
 
-    fn storefront_customer_id_for_access_token(&self, token: &str) -> Option<String> {
+    pub(in crate::proxy) fn storefront_customer_id_for_access_token(
+        &self,
+        token: &str,
+    ) -> Option<String> {
         let token_hash = storefront_token_hash(token);
         if !self.storefront_access_token_is_active(&token_hash) {
             return None;
@@ -1278,7 +1288,7 @@ impl DraftProxy {
             .map(str::to_string)
     }
 
-    fn storefront_customer_by_id(&self, customer_id: &str) -> Option<Value> {
+    pub(in crate::proxy) fn storefront_customer_by_id(&self, customer_id: &str) -> Option<Value> {
         if self.store.staged.customers.is_tombstoned(customer_id) {
             return None;
         }
@@ -2556,7 +2566,7 @@ impl DraftProxy {
         self.store.staged.price_lists.get(&price_list_id)
     }
 
-    fn storefront_variant_pricing(
+    pub(in crate::proxy) fn storefront_variant_pricing(
         &self,
         variant: &ProductVariantRecord,
         context: &StorefrontRequestContext,
@@ -5599,7 +5609,7 @@ fn storefront_customer_shared_record(
     })
 }
 
-fn storefront_customer_json(customer: &Value) -> Value {
+pub(in crate::proxy) fn storefront_customer_json(customer: &Value) -> Value {
     let email = customer.get("email").and_then(Value::as_str);
     let first_name = customer.get("firstName").and_then(Value::as_str);
     let last_name = customer.get("lastName").and_then(Value::as_str);

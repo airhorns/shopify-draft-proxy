@@ -1,0 +1,26 @@
+mutation StorefrontCartMetafieldsSet($metafields: [CartMetafieldsSetInput!]!) {
+  cartMetafieldsSet(metafields: $metafields) {
+    metafields {
+      id
+      namespace
+      key
+      value
+      type
+      list
+      createdAt
+      updatedAt
+      parentResource {
+        __typename
+        ... on Cart {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementIndex
+    }
+  }
+}

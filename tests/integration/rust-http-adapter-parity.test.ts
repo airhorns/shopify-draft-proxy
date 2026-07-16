@@ -276,6 +276,8 @@ describe('Rust HTTP adapter route surface', { timeout: adapterTestTimeoutMs }, (
             storefrontCartLineOrder: {},
             nextStorefrontCartId: 1,
             nextStorefrontCartLineId: 1,
+            nextStorefrontCartAppliedGiftCardId: 1,
+            nextStorefrontCartMetafieldId: 1,
             customersCountBase: null,
             storeCreditAccounts: {},
             storeCreditAccountOrder: [],

@@ -1,0 +1,24 @@
+mutation StorefrontCartGiftCardCreate($input: GiftCardCreateInput!) {
+  giftCardCreate(input: $input) {
+    giftCard {
+      id
+      enabled
+      lastCharacters
+      maskedCode
+      initialValue {
+        amount
+        currencyCode
+      }
+      balance {
+        amount
+        currencyCode
+      }
+    }
+    giftCardCode
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
