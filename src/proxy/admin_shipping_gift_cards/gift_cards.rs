@@ -91,7 +91,6 @@ impl DraftProxy {
             arguments,
             request,
             root_name,
-            upstream_value,
             ..
         } = invocation;
         self.gift_card_read_outcome(
@@ -100,7 +99,6 @@ impl DraftProxy {
             &resolved_arguments_from_json(&arguments),
             response_key,
             requests_transactions,
-            upstream_value.as_ref(),
             &operation_roots,
         )
     }
@@ -347,7 +345,6 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         response_key: &str,
         requests_transactions: bool,
-        upstream_value: Option<&Value>,
         operation_roots: &[crate::resolver_registry::OperationRootInvocation],
     ) -> ResolverOutcome<Value> {
         let operation_needs_upstream =
@@ -373,7 +370,9 @@ impl DraftProxy {
                         value,
                     );
                 }
-                let canonical_upstream = upstream_value
+                let canonical_upstream = result
+                    .data
+                    .get(response_key)
                     .cloned()
                     .unwrap_or_else(|| outcome.value.clone());
                 if self.has_gift_card_overlay_state() {
