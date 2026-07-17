@@ -1,7 +1,9 @@
 use super::*;
+use crate::proxy::search::{parse_search_query, ParsedSearchTerm};
 
 const LOCATION_HYDRATE_QUERY: &str = r#"query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: "custom", key: "hours") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: ["available", "committed", "on_hand"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"#;
-const LOCATION_LIMIT_STATUS_QUERY: &str = r#"query StorePropertiesLocationLimitStatus($first: Int!) { shop { resourceLimits { locationLimit } } locations(first: $first, includeInactive: true) { nodes { id isActive isFulfillmentService } pageInfo { hasNextPage } } }"#;
+const LOCATION_LIMIT_STATUS_QUERY: &str = r#"query StorePropertiesLocationLimitStatus($first: Int!) { shop { resourceLimits { locationLimit } } locations(first: $first, includeInactive: true, includeLegacy: true) { nodes { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } } pageInfo { hasNextPage } } }"#;
+const LOCATION_LIMIT_STATUS_FALLBACK_QUERY: &str = r#"query StorePropertiesLocationLimitStatus($first: Int!) { shop { resourceLimits { locationLimit } } locations(first: $first, includeInactive: true) { nodes { id isActive isFulfillmentService } pageInfo { hasNextPage } } }"#;
 
 impl DraftProxy {
     pub(in crate::proxy) fn location_mutation(
@@ -662,13 +664,19 @@ impl DraftProxy {
 
     fn location_name_exists_except(&self, name: &str, except_id: &str) -> bool {
         let normalized = name.trim().to_lowercase();
-        self.store.staged.locations.iter().any(|(id, location)| {
-            id != except_id
-                && location
-                    .get("name")
+        self.effective_location_records()
+            .into_iter()
+            .any(|location| {
+                let id = location
+                    .get("id")
                     .and_then(Value::as_str)
-                    .is_some_and(|existing| existing.trim().eq_ignore_ascii_case(&normalized))
-        })
+                    .unwrap_or_default();
+                id != except_id
+                    && location
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .is_some_and(|existing| existing.trim().eq_ignore_ascii_case(&normalized))
+            })
     }
 
     fn location_name_user_error(&self, name: &str, except_id: Option<&str>) -> Option<Value> {
@@ -763,12 +771,18 @@ impl DraftProxy {
     ) -> Vec<Value> {
         let mut errors = Vec::new();
         let name = resolved_string_field(input, "name").unwrap_or_default();
+        let hydrated_for_name = !name.trim().is_empty() && name.chars().count() <= 100;
+        if hydrated_for_name {
+            self.hydrate_location_limit_status(request);
+        }
         if let Some(error) = self.location_name_user_error(&name, None) {
             errors.push(error);
         }
         errors.extend(location_address_length_user_errors(input, false));
         errors.extend(location_metafield_type_user_errors(input, 0));
-        self.hydrate_location_limit_status(request);
+        if !hydrated_for_name {
+            self.hydrate_location_limit_status(request);
+        }
         if self.location_limit_reached() {
             errors.push(user_error(
                 ["input"],
@@ -963,7 +977,7 @@ impl DraftProxy {
         {
             return;
         }
-        let response = self.upstream_post(
+        let mut response = self.upstream_post(
             request,
             json!({
                 "query": LOCATION_LIMIT_STATUS_QUERY,
@@ -971,6 +985,18 @@ impl DraftProxy {
                 "variables": { "first": 250 }
             }),
         );
+        // Preserve exact limit enforcement if the richer catalog projection is
+        // unavailable; the fallback remains read-only and never invents rows.
+        if !(200..300).contains(&response.status) {
+            response = self.upstream_post(
+                request,
+                json!({
+                    "query": LOCATION_LIMIT_STATUS_FALLBACK_QUERY,
+                    "operationName": "StorePropertiesLocationLimitStatus",
+                    "variables": { "first": 250 }
+                }),
+            );
+        }
         if !(200..300).contains(&response.status) {
             return;
         }
@@ -981,8 +1007,38 @@ impl DraftProxy {
             self.store.base.shop =
                 shallow_merged_object(self.store.base.shop.clone(), shop.clone());
         }
+        self.observe_base_locations_from_response(&response.body);
         if location_limit_reached_in_response(&response.body).unwrap_or(false) {
             self.store.staged.location_limit_reached = true;
+        }
+    }
+
+    fn observe_base_locations_from_response(&mut self, body: &Value) {
+        let Some(nodes) = body
+            .pointer("/data/locations/nodes")
+            .and_then(Value::as_array)
+        else {
+            return;
+        };
+        for node in nodes {
+            let Some(id) = node.get("id").and_then(Value::as_str).map(str::to_string) else {
+                continue;
+            };
+            let mut record = node.clone();
+            if let Some(object) = record.as_object_mut() {
+                object
+                    .entry("__typename".to_string())
+                    .or_insert_with(|| json!("Location"));
+            }
+            let record = self
+                .store
+                .base
+                .locations
+                .get(&id)
+                .cloned()
+                .map(|existing| shallow_merged_object(existing, record.clone()))
+                .unwrap_or(record);
+            self.store.base.locations.insert(id, record);
         }
     }
 
@@ -1125,6 +1181,7 @@ impl DraftProxy {
                     .get(location_id)
                     .cloned()
             })
+            .or_else(|| self.store.base.locations.get(location_id).cloned())
     }
 
     /// A location is eligible for local-pickup mutations only when it resolves
@@ -1191,6 +1248,24 @@ impl DraftProxy {
         let mut locations = Vec::new();
         let mut seen = BTreeSet::new();
 
+        for id in &self.store.base.locations.order {
+            self.push_location_connection_record(
+                id,
+                include_inactive,
+                include_legacy,
+                &mut seen,
+                &mut locations,
+            );
+        }
+        for id in self.store.base.locations.records.keys() {
+            self.push_location_connection_record(
+                id,
+                include_inactive,
+                include_legacy,
+                &mut seen,
+                &mut locations,
+            );
+        }
         for id in &self.store.staged.observed_shipping_location_order {
             self.push_location_connection_record(
                 id,
@@ -1338,12 +1413,14 @@ impl DraftProxy {
 
     fn location_name_exists(&self, name: &str) -> bool {
         let normalized = name.trim().to_lowercase();
-        self.store.staged.locations.values().any(|location| {
-            location
-                .get("name")
-                .and_then(Value::as_str)
-                .is_some_and(|existing| existing.trim().eq_ignore_ascii_case(&normalized))
-        })
+        self.effective_location_records()
+            .into_iter()
+            .any(|location| {
+                location
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .is_some_and(|existing| existing.trim().eq_ignore_ascii_case(&normalized))
+            })
     }
 
     fn location_limit_reached(&self) -> bool {
@@ -1351,14 +1428,20 @@ impl DraftProxy {
             return self.store.staged.location_limit_reached;
         };
         self.store.staged.location_limit_reached
-            || self
-                .store
-                .staged
-                .locations
-                .values()
-                .filter(|location| location.get("isActive").and_then(Value::as_bool) == Some(true))
-                .count()
-                >= limit
+            || self.active_merchant_managed_location_count() >= limit
+    }
+
+    fn active_merchant_managed_location_count(&self) -> usize {
+        self.effective_location_records()
+            .into_iter()
+            .filter(|location| {
+                location.get("isActive").and_then(Value::as_bool) == Some(true)
+                    && location
+                        .get("isFulfillmentService")
+                        .and_then(Value::as_bool)
+                        != Some(true)
+            })
+            .count()
     }
 
     fn hydrated_location_limit(&self) -> Option<usize> {
@@ -1536,24 +1619,19 @@ impl DraftProxy {
     }
 
     fn has_other_online_order_fulfillment_location(&self, location_id: &str) -> bool {
-        self.store.staged.locations.iter().any(|(id, location)| {
-            id != location_id
-                && location
-                    .get("fulfillsOnlineOrders")
-                    .and_then(Value::as_bool)
-                    == Some(true)
-        }) || self
-            .store
-            .staged
-            .fulfillment_service_locations
-            .iter()
-            .any(|(id, location)| {
-                id != location_id
+        self.effective_location_records()
+            .into_iter()
+            .any(|location| {
+                location.get("id").and_then(Value::as_str) != Some(location_id)
                     && location
                         .get("fulfillsOnlineOrders")
                         .and_then(Value::as_bool)
                         == Some(true)
             })
+    }
+
+    fn effective_location_records(&self) -> Vec<Value> {
+        self.locations_for_connection_flags(true, true)
     }
 
     fn location_has_inventory(&self, location_id: &str) -> bool {
@@ -1683,72 +1761,20 @@ fn location_search_decision(location: &Value, query: Option<&str>) -> StagedSear
     if query.is_empty() {
         return StagedSearchDecision::Match;
     }
-    let mut any_supported = false;
-    for group in location_search_or_groups(query) {
-        let mut group_supported = false;
-        let mut group_matches = true;
-        for term in group {
-            if term.eq_ignore_ascii_case("AND") {
-                continue;
-            }
-            match location_search_term_decision(location, term) {
-                StagedSearchDecision::Match => {
-                    group_supported = true;
-                }
-                StagedSearchDecision::NoMatch => {
-                    group_supported = true;
-                    group_matches = false;
-                    break;
-                }
-                StagedSearchDecision::Unsupported => {
-                    group_matches = false;
-                    break;
-                }
-            }
-        }
-        if group_supported {
-            any_supported = true;
-        }
-        if group_matches && group_supported {
-            return StagedSearchDecision::Match;
-        }
-    }
-    if any_supported {
-        StagedSearchDecision::NoMatch
-    } else {
-        StagedSearchDecision::Unsupported
-    }
+    let Some(expression) = parse_search_query(query) else {
+        return StagedSearchDecision::Unsupported;
+    };
+    StagedSearchDecision::from_bool(
+        expression.matches_with(&mut |term| location_search_term_matches(location, term)),
+    )
 }
 
-fn location_search_or_groups(query: &str) -> Vec<Vec<&str>> {
-    let mut groups = vec![Vec::new()];
-    for term in query.split_whitespace() {
-        if term.eq_ignore_ascii_case("OR") {
-            if groups.last().is_some_and(|group| !group.is_empty()) {
-                groups.push(Vec::new());
-            }
-            continue;
-        }
-        if let Some(group) = groups.last_mut() {
-            group.push(term);
-        }
+fn location_search_term_matches(location: &Value, term: &ParsedSearchTerm) -> bool {
+    if let Some(key) = term.field.as_deref() {
+        return location_keyed_search_decision(location, key, &term.value)
+            == StagedSearchDecision::Match;
     }
-    groups
-        .into_iter()
-        .filter(|group| !group.is_empty())
-        .collect()
-}
-
-fn location_search_term_decision(location: &Value, term: &str) -> StagedSearchDecision {
-    let term = term.trim().trim_matches('\'').trim_matches('"');
-    if term.is_empty() {
-        return StagedSearchDecision::Match;
-    }
-    if let Some((key, value)) = term.split_once(':') {
-        return location_keyed_search_decision(location, key, value);
-    }
-
-    let needle = normalized_location_search_value(term);
+    let needle = normalized_location_search_value(&term.value);
     let haystack = [
         location_value_string(location, "id"),
         location_value_string(location, "legacyResourceId"),
@@ -1765,7 +1791,7 @@ fn location_search_term_decision(location: &Value, term: &str) -> StagedSearchDe
     ]
     .join(" ")
     .to_ascii_lowercase();
-    StagedSearchDecision::from_bool(haystack.contains(&needle))
+    haystack.contains(&needle)
 }
 
 fn location_keyed_search_decision(
@@ -1779,7 +1805,7 @@ fn location_keyed_search_decision(
     }
     let values = match key {
         "id" => vec![location_value_string(location, "id")],
-        "legacyResourceId" | "legacy_resource_id" => {
+        "legacyresourceid" | "legacy_resource_id" => {
             vec![location_value_string(location, "legacyResourceId")]
         }
         "name" => vec![location_value_string(location, "name")],
@@ -1787,19 +1813,19 @@ fn location_keyed_search_decision(
         "address2" => vec![location_address_value_string(location, "address2")],
         "city" => vec![location_address_value_string(location, "city")],
         "country" => vec![location_address_value_string(location, "country")],
-        "countryCode" | "country_code" => {
+        "countrycode" | "country_code" => {
             vec![location_address_value_string(location, "countryCode")]
         }
         "province" => vec![location_address_value_string(location, "province")],
-        "provinceCode" | "province_code" => {
+        "provincecode" | "province_code" => {
             vec![location_address_value_string(location, "provinceCode")]
         }
         "zip" => vec![location_address_value_string(location, "zip")],
         "phone" => vec![location_address_value_string(location, "phone")],
-        "isActive" | "is_active" | "active" => {
+        "isactive" | "is_active" | "active" => {
             vec![location_bool_search_value(location, "isActive")]
         }
-        "isFulfillmentService" | "is_fulfillment_service" | "legacy" => {
+        "isfulfillmentservice" | "is_fulfillment_service" | "legacy" => {
             vec![location_bool_search_value(location, "isFulfillmentService")]
         }
         _ => return StagedSearchDecision::Unsupported,

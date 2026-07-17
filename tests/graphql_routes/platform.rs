@@ -4147,6 +4147,323 @@ fn location_add_resource_limit_guard_uses_hydrated_resource_limit_without_loggin
 }
 
 #[test]
+fn location_limit_hydration_falls_back_to_minimal_status_query() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            captured_requests.lock().unwrap().push(body);
+            if query.contains("includeLegacy: true") {
+                return Response {
+                    status: 502,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "catalog unavailable" }] }),
+                };
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": { "resourceLimits": { "locationLimit": 1 } },
+                        "locations": {
+                            "nodes": [{
+                                "id": "gid://shopify/Location/fallback-limit",
+                                "isActive": true,
+                                "isFulfillmentService": false
+                            }],
+                            "pageInfo": { "hasNextPage": false }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationFallbackLimit($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Fallback overflow",
+                "address": { "countryCode": "US" }
+            }
+        }),
+    ));
+
+    assert_eq!(
+        add.body["data"]["locationAdd"],
+        json!({
+            "location": null,
+            "userErrors": [{
+                "field": ["input"],
+                "code": "INVALID",
+                "message": "You have reached the maximum number of locations (1)"
+            }]
+        })
+    );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert!(requests[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("includeInactive: true, includeLegacy: true")));
+    assert!(requests[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("includeInactive: true) { nodes { id isActive")));
+}
+
+#[test]
+fn location_overlay_preserves_hydrated_catalog_for_reads_validation_and_limits() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_requests.lock().unwrap().push(body.clone());
+            if body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("ShippingDeliveryProfileLocationsHydrate"))
+            {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "locationsAvailableForDeliveryProfilesConnection": {
+                                "nodes": [
+                                    {
+                                        "id": "gid://shopify/Location/base-east",
+                                        "name": "Baseline East",
+                                        "isActive": true,
+                                        "isFulfillmentService": false
+                                    },
+                                    {
+                                        "id": "gid://shopify/Location/base-filter-decoy",
+                                        "name": "Baseline Fill East 1",
+                                        "isActive": true,
+                                        "isFulfillmentService": false
+                                    }
+                                ]
+                            }
+                        }
+                    }),
+                };
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": { "resourceLimits": { "locationLimit": 4 } },
+                        "locations": {
+                            "nodes": [
+                                {
+                                    "__typename": "Location",
+                                    "id": "gid://shopify/Location/base-east",
+                                    "name": "Baseline East",
+                                    "isActive": true,
+                                    "isFulfillmentService": false,
+                                    "fulfillsOnlineOrders": true,
+                                    "hasActiveInventory": false,
+                                    "hasUnfulfilledOrders": false,
+                                    "deletable": false,
+                                    "address": { "countryCode": "US" }
+                                },
+                                {
+                                    "__typename": "Location",
+                                    "id": "gid://shopify/Location/base-west",
+                                    "name": "Baseline West",
+                                    "isActive": true,
+                                    "isFulfillmentService": false,
+                                    "fulfillsOnlineOrders": true,
+                                    "hasActiveInventory": false,
+                                    "hasUnfulfilledOrders": false,
+                                    "deletable": false,
+                                    "address": { "countryCode": "US" }
+                                },
+                                {
+                                    "__typename": "Location",
+                                    "id": "gid://shopify/Location/base-filter-decoy",
+                                    "name": "Baseline Fill East 1",
+                                    "isActive": true,
+                                    "isFulfillmentService": false,
+                                    "fulfillsOnlineOrders": true,
+                                    "hasActiveInventory": false,
+                                    "hasUnfulfilledOrders": false,
+                                    "deletable": false,
+                                    "address": { "countryCode": "US" }
+                                }
+                            ],
+                            "pageInfo": { "hasNextPage": false }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationOverlayDuplicate($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Baseline West",
+                "address": { "countryCode": "US" }
+            }
+        }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["locationAdd"],
+        json!({
+            "location": null,
+            "userErrors": [{
+                "field": ["input", "name"],
+                "code": "TAKEN",
+                "message": "You already have a location with this name"
+            }]
+        })
+    );
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationOverlayAdd($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id name }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Staged East",
+                "address": { "countryCode": "US" }
+            }
+        }),
+    ));
+    assert_eq!(add.body["data"]["locationAdd"]["userErrors"], json!([]));
+    let staged_id = add.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query LocationOverlayRead($baseId: ID!) {
+          base: location(id: $baseId) { id name address { countryCode } }
+          locations(first: 5) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          locationsCount { count precision }
+          filteredCount: locationsCount(query: "name:Baseline") { count precision }
+          exactFiltered: locations(
+            first: 5
+            query: "name:'Baseline East' OR name:'Staged East'"
+            sortKey: NAME
+          ) {
+            nodes { id name }
+          }
+          availableForDeliveryProfiles: locationsAvailableForDeliveryProfilesConnection(first: 5) {
+            nodes { id name }
+          }
+        }
+        "#,
+        json!({ "baseId": "gid://shopify/Location/base-west" }),
+    ));
+    assert_eq!(
+        read.body["data"]["base"],
+        json!({
+            "id": "gid://shopify/Location/base-west",
+            "name": "Baseline West",
+            "address": { "countryCode": "US" }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["locations"]["nodes"],
+        json!([
+            { "id": "gid://shopify/Location/base-east", "name": "Baseline East" },
+            { "id": "gid://shopify/Location/base-filter-decoy", "name": "Baseline Fill East 1" },
+            { "id": "gid://shopify/Location/base-west", "name": "Baseline West" },
+            { "id": staged_id, "name": "Staged East" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["locationsCount"],
+        json!({ "count": 4, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["filteredCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["exactFiltered"]["nodes"],
+        json!([
+            { "id": "gid://shopify/Location/base-east", "name": "Baseline East" },
+            { "id": staged_id, "name": "Staged East" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["availableForDeliveryProfiles"]["nodes"],
+        json!([
+            { "id": "gid://shopify/Location/base-east", "name": "Baseline East" },
+            { "id": "gid://shopify/Location/base-filter-decoy", "name": "Baseline Fill East 1" }
+        ]),
+        "a staged add must not invent delivery-profile eligibility for a location absent from the hydrated eligibility catalog"
+    );
+
+    let over_limit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationOverlayOverLimit($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Staged North",
+                "address": { "countryCode": "US" }
+            }
+        }),
+    ));
+    assert_eq!(
+        over_limit.body["data"]["locationAdd"],
+        json!({
+            "location": null,
+            "userErrors": [{
+                "field": ["input"],
+                "code": "INVALID",
+                "message": "You have reached the maximum number of locations (4)"
+            }]
+        })
+    );
+
+    assert!(
+        upstream_requests
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|request| request["query"]
+                .as_str()
+                .is_some_and(|query| query.trim_start().starts_with("query "))),
+        "supported location lifecycle traffic may hydrate read-only catalogs but must never forward a mutation before commit"
+    );
+}
+
+#[test]
 fn generic_location_add_stages_location_and_downstream_reads() {
     let product_id = "gid://shopify/Product/9101";
     let mut proxy = snapshot_proxy().with_base_products(vec![platform_inventory_base_product(
@@ -5501,7 +5818,11 @@ fn generic_location_activate_rejects_non_unique_active_name() {
         json!([]),
         "rejected activation must not append a staged mutation log entry"
     );
-    assert_eq!(upstream_calls.lock().unwrap().len(), 3);
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 4);
+    assert!(calls.iter().all(|request| request["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query "))));
 }
 
 #[test]
@@ -5836,7 +6157,14 @@ fn location_edit_and_delete_are_local_in_live_hybrid_mode() {
         .as_str()
         .unwrap()
         .to_string();
-    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+    assert_eq!(*upstream_calls.lock().unwrap(), 2);
+    assert!(upstream_requests
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|request| request["query"]
+            .as_str()
+            .is_some_and(|query| query.trim_start().starts_with("query "))));
     *upstream_calls.lock().unwrap() = 0;
     upstream_requests.lock().unwrap().clear();
 

@@ -1,0 +1,22 @@
+mutation LocationCatalogOverlayEdit($id: ID!, $input: LocationEditInput!) {
+  locationEdit(id: $id, input: $input) {
+    location {
+      id
+      name
+      isActive
+      isFulfillmentService
+      fulfillsOnlineOrders
+      address {
+        address1
+        city
+        countryCode
+        zip
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

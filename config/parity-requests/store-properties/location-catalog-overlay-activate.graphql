@@ -1,0 +1,16 @@
+mutation LocationCatalogOverlayActivate($locationId: ID!, $idempotencyKey: String!) {
+  locationActivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
+    location {
+      id
+      name
+      isActive
+      isFulfillmentService
+      fulfillsOnlineOrders
+    }
+    locationActivateUserErrors {
+      field
+      code
+      message
+    }
+  }
+}
