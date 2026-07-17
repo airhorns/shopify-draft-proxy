@@ -1,0 +1,90 @@
+fragment LocationCatalogOverlayFields on Location {
+  id
+  name
+  isActive
+  isFulfillmentService
+  fulfillsOnlineOrders
+  address {
+    address1
+    city
+    countryCode
+    zip
+  }
+}
+
+query LocationCatalogOverlayRead($query: String!, $baselineId: ID!, $targetId: ID!, $first: Int!) {
+  baseline: location(id: $baselineId) {
+    ...LocationCatalogOverlayFields
+  }
+  target: location(id: $targetId) {
+    ...LocationCatalogOverlayFields
+  }
+  byIdentifier: locationByIdentifier(identifier: { id: $baselineId }) {
+    ...LocationCatalogOverlayFields
+  }
+  defaultActive: locations(first: $first, query: $query, sortKey: NAME) {
+    edges {
+      cursor
+      node {
+        ...LocationCatalogOverlayFields
+      }
+    }
+    nodes {
+      ...LocationCatalogOverlayFields
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  includeInactive: locations(first: $first, query: $query, sortKey: NAME, includeInactive: true) {
+    edges {
+      cursor
+      node {
+        ...LocationCatalogOverlayFields
+      }
+    }
+    nodes {
+      ...LocationCatalogOverlayFields
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  reverseInactive: locations(first: $first, query: $query, sortKey: NAME, includeInactive: true, reverse: true) {
+    nodes {
+      ...LocationCatalogOverlayFields
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  matchingCount: locationsCount(query: $query) {
+    count
+    precision
+  }
+  allCount: locationsCount {
+    count
+    precision
+  }
+  availableForDeliveryProfiles: locationsAvailableForDeliveryProfilesConnection(first: $first) {
+    nodes {
+      id
+      name
+      isActive
+      isFulfillmentService
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}

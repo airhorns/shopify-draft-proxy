@@ -8389,6 +8389,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-catalog-overlay-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-location-catalog-overlay-lifecycle-conformance.mts',
+    purpose:
+      'location baseline catalog preservation, effective duplicate/limit validation, and staged add/edit/deactivate/reactivate/delete read-after-write parity.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-catalog-overlay-lifecycle.json`,
+      'config/parity-specs/store-properties/location-catalog-overlay-lifecycle.json',
+      'config/parity-requests/store-properties/location-catalog-overlay-add.graphql',
+      'config/parity-requests/store-properties/location-catalog-overlay-edit.graphql',
+      'config/parity-requests/store-properties/location-catalog-overlay-deactivate.graphql',
+      'config/parity-requests/store-properties/location-catalog-overlay-activate.graphql',
+      'config/parity-requests/store-properties/location-catalog-overlay-delete.graphql',
+      'config/parity-requests/store-properties/location-catalog-overlay-read.graphql',
+      'config/parity-requests/store-properties/location-catalog-overlay-after-window.graphql',
+      'config/parity-requests/store-properties/location-catalog-overlay-before-window.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable baseline locations, fills active merchant-managed locations to one below the shop limit, captures lifecycle mutations and readbacks, then deletes the target, fillers, and baseline locations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'shop-policies',
     scriptPath: 'scripts/capture-shop-policy-conformance.ts',
     purpose: 'shopPolicyUpdate and legal-policy read/write behavior.',

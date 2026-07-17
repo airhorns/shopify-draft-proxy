@@ -64,7 +64,7 @@ function createClient(apiVersion: string): AdminGraphqlClient {
 const client = createClient(apiVersion);
 
 const locationLimitStatusQuery =
-  'query StorePropertiesLocationLimitStatus($first: Int!) { shop { resourceLimits { locationLimit } } locations(first: $first, includeInactive: true) { nodes { id isActive isFulfillmentService } pageInfo { hasNextPage } } }';
+  'query StorePropertiesLocationLimitStatus($first: Int!) { shop { resourceLimits { locationLimit } } locations(first: $first, includeInactive: true, includeLegacy: true) { nodes { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } } pageInfo { hasNextPage } } }';
 
 const catalogQuery = `#graphql
   ${locationLimitStatusQuery}

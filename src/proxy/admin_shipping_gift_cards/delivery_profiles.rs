@@ -54,22 +54,28 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        let mut arguments = resolved_arguments_from_json(&invocation.arguments);
         if self.config.read_mode != ReadMode::Snapshot
             && self.store.staged.observed_shipping_locations.is_empty()
-            && self.store.staged.locations.is_empty()
         {
-            let result = self.cached_or_forward_upstream_graphql_result(
-                invocation.request,
-                invocation.response_key,
-            );
-            if result.transport_succeeded {
-                self.observe_delivery_profile_locations_data(&result.data);
+            if self.store.staged.locations.is_empty() {
+                let result = self.cached_or_forward_upstream_graphql_result(
+                    invocation.request,
+                    invocation.response_key,
+                );
+                if result.transport_succeeded {
+                    self.observe_delivery_profile_locations_data(&result.data);
+                }
+                return result.outcome;
             }
-            return result.outcome;
+            self.hydrate_delivery_profile_locations_baseline(invocation.request);
         }
+        arguments
+            .entry("sortKey".to_string())
+            .or_insert_with(|| ResolvedValue::String("ID".to_string()));
         ResolverOutcome::value(location_connection_value(
             self.effective_shipping_locations(),
-            &resolved_arguments_from_json(&invocation.arguments),
+            &arguments,
         ))
     }
 
@@ -1037,25 +1043,56 @@ impl DraftProxy {
         connection_json_with_cursor(profiles, |_, profile| value_id_cursor(profile), page_info)
     }
 
+    pub(in crate::proxy) fn hydrate_delivery_profile_locations_baseline(
+        &mut self,
+        request: &Request,
+    ) {
+        if self.config.read_mode == ReadMode::Snapshot
+            || !self.store.staged.observed_shipping_locations.is_empty()
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": delivery_profile_locations_hydrate_query(250),
+                "operationName": "ShippingDeliveryProfileLocationsHydrate",
+                "variables": {}
+            }),
+        );
+        if (200..300).contains(&response.status) {
+            self.observe_delivery_profile_locations_response(&response);
+        }
+    }
+
     fn effective_shipping_locations(&self) -> Vec<Value> {
         let mut locations = Vec::new();
         let mut seen = BTreeSet::new();
         for id in &self.store.staged.observed_shipping_location_order {
-            if let Some(location) = self.location_for_read(id) {
-                seen.insert(id.clone());
-                locations.push(location);
-            }
+            self.push_effective_shipping_location(id, &mut seen, &mut locations);
         }
-        for id in &self.store.staged.locations.order {
-            if seen.contains(id) {
-                continue;
-            }
-            if let Some(location) = self.store.staged.locations.get(id).cloned() {
-                seen.insert(id.clone());
-                locations.push(location);
+        if self.config.read_mode == ReadMode::Snapshot {
+            for id in &self.store.staged.locations.order {
+                self.push_effective_shipping_location(id, &mut seen, &mut locations);
             }
         }
         locations
+    }
+
+    fn push_effective_shipping_location(
+        &self,
+        id: &str,
+        seen: &mut BTreeSet<String>,
+        locations: &mut Vec<Value>,
+    ) {
+        if seen.contains(id) {
+            return;
+        }
+        let Some(location) = self.location_for_read(id) else {
+            return;
+        };
+        seen.insert(id.to_string());
+        locations.push(location);
     }
 
     pub(in crate::proxy) fn observe_delivery_profile_locations_response(

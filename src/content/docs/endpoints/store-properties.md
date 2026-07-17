@@ -17,6 +17,8 @@ The following read roots have local model or fixture-backed behavior:
 - `location`
 - `locationByIdentifier`
 - `locations`
+- `locationsCount`
+- `locationsAvailableForDeliveryProfilesConnection`
 - `businessEntities`
 - `businessEntity`
 - `cashManagementLocationSummary`
@@ -69,17 +71,19 @@ errors with `field: ["shopPolicy", "body"]`, and returns top-level
 `INVALID_VARIABLE` errors for invalid policy enum values or missing/null
 required bodies.
 
-`locationAdd` now has a generic Rust staging path for public Admin GraphQL
-documents, not only fixture-named parity documents. It stages a synthetic
+`locationAdd` has a generic Rust staging path for public Admin GraphQL
+documents. It stages a synthetic
 Location ID, deterministic timestamps, address data, Location-owned metafields,
 the captured `fulfillsOnlineOrders` default of `true`, blank/duplicate/too-long
 name userErrors, public schema-style address/country-code validation, and the
-captured 200-location create guard. In LiveHybrid replay, the guard derives cap
-state from the recorded `StorePropertiesLocationLimitStatus` upstream read
-instead of a synthetic local seed. Rejected adds do not append mutation-log
+shop's captured location-limit guard. In LiveHybrid mode, a read-only
+`StorePropertiesLocationLimitStatus` preflight hydrates the shop limit and
+normalized active, inactive, merchant-managed, and legacy Location rows before
+validation. Duplicate-name and limit checks then use that effective baseline
+plus prior staged lifecycle changes. Rejected adds do not append mutation-log
 entries.
 
-`locationActivate` now has a generic Rust staging path for public Admin GraphQL
+`locationActivate` has a generic Rust staging path for public Admin GraphQL
 documents. Successful activations flip the local Location `isActive` state,
 stage the changed record, preserve the raw mutation for commit replay, and are
 visible through downstream location reads. Guard branches for location limit,
@@ -98,11 +102,17 @@ address/country/province derivation including the captured GB, AU, AE, and CA
 branches, create/edit validation, metafields on
 location add/edit, activate/deactivate state transitions, delete tombstones,
 idempotency directives, resource-limit validation, and selected lifecycle guard
-errors. Successful location mutation slices stage local state, preserve the raw
-GraphQL request for commit replay, and expose read-after-write behavior through
-`location`, `locationByIdentifier`, `locations`, inventory-level location
-projection, and meta state/log inspection when those surfaces are part of the
-checked-in scenario. Successful `locationDeactivate` calls with a
+errors. Effective `location`, `locationByIdentifier`, `locations`, and
+`locationsCount` reads merge untouched baseline rows with staged adds and
+updates, exclude tombstones, and apply Shopify-like name filtering, sort keys,
+`reverse`, cursor windows, and `pageInfo`. The separately hydrated
+`locationsAvailableForDeliveryProfilesConnection` eligibility catalog keeps
+Shopify's ID ordering and overlays staged fields only for locations already in
+that catalog; a staged `locationAdd` does not invent delivery-profile
+eligibility. Successful location mutation slices stage local state, preserve
+the raw GraphQL request for commit replay, and expose read-after-write behavior
+through these reads, inventory-level location projection, and meta state/log
+inspection. Successful `locationDeactivate` calls with a
 `destinationLocationId` relocate source-location inventory levels into the
 destination in the modeled slice, merge same-name quantity rows when a
 destination level already exists, remove the source level from downstream

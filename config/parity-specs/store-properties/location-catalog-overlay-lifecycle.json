@@ -1,0 +1,663 @@
+{
+  "scenarioId": "location-catalog-overlay-lifecycle",
+  "operationNames": [
+    "location",
+    "locationByIdentifier",
+    "locations",
+    "locationsCount",
+    "locationsAvailableForDeliveryProfilesConnection",
+    "locationAdd",
+    "locationEdit",
+    "locationDeactivate",
+    "locationActivate",
+    "locationDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "downstream-read-parity",
+    "connection-parity",
+    "filtered-count-parity",
+    "user-errors-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-catalog-overlay-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/platform.rs"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-catalog-overlay-add.graphql",
+    "variablesCapturePath": "$.workflow.duplicateAdd.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "duplicate-add-baseline-name",
+        "capturePath": "$.workflow.duplicateAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd"
+      },
+      {
+        "name": "first-add-near-limit",
+        "capturePath": "$.workflow.firstAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-catalog-overlay-add.graphql",
+          "variablesCapturePath": "$.workflow.firstAdd.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a synthetic staged Location ID instead of Shopify's live Location ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-add",
+        "capturePath": "$.workflow.readAfterAdd.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-catalog-overlay-read.graphql",
+          "variables": {
+            "query": { "fromCapturePath": "$.workflow.readAfterAdd.variables.query" },
+            "baselineId": { "fromCapturePath": "$.setup.baselineLocationIds[0]" },
+            "targetId": {
+              "fromProxyResponse": "first-add-near-limit",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "first": { "fromCapturePath": "$.workflow.readAfterAdd.variables.first" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.target.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy target is the locally staged Location ID."
+          },
+          {
+            "path": "$.defaultActive.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.defaultActive.edges[2].node.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.defaultActive.nodes[2].id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.defaultActive.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.defaultActive.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.includeInactive.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.includeInactive.edges[2].node.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.includeInactive.nodes[2].id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.includeInactive.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.includeInactive.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.reverseInactive.nodes[0].id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.reverseInactive.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.reverseInactive.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          }
+        ]
+      },
+      {
+        "name": "after-window-after-add",
+        "capturePath": "$.workflow.afterWindowAfterAdd.response.payload.data.afterWindow",
+        "proxyPath": "$.data.afterWindow",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-catalog-overlay-after-window.graphql",
+          "variables": {
+            "query": { "fromCapturePath": "$.workflow.afterWindowAfterAdd.variables.query" },
+            "after": {
+              "fromProxyResponse": "read-after-add",
+              "path": "$.data.includeInactive.edges[0].cursor"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          }
+        ]
+      },
+      {
+        "name": "before-window-after-add",
+        "capturePath": "$.workflow.beforeWindowAfterAdd.response.payload.data.beforeWindow",
+        "proxyPath": "$.data.beforeWindow",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-catalog-overlay-before-window.graphql",
+          "variables": {
+            "query": { "fromCapturePath": "$.workflow.beforeWindowAfterAdd.variables.query" },
+            "before": {
+              "fromProxyResponse": "read-after-add",
+              "path": "$.data.includeInactive.edges[2].cursor"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          }
+        ]
+      },
+      {
+        "name": "second-add-limit-guard",
+        "capturePath": "$.workflow.secondAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-catalog-overlay-add.graphql",
+          "variablesCapturePath": "$.workflow.secondAdd.variables"
+        }
+      },
+      {
+        "name": "edit-replaces-target-only",
+        "capturePath": "$.workflow.edit.response.payload.data.locationEdit",
+        "proxyPath": "$.data.locationEdit",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-catalog-overlay-edit.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "first-add-near-limit",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "input": { "fromCapturePath": "$.workflow.edit.variables.input" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy edits the locally staged synthetic Location ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-edit",
+        "capturePath": "$.workflow.readAfterEdit.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-catalog-overlay-read.graphql",
+          "variables": {
+            "query": { "fromCapturePath": "$.workflow.readAfterEdit.variables.query" },
+            "baselineId": { "fromCapturePath": "$.setup.baselineLocationIds[0]" },
+            "targetId": {
+              "fromProxyResponse": "first-add-near-limit",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "first": { "fromCapturePath": "$.workflow.readAfterEdit.variables.first" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.target.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy target is the locally staged Location ID."
+          },
+          {
+            "path": "$.defaultActive.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.defaultActive.edges[2].node.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.defaultActive.nodes[2].id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.defaultActive.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.defaultActive.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.includeInactive.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.includeInactive.edges[2].node.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.includeInactive.nodes[2].id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.includeInactive.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.includeInactive.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.reverseInactive.nodes[0].id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.reverseInactive.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.reverseInactive.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          }
+        ]
+      },
+      {
+        "name": "deactivate-target",
+        "capturePath": "$.workflow.deactivate.response.payload.data.locationDeactivate",
+        "proxyPath": "$.data.locationDeactivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-catalog-overlay-deactivate.graphql",
+          "variables": {
+            "locationId": {
+              "fromProxyResponse": "first-add-near-limit",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "idempotencyKey": { "fromCapturePath": "$.workflow.deactivate.variables.idempotencyKey" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy deactivates the locally staged synthetic Location ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-deactivate",
+        "capturePath": "$.workflow.readAfterDeactivate.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-catalog-overlay-read.graphql",
+          "variables": {
+            "query": { "fromCapturePath": "$.workflow.readAfterDeactivate.variables.query" },
+            "baselineId": { "fromCapturePath": "$.setup.baselineLocationIds[0]" },
+            "targetId": {
+              "fromProxyResponse": "first-add-near-limit",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "first": { "fromCapturePath": "$.workflow.readAfterDeactivate.variables.first" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.target.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy target is the locally staged Location ID."
+          },
+          {
+            "path": "$.defaultActive.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.defaultActive.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.defaultActive.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.includeInactive.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.includeInactive.edges[2].node.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.includeInactive.nodes[2].id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.includeInactive.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.includeInactive.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.reverseInactive.nodes[0].id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.reverseInactive.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.reverseInactive.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          }
+        ]
+      },
+      {
+        "name": "reactivate-target",
+        "capturePath": "$.workflow.activate.response.payload.data.locationActivate",
+        "proxyPath": "$.data.locationActivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-catalog-overlay-activate.graphql",
+          "variables": {
+            "locationId": {
+              "fromProxyResponse": "first-add-near-limit",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "idempotencyKey": { "fromCapturePath": "$.workflow.activate.variables.idempotencyKey" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy activates the locally staged synthetic Location ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-reactivate",
+        "capturePath": "$.workflow.readAfterReactivate.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-catalog-overlay-read.graphql",
+          "variables": {
+            "query": { "fromCapturePath": "$.workflow.readAfterReactivate.variables.query" },
+            "baselineId": { "fromCapturePath": "$.setup.baselineLocationIds[0]" },
+            "targetId": {
+              "fromProxyResponse": "first-add-near-limit",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "first": { "fromCapturePath": "$.workflow.readAfterReactivate.variables.first" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.target.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy target is the locally staged Location ID."
+          },
+          {
+            "path": "$.defaultActive.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.defaultActive.edges[2].node.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.defaultActive.nodes[2].id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.defaultActive.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.defaultActive.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.includeInactive.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.includeInactive.edges[2].node.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.includeInactive.nodes[2].id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.includeInactive.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.includeInactive.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.reverseInactive.nodes[0].id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The staged target Location ID is synthetic locally."
+          },
+          {
+            "path": "$.reverseInactive.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.reverseInactive.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          }
+        ]
+      },
+      {
+        "name": "deactivate-before-delete",
+        "capturePath": "$.workflow.deactivateBeforeDelete.response.payload.data.locationDeactivate",
+        "proxyPath": "$.data.locationDeactivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-catalog-overlay-deactivate.graphql",
+          "variables": {
+            "locationId": {
+              "fromProxyResponse": "first-add-near-limit",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "idempotencyKey": { "fromCapturePath": "$.workflow.deactivateBeforeDelete.variables.idempotencyKey" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy deactivates the locally staged synthetic Location ID."
+          }
+        ]
+      },
+      {
+        "name": "delete-removes-target",
+        "capturePath": "$.workflow.delete.response.payload.data.locationDelete",
+        "proxyPath": "$.data.locationDelete",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-catalog-overlay-delete.graphql",
+          "variables": {
+            "locationId": {
+              "fromProxyResponse": "first-add-near-limit",
+              "path": "$.data.locationAdd.location.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedLocationId",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy deletes the locally staged synthetic Location ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-delete",
+        "capturePath": "$.workflow.readAfterDelete.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-catalog-overlay-read.graphql",
+          "variables": {
+            "query": { "fromCapturePath": "$.workflow.readAfterDelete.variables.query" },
+            "baselineId": { "fromCapturePath": "$.setup.baselineLocationIds[0]" },
+            "targetId": {
+              "fromProxyResponse": "first-add-near-limit",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "first": { "fromCapturePath": "$.workflow.readAfterDelete.variables.first" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.defaultActive.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.defaultActive.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.defaultActive.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.includeInactive.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.includeInactive.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.includeInactive.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.reverseInactive.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.reverseInactive.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque connection cursor encodings."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture preserving a real baseline location catalog while proxy replay stages add/edit/deactivate/reactivate/delete locally. The scenario proves duplicate-name and location-limit validation use baseline plus staged changes, existing baseline rows remain visible after a staged add, tombstoned rows disappear after delete, filtered locations/locationsCount agree, and cursor windows/pageInfo remain Shopify-like. Expected differences are limited to synthetic staged Location IDs and opaque cursor encodings."
+}

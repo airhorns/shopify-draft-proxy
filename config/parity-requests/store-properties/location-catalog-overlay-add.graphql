@@ -1,0 +1,22 @@
+mutation LocationCatalogOverlayAdd($input: LocationAddInput!) {
+  locationAdd(input: $input) {
+    location {
+      id
+      name
+      isActive
+      isFulfillmentService
+      fulfillsOnlineOrders
+      address {
+        address1
+        city
+        countryCode
+        zip
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

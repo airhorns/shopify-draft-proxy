@@ -420,6 +420,7 @@ struct BaseState {
     segments: OrderedRecords<Value>,
     bulk_operations: OrderedRecords<Value>,
     bulk_operations_observed: bool,
+    locations: OrderedRecords<Value>,
     gift_cards: BTreeMap<String, Value>,
     gift_card_configuration: Option<Value>,
     gift_card_complete_queries: BTreeSet<String>,
