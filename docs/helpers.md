@@ -13,7 +13,7 @@ Use the executable-schema registry before adding another schema parser or checke
 - `build_schema_from_sdl(...)` is the shared dynamic type/resolver builder. New GraphQL surfaces should keep their own version inventory and immutable capture source while reusing this construction path.
 - `root_field_arguments(...)`, `input_field_at_path(...)`, `input_owner_at_path(...)`, `input_object_fields(...)`, and `enum_values(...)` expose metadata from the same executable registry that validates requests.
 - `output_field_named_type(...)` supports nested output planning without a second output-schema model.
-- `output_type_condition_applies(...)` lets transitional JSON projectors use captured interface/union relationships instead of maintaining handwritten implementor lists; the executable engine remains the final projection authority.
+- `output_type_condition_applies(...)` exposes captured interface/union relationships to the bulk-operation GraphQL-as-data boundary; ordinary API output remains entirely engine-projected.
 - Custom scalar codecs live beside schema construction. Extend that explicit codec table when a captured schema adds a scalar; do not make unknown scalars permissive. `invalid_url_scalar_message(...)` is shared with the Shopify error adapter so engine validation and wire-envelope text cannot drift.
 
 Full Admin schema captures live at `config/admin-graphql/<version>/schema.graphql`, the executable/default version inventory lives in `config/admin-graphql/manifest.json`, and captures are produced by `scripts/capture-admin-graphql-schema.mts`. The complete Storefront 2026-04 introspection capture lives at `config/storefront-graphql/2026-04/schema.json`; Storefront runtime route/version configuration lives separately at `config/storefront-graphql-manifest.json` so it is not misrepresented as captured evidence. `src/storefront_graphql.rs` renders the capture to SDL once and keeps its version/cache separate from Admin. Do not introduce another partial mutation/input/output schema source or a second TypeScript version list.
@@ -55,7 +55,10 @@ Use `src/operation_registry.rs` and `src/resolver_registry.rs` before adding cap
 
 `RootInvocation` carries engine-coerced arguments, raw argument-source metadata,
 the response key/root location, operation path, and variable-definition
-locations needed by Shopify-compatible errors. It also exposes
+locations needed by Shopify-compatible errors. `operation_roots` carries only
+the selected operation's root names, response keys, and coerced arguments so a
+domain can hydrate sibling roots from one cached upstream response without
+receiving a nested selection tree. It also exposes
 `requests_field_path(...)`, backed by `async-graphql`'s selected field tree. Use
 that only to plan hydration breadth or batching; do not use it to shape JSON
 output or recreate selection projectors.
@@ -80,16 +83,16 @@ Do not use these helpers for top-level GraphQL `errors`/`extensions` envelopes; 
 
 Top-level parse, validation, variable/scalar coercion, location, path, and extension-code compatibility belongs in `src/proxy/graphql_error_compat.rs`. Keep resolver/business validation in domain modules and payload `userErrors`; do not add Shopify engine-envelope rewriting to `graphql_runtime.rs` or a resource handler.
 
-## Selection, Connection, And Count Helpers
+## Connection And Count Helpers
 
 Several generic serializers live under `src/proxy/` and should be reused before adding local copies.
 
-- `src/proxy/selection.rs` owns alias-aware selected-field projection helpers such as `selected_json(...)`, `nullable_selected_json(...)`, `nested_selected_fields(...)`, `selected_child_selection(...)`, and `selected_fields_named(...)`.
-- `src/proxy/connection.rs` owns generic Shopify connection envelope helpers such as `connection_json(...)`, `connection_json_with_cursor(...)`, `selected_connection_json(...)`, `selected_empty_connection_json(...)`, `selected_typed_connection(...)`, `connection_window(...)`, `connection_page_info(...)`, and `empty_page_info(...)`.
-- Canonical resolver values should use `connection_value_with_args(...)`, `typed_connection_value(...)`, or `staged_connection_value_with_args(...)`; these preserve the shared filtering/sorting/windowing contract without accepting a GraphQL selection. The `selected_*` variants are migration-only projection helpers.
+- There is no shared runtime selection projector. Native resolvers return canonical, alias-free values and the executable schema projects aliases, fragments, interfaces/unions, directives, and null propagation.
+- `src/proxy/connection.rs` owns generic Shopify connection envelope helpers such as `connection_json(...)`, `connection_json_with_cursor(...)`, `connection_value_with_args(...)`, `typed_connection_value(...)`, `staged_connection_value_with_args(...)`, `connection_window(...)`, `connection_page_info(...)`, and `empty_page_info(...)`.
+- Bulk-operation JSONL keeps its projector private to `bulk_operations.rs` because the inner GraphQL document is input data and is not executed by the outer schema. Do not reuse that projector for API responses.
 - `src/proxy/connection.rs` also owns `count_object(...)` and `count_object_with_precision(...)` for Shopify `Count` objects. Do not rebuild `{ count, precision }` envelopes inline.
-- `src/proxy/connection.rs` owns the staged-resource query path `staged_connection_query(...)` / `selected_staged_connection_with_args(...)`. Use it for staged reads that need resource-specific search decisions, sort-key mapping, `reverse`, cursor windowing, and filtered counts to stay in one order of operations.
-- `src/proxy/product_helpers.rs` owns product/saved-search JSON builders and product-specific serializers; generic connection and Count envelopes belong in `connection.rs`.
+- `src/proxy/connection.rs` owns the staged-resource query path `staged_connection_query(...)` / `staged_connection_value_with_args(...)`. Use it for staged reads that need resource-specific search decisions, sort-key mapping, `reverse`, cursor windowing, and filtered counts to stay in one order of operations.
+- `src/proxy/product_helpers.rs` owns canonical product/saved-search values and product-specific serializers; generic connection and Count envelopes belong in `connection.rs`.
 
 Prefer passing domain-specific sort/filter/cursor decisions into these helpers rather than duplicating connection envelope construction.
 

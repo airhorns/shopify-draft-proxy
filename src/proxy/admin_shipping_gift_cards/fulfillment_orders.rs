@@ -260,10 +260,8 @@ impl DraftProxy {
         if self.shipping_fulfillment_orders().is_empty() {
             return upstream.outcome;
         }
-        let live_records = upstream_value
-            .as_ref()
-            .map(shipping_fulfillment_order_connection_records)
-            .unwrap_or_default();
+        let upstream_connection = upstream_value.as_ref().unwrap_or(&upstream.outcome.value);
+        let live_records = shipping_fulfillment_order_connection_records(upstream_connection);
         if upstream.transport_succeeded {
             for record in &live_records {
                 self.stage_observed_shipping_fulfillment_order_root_cursor(

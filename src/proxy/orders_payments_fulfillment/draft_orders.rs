@@ -1216,41 +1216,6 @@ pub(in crate::proxy) fn draft_order_max_input_error(
 }
 
 impl DraftProxy {
-    fn live_hybrid_draft_order_read_should_observe_upstream(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> bool {
-        if self.config.read_mode != ReadMode::LiveHybrid {
-            return false;
-        }
-        fields.iter().any(|field| match field.name.as_str() {
-            "draftOrders" | "draftOrdersCount" => true,
-            "draftOrder" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
-                !self.store.staged.draft_orders.contains_key(&id)
-                    && !self.store.staged.draft_orders.is_tombstoned(&id)
-            }),
-            _ => false,
-        })
-    }
-
-    pub(in crate::proxy) fn draft_order_query_needs_shared_upstream(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> bool {
-        let staged_draft_order_read = fields.iter().any(|field| match field.name.as_str() {
-            "draftOrder" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
-                self.store.staged.draft_orders.contains_key(&id)
-                    || self.store.staged.draft_orders.is_tombstoned(&id)
-            }),
-            "draftOrders" | "draftOrdersCount" => {
-                !self.store.staged.draft_orders.is_empty()
-                    || !self.store.staged.draft_orders.tombstones.is_empty()
-            }
-            _ => false,
-        });
-        staged_draft_order_read && self.live_hybrid_draft_order_read_should_observe_upstream(fields)
-    }
-
     fn observe_live_hybrid_draft_order_read(&mut self, request: &Request) {
         let response = self
             .execution_session

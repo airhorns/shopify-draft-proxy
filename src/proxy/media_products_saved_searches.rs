@@ -101,58 +101,6 @@ impl DraftProxy {
         self.store.product_by_id(id)
     }
 
-    fn product_json_with_store_currency(
-        &self,
-        product: &ProductRecord,
-        variants: &[ProductVariantRecord],
-        selections: &[SelectedField],
-    ) -> Value {
-        self.product_json_with_variants_and_currency_context(
-            product,
-            variants,
-            selections,
-            &self.store.shop_currency_code(),
-        )
-    }
-
-    fn product_owner_json_with_store_currency(
-        &self,
-        product: &ProductRecord,
-        variants: &[ProductVariantRecord],
-        selections: &[SelectedField],
-    ) -> Value {
-        let base = self.product_json_with_store_currency(product, variants, selections);
-        self.product_owner_json_from_base(product, selections, base)
-    }
-
-    fn product_owner_json_from_base(
-        &self,
-        product: &ProductRecord,
-        selections: &[SelectedField],
-        base: Value,
-    ) -> Value {
-        self.product_owner_json_from_base_with_app_namespace_api_client_id(
-            product, selections, base, None,
-        )
-    }
-
-    fn product_owner_json_from_base_with_app_namespace_api_client_id(
-        &self,
-        product: &ProductRecord,
-        selections: &[SelectedField],
-        base: Value,
-        api_client_id: Option<&str>,
-    ) -> Value {
-        self.owner_metafield_overlay_owner_json_with_product_variants_and_app_namespace_api_client_id(
-            "product",
-            &product.id,
-            selections,
-            &product.variants,
-            base,
-            api_client_id,
-        )
-    }
-
     pub(in crate::proxy) fn products_filtered_by_search_query(
         &self,
         query: Option<&ResolvedValue>,

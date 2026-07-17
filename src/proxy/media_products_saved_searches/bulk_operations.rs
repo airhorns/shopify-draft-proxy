@@ -161,14 +161,8 @@ impl DraftProxy {
         let mut rows = Vec::new();
         for product in products {
             let variants = self.store.product_variants_for_product(&product.id);
-            let product_json = bulk_jsonl_projected_node(
-                self.product_owner_json_with_store_currency(
-                    &product,
-                    &variants,
-                    &product_selection,
-                ),
-                &product_selection,
-            );
+            let product_json =
+                bulk_project_value(&self.product_canonical_value(&product), &product_selection);
             rows.push(product_json);
 
             for selection in &nested_connections {
@@ -200,18 +194,18 @@ impl DraftProxy {
             "collections" => product
                 .collections
                 .iter()
-                .map(|collection| selected_json(collection, &child_node_selection))
+                .map(|collection| bulk_project_value(collection, &child_node_selection))
                 .collect(),
             "images" => product
                 .media
                 .iter()
                 .filter_map(product_image_json_from_media)
-                .map(|image| selected_json(&image, &child_node_selection))
+                .map(|image| bulk_project_value(&image, &child_node_selection))
                 .collect(),
             "media" => product
                 .media
                 .iter()
-                .map(|media| selected_json(media, &child_node_selection))
+                .map(|media| bulk_project_value(media, &child_node_selection))
                 .collect(),
             "metafields" => self
                 .bulk_owner_metafield_nodes(
@@ -220,25 +214,37 @@ impl DraftProxy {
                     selection,
                 )
                 .into_iter()
-                .map(|metafield| {
-                    self.selected_reference_value_record_json(&metafield, &child_node_selection)
-                })
+                .map(|metafield| self.bulk_metafield_value(metafield, &child_node_selection))
                 .collect(),
             "variants" => variants
                 .iter()
-                .map(|variant| {
-                    self.product_variant_json_with_current_publication_context(
-                        variant,
-                        Some(product),
-                        &child_node_selection,
-                    )
-                })
+                .map(|variant| self.product_variant_canonical_value(variant))
                 .collect(),
             _ => Vec::new(),
         };
         rows.into_iter()
-            .map(|row| bulk_jsonl_projected_node(row, &child_node_selection))
+            .map(|row| bulk_project_value(&row, &child_node_selection))
             .collect()
+    }
+
+    fn bulk_metafield_value(&self, mut metafield: Value, selection: &[SelectedField]) -> Value {
+        for field in selection {
+            match field.name.as_str() {
+                "reference" => {
+                    metafield["reference"] =
+                        self.canonical_metafield_reference_value(&metafield, None);
+                }
+                "references" => {
+                    metafield["references"] = self.canonical_metafield_references_connection_value(
+                        &metafield,
+                        &field.arguments,
+                        None,
+                    );
+                }
+                _ => {}
+            }
+        }
+        bulk_project_value(&metafield, selection)
     }
 
     fn bulk_owner_metafield_nodes(
@@ -327,14 +333,9 @@ impl DraftProxy {
         for product in products {
             for variant in self.store.product_variants_for_product(&product.id) {
                 root_object_count += 1;
-                rows.push(bulk_jsonl_projected_node(
-                    self.product_variant_json_with_current_publication_context(
-                        &variant,
-                        Some(&product),
-                        &variant_selection,
-                    ),
-                    &variant_selection,
-                ));
+                let mut value = self.product_variant_canonical_value(&variant);
+                value["product"] = self.product_canonical_value(&product);
+                rows.push(bulk_project_value(&value, &variant_selection));
 
                 for selection in &nested_connections {
                     for child in
@@ -367,7 +368,7 @@ impl DraftProxy {
         let rows = match selection.name.as_str() {
             "media" => variant_attached_media_nodes(variant, Some(product))
                 .iter()
-                .map(|media| selected_json(media, &child_node_selection))
+                .map(|media| bulk_project_value(media, &child_node_selection))
                 .collect(),
             "metafields" => self
                 .bulk_owner_metafield_nodes(
@@ -376,14 +377,12 @@ impl DraftProxy {
                     selection,
                 )
                 .into_iter()
-                .map(|metafield| {
-                    self.selected_reference_value_record_json(&metafield, &child_node_selection)
-                })
+                .map(|metafield| self.bulk_metafield_value(metafield, &child_node_selection))
                 .collect(),
             _ => Vec::new(),
         };
         rows.into_iter()
-            .map(|row| bulk_jsonl_projected_node(row, &child_node_selection))
+            .map(|row| bulk_project_value(&row, &child_node_selection))
             .collect()
     }
 
@@ -2761,16 +2760,58 @@ fn bulk_jsonl_node_selection(selection: &[SelectedField]) -> Vec<SelectedField> 
         .collect()
 }
 
-fn bulk_jsonl_projected_node(mut node: Value, selection: &[SelectedField]) -> Value {
-    let selects_unaliased_typename = selection
-        .iter()
-        .any(|field| field.name == "__typename" && field.response_key == "__typename");
-    if !selects_unaliased_typename {
-        if let Some(object) = node.as_object_mut() {
-            object.remove("__typename");
-        }
+/// Bulk query text is GraphQL-as-data: Shopify's JSONL format contains exactly
+/// the fields selected inside the `query:` argument, independently of the
+/// outer API executor. Keep this syntax-aware projection local to bulk output;
+/// ordinary Admin and Storefront responses are always projected by the schema
+/// engine.
+fn bulk_project_value(value: &Value, selection: &[SelectedField]) -> Value {
+    if value.is_null() || selection.is_empty() {
+        return value.clone();
     }
-    node
+    if let Some(values) = value.as_array() {
+        return Value::Array(
+            values
+                .iter()
+                .map(|value| bulk_project_value(value, selection))
+                .collect(),
+        );
+    }
+    let Some(object) = value.as_object() else {
+        return value.clone();
+    };
+    let record_type = value.get("__typename").and_then(Value::as_str).or_else(|| {
+        value
+            .get("id")
+            .and_then(Value::as_str)
+            .and_then(shopify_gid_resource_type)
+    });
+    let mut projected = serde_json::Map::new();
+    for field in selection {
+        if field.type_condition.as_deref().is_some_and(|condition| {
+            record_type.is_some_and(|record_type| {
+                condition != record_type
+                    && !crate::admin_graphql::output_type_condition_applies(record_type, condition)
+            })
+        }) {
+            continue;
+        }
+        let Some(field_value) = object
+            .get(&field.name)
+            .or_else(|| object.get(&field.response_key))
+        else {
+            continue;
+        };
+        projected.insert(
+            field.response_key.clone(),
+            if field.selection.is_empty() || field_value.is_null() {
+                field_value.clone()
+            } else {
+                bulk_project_value(field_value, &field.selection)
+            },
+        );
+    }
+    Value::Object(projected)
 }
 
 fn bulk_jsonl_child_node(mut node: Value, parent_id: &str) -> Value {
@@ -3095,8 +3136,11 @@ fn nested_connection_selection<'a>(
 }
 
 fn edge_node_selection(selection: &[SelectedField]) -> Vec<SelectedField> {
-    selected_child_selection(selection, "edges")
-        .and_then(|edge_selection| selected_child_selection(&edge_selection, "node"))
+    selection
+        .iter()
+        .find(|field| field.name == "edges")
+        .and_then(|edges| edges.selection.iter().find(|field| field.name == "node"))
+        .map(|node| node.selection.clone())
         .unwrap_or_default()
 }
 

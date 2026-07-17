@@ -2009,69 +2009,6 @@ pub(in crate::proxy) fn product_visible_publication_entries(
     }
 }
 
-fn publication_node_json(publication_id: &str, selections: &[SelectedField]) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("Publication")),
-        "id" => Some(json!(publication_id)),
-        _ => None,
-    })
-}
-
-fn publishable_node_json(
-    resource_id: &str,
-    resource_type: &str,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!(resource_type)),
-        "id" => Some(json!(resource_id)),
-        _ => None,
-    })
-}
-
-fn product_publication_connection_node_json(
-    product: &ProductRecord,
-    entry: &ProductPublicationEntry,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("ProductPublication")),
-        "channel" => Some(Value::Null),
-        "isPublished" => Some(json!(true)),
-        "publishDate" => Some(product_publication_publish_date_json(entry)),
-        "product" => Some(publishable_node_json(
-            &product.id,
-            "Product",
-            &selection.selection,
-        )),
-        _ => None,
-    })
-}
-
-fn resource_publication_connection_node_json(
-    product: &ProductRecord,
-    entry: &ProductPublicationEntry,
-    typename: &str,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!(typename)),
-        "channel" => Some(Value::Null),
-        "isPublished" => Some(json!(true)),
-        "publication" => Some(publication_node_json(
-            &entry.publication_id,
-            &selection.selection,
-        )),
-        "publishDate" => Some(product_publication_publish_date_json(entry)),
-        "publishable" => Some(publishable_node_json(
-            &product.id,
-            "Product",
-            &selection.selection,
-        )),
-        _ => None,
-    })
-}
-
 fn product_publication_publish_date_json(entry: &ProductPublicationEntry) -> Value {
     entry
         .publish_date
@@ -2079,112 +2016,6 @@ fn product_publication_publish_date_json(entry: &ProductPublicationEntry) -> Val
         .or(entry.published_at.as_ref())
         .map(|value| json!(value))
         .unwrap_or(Value::Null)
-}
-
-fn product_publication_connection_json(
-    product: &ProductRecord,
-    selections: &[SelectedField],
-) -> Value {
-    let entries = product_visible_publication_entries(product);
-    selected_typed_connection(
-        &entries,
-        selections,
-        |entry, selections| product_publication_connection_node_json(product, entry, selections),
-        |entry| entry.publication_id.clone(),
-        |selections| selected_json(&empty_page_info(), selections),
-    )
-}
-
-fn resource_publication_connection_json(
-    product: &ProductRecord,
-    typename: &str,
-    selections: &[SelectedField],
-) -> Value {
-    let entries = product_visible_publication_entries(product);
-    selected_typed_connection(
-        &entries,
-        selections,
-        |entry, selections| {
-            resource_publication_connection_node_json(product, entry, typename, selections)
-        },
-        |entry| entry.publication_id.clone(),
-        |selections| selected_json(&empty_page_info(), selections),
-    )
-}
-
-pub(in crate::proxy) fn product_publication_field_json(
-    product: &ProductRecord,
-    selection: &SelectedField,
-    published_on_current_publication: Option<bool>,
-) -> Option<Value> {
-    match selection.name.as_str() {
-        "publishedAt" => Some(
-            product
-                .extra_fields
-                .get("publishedAt")
-                .cloned()
-                .unwrap_or(Value::Null),
-        ),
-        "publishedOnCurrentPublication" => Some(Value::Bool(
-            published_on_current_publication.unwrap_or(false),
-        )),
-        "publishedOnPublication" => {
-            let publication_id = selection
-                .arguments
-                .get("publicationId")
-                .and_then(resolved_value_string)
-                .unwrap_or_default();
-            Some(Value::Bool(product_is_published_on_publication(
-                product,
-                &publication_id,
-            )))
-        }
-        "availablePublicationsCount" | "resourcePublicationsCount" => product
-            .extra_fields
-            .get(&selection.name)
-            .cloned()
-            .map(|value| selected_json(&value, &selection.selection))
-            .or_else(|| {
-                Some(selected_count_json(
-                    product_visible_publication_entries(product).len(),
-                    &selection.selection,
-                ))
-            }),
-        "publications" => product
-            .extra_fields
-            .get("publications")
-            .cloned()
-            .map(|value| selected_json(&value, &selection.selection))
-            .or_else(|| {
-                Some(product_publication_connection_json(
-                    product,
-                    &selection.selection,
-                ))
-            }),
-        "productPublications" => Some(product_publication_connection_json(
-            product,
-            &selection.selection,
-        )),
-        "resourcePublications" => Some(resource_publication_connection_json(
-            product,
-            "ResourcePublication",
-            &selection.selection,
-        )),
-        "resourcePublicationsV2" => product
-            .extra_fields
-            .get("resourcePublicationsV2")
-            .cloned()
-            .map(|value| selected_json(&value, &selection.selection))
-            .or_else(|| {
-                Some(resource_publication_connection_json(
-                    product,
-                    "ResourcePublicationV2",
-                    &selection.selection,
-                ))
-            }),
-        "resourcePublicationOnCurrentPublication" => Some(Value::Null),
-        _ => None,
-    }
 }
 
 /// The canonical `Publication` record the local publication engine stages and
@@ -3045,42 +2876,6 @@ impl DraftProxy {
     pub(in crate::proxy) fn next_product_updated_at(&self, current: &str) -> String {
         product_next_updated_at(current, self.mutation_log_ordinal() as u64)
     }
-
-    pub(in crate::proxy) fn product_json_with_variants_and_currency_context(
-        &self,
-        product: &ProductRecord,
-        variants: &[ProductVariantRecord],
-        selections: &[SelectedField],
-        currency_code: &str,
-    ) -> Value {
-        product_json_with_variants_and_currency_and_publication_context(
-            product,
-            variants,
-            selections,
-            currency_code,
-            Some(
-                self.store
-                    .product_is_published_on_current_publication(product),
-            ),
-        )
-    }
-
-    pub(in crate::proxy) fn product_variant_json_with_current_publication_context(
-        &self,
-        variant: &ProductVariantRecord,
-        product: Option<&ProductRecord>,
-        selections: &[SelectedField],
-    ) -> Value {
-        product_variant_json_with_publication_context(
-            variant,
-            product,
-            selections,
-            product.map(|product| {
-                self.store
-                    .product_is_published_on_current_publication(product)
-            }),
-        )
-    }
 }
 
 pub(in crate::proxy) fn product_root_fields_select_shop_currency_money(
@@ -3122,19 +2917,6 @@ fn product_selections_include_names(selections: &[SelectedField], names: &[&str]
 enum ProductPriceRangeKind {
     Current,
     Legacy,
-}
-
-fn product_price_range_json(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    selection: &SelectedField,
-    currency_code: &str,
-    kind: ProductPriceRangeKind,
-) -> Value {
-    selected_json(
-        &product_price_range_value(product, variants, currency_code, kind),
-        &selection.selection,
-    )
 }
 
 fn product_price_range_value(
@@ -3181,17 +2963,6 @@ fn product_raw_variant_price_bounds(variants: &[Value]) -> Option<(f64, f64)> {
     }))
 }
 
-fn product_variants_count_json(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    selection: &SelectedField,
-) -> Value {
-    selected_json(
-        &product_variants_count_value(product, variants),
-        &selection.selection,
-    )
-}
-
 fn product_variants_count_value(
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
@@ -3205,18 +2976,6 @@ fn product_variants_count_value(
         .get("variantsCount")
         .cloned()
         .unwrap_or_else(|| count_object(product.variants.len()))
-}
-
-fn product_compare_at_price_range_json(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    selection: &SelectedField,
-    currency_code: &str,
-) -> Value {
-    selected_json(
-        &product_compare_at_price_range_value(product, variants, currency_code),
-        &selection.selection,
-    )
 }
 
 fn product_compare_at_price_range_value(
@@ -3338,16 +3097,6 @@ fn product_price_range_money(
     })
 }
 
-fn product_collections_connection_json(
-    product: &ProductRecord,
-    selection: &SelectedField,
-) -> Value {
-    selected_json(
-        &product_collections_connection_value(product, &selection.arguments),
-        &selection.selection,
-    )
-}
-
 fn product_collections_connection_value(
     product: &ProductRecord,
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -3411,216 +3160,6 @@ pub(in crate::proxy) fn product_has_out_of_stock_variants(
         .iter()
         .filter(|variant| variant.inventory_item.tracked)
         .any(|variant| variant.inventory_quantity <= 0)
-}
-
-pub(in crate::proxy) fn product_json_with_variants_and_currency_and_publication_context(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    selections: &[SelectedField],
-    currency_code: &str,
-    published_on_current_publication: Option<bool>,
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("Product")),
-        "id" => Some(json!(product.id)),
-        "title" => Some(json!(product.title)),
-        "handle" => Some(json!(product.handle)),
-        "status" => Some(json!(product.status)),
-        "createdAt" => Some(json!(product.created_at)),
-        "updatedAt" => Some(json!(product.updated_at)),
-        "descriptionHtml" => Some(json!(product.description_html)),
-        "vendor" => Some(json!(product.vendor)),
-        "productType" => Some(json!(product.product_type)),
-        "tags" => Some(json!(product.tags)),
-        "legacyResourceId" => Some(json!(resource_id_tail(&product.id))),
-        // `Product.totalInventory` is a denormalized aggregate Shopify maintains lazily:
-        // variant/inventory-item quantities update immediately, but the product total can
-        // lag (notably after a 2025-01 `inventoryAdjustQuantities`, and for non-`available`
-        // quantity changes). The mutation handlers recompute and store it on the product
-        // record (`sync_product_total_inventory`) following the route-version contract, so
-        // the read path renders the stored value rather than recomputing live.
-        "totalInventory" => Some(json!(product.total_inventory)),
-        "tracksInventory" => Some(if variants.is_empty() {
-            json!(product.tracks_inventory)
-        } else {
-            json!(variants
-                .iter()
-                .any(|variant| variant.inventory_item.tracked))
-        }),
-        // Recomputed live from the effective variants: unlike `totalInventory`, Shopify
-        // keeps these structural aggregates in step with the current variant set.
-        "hasOnlyDefaultVariant" => Some(if variants.is_empty() {
-            product
-                .extra_fields
-                .get("hasOnlyDefaultVariant")
-                .cloned()
-                .unwrap_or(Value::Bool(true))
-        } else {
-            json!(product_has_only_default_variant(variants))
-        }),
-        "hasOutOfStockVariants" => Some(if variants.is_empty() {
-            product
-                .extra_fields
-                .get("hasOutOfStockVariants")
-                .cloned()
-                .unwrap_or(Value::Bool(false))
-        } else {
-            json!(product_has_out_of_stock_variants(variants))
-        }),
-        "totalVariants" => Some(if variants.is_empty() {
-            product
-                .extra_fields
-                .get("totalVariants")
-                .cloned()
-                .unwrap_or_else(|| json!(product.variants.len()))
-        } else {
-            json!(variants.len())
-        }),
-        "variantsCount" => Some(product_variants_count_json(product, variants, selection)),
-        "priceRangeV2" => Some(product_price_range_json(
-            product,
-            variants,
-            selection,
-            currency_code,
-            ProductPriceRangeKind::Current,
-        )),
-        "compareAtPriceRange" => Some(product_compare_at_price_range_json(
-            product,
-            variants,
-            selection,
-            currency_code,
-        )),
-        "priceRange" => Some(product_price_range_json(
-            product,
-            variants,
-            selection,
-            currency_code,
-            ProductPriceRangeKind::Legacy,
-        )),
-        "templateSuffix" => Some(
-            product
-                .extra_fields
-                .get("templateSuffix")
-                .cloned()
-                .unwrap_or_else(|| json!(product.template_suffix)),
-        ),
-        "seo" => Some(
-            product
-                .extra_fields
-                .get("seo")
-                .cloned()
-                .map(|value| nullable_selected_json(&value, &selection.selection))
-                .unwrap_or_else(|| product_seo_json(product, &selection.selection)),
-        ),
-        "onlineStorePreviewUrl" => Some(
-            product
-                .extra_fields
-                .get("onlineStorePreviewUrl")
-                .cloned()
-                .unwrap_or(Value::Null),
-        ),
-        "category" => Some(
-            product
-                .extra_fields
-                .get("category")
-                .map(|value| nullable_selected_json(value, &selection.selection))
-                .unwrap_or(Value::Null),
-        ),
-        "requiresSellingPlan" => Some(
-            product
-                .extra_fields
-                .get("requiresSellingPlan")
-                .cloned()
-                .unwrap_or(Value::Bool(false)),
-        ),
-        "isGiftCard" => Some(
-            product
-                .extra_fields
-                .get("isGiftCard")
-                .cloned()
-                .unwrap_or(Value::Bool(false)),
-        ),
-        "giftCardTemplateSuffix" => Some(
-            product
-                .extra_fields
-                .get("giftCardTemplateSuffix")
-                .cloned()
-                .unwrap_or(Value::Null),
-        ),
-        "options" => Some(Value::Array(
-            product
-                .extra_fields
-                .get("options")
-                .and_then(Value::as_array)
-                .map(|options| {
-                    options
-                        .iter()
-                        .map(|option| nullable_selected_json(option, &selection.selection))
-                        .collect()
-                })
-                .unwrap_or_default(),
-        )),
-        "variants" => Some(if variants.is_empty() {
-            selected_connection_json(product.variants.clone(), &selection.selection)
-        } else {
-            product_variant_connection_with_fallback_json(
-                product,
-                variants,
-                &product.variants,
-                &selection.arguments,
-                &selection.selection,
-            )
-        }),
-        "collections" => Some(product_collections_connection_json(product, selection)),
-        "media" => Some(product_media_connection_json(
-            product.media.clone(),
-            &selection.arguments,
-            &selection.selection,
-        )),
-        "images" => Some(product_image_connection_json(
-            product.media.clone(),
-            &selection.arguments,
-            &selection.selection,
-        )),
-        "featuredImage" => Some(product_featured_image_json(product, &selection.selection)),
-        "featuredMedia" => Some(product_featured_media_json(product, &selection.selection)),
-        "metafield" => Some(
-            product
-                .extra_fields
-                .get("metafield")
-                .cloned()
-                .unwrap_or(Value::Null),
-        ),
-        "metafields" => Some(
-            product
-                .extra_fields
-                .get("metafields")
-                .cloned()
-                .map(|value| selected_json(&value, &selection.selection))
-                .unwrap_or_else(|| selected_empty_connection_json(&selection.selection)),
-        ),
-        _ => product_publication_field_json(product, selection, published_on_current_publication)
-            .or_else(|| {
-                product
-                    .extra_fields
-                    .get(&selection.name)
-                    .cloned()
-                    .map(|value| nullable_selected_json(&value, &selection.selection))
-            }),
-    })
-}
-
-pub(in crate::proxy) fn product_variant_connection_with_fallback_json(
-    _product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    fallback_variants: &[Value],
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
-) -> Value {
-    selected_json(
-        &product_variant_connection_with_fallback_value(variants, fallback_variants, arguments),
-        selections,
-    )
 }
 
 fn product_variant_connection_with_fallback_value(
@@ -3698,83 +3237,6 @@ fn product_variant_connection_sort_key(
     }
 }
 
-pub(in crate::proxy) fn product_variant_json_with_publication_context(
-    variant: &ProductVariantRecord,
-    product: Option<&ProductRecord>,
-    selections: &[SelectedField],
-    published_on_current_publication: Option<bool>,
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("ProductVariant")),
-        "id" => Some(json!(variant.id)),
-        "title" => Some(json!(variant.title)),
-        // Shopify returns `null` (not an empty string) for a variant with no SKU.
-        "sku" => Some(if variant.sku.is_empty() {
-            Value::Null
-        } else {
-            json!(variant.sku)
-        }),
-        "barcode" => Some(match &variant.barcode {
-            Some(value) => json!(value),
-            None => Value::Null,
-        }),
-        "price" => Some(json!(variant.price)),
-        "compareAtPrice" => Some(match &variant.compare_at_price {
-            Some(value) => json!(value),
-            None => Value::Null,
-        }),
-        "taxable" => Some(json!(variant.taxable)),
-        "inventoryPolicy" => Some(json!(variant.inventory_policy)),
-        "inventoryQuantity" => Some(json!(variant.inventory_quantity)),
-        "selectedOptions" => Some(Value::Array(
-            variant
-                .selected_options
-                .iter()
-                .map(|option| {
-                    selected_json(
-                        &json!({ "name": option.name, "value": option.value }),
-                        &selection.selection,
-                    )
-                })
-                .collect(),
-        )),
-        "inventoryItem" => Some(
-            product_variant_inventory_item_json_with_publication_context(
-                variant,
-                product,
-                &selection.selection,
-                published_on_current_publication,
-            ),
-        ),
-        "product" => Some(match product {
-            Some(product) => product_json_with_variants_and_currency_and_publication_context(
-                product,
-                &[],
-                &selection.selection,
-                "USD",
-                published_on_current_publication,
-            ),
-            None => variant
-                .extra_fields
-                .get("product")
-                .map(|value| product_variant_extra_field_json(value, &selection.selection))
-                .unwrap_or(Value::Null),
-        }),
-        // A variant's `media` is the subset of the owning product's media library
-        // that has been attached to the variant (via productVariantAppendMedia),
-        // rendered in attachment order.
-        "media" => Some(product_media_connection_json(
-            variant_attached_media_nodes(variant, product),
-            &selection.arguments,
-            &selection.selection,
-        )),
-        _ => variant
-            .extra_fields
-            .get(&selection.name)
-            .map(|value| product_variant_extra_field_json(value, &selection.selection)),
-    })
-}
-
 /// Resolve a variant's attached `media_ids` against its owning product's media
 /// library, preserving attachment order. Falls back to any media nodes stashed
 /// in `extra_fields` when the product (library) is not available in this render
@@ -3799,17 +3261,6 @@ pub(in crate::proxy) fn variant_attached_media_nodes(
     }
 }
 
-fn product_media_connection_json(
-    media: Vec<Value>,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
-) -> Value {
-    selected_json(
-        &product_media_connection_value(media, arguments),
-        selections,
-    )
-}
-
 fn product_media_connection_value(
     media: Vec<Value>,
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -3831,17 +3282,6 @@ fn sorted_product_media_nodes_for_connection(
     )
 }
 
-fn product_image_connection_json(
-    media: Vec<Value>,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
-) -> Value {
-    selected_json(
-        &product_image_connection_value(media, arguments),
-        selections,
-    )
-}
-
 fn product_image_connection_value(
     media: Vec<Value>,
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -3851,22 +3291,6 @@ fn product_image_connection_value(
         .filter_map(product_image_json_from_media)
         .collect::<Vec<_>>();
     connection_value_with_args(images, arguments, value_id_cursor)
-}
-
-fn product_featured_image_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
-    let value = product
-        .media
-        .iter()
-        .find_map(product_image_json_from_media)
-        .unwrap_or(Value::Null);
-    selected_json(&value, selections)
-}
-
-fn product_featured_media_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
-    selected_json(
-        &product.media.first().cloned().unwrap_or(Value::Null),
-        selections,
-    )
 }
 
 pub(in crate::proxy) fn product_image_json_from_media(media: &Value) -> Option<Value> {
@@ -3964,67 +3388,6 @@ fn value_string_field_sort_key(value: &Value, field: &str) -> StagedSortKey {
 
 fn sort_string_value(value: impl AsRef<str>) -> StagedSortValue {
     StagedSortValue::String(value.as_ref().to_ascii_lowercase())
-}
-
-pub(in crate::proxy) fn product_variant_inventory_item_json_with_publication_context(
-    variant: &ProductVariantRecord,
-    product: Option<&ProductRecord>,
-    selections: &[SelectedField],
-    published_on_current_publication: Option<bool>,
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("InventoryItem")),
-        "id" => Some(json!(variant.inventory_item.id)),
-        "tracked" => Some(json!(variant.inventory_item.tracked)),
-        "requiresShipping" => Some(json!(variant.inventory_item.requires_shipping)),
-        "sku" => Some(if variant.sku.is_empty() {
-            Value::Null
-        } else {
-            json!(variant.sku)
-        }),
-        // Render the inventory item's backreference variant with its owning product so
-        // `inventoryItem(id:).variant.product` resolves rather than returning null.
-        "variant" => Some(product_variant_json_with_publication_context(
-            variant,
-            product,
-            &selection.selection,
-            published_on_current_publication,
-        )),
-        _ => variant
-            .inventory_item
-            .extra_fields
-            .get(&selection.name)
-            .map(|value| product_variant_extra_field_json(value, &selection.selection)),
-    })
-}
-
-pub(in crate::proxy) fn product_variant_extra_field_json(
-    value: &Value,
-    selections: &[SelectedField],
-) -> Value {
-    if selections.is_empty() || value.is_null() {
-        value.clone()
-    } else if let Some(values) = value.as_array() {
-        Value::Array(
-            values
-                .iter()
-                .map(|item| selected_json(item, selections))
-                .collect(),
-        )
-    } else {
-        selected_json(value, selections)
-    }
-}
-
-pub(in crate::proxy) fn product_seo_json(
-    product: &ProductRecord,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "title" => Some(json!(product.seo_title)),
-        "description" => Some(json!(product.seo_description)),
-        _ => None,
-    })
 }
 
 pub(in crate::proxy) fn product_variant_state_from_observed_json(

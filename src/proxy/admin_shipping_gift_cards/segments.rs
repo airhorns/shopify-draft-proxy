@@ -14,12 +14,6 @@ struct SegmentMutationInput {
     arguments: BTreeMap<String, ResolvedValue>,
 }
 
-impl DispatchField for SegmentReadRootInput {
-    fn response_key(&self) -> &str {
-        &self.response_key
-    }
-}
-
 pub(in crate::proxy) fn segment_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
     ["Segment", "CustomerSegmentMembersQuery"]
         .into_iter()
@@ -99,12 +93,7 @@ impl DraftProxy {
             self.observe_upstream_segment_read_data(fields, &body);
             upstream_body = Some(body);
         }
-        let mut data = self.segment_read_data(fields, upstream_body.as_ref());
-        let value = data
-            .as_object_mut()
-            .and_then(|data| data.remove(response_key))
-            .unwrap_or(Value::Null);
-        ResolverOutcome::value(value)
+        ResolverOutcome::value(self.segment_read_value(&field, upstream_body.as_ref()))
     }
 
     fn segment_read_needs_upstream_data(&self, fields: &[SegmentReadRootInput]) -> bool {
@@ -149,35 +138,33 @@ impl DraftProxy {
         }
     }
 
-    fn segment_read_data(
+    fn segment_read_value(
         &self,
-        fields: &[SegmentReadRootInput],
+        field: &SegmentReadRootInput,
         upstream_body: Option<&Value>,
     ) -> Value {
-        selected_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "segment" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .segment_by_id(&id)
-                        .cloned()
-                        .unwrap_or(Value::Null)
-                }
-                "segments" => {
-                    let records = self.segment_overlay_records(field, upstream_body);
-                    staged_connection_value_with_args(
-                        records,
-                        &field.arguments,
-                        segment_overlay_search_decision,
-                        segment_staged_sort_key,
-                        Value::clone,
-                        value_id_cursor,
-                    )
-                }
-                "segmentsCount" => self.segment_count_field(field, upstream_body),
-                _ => return None,
-            })
-        })
+        match field.name.as_str() {
+            "segment" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                self.store
+                    .segment_by_id(&id)
+                    .cloned()
+                    .unwrap_or(Value::Null)
+            }
+            "segments" => {
+                let records = self.segment_overlay_records(field, upstream_body);
+                staged_connection_value_with_args(
+                    records,
+                    &field.arguments,
+                    segment_overlay_search_decision,
+                    segment_staged_sort_key,
+                    Value::clone,
+                    value_id_cursor,
+                )
+            }
+            "segmentsCount" => self.segment_count_field(field, upstream_body),
+            _ => Value::Null,
+        }
     }
 
     fn segment_overlay_records(

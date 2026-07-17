@@ -409,6 +409,30 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        let shared_catalog_read = self.config.read_mode == ReadMode::LiveHybrid
+            && invocation.operation_root_names.len() > 1
+            && invocation.operation_root_names.iter().all(|root| {
+                matches!(
+                    root.as_str(),
+                    "order"
+                        | "orders"
+                        | "ordersCount"
+                        | "draftOrder"
+                        | "draftOrders"
+                        | "draftOrdersCount"
+                )
+            });
+        if shared_catalog_read {
+            let result = self.cached_or_forward_upstream_graphql_result(
+                invocation.request,
+                invocation.response_key,
+            );
+            if !result.transport_succeeded {
+                return result.outcome;
+            }
+            self.observe_order_read_data(invocation.request, &result.data);
+            self.observe_draft_order_read_data(invocation.request, &result.data);
+        }
         let RootInvocation {
             response_key,
             request,

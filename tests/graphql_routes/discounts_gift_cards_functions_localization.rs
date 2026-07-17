@@ -11476,24 +11476,38 @@ fn gift_card_live_hybrid_cold_reads_forward_upstream_without_local_overlay() {
                 body: json!({
                     "data": {
                         "card": {
-                            "id": upstream_id,
-                            "note": "real upstream note",
-                            "balance": { "amount": "25.0", "currencyCode": "USD" }
+                            "cardId": upstream_id,
+                            "cardNote": "real upstream note",
+                            "active": true,
+                            "originalValue": {
+                                "initialAmount": "25.0",
+                                "initialCurrency": "USD"
+                            },
+                            "cardBalance": {
+                                "balanceAmount": "25.0",
+                                "balanceCurrency": "USD"
+                            }
                         },
                         "cards": {
-                        "nodes": [{
-                            "id": upstream_id,
-                            "note": "real upstream note"
-                        }],
-                        "pageInfo": {
-                            "hasNextPage": false,
-                            "hasPreviousPage": false
-                        }
+                            "cardNodes": [{
+                                "nodeId": upstream_id,
+                                "nodeNote": "real upstream note"
+                            }],
+                            "connectionPageInfo": {
+                                "next": false,
+                                "previous": false
+                            }
                         },
-                        "count": { "count": 1, "precision": "EXACT" },
+                        "count": { "total": 1, "accuracy": "EXACT" },
                         "configuration": {
-                            "issueLimit": { "amount": "3000.0", "currencyCode": "USD" },
-                            "purchaseLimit": { "amount": "14000.0", "currencyCode": "USD" }
+                            "issue": {
+                                "issueAmount": "3000.0",
+                                "issueCurrency": "USD"
+                            },
+                            "purchase": {
+                                "purchaseAmount": "14000.0",
+                                "purchaseCurrency": "USD"
+                            }
                         }
                     }
                 }),
@@ -11502,10 +11516,34 @@ fn gift_card_live_hybrid_cold_reads_forward_upstream_without_local_overlay() {
 
     let response = proxy.process_request(json_graphql_request(
         r#"query GiftCardColdRead($id: ID!) {
-          card: giftCard(id: $id) { id note balance { amount currencyCode } }
-          cards: giftCards(first: 10) { nodes { id note } pageInfo { hasNextPage hasPreviousPage } }
-          count: giftCardsCount { count precision }
-          configuration: giftCardConfiguration { issueLimit { amount currencyCode } purchaseLimit { amount currencyCode } }
+          card: giftCard(id: $id) {
+            cardId: id
+            cardNote: note
+            active: enabled
+            originalValue: initialValue {
+              initialAmount: amount
+              initialCurrency: currencyCode
+            }
+            cardBalance: balance {
+              balanceAmount: amount
+              balanceCurrency: currencyCode
+            }
+          }
+          cards: giftCards(first: 10) {
+            cardNodes: nodes { nodeId: id nodeNote: note }
+            connectionPageInfo: pageInfo {
+              next: hasNextPage
+              previous: hasPreviousPage
+            }
+          }
+          count: giftCardsCount { total: count accuracy: precision }
+          configuration: giftCardConfiguration {
+            issue: issueLimit { issueAmount: amount issueCurrency: currencyCode }
+            purchase: purchaseLimit {
+              purchaseAmount: amount
+              purchaseCurrency: currencyCode
+            }
+          }
         }"#,
         json!({ "id": upstream_id }),
     ));
@@ -11515,13 +11553,21 @@ fn gift_card_live_hybrid_cold_reads_forward_upstream_without_local_overlay() {
     assert_eq!(
         response.body["data"]["card"],
         json!({
-            "id": upstream_id,
-            "note": "real upstream note",
-            "balance": { "amount": "25.0", "currencyCode": "USD" }
+            "cardId": upstream_id,
+            "cardNote": "real upstream note",
+            "active": true,
+            "originalValue": {
+                "initialAmount": "25.0",
+                "initialCurrency": "USD"
+            },
+            "cardBalance": {
+                "balanceAmount": "25.0",
+                "balanceCurrency": "USD"
+            }
         })
     );
     assert_eq!(
-        response.body["data"]["cards"]["nodes"]
+        response.body["data"]["cards"]["cardNodes"]
             .as_array()
             .unwrap()
             .len(),
@@ -11529,11 +11575,45 @@ fn gift_card_live_hybrid_cold_reads_forward_upstream_without_local_overlay() {
     );
     assert_eq!(
         response.body["data"]["count"],
-        json!({ "count": 1, "precision": "EXACT" })
+        json!({ "total": 1, "accuracy": "EXACT" })
     );
     assert_eq!(
-        response.body["data"]["configuration"]["issueLimit"]["currencyCode"],
+        response.body["data"]["configuration"]["issue"]["issueCurrency"],
         json!("USD")
+    );
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let canonical_read = restored.process_request(json_graphql_request(
+        r#"query GiftCardCanonicalRead($id: ID!) {
+          giftCard(id: $id) {
+            id
+            note
+            enabled
+            initialValue { amount currencyCode }
+            balance { amount currencyCode }
+          }
+        }"#,
+        json!({ "id": upstream_id }),
+    ));
+
+    assert_eq!(canonical_read.status, 200);
+    assert_eq!(*hits.lock().unwrap(), 1);
+    assert_eq!(
+        canonical_read.body["data"]["giftCard"],
+        json!({
+            "id": upstream_id,
+            "note": "real upstream note",
+            "enabled": true,
+            "initialValue": { "amount": "25.0", "currencyCode": "USD" },
+            "balance": { "amount": "25.0", "currencyCode": "USD" }
+        })
     );
 }
 

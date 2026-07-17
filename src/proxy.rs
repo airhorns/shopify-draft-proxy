@@ -102,7 +102,6 @@ pub(in crate::proxy) struct LegacyGraphqlDispatch<'a> {
     pub variables: &'a BTreeMap<String, ResolvedValue>,
     pub operation_type: OperationType,
     pub root_fields: &'a [String],
-    pub root_selections: &'a [RootFieldSelection],
     pub root_field: &'a str,
 }
 
@@ -2479,9 +2478,10 @@ struct ExecutionSession {
     discount_refs_preflighted: bool,
     owner_metafield_hydrated_ids: BTreeSet<String>,
     upstream_query_response: Option<Response>,
+    upstream_query_data: Option<Value>,
+    upstream_query_selections: BTreeMap<String, Vec<SelectedField>>,
     localization_context_preflighted: bool,
     markets_query_preflighted: bool,
-    mixed_discount_local_read: bool,
     node_hydration: Option<RequestNodeHydration>,
     entity_cache: RequestEntityCache,
 }
@@ -2579,7 +2579,6 @@ mod resource_ids;
 mod routing;
 mod scalar_helpers;
 mod search;
-mod selection;
 mod selling_plans;
 mod store_properties;
 mod storefront;
@@ -2619,7 +2618,6 @@ pub(in crate::proxy) use self::resolved_values::*;
 pub(in crate::proxy) use self::resource_ids::*;
 pub(in crate::proxy) use self::routing::*;
 pub(in crate::proxy) use self::scalar_helpers::*;
-pub(in crate::proxy) use self::selection::*;
 pub(in crate::proxy) use self::store_properties::*;
 pub(in crate::proxy) use self::validation_helpers::*;
 

@@ -265,20 +265,8 @@ impl DraftProxy {
             variables,
             operation_type,
             root_fields,
-            root_selections,
             root_field,
         } = dispatch;
-        if operation_type == OperationType::Query
-            && self.has_staged_url_redirects()
-            && root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "urlRedirect" | "urlRedirects" | "urlRedirectsCount"
-                )
-            })
-        {
-            return ok_json(json!({ "data": self.url_redirect_query_data(root_selections) }));
-        }
         match operation_type {
             OperationType::Mutation
                 if self.config.unsupported_mutation_mode

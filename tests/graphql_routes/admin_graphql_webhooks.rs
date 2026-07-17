@@ -949,7 +949,7 @@ fn unknown_mutation_passthrough_observability_and_reject_mode_are_preserved() {
 }
 
 #[test]
-fn url_redirect_reads_are_unimplemented_passthrough_roots() {
+fn url_redirect_reads_forward_without_local_state_and_resolve_empty_in_snapshot() {
     let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
     let forwarded_capture = Arc::clone(&forwarded);
     let mut live_hybrid =
@@ -1011,10 +1011,22 @@ fn url_redirect_reads_are_unimplemented_passthrough_roots() {
     let mut snapshot = snapshot_proxy();
     let snapshot_response =
         snapshot.process_request(json_graphql_request(query, json!({ "query": "path:/old" })));
-    assert_eq!(snapshot_response.status, 400);
+    assert_eq!(snapshot_response.status, 200);
     assert_eq!(
-        snapshot_response.body,
-        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: urlRedirects" }] })
+        snapshot_response.body["data"]["urlRedirects"],
+        json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+    assert_eq!(
+        snapshot_response.body["data"]["urlRedirectsCount"],
+        json!({ "count": 0, "precision": "EXACT" })
     );
 
     let mut count_only = snapshot_proxy();
@@ -1024,10 +1036,10 @@ fn url_redirect_reads_are_unimplemented_passthrough_roots() {
         }"#,
         json!({ "query": "target:/new" }),
     ));
-    assert_eq!(count_only_response.status, 400);
+    assert_eq!(count_only_response.status, 200);
     assert_eq!(
-        count_only_response.body,
-        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: urlRedirectsCount" }] })
+        count_only_response.body["data"]["urlRedirectsCount"],
+        json!({ "count": 0, "precision": "EXACT" })
     );
 }
 

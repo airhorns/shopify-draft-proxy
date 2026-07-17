@@ -11,12 +11,6 @@ struct FunctionRootInput {
     arguments: BTreeMap<String, ResolvedValue>,
 }
 
-impl DispatchField for FunctionRootInput {
-    fn response_key(&self) -> &str {
-        &self.response_key
-    }
-}
-
 pub(in crate::proxy) fn function_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
     [
         "CartTransform",
@@ -51,6 +45,10 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        let operation_roots = invocation.operation_roots.clone();
+        let operation_has_local_overlay = operation_roots
+            .iter()
+            .any(|root| self.function_root_has_local_overlay(&root.name));
         let RootInvocation {
             response_key,
             root_name,
@@ -71,16 +69,20 @@ impl DraftProxy {
         // requested family intersects observed or staged state, hydrate that
         // family and render the effective local overlay.
         if self.config.read_mode != ReadMode::Snapshot
+            && !operation_has_local_overlay
             && !self.function_root_has_local_overlay(&field.name)
         {
-            let outcome = self.cached_or_forward_upstream_root_outcome(request, response_key);
-            if outcome.errors.is_empty() {
-                self.hydrate_function_metadata_from_response_data(&json!({
-                    (response_key): outcome.value.clone()
-                }));
-                self.mark_function_read_root_hydrated(&field.name, &field.arguments);
+            let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+            if result.outcome.errors.is_empty() {
+                self.hydrate_function_metadata_from_response_data(&result.data);
+                for root in &operation_roots {
+                    self.mark_function_read_root_hydrated(
+                        &root.name,
+                        &resolved_arguments_from_json(&root.arguments),
+                    );
+                }
             }
-            return outcome;
+            return result.outcome;
         }
         if self.config.read_mode != ReadMode::Snapshot {
             self.hydrate_function_read_root(request, &field.name, &field.arguments);
@@ -732,15 +734,6 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn mark_function_read_fields_hydrated(
-        &mut self,
-        fields: &[RootFieldSelection],
-    ) {
-        for field in fields {
-            self.mark_function_read_root_hydrated(&field.name, &field.arguments);
-        }
-    }
-
     fn mark_function_read_root_hydrated(
         &mut self,
         root_name: &str,
@@ -824,15 +817,6 @@ impl DraftProxy {
             }
             _ => {}
         }
-    }
-
-    pub(in crate::proxy) fn function_read_has_local_overlay(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> bool {
-        fields
-            .iter()
-            .any(|field| self.function_root_has_local_overlay(&field.name))
     }
 
     fn function_root_has_local_overlay(&self, root_name: &str) -> bool {

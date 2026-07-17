@@ -22,13 +22,6 @@ pub(in crate::proxy) fn count_object(count: impl serde::Serialize) -> Value {
     count_object_with_precision(count, "EXACT")
 }
 
-pub(in crate::proxy) fn selected_count_json(
-    count: impl serde::Serialize,
-    selections: &[SelectedField],
-) -> Value {
-    selected_json(&count_object(count), selections)
-}
-
 pub(in crate::proxy) fn count_object_with_precision(
     count: impl serde::Serialize,
     precision: &str,
@@ -91,16 +84,6 @@ where
 /// `first` argument when the seed carries more than was asked for. The seed already
 /// reflects the recorded page (cursors + pageInfo), so its `pageInfo` is preserved
 /// verbatim — this is for catalog roots whose cursors cannot be re-derived locally.
-pub(in crate::proxy) fn project_seeded_connection(
-    connection: &Value,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
-) -> Value {
-    selected_json(&seeded_connection_value(connection, arguments), selections)
-}
-
-/// Canonical seeded-connection counterpart used by real field resolvers. The
-/// recorded cursors and pageInfo remain authoritative while the requested
 /// first-page cap is applied before the GraphQL engine projects the result.
 pub(in crate::proxy) fn seeded_connection_value(
     connection: &Value,
@@ -224,13 +207,6 @@ where
     json!({ "nodes": nodes, "edges": edges, "pageInfo": page_info })
 }
 
-pub(in crate::proxy) fn selected_connection_json(
-    nodes: Vec<Value>,
-    selections: &[SelectedField],
-) -> Value {
-    selected_json(&connection_json(nodes), selections)
-}
-
 pub(in crate::proxy) fn connection_value_with_args<F>(
     mut nodes: Vec<Value>,
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -244,71 +220,6 @@ where
     }
     let (nodes, page_info) = connection_window(&nodes, arguments, &mut cursor_for);
     connection_json_with_cursor(nodes, |_, node| cursor_for(node), page_info)
-}
-
-pub(in crate::proxy) fn selected_empty_connection_json(selections: &[SelectedField]) -> Value {
-    selected_connection_json(Vec::new(), selections)
-}
-
-pub(in crate::proxy) fn selected_typed_connection<T, NodeJson, Cursor, PageInfo>(
-    records: &[T],
-    root_selection: &[SelectedField],
-    node_json: NodeJson,
-    cursor: Cursor,
-    page_info: PageInfo,
-) -> Value
-where
-    NodeJson: Fn(&T, &[SelectedField]) -> Value,
-    Cursor: Fn(&T) -> String,
-    PageInfo: Fn(&[SelectedField]) -> Value,
-{
-    let node_selection = nested_selected_fields(root_selection, &["nodes"]);
-    let edge_node_selection = nested_selected_fields(root_selection, &["edges", "node"]);
-    let page_info_selection = nested_selected_fields(root_selection, &["pageInfo"]);
-    let mut connection = serde_json::Map::new();
-    for selection in root_selection {
-        let value = match selection.name.as_str() {
-            "nodes" => Some(Value::Array(
-                records
-                    .iter()
-                    .map(|record| node_json(record, &node_selection))
-                    .collect(),
-            )),
-            "edges" => Some(Value::Array(
-                records
-                    .iter()
-                    .map(|record| {
-                        json!({
-                            "cursor": cursor(record),
-                            "node": node_json(record, &edge_node_selection)
-                        })
-                    })
-                    .collect(),
-            )),
-            "pageInfo" => Some(page_info(&page_info_selection)),
-            _ => None,
-        };
-        if let Some(value) = value {
-            connection.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(connection)
-}
-
-pub(in crate::proxy) fn selected_typed_connection_with_page_info<T, NodeJson, Cursor>(
-    records: &[T],
-    root_selection: &[SelectedField],
-    node_json: NodeJson,
-    cursor: Cursor,
-    page_info: Value,
-) -> Value
-where
-    NodeJson: Fn(&T, &[SelectedField]) -> Value,
-    Cursor: Fn(&T) -> String,
-{
-    selected_typed_connection(records, root_selection, node_json, cursor, |selections| {
-        selected_json(&page_info, selections)
-    })
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]

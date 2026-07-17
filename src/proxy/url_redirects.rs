@@ -1,36 +1,59 @@
 use super::*;
 
+pub(in crate::proxy) fn url_redirect_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy>
+{
+    ["UrlRedirect", "UrlRedirectConnection", "UrlRedirectEdge"]
+        .into_iter()
+        .map(|parent_type| {
+            FieldResolverTypePolicy::property_backed_ordinary_fields(
+                ApiSurface::Admin,
+                parent_type,
+                "argument-bearing URL redirect field has no explicit canonical resolver",
+            )
+        })
+        .collect()
+}
+
 impl DraftProxy {
-    pub(in crate::proxy) fn has_staged_url_redirects(&self) -> bool {
-        !self.store.staged.url_redirects.is_empty()
+    pub(crate) fn url_redirect_query_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        if self.config.read_mode != ReadMode::Snapshot && !self.has_staged_url_redirects() {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let value = match invocation.root_name {
+            "urlRedirect" => {
+                let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+                self.store
+                    .staged
+                    .url_redirects
+                    .get(&id)
+                    .cloned()
+                    .unwrap_or(Value::Null)
+            }
+            "urlRedirects" => self.url_redirect_connection_resolved_value(&arguments),
+            "urlRedirectsCount" => {
+                let result = staged_connection_query(
+                    self.url_redirect_records(),
+                    &arguments,
+                    url_redirect_search_decision,
+                    url_redirect_sort_key,
+                    value_id_cursor,
+                );
+                count_object(result.total_count)
+            }
+            _ => Value::Null,
+        };
+        ResolverOutcome::value(value)
     }
 
-    pub(in crate::proxy) fn url_redirect_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "urlRedirect" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .staged
-                        .url_redirects
-                        .get(&id)
-                        .map(|redirect| selected_json(redirect, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "urlRedirects" => self.url_redirect_connection(field),
-                "urlRedirectsCount" => {
-                    let result = staged_connection_query(
-                        self.url_redirect_records(),
-                        &field.arguments,
-                        url_redirect_search_decision,
-                        url_redirect_sort_key,
-                        value_id_cursor,
-                    );
-                    selected_count_json(result.total_count, &field.selection)
-                }
-                _ => Value::Null,
-            })
-        })
+    pub(in crate::proxy) fn has_staged_url_redirects(&self) -> bool {
+        !self.store.staged.url_redirects.is_empty()
     }
 
     fn url_redirect_records(&self) -> Vec<Value> {
@@ -50,23 +73,6 @@ impl DraftProxy {
         records
     }
 
-    fn url_redirect_connection(&self, field: &RootFieldSelection) -> Value {
-        let result = staged_connection_query(
-            self.url_redirect_records(),
-            &field.arguments,
-            url_redirect_search_decision,
-            url_redirect_sort_key,
-            value_id_cursor,
-        );
-        selected_typed_connection_with_page_info(
-            &result.records,
-            &field.selection,
-            selected_json,
-            value_id_cursor,
-            result.page_info,
-        )
-    }
-
     pub(in crate::proxy) fn url_redirect_connection_value(
         &self,
         arguments: &BTreeMap<String, Value>,
@@ -75,9 +81,16 @@ impl DraftProxy {
             .iter()
             .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
             .collect();
+        self.url_redirect_connection_resolved_value(&arguments)
+    }
+
+    fn url_redirect_connection_resolved_value(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
         let result = staged_connection_query(
             self.url_redirect_records(),
-            &arguments,
+            arguments,
             url_redirect_search_decision,
             url_redirect_sort_key,
             value_id_cursor,

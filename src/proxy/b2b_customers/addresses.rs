@@ -10,7 +10,7 @@ impl DraftProxy {
     /// HEAD stores customer addresses *inline* on the staged customer record at
     /// `addressesV2.nodes` / `defaultAddress`; these handlers operate directly on
     /// that inline model so reads (`customer`, `customerByIdentifier`) reflect
-    /// every mutation via the same `selected_json` path. Address ids are minted
+    /// every mutation through the same canonical address path. Address ids are minted
     /// from the shared synthetic counter (`next_proxy_synthetic_gid`) so they are
     /// globally unique across customers — this is what lets cross-owner address
     /// references resolve to "Address does not exist" rather than colliding with a
@@ -257,7 +257,7 @@ impl DraftProxy {
         let customer_id = resolved_string_field(arguments, "customerId").unwrap_or_default();
         let address_id = resolved_string_field(arguments, "addressId").unwrap_or_default();
         // Return the full staged customer record; the field's `customer`
-        // sub-selection is applied by `selected_json` at the call site.
+        // sub-selection is applied by the GraphQL executor at the call site.
         let render_customer = |me: &Self| {
             me.store
                 .staged

@@ -3269,34 +3269,6 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn b2b_query_has_staged_match(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> bool {
-        fields.iter().any(|field| match field.name.as_str() {
-            "company" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
-                self.store.staged.b2b_companies.contains_key(&id)
-                    || self.store.staged.deleted_b2b_company_ids.contains(&id)
-            }),
-            "companyContact" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
-                self.store.staged.b2b_contacts.contains_key(&id)
-                    || self.store.staged.deleted_b2b_contact_ids.contains(&id)
-            }),
-            "companyLocation" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
-                self.store.staged.b2b_locations.contains_key(&id)
-                    || self.store.staged.b2b_locations.is_tombstoned(&id)
-            }),
-            "companyLocations" => !self.store.staged.b2b_locations.is_empty(),
-            // Cold LiveHybrid company connection/count reads must keep forwarding
-            // upstream so real store companies are not masked by an empty local graph.
-            "companies" | "companiesCount" => {
-                !self.store.staged.b2b_companies.is_empty()
-                    || !self.store.staged.deleted_b2b_company_ids.is_empty()
-            }
-            _ => false,
-        })
-    }
-
     fn b2b_root_has_staged_match(&self, field: &B2bRootInput) -> bool {
         match field.name.as_str() {
             "company" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
@@ -3318,15 +3290,6 @@ impl DraftProxy {
             }
             _ => false,
         }
-    }
-
-    pub(in crate::proxy) fn b2b_query_has_catalog_root(fields: &[RootFieldSelection]) -> bool {
-        fields.iter().any(|field| {
-            matches!(
-                field.name.as_str(),
-                "companies" | "companiesCount" | "companyLocations"
-            )
-        })
     }
 
     fn hydrate_b2b_base_from_root_data(&mut self, field: &B2bRootInput, data: &Value) {

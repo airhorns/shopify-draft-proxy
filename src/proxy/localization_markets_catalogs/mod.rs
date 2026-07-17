@@ -15,12 +15,6 @@ pub(in crate::proxy) struct MarketsRootInput {
     arguments: BTreeMap<String, ResolvedValue>,
 }
 
-impl DispatchField for MarketsRootInput {
-    fn response_key(&self) -> &str {
-        &self.response_key
-    }
-}
-
 pub(in crate::proxy) use self::localization::localization_field_resolver_registrations;
 pub(in crate::proxy) use self::markets::{
     markets_field_resolver_registrations, markets_field_resolver_type_policies,

@@ -14,12 +14,6 @@ struct MarketingRootInput {
     arguments: BTreeMap<String, ResolvedValue>,
 }
 
-impl DispatchField for MarketingRootInput {
-    fn response_key(&self) -> &str {
-        &self.response_key
-    }
-}
-
 pub(in crate::proxy) fn marketing_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
     [
         "MarketingActivity",
@@ -58,7 +52,7 @@ impl DraftProxy {
             response_key: response_key.to_string(),
             arguments: resolved_arguments_from_json(&arguments),
         };
-        self.marketing_query_outcome(request, std::slice::from_ref(&field), response_key)
+        self.marketing_query_outcome(request, &field)
     }
 
     pub(crate) fn marketing_mutation_root(
@@ -77,8 +71,7 @@ impl DraftProxy {
             response_key: response_key.to_string(),
             arguments: resolved_arguments_from_json(&arguments),
         };
-        let (outcome, staged_ids) =
-            self.marketing_mutation_outcome(std::slice::from_ref(&field), request, response_key);
+        let (outcome, staged_ids) = self.marketing_mutation_outcome(&field, request);
         if staged_ids.is_empty() {
             outcome
         } else {

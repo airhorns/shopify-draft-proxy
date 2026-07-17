@@ -206,7 +206,8 @@ impl DraftProxy {
         request: Option<&Request>,
     ) -> Option<Value> {
         let mut missing_required = false;
-        let data = root_payload_json(fields, |field| {
+        let mut data = serde_json::Map::new();
+        for field in fields {
             let value = match field.name.as_str() {
                 "node" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -220,7 +221,7 @@ impl DraftProxy {
                         }
                         NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => {
                             missing_required = true;
-                            return None;
+                            continue;
                         }
                     }
                 }
@@ -247,11 +248,11 @@ impl DraftProxy {
                             Vec::new()
                         }),
                 ),
-                _ => return None,
+                _ => continue,
             };
-            Some(value)
-        });
-        (!missing_required).then_some(data)
+            data.insert(field.response_key.clone(), value);
+        }
+        (!missing_required).then_some(Value::Object(data))
     }
 
     pub(in crate::proxy) fn node_query_data_with_upstream_fallback(
@@ -260,12 +261,13 @@ impl DraftProxy {
         upstream_body: &Value,
         request: Option<&Request>,
     ) -> Value {
-        root_payload_json(fields, |field| {
+        let mut data = serde_json::Map::new();
+        for field in fields {
             let upstream = upstream_body
                 .get("data")
                 .and_then(Value::as_object)
                 .and_then(|data| data.get(&field.response_key));
-            match field.name.as_str() {
+            let value = match field.name.as_str() {
                 "node" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     let value = match self.node_load_state(&id, request) {
@@ -276,7 +278,7 @@ impl DraftProxy {
                         }
                     };
                     self.cache_admin_entity_value(&id, &value);
-                    Some(value)
+                    value
                 }
                 "nodes" => {
                     let upstream_nodes = upstream.and_then(Value::as_array);
@@ -302,11 +304,13 @@ impl DraftProxy {
                     for (id, value) in ids.iter().zip(&values) {
                         self.cache_admin_entity_value(id, value);
                     }
-                    Some(Value::Array(values))
+                    Value::Array(values)
                 }
-                _ => upstream.cloned(),
-            }
-        })
+                _ => upstream.cloned().unwrap_or(Value::Null),
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
     }
 
     pub(in crate::proxy) fn request_entity_load_state(

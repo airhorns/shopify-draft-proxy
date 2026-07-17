@@ -414,6 +414,7 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        let operation_roots = invocation.operation_roots.clone();
         let RootInvocation {
             response_key,
             request,
@@ -425,13 +426,13 @@ impl DraftProxy {
         let arguments = resolved_arguments_from_json(&arguments);
         if self.config.read_mode == ReadMode::LiveHybrid
             && !self.execution_session.markets_query_preflighted
-            && self.markets_root_should_fetch_upstream(root_name, &arguments)
+            && self.markets_operation_should_fetch_upstream(&operation_roots)
         {
             let had_markets_overlay_state = self.has_markets_overlay_state();
             let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
             if result.transport_succeeded {
                 let body = json!({ "data": result.data });
-                self.hydrate_markets_from_upstream_root(&body, root_name, response_key, &arguments);
+                self.hydrate_markets_from_upstream_roots(&body, &operation_roots);
                 self.hydrate_localization_from_upstream(&body);
             }
             self.execution_session.markets_query_preflighted = true;
@@ -1342,7 +1343,7 @@ impl DraftProxy {
 
     /// Snapshot of every staged market's id -> name. Used to denormalize names
     /// into a catalog's `markets` connection nodes, which are projected directly
-    /// from the stored catalog by `selected_json`. Resolving from the live market
+    /// from the stored catalog by the GraphQL executor. Resolving from the live market
     /// registry (rather than fabricating) keeps the connection faithful to the
     /// markets the backend actually has.
     pub(in crate::proxy) fn staged_market_names(&self) -> BTreeMap<String, String> {
@@ -1502,6 +1503,25 @@ impl DraftProxy {
         }
     }
 
+    fn markets_operation_should_fetch_upstream(
+        &self,
+        roots: &[crate::resolver_registry::OperationRootInvocation],
+    ) -> bool {
+        let plural_localizable_state_selected = roots
+            .iter()
+            .any(|root| root.name == "marketLocalizableResources")
+            && self.has_market_localizable_resource_state();
+        roots.iter().any(|root| {
+            let arguments = resolved_arguments_from_json(&root.arguments);
+            if root.name == "marketLocalizableResourcesByIds" {
+                !plural_localizable_state_selected
+                    && self.market_localizable_resources_by_ids_should_fetch_upstream(&arguments)
+            } else {
+                self.markets_root_should_fetch_upstream(&root.name, &arguments)
+            }
+        })
+    }
+
     fn markets_field_should_fetch_upstream(
         &self,
         field: &RootFieldSelection,
@@ -1637,6 +1657,89 @@ impl DraftProxy {
                     .insert(markets_hydration_scope_key(family, arguments));
             }
         }
+    }
+
+    fn hydrate_markets_from_upstream_roots(
+        &mut self,
+        body: &Value,
+        roots: &[crate::resolver_registry::OperationRootInvocation],
+    ) {
+        for root in roots {
+            self.hydrate_markets_from_upstream_root(
+                body,
+                &root.name,
+                &root.response_key,
+                &resolved_arguments_from_json(&root.arguments),
+            );
+        }
+        self.stage_markets_upstream_counts_from_roots(body, roots);
+    }
+
+    fn stage_markets_upstream_counts_from_roots(
+        &mut self,
+        body: &Value,
+        roots: &[crate::resolver_registry::OperationRootInvocation],
+    ) {
+        let Some(data) = body.get("data").and_then(Value::as_object) else {
+            return;
+        };
+        for root in roots.iter().filter(|root| root.name == "catalogsCount") {
+            let Some(count) = data
+                .get(&root.response_key)
+                .and_then(|value| value.get("count"))
+                .and_then(Value::as_u64)
+            else {
+                continue;
+            };
+            let precision = data
+                .get(&root.response_key)
+                .and_then(|value| value.get("precision"))
+                .and_then(Value::as_str)
+                .unwrap_or("EXACT");
+            let arguments = resolved_arguments_from_json(&root.arguments);
+            let represented_created = if precision == "EXACT" {
+                self.created_catalogs_represented_in_upstream_roots(data, roots, &arguments) as u64
+            } else {
+                0
+            };
+            let key = markets_hydration_scope_key("catalogs", &arguments);
+            self.store.staged.markets_upstream_counts.insert(
+                key,
+                count_object_with_precision(count.saturating_sub(represented_created), precision),
+            );
+        }
+    }
+
+    fn created_catalogs_represented_in_upstream_roots(
+        &self,
+        data: &serde_json::Map<String, Value>,
+        roots: &[crate::resolver_registry::OperationRootInvocation],
+        count_arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> usize {
+        let type_filter = resolved_string_field(count_arguments, "type");
+        let query = resolved_string_field(count_arguments, "query");
+        roots
+            .iter()
+            .filter(|root| root.name == "catalog")
+            .filter_map(|root| {
+                let arguments = resolved_arguments_from_json(&root.arguments);
+                let id = resolved_string_field(&arguments, "id")?;
+                let catalog = self.store.staged.catalogs.get(&id)?;
+                if !self.store.staged.created_catalog_ids.contains(&id) {
+                    return None;
+                }
+                if !matches!(
+                    catalog_search_decision(catalog, query.as_deref(), type_filter.as_deref()),
+                    StagedSearchDecision::Match
+                ) {
+                    return None;
+                }
+                data.get(&root.response_key)
+                    .filter(|value| value.is_object())
+                    .map(|_| id)
+            })
+            .collect::<BTreeSet<_>>()
+            .len()
     }
 
     fn stage_markets_upstream_counts_from_fields(

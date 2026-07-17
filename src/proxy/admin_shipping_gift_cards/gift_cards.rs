@@ -81,6 +81,7 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        let operation_roots = invocation.operation_roots.clone();
         let requests_transactions = invocation
             .requested_field_paths
             .iter()
@@ -100,6 +101,7 @@ impl DraftProxy {
             response_key,
             requests_transactions,
             upstream_value.as_ref(),
+            &operation_roots,
         )
     }
 
@@ -346,16 +348,34 @@ impl DraftProxy {
         response_key: &str,
         requests_transactions: bool,
         upstream_value: Option<&Value>,
+        operation_roots: &[crate::resolver_registry::OperationRootInvocation],
     ) -> ResolverOutcome<Value> {
-        if self.config.read_mode == ReadMode::LiveHybrid
-            && self.gift_card_root_needs_upstream(root_name, arguments, requests_transactions)
-        {
-            let mut outcome = self.cached_or_forward_upstream_root_outcome(request, response_key);
+        let operation_needs_upstream =
+            self.gift_card_root_needs_upstream(root_name, arguments, requests_transactions)
+                || operation_roots.iter().any(|root| {
+                    self.gift_card_root_needs_upstream(
+                        &root.name,
+                        &resolved_arguments_from_json(&root.arguments),
+                        false,
+                    )
+                });
+        if self.config.read_mode == ReadMode::LiveHybrid && operation_needs_upstream {
+            let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+            let mut outcome = result.outcome;
             if outcome.errors.is_empty() {
+                for root in operation_roots {
+                    let Some(value) = result.data.get(&root.response_key) else {
+                        continue;
+                    };
+                    self.observe_gift_card_root_value(
+                        &root.name,
+                        &resolved_arguments_from_json(&root.arguments),
+                        value,
+                    );
+                }
                 let canonical_upstream = upstream_value
                     .cloned()
                     .unwrap_or_else(|| outcome.value.clone());
-                self.observe_gift_card_root_value(root_name, arguments, &canonical_upstream);
                 if self.has_gift_card_overlay_state() {
                     outcome.value =
                         self.overlay_gift_card_read_value(root_name, arguments, canonical_upstream);
@@ -365,19 +385,6 @@ impl DraftProxy {
             return outcome;
         }
         ResolverOutcome::value(self.gift_card_read_value(root_name, arguments))
-    }
-
-    pub(in crate::proxy) fn gift_card_read_needs_upstream(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> bool {
-        fields.iter().any(|field| {
-            self.gift_card_root_needs_upstream(
-                &field.name,
-                &field.arguments,
-                gift_card_selection_needs_transactions(&field.selection),
-            )
-        })
     }
 
     fn gift_card_root_needs_upstream(
@@ -509,17 +516,6 @@ impl DraftProxy {
             }
         }
         cards
-    }
-
-    pub(in crate::proxy) fn hydrate_gift_card_read_state_from_response(
-        &mut self,
-        fields: &[RootFieldSelection],
-        data: &Value,
-    ) {
-        for field in fields {
-            let value = canonicalize_upstream_value(&data[&field.response_key], &field.selection);
-            self.observe_gift_card_root_value(&field.name, &field.arguments, &value);
-        }
     }
 
     fn observe_gift_card_root_value(
@@ -1690,10 +1686,6 @@ fn gift_card_update_editable_key(key: &str) -> bool {
             | "recipientId"
             | "recipientAttributes"
     )
-}
-
-fn gift_card_selection_needs_transactions(selection: &[SelectedField]) -> bool {
-    selection_contains_any(selection, &["transactions"])
 }
 
 fn gift_card_record_has_transactions(card: &Value) -> bool {

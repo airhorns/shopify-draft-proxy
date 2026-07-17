@@ -949,9 +949,9 @@ impl DraftProxy {
     /// Build a fully-materialized `inventoryLevels` connection value for an inventory
     /// item from staged level state (ids, locations, quantities, updatedAt timestamps,
     /// and the opaque seeded edge cursors). The result carries `edges`, `nodes`, and
-    /// `pageInfo` with every canonical quantity name, so the generic selection
-    /// projector can render whatever shape an `inventoryItem.inventoryLevels(...)`
-    /// selection asks for. Returns `None` when the item has no staged levels, leaving
+    /// `pageInfo` with every canonical quantity name, so the GraphQL executor can
+    /// render whatever shape an `inventoryItem.inventoryLevels(...)` selection asks
+    /// for. Returns `None` when the item has no staged levels, leaving
     /// the field absent exactly as before. The overlay product/variant/inventory-item
     /// read paths inject this onto the variant's inventory item before projection so a
     /// variant-backed `inventoryItem` resolves its levels rather than dropping them.

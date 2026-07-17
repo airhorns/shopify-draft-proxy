@@ -16,6 +16,78 @@ use crate::resolver_registry::{
     FieldResolverImplementation, GraphqlApiVersion, LocalResolverMode, ResolverOutcome,
 };
 
+/// Normalize an upstream value back to schema field names before domain code
+/// observes it. Aliases belong to the caller-facing transport response; the
+/// request cache and stores own canonical entity values.
+fn canonicalize_upstream_value(value: &Value, selections: &[SelectedField]) -> Value {
+    if value.is_null() || selections.is_empty() {
+        return value.clone();
+    }
+    if let Some(values) = value.as_array() {
+        return Value::Array(
+            values
+                .iter()
+                .map(|value| canonicalize_upstream_value(value, selections))
+                .collect(),
+        );
+    }
+    let Some(object) = value.as_object() else {
+        return value.clone();
+    };
+    // Preserve extra canonical fields supplied by internal/test transports.
+    // Shopify itself only returns selected fields, but a hydration transport
+    // may deliberately provide a richer record for the store to observe.
+    let mut canonical = object.clone();
+    for selection in selections {
+        let Some(selected) = object
+            .get(&selection.response_key)
+            .or_else(|| object.get(&selection.name))
+        else {
+            continue;
+        };
+        let selected = if selection.selection.is_empty() || selected.is_null() {
+            selected.clone()
+        } else if let Some(values) = selected.as_array() {
+            Value::Array(
+                values
+                    .iter()
+                    .map(|value| canonicalize_upstream_value(value, &selection.selection))
+                    .collect(),
+            )
+        } else {
+            canonicalize_upstream_value(selected, &selection.selection)
+        };
+        if selection.response_key != selection.name {
+            canonical.remove(&selection.response_key);
+        }
+        canonical.insert(selection.name.clone(), selected);
+    }
+    Value::Object(canonical)
+}
+
+/// Keep caller-facing root response keys so upstream outcomes can still be
+/// matched to the engine invocation, but canonicalize every nested value once
+/// before any domain observes or stores it.
+fn canonicalize_upstream_data(
+    data: &Value,
+    selections: &BTreeMap<String, Vec<SelectedField>>,
+) -> Value {
+    let Some(data) = data.as_object() else {
+        return data.clone();
+    };
+    Value::Object(
+        data.iter()
+            .map(|(response_key, value)| {
+                let value = selections.get(response_key).map_or_else(
+                    || value.clone(),
+                    |selections| canonicalize_upstream_value(value, selections),
+                );
+                (response_key.clone(), value)
+            })
+            .collect(),
+    )
+}
+
 const INTERNAL_HTTP_STATUS_EXTENSION: &str = "__draftProxyHttpStatus";
 
 struct ProxyRootExecutor {
@@ -43,6 +115,8 @@ struct PreparedRootCall {
     query: String,
     variables: BTreeMap<String, ResolvedValue>,
     operation: crate::graphql::ParsedOperation,
+    operation_root_names: Vec<String>,
+    operation_roots: Vec<crate::resolver_registry::OperationRootInvocation>,
     operation_path: String,
     variable_definitions: BTreeMap<String, VariableDefinitionInfo>,
     field: RootFieldSelection,
@@ -133,6 +207,7 @@ pub(crate) fn field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
     policies.extend(marketing_field_resolver_type_policies());
     policies.extend(media_field_resolver_type_policies());
     policies.extend(super::online_store_content::online_store_field_resolver_type_policies());
+    policies.extend(super::url_redirects::url_redirect_field_resolver_type_policies());
     policies.extend(super::metaobjects::metaobject_field_resolver_type_policies());
     policies.extend(metafield_definition_field_resolver_type_policies());
     policies.extend(gift_card_field_resolver_type_policies());
@@ -322,11 +397,10 @@ impl RootFieldExecutor for ProxyRootExecutor {
                     .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
                 let upstream_value = proxy
                     .execution_session
-                    .upstream_query_response
+                    .upstream_query_data
                     .as_ref()
-                    .and_then(|response| response.body.get("data"))
                     .and_then(|data| data.get(&response_key))
-                    .map(|value| canonicalize_upstream_value(value, &call.field.selection));
+                    .cloned();
                 let outcome = handler(
                     &mut proxy,
                     crate::resolver_registry::RootInvocation {
@@ -337,12 +411,19 @@ impl RootFieldExecutor for ProxyRootExecutor {
                         root_location: call.field.location,
                         directives: call.field.directives.clone(),
                         operation_path: &call.operation_path,
+                        operation_root_names: call.operation_root_names.clone(),
+                        operation_roots: call.operation_roots.clone(),
                         variable_definitions: &call.variable_definitions,
                         raw_arguments: call.field.raw_arguments.clone(),
                         arguments,
                         requested_field_paths,
                         upstream_value,
-                        request: &call.request,
+                        // Native resolvers receive the caller's complete request.
+                        // A domain that needs upstream evidence therefore warms the
+                        // request cache with the original multi-root read, while the
+                        // isolated call request remains confined to the unsupported
+                        // transport fallback below.
+                        request: &self.original_request,
                         query: &call.query,
                         variables: &call.variables,
                         operation: &call.operation,
@@ -375,7 +456,7 @@ impl RootFieldExecutor for ProxyRootExecutor {
                 }
                 for draft in log_drafts {
                     proxy.record_mutation_log_draft(
-                        &call.request,
+                        &self.original_request,
                         &call.query,
                         &call.variables,
                         draft,
@@ -672,6 +753,26 @@ impl DraftProxy {
                                 operation_type: document.operation_type,
                                 root_fields: vec![field.name.clone()],
                             },
+                            operation_root_names: document
+                                .root_fields
+                                .iter()
+                                .map(|root| root.name.clone())
+                                .collect(),
+                            operation_roots: document
+                                .root_fields
+                                .iter()
+                                .map(|root| crate::resolver_registry::OperationRootInvocation {
+                                    name: root.name.clone(),
+                                    response_key: root.response_key.clone(),
+                                    arguments: root
+                                        .arguments
+                                        .iter()
+                                        .map(|(name, value)| {
+                                            (name.clone(), resolved_value_json(value))
+                                        })
+                                        .collect(),
+                                })
+                                .collect(),
                             operation_path: document.operation_path.clone(),
                             variable_definitions: document.variable_definitions.clone(),
                             field: field.clone(),
@@ -696,6 +797,10 @@ impl DraftProxy {
                 )
             })
             .unwrap_or((None, Vec::new(), BTreeMap::new()));
+        self.execution_session.upstream_query_selections = root_calls
+            .iter()
+            .map(|(response_key, call)| (response_key.clone(), call.field.selection.clone()))
+            .collect();
         let capabilities = operation_type.map_or_else(Vec::new, |operation_type| {
             root_names
                 .iter()
@@ -830,129 +935,6 @@ impl DraftProxy {
                 )
             })
         });
-        let mixed_discount_local_read = prepared.as_ref().is_some_and(|(document, _, _)| {
-            document.operation_type == OperationType::Query
-                && capabilities
-                    .iter()
-                    .all(|capability| capability.domain == CapabilityDomain::Discounts)
-                && self.discount_query_has_mixed_local_read(&document.root_fields)
-        });
-        let overlay_query_preflight = prepared.as_ref().and_then(|(document, variables, _)| {
-            let shipping_fulfillment_orders = capabilities
-                .iter()
-                .all(|capability| capability.domain == CapabilityDomain::ShippingFulfillments)
-                && document.root_fields.iter().all(|field| {
-                    matches!(
-                        field.name.as_str(),
-                        "fulfillmentOrders"
-                            | "assignedFulfillmentOrders"
-                            | "manualHoldsFulfillmentOrders"
-                    )
-                });
-            if (self.config.read_mode != ReadMode::LiveHybrid && !shipping_fulfillment_orders)
-                || document.operation_type != OperationType::Query
-                || direct_full_query_passthrough
-            {
-                return None;
-            }
-            let b2b = capabilities
-                .iter()
-                .all(|capability| capability.domain == CapabilityDomain::B2b)
-                && self.b2b_query_has_staged_match(&document.root_fields)
-                && DraftProxy::b2b_query_has_catalog_root(&document.root_fields);
-            let customers = capabilities
-                .iter()
-                .all(|capability| capability.domain == CapabilityDomain::Customers)
-                && document.root_fields.iter().any(|field| {
-                    self.should_handle_customer_overlay_read(&field.name, &field.arguments, false)
-                        && self.customer_overlay_needs_upstream_data(&field.name, &field.arguments)
-                });
-            let functions = capabilities
-                .iter()
-                .all(|capability| capability.domain == CapabilityDomain::Functions)
-                && !self.function_read_has_local_overlay(&document.root_fields);
-            let gift_cards = capabilities
-                .iter()
-                .all(|capability| capability.domain == CapabilityDomain::GiftCards)
-                && self.gift_card_read_needs_upstream(&document.root_fields);
-            let marketing = capabilities
-                .iter()
-                .all(|capability| capability.domain == CapabilityDomain::Marketing);
-            let media_saved_searches = document
-                .root_fields
-                .iter()
-                .all(|field| matches!(field.name.as_str(), "files" | "fileSavedSearches"));
-            let metaobjects = capabilities
-                .iter()
-                .all(|capability| capability.domain == CapabilityDomain::Metaobjects);
-            let discounts = capabilities
-                .iter()
-                .all(|capability| capability.domain == CapabilityDomain::Discounts)
-                && !mixed_discount_local_read
-                && (self.should_forward_cold_discount_read(&document.root_fields)
-                    || self.discount_read_needs_live_hydration(&document.root_fields));
-            let orders = capabilities
-                .iter()
-                .all(|capability| capability.domain == CapabilityDomain::Orders)
-                && document.root_fields.iter().all(|field| {
-                    matches!(
-                        field.name.as_str(),
-                        "order"
-                            | "orders"
-                            | "ordersCount"
-                            | "draftOrder"
-                            | "draftOrders"
-                            | "draftOrdersCount"
-                    )
-                })
-                && (document.root_fields.len() > 1
-                    || self.order_query_needs_shared_upstream(&document.root_fields)
-                    || self.draft_order_query_needs_shared_upstream(&document.root_fields));
-            let return_reverse_logistics = capabilities.iter().all(|capability| {
-                matches!(
-                    capability.domain,
-                    CapabilityDomain::Orders | CapabilityDomain::ShippingFulfillments
-                )
-            }) && document.root_fields.iter().all(|field| {
-                matches!(
-                    field.name.as_str(),
-                    "return" | "reverseDelivery" | "reverseFulfillmentOrder"
-                )
-            }) && document.root_fields.iter().any(|field| {
-                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                match field.name.as_str() {
-                    "return" => !self.store.staged.returns.contains_key(&id),
-                    "reverseDelivery" => !self.store.staged.reverse_deliveries.contains_key(&id),
-                    "reverseFulfillmentOrder" => !self
-                        .store
-                        .staged
-                        .reverse_fulfillment_orders
-                        .contains_key(&id),
-                    _ => false,
-                }
-            });
-            let bulk_operations = capabilities
-                .iter()
-                .all(|capability| capability.domain == CapabilityDomain::BulkOperations)
-                && document.root_fields.len() > 1;
-            let markets = capabilities
-                .iter()
-                .all(|capability| capability.domain == CapabilityDomain::Markets)
-                && self.markets_should_fetch_upstream(&document.root_fields, variables);
-            (b2b || customers
-                || functions
-                || gift_cards
-                || marketing
-                || media_saved_searches
-                || metaobjects
-                || discounts
-                || orders
-                || return_reverse_logistics
-                || bulk_operations
-                || markets
-                || shipping_fulfillment_orders)
-                .then(|| (request.clone(), document.root_fields.clone()))
-        });
         let localization_context_preflight =
             prepared.as_ref().and_then(|(document, variables, _)| {
                 let mixed_surface = capabilities
@@ -992,11 +974,6 @@ impl DraftProxy {
                     )
                 })
             });
-        let markets_query_context = operation_type == Some(OperationType::Query)
-            && !root_names.is_empty()
-            && capabilities
-                .iter()
-                .all(|capability| capability.domain == CapabilityDomain::Markets);
         let node_query_preflight = prepared.as_ref().and_then(|(document, _, _)| {
             (document.operation_type == OperationType::Query
                 && document.root_fields.len() > 1
@@ -1055,26 +1032,6 @@ impl DraftProxy {
                 if let Some((request, fields, variables)) = &owner_metafield_preflight {
                     proxy.hydrate_owner_metafield_read_fields(request, fields, variables);
                 }
-                proxy.execution_session.mixed_discount_local_read = mixed_discount_local_read;
-                if let Some((request, fields)) = &overlay_query_preflight {
-                    let response = (proxy.upstream_transport)(request.clone());
-                    if (200..300).contains(&response.status) {
-                        proxy.hydrate_function_metadata_from_response_data(&response.body["data"]);
-                        proxy.mark_function_read_fields_hydrated(fields);
-                        proxy.hydrate_gift_card_read_state_from_response(
-                            fields,
-                            &response.body["data"],
-                        );
-                        proxy.observe_order_read_response(request, &response);
-                        proxy.observe_draft_order_read_response(request, &response);
-                        proxy.observe_discount_read_response(fields, &response);
-                        if markets_query_context {
-                            proxy.hydrate_markets_from_upstream_for_fields(&response.body, fields);
-                            proxy.hydrate_localization_from_upstream(&response.body);
-                        }
-                    }
-                    proxy.execution_session.upstream_query_response = Some(response);
-                }
                 if let Some((request, fields, use_original_request)) =
                     &localization_context_preflight
                 {
@@ -1083,9 +1040,6 @@ impl DraftProxy {
                         fields,
                         *use_original_request,
                     );
-                }
-                if markets_query_context {
-                    proxy.execution_session.markets_query_preflighted = true;
                 }
                 if let Some((request, fields)) = &node_query_preflight {
                     proxy.preflight_node_query_entities(request, fields);
@@ -1407,13 +1361,6 @@ impl DraftProxy {
         };
         let root_field = root_field_name.as_str();
 
-        if operation.root_fields.len() > 1
-            && operation.operation_type == OperationType::Query
-            && self.should_route_owner_metafields_read(&root_selections, &variables)
-        {
-            return self.owner_metafields_read_response(request, &root_selections, &variables);
-        }
-
         let capability = self.registry.resolve(operation.operation_type, root_field);
         if capability.domain == CapabilityDomain::Products
             && operation.operation_type == OperationType::Mutation
@@ -1432,7 +1379,6 @@ impl DraftProxy {
                 variables: &variables,
                 operation_type: operation.operation_type,
                 root_fields: &operation.root_fields,
-                root_selections: &root_selections,
                 root_field,
             });
         };
@@ -1486,6 +1432,19 @@ impl DraftProxy {
                 root_location,
                 directives,
                 operation_path: &operation_path,
+                operation_root_names: operation.root_fields.clone(),
+                operation_roots: root_selections
+                    .iter()
+                    .map(|root| crate::resolver_registry::OperationRootInvocation {
+                        name: root.name.clone(),
+                        response_key: root.response_key.clone(),
+                        arguments: root
+                            .arguments
+                            .iter()
+                            .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+                            .collect(),
+                    })
+                    .collect(),
                 variable_definitions: &variable_definitions,
                 raw_arguments,
                 arguments,
@@ -1614,8 +1573,11 @@ pub(in crate::proxy) struct UpstreamGraphqlResult {
     pub transport_succeeded: bool,
 }
 
-fn upstream_graphql_result(response: Response, response_key: &str) -> UpstreamGraphqlResult {
-    let data = response.body.get("data").cloned().unwrap_or(Value::Null);
+fn upstream_graphql_result(
+    response: Response,
+    response_key: &str,
+    data: Value,
+) -> UpstreamGraphqlResult {
     let transport_succeeded = response.status < 400;
     UpstreamGraphqlResult {
         outcome: resolver_outcome_from_upstream_response(response, response_key),
@@ -1740,31 +1702,45 @@ impl DraftProxy {
     /// Reuse the request-scoped upstream response when the executor already
     /// fetched the complete operation; otherwise perform the cold read once.
     pub(in crate::proxy) fn cached_or_forward_upstream_root_outcome(
-        &self,
+        &mut self,
         request: &Request,
         response_key: &str,
     ) -> ResolverOutcome<Value> {
-        let response = self
-            .execution_session
-            .upstream_query_response
-            .clone()
-            .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
+        let response = self.cached_or_forward_upstream_response(request);
         resolver_outcome_from_upstream_response(response, response_key)
     }
 
     /// Decode a request-scoped upstream response once while also exposing its
     /// GraphQL `data` object to store hydration code.
     pub(in crate::proxy) fn cached_or_forward_upstream_graphql_result(
-        &self,
+        &mut self,
         request: &Request,
         response_key: &str,
     ) -> UpstreamGraphqlResult {
-        let response = self
+        let response = self.cached_or_forward_upstream_response(request);
+        let data = self
             .execution_session
-            .upstream_query_response
+            .upstream_query_data
             .clone()
-            .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
-        upstream_graphql_result(response, response_key)
+            .unwrap_or_else(|| response.body.get("data").cloned().unwrap_or(Value::Null));
+        upstream_graphql_result(response, response_key, data)
+    }
+
+    /// Fetch the caller's complete read operation at most once. Domain-owned
+    /// roots decide whether they need upstream evidence; the request session
+    /// owns transport coalescing so those decisions never require a central
+    /// domain predicate matrix or per-root query reconstruction.
+    fn cached_or_forward_upstream_response(&mut self, request: &Request) -> Response {
+        if let Some(response) = &self.execution_session.upstream_query_response {
+            return response.clone();
+        }
+        let response = (self.upstream_transport)(request.clone());
+        self.execution_session.upstream_query_data = Some(canonicalize_upstream_data(
+            response.body.get("data").unwrap_or(&Value::Null),
+            &self.execution_session.upstream_query_selections,
+        ));
+        self.execution_session.upstream_query_response = Some(response.clone());
+        response
     }
 }
 

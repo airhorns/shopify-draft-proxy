@@ -185,6 +185,12 @@ impl StorefrontRootExecutor {
                 root_location: call.field.location,
                 directives: call.field.directives.clone(),
                 operation_path: &call.operation_path,
+                operation_root_names: call.operation.root_fields.clone(),
+                operation_roots: vec![crate::resolver_registry::OperationRootInvocation {
+                    name: root_name.to_string(),
+                    response_key: response_key.to_string(),
+                    arguments: arguments.clone(),
+                }],
                 variable_definitions: &call.variable_definitions,
                 raw_arguments: call.field.raw_arguments.clone(),
                 arguments,

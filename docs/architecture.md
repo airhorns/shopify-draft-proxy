@@ -75,9 +75,10 @@ propagation. Root resolvers are request-scoped and execute serially against the
 same instance-owned proxy. Each invocation receives the engine-coerced root
 arguments, raw argument-source metadata, root/operation source locations, and
 variable-definition metadata for compatibility validation. It also receives a
-set of engine-selected output paths for hydration planning. Those paths may
-choose a narrow or broad hydration but never shape the returned JSON; output
-projection remains engine-owned. A local resolver receives `RootInvocation`,
+set of engine-selected output paths for hydration planning plus a shallow,
+selection-free inventory of the operation's root names, response keys, and
+coerced arguments. Those values may choose a narrow or broad hydration but
+never shape the returned JSON; output projection remains engine-owned. A local resolver receives `RootInvocation`,
 whose `LocalResolverMode` can only be `OverlayRead` or `StageLocally`;
 passthrough is decided before domain code is entered. Domain roots route from
 the invocation's canonical root name and do not reparse the operation or
@@ -88,10 +89,13 @@ compatibility paths retain the parsed operation. Multi-root
 mutations containing both local and passthrough roots are rejected before
 execution because splitting would change atomicity and could leak a supported
 write upstream. A fully passthrough document is forwarded once, not once per
-selected root. Likewise, a grouped cold overlay read may preflight the original
-operation once and expose that response through the request session; individual
-root resolvers consume their response keys without inventing one-root transport
-documents or repeating the upstream request.
+selected root. For overlay reads, the first domain resolver that needs upstream
+evidence forwards the caller's complete original operation and caches the
+response for the request. The domain observes every relevant sibling root from
+that response and records only the scopes actually represented. There is no
+centralized cross-domain preflight predicate matrix and no per-root transport
+document reconstruction. Alias canonicalization for observed upstream values
+stays at the GraphQL runtime boundary.
 
 ## GraphQL schema and resolver boundaries
 
@@ -167,7 +171,8 @@ documents or repeating the upstream request.
 
 - group supported runtime behavior by commerce area, including products/saved searches, localization/markets/catalogs, marketing/webhooks/inventory, online store, metaobjects, metafields, orders/payments/fulfillment, discounts/gift cards, B2B/customers, and admin/shipping/app helpers
 - own each area's root resolver beside those domain methods; `graphql_runtime.rs` contains no compatibility-domain switch
-- keep local staging, overlay reads, canonical resolver values, and live-hybrid passthrough/reject behavior near the domain logic that owns it; root execution is selection-free, while remaining nested/transport selected-field projectors are migration debt rather than the target pattern
+- keep local staging, overlay reads, canonical resolver values, and live-hybrid passthrough/reject behavior near the domain logic that owns it; ordinary Admin and Storefront output projection belongs exclusively to the executable engine
+- keep syntax-aware output shaping only where GraphQL is itself operation input, currently bulk-operation JSONL, and in the explicit schema-less Storefront 2025 empty-connection compatibility boundary
 - use shared `Store` effective-get/list/count helpers for migrated product and saved-search read-after-write behavior, with base state, staged state, order arrays, and tombstones dumped/restored consistently
 - use the shared staged-connection query helpers for staged resource lists that need Shopify-like search filtering, sort-key mapping, `reverse`, cursor windows, and filtered counts; resource modules supply predicate and sort adapters while `connection.rs` owns the order of operations
 - share proxy-internal helpers only within `crate::proxy`; public package surface still flows through `DraftProxy`

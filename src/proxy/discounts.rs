@@ -311,6 +311,8 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        let mixed_local_read =
+            self.discount_operation_has_mixed_local_read(&invocation.operation_roots);
         let requests_currency_code = invocation
             .requested_field_paths
             .iter()
@@ -328,6 +330,7 @@ impl DraftProxy {
             &resolved_arguments_from_json(&arguments),
             response_key,
             requests_currency_code,
+            mixed_local_read,
         )
     }
 
@@ -399,11 +402,12 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         response_key: &str,
         requests_currency_code: bool,
+        mixed_local_read: bool,
     ) -> ResolverOutcome<Value> {
         if requests_currency_code {
             self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
-        if !self.execution_session.mixed_discount_local_read
+        if !mixed_local_read
             && self.config.read_mode == ReadMode::LiveHybrid
             && self.discount_read_root_is_cold(root_name, arguments)
         {
@@ -414,7 +418,7 @@ impl DraftProxy {
             return outcome;
         }
         let mut upstream_value = None;
-        if !self.execution_session.mixed_discount_local_read
+        if !mixed_local_read
             && self.config.read_mode == ReadMode::LiveHybrid
             && self.discount_read_root_needs_live_hydration(root_name, arguments)
         {
@@ -431,37 +435,34 @@ impl DraftProxy {
         ))
     }
 
-    /// Decide whether a discount read carries no relevant local overlay state and
-    /// should therefore be forwarded byte-for-byte to the upstream backend. This is
-    /// the read side of the overlay: when the proxy has nothing staged that could
-    /// answer the query, the only correct answer comes from the real store. In the
-    /// parity harness this resolves through the cassette's fallback (the forwarded
-    /// request matches the captured request exactly) or an explicit recorded call.
-    pub(in crate::proxy) fn should_forward_cold_discount_read(
+    fn discount_operation_has_mixed_local_read(
         &self,
-        fields: &[RootFieldSelection],
+        roots: &[crate::resolver_registry::OperationRootInvocation],
     ) -> bool {
-        if self.execution_session.mixed_discount_local_read {
+        if roots.is_empty()
+            || !roots.iter().all(|root| {
+                matches!(
+                    root.name.as_str(),
+                    "discountNode"
+                        | "codeDiscountNode"
+                        | "automaticDiscountNode"
+                        | "codeDiscountNodeByCode"
+                        | "discountRedeemCodeBulkCreation"
+                )
+            })
+        {
             return false;
         }
-        if self.config.read_mode != ReadMode::LiveHybrid {
-            return false;
-        }
-        if fields.is_empty() {
-            return false;
-        }
-        fields
+        let cold = roots
             .iter()
-            .all(|field| self.discount_read_field_is_cold(field))
-    }
-
-    /// A single discount read root field is "cold" when nothing in the local
-    /// overlay can answer it: the requested id/code is neither staged nor locally
-    /// deleted, or (for catalog connections) there is no staged discount state at
-    /// all. Locally deleted ids are intentionally NOT cold — forwarding them would
-    /// resurrect a discount the caller removed in this session.
-    fn discount_read_field_is_cold(&self, field: &RootFieldSelection) -> bool {
-        self.discount_read_root_is_cold(&field.name, &field.arguments)
+            .map(|root| {
+                self.discount_read_root_is_cold(
+                    &root.name,
+                    &resolved_arguments_from_json(&root.arguments),
+                )
+            })
+            .collect::<Vec<_>>();
+        cold.iter().any(|cold| *cold) && cold.iter().any(|cold| !*cold)
     }
 
     fn discount_read_root_is_cold(
@@ -500,46 +501,6 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn discount_read_needs_live_hydration(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> bool {
-        if self.execution_session.mixed_discount_local_read {
-            return false;
-        }
-        if self.config.read_mode != ReadMode::LiveHybrid || fields.is_empty() {
-            return false;
-        }
-        fields
-            .iter()
-            .any(|field| self.discount_read_field_needs_live_hydration(field))
-    }
-
-    pub(in crate::proxy) fn discount_query_has_mixed_local_read(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> bool {
-        fields.iter().all(|field| {
-            matches!(
-                field.name.as_str(),
-                "discountNode"
-                    | "codeDiscountNode"
-                    | "automaticDiscountNode"
-                    | "codeDiscountNodeByCode"
-                    | "discountRedeemCodeBulkCreation"
-            )
-        }) && fields
-            .iter()
-            .any(|field| self.discount_read_field_is_cold(field))
-            && fields
-                .iter()
-                .any(|field| !self.discount_read_field_is_cold(field))
-    }
-
-    fn discount_read_field_needs_live_hydration(&self, field: &RootFieldSelection) -> bool {
-        self.discount_read_root_needs_live_hydration(&field.name, &field.arguments)
-    }
-
     fn discount_read_root_needs_live_hydration(
         &self,
         root_name: &str,
@@ -563,25 +524,6 @@ impl DraftProxy {
                     && !self.discount_tombstone_matches_code(&code)
             }
             _ => false,
-        }
-    }
-
-    pub(in crate::proxy) fn observe_discount_read_response(
-        &mut self,
-        fields: &[RootFieldSelection],
-        response: &Response,
-    ) {
-        if !(200..300).contains(&response.status) {
-            return;
-        }
-        let Some(data) = response.body.get("data").and_then(Value::as_object) else {
-            return;
-        };
-        for field in fields {
-            let Some(value) = data.get(&field.response_key) else {
-                continue;
-            };
-            self.observe_discount_root_value(&field.name, &field.arguments, value);
         }
     }
 

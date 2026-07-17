@@ -78,6 +78,16 @@ impl GraphqlApiVersion {
     }
 }
 
+/// Selection-free metadata for one root in the selected operation. Domain
+/// hydration can coordinate related roots without receiving another GraphQL
+/// selection tree.
+#[derive(Debug, Clone)]
+pub(crate) struct OperationRootInvocation {
+    pub name: String,
+    pub response_key: String,
+    pub arguments: BTreeMap<String, Value>,
+}
+
 /// One engine-validated root invocation. Native resolvers receive the values
 /// coerced by the selected surface/version schema rather than reparsing raw
 /// variable input.
@@ -96,6 +106,11 @@ pub(crate) struct RootInvocation<'a> {
     /// Shopify's operation paths and variable-definition locations without
     /// reparsing the caller's document inside a domain module.
     pub operation_path: &'a str,
+    /// Canonical roots in the caller's selected operation. Domain hydration
+    /// may use this shallow inventory to coalesce a multi-root read; nested
+    /// output selections remain engine-owned.
+    pub operation_root_names: Vec<String>,
+    pub operation_roots: Vec<OperationRootInvocation>,
     pub variable_definitions: &'a BTreeMap<String, VariableDefinitionInfo>,
     /// Original literal/variable sources are retained for Shopify-compatible
     /// validation branches that distinguish omission, explicit null, and an
