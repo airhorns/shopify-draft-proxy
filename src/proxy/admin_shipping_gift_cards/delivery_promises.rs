@@ -17,7 +17,7 @@ fn delivery_promise_participant_owner_field(
 ) -> Result<Value, String> {
     let owner_id = delivery_promise_participant_owner_id(invocation.parent)
         .ok_or_else(|| "DeliveryPromiseParticipant parent has no canonical owner id".to_string())?;
-    let state = crate::proxy::node_registry::registered_node_value(proxy, owner_id, Some(request));
+    let state = proxy.request_entity_load_state(ApiSurface::Admin, owner_id, Some(request));
     Ok(match state {
         crate::node_resolver_inventory::NodeLoadState::Found(entity) => entity.value,
         crate::node_resolver_inventory::NodeLoadState::KnownMissing => Value::Null,
@@ -50,7 +50,7 @@ impl DeliveryPromisePreparedMutation {
 
 #[derive(Clone)]
 struct DeliveryPromiseProviderUpsertPlan {
-    field: RootFieldSelection,
+    response_key: String,
     location_id: String,
     location: Option<Value>,
     active: Option<bool>,
@@ -61,7 +61,7 @@ struct DeliveryPromiseProviderUpsertPlan {
 
 #[derive(Clone)]
 struct DeliveryPromiseParticipantsUpdatePlan {
-    field: RootFieldSelection,
+    response_key: String,
     branded_promise_handle: String,
     owners_to_add: Vec<String>,
     owners_to_remove: Vec<String>,
@@ -69,21 +69,24 @@ struct DeliveryPromiseParticipantsUpdatePlan {
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn delivery_promise_read_outcome(
+    pub(crate) fn delivery_promise_query_root(
         &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-        response_key: &str,
+        invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         if self.config.read_mode == ReadMode::LiveHybrid && !self.has_delivery_promise_state() {
-            let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+            let result = self.cached_or_forward_upstream_graphql_result(
+                invocation.request,
+                invocation.response_key,
+            );
             if result.transport_succeeded {
                 self.observe_delivery_promise_data(&result.data);
             }
             return result.outcome;
         }
-        let data = self.delivery_promise_read_data(fields);
-        ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
+        ResolverOutcome::value(self.delivery_promise_read_value(
+            invocation.root_name,
+            &resolved_arguments_from_json(&invocation.arguments),
+        ))
     }
 
     fn has_delivery_promise_state(&self) -> bool {
@@ -155,32 +158,24 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn delivery_promise_read_data(
+    fn delivery_promise_read_value(
         &self,
-        fields: &[RootFieldSelection],
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "deliveryPromiseProvider" => {
-                    let location_id =
-                        resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
-                    self.delivery_promise_provider_by_location(&location_id)
-                        .map(|provider| {
-                            self.delivery_promise_provider_selected_json(
-                                &provider,
-                                &field.selection,
-                            )
-                        })
-                        .unwrap_or(Value::Null)
-                }
-                "deliveryPromiseParticipants" => self
-                    .delivery_promise_participants_connection_json(
-                        &field.arguments,
-                        &field.selection,
-                    ),
-                _ => return None,
-            })
-        })
+        match root_name {
+            "deliveryPromiseProvider" => {
+                let location_id =
+                    resolved_string_field(arguments, "locationId").unwrap_or_default();
+                self.delivery_promise_provider_by_location(&location_id)
+                    .map(|provider| self.delivery_promise_provider_value(&provider))
+                    .unwrap_or(Value::Null)
+            }
+            "deliveryPromiseParticipants" => {
+                self.delivery_promise_participants_connection_value(arguments)
+            }
+            _ => Value::Null,
+        }
     }
 
     pub(in crate::proxy) fn delivery_promise_mutation(
@@ -199,6 +194,46 @@ impl DraftProxy {
         self.delivery_promise_mutation_fields(fields, request, response_key)
     }
 
+    pub(crate) fn delivery_promise_mutation_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            root_name,
+            response_key,
+            arguments,
+            request,
+            ..
+        } = invocation;
+        let arguments = resolved_arguments_from_json(&arguments);
+        let plan = match root_name {
+            "deliveryPromiseProviderUpsert" => DeliveryPromisePreparedMutation::ProviderUpsert(
+                self.prepare_delivery_promise_provider_upsert(
+                    response_key.to_string(),
+                    arguments,
+                    request,
+                ),
+            ),
+            "deliveryPromiseParticipantsUpdate" => {
+                DeliveryPromisePreparedMutation::ParticipantsUpdate(
+                    self.prepare_delivery_promise_participants_update(
+                        response_key.to_string(),
+                        arguments,
+                    ),
+                )
+            }
+            _ => {
+                return resolver_http_error_outcome(
+                    501,
+                    format!("Unsupported delivery promise mutation {root_name}"),
+                );
+            }
+        };
+        self.execute_delivery_promise_mutations(vec![plan], response_key)
+            .remove(response_key)
+            .unwrap_or_else(|| ResolverOutcome::value(Value::Null))
+    }
+
     pub(in crate::proxy) fn delivery_promise_mutation_fields(
         &mut self,
         fields: Vec<RootFieldSelection>,
@@ -209,11 +244,18 @@ impl DraftProxy {
         for field in fields {
             let plan = match field.name.as_str() {
                 "deliveryPromiseProviderUpsert" => DeliveryPromisePreparedMutation::ProviderUpsert(
-                    self.prepare_delivery_promise_provider_upsert(field, request),
+                    self.prepare_delivery_promise_provider_upsert(
+                        field.response_key,
+                        field.arguments,
+                        request,
+                    ),
                 ),
                 "deliveryPromiseParticipantsUpdate" => {
                     DeliveryPromisePreparedMutation::ParticipantsUpdate(
-                        self.prepare_delivery_promise_participants_update(field),
+                        self.prepare_delivery_promise_participants_update(
+                            field.response_key,
+                            field.arguments,
+                        ),
                     )
                 }
                 _ => continue,
@@ -227,6 +269,14 @@ impl DraftProxy {
             )]);
         }
 
+        self.execute_delivery_promise_mutations(prepared, response_key)
+    }
+
+    fn execute_delivery_promise_mutations(
+        &mut self,
+        prepared: Vec<DeliveryPromisePreparedMutation>,
+        response_key: &str,
+    ) -> BTreeMap<String, ResolverOutcome<Value>> {
         let has_user_errors = prepared
             .iter()
             .any(DeliveryPromisePreparedMutation::has_user_errors);
@@ -236,49 +286,36 @@ impl DraftProxy {
             match plan {
                 DeliveryPromisePreparedMutation::ProviderUpsert(plan) => {
                     let payload = if has_user_errors {
-                        delivery_promise_provider_payload_json(
-                            Value::Null,
-                            &plan.field.selection,
-                            plan.user_errors,
-                        )
+                        delivery_promise_provider_payload_json(Value::Null, plan.user_errors)
                     } else {
                         let (provider, staged_id) =
                             self.apply_delivery_promise_provider_upsert(&plan);
                         log_drafts.push(LogDraft::staged(
-                            plan.field.name.clone(),
+                            "deliveryPromiseProviderUpsert",
                             "shipping-fulfillments",
                             vec![staged_id],
                         ));
-                        delivery_promise_provider_payload_json(
-                            provider,
-                            &plan.field.selection,
-                            Vec::new(),
-                        )
+                        delivery_promise_provider_payload_json(provider, Vec::new())
                     };
-                    data.insert(plan.field.response_key, payload);
+                    data.insert(plan.response_key, payload);
                 }
                 DeliveryPromisePreparedMutation::ParticipantsUpdate(plan) => {
                     let payload = if has_user_errors {
                         self.delivery_promise_participants_payload_json(
                             Vec::new(),
-                            &plan.field.selection,
                             plan.user_errors,
                         )
                     } else {
                         let (participants, staged_ids) =
                             self.apply_delivery_promise_participants_update(&plan);
                         log_drafts.push(LogDraft::staged(
-                            plan.field.name.clone(),
+                            "deliveryPromiseParticipantsUpdate",
                             "shipping-fulfillments",
                             staged_ids,
                         ));
-                        self.delivery_promise_participants_payload_json(
-                            participants,
-                            &plan.field.selection,
-                            Vec::new(),
-                        )
+                        self.delivery_promise_participants_payload_json(participants, Vec::new())
                     };
-                    data.insert(plan.field.response_key, payload);
+                    data.insert(plan.response_key, payload);
                 }
             }
         }
@@ -296,10 +333,11 @@ impl DraftProxy {
 
     fn prepare_delivery_promise_provider_upsert(
         &mut self,
-        field: RootFieldSelection,
+        response_key: String,
+        arguments: BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> DeliveryPromiseProviderUpsertPlan {
-        let location_id = resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
+        let location_id = resolved_string_field(&arguments, "locationId").unwrap_or_default();
         let location_ids = if location_id.is_empty() {
             Vec::new()
         } else {
@@ -307,9 +345,9 @@ impl DraftProxy {
         };
         self.hydrate_delivery_profile_locations(&location_ids, request);
         let location = self.location_for_read(&location_id);
-        let active = field.arguments.get("active").and_then(resolved_value_bool);
-        let fulfillment_delay = resolved_int_field(&field.arguments, "fulfillmentDelay");
-        let time_zone = resolved_string_field(&field.arguments, "timeZone");
+        let active = arguments.get("active").and_then(resolved_value_bool);
+        let fulfillment_delay = resolved_int_field(&arguments, "fulfillmentDelay");
+        let time_zone = resolved_string_field(&arguments, "timeZone");
         let mut user_errors = Vec::new();
 
         if location_id.is_empty() || location.is_none() {
@@ -342,7 +380,7 @@ impl DraftProxy {
         }
 
         DeliveryPromiseProviderUpsertPlan {
-            field,
+            response_key,
             location_id,
             location,
             active,
@@ -409,14 +447,15 @@ impl DraftProxy {
 
     fn prepare_delivery_promise_participants_update(
         &self,
-        field: RootFieldSelection,
+        response_key: String,
+        arguments: BTreeMap<String, ResolvedValue>,
     ) -> DeliveryPromiseParticipantsUpdatePlan {
         let branded_promise_handle =
-            resolved_string_field(&field.arguments, "brandedPromiseHandle").unwrap_or_default();
+            resolved_string_field(&arguments, "brandedPromiseHandle").unwrap_or_default();
         let owners_to_add =
-            dedup_preserve_order(resolved_string_list_arg(&field.arguments, "ownersToAdd"));
+            dedup_preserve_order(resolved_string_list_arg(&arguments, "ownersToAdd"));
         let owners_to_remove =
-            dedup_preserve_order(resolved_string_list_arg(&field.arguments, "ownersToRemove"));
+            dedup_preserve_order(resolved_string_list_arg(&arguments, "ownersToRemove"));
         let mut user_errors = Vec::new();
 
         if branded_promise_handle.trim().is_empty() {
@@ -459,7 +498,7 @@ impl DraftProxy {
         }
 
         DeliveryPromiseParticipantsUpdatePlan {
-            field,
+            response_key,
             branded_promise_handle,
             owners_to_add,
             owners_to_remove,
@@ -510,52 +549,30 @@ impl DraftProxy {
         (participants, touched_ids)
     }
 
-    fn delivery_promise_provider_selected_json(
-        &self,
-        provider: &Value,
-        selection: &[SelectedField],
-    ) -> Value {
+    fn delivery_promise_provider_value(&self, provider: &Value) -> Value {
         let mut provider = provider.clone();
         if let Some(location_id) = delivery_promise_provider_location_id(&provider) {
             if let Some(location) = self.location_for_read(location_id) {
                 provider["location"] = location;
             }
         }
-        selected_json(&provider, selection)
+        provider
     }
 
     fn delivery_promise_participants_payload_json(
         &self,
         participants: Vec<Value>,
-        selections: &[SelectedField],
         user_errors: Vec<Value>,
     ) -> Value {
-        let mut payload = serde_json::Map::new();
-        for selection in selections {
-            let value = match selection.name.as_str() {
-                "promiseParticipants" => Value::Array(
-                    participants
-                        .iter()
-                        .map(|participant| {
-                            self.delivery_promise_participant_selected_json(
-                                participant,
-                                &selection.selection,
-                            )
-                        })
-                        .collect(),
-                ),
-                "userErrors" => selected_user_errors(&user_errors, &selection.selection),
-                _ => continue,
-            };
-            payload.insert(selection.response_key.clone(), value);
-        }
-        Value::Object(payload)
+        json!({
+            "promiseParticipants": participants,
+            "userErrors": user_errors,
+        })
     }
 
-    fn delivery_promise_participants_connection_json(
+    fn delivery_promise_participants_connection_value(
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
-        selections: &[SelectedField],
     ) -> Value {
         let branded_promise_handle =
             resolved_string_field(arguments, "brandedPromiseHandle").unwrap_or_default();
@@ -569,61 +586,7 @@ impl DraftProxy {
         }
         let (participants, page_info) =
             connection_window(&participants, arguments, value_id_cursor);
-        let nodes_selection = nested_selected_fields(selections, &["nodes"]);
-        let edge_node_selection = nested_selected_fields(selections, &["edges", "node"]);
-        let page_info_selection = nested_selected_fields(selections, &["pageInfo"]);
-        let mut connection = serde_json::Map::new();
-        for selection in selections {
-            let value = match selection.name.as_str() {
-                "nodes" => Value::Array(
-                    participants
-                        .iter()
-                        .map(|participant| {
-                            self.delivery_promise_participant_selected_json(
-                                participant,
-                                &nodes_selection,
-                            )
-                        })
-                        .collect(),
-                ),
-                "edges" => Value::Array(
-                    participants
-                        .iter()
-                        .map(|participant| {
-                            self.delivery_promise_participant_edge_json(
-                                participant,
-                                &selection.selection,
-                                &edge_node_selection,
-                            )
-                        })
-                        .collect(),
-                ),
-                "pageInfo" => selected_json(&page_info, &page_info_selection),
-                _ => continue,
-            };
-            connection.insert(selection.response_key.clone(), value);
-        }
-        Value::Object(connection)
-    }
-
-    fn delivery_promise_participant_edge_json(
-        &self,
-        participant: &Value,
-        selections: &[SelectedField],
-        node_selection: &[SelectedField],
-    ) -> Value {
-        let mut edge = serde_json::Map::new();
-        for selection in selections {
-            let value = match selection.name.as_str() {
-                "cursor" => json!(value_id_cursor(participant)),
-                "node" => {
-                    self.delivery_promise_participant_selected_json(participant, node_selection)
-                }
-                _ => continue,
-            };
-            edge.insert(selection.response_key.clone(), value);
-        }
-        Value::Object(edge)
+        typed_connection_value(&participants, Value::clone, value_id_cursor, page_info)
     }
 
     fn delivery_promise_participants_for_handle(
@@ -698,39 +661,6 @@ impl DraftProxy {
         .cloned()
     }
 
-    fn delivery_promise_participant_selected_json(
-        &self,
-        participant: &Value,
-        selections: &[SelectedField],
-    ) -> Value {
-        let mut fields = serde_json::Map::new();
-        for selection in selections {
-            if !delivery_promise_selection_applies(selection, "DeliveryPromiseParticipant") {
-                continue;
-            }
-            let value = match selection.name.as_str() {
-                "owner" => delivery_promise_participant_owner_id(participant)
-                    .and_then(|owner_id| {
-                        self.local_node_value_by_id(owner_id, &selection.selection)
-                    })
-                    .unwrap_or(Value::Null),
-                "__typename" => json!("DeliveryPromiseParticipant"),
-                _ => {
-                    let Some(value) = participant.get(&selection.name) else {
-                        continue;
-                    };
-                    if selection.selection.is_empty() {
-                        value.clone()
-                    } else {
-                        selected_json(value, &selection.selection)
-                    }
-                }
-            };
-            fields.insert(selection.response_key.clone(), value);
-        }
-        Value::Object(fields)
-    }
-
     pub(in crate::proxy) fn delivery_promise_node_value_by_id(&self, id: &str) -> Option<Value> {
         match shopify_gid_resource_type(id) {
             Some("DeliveryPromiseProvider") => Some(
@@ -746,18 +676,11 @@ impl DraftProxy {
     }
 }
 
-fn delivery_promise_provider_payload_json(
-    provider: Value,
-    selections: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_json(
-        &json!({
-            "deliveryPromiseProvider": provider,
-            "userErrors": user_errors
-        }),
-        selections,
-    )
+fn delivery_promise_provider_payload_json(provider: Value, user_errors: Vec<Value>) -> Value {
+    json!({
+        "deliveryPromiseProvider": provider,
+        "userErrors": user_errors
+    })
 }
 
 fn delivery_promise_provider_user_error(
@@ -837,14 +760,6 @@ fn dedup_preserve_order(values: Vec<String>) -> Vec<String> {
         }
     }
     deduped
-}
-
-fn delivery_promise_selection_applies(selection: &SelectedField, typename: &str) -> bool {
-    match selection.type_condition.as_deref() {
-        None => true,
-        Some("Node") => true,
-        Some(type_condition) => type_condition == typename,
-    }
 }
 
 fn normalized_delivery_promise_provider_read_model(provider: &Value) -> Option<Value> {

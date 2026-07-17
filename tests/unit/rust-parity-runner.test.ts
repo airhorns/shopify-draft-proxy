@@ -44,8 +44,8 @@ describe('parity runner API version routing', () => {
   });
 });
 
-async function runCorepackPnpm(args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync('corepack', ['pnpm', ...args], {
+async function runPnpm(args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync('pnpm', args, {
     cwd: repoRoot,
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
@@ -383,7 +383,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'discovers every checked-in parity spec before executing scenarios',
     async () => {
-      const output = await runCorepackPnpm(['parity:run', '--', '--dry-run']);
+      const output = await runPnpm(['parity:run', '--', '--dry-run']);
       expect(output).toContain(`[parity] ${countParitySpecs(paritySpecRoot)} spec(s) selected`);
     },
     parityCliTimeoutMs,
@@ -392,7 +392,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'uses the captured target response as the passthrough cassette fallback for unsupported roots',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',
@@ -406,7 +406,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'unwraps captured response.body payloads for passthrough cassette fallbacks',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',
@@ -420,7 +420,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'does not require local Rust handlers to consume every captured upstream call when output matches',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',
@@ -434,7 +434,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'uses each comparison target capture as fallback even when unrelated upstream recordings remain',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',
@@ -448,7 +448,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'resolves capture-path variables before replaying recorded passthrough node reads',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',
@@ -462,7 +462,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'executes proxyUpload targets as side-effect assertions for staged upload parity',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',
@@ -476,7 +476,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'uses the primary capture target, not the first target request, as primary passthrough fallback',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',
@@ -490,7 +490,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'uses exact nested captured requests for primary passthrough fallback',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',
@@ -504,7 +504,7 @@ describe('Rust parity runner CLI', () => {
   it(
     'applies expected-difference rules to wildcard array paths',
     async () => {
-      const output = await runCorepackPnpm([
+      const output = await runPnpm([
         'parity',
         '--',
         '--spec',

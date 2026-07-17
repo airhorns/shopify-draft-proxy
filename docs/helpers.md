@@ -16,18 +16,31 @@ Use the executable-schema registry before adding another schema parser or checke
 - `output_type_condition_applies(...)` lets transitional JSON projectors use captured interface/union relationships instead of maintaining handwritten implementor lists; the executable engine remains the final projection authority.
 - Custom scalar codecs live beside schema construction. Extend that explicit codec table when a captured schema adds a scalar; do not make unknown scalars permissive. `invalid_url_scalar_message(...)` is shared with the Shopify error adapter so engine validation and wire-envelope text cannot drift.
 
-Full Admin schema captures live at `config/admin-graphql/<version>/schema.graphql`, the executable/default version inventory lives in `config/admin-graphql/manifest.json`, and captures are produced by `scripts/capture-admin-graphql-schema.mts`. The complete Storefront 2026-04 introspection capture lives at `config/storefront-graphql/2026-04/schema.json`; `src/storefront_graphql.rs` renders it to SDL once and keeps its version/cache separate from Admin. Do not introduce another partial mutation/input/output schema source or a second TypeScript version list.
+Full Admin schema captures live at `config/admin-graphql/<version>/schema.graphql`, the executable/default version inventory lives in `config/admin-graphql/manifest.json`, and captures are produced by `scripts/capture-admin-graphql-schema.mts`. The complete Storefront 2026-04 introspection capture lives at `config/storefront-graphql/2026-04/schema.json`; Storefront runtime route/version configuration lives separately at `config/storefront-graphql-manifest.json` so it is not misrepresented as captured evidence. `src/storefront_graphql.rs` renders the capture to SDL once and keeps its version/cache separate from Admin. Do not introduce another partial mutation/input/output schema source or a second TypeScript version list.
+
+`build.rs` generates the surface version enums and route/source catalogs from those manifests. Run `cargo run --quiet --bin graphql-root-catalog-json` for the complete captured root inventory with surface/version presence and any attached capability registration. An absent registration is an explicit coverage gap, not permission to add a second handwritten root list.
 
 ## `src/graphql.rs`
 
-Use the compatibility document helpers here before adding resource-local argument readers. `async-graphql`, through `src/admin_graphql.rs`, is the executable parser, validator, projector, and null-propagation engine; these helpers provide the normalized domain-handler view and Shopify-specific error locations.
+`async-graphql`, through `src/admin_graphql.rs`, is the executable parser,
+validator, projector, and null-propagation engine. Native root callbacks should
+read `RootInvocation::arguments` and `raw_arguments`; do not call these
+compatibility parsers to rediscover the root or rebuild an argument-only
+`RootFieldSelection`.
+
+Use the document helpers here only at boundaries that genuinely need the
+caller's GraphQL syntax: upstream single-root serialization/batching, isolated
+Shopify error-location compatibility, or GraphQL documents supplied as data
+(for example a bulk-operation query).
 
 - `parse_operation(...)` identifies operation type and top-level roots without depending on operation names.
 - `root_fields(...)` preserves aliases, response keys, selections, and resolved arguments for each root field.
 - `root_field_arguments(...)` resolves literals, enums, lists, objects, variables, and missing variables into `ResolvedValue`.
-- Selection data is exposed on `RootFieldSelection` and `SelectedField`; use the projection helpers in `src/proxy/selection.rs` for selected/nested field serializers.
+- Selection data is exposed on `RootFieldSelection` and `SelectedField` only for those compatibility paths. Native roots return canonical values and let the executable engine project them.
 
-Route behavior by actual root fields and resolved arguments from these helpers, not by raw query string checks, unless a narrowly documented fixture compatibility branch already exists.
+Runtime routing uses the validated root inventory. Inside a native callback,
+route by `RootInvocation::root_name` and coerced arguments, never an operation
+name, alias, query substring, or reparsed selection.
 
 ## Root And Node Resolver Registries
 
@@ -37,7 +50,15 @@ Use `src/operation_registry.rs` and `src/resolver_registry.rs` before adding cap
 - `implemented_entries(...)` filters only locally modeled roots.
 - `operation_capability(...)` returns passthrough for unknown or unimplemented roots, even when metadata exists.
 - `ResolverRegistry::new(...)` derives the instance-owned local root inventory from those implemented entries.
+- `default_graphql_root_catalog()` / `graphql-root-catalog-json` derive all captured roots across both surfaces and every executable version, including roots absent from the capability registry.
 - `ApiSurface::resolver_name(...)` keeps Admin resolver names unchanged and maps Storefront roots to a `storefront*` internal name (`shop` becomes `storefrontShop`). `resolve_for_surface(...)` and `registration_for_surface(...)` perform this translation and verify the API surface, operation type, and public root before returning a callback. Use them for non-Admin execution; the shorter lookup methods intentionally default to Admin for existing callers.
+
+`RootInvocation` carries engine-coerced arguments, raw argument-source metadata,
+the response key/root location, operation path, and variable-definition
+locations needed by Shopify-compatible errors. It also exposes
+`requests_field_path(...)`, backed by `async-graphql`'s selected field tree. Use
+that only to plan hydration breadth or batching; do not use it to shape JSON
+output or recreate selection projectors.
 
 For generic IDs, update `src/node_resolver_inventory.rs` and its matching loader in `src/proxy/node_registry.rs` rather than adding another `node`/`nodes` switch. The inventory is exported for coverage audits; the executable loader reads the owning domain's effective store state.
 

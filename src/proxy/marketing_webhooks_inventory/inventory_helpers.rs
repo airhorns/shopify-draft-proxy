@@ -34,6 +34,12 @@ pub(in crate::proxy) fn inventory_field_resolver_registrations() -> Vec<FieldRes
         "changes",
         inventory_adjustment_group_changes_field,
     ));
+    registrations.push(FieldResolverRegistration::explicit(
+        ApiSurface::Admin,
+        "Location",
+        "inventoryLevels",
+        location_inventory_levels_field,
+    ));
     for (field, handler) in [
         (
             "countryHarmonizedSystemCodes",
@@ -219,6 +225,24 @@ pub(in crate::proxy) fn inventory_field_resolver_registrations() -> Vec<FieldRes
         }));
     }
     registrations
+}
+
+fn location_inventory_levels_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let location_id = invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let canonical_location = proxy.location_for_read(location_id);
+    Ok(proxy.location_inventory_levels_connection_value(
+        location_id,
+        canonical_location.as_ref().or(Some(invocation.parent)),
+        &resolved_arguments_from_json(&invocation.arguments),
+    ))
 }
 
 pub(in crate::proxy) fn inventory_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
@@ -545,88 +569,6 @@ fn inventory_level_location_for_view(
         .unwrap_or_else(|| json!({ "id": location_id }))
 }
 
-pub(in crate::proxy) fn inventory_level_selected_json(
-    inventory_item_id: &str,
-    location_id: &str,
-    quantities: &BTreeMap<String, i64>,
-    view_state: &InventoryLevelViewState<'_>,
-    selections: &[SelectedField],
-) -> Value {
-    let is_active = !view_state
-        .inactive_levels
-        .contains(&(inventory_item_id.to_string(), location_id.to_string()));
-    let mut fields = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "id" => Some(json!(view_state
-                .inventory_level_ids
-                .get(&(inventory_item_id.to_string(), location_id.to_string()))
-                .cloned()
-                .unwrap_or_else(|| inventory_level_id(
-                    inventory_item_id,
-                    location_id
-                )))),
-            "__typename" => Some(json!("InventoryLevel")),
-            "isActive" => Some(json!(is_active)),
-            "item" => Some(selected_json(
-                &json!({ "id": inventory_item_id }),
-                &selection.selection,
-            )),
-            "location" => Some(selected_json(
-                &inventory_level_location_for_view(location_id, view_state),
-                &selection.selection,
-            )),
-            "quantities" => Some(Value::Array(
-                inventory_quantity_names(&selection.arguments)
-                    .into_iter()
-                    .map(|name| {
-                        let updated_at = view_state
-                            .quantity_updated_at
-                            .get(&(
-                                inventory_item_id.to_string(),
-                                location_id.to_string(),
-                                name.clone(),
-                            ))
-                            .map_or(Value::Null, |value| json!(value));
-                        selected_json(
-                            &json!({
-                                "__typename": "InventoryQuantity",
-                                "id": inventory_quantity_id(inventory_item_id, location_id, &name),
-                                "name": name,
-                                "quantity": quantities.get(&name).copied().unwrap_or(0),
-                                "updatedAt": updated_at
-                            }),
-                            &selection.selection,
-                        )
-                    })
-                    .collect(),
-            )),
-            _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(fields)
-}
-
-fn inventory_quantity_names(arguments: &BTreeMap<String, ResolvedValue>) -> Vec<String> {
-    match arguments.get("names") {
-        Some(ResolvedValue::List(values)) => values
-            .iter()
-            .filter_map(|value| match value {
-                ResolvedValue::String(name) => Some(name.clone()),
-                _ => None,
-            })
-            .collect(),
-        _ => vec![
-            "available".to_string(),
-            "on_hand".to_string(),
-            "damaged".to_string(),
-        ],
-    }
-}
-
 pub(in crate::proxy) fn inventory_level_id(inventory_item_id: &str, location_id: &str) -> String {
     let level_tail = format!(
         "{}-{}",
@@ -939,6 +881,23 @@ impl DraftProxy {
             .get("id")
             .and_then(Value::as_str)
             .unwrap_or_default();
+        let had_state = self.store.has_inventory_transfer_state();
+        let needs_upstream = self.config.read_mode == ReadMode::LiveHybrid
+            && (id.is_empty()
+                || (self.store.inventory_transfer_by_id(id).is_none()
+                    && !self.store.staged.inventory_transfers.is_tombstoned(id)));
+        if needs_upstream {
+            let result = self.cached_or_forward_upstream_graphql_result(
+                invocation.request,
+                invocation.response_key,
+            );
+            if result.transport_succeeded {
+                self.observe_inventory_transfer_read_response(&result.data);
+            }
+            if !had_state {
+                return result.outcome;
+            }
+        }
         ResolverOutcome::value(self.inventory_transfer_value_by_id(id))
     }
 
@@ -946,6 +905,21 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        let had_state = self.store.has_inventory_transfer_state();
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && !self.store.has_base_inventory_transfer_state()
+        {
+            let result = self.cached_or_forward_upstream_graphql_result(
+                invocation.request,
+                invocation.response_key,
+            );
+            if result.transport_succeeded {
+                self.observe_inventory_transfer_read_response(&result.data);
+            }
+            if !had_state {
+                return result.outcome;
+            }
+        }
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         ResolverOutcome::value(self.inventory_transfers_connection_value(&arguments))
     }

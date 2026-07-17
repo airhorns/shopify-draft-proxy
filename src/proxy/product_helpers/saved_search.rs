@@ -2,30 +2,13 @@ use super::*;
 use crate::proxy::search::split_search_query_terms;
 
 impl DraftProxy {
-    pub(crate) fn resolve_saved_searches_graphql(
+    pub(crate) fn saved_search_query_root(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         debug_assert_eq!(invocation.api_surface, ApiSurface::Admin);
         debug_assert_eq!(invocation.api_version.surface(), invocation.api_surface);
-        debug_assert_eq!(
-            invocation.operation.operation_type,
-            match invocation.mode {
-                LocalResolverMode::OverlayRead => OperationType::Query,
-                LocalResolverMode::StageLocally => OperationType::Mutation,
-            }
-        );
-        let _version = invocation.api_version.as_str();
-        match invocation.mode {
-            LocalResolverMode::OverlayRead => self.saved_search_query_outcome(&invocation),
-            LocalResolverMode::StageLocally => self.saved_search_mutation_outcome(&invocation),
-        }
-    }
-
-    fn saved_search_query_outcome(
-        &mut self,
-        invocation: &RootInvocation<'_>,
-    ) -> ResolverOutcome<Value> {
+        debug_assert_eq!(invocation.operation.operation_type, OperationType::Query);
         let api_client_id = saved_search_request_api_client_id(invocation.request);
         if self.config.read_mode == ReadMode::LiveHybrid {
             let mut outcome = self.cached_or_forward_upstream_root_outcome(
@@ -43,6 +26,7 @@ impl DraftProxy {
                     &invocation.arguments,
                     &api_client_id,
                 );
+                outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
             }
             return outcome;
         }
@@ -51,6 +35,25 @@ impl DraftProxy {
             &invocation.arguments,
             &api_client_id,
         ))
+    }
+
+    pub(crate) fn saved_search_mutation_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        debug_assert_eq!(invocation.api_surface, ApiSurface::Admin);
+        debug_assert_eq!(invocation.api_version.surface(), invocation.api_surface);
+        debug_assert_eq!(invocation.operation.operation_type, OperationType::Mutation);
+        let api_client_id = saved_search_request_api_client_id(invocation.request);
+        let input = invocation.arguments.get("input").and_then(Value::as_object);
+        match invocation.root_name {
+            "savedSearchCreate" => self.saved_search_create_outcome(input, &api_client_id),
+            "savedSearchUpdate" => self.saved_search_update_outcome(input, &api_client_id),
+            "savedSearchDelete" => self.saved_search_delete_outcome(input),
+            root_name => {
+                ResolverOutcome::error(format!("Unknown saved-search mutation root `{root_name}`"))
+            }
+        }
     }
 
     fn observe_saved_search_connection(
@@ -137,25 +140,6 @@ impl DraftProxy {
             },
             page_info,
         )
-    }
-
-    fn saved_search_mutation_outcome(
-        &mut self,
-        invocation: &RootInvocation<'_>,
-    ) -> ResolverOutcome<Value> {
-        let api_client_id = saved_search_request_api_client_id(invocation.request);
-        let input = invocation.arguments.get("input").and_then(Value::as_object);
-        match invocation.root_name {
-            "savedSearchCreate" => self.saved_search_create_outcome(input, &api_client_id),
-            "savedSearchUpdate" => self.saved_search_update_outcome(input, &api_client_id),
-            "savedSearchDelete" => self.saved_search_delete_outcome(input),
-            root_name => ResolverOutcome::value(json!({
-                "userErrors": [{
-                    "field": Value::Null,
-                    "message": format!("Local staging for {root_name} is not implemented")
-                }]
-            })),
-        }
     }
 
     fn saved_search_create_outcome(

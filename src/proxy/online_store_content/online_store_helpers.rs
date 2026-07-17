@@ -87,6 +87,45 @@ pub(in crate::proxy) fn theme_file_nodes(theme: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+pub(in crate::proxy) fn theme_file_cursor(file: &Value) -> String {
+    file.get("filename")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+pub(in crate::proxy) fn theme_filename_matches(pattern: &str, filename: &str) -> bool {
+    if !pattern.contains('*') {
+        return filename == pattern;
+    }
+
+    let parts = pattern.split('*').collect::<Vec<_>>();
+    let mut remainder = filename;
+    for (index, part) in parts.iter().enumerate() {
+        if part.is_empty() {
+            continue;
+        }
+        if index == 0 && !pattern.starts_with('*') {
+            let Some(next_remainder) = remainder.strip_prefix(part) else {
+                return false;
+            };
+            remainder = next_remainder;
+            continue;
+        }
+        let Some(position) = remainder.find(part) else {
+            return false;
+        };
+        remainder = &remainder[position + part.len()..];
+    }
+
+    if !pattern.ends_with('*') {
+        if let Some(last_part) = parts.iter().rev().find(|part| !part.is_empty()) {
+            return filename.ends_with(last_part);
+        }
+    }
+    true
+}
+
 pub(in crate::proxy) fn set_theme_file_nodes(theme: &mut Value, nodes: Vec<Value>) {
     if let Some(object) = theme.as_object_mut() {
         object.insert("files".to_string(), json!({"nodes": nodes}));
@@ -201,97 +240,55 @@ pub(in crate::proxy) fn mobile_app_error<const N: usize>(
     user_error(field, message, Some(code))
 }
 
-pub(in crate::proxy) fn mobile_app_payload(
-    selection: &[SelectedField],
-    record: Option<Value>,
-    errors: Vec<Value>,
-) -> Value {
+pub(in crate::proxy) fn mobile_app_payload(record: Option<Value>, errors: Vec<Value>) -> Value {
     resource_payload(
-        selection,
         "mobilePlatformApplication",
         record.unwrap_or(Value::Null),
         errors,
     )
 }
 
-pub(in crate::proxy) fn script_tag_payload(
-    selection: &[SelectedField],
-    record: Option<Value>,
-    errors: Vec<Value>,
-) -> Value {
-    resource_payload(
-        selection,
-        "scriptTag",
-        record.unwrap_or(Value::Null),
-        errors,
-    )
+pub(in crate::proxy) fn script_tag_payload(record: Option<Value>, errors: Vec<Value>) -> Value {
+    resource_payload("scriptTag", record.unwrap_or(Value::Null), errors)
 }
 
 pub(in crate::proxy) fn resource_payload(
-    selection: &[SelectedField],
     resource_key: &str,
     resource: Value,
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_json(
-        &json!({
-            resource_key: resource,
-            "userErrors": user_errors
-        }),
-        selection,
-    )
+    json!({
+        resource_key: resource,
+        "userErrors": user_errors
+    })
 }
 
-pub(in crate::proxy) fn theme_payload(
-    selection: &[SelectedField],
-    record: Value,
-    errors: Vec<Value>,
-) -> Value {
-    resource_payload(selection, "theme", record, errors)
+pub(in crate::proxy) fn theme_payload(record: Value, errors: Vec<Value>) -> Value {
+    resource_payload("theme", record, errors)
 }
 
-pub(in crate::proxy) fn deleted_theme_payload(
-    selection: &[SelectedField],
-    deleted_id: Value,
-    errors: Vec<Value>,
-) -> Value {
-    resource_payload(selection, "deletedThemeId", deleted_id, errors)
+pub(in crate::proxy) fn deleted_theme_payload(deleted_id: Value, errors: Vec<Value>) -> Value {
+    resource_payload("deletedThemeId", deleted_id, errors)
 }
 
-pub(in crate::proxy) fn deleted_script_tag_payload(
-    selection: &[SelectedField],
-    deleted_id: Value,
-    errors: Vec<Value>,
-) -> Value {
-    resource_payload(selection, "deletedScriptTagId", deleted_id, errors)
+pub(in crate::proxy) fn deleted_script_tag_payload(deleted_id: Value, errors: Vec<Value>) -> Value {
+    resource_payload("deletedScriptTagId", deleted_id, errors)
 }
 
-pub(in crate::proxy) fn web_pixel_payload(
-    selection: &[SelectedField],
-    record: Value,
-    errors: Vec<Value>,
-) -> Value {
-    resource_payload(selection, "webPixel", record, errors)
+pub(in crate::proxy) fn web_pixel_payload(record: Value, errors: Vec<Value>) -> Value {
+    resource_payload("webPixel", record, errors)
 }
 
-pub(in crate::proxy) fn server_pixel_payload(
-    selection: &[SelectedField],
-    record: Value,
-    errors: Vec<Value>,
-) -> Value {
-    resource_payload(selection, "serverPixel", record, errors)
+pub(in crate::proxy) fn server_pixel_payload(record: Value, errors: Vec<Value>) -> Value {
+    resource_payload("serverPixel", record, errors)
 }
 
 pub(in crate::proxy) fn storefront_access_token_payload(
-    selection: &[SelectedField],
     record: Value,
     shop: Value,
     errors: Vec<Value>,
 ) -> Value {
-    selected_json(
-        &json!({"storefrontAccessToken": record, "shop": shop, "userErrors": errors}),
-        selection,
-    )
+    json!({"storefrontAccessToken": record, "shop": shop, "userErrors": errors})
 }
 
 pub(in crate::proxy) fn validate_script_src(
@@ -486,7 +483,7 @@ pub(in crate::proxy) fn validate_mobile_app_clip_application_id(
 /// (`eventBridgeServerPixelUpdate` / `pubSubServerPixelUpdate`), returning the top-level
 /// GraphQL error Shopify raises before executing the mutation, if any.
 pub(in crate::proxy) fn server_pixel_endpoint_argument_error(
-    field: &RootFieldSelection,
+    field: &OnlineStoreRootCall,
 ) -> Option<Value> {
     match field.name.as_str() {
         "eventBridgeServerPixelUpdate" => match resolved_string_field(&field.arguments, "arn") {
@@ -522,7 +519,7 @@ pub(in crate::proxy) fn is_valid_event_bridge_arn(arn: &str) -> bool {
 }
 
 pub(in crate::proxy) fn server_pixel_missing_argument_error(
-    field: &RootFieldSelection,
+    field: &OnlineStoreRootCall,
     argument_name: &str,
 ) -> Value {
     missing_required_arguments_error(
@@ -534,7 +531,7 @@ pub(in crate::proxy) fn server_pixel_missing_argument_error(
 }
 
 pub(in crate::proxy) fn server_pixel_blank_argument_error(
-    field: &RootFieldSelection,
+    field: &OnlineStoreRootCall,
     argument_name: &str,
 ) -> Value {
     json!({

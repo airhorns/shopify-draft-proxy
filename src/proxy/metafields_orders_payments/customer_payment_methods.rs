@@ -87,130 +87,84 @@ fn customer_payment_method_remote_blank_error(
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn customer_payment_method_local_outcome(
+    pub(crate) fn customer_payment_method_root(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        response_key: &str,
-    ) -> Option<ResolverOutcome<Value>> {
-        let fields = self.execution_root_fields(query, variables)?;
-        let customer_fields = fields
-            .iter()
-            .filter(|field| field.name != "paymentReminderSend");
-        if !customer_fields.clone().all(|field| {
-            matches!(
-                field.name.as_str(),
-                "customer"
-                    | "customerCreate"
-                    | "customerPaymentMethod"
-                    | "customerPaymentMethodCreditCardCreate"
-                    | "customerPaymentMethodCreditCardUpdate"
-                    | "customerPaymentMethodCreateFromDuplicationData"
-                    | "customerPaymentMethodGetDuplicationData"
-                    | "customerPaymentMethodGetUpdateUrl"
-                    | "customerPaymentMethodPaypalBillingAgreementCreate"
-                    | "customerPaymentMethodPaypalBillingAgreementUpdate"
-                    | "customerPaymentMethodRemoteCreate"
-                    | "customerPaymentMethodRevoke"
-            )
-        }) {
-            return None;
-        }
-        if !customer_fields.clone().any(|field| {
-            matches!(
-                field.name.as_str(),
-                "customerPaymentMethod"
-                    | "customerPaymentMethodCreditCardCreate"
-                    | "customerPaymentMethodCreditCardUpdate"
-                    | "customerPaymentMethodCreateFromDuplicationData"
-                    | "customerPaymentMethodGetDuplicationData"
-                    | "customerPaymentMethodGetUpdateUrl"
-                    | "customerPaymentMethodPaypalBillingAgreementCreate"
-                    | "customerPaymentMethodPaypalBillingAgreementUpdate"
-                    | "customerPaymentMethodRemoteCreate"
-                    | "customerPaymentMethodRevoke"
-            ) || is_customer_payment_method_customer_create_seed(field)
-                || (field.name == "customer"
-                    && selection_contains_any(&field.selection, &["paymentMethods"]))
-        }) {
-            return None;
-        }
-
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
         self.ensure_customer_payment_method_seed_state();
-        let mut staged_ids = Vec::new();
-        let data = root_payload_json(&fields, |field| {
-            let value = match field.name.as_str() {
-                "customerCreate" => self.customer_payment_method_customer_create(field),
-                "customer" => self.customer_payment_method_customer_read(field),
-                "customerPaymentMethod" => self.customer_payment_method_read(field),
-                "customerPaymentMethodCreditCardCreate" => {
-                    let (payload, id) = self.customer_payment_method_credit_card_create(field);
-                    if let Some(id) = id {
-                        staged_ids.push(id);
-                    }
-                    payload
-                }
-                "customerPaymentMethodCreditCardUpdate" => {
-                    self.customer_payment_method_credit_card_update(field)
-                }
-                "customerPaymentMethodRemoteCreate" => {
-                    let (payload, id) = self.customer_payment_method_remote_create(field);
-                    if let Some(id) = id {
-                        staged_ids.push(id);
-                    }
-                    payload
-                }
-                "customerPaymentMethodPaypalBillingAgreementCreate" => {
-                    let (payload, id) = self.customer_payment_method_paypal_create(field);
-                    if let Some(id) = id {
-                        staged_ids.push(id);
-                    }
-                    payload
-                }
-                "customerPaymentMethodPaypalBillingAgreementUpdate" => {
-                    self.customer_payment_method_paypal_update(field)
-                }
-                "customerPaymentMethodGetDuplicationData" => {
-                    self.customer_payment_method_duplication_data(field)
-                }
-                "customerPaymentMethodCreateFromDuplicationData" => {
-                    let (payload, id) = self.customer_payment_method_create_from_duplication(field);
-                    if let Some(id) = id {
-                        staged_ids.push(id);
-                    }
-                    payload
-                }
-                "customerPaymentMethodGetUpdateUrl" => {
-                    self.customer_payment_method_update_url(field)
-                }
-                "customerPaymentMethodRevoke" => {
-                    let (payload, id) = self.customer_payment_method_revoke(field);
-                    if let Some(id) = id {
-                        staged_ids.push(id);
-                    }
-                    payload
-                }
-                "paymentReminderSend" => return None,
-                _ => return None,
-            };
-            Some(value)
-        });
-        if !staged_ids.is_empty() {
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                "customerPaymentMethod",
-                staged_ids,
-            );
-        }
-        Some(ResolverOutcome::value(
-            data.get(response_key).cloned().unwrap_or(Value::Null),
-        ))
+        let id = invocation
+            .arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let show_revoked = invocation
+            .arguments
+            .get("showRevoked")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let value = self
+            .store
+            .staged
+            .customer_payment_methods
+            .get(id)
+            .filter(|record| show_revoked || record["revokedAt"].is_null())
+            .cloned()
+            .unwrap_or(Value::Null);
+        ResolverOutcome::value(value)
     }
 
-    fn ensure_customer_payment_method_seed_state(&mut self) {
+    pub(crate) fn customer_payment_method_mutation_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        self.ensure_customer_payment_method_seed_state();
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let (value, staged_id) = match invocation.root_name {
+            "customerPaymentMethodCreditCardCreate" => {
+                self.customer_payment_method_credit_card_create(&arguments)
+            }
+            "customerPaymentMethodCreditCardUpdate" => (
+                self.customer_payment_method_credit_card_update(&arguments),
+                None,
+            ),
+            "customerPaymentMethodRemoteCreate" => {
+                self.customer_payment_method_remote_create(&arguments)
+            }
+            "customerPaymentMethodPaypalBillingAgreementCreate" => {
+                self.customer_payment_method_paypal_create(&arguments)
+            }
+            "customerPaymentMethodPaypalBillingAgreementUpdate" => {
+                (self.customer_payment_method_paypal_update(&arguments), None)
+            }
+            "customerPaymentMethodGetDuplicationData" => (
+                self.customer_payment_method_duplication_data(&arguments),
+                None,
+            ),
+            "customerPaymentMethodCreateFromDuplicationData" => {
+                self.customer_payment_method_create_from_duplication(&arguments)
+            }
+            "customerPaymentMethodGetUpdateUrl" => {
+                (self.customer_payment_method_update_url(&arguments), None)
+            }
+            "customerPaymentMethodRevoke" => self.customer_payment_method_revoke(&arguments),
+            root => {
+                return ResolverOutcome::error(format!(
+                    "Unknown customer-payment-method mutation root `{root}`"
+                ));
+            }
+        };
+        let mut outcome = ResolverOutcome::value(value);
+        if let Some(id) = staged_id {
+            outcome = outcome.with_log_draft(LogDraft::staged(
+                invocation.root_name,
+                "payments",
+                vec![id],
+            ));
+        }
+        outcome
+    }
+
+    pub(in crate::proxy) fn ensure_customer_payment_method_seed_state(&mut self) {
         if self
             .store
             .staged
@@ -320,29 +274,21 @@ impl DraftProxy {
             .push(id);
     }
 
-    fn customer_payment_method_customer_create(&mut self, field: &RootFieldSelection) -> Value {
-        let id = shopify_gid("Customer", self.store.staged.customers.len() + 1);
-        let record = json!({ "id": id });
-        self.store.staged.customers.insert(id, record.clone());
-        selected_json(
-            &json!({ "customer": record, "userErrors": [] }),
-            &field.selection,
-        )
-    }
-
-    fn customer_payment_method_customer_read(&self, field: &RootFieldSelection) -> Value {
-        let customer_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+    pub(in crate::proxy) fn customer_payment_methods_connection_value(
+        &mut self,
+        customer_id: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        self.ensure_customer_payment_method_seed_state();
         let mut ids = self
             .store
             .staged
             .customer_payment_method_customer_index
-            .get(&customer_id)
+            .get(customer_id)
             .cloned()
             .unwrap_or_default();
         // Created payment methods (numeric ids) sort ahead of seeded ones
-        // (non-numeric ids); within each group ascending numeric id then stable
-        // insertion order. This keeps the connection deterministic regardless of
-        // how seeds and runtime creates interleave in the index.
+        // (non-numeric ids), preserving the existing deterministic ordering.
         ids.sort_by(|a, b| {
             let a_num = resource_id_tail(a).parse::<u64>().ok();
             let b_num = resource_id_tail(b).parse::<u64>().ok();
@@ -353,46 +299,13 @@ impl DraftProxy {
                 (None, None) => std::cmp::Ordering::Equal,
             }
         });
-        selected_payload_json(&field.selection, |selection| {
-            match selection.name.as_str() {
-                "id" => Some(json!(customer_id)),
-                "paymentMethods" => {
-                    let show_revoked = matches!(
-                        selection.arguments.get("showRevoked"),
-                        Some(ResolvedValue::Bool(true))
-                    );
-                    let methods = ids
-                        .iter()
-                        .filter_map(|id| {
-                            self.store.staged.customer_payment_methods.get(id).cloned()
-                        })
-                        .filter(|record| show_revoked || record["revokedAt"].is_null())
-                        .collect::<Vec<_>>();
-                    Some(selected_connection_json_with_args(
-                        methods,
-                        &selection.arguments,
-                        &selection.selection,
-                        value_id_cursor,
-                    ))
-                }
-                _ => None,
-            }
-        })
-    }
-
-    fn customer_payment_method_read(&self, field: &RootFieldSelection) -> Value {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let show_revoked = matches!(
-            field.arguments.get("showRevoked"),
-            Some(ResolvedValue::Bool(true))
-        );
-        let Some(record) = self.store.staged.customer_payment_methods.get(&id) else {
-            return Value::Null;
-        };
-        if !show_revoked && !record["revokedAt"].is_null() {
-            return Value::Null;
-        }
-        selected_json(record, &field.selection)
+        let show_revoked = resolved_bool_field(arguments, "showRevoked").unwrap_or(false);
+        let methods = ids
+            .iter()
+            .filter_map(|id| self.store.staged.customer_payment_methods.get(id).cloned())
+            .filter(|record| show_revoked || record["revokedAt"].is_null())
+            .collect::<Vec<_>>();
+        connection_value_with_args(methods, arguments, value_id_cursor)
     }
 
     pub(in crate::proxy) fn customer_payment_method_node_value_by_id(
@@ -410,12 +323,12 @@ impl DraftProxy {
 
     fn customer_payment_method_credit_card_create(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Option<String>) {
-        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
+        let customer_id = resolved_string_field(arguments, "customerId").unwrap_or_default();
         let billing_address =
-            resolved_object_field(&field.arguments, "billingAddress").unwrap_or_default();
-        let session_id = resolved_string_field(&field.arguments, "sessionId").unwrap_or_default();
+            resolved_object_field(arguments, "billingAddress").unwrap_or_default();
+        let session_id = resolved_string_field(arguments, "sessionId").unwrap_or_default();
         // Allocate the payment-method id up front so rejected and processing
         // attempts still consume a counter slot, matching Shopify's behavior
         // where every credit-card create attempt reserves an id even when the
@@ -423,8 +336,7 @@ impl DraftProxy {
         let id = self.next_customer_payment_method_gid();
         if session_id.is_empty() {
             return (
-                self.customer_payment_method_payload(
-                    &field.selection,
+                customer_payment_method_payload(
                     Value::Null,
                     Some(false),
                     vec![presence_user_error(["sessionId"], "Session id")],
@@ -434,24 +346,14 @@ impl DraftProxy {
         }
         if session_id == "shopify-draft-proxy:processing" {
             return (
-                self.customer_payment_method_payload(
-                    &field.selection,
-                    Value::Null,
-                    Some(true),
-                    Vec::new(),
-                ),
+                customer_payment_method_payload(Value::Null, Some(true), Vec::new()),
                 None,
             );
         }
         let blank_errors = customer_payment_method_billing_address_blank_errors(&billing_address);
         if !blank_errors.is_empty() {
             return (
-                self.customer_payment_method_payload(
-                    &field.selection,
-                    Value::Null,
-                    Some(false),
-                    blank_errors,
-                ),
+                customer_payment_method_payload(Value::Null, Some(false), blank_errors),
                 None,
             );
         }
@@ -467,23 +369,21 @@ impl DraftProxy {
         );
         self.stage_customer_payment_method_record(record.clone());
         (
-            self.customer_payment_method_payload(&field.selection, record, Some(false), Vec::new()),
+            customer_payment_method_payload(record, Some(false), Vec::new()),
             Some(id),
         )
     }
 
-    fn customer_payment_method_credit_card_update(&mut self, field: &RootFieldSelection) -> Value {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+    fn customer_payment_method_credit_card_update(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let id = resolved_string_field(arguments, "id").unwrap_or_default();
         let billing_address =
-            resolved_object_field(&field.arguments, "billingAddress").unwrap_or_default();
+            resolved_object_field(arguments, "billingAddress").unwrap_or_default();
         let blank_errors = customer_payment_method_billing_address_blank_errors(&billing_address);
         if !blank_errors.is_empty() {
-            return self.customer_payment_method_payload(
-                &field.selection,
-                Value::Null,
-                Some(false),
-                blank_errors,
-            );
+            return customer_payment_method_payload(Value::Null, Some(false), blank_errors);
         }
         let updated = if let Some(record) = self.store.staged.customer_payment_methods.get_mut(&id)
         {
@@ -494,15 +394,9 @@ impl DraftProxy {
             None
         };
         if let Some(record) = updated {
-            return self.customer_payment_method_payload(
-                &field.selection,
-                record,
-                Some(false),
-                Vec::new(),
-            );
+            return customer_payment_method_payload(record, Some(false), Vec::new());
         }
-        self.customer_payment_method_payload(
-            &field.selection,
+        customer_payment_method_payload(
             Value::Null,
             Some(false),
             vec![user_error(
@@ -515,11 +409,11 @@ impl DraftProxy {
 
     fn customer_payment_method_remote_create(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Option<String>) {
-        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
+        let customer_id = resolved_string_field(arguments, "customerId").unwrap_or_default();
         let remote_reference =
-            resolved_object_field(&field.arguments, "remoteReference").unwrap_or_default();
+            resolved_object_field(arguments, "remoteReference").unwrap_or_default();
         let selected_gateway_count = [
             "paypalPaymentMethod",
             "stripePaymentMethod",
@@ -537,8 +431,7 @@ impl DraftProxy {
         let has_adyen = remote_reference.contains_key("adyenPaymentMethod");
         if selected_gateway_count != 1 {
             return (
-                self.customer_payment_method_payload(
-                    &field.selection,
+                customer_payment_method_payload(
                     Value::Null,
                     None,
                     vec![user_error(
@@ -565,12 +458,7 @@ impl DraftProxy {
                 "BILLING_AGREEMENT_ID_BLANK",
             ) {
                 return (
-                    self.customer_payment_method_payload(
-                        &field.selection,
-                        Value::Null,
-                        None,
-                        vec![error],
-                    ),
+                    customer_payment_method_payload(Value::Null, None, vec![error]),
                     None,
                 );
             }
@@ -586,12 +474,7 @@ impl DraftProxy {
                 "INVALID",
             ) {
                 return (
-                    self.customer_payment_method_payload(
-                        &field.selection,
-                        Value::Null,
-                        None,
-                        vec![error],
-                    ),
+                    customer_payment_method_payload(Value::Null, None, vec![error]),
                     None,
                 );
             }
@@ -628,12 +511,7 @@ impl DraftProxy {
             .next()
             {
                 return (
-                    self.customer_payment_method_payload(
-                        &field.selection,
-                        Value::Null,
-                        None,
-                        vec![error],
-                    ),
+                    customer_payment_method_payload(Value::Null, None, vec![error]),
                     None,
                 );
             }
@@ -654,12 +532,7 @@ impl DraftProxy {
                 "INVALID",
             ) {
                 return (
-                    self.customer_payment_method_payload(
-                        &field.selection,
-                        Value::Null,
-                        None,
-                        vec![error],
-                    ),
+                    customer_payment_method_payload(Value::Null, None, vec![error]),
                     None,
                 );
             }
@@ -696,12 +569,7 @@ impl DraftProxy {
             .next()
             {
                 return (
-                    self.customer_payment_method_payload(
-                        &field.selection,
-                        Value::Null,
-                        None,
-                        vec![error],
-                    ),
+                    customer_payment_method_payload(Value::Null, None, vec![error]),
                     None,
                 );
             }
@@ -710,16 +578,16 @@ impl DraftProxy {
         let record = customer_payment_method_seed_record(&id, &customer_id, Value::Null);
         self.stage_customer_payment_method_record(record.clone());
         (
-            self.customer_payment_method_payload(&field.selection, record, None, Vec::new()),
+            customer_payment_method_payload(record, None, Vec::new()),
             Some(id),
         )
     }
 
     fn customer_payment_method_paypal_create(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Option<String>) {
-        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
+        let customer_id = resolved_string_field(arguments, "customerId").unwrap_or_default();
         let id = self.next_customer_payment_method_gid();
         let record = customer_payment_method_seed_record(
             &id,
@@ -727,18 +595,21 @@ impl DraftProxy {
             json!({
                 "__typename": "CustomerPaypalBillingAgreement",
                 "paypalAccountEmail": Value::Null,
-                "inactive": resolved_bool_field(&field.arguments, "inactive").unwrap_or(false)
+                "inactive": resolved_bool_field(arguments, "inactive").unwrap_or(false)
             }),
         );
         self.stage_customer_payment_method_record(record.clone());
         (
-            self.customer_payment_method_payload(&field.selection, record, None, Vec::new()),
+            customer_payment_method_payload(record, None, Vec::new()),
             Some(id),
         )
     }
 
-    fn customer_payment_method_paypal_update(&mut self, field: &RootFieldSelection) -> Value {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+    fn customer_payment_method_paypal_update(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let id = resolved_string_field(arguments, "id").unwrap_or_default();
         let record = self
             .store
             .staged
@@ -746,21 +617,24 @@ impl DraftProxy {
             .get(&id)
             .cloned()
             .unwrap_or(Value::Null);
-        self.customer_payment_method_payload(&field.selection, record, None, Vec::new())
+        customer_payment_method_payload(record, None, Vec::new())
     }
 
-    fn customer_payment_method_duplication_data(&self, field: &RootFieldSelection) -> Value {
+    fn customer_payment_method_duplication_data(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
         let source_id =
-            resolved_string_field(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
+            resolved_string_field(arguments, "customerPaymentMethodId").unwrap_or_default();
         let target_customer_id =
-            resolved_string_field(&field.arguments, "targetCustomerId").unwrap_or_default();
+            resolved_string_field(arguments, "targetCustomerId").unwrap_or_default();
         let errors = if source_id.contains("base-card") {
             vec![user_error(
                 ["customerPaymentMethodId"],
                 "Invalid instrument",
                 Some("INVALID_INSTRUMENT"),
             )]
-        } else if resolved_string_field(&field.arguments, "targetShopId").as_deref()
+        } else if resolved_string_field(arguments, "targetShopId").as_deref()
             == Some("gid://shopify/Shop/source")
         {
             vec![user_error(
@@ -771,33 +645,30 @@ impl DraftProxy {
         } else {
             Vec::new()
         };
-        selected_json(
-            &json!({
-                "encryptedDuplicationData": if errors.is_empty() {
-                    json!(format!(
-                        "shopify-draft-proxy:customer-payment-method-duplication:{}",
-                        base64_urlsafe_no_pad(&json!({
-                            "customerPaymentMethodId": source_id,
-                            "targetCustomerId": target_customer_id,
-                            "targetShopId": resolved_string_field(&field.arguments, "targetShopId").unwrap_or_default()
-                        }).to_string())
-                    ))
-                } else {
-                    Value::Null
-                },
-                "userErrors": errors
-            }),
-            &field.selection,
-        )
+        json!({
+            "encryptedDuplicationData": if errors.is_empty() {
+                json!(format!(
+                    "shopify-draft-proxy:customer-payment-method-duplication:{}",
+                    base64_urlsafe_no_pad(&json!({
+                        "customerPaymentMethodId": source_id,
+                        "targetCustomerId": target_customer_id,
+                        "targetShopId": resolved_string_field(arguments, "targetShopId").unwrap_or_default()
+                    }).to_string())
+                ))
+            } else {
+                Value::Null
+            },
+            "userErrors": errors
+        })
     }
 
     fn customer_payment_method_create_from_duplication(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Option<String>) {
-        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
+        let customer_id = resolved_string_field(arguments, "customerId").unwrap_or_default();
         let billing_address =
-            resolved_object_field(&field.arguments, "billingAddress").unwrap_or_default();
+            resolved_object_field(arguments, "billingAddress").unwrap_or_default();
         let mut errors = customer_payment_method_billing_address_blank_errors(&billing_address);
         // The current mutation-specific error enum no longer exposes the old
         // `BLANK` member. Preserve the captured field/message detail while
@@ -807,13 +678,13 @@ impl DraftProxy {
         }
         if !errors.is_empty() {
             return (
-                self.customer_payment_method_payload(&field.selection, Value::Null, None, errors),
+                customer_payment_method_payload(Value::Null, None, errors),
                 None,
             );
         }
         let id = self.next_customer_payment_method_gid();
         let instrument = self.customer_payment_method_duplicated_instrument(
-            resolved_string_field(&field.arguments, "encryptedDuplicationData")
+            resolved_string_field(arguments, "encryptedDuplicationData")
                 .as_deref()
                 .unwrap_or_default(),
             &billing_address,
@@ -821,7 +692,7 @@ impl DraftProxy {
         let record = customer_payment_method_seed_record(&id, &customer_id, instrument);
         self.stage_customer_payment_method_record(record.clone());
         (
-            self.customer_payment_method_payload(&field.selection, record, None, Vec::new()),
+            customer_payment_method_payload(record, None, Vec::new()),
             Some(id),
         )
     }
@@ -857,9 +728,11 @@ impl DraftProxy {
         }
     }
 
-    fn customer_payment_method_update_url(&self, field: &RootFieldSelection) -> Value {
-        let id =
-            resolved_string_field(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
+    fn customer_payment_method_update_url(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let id = resolved_string_field(arguments, "customerPaymentMethodId").unwrap_or_default();
         let errors = if id.contains("base-card") {
             vec![user_error(
                 ["customerPaymentMethodId"],
@@ -869,38 +742,31 @@ impl DraftProxy {
         } else {
             Vec::new()
         };
-        selected_json(
-            &json!({
-                "updatePaymentMethodUrl": if errors.is_empty() {
-                    json!(format!("https://shopify-draft-proxy.local/customer-payment-methods/{}/update?token=local-only", resource_id_tail(&id)))
-                } else {
-                    Value::Null
-                },
-                "userErrors": errors
-            }),
-            &field.selection,
-        )
+        json!({
+            "updatePaymentMethodUrl": if errors.is_empty() {
+                json!(format!("https://shopify-draft-proxy.local/customer-payment-methods/{}/update?token=local-only", resource_id_tail(&id)))
+            } else {
+                Value::Null
+            },
+            "userErrors": errors
+        })
     }
 
     fn customer_payment_method_revoke(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Option<String>) {
-        let id =
-            resolved_string_field(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
+        let id = resolved_string_field(arguments, "customerPaymentMethodId").unwrap_or_default();
         let Some(record) = self.store.staged.customer_payment_methods.get_mut(&id) else {
             return (
-                selected_json(
-                    &json!({
-                        "revokedCustomerPaymentMethodId": Value::Null,
-                        "userErrors": [user_error(
-                            ["customerPaymentMethodId"],
-                            "Customer payment method does not exist.",
-                            Some("NOT_FOUND")
-                        )]
-                    }),
-                    &field.selection,
-                ),
+                json!({
+                    "revokedCustomerPaymentMethodId": Value::Null,
+                    "userErrors": [user_error(
+                        ["customerPaymentMethodId"],
+                        "Customer payment method does not exist.",
+                        Some("NOT_FOUND")
+                    )]
+                }),
                 None,
             );
         };
@@ -909,17 +775,14 @@ impl DraftProxy {
             .is_some_and(|nodes| !nodes.is_empty());
         if has_active_contracts {
             return (
-                selected_json(
-                    &json!({
-                        "revokedCustomerPaymentMethodId": Value::Null,
-                        "userErrors": [user_error(
-                            ["customerPaymentMethodId"],
-                            "Cannot revoke a payment method with active subscription contracts.",
-                            Some("ACTIVE_CONTRACT")
-                        )]
-                    }),
-                    &field.selection,
-                ),
+                json!({
+                    "revokedCustomerPaymentMethodId": Value::Null,
+                    "userErrors": [user_error(
+                        ["customerPaymentMethodId"],
+                        "Cannot revoke a payment method with active subscription contracts.",
+                        Some("ACTIVE_CONTRACT")
+                    )]
+                }),
                 None,
             );
         }
@@ -928,13 +791,10 @@ impl DraftProxy {
             record["revokedReason"] = json!("MANUALLY_REVOKED");
         }
         (
-            selected_json(
-                &json!({
-                    "revokedCustomerPaymentMethodId": id,
-                    "userErrors": []
-                }),
-                &field.selection,
-            ),
+            json!({
+                "revokedCustomerPaymentMethodId": id,
+                "userErrors": []
+            }),
             Some(id),
         )
     }
@@ -947,22 +807,20 @@ impl DraftProxy {
         self.store.staged.next_customer_payment_method_id += 1;
         id
     }
+}
 
-    fn customer_payment_method_payload(
-        &self,
-        selection: &[SelectedField],
-        method: Value,
-        processing: Option<bool>,
-        user_errors: Vec<Value>,
-    ) -> Value {
-        let mut payload = serde_json::Map::new();
-        payload.insert("customerPaymentMethod".to_string(), method);
-        if let Some(processing) = processing {
-            payload.insert("processing".to_string(), json!(processing));
-        }
-        payload.insert("userErrors".to_string(), json!(user_errors));
-        selected_json(&Value::Object(payload), selection)
+fn customer_payment_method_payload(
+    method: Value,
+    processing: Option<bool>,
+    user_errors: Vec<Value>,
+) -> Value {
+    let mut payload = serde_json::Map::new();
+    payload.insert("customerPaymentMethod".to_string(), method);
+    if let Some(processing) = processing {
+        payload.insert("processing".to_string(), json!(processing));
     }
+    payload.insert("userErrors".to_string(), json!(user_errors));
+    Value::Object(payload)
 }
 
 fn base64_urlsafe_no_pad(input: &str) -> String {
@@ -987,45 +845,4 @@ fn customer_payment_method_duplication_source_id(token: &str) -> Option<String> 
         .get("customerPaymentMethodId")
         .and_then(Value::as_str)
         .map(str::to_string)
-}
-
-fn is_customer_payment_method_customer_create_seed(field: &RootFieldSelection) -> bool {
-    if field.name != "customerCreate" {
-        return false;
-    }
-    let Some(ResolvedValue::Object(input)) = field.arguments.get("input") else {
-        return false;
-    };
-    if input.len() != 1
-        || !matches!(
-            input.get("email"),
-            Some(ResolvedValue::String(email)) if !email.trim().is_empty()
-        )
-    {
-        return false;
-    }
-
-    let has_customer_id = field.selection.iter().any(|selection| {
-        selection.name == "customer"
-            && selection
-                .selection
-                .iter()
-                .any(|customer_field| customer_field.name == "id")
-    });
-    let selections_are_seed_shape = field.selection.iter().all(|selection| {
-        matches!(selection.name.as_str(), "customer" | "userErrors")
-            && selection
-                .selection
-                .iter()
-                .all(|child| match selection.name.as_str() {
-                    "customer" => child.name == "id" && child.selection.is_empty(),
-                    "userErrors" => {
-                        matches!(child.name.as_str(), "field" | "code" | "message")
-                            && child.selection.is_empty()
-                    }
-                    _ => false,
-                })
-    });
-
-    has_customer_id && selections_are_seed_shape
 }

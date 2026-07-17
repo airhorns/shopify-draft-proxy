@@ -1,16 +1,15 @@
 use super::content::online_store_operation_timestamp;
-use super::search::is_online_store_content_query_root;
 use super::*;
 
 impl DraftProxy {
     pub(in crate::proxy) fn online_store_query_outcome(
         &mut self,
         request: &Request,
-        fields: &[RootFieldSelection],
+        field: &OnlineStoreRootCall,
         response_key: &str,
     ) -> ResolverOutcome<Value> {
-        if self.online_store_content_query_needs_upstream(fields)
-            || self.online_store_sales_channel_query_needs_upstream(fields)
+        if self.online_store_content_query_needs_upstream(field)
+            || self.online_store_sales_channel_query_needs_upstream(field)
         {
             let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
             if result.transport_succeeded {
@@ -20,108 +19,78 @@ impl DraftProxy {
             }
             return result.outcome;
         }
-        self.hydrate_online_store_content_query_baselines(request, fields);
-        let mut data = self.online_store_query_data(fields);
-        ResolverOutcome::value(
-            data.as_object_mut()
-                .and_then(|data| data.remove(response_key))
-                .unwrap_or(Value::Null),
-        )
+        self.hydrate_online_store_content_query_baseline(request, field);
+        ResolverOutcome::value(self.online_store_query_value(field))
     }
 
-    pub(in crate::proxy) fn online_store_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        root_payload_json(fields, |field| {
-            let value = if let Some(value) = self.online_store_content_query_value(field) {
-                value
-            } else {
-                match field.name.as_str() {
-                    "mobilePlatformApplication"
-                    | "scriptTag"
-                    | "webPixel"
-                    | "serverPixel"
-                    | "urlRedirect" => {
-                        if field.name == "urlRedirect" {
-                            self.url_redirect_query_data(std::slice::from_ref(field))
-                                .get(&field.response_key)
-                                .cloned()
-                                .unwrap_or(Value::Null)
-                        } else if field.name == "serverPixel" {
-                            self.store
-                                .staged
-                                .online_store_integrations
-                                .values()
-                                .find(|record| is_server_pixel_record(record))
-                                .map(|record| selected_json(record, &field.selection))
-                                .unwrap_or(Value::Null)
-                        } else {
-                            let id =
-                                resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                            self.store
-                                .staged
-                                .online_store_integrations
-                                .get(&id)
-                                .map(|record| selected_json(record, &field.selection))
-                                .unwrap_or(Value::Null)
-                        }
-                    }
-                    "theme" => {
-                        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                        self.store
-                            .staged
-                            .online_store_integrations
-                            .get(&id)
-                            .map(|record| {
-                                selected_online_store_theme_json(record, &field.selection)
-                            })
-                            .unwrap_or(Value::Null)
-                    }
-                    "urlRedirects" | "urlRedirectsCount" => self
-                        .url_redirect_query_data(std::slice::from_ref(field))
-                        .get(&field.response_key)
+    pub(in crate::proxy) fn online_store_query_value(&self, field: &OnlineStoreRootCall) -> Value {
+        if let Some(value) = self.online_store_content_query_value(field) {
+            return value;
+        }
+        match field.name.as_str() {
+            "mobilePlatformApplication" | "scriptTag" | "webPixel" | "serverPixel" => {
+                if field.name == "serverPixel" {
+                    self.store
+                        .staged
+                        .online_store_integrations
+                        .values()
+                        .find(|record| is_server_pixel_record(record))
                         .cloned()
-                        .unwrap_or(Value::Null),
-                    "themes" => {
-                        let roles = resolved_string_list_arg(&field.arguments, "roles");
-                        self.online_store_theme_connection_value(field, |record| {
-                            roles.is_empty()
-                                || record
-                                    .get("role")
-                                    .and_then(Value::as_str)
-                                    .is_some_and(|role| {
-                                        roles.iter().any(|expected| expected == role)
-                                    })
-                        })
-                    }
-                    "scriptTags" => {
-                        let src = resolved_string_field(&field.arguments, "src");
-                        self.online_store_integration_connection_value(
-                            field,
-                            is_online_store_script_tag_record,
-                            |record| {
-                                src.as_ref().is_none_or(|expected| {
-                                    record.get("src").and_then(Value::as_str)
-                                        == Some(expected.as_str())
-                                })
-                            },
-                        )
-                    }
-                    "mobilePlatformApplications" => self.online_store_integration_connection_value(
-                        field,
-                        is_mobile_platform_application_record,
-                        |_| true,
-                    ),
-                    _ => Value::Null,
+                        .unwrap_or(Value::Null)
+                } else {
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                    self.store
+                        .staged
+                        .online_store_integrations
+                        .get(&id)
+                        .cloned()
+                        .unwrap_or(Value::Null)
                 }
-            };
-            Some(value)
-        })
+            }
+            "theme" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                self.store
+                    .staged
+                    .online_store_integrations
+                    .get(&id)
+                    .cloned()
+                    .unwrap_or(Value::Null)
+            }
+            "themes" => {
+                let roles = resolved_string_list_arg(&field.arguments, "roles");
+                self.online_store_theme_connection_value(field, |record| {
+                    roles.is_empty()
+                        || record
+                            .get("role")
+                            .and_then(Value::as_str)
+                            .is_some_and(|role| roles.iter().any(|expected| expected == role))
+                })
+            }
+            "scriptTags" => {
+                let src = resolved_string_field(&field.arguments, "src");
+                self.online_store_integration_connection_value(
+                    field,
+                    is_online_store_script_tag_record,
+                    |record| {
+                        src.as_ref().is_none_or(|expected| {
+                            record.get("src").and_then(Value::as_str) == Some(expected.as_str())
+                        })
+                    },
+                )
+            }
+            "mobilePlatformApplications" => self.online_store_integration_connection_value(
+                field,
+                is_mobile_platform_application_record,
+                |_| true,
+            ),
+            _ => Value::Null,
+        }
     }
 
     pub(in crate::proxy) fn online_store_mutation_outcome(
         &mut self,
-        fields: &[RootFieldSelection],
+        field: &OnlineStoreRootCall,
         request: &Request,
-        root_name: &str,
         response_key: &str,
     ) -> ResolverOutcome<Value> {
         let mut staged_ids = Vec::new();
@@ -129,58 +98,50 @@ impl DraftProxy {
         // errors (and no `data`) before any local staging: missing required arguments are a
         // query-validation error, blank Pub/Sub fields are an INVALID_FIELD_ARGUMENTS
         // field-argument error, and a malformed/blank ARN fails ARN-scalar coercion.
-        for field in fields {
-            if let Some(error) = server_pixel_endpoint_argument_error(field) {
-                return graphql_error_outcome(vec![error], response_key);
-            }
+        if let Some(error) = server_pixel_endpoint_argument_error(field) {
+            return graphql_error_outcome(vec![error], response_key);
         }
 
-        let data = root_payload_json(fields, |field| {
-            let value = if let Some(value) =
-                self.online_store_content_mutation_value(field, request, &mut staged_ids)
-            {
-                value
-            } else {
-                match field.name.as_str() {
-                    "mobilePlatformApplicationCreate" => {
-                        self.mobile_platform_application_create(field, &mut staged_ids)
-                    }
-                    "mobilePlatformApplicationUpdate" => {
-                        self.mobile_platform_application_update(field, &mut staged_ids)
-                    }
-                    "scriptTagCreate" => self.script_tag_create(field, &mut staged_ids),
-                    "scriptTagUpdate" => self.script_tag_update(field, &mut staged_ids),
-                    "scriptTagDelete" => self.script_tag_delete(field, &mut staged_ids),
-                    "themeCreate" => self.theme_create(field, &mut staged_ids),
-                    "themePublish" => self.theme_publish(field, &mut staged_ids),
-                    "themeUpdate" => self.theme_update(field, &mut staged_ids),
-                    "themeDelete" => self.theme_delete(field, &mut staged_ids),
-                    "themeFilesUpsert" => self.theme_files_upsert(field, &mut staged_ids),
-                    "themeFilesCopy" => self.theme_files_copy(field, &mut staged_ids),
-                    "themeFilesDelete" => self.theme_files_delete(field, &mut staged_ids),
-                    "webPixelCreate" => self.web_pixel_create(field, &mut staged_ids),
-                    "webPixelUpdate" => {
-                        let allow_missing_upsert = resolved_string_field(&field.arguments, "id")
-                            .is_some_and(|id| id.contains(SYNTHETIC_MARKER));
-                        self.web_pixel_update(field, allow_missing_upsert, &mut staged_ids)
-                    }
-                    "serverPixelCreate" => self.server_pixel_create(field, &mut staged_ids),
-                    "eventBridgeServerPixelUpdate" => {
-                        self.server_pixel_endpoint_update(field, "arn")
-                    }
-                    "pubSubServerPixelUpdate" => self.server_pixel_endpoint_update(field, "pubsub"),
-                    "storefrontAccessTokenCreate" => {
-                        self.storefront_access_token_create(field, request, &mut staged_ids)
-                    }
-                    _ => Value::Null,
+        let value = if let Some(value) =
+            self.online_store_content_mutation_value(field, request, &mut staged_ids)
+        {
+            value
+        } else {
+            match field.name.as_str() {
+                "mobilePlatformApplicationCreate" => {
+                    self.mobile_platform_application_create(field, &mut staged_ids)
                 }
-            };
-            Some(value)
-        });
-        let value = data.get(response_key).cloned().unwrap_or(Value::Null);
+                "mobilePlatformApplicationUpdate" => {
+                    self.mobile_platform_application_update(field, &mut staged_ids)
+                }
+                "scriptTagCreate" => self.script_tag_create(field, &mut staged_ids),
+                "scriptTagUpdate" => self.script_tag_update(field, &mut staged_ids),
+                "scriptTagDelete" => self.script_tag_delete(field, &mut staged_ids),
+                "themeCreate" => self.theme_create(field, &mut staged_ids),
+                "themePublish" => self.theme_publish(field, &mut staged_ids),
+                "themeUpdate" => self.theme_update(field, &mut staged_ids),
+                "themeDelete" => self.theme_delete(field, &mut staged_ids),
+                "themeFilesUpsert" => self.theme_files_upsert(field, &mut staged_ids),
+                "themeFilesCopy" => self.theme_files_copy(field, &mut staged_ids),
+                "themeFilesDelete" => self.theme_files_delete(field, &mut staged_ids),
+                "webPixelCreate" => self.web_pixel_create(field, &mut staged_ids),
+                "webPixelUpdate" => {
+                    let allow_missing_upsert = resolved_string_field(&field.arguments, "id")
+                        .is_some_and(|id| id.contains(SYNTHETIC_MARKER));
+                    self.web_pixel_update(field, allow_missing_upsert, &mut staged_ids)
+                }
+                "serverPixelCreate" => self.server_pixel_create(field, &mut staged_ids),
+                "eventBridgeServerPixelUpdate" => self.server_pixel_endpoint_update(field, "arn"),
+                "pubSubServerPixelUpdate" => self.server_pixel_endpoint_update(field, "pubsub"),
+                "storefrontAccessTokenCreate" => {
+                    self.storefront_access_token_create(field, request, &mut staged_ids)
+                }
+                _ => Value::Null,
+            }
+        };
         if !staged_ids.is_empty() {
             ResolverOutcome::value(value).with_log_draft(LogDraft::staged(
-                root_name,
+                &field.name,
                 "online-store",
                 staged_ids,
             ))
@@ -189,37 +150,15 @@ impl DraftProxy {
         }
     }
 
-    fn online_store_sales_channel_query_needs_upstream(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> bool {
+    fn online_store_sales_channel_query_needs_upstream(&self, field: &OnlineStoreRootCall) -> bool {
         if self.config.read_mode == ReadMode::Snapshot {
             return false;
         }
-        let has_sales_channel_root = fields
-            .iter()
-            .any(|field| is_online_store_sales_channel_query_root(&field.name));
-        let all_requested_sales_roots_need_upstream = fields
-            .iter()
-            .filter(|field| is_online_store_sales_channel_query_root(&field.name))
-            .all(|field| self.sales_channel_field_needs_upstream(field));
-        let has_local_integration_state = !self.store.staged.online_store_integrations.is_empty();
-        has_sales_channel_root
-            && fields.iter().all(|field| {
-                is_online_store_sales_channel_query_root(&field.name)
-                    || is_online_store_content_query_root(&field.name)
-            })
-            && (!fields
-                .iter()
-                .any(|field| is_online_store_content_query_root(&field.name))
-                || !self.has_online_store_content_state())
-            && fields
-                .iter()
-                .any(|field| self.sales_channel_field_needs_upstream(field))
-            && (!has_local_integration_state || all_requested_sales_roots_need_upstream)
+        is_online_store_sales_channel_query_root(&field.name)
+            && self.sales_channel_field_needs_upstream(field)
     }
 
-    fn sales_channel_field_needs_upstream(&self, field: &RootFieldSelection) -> bool {
+    fn sales_channel_field_needs_upstream(&self, field: &OnlineStoreRootCall) -> bool {
         match field.name.as_str() {
             "theme" => self
                 .singular_sales_channel_record_needs_upstream(field, is_online_store_theme_record),
@@ -242,18 +181,13 @@ impl DraftProxy {
             "mobilePlatformApplications" => {
                 !self.any_sales_channel_record(is_mobile_platform_application_record)
             }
-            "urlRedirect" => {
-                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                id.is_empty() || !self.store.staged.url_redirects.contains_key(&id)
-            }
-            "urlRedirects" | "urlRedirectsCount" => !self.has_staged_url_redirects(),
             _ => false,
         }
     }
 
     fn singular_sales_channel_record_needs_upstream(
         &self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         predicate: fn(&Value) -> bool,
     ) -> bool {
         match resolved_string_field(&field.arguments, "id") {
@@ -277,7 +211,7 @@ impl DraftProxy {
 
     fn online_store_integration_connection_value<P, F>(
         &self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         predicate: P,
         include: F,
     ) -> Value
@@ -295,17 +229,12 @@ impl DraftProxy {
             .cloned()
             .collect::<Vec<_>>();
         records.sort_by_key(value_id_cursor);
-        selected_connection_json_with_args(
-            records,
-            &field.arguments,
-            &field.selection,
-            value_id_cursor,
-        )
+        connection_value_with_args(records, &field.arguments, value_id_cursor)
     }
 
     fn online_store_theme_connection_value<F>(
         &self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         include: F,
     ) -> Value
     where
@@ -321,17 +250,7 @@ impl DraftProxy {
             .cloned()
             .collect::<Vec<_>>();
         records.sort_by_key(value_id_cursor);
-        if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
-            records.reverse();
-        }
-        let (records, page_info) = connection_window(&records, &field.arguments, value_id_cursor);
-        selected_typed_connection_with_page_info(
-            &records,
-            &field.selection,
-            selected_online_store_theme_json,
-            value_id_cursor,
-            page_info,
-        )
+        connection_value_with_args(records, &field.arguments, value_id_cursor)
     }
 
     fn observe_online_store_sales_channel_response(&mut self, body: &Value) {
@@ -369,14 +288,13 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn mobile_platform_application_create(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let input = match field.arguments.get("input") {
             Some(ResolvedValue::Object(input)) => input,
             _ => {
                 return mobile_app_payload(
-                    &field.selection,
                     None,
                     vec![mobile_app_error(
                         "INVALID",
@@ -396,7 +314,6 @@ impl DraftProxy {
         };
         if android.is_none() == apple.is_none() {
             return mobile_app_payload(
-                &field.selection,
                 None,
                 vec![mobile_app_error(
                     "INVALID",
@@ -410,7 +327,6 @@ impl DraftProxy {
                 resolved_string_field(android, "applicationId").unwrap_or_default();
             if application_id.trim().is_empty() {
                 return mobile_app_payload(
-                    &field.selection,
                     None,
                     vec![mobile_app_error(
                         "INVALID",
@@ -426,11 +342,10 @@ impl DraftProxy {
             if let Some(error) =
                 mobile_app_id_length_error("android", "applicationId", &application_id)
             {
-                return mobile_app_payload(&field.selection, None, vec![error]);
+                return mobile_app_payload(None, vec![error]);
             }
             if resolved_string_list_field(android, "sha256CertFingerprints").is_empty() {
                 return mobile_app_payload(
-                    &field.selection,
                     None,
                     vec![mobile_app_error(
                         "INVALID",
@@ -450,13 +365,12 @@ impl DraftProxy {
                 .online_store_integrations
                 .insert(id.clone(), record.clone());
             staged_ids.push(id);
-            return mobile_app_payload(&field.selection, Some(record), Vec::new());
+            return mobile_app_payload(Some(record), Vec::new());
         }
         let apple = apple.unwrap();
         let app_id = resolved_string_field(apple, "appId").unwrap_or_default();
         if app_id.trim().is_empty() {
             return mobile_app_payload(
-                &field.selection,
                 None,
                 vec![mobile_app_error(
                     "INVALID",
@@ -470,10 +384,10 @@ impl DraftProxy {
             );
         }
         if let Some(error) = mobile_app_id_length_error("apple", "appId", &app_id) {
-            return mobile_app_payload(&field.selection, None, vec![error]);
+            return mobile_app_payload(None, vec![error]);
         }
         if let Some(error) = validate_mobile_app_clip_application_id(apple, false) {
-            return mobile_app_payload(&field.selection, None, vec![error]);
+            return mobile_app_payload(None, vec![error]);
         }
         let id = self.next_online_store_id("MobilePlatformApplication");
         let record = json!({
@@ -488,12 +402,12 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
-        mobile_app_payload(&field.selection, Some(record), Vec::new())
+        mobile_app_payload(Some(record), Vec::new())
     }
 
     pub(in crate::proxy) fn mobile_platform_application_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -505,7 +419,6 @@ impl DraftProxy {
             .cloned()
         else {
             return mobile_app_payload(
-                &field.selection,
                 None,
                 vec![mobile_app_error(
                     "NOT_FOUND",
@@ -516,7 +429,7 @@ impl DraftProxy {
         };
         let input = match field.arguments.get("input") {
             Some(ResolvedValue::Object(input)) => input,
-            _ => return mobile_app_payload(&field.selection, None, Vec::new()),
+            _ => return mobile_app_payload(None, Vec::new()),
         };
         let android = match input.get("android") {
             Some(ResolvedValue::Object(v)) => Some(v),
@@ -534,7 +447,6 @@ impl DraftProxy {
             || (typename == "AppleApplication" && android.is_some())
         {
             return mobile_app_payload(
-                &field.selection,
                 None,
                 vec![mobile_app_error(
                     "INVALID",
@@ -548,7 +460,6 @@ impl DraftProxy {
             if let Some(application_id) = resolved_string_field(android, "applicationId") {
                 if application_id.trim().is_empty() {
                     return mobile_app_payload(
-                        &field.selection,
                         None,
                         vec![mobile_app_error(
                             "INVALID",
@@ -560,7 +471,7 @@ impl DraftProxy {
                 if let Some(error) =
                     mobile_app_id_length_error("android", "applicationId", &application_id)
                 {
-                    return mobile_app_payload(&field.selection, None, vec![error]);
+                    return mobile_app_payload(None, vec![error]);
                 }
                 record["applicationId"] = json!(application_id);
             }
@@ -570,7 +481,6 @@ impl DraftProxy {
             let fingerprints = resolved_string_list_field(android, "sha256CertFingerprints");
             if fingerprints.is_empty() {
                 return mobile_app_payload(
-                    &field.selection,
                     None,
                     vec![mobile_app_error(
                         "INVALID",
@@ -585,7 +495,6 @@ impl DraftProxy {
             if let Some(app_id) = resolved_string_field(apple, "appId") {
                 if app_id.trim().is_empty() {
                     return mobile_app_payload(
-                        &field.selection,
                         None,
                         vec![mobile_app_error(
                             "INVALID",
@@ -595,12 +504,12 @@ impl DraftProxy {
                     );
                 }
                 if let Some(error) = mobile_app_id_length_error("apple", "appId", &app_id) {
-                    return mobile_app_payload(&field.selection, None, vec![error]);
+                    return mobile_app_payload(None, vec![error]);
                 }
                 record["appId"] = json!(app_id);
             }
             if let Some(error) = validate_mobile_app_clip_application_id(apple, true) {
-                return mobile_app_payload(&field.selection, None, vec![error]);
+                return mobile_app_payload(None, vec![error]);
             }
             if let Some(v) = resolved_bool_field(apple, "universalLinksEnabled") {
                 record["universalLinksEnabled"] = json!(v);
@@ -620,20 +529,20 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
-        mobile_app_payload(&field.selection, Some(record), Vec::new())
+        mobile_app_payload(Some(record), Vec::new())
     }
 
     pub(in crate::proxy) fn script_tag_create(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let input = match field.arguments.get("input") {
             Some(ResolvedValue::Object(input)) => input,
-            _ => return script_tag_payload(&field.selection, None, Vec::new()),
+            _ => return script_tag_payload(None, Vec::new()),
         };
         if let Some(errors) = validate_script_src(input, true) {
-            return script_tag_payload(&field.selection, None, vec![errors]);
+            return script_tag_payload(None, vec![errors]);
         }
         let id = self.next_online_store_id("ScriptTag");
         let record = json!({
@@ -646,21 +555,21 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
-        script_tag_payload(&field.selection, Some(record), Vec::new())
+        script_tag_payload(Some(record), Vec::new())
     }
 
     pub(in crate::proxy) fn script_tag_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = match field.arguments.get("input") {
             Some(ResolvedValue::Object(input)) => input,
-            _ => return script_tag_payload(&field.selection, None, Vec::new()),
+            _ => return script_tag_payload(None, Vec::new()),
         };
         if let Some(errors) = validate_script_src(input, false) {
-            return script_tag_payload(&field.selection, None, vec![errors]);
+            return script_tag_payload(None, vec![errors]);
         }
         let Some(mut record) = self
             .store
@@ -671,7 +580,6 @@ impl DraftProxy {
             .cloned()
         else {
             return script_tag_payload(
-                &field.selection,
                 None,
                 vec![user_error_typed(
                     "ScriptTagUserError",
@@ -696,12 +604,12 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
-        script_tag_payload(&field.selection, Some(record), Vec::new())
+        script_tag_payload(Some(record), Vec::new())
     }
 
     pub(in crate::proxy) fn script_tag_delete(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -713,7 +621,6 @@ impl DraftProxy {
             .is_some_and(is_online_store_script_tag_record);
         if !is_staged_script_tag {
             return deleted_script_tag_payload(
-                &field.selection,
                 Value::Null,
                 vec![user_error_typed(
                     "ScriptTagUserError",
@@ -725,12 +632,12 @@ impl DraftProxy {
         }
         self.store.staged.online_store_integrations.remove(&id);
         staged_ids.push(id.clone());
-        deleted_script_tag_payload(&field.selection, json!(id), Vec::new())
+        deleted_script_tag_payload(json!(id), Vec::new())
     }
 
     pub(in crate::proxy) fn theme_create(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = self.next_online_store_id("OnlineStoreTheme");
@@ -748,12 +655,12 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
-        theme_payload(&field.selection, record, Vec::new())
+        theme_payload(record, Vec::new())
     }
 
     pub(in crate::proxy) fn theme_publish(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -765,7 +672,6 @@ impl DraftProxy {
             .cloned()
         else {
             return theme_payload(
-                &field.selection,
                 Value::Null,
                 vec![user_error_omit_code(
                     vec!["id"],
@@ -780,7 +686,6 @@ impl DraftProxy {
             .unwrap_or("UNPUBLISHED");
         if role == "DEVELOPMENT" {
             return theme_payload(
-                &field.selection,
                 Value::Null,
                 vec![user_error(
                     ["base"],
@@ -791,7 +696,6 @@ impl DraftProxy {
         }
         if matches!(role, "DEMO" | "LOCKED" | "ARCHIVED") {
             return theme_payload(
-                &field.selection,
                 Value::Null,
                 vec![user_error_omit_code(
                     ["id"],
@@ -814,12 +718,12 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), theme.clone());
         staged_ids.push(id);
-        theme_payload(&field.selection, theme, Vec::new())
+        theme_payload(theme, Vec::new())
     }
 
     pub(in crate::proxy) fn theme_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -831,7 +735,6 @@ impl DraftProxy {
             .cloned()
         else {
             return theme_payload(
-                &field.selection,
                 Value::Null,
                 vec![user_error_omit_code(
                     vec!["id"],
@@ -842,7 +745,6 @@ impl DraftProxy {
         };
         if theme.get("role").and_then(Value::as_str) == Some("LOCKED") {
             return theme_payload(
-                &field.selection,
                 Value::Null,
                 vec![user_error_omit_code(
                     vec!["id"],
@@ -853,12 +755,11 @@ impl DraftProxy {
         }
         let input = match field.arguments.get("input") {
             Some(ResolvedValue::Object(input)) => input,
-            _ => return theme_payload(&field.selection, theme, Vec::new()),
+            _ => return theme_payload(theme, Vec::new()),
         };
         if let Some(name) = resolved_string_field(input, "name") {
             if name.trim().is_empty() {
                 return theme_payload(
-                    &field.selection,
                     Value::Null,
                     vec![user_error_omit_code(
                         vec!["input", "name"],
@@ -874,12 +775,12 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), theme.clone());
         staged_ids.push(id);
-        theme_payload(&field.selection, theme, Vec::new())
+        theme_payload(theme, Vec::new())
     }
 
     pub(in crate::proxy) fn theme_delete(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -891,7 +792,6 @@ impl DraftProxy {
             .cloned()
         else {
             return deleted_theme_payload(
-                &field.selection,
                 Value::Null,
                 vec![user_error_omit_code(
                     vec!["id"],
@@ -912,7 +812,6 @@ impl DraftProxy {
             .count();
         if theme.get("role").and_then(Value::as_str) == Some("MAIN") && main_count <= 1 {
             return deleted_theme_payload(
-                &field.selection,
                 Value::Null,
                 vec![user_error_omit_code(
                     vec!["id"],
@@ -923,12 +822,12 @@ impl DraftProxy {
         }
         self.store.staged.online_store_integrations.remove(&id);
         staged_ids.push(id.clone());
-        deleted_theme_payload(&field.selection, json!(id), Vec::new())
+        deleted_theme_payload(json!(id), Vec::new())
     }
 
     pub(in crate::proxy) fn theme_files_upsert(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let theme_id = resolved_string_field(&field.arguments, "themeId").unwrap_or_default();
@@ -939,7 +838,7 @@ impl DraftProxy {
                 "upsertedThemeFiles": [],
                 "userErrors": [theme_file_limit_error()]
             });
-            return selected_json(&payload, &field.selection);
+            return payload;
         }
         let mut errors = Vec::new();
         let mut seen_filenames = BTreeSet::new();
@@ -960,10 +859,7 @@ impl DraftProxy {
             }
         }
         if !errors.is_empty() {
-            return selected_json(
-                &json!({"job": Value::Null, "upsertedThemeFiles": [], "userErrors": errors}),
-                &field.selection,
-            );
+            return json!({"job": Value::Null, "upsertedThemeFiles": [], "userErrors": errors});
         }
         let job = if files.iter().any(theme_file_input_uses_url_body) {
             json!({
@@ -988,24 +884,18 @@ impl DraftProxy {
         if staged {
             staged_ids.push(theme_id);
         }
-        selected_json(
-            &json!({"job": job, "upsertedThemeFiles": upserted, "userErrors": []}),
-            &field.selection,
-        )
+        json!({"job": job, "upsertedThemeFiles": upserted, "userErrors": []})
     }
 
     pub(in crate::proxy) fn theme_files_copy(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let theme_id = resolved_string_field(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
         if files.len() > THEME_FILES_MAX_FILE_INPUT {
-            return selected_json(
-                &json!({"copiedThemeFiles": [], "userErrors": [theme_file_limit_error()]}),
-                &field.selection,
-            );
+            return json!({"copiedThemeFiles": [], "userErrors": [theme_file_limit_error()]});
         }
         let mut preflight_errors = Vec::new();
         let mut seen_dst_filenames = BTreeSet::new();
@@ -1016,10 +906,7 @@ impl DraftProxy {
             }
         }
         if !preflight_errors.is_empty() {
-            return selected_json(
-                &json!({"copiedThemeFiles": [], "userErrors": preflight_errors}),
-                &field.selection,
-            );
+            return json!({"copiedThemeFiles": [], "userErrors": preflight_errors});
         }
         let mut copied = Vec::new();
         let mut errors = Vec::new();
@@ -1050,24 +937,18 @@ impl DraftProxy {
         if !copied_results.is_empty() {
             staged_ids.push(theme_id);
         }
-        selected_json(
-            &json!({"copiedThemeFiles": copied_results, "userErrors": errors}),
-            &field.selection,
-        )
+        json!({"copiedThemeFiles": copied_results, "userErrors": errors})
     }
 
     pub(in crate::proxy) fn theme_files_delete(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let theme_id = resolved_string_field(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_string_list_arg(&field.arguments, "files");
         if files.len() > THEME_FILES_MAX_FILE_LIMIT {
-            return selected_json(
-                &json!({"deletedThemeFiles": [], "userErrors": [theme_file_limit_error()]}),
-                &field.selection,
-            );
+            return json!({"deletedThemeFiles": [], "userErrors": [theme_file_limit_error()]});
         }
         let mut errors = Vec::new();
         let mut seen_filenames = BTreeSet::new();
@@ -1088,10 +969,7 @@ impl DraftProxy {
             }
         }
         if !errors.is_empty() {
-            return selected_json(
-                &json!({"deletedThemeFiles": [], "userErrors": errors}),
-                &field.selection,
-            );
+            return json!({"deletedThemeFiles": [], "userErrors": errors});
         }
         let mut deleted = Vec::new();
         if let Some(theme) = self
@@ -1115,10 +993,7 @@ impl DraftProxy {
         if !deleted.is_empty() {
             staged_ids.push(theme_id);
         }
-        selected_json(
-            &json!({"deletedThemeFiles": deleted, "userErrors": []}),
-            &field.selection,
-        )
+        json!({"deletedThemeFiles": deleted, "userErrors": []})
     }
 
     pub(in crate::proxy) fn upsert_theme_file(
@@ -1172,7 +1047,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn web_pixel_create(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         if self
@@ -1183,7 +1058,6 @@ impl DraftProxy {
             .any(is_web_pixel_record)
         {
             return web_pixel_payload(
-                &field.selection,
                 Value::Null,
                 vec![user_error_typed(
                     "WebPixelUserError",
@@ -1213,12 +1087,12 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
-        web_pixel_payload(&field.selection, record, Vec::new())
+        web_pixel_payload(record, Vec::new())
     }
 
     pub(in crate::proxy) fn web_pixel_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         allow_missing_upsert: bool,
         staged_ids: &mut Vec<String>,
     ) -> Value {
@@ -1232,7 +1106,6 @@ impl DraftProxy {
                 .is_some_and(is_web_pixel_record)
         {
             return web_pixel_payload(
-                &field.selection,
                 Value::Null,
                 vec![user_error_typed(
                     "WebPixelUserError",
@@ -1244,12 +1117,11 @@ impl DraftProxy {
         }
         let input = match field.arguments.get("webPixel") {
             Some(ResolvedValue::Object(input)) => input,
-            _ => return web_pixel_payload(&field.selection, Value::Null, Vec::new()),
+            _ => return web_pixel_payload(Value::Null, Vec::new()),
         };
         let settings_raw = resolved_string_field(input, "settings").unwrap_or_default();
         let Ok(settings) = serde_json::from_str::<Value>(&settings_raw) else {
             return web_pixel_payload(
-                &field.selection,
                 Value::Null,
                 vec![user_error_typed(
                     "WebPixelUserError",
@@ -1269,12 +1141,12 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
-        web_pixel_payload(&field.selection, record, Vec::new())
+        web_pixel_payload(record, Vec::new())
     }
 
     pub(in crate::proxy) fn server_pixel_create(
         &mut self,
-        field: &RootFieldSelection,
+        _field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = self.next_online_store_id("ServerPixel");
@@ -1289,12 +1161,12 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
-        server_pixel_payload(&field.selection, record, Vec::new())
+        server_pixel_payload(record, Vec::new())
     }
 
     pub(in crate::proxy) fn server_pixel_endpoint_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         kind: &str,
     ) -> Value {
         let Some(id) = self
@@ -1306,7 +1178,6 @@ impl DraftProxy {
             .map(|(id, _)| id.clone())
         else {
             return server_pixel_payload(
-                &field.selection,
                 Value::Null,
                 vec![user_error_typed(
                     "ServerPixelUserError",
@@ -1320,7 +1191,6 @@ impl DraftProxy {
             let arn = resolved_string_field(&field.arguments, "arn").unwrap_or_default();
             if !arn.starts_with("arn:aws:events:") || arn.trim().is_empty() {
                 return server_pixel_payload(
-                    &field.selection,
                     Value::Null,
                     vec![user_error_typed(
                         "ServerPixelUserError",
@@ -1353,7 +1223,7 @@ impl DraftProxy {
                 ));
             }
             if !errors.is_empty() {
-                return server_pixel_payload(&field.selection, Value::Null, errors);
+                return server_pixel_payload(Value::Null, errors);
             }
             format!("{project}/{topic}")
         };
@@ -1367,12 +1237,12 @@ impl DraftProxy {
             .staged
             .online_store_integrations
             .insert(id, record.clone());
-        server_pixel_payload(&field.selection, record, Vec::new())
+        server_pixel_payload(record, Vec::new())
     }
 
     pub(in crate::proxy) fn storefront_access_token_create(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
@@ -1386,7 +1256,6 @@ impl DraftProxy {
             .unwrap_or_default();
         if title.trim().is_empty() {
             return storefront_access_token_payload(
-                &field.selection,
                 Value::Null,
                 self.store.effective_shop(),
                 vec![presence_user_error(["input", "title"], "Title")],
@@ -1401,7 +1270,6 @@ impl DraftProxy {
             .count();
         if token_count >= 100 {
             return storefront_access_token_payload(
-                &field.selection,
                 Value::Null,
                 self.store.effective_shop(),
                 vec![user_error(
@@ -1426,12 +1294,7 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
-        storefront_access_token_payload(
-            &field.selection,
-            record,
-            self.store.effective_shop(),
-            Vec::new(),
-        )
+        storefront_access_token_payload(record, self.store.effective_shop(), Vec::new())
     }
 }
 
@@ -1445,9 +1308,6 @@ fn is_online_store_sales_channel_query_root(root: &str) -> bool {
             | "serverPixel"
             | "theme"
             | "themes"
-            | "urlRedirect"
-            | "urlRedirects"
-            | "urlRedirectsCount"
             | "webPixel"
     )
 }
@@ -1488,88 +1348,4 @@ fn observed_sales_channel_record(record: &Value) -> Option<(String, Value)> {
         _ => return None,
     }
     Some((id, record))
-}
-
-fn selected_online_store_theme_json(record: &Value, selections: &[SelectedField]) -> Value {
-    let mut projected = selected_json(record, selections);
-    let Some(fields) = projected.as_object_mut() else {
-        return projected;
-    };
-    for selection in selections {
-        if selection.name != "files"
-            || !selected_field_applies_to_type("OnlineStoreTheme", selection)
-        {
-            continue;
-        }
-        fields.insert(
-            selection.response_key.clone(),
-            selected_online_store_theme_files_json(record, selection),
-        );
-    }
-    projected
-}
-
-fn selected_online_store_theme_files_json(theme: &Value, selection: &SelectedField) -> Value {
-    let filename_patterns = resolved_string_list_arg(&selection.arguments, "filenames");
-    let nodes = theme_file_nodes(theme)
-        .into_iter()
-        .filter(|file| {
-            filename_patterns.is_empty()
-                || file
-                    .get("filename")
-                    .and_then(Value::as_str)
-                    .is_some_and(|filename| {
-                        filename_patterns
-                            .iter()
-                            .any(|pattern| theme_filename_matches(pattern, filename))
-                    })
-        })
-        .collect::<Vec<_>>();
-    let (nodes, page_info) = connection_window(&nodes, &selection.arguments, theme_file_cursor);
-    selected_typed_connection_with_page_info(
-        &nodes,
-        &selection.selection,
-        selected_json,
-        theme_file_cursor,
-        page_info,
-    )
-}
-
-fn theme_file_cursor(file: &Value) -> String {
-    file.get("filename")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string()
-}
-
-fn theme_filename_matches(pattern: &str, filename: &str) -> bool {
-    if !pattern.contains('*') {
-        return filename == pattern;
-    }
-
-    let parts = pattern.split('*').collect::<Vec<_>>();
-    let mut remainder = filename;
-    for (index, part) in parts.iter().enumerate() {
-        if part.is_empty() {
-            continue;
-        }
-        if index == 0 && !pattern.starts_with('*') {
-            let Some(next_remainder) = remainder.strip_prefix(part) else {
-                return false;
-            };
-            remainder = next_remainder;
-            continue;
-        }
-        let Some(position) = remainder.find(part) else {
-            return false;
-        };
-        remainder = &remainder[position + part.len()..];
-    }
-
-    if !pattern.ends_with('*') {
-        if let Some(last_part) = parts.iter().rev().find(|part| !part.is_empty()) {
-            return filename.ends_with(last_part);
-        }
-    }
-    true
 }

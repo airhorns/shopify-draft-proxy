@@ -1,19 +1,11 @@
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn delegate_access_token_create(
+    pub(crate) fn delegate_access_token_create(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
+        invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        let (_response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || {
-                "delegateAccessTokenCreate".to_string()
-            });
-        let token_selection =
-            selected_child_selection(&payload_selection, "delegateAccessToken").unwrap_or_default();
-        self.hydrate_payload_shop_identity_if_selected(request, &payload_selection);
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
         let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let scopes = input
             .get("delegateAccessScope")
@@ -37,15 +29,18 @@ impl DraftProxy {
                 "The expires_in value must be greater than 0.",
                 Some("NEGATIVE_EXPIRES_IN"),
             ));
-        } else if delegate_expires_after_parent(request, expires_in, &self.next_product_timestamp())
-        {
+        } else if delegate_expires_after_parent(
+            invocation.request,
+            expires_in,
+            &self.next_product_timestamp(),
+        ) {
             user_errors.push(user_error(
                 Value::Null,
                 "The delegate token can't expire after the parent token.",
                 Some("EXPIRES_AFTER_PARENT"),
             ));
         }
-        let app_id = self.ensure_current_app_installation(request);
+        let app_id = self.ensure_current_app_installation(invocation.request);
         let granted_scopes = self
             .app_installation_for_app(&app_id)
             .map(app_access_scope_handles)
@@ -78,9 +73,9 @@ impl DraftProxy {
                 error.get("code").and_then(Value::as_str) == Some("EXPIRES_AFTER_PARENT")
             }) {
                 self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
+                    invocation.request,
+                    invocation.query,
+                    invocation.variables,
                     "delegateAccessTokenCreate",
                     vec![],
                 );
@@ -89,21 +84,19 @@ impl DraftProxy {
                 }
             }
             let shop = self.store.effective_shop();
-            return ResolverOutcome::value(delegate_access_token_create_payload_json(
-                Value::Null,
-                &shop,
-                &payload_selection,
-                &token_selection,
-                user_errors,
-            ));
+            return ResolverOutcome::value(json!({
+                "delegateAccessToken": Value::Null,
+                "shop": shop,
+                "userErrors": user_errors,
+            }));
         }
 
         let token = format!(
             "shpat_delegate_proxy_{}",
             self.store.staged.delegate_access_tokens.len() + 1
         );
-        let parent_access_token =
-            request_access_token(request).unwrap_or_else(|| "shpat_parent_default".to_string());
+        let parent_access_token = request_access_token(invocation.request)
+            .unwrap_or_else(|| "shpat_parent_default".to_string());
         let created_at = self.next_product_timestamp();
         let record = json!({
             "accessToken": token,
@@ -118,37 +111,29 @@ impl DraftProxy {
             .delegate_access_tokens
             .insert(token.clone(), record.clone());
         self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
+            invocation.request,
+            invocation.query,
+            invocation.variables,
             "delegateAccessTokenCreate",
             vec![token],
         );
         let shop = self.store.effective_shop();
 
-        ResolverOutcome::value(delegate_access_token_create_payload_json(
-            record,
-            &shop,
-            &payload_selection,
-            &token_selection,
-            vec![],
-        ))
+        ResolverOutcome::value(json!({
+            "delegateAccessToken": record,
+            "shop": shop,
+            "userErrors": [],
+        }))
     }
 
-    pub(in crate::proxy) fn delegate_access_token_destroy(
+    pub(crate) fn delegate_access_token_destroy(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
+        invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        let (_response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || {
-                "delegateAccessTokenDestroy".to_string()
-            });
-        self.hydrate_payload_shop_identity_if_selected(request, &payload_selection);
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
         let token = resolved_string_field(&arguments, "accessToken").unwrap_or_default();
-        let caller_token = request_access_token(request).unwrap_or_default();
-        let caller_api_client_id = request_api_client_id(request);
+        let caller_token = request_access_token(invocation.request).unwrap_or_default();
+        let caller_api_client_id = request_api_client_id(invocation.request);
 
         let mut status = false;
         let mut user_errors = Vec::new();
@@ -188,9 +173,9 @@ impl DraftProxy {
             } else {
                 self.store.staged.delegate_access_tokens.remove(&token);
                 self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
+                    invocation.request,
+                    invocation.query,
+                    invocation.variables,
                     "delegateAccessTokenDestroy",
                     vec![token],
                 );
@@ -204,31 +189,25 @@ impl DraftProxy {
         }
         let shop = self.store.effective_shop();
 
-        ResolverOutcome::value(delegate_access_token_destroy_payload_json(
-            status,
-            &shop,
-            user_errors,
-            &payload_selection,
-        ))
+        ResolverOutcome::value(json!({
+            "status": status,
+            "shop": shop,
+            "userErrors": user_errors,
+        }))
     }
 
-    pub(in crate::proxy) fn app_revoke_access_scopes(
+    pub(crate) fn app_revoke_access_scopes(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
+        invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        let (_response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || {
-                "appRevokeAccessScopes".to_string()
-            });
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
         let scopes = arguments
             .get("scopes")
             .map(resolved_string_list)
             .unwrap_or_default();
 
         let mut user_errors = Vec::new();
-        let app_id = self.ensure_current_app_installation(request);
+        let app_id = self.ensure_current_app_installation(invocation.request);
         let installation = self.app_installation_for_app(&app_id).cloned();
         let granted_scopes = installation
             .as_ref()
@@ -247,7 +226,7 @@ impl DraftProxy {
                 && matches!(scope, "read_products" | "write_products")
         };
 
-        if app_revoke_access_scopes_missing_source_app(request) {
+        if app_revoke_access_scopes_missing_source_app(invocation.request) {
             user_errors.push(user_error(
                 ["id"],
                 "No app found on the access token.",
@@ -295,26 +274,25 @@ impl DraftProxy {
         };
         let revoked_payload = if user_errors.is_empty() {
             Some(revoked)
-        } else if app_revoke_access_scopes_missing_source_app(request) {
+        } else if app_revoke_access_scopes_missing_source_app(invocation.request) {
             Some(Vec::new())
         } else {
             None
         };
         if user_errors.is_empty() {
             self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
+                invocation.request,
+                invocation.query,
+                invocation.variables,
                 "appRevokeAccessScopes",
                 scopes.clone(),
             );
         }
 
-        ResolverOutcome::value(app_revoke_access_scopes_payload_json(
-            revoked_payload,
-            user_errors,
-            &payload_selection,
-        ))
+        ResolverOutcome::value(json!({
+            "revoked": revoked_payload.map(Value::Array).unwrap_or(Value::Null),
+            "userErrors": user_errors,
+        }))
     }
 }
 

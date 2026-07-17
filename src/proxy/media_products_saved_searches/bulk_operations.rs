@@ -7,49 +7,42 @@ use base64::Engine as _;
 
 const BULK_OPERATION_CURSORS_FIELD: &str = "__shopifyDraftProxyBulkOperationCursors";
 
+pub(in crate::proxy) fn bulk_operation_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy>
+{
+    vec![FieldResolverTypePolicy::property_backed_ordinary_fields(
+        ApiSurface::Admin,
+        "BulkOperation",
+        "argument-bearing bulk-operation field has no explicit canonical resolver",
+    )]
+}
+
 impl DraftProxy {
-    pub(crate) fn resolve_bulk_operations_graphql(
+    pub(crate) fn bulk_operation_query_root(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        let RootInvocation {
-            response_key,
-            request,
-            query,
-            variables,
-            root_name,
-            root_location,
-            arguments,
-            mode,
-            ..
-        } = invocation;
-        let arguments = resolved_arguments_from_json(&arguments);
-        match mode {
-            LocalResolverMode::OverlayRead => self.bulk_operation_read_outcome(
-                request,
-                response_key,
-                root_name,
-                &arguments,
-                root_location,
-                query,
-                variables,
-            ),
-            LocalResolverMode::StageLocally if root_name == "bulkOperationRunQuery" => {
-                self.bulk_operation_run_query_outcome(request, &arguments)
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        self.bulk_operation_read_outcome(&invocation, &arguments)
+    }
+
+    pub(crate) fn bulk_operation_mutation_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        match invocation.root_name {
+            "bulkOperationRunQuery" => {
+                self.bulk_operation_run_query_outcome(invocation.request, &arguments)
             }
-            LocalResolverMode::StageLocally if root_name == "bulkOperationRunMutation" => {
-                self.bulk_operation_run_mutation_outcome(request, &arguments)
+            "bulkOperationRunMutation" => {
+                self.bulk_operation_run_mutation_outcome(invocation.request, &arguments)
             }
-            LocalResolverMode::StageLocally if root_name == "bulkOperationCancel" => {
-                self.bulk_operation_cancel_outcome(request, &arguments)
+            "bulkOperationCancel" => {
+                self.bulk_operation_cancel_outcome(invocation.request, &arguments)
             }
-            LocalResolverMode::StageLocally => resolver_http_error_outcome(
-                501,
-                format!(
-                    "No Rust {} dispatcher implemented for root field: {root_name}",
-                    mode.registry_name()
-                ),
-            ),
+            root => {
+                ResolverOutcome::error(format!("Unknown bulk-operation mutation root `{root}`"))
+            }
         }
     }
 }
@@ -396,44 +389,40 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn bulk_operation_read_outcome(
         &mut self,
-        request: &Request,
-        response_key: &str,
-        root_field: &str,
+        invocation: &RootInvocation<'_>,
         arguments: &BTreeMap<String, ResolvedValue>,
-        root_location: SourceLocation,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
     ) -> ResolverOutcome<Value> {
-        let operation_path = parsed_document(query, variables)
-            .map(|document| document.operation_path)
-            .unwrap_or_else(|| "query".to_string());
         if let Some(errors) = bulk_operation_read_validation_errors(
-            root_field,
-            response_key,
+            invocation.root_name,
+            invocation.response_key,
             arguments,
-            root_location,
-            &operation_path,
+            invocation.root_location,
+            invocation.operation_path,
         ) {
-            return graphql_error_outcome(errors, response_key);
+            return graphql_error_outcome(errors, invocation.response_key);
         }
 
-        let upstream_outcome = if self.bulk_operation_read_needs_upstream(root_field, arguments) {
-            let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
-            if !result.transport_succeeded {
-                return result.outcome;
-            }
-            self.observe_bulk_operation_read_result(
-                response_key,
-                root_field,
-                arguments,
-                &result.data,
-            );
-            Some(result.outcome)
-        } else {
-            None
-        };
+        let upstream_outcome =
+            if self.bulk_operation_read_needs_upstream(invocation.root_name, arguments) {
+                let result = self.cached_or_forward_upstream_graphql_result(
+                    invocation.request,
+                    invocation.response_key,
+                );
+                if !result.transport_succeeded {
+                    return result.outcome;
+                }
+                self.observe_bulk_operation_read_result(
+                    invocation.response_key,
+                    invocation.root_name,
+                    arguments,
+                    &result.data,
+                );
+                Some(result.outcome)
+            } else {
+                None
+            };
 
-        let value = match root_field {
+        let value = match invocation.root_name {
             "bulkOperation" => {
                 let id = resolved_string_field(arguments, "id").unwrap_or_default();
                 self.bulk_operation_by_id(&id)
@@ -450,12 +439,19 @@ impl DraftProxy {
             _ => {
                 return resolver_http_error_outcome(
                     501,
-                    format!("Unsupported bulk operation read root: {root_field}"),
+                    format!(
+                        "Unsupported bulk operation read root: {}",
+                        invocation.root_name
+                    ),
                 );
             }
         };
         let mut outcome = ResolverOutcome::value(value);
-        if let Some(search) = bulk_operation_search_extension(response_key, root_field, arguments) {
+        if let Some(search) = bulk_operation_search_extension(
+            invocation.response_key,
+            invocation.root_name,
+            arguments,
+        ) {
             outcome.extensions.insert("search".to_string(), search);
         }
         if let Some(upstream) = upstream_outcome {

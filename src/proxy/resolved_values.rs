@@ -176,13 +176,6 @@ pub(in crate::proxy) fn resolved_nullable_string_field(
     resolved_string_field(input, field).map_or(Value::Null, |value| json!(value))
 }
 
-pub(in crate::proxy) fn resolved_as_usize(value: &ResolvedValue) -> Option<usize> {
-    match value {
-        ResolvedValue::Int(value) if *value >= 0 => Some(*value as usize),
-        _ => None,
-    }
-}
-
 pub(in crate::proxy) fn resolved_object_field(
     input: &BTreeMap<String, ResolvedValue>,
     field: &str,

@@ -3,93 +3,125 @@ use super::*;
 const LOCATION_HYDRATE_QUERY: &str = r#"query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: "custom", key: "hours") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: ["available", "committed", "on_hand"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"#;
 const LOCATION_LIMIT_STATUS_QUERY: &str = r#"query StorePropertiesLocationLimitStatus($first: Int!) { shop { resourceLimits { locationLimit } } locations(first: $first, includeInactive: true) { nodes { id isActive isFulfillmentService } pageInfo { hasNextPage } } }"#;
 
+struct LocationAddResolverContext<'a> {
+    operation_path: &'a str,
+    response_key: &'a str,
+    root_location: SourceLocation,
+    input_was_variable: bool,
+    input_variable_location: Option<SourceLocation>,
+}
+
 impl DraftProxy {
-    pub(in crate::proxy) fn location_mutation(
+    pub(crate) fn location_mutation(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let has_idempotent_directive = invocation.has_directive("idempotent");
+        let RootInvocation {
+            root_name,
+            response_key,
+            root_location,
+            arguments,
+            operation_path,
+            variable_definitions,
+            raw_arguments,
+            request,
+            ..
+        } = invocation;
+        let arguments = resolved_arguments_from_json(&arguments);
+        match root_name {
+            "locationAdd" => {
+                let input_variable_name = raw_arguments.get("input").and_then(|argument| {
+                    if let RawArgumentValue::Variable { name, .. } = argument {
+                        Some(name.as_str())
+                    } else {
+                        None
+                    }
+                });
+                self.location_add(
+                    &arguments,
+                    request,
+                    LocationAddResolverContext {
+                        operation_path,
+                        response_key,
+                        root_location,
+                        input_was_variable: input_variable_name.is_some(),
+                        input_variable_location: input_variable_name
+                            .and_then(|name| variable_definitions.get(name))
+                            .map(|definition| definition.location),
+                    },
+                )
+            }
+            "locationEdit" => self.location_edit(&arguments, request, response_key),
+            "locationActivate" => self.location_activate(
+                &arguments,
+                request,
+                response_key,
+                root_location,
+                has_idempotent_directive,
+            ),
+            "locationDeactivate" => self.location_deactivate(
+                &arguments,
+                request,
+                response_key,
+                root_location,
+                has_idempotent_directive,
+            ),
+            "locationDelete" => self.location_delete(&arguments, request),
+            _ => resolver_http_error_outcome(501, "Unsupported location mutation"),
+        }
+    }
+
+    pub(crate) fn location_local_pickup_mutation_root(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         let RootInvocation {
             root_name,
-            response_key,
-            query,
-            variables,
-            request,
+            arguments,
             ..
         } = invocation;
-        match root_name {
-            "locationAdd" => self.location_add(query, variables, request, response_key),
-            "locationEdit" => self.location_edit(query, variables, request, response_key),
-            "locationActivate" => self.location_activate(query, variables, request, response_key),
-            "locationDeactivate" => {
-                self.location_deactivate(query, variables, request, response_key)
+        let arguments = resolved_arguments_from_json(&arguments);
+        let mut staged_ids = Vec::new();
+        let payload = match root_name {
+            "locationLocalPickupEnable" => {
+                self.location_local_pickup_enable_payload(&arguments, root_name, &mut staged_ids)
             }
-            "locationDelete" => self.location_delete(query, variables, request, response_key),
-            _ => resolver_http_error_outcome(501, "Unsupported location mutation"),
-        }
-    }
-
-    pub(in crate::proxy) fn location_local_pickup_mutation(
-        &mut self,
-        root_field: &str,
-        fields: &[RootFieldSelection],
-        response_key: &str,
-    ) -> ResolverOutcome<Value> {
-        let mut log_drafts = Vec::new();
-        let data = root_payload_json(fields, |field| {
-            let mut staged_ids = Vec::new();
-            let payload = match field.name.as_str() {
-                "locationLocalPickupEnable" => {
-                    self.location_local_pickup_enable_payload(field, &mut staged_ids)
-                }
-                "locationLocalPickupDisable" => {
-                    self.location_local_pickup_disable_payload(field, &mut staged_ids)
-                }
-                _ => return None,
-            };
-            if !staged_ids.is_empty() {
-                log_drafts.push(LogDraft::staged(
-                    field.name.clone(),
-                    "shipping-fulfillments",
-                    staged_ids,
-                ));
+            "locationLocalPickupDisable" => {
+                self.location_local_pickup_disable_payload(&arguments, root_name, &mut staged_ids)
             }
-            Some(payload)
-        });
-        if data.as_object().is_none_or(serde_json::Map::is_empty) {
-            return resolver_http_error_outcome(
-                501,
-                format!(
-                    "No Rust stage-locally dispatcher implemented for root field: {}",
-                    root_field
-                ),
-            );
+            _ => {
+                return resolver_http_error_outcome(
+                    501,
+                    format!("Unsupported local pickup mutation {root_name}"),
+                );
+            }
+        };
+        let mut outcome = ResolverOutcome::value(payload);
+        if !staged_ids.is_empty() {
+            outcome = outcome.with_log_draft(LogDraft::staged(
+                root_name,
+                "shipping-fulfillments",
+                staged_ids,
+            ));
         }
-        let mut outcome =
-            ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null));
-        outcome.log_drafts = log_drafts;
         outcome
     }
 
     fn location_local_pickup_enable_payload(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        root_name: &str,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let input = resolved_object_field(&field.arguments, "localPickupSettings")
-            .unwrap_or_else(|| field.arguments.clone());
+        let input = resolved_object_field(arguments, "localPickupSettings")
+            .unwrap_or_else(|| arguments.clone());
         let location_id = resolved_string_field(&input, "locationId").unwrap_or_default();
         let pickup_time = resolved_string_field(&input, "pickupTime").unwrap_or_default();
-        let user_errors = self.location_local_pickup_enable_user_errors(
-            &location_id,
-            &pickup_time,
-            field.name.as_str(),
-        );
+        let user_errors =
+            self.location_local_pickup_enable_user_errors(&location_id, &pickup_time, root_name);
         if !user_errors.is_empty() {
-            return location_local_pickup_enable_payload_selected_json(
-                Value::Null,
-                &field.selection,
-                user_errors,
-            );
+            return location_local_pickup_enable_payload_json(Value::Null, user_errors);
         }
 
         let instructions = input
@@ -114,17 +146,17 @@ impl DraftProxy {
         self.stage_local_pickup_location(location);
         staged_ids.push(location_id);
 
-        location_local_pickup_enable_payload_selected_json(settings, &field.selection, Vec::new())
+        location_local_pickup_enable_payload_json(settings, Vec::new())
     }
 
     fn location_local_pickup_disable_payload(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        root_name: &str,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let location_id = resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
-        let user_errors =
-            self.location_local_pickup_location_user_errors(&location_id, field.name.as_str());
+        let location_id = resolved_string_field(arguments, "locationId").unwrap_or_default();
+        let user_errors = self.location_local_pickup_location_user_errors(&location_id, root_name);
         if user_errors.is_empty() {
             let mut location = self
                 .active_local_pickup_location(&location_id)
@@ -141,11 +173,7 @@ impl DraftProxy {
         } else {
             Value::Null
         };
-        location_local_pickup_disable_payload_selected_json(
-            payload_location_id,
-            &field.selection,
-            user_errors,
-        )
+        location_local_pickup_disable_payload_json(payload_location_id, user_errors)
     }
 
     fn location_local_pickup_enable_user_errors(
@@ -192,146 +220,109 @@ impl DraftProxy {
         )]
     }
 
-    pub(in crate::proxy) fn location_add(
+    fn location_add(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-        response_key: &str,
+        context: LocationAddResolverContext<'_>,
     ) -> ResolverOutcome<Value> {
-        let Some(document) = parsed_document(query, variables) else {
-            return resolver_http_error_outcome(400, "Unable to parse locationAdd mutation");
+        let Some(input) = resolved_object_field(arguments, "input") else {
+            return location_error_outcome(
+                location_add_missing_input_error(&context),
+                context.response_key,
+            );
         };
-        for field in document
-            .root_fields
-            .iter()
-            .filter(|field| field.name == "locationAdd" && field.response_key == response_key)
-        {
-            let Some(input) = resolved_object_field(&field.arguments, "input") else {
-                return location_error_outcome(
-                    location_add_missing_input_error(&document.operation_path, field),
-                    response_key,
-                );
-            };
-            if let Some(error) =
-                self.location_add_input_shape_error(&document.operation_path, field, &input)
-            {
-                return location_error_outcome(error, response_key);
-            }
-            if resolved_object_list_field(&input, "metafields")
-                .iter()
-                .any(|metafield| {
-                    metafield.contains_key("key")
-                        && resolved_string_field(metafield, "key")
-                            .map(|key| key.trim().is_empty())
-                            .unwrap_or(true)
-                })
-            {
-                return location_error_outcome(
-                    location_add_metafield_blank_key_error(field, &document),
-                    response_key,
-                );
-            }
-
-            let user_errors = self.location_add_user_errors(&input, request);
-            let (location, staged_id) = if user_errors.is_empty() {
-                let id = self.next_proxy_synthetic_gid("Location");
-                let location = self.location_record_from_add_input(&id, &input);
-                self.stage_location(location.clone());
-                (location, Some(id))
-            } else {
-                (Value::Null, None)
-            };
-            let outcome = ResolverOutcome::value(location_payload_selected_json(
-                location,
-                &field.selection,
-                user_errors,
-            ));
-            return staged_id.map_or(outcome.clone(), |id| {
-                outcome.with_log_draft(LogDraft::staged(
-                    "locationAdd",
-                    "store_properties",
-                    vec![id],
-                ))
-            });
+        if let Some(error) = self.location_add_input_shape_error(&context, &input) {
+            return location_error_outcome(error, context.response_key);
         }
-        ResolverOutcome::value(Value::Null)
+        if resolved_object_list_field(&input, "metafields")
+            .iter()
+            .any(|metafield| {
+                metafield.contains_key("key")
+                    && resolved_string_field(metafield, "key")
+                        .map(|key| key.trim().is_empty())
+                        .unwrap_or(true)
+            })
+        {
+            return location_error_outcome(
+                location_add_metafield_blank_key_error(&context),
+                context.response_key,
+            );
+        }
+
+        let user_errors = self.location_add_user_errors(&input, request);
+        let (location, staged_id) = if user_errors.is_empty() {
+            let id = self.next_proxy_synthetic_gid("Location");
+            let location = self.location_record_from_add_input(&id, &input);
+            self.stage_location(location.clone());
+            (location, Some(id))
+        } else {
+            (Value::Null, None)
+        };
+        let outcome = ResolverOutcome::value(location_payload_json(location, user_errors));
+        staged_id.map_or(outcome.clone(), |id| {
+            outcome.with_log_draft(LogDraft::staged(
+                "locationAdd",
+                "store_properties",
+                vec![id],
+            ))
+        })
     }
 
     pub(in crate::proxy) fn location_activate(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
         response_key: &str,
+        root_location: SourceLocation,
+        has_idempotent_directive: bool,
     ) -> ResolverOutcome<Value> {
-        if location_requires_idempotency(request, query) {
-            let field = self
-                .execution_root_fields(query, variables)
-                .and_then(|fields| {
-                    fields.into_iter().find(|field| {
-                        field.name == "locationActivate" && field.response_key == response_key
-                    })
-                });
+        if location_requires_idempotency(request, has_idempotent_directive) {
             return location_error_outcome(
-                location_idempotency_required_error("locationActivate", field.as_ref()),
+                location_idempotency_required_error("locationActivate", root_location),
                 response_key,
             );
         }
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return resolver_http_error_outcome(400, "Unable to parse locationActivate mutation");
-        };
-        for field in fields {
-            if field.name != "locationActivate" || field.response_key != response_key {
-                continue;
-            }
-            let location_id =
-                resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
-            self.ensure_location_hydrated(&location_id, request);
-            let (location, errors, staged) =
-                if let Some(source_location) = self.location_for_read(&location_id) {
-                    self.hydrate_location_limit_status(request);
-                    let errors = self.location_activate_errors(&source_location);
-                    let location = if errors.is_empty() {
-                        let mut location = source_location;
-                        location["isActive"] = json!(true);
-                        location["activatable"] = json!(true);
-                        location["deactivatable"] = json!(true);
-                        location["deletable"] = json!(false);
-                        self.stage_location(location.clone());
-                        location
-                    } else {
-                        source_location
-                    };
-                    let staged = errors.is_empty();
-                    (location, errors, staged)
+        let location_id = resolved_string_field(arguments, "locationId").unwrap_or_default();
+        self.ensure_location_hydrated(&location_id, request);
+        let (location, errors, staged) =
+            if let Some(source_location) = self.location_for_read(&location_id) {
+                self.hydrate_location_limit_status(request);
+                let errors = self.location_activate_errors(&source_location);
+                let location = if errors.is_empty() {
+                    let mut location = source_location;
+                    location["isActive"] = json!(true);
+                    location["activatable"] = json!(true);
+                    location["deactivatable"] = json!(true);
+                    location["deletable"] = json!(false);
+                    self.stage_location(location.clone());
+                    location
                 } else {
-                    (
-                        Value::Null,
-                        vec![user_error(
-                            ["locationId"],
-                            "Location not found.",
-                            Some("LOCATION_NOT_FOUND"),
-                        )],
-                        false,
-                    )
+                    source_location
                 };
-            let outcome = ResolverOutcome::value(location_activate_payload_selected_json(
-                location,
-                &field.selection,
-                errors,
-            ));
-            return if staged {
-                outcome.with_log_draft(LogDraft::staged(
-                    "locationActivate",
-                    "store_properties",
-                    vec![location_id],
-                ))
+                let staged = errors.is_empty();
+                (location, errors, staged)
             } else {
-                outcome
+                (
+                    Value::Null,
+                    vec![user_error(
+                        ["locationId"],
+                        "Location not found.",
+                        Some("LOCATION_NOT_FOUND"),
+                    )],
+                    false,
+                )
             };
+        let outcome = ResolverOutcome::value(location_activate_payload_json(location, errors));
+        if staged {
+            outcome.with_log_draft(LogDraft::staged(
+                "locationActivate",
+                "store_properties",
+                vec![location_id],
+            ))
+        } else {
+            outcome
         }
-        ResolverOutcome::value(Value::Null)
     }
 
     /// Applies a `locationDelete`. The target is resolved through the local overlay
@@ -341,48 +332,33 @@ impl DraftProxy {
     /// levels are dropped.
     pub(in crate::proxy) fn location_delete(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-        response_key: &str,
     ) -> ResolverOutcome<Value> {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return resolver_http_error_outcome(400, "Unable to parse locationDelete mutation");
+        let location_id = resolved_string_field(arguments, "locationId").unwrap_or_default();
+        let location = self
+            .location_for_read(&location_id)
+            .or_else(|| self.hydrate_location_for_mutation(request, &location_id));
+        let errors = self.location_delete_errors(&location_id, location.as_ref());
+        let deleted = errors.is_empty();
+        let deleted_location_id = if deleted {
+            self.delete_location_inventory_levels(&location_id);
+            self.delete_staged_location(&location_id);
+            Value::String(location_id.clone())
+        } else {
+            Value::Null
         };
-        for field in fields {
-            if field.name != "locationDelete" || field.response_key != response_key {
-                continue;
-            }
-            let location_id =
-                resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
-            let location = self
-                .location_for_read(&location_id)
-                .or_else(|| self.hydrate_location_for_mutation(request, &location_id));
-            let errors = self.location_delete_errors(&location_id, location.as_ref());
-            let deleted = errors.is_empty();
-            let deleted_location_id = if deleted {
-                self.delete_location_inventory_levels(&location_id);
-                self.delete_staged_location(&location_id);
-                Value::String(location_id.clone())
-            } else {
-                Value::Null
-            };
-            let outcome = ResolverOutcome::value(location_delete_payload_selected_json(
-                deleted_location_id,
-                &field.selection,
-                errors,
-            ));
-            return if deleted {
-                outcome.with_log_draft(LogDraft::staged(
-                    "locationDelete",
-                    "store_properties",
-                    vec![location_id],
-                ))
-            } else {
-                outcome
-            };
+        let outcome =
+            ResolverOutcome::value(location_delete_payload_json(deleted_location_id, errors));
+        if deleted {
+            outcome.with_log_draft(LogDraft::staged(
+                "locationDelete",
+                "store_properties",
+                vec![location_id],
+            ))
+        } else {
+            outcome
         }
-        ResolverOutcome::value(Value::Null)
     }
 
     /// Resolves the user errors Shopify raises for a `locationDelete`, mirroring
@@ -522,61 +498,47 @@ impl DraftProxy {
     /// merged record is re-staged so subsequent local reads observe the change.
     pub(in crate::proxy) fn location_edit(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
         response_key: &str,
     ) -> ResolverOutcome<Value> {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return resolver_http_error_outcome(400, "Unable to parse locationEdit mutation");
-        };
-        for field in fields {
-            if field.name != "locationEdit" || field.response_key != response_key {
-                continue;
-            }
-            let location_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-            let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-            if let Some(error) = self.location_edit_input_shape_error(&input) {
-                return location_error_outcome(error, response_key);
-            }
-
-            let source_location = self
-                .location_for_read(&location_id)
-                .or_else(|| self.hydrate_location_for_mutation(request, &location_id));
-            let mut user_errors = Vec::new();
-            if source_location.is_none() {
-                user_errors.push(user_error_omit_code(["id"], "Location not found.", None));
-            } else {
-                user_errors.extend(self.location_edit_user_errors(&location_id, &input));
-            }
-
-            let staged = user_errors.is_empty();
-            let location = if staged {
-                let mut location =
-                    source_location.unwrap_or_else(|| self.staged_location_record(&location_id));
-                self.apply_location_edit_input(&mut location, &input);
-                self.stage_location(location.clone());
-                location
-            } else {
-                Value::Null
-            };
-
-            let outcome = ResolverOutcome::value(location_payload_selected_json(
-                location,
-                &field.selection,
-                user_errors,
-            ));
-            return if staged {
-                outcome.with_log_draft(LogDraft::staged(
-                    "locationEdit",
-                    "store_properties",
-                    vec![location_id],
-                ))
-            } else {
-                outcome
-            };
+        let location_id = resolved_string_field(arguments, "id").unwrap_or_default();
+        let input = resolved_object_field(arguments, "input").unwrap_or_default();
+        if let Some(error) = self.location_edit_input_shape_error(&input) {
+            return location_error_outcome(error, response_key);
         }
-        ResolverOutcome::value(Value::Null)
+
+        let source_location = self
+            .location_for_read(&location_id)
+            .or_else(|| self.hydrate_location_for_mutation(request, &location_id));
+        let mut user_errors = Vec::new();
+        if source_location.is_none() {
+            user_errors.push(user_error_omit_code(["id"], "Location not found.", None));
+        } else {
+            user_errors.extend(self.location_edit_user_errors(&location_id, &input));
+        }
+
+        let staged = user_errors.is_empty();
+        let location = if staged {
+            let mut location =
+                source_location.unwrap_or_else(|| self.staged_location_record(&location_id));
+            self.apply_location_edit_input(&mut location, &input);
+            self.stage_location(location.clone());
+            location
+        } else {
+            Value::Null
+        };
+
+        let outcome = ResolverOutcome::value(location_payload_json(location, user_errors));
+        if staged {
+            outcome.with_log_draft(LogDraft::staged(
+                "locationEdit",
+                "store_properties",
+                vec![location_id],
+            ))
+        } else {
+            outcome
+        }
     }
 
     /// Surfaces the `LocationEditInput!` coercion error Shopify raises for an
@@ -726,8 +688,7 @@ impl DraftProxy {
 
     fn location_add_input_shape_error(
         &self,
-        operation_path: &str,
-        field: &RootFieldSelection,
+        context: &LocationAddResolverContext<'_>,
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
         if input.contains_key("capabilities") {
@@ -740,20 +701,19 @@ impl DraftProxy {
         }
         if input.contains_key("capabilitiesToAdd") {
             return Some(location_add_inline_argument_not_accepted_error(
-                operation_path,
-                field,
+                context,
                 "capabilitiesToAdd",
             ));
         }
         let address = match input.get("address") {
             Some(ResolvedValue::Object(address)) => address,
             _ => {
-                return Some(location_add_missing_address_error(operation_path, field));
+                return Some(location_add_missing_address_error(context));
             }
         };
         let country_code = resolved_string_field(address, "countryCode");
         let Some(country_code) = country_code else {
-            if input_was_variable(field) {
+            if context.input_was_variable {
                 return Some(location_invalid_variable_error(
                     "LocationAddInput",
                     "address.countryCode",
@@ -761,10 +721,7 @@ impl DraftProxy {
                     input,
                 ));
             }
-            return Some(location_add_missing_country_code_error(
-                operation_path,
-                field,
-            ));
+            return Some(location_add_missing_country_code_error(context));
         };
         if !location_country_code_is_valid(&country_code) {
             return Some(location_invalid_variable_error(
@@ -1072,55 +1029,49 @@ impl DraftProxy {
     /// resolved purely locally (the proxy intentionally does not model id-typed
     /// location metafield definitions and always reports the custom id as
     /// not found), so it never needs the baseline.
-    pub(in crate::proxy) fn location_read_needs_upstream(
+    pub(in crate::proxy) fn location_root_needs_upstream(
         &self,
-        fields: &[RootFieldSelection],
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
-        fields.iter().any(|field| match field.name.as_str() {
+        match root_name {
             "location" | "locations" | "locationsCount" => true,
-            "locationByIdentifier" => resolved_object_field(&field.arguments, "identifier")
+            "locationByIdentifier" => resolved_object_field(arguments, "identifier")
                 .map(|identifier| !identifier.contains_key("customId"))
                 .unwrap_or(true),
             _ => false,
-        })
+        }
     }
 
-    pub(in crate::proxy) fn location_read_outcome(
+    pub(in crate::proxy) fn location_root_outcome(
         &self,
-        fields: &[RootFieldSelection],
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
         response_key: &str,
     ) -> ResolverOutcome<Value> {
         let mut errors = Vec::new();
-        let data = root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "location" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.location_for_read(&id)
-                        .map(|location| self.location_selected_json(&location, &field.selection))
-                        .unwrap_or(Value::Null)
+        let value = match root_name {
+            "location" => {
+                let id = resolved_string_field(arguments, "id").unwrap_or_default();
+                self.location_for_read(&id).unwrap_or(Value::Null)
+            }
+            "locationByIdentifier" => {
+                let identifier = resolved_object_field(arguments, "identifier").unwrap_or_default();
+                let id = resolved_string_field(&identifier, "id").unwrap_or_default();
+                let location = self.location_for_read(&id);
+                if location.is_none() && identifier.contains_key("customId") {
+                    errors.push(json!({
+                        "message": "Metafield definition of type 'id' is required when using custom ids.",
+                        "path": [response_key],
+                        "extensions": { "code": "NOT_FOUND" }
+                    }));
                 }
-                "locationByIdentifier" => {
-                    let identifier =
-                        resolved_object_field(&field.arguments, "identifier").unwrap_or_default();
-                    let id = resolved_string_field(&identifier, "id").unwrap_or_default();
-                    let location = self
-                        .location_for_read(&id)
-                        .map(|location| self.location_selected_json(&location, &field.selection));
-                    if location.is_none() && identifier.contains_key("customId") {
-                        errors.push(json!({
-                            "message": "Metafield definition of type 'id' is required when using custom ids.",
-                            "path": [field.response_key.clone()],
-                            "extensions": { "code": "NOT_FOUND" }
-                        }));
-                    }
-                    location.unwrap_or(Value::Null)
-                }
-                "locations" => self.locations_connection_json(&field.arguments, &field.selection),
-                "locationsCount" => self.locations_count_json(&field.arguments, &field.selection),
-                _ => return None,
-            })
-        });
-        let value = data.get(response_key).cloned().unwrap_or(Value::Null);
+                location.unwrap_or(Value::Null)
+            }
+            "locations" => self.locations_connection_value(arguments),
+            "locationsCount" => self.locations_count_value(arguments),
+            _ => Value::Null,
+        };
         ResolverOutcome::value(value)
             .with_errors(root_field_errors_from_json(&errors, response_key))
     }
@@ -1167,20 +1118,23 @@ impl DraftProxy {
         })
     }
 
-    fn locations_connection_json(
-        &self,
-        arguments: &BTreeMap<String, ResolvedValue>,
-        selections: &[SelectedField],
-    ) -> Value {
-        let locations = self.locations_for_connection(arguments);
-        self.location_connection_json(locations, arguments, selections)
+    fn locations_connection_value(&self, arguments: &BTreeMap<String, ResolvedValue>) -> Value {
+        let result = staged_connection_query(
+            self.locations_for_connection(arguments),
+            arguments,
+            location_search_decision,
+            location_staged_sort_key,
+            value_id_cursor,
+        );
+        typed_connection_value(
+            &result.records,
+            Value::clone,
+            value_id_cursor,
+            result.page_info,
+        )
     }
 
-    fn locations_count_json(
-        &self,
-        arguments: &BTreeMap<String, ResolvedValue>,
-        selections: &[SelectedField],
-    ) -> Value {
+    fn locations_count_value(&self, arguments: &BTreeMap<String, ResolvedValue>) -> Value {
         let result = staged_connection_query(
             self.locations_for_count(arguments),
             arguments,
@@ -1188,10 +1142,7 @@ impl DraftProxy {
             location_staged_sort_key,
             value_id_cursor,
         );
-        selected_json(
-            &snapshot_count_with_limit_precision(result.total_count, arguments),
-            selections,
-        )
+        snapshot_count_with_limit_precision(result.total_count, arguments)
     }
 
     fn locations_for_connection(&self, arguments: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
@@ -1295,70 +1246,6 @@ impl DraftProxy {
         locations.push(location);
     }
 
-    fn location_connection_json(
-        &self,
-        locations: Vec<Value>,
-        arguments: &BTreeMap<String, ResolvedValue>,
-        selections: &[SelectedField],
-    ) -> Value {
-        let result = staged_connection_query(
-            locations,
-            arguments,
-            location_search_decision,
-            location_staged_sort_key,
-            value_id_cursor,
-        );
-        selected_typed_connection_with_page_info(
-            &result.records,
-            selections,
-            |location, fields| self.location_selected_json(location, fields),
-            value_id_cursor,
-            result.page_info,
-        )
-    }
-
-    fn location_selected_json(&self, location: &Value, selections: &[SelectedField]) -> Value {
-        let mut fields = serde_json::Map::new();
-        for selection in selections {
-            let value = match selection.name.as_str() {
-                "inventoryLevels" => {
-                    let location_id = location
-                        .get("id")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default();
-                    Some(self.location_inventory_levels_connection_selected_json(
-                        location_id,
-                        Some(location),
-                        &selection.arguments,
-                        &selection.selection,
-                    ))
-                }
-                "metafield" => location_metafield_json(location, selection),
-                "metafields" => Some(location_metafields_connection_json(location, selection)),
-                _ => location.get(&selection.name).map(|value| {
-                    if selection.selection.is_empty() {
-                        value.clone()
-                    } else if value.is_null() {
-                        Value::Null
-                    } else if let Some(values) = value.as_array() {
-                        Value::Array(
-                            values
-                                .iter()
-                                .map(|item| self.location_selected_json(item, &selection.selection))
-                                .collect(),
-                        )
-                    } else {
-                        selected_json(value, &selection.selection)
-                    }
-                }),
-            };
-            if let Some(value) = value {
-                fields.insert(selection.response_key.clone(), value);
-            }
-        }
-        Value::Object(fields)
-    }
-
     fn location_name_exists(&self, name: &str) -> bool {
         let normalized = name.trim().to_lowercase();
         self.store.staged.locations.values().any(|location| {
@@ -1403,84 +1290,58 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn location_deactivate(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
         response_key: &str,
+        root_location: SourceLocation,
+        has_idempotent_directive: bool,
     ) -> ResolverOutcome<Value> {
-        if location_requires_idempotency(request, query) {
-            let field = self
-                .execution_root_fields(query, variables)
-                .and_then(|fields| {
-                    fields.into_iter().find(|field| {
-                        field.name == "locationDeactivate" && field.response_key == response_key
-                    })
-                });
+        if location_requires_idempotency(request, has_idempotent_directive) {
             return location_error_outcome(
-                location_idempotency_required_error("locationDeactivate", field.as_ref()),
+                location_idempotency_required_error("locationDeactivate", root_location),
                 response_key,
             );
         }
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return resolver_http_error_outcome(400, "Unable to parse locationDeactivate mutation");
-        };
-        for field in fields {
-            if field.name != "locationDeactivate" || field.response_key != response_key {
-                continue;
-            }
-            let location_id =
-                resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
-            let destination_location_id =
-                resolved_string_field(&field.arguments, "destinationLocationId");
-            self.ensure_location_hydrated(&location_id, request);
-            let Some(source_location) = self.location_deactivate_source_location(&location_id)
-            else {
-                return ResolverOutcome::value(location_deactivate_payload_json(
-                    Value::Null,
-                    &field.selection,
-                    vec![user_error(
-                        ["locationId"],
-                        "Location not found.",
-                        Some("LOCATION_NOT_FOUND"),
-                    )],
-                ));
-            };
-            let errors = self
-                .location_deactivate_errors(&source_location, destination_location_id.as_deref());
-            let staged = errors.is_empty();
-            let location = if staged {
-                if let Some(destination_location_id) = destination_location_id.as_deref() {
-                    self.relocate_inventory_levels_for_location(
-                        &location_id,
-                        destination_location_id,
-                    );
-                }
-                let mut location = source_location;
-                location["isActive"] = json!(false);
-                location["hasActiveInventory"] = json!(false);
-                location["deletable"] = json!(true);
-                location["deactivatable"] = json!(true);
-                self.stage_location(location.clone());
-                location
-            } else {
-                source_location
-            };
-            let outcome = ResolverOutcome::value(location_deactivate_payload_json(
-                location,
-                &field.selection,
-                errors,
+        let location_id = resolved_string_field(arguments, "locationId").unwrap_or_default();
+        let destination_location_id = resolved_string_field(arguments, "destinationLocationId");
+        self.ensure_location_hydrated(&location_id, request);
+        let Some(source_location) = self.location_deactivate_source_location(&location_id) else {
+            return ResolverOutcome::value(location_deactivate_payload_json(
+                Value::Null,
+                vec![user_error(
+                    ["locationId"],
+                    "Location not found.",
+                    Some("LOCATION_NOT_FOUND"),
+                )],
             ));
-            return if staged {
-                outcome.with_log_draft(LogDraft::staged(
-                    "locationDeactivate",
-                    "store_properties",
-                    vec![location_id],
-                ))
-            } else {
-                outcome
-            };
+        };
+        let errors =
+            self.location_deactivate_errors(&source_location, destination_location_id.as_deref());
+        let staged = errors.is_empty();
+        let location = if staged {
+            if let Some(destination_location_id) = destination_location_id.as_deref() {
+                self.relocate_inventory_levels_for_location(&location_id, destination_location_id);
+            }
+            let mut location = source_location;
+            location["isActive"] = json!(false);
+            location["hasActiveInventory"] = json!(false);
+            location["deletable"] = json!(true);
+            location["deactivatable"] = json!(true);
+            self.stage_location(location.clone());
+            location
+        } else {
+            source_location
+        };
+        let outcome = ResolverOutcome::value(location_deactivate_payload_json(location, errors));
+        if staged {
+            outcome.with_log_draft(LogDraft::staged(
+                "locationDeactivate",
+                "store_properties",
+                vec![location_id],
+            ))
+        } else {
+            outcome
         }
-        ResolverOutcome::value(Value::Null)
     }
 
     fn location_deactivate_errors(
@@ -1659,24 +1520,17 @@ fn location_visible_in_connection(
     (include_inactive || is_active) && (include_legacy || !is_legacy)
 }
 
-pub(in crate::proxy) fn location_connection_json(
+pub(in crate::proxy) fn location_connection_value(
     locations: Vec<Value>,
     arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
 ) -> Value {
-    let result = staged_connection_query(
+    staged_connection_value_with_args(
         locations,
         arguments,
         location_search_decision,
         location_staged_sort_key,
+        Value::clone,
         value_id_cursor,
-    );
-    selected_typed_connection_with_page_info(
-        &result.records,
-        selections,
-        location_selected_json,
-        value_id_cursor,
-        result.page_info,
     )
 }
 
@@ -2342,27 +2196,20 @@ fn location_address_json(address_input: &BTreeMap<String, ResolvedValue>) -> Val
     address
 }
 
-fn input_was_variable(field: &RootFieldSelection) -> bool {
-    matches!(
-        field.raw_arguments.get("input"),
-        Some(RawArgumentValue::Variable { .. })
-    )
-}
-
-fn location_add_missing_input_error(operation_path: &str, field: &RootFieldSelection) -> Value {
+fn location_add_missing_input_error(context: &LocationAddResolverContext<'_>) -> Value {
     missing_required_arguments_error(
         "locationAdd",
         "input",
-        field.location,
-        vec![json!(operation_path), json!("locationAdd")],
+        context.root_location,
+        vec![json!(context.operation_path), json!("locationAdd")],
     )
 }
 
-fn location_add_missing_address_error(operation_path: &str, field: &RootFieldSelection) -> Value {
+fn location_add_missing_address_error(context: &LocationAddResolverContext<'_>) -> Value {
     json!({
         "message": "Argument 'address' on InputObject 'LocationAddInput' is required. Expected type LocationAddAddressInput!",
-        "locations": [{ "line": field.location.line, "column": field.location.column }],
-        "path": [operation_path, "locationAdd", "input", "address"],
+        "locations": [{ "line": context.root_location.line, "column": context.root_location.column }],
+        "path": [context.operation_path, "locationAdd", "input", "address"],
         "extensions": {
             "code": "missingRequiredInputObjectAttribute",
             "argumentName": "address",
@@ -2372,14 +2219,11 @@ fn location_add_missing_address_error(operation_path: &str, field: &RootFieldSel
     })
 }
 
-fn location_add_missing_country_code_error(
-    operation_path: &str,
-    field: &RootFieldSelection,
-) -> Value {
+fn location_add_missing_country_code_error(context: &LocationAddResolverContext<'_>) -> Value {
     json!({
         "message": "Argument 'countryCode' on InputObject 'LocationAddAddressInput' is required. Expected type CountryCode!",
-        "locations": [{ "line": field.location.line, "column": field.location.column }],
-        "path": [operation_path, "locationAdd", "input", "address", "countryCode"],
+        "locations": [{ "line": context.root_location.line, "column": context.root_location.column }],
+        "path": [context.operation_path, "locationAdd", "input", "address", "countryCode"],
         "extensions": {
             "code": "missingRequiredInputObjectAttribute",
             "argumentName": "countryCode",
@@ -2390,14 +2234,13 @@ fn location_add_missing_country_code_error(
 }
 
 fn location_add_inline_argument_not_accepted_error(
-    operation_path: &str,
-    field: &RootFieldSelection,
+    context: &LocationAddResolverContext<'_>,
     argument_name: &str,
 ) -> Value {
     json!({
         "message": format!("InputObject 'LocationAddInput' doesn't accept argument '{}'", argument_name),
-        "locations": [{ "line": field.location.line, "column": field.location.column }],
-        "path": [operation_path, "locationAdd", "input", argument_name],
+        "locations": [{ "line": context.root_location.line, "column": context.root_location.column }],
+        "path": [context.operation_path, "locationAdd", "input", argument_name],
         "extensions": {
             "code": "argumentNotAccepted",
             "name": "LocationAddInput",
@@ -2536,25 +2379,22 @@ const LOCATION_METAFIELD_VALID_TYPES: &[&str] = &[
 /// Top-level GraphQL error returned when a `locationAdd` metafield carries a
 /// blank `key`. Shopify rejects this as an input-arguments coercion failure
 /// anchored at both the field and the `$input` variable definition.
-fn location_add_metafield_blank_key_error(
-    field: &RootFieldSelection,
-    document: &crate::graphql::ParsedDocument,
-) -> Value {
+fn location_add_metafield_blank_key_error(context: &LocationAddResolverContext<'_>) -> Value {
     let mut locations = vec![json!({
-        "line": field.location.line,
-        "column": field.location.column
+        "line": context.root_location.line,
+        "column": context.root_location.column
     })];
-    if let Some(definition) = document.variable_definitions.get("input") {
+    if let Some(location) = context.input_variable_location {
         locations.push(json!({
-            "line": definition.location.line,
-            "column": definition.location.column
+            "line": location.line,
+            "column": location.column
         }));
     }
     json!({
         "message": "key can't be blank",
         "locations": locations,
         "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
-        "path": [field.response_key.clone()]
+        "path": [context.response_key]
     })
 }
 
@@ -2583,37 +2423,14 @@ fn location_invalid_variable_error(
     })
 }
 
-fn location_payload_selected_json(
-    location: Value,
-    payload_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "location" => Some(if location.is_null() {
-                Value::Null
-            } else {
-                location_selected_json(&location, &selection.selection)
-            }),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
-    })
+fn location_payload_json(location: Value, user_errors: Vec<Value>) -> Value {
+    json!({ "location": location, "userErrors": user_errors })
 }
 
-fn location_delete_payload_selected_json(
-    deleted_location_id: Value,
-    payload_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "deletedLocationId" => Some(deleted_location_id.clone()),
-            "locationDeleteUserErrors" | "userErrors" => {
-                selected_user_errors_field(user_errors.as_slice(), selection)
-            }
-            _ => None,
-        }
+fn location_delete_payload_json(deleted_location_id: Value, user_errors: Vec<Value>) -> Value {
+    json!({
+        "deletedLocationId": deleted_location_id,
+        "locationDeleteUserErrors": user_errors,
     })
 }
 
@@ -2621,21 +2438,15 @@ fn location_delete_user_error(code: &str, message: &str) -> Value {
     user_error(["locationId"], message, Some(code))
 }
 
-fn location_requires_idempotency(request: &Request, query: &str) -> bool {
+fn location_requires_idempotency(request: &Request, has_idempotent_directive: bool) -> bool {
     admin_graphql_version(&request.path).is_some_and(|version| version_at_least(version, 2026, 4))
-        && !query.contains("@idempotent")
+        && !has_idempotent_directive
 }
 
-fn location_idempotency_required_error(
-    root_field: &str,
-    field: Option<&RootFieldSelection>,
-) -> Value {
-    let (line, column) = field
-        .map(|field| (field.location.line, field.location.column))
-        .unwrap_or((1, 1));
+fn location_idempotency_required_error(root_field: &str, root_location: SourceLocation) -> Value {
     json!({
         "message": "The @idempotent directive is required for this mutation but was not provided.",
-        "locations": [{ "line": line, "column": column }],
+        "locations": [{ "line": root_location.line, "column": root_location.column }],
         "extensions": { "code": "BAD_REQUEST" },
         "path": [root_field]
     })
@@ -2646,35 +2457,20 @@ fn location_error_outcome(error: Value, response_key: &str) -> ResolverOutcome<V
         .with_errors(root_field_errors_from_json(&[error], response_key))
 }
 
-fn location_local_pickup_enable_payload_selected_json(
-    settings: Value,
-    payload_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "localPickupSettings" => Some(if settings.is_null() {
-                Value::Null
-            } else {
-                selected_json(&settings, &selection.selection)
-            }),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
+fn location_local_pickup_enable_payload_json(settings: Value, user_errors: Vec<Value>) -> Value {
+    json!({
+        "localPickupSettings": settings,
+        "userErrors": user_errors,
     })
 }
 
-fn location_local_pickup_disable_payload_selected_json(
+fn location_local_pickup_disable_payload_json(
     location_id: Value,
-    payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "locationId" => Some(location_id.clone()),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
+    json!({
+        "locationId": location_id,
+        "userErrors": user_errors,
     })
 }
 
@@ -2690,97 +2486,11 @@ fn local_pickup_time_is_standard(pickup_time: &str) -> bool {
     )
 }
 
-fn location_activate_payload_selected_json(
-    location: Value,
-    payload_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "location" => Some(if location.is_null() {
-                Value::Null
-            } else {
-                location_selected_json(&location, &selection.selection)
-            }),
-            "locationActivateUserErrors" => {
-                selected_user_errors_field(user_errors.as_slice(), selection)
-            }
-            _ => None,
-        }
+fn location_activate_payload_json(location: Value, user_errors: Vec<Value>) -> Value {
+    json!({
+        "location": location,
+        "locationActivateUserErrors": user_errors,
     })
-}
-
-fn location_selected_json(location: &Value, selections: &[SelectedField]) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "metafield" => location_metafield_json(location, selection),
-            "metafields" => Some(location_metafields_connection_json(location, selection)),
-            _ => location.get(&selection.name).map(|value| {
-                if selection.selection.is_empty() {
-                    value.clone()
-                } else if value.is_null() {
-                    Value::Null
-                } else if let Some(values) = value.as_array() {
-                    Value::Array(
-                        values
-                            .iter()
-                            .map(|item| location_selected_json(item, &selection.selection))
-                            .collect(),
-                    )
-                } else {
-                    selected_json(value, &selection.selection)
-                }
-            }),
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(fields)
-}
-
-fn location_metafield_json(location: &Value, selection: &SelectedField) -> Option<Value> {
-    let namespace = resolved_string_field(&selection.arguments, "namespace").unwrap_or_default();
-    let key = resolved_string_field(&selection.arguments, "key").unwrap_or_default();
-    let metafield = location
-        .get("metafields")
-        .and_then(Value::as_array)
-        .and_then(|metafields| {
-            metafields.iter().find(|metafield| {
-                metafield.get("namespace").and_then(Value::as_str) == Some(namespace.as_str())
-                    && metafield.get("key").and_then(Value::as_str) == Some(key.as_str())
-            })
-        });
-    Some(
-        metafield
-            .map(|metafield| selected_json(metafield, &selection.selection))
-            .unwrap_or(Value::Null),
-    )
-}
-
-fn location_metafields_connection_json(location: &Value, selection: &SelectedField) -> Value {
-    let namespace = resolved_string_field(&selection.arguments, "namespace");
-    let mut metafields = location
-        .get("metafields")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    if let Some(namespace) = namespace {
-        metafields.retain(|metafield| {
-            metafield.get("namespace").and_then(Value::as_str) == Some(namespace.as_str())
-        });
-    }
-    if let Some(limit) = selection.arguments.get("first").and_then(resolved_as_usize) {
-        metafields.truncate(limit);
-    }
-    selected_json(
-        &json!({
-            "nodes": metafields,
-            "pageInfo": empty_page_info()
-        }),
-        &selection.selection,
-    )
 }
 
 fn location_limit_reached_in_response(body: &Value) -> Option<bool> {

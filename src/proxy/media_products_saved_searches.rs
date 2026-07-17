@@ -4,7 +4,13 @@ mod bulk_operations;
 mod media;
 mod owner_metafields;
 
-pub(in crate::proxy) use self::owner_metafields::{list_reference_ids, scalar_reference_id};
+pub(in crate::proxy) use self::bulk_operations::bulk_operation_field_resolver_type_policies;
+pub(in crate::proxy) use self::media::{
+    media_field_resolver_registrations, media_field_resolver_type_policies,
+};
+pub(in crate::proxy) use self::owner_metafields::{
+    list_reference_ids, owner_metafield_field_resolver_registrations, scalar_reference_id,
+};
 
 const TAGGABLE_ORDER_HYDRATE_QUERY: &str =
     "query OrdersOrderHydrate($id: ID!) {\n  order(id: $id) { id name tags }\n}";
@@ -89,61 +95,6 @@ impl DraftProxy {
             },
             "notes": "Mutation passthrough placeholder until supported local staging is implemented."
         }));
-    }
-
-    pub(in crate::proxy) fn product_by_id_field(&self, field: &RootFieldSelection) -> Value {
-        self.product_by_id_field_with_app_namespace_api_client_id(field, None)
-    }
-
-    fn product_by_id_field_with_app_namespace_api_client_id(
-        &self,
-        field: &RootFieldSelection,
-        api_client_id: Option<&str>,
-    ) -> Value {
-        self.product_by_id_value_with_app_namespace_api_client_id(
-            &field.arguments,
-            &field.selection,
-            api_client_id,
-        )
-    }
-
-    fn product_by_id_value_with_app_namespace_api_client_id(
-        &self,
-        arguments: &BTreeMap<String, ResolvedValue>,
-        selection: &[SelectedField],
-        api_client_id: Option<&str>,
-    ) -> Value {
-        let Some(ResolvedValue::String(id)) = arguments.get("id") else {
-            return Value::Null;
-        };
-        match self.product_record_by_id(id) {
-            Some(product) => {
-                let variants = self
-                    .store
-                    .product_variants_for_product(&product.id)
-                    .iter()
-                    .map(|variant| self.variant_with_inventory_levels(variant))
-                    .collect::<Vec<_>>();
-                let base =
-                    self.product_json_with_selling_plan_overlay(product, &variants, selection);
-                self.product_owner_json_from_base_with_app_namespace_api_client_id(
-                    product,
-                    selection,
-                    base,
-                    api_client_id,
-                )
-            }
-            None if Self::owner_field_selects_direct_metafields(selection) => {
-                let owner_id = id.clone();
-                self.minimal_owner_json_for_read_with_app_namespace_api_client_id(
-                    "product",
-                    &owner_id,
-                    selection,
-                    api_client_id,
-                )
-            }
-            None => Value::Null,
-        }
     }
 
     pub(in crate::proxy) fn product_record_by_id(&self, id: &str) -> Option<&ProductRecord> {
@@ -234,13 +185,14 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let request = invocation.request;
         let query = invocation.query;
-        let variables = invocation.variables;
         let arguments = resolved_arguments_from_json(&invocation.arguments);
-        let field = self.execution_root_field(query, variables, "productCreate");
-        if let Some(errors) = field
-            .as_ref()
-            .and_then(|field| product_create_status_validation_errors(request, query, field))
-        {
+        if let Some(errors) = product_create_status_validation_errors(
+            request,
+            query,
+            invocation.root_name,
+            invocation.root_location,
+            &invocation.raw_arguments,
+        ) {
             return graphql_error_outcome(errors, invocation.response_key);
         }
         let Some(input) = product_input(&arguments) else {
@@ -381,14 +333,10 @@ impl DraftProxy {
                         .insert("category".to_string(), category);
                 }
                 None => {
-                    let (response_key, location) = field
-                        .as_ref()
-                        .map(|field| (field.response_key.as_str(), field.location))
-                        .unwrap_or(("productCreate", SourceLocation { line: 1, column: 1 }));
                     return graphql_error_outcome(
                         vec![invalid_product_taxonomy_node_id_error(
-                            response_key,
-                            location,
+                            invocation.response_key,
+                            invocation.root_location,
                         )],
                         invocation.response_key,
                     );
@@ -439,7 +387,8 @@ impl DraftProxy {
             self.add_product_to_collection_membership(collection_id, &product);
         }
 
-        let product_value = self.product_canonical_value(&response_product);
+        let mut product_value = self.product_canonical_value(&response_product);
+        product_value["media"] = connection_json(response_product.media.clone());
         ResolverOutcome::value(product_create_payload_value(
             Some(product_value),
             Vec::new(),
@@ -585,8 +534,6 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         let request = invocation.request;
-        let query = invocation.query;
-        let variables = invocation.variables;
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let Some(input) = product_input(&arguments) else {
             return ResolverOutcome::value(product_update_payload_value(
@@ -671,15 +618,10 @@ impl DraftProxy {
                     extra_fields.insert("category".to_string(), category);
                 }
                 None => {
-                    let field = self.execution_root_field(query, variables, "productUpdate");
-                    let (response_key, location) = field
-                        .as_ref()
-                        .map(|field| (field.response_key.as_str(), field.location))
-                        .unwrap_or(("productUpdate", SourceLocation { line: 1, column: 1 }));
                     return graphql_error_outcome(
                         vec![invalid_product_taxonomy_node_id_error(
-                            response_key,
-                            location,
+                            invocation.response_key,
+                            invocation.root_location,
                         )],
                         invocation.response_key,
                     );
@@ -732,8 +674,10 @@ impl DraftProxy {
 
         let mut staged_ids = vec![id];
         staged_ids.extend(media_append.staged_ids);
+        let mut response_product_value = self.product_canonical_value(&response_product);
+        response_product_value["media"] = connection_json(response_product.media.clone());
         ResolverOutcome::value(product_update_payload_value(
-            Some(self.product_canonical_value(&response_product)),
+            Some(response_product_value),
             Vec::new(),
         ))
         .with_log_draft(LogDraft::staged("productUpdate", "products", staged_ids))
@@ -1220,14 +1164,10 @@ impl DraftProxy {
         let product_id = resolved_string_field(arguments, "productId").unwrap_or_default();
         let variants_input = resolved_object_list_field(arguments, "variants");
         if variants_input.len() > 2048 {
-            let Some(field) =
-                self.execution_primary_root_field(invocation.query, invocation.variables)
-            else {
-                return ResolverOutcome::error("No productVariantsBulkCreate root field found");
-            };
             return graphql_error_outcome(
                 vec![Self::product_variant_bulk_input_size_error(
-                    &field,
+                    invocation.root_name,
+                    invocation.root_location,
                     variants_input.len(),
                 )],
                 invocation.response_key,
@@ -1800,14 +1740,18 @@ impl DraftProxy {
         self.store.product_by_id(product_id)
     }
 
-    fn product_variant_bulk_input_size_error(field: &RootFieldSelection, size: usize) -> Value {
+    fn product_variant_bulk_input_size_error(
+        root_name: &str,
+        root_location: SourceLocation,
+        size: usize,
+    ) -> Value {
         max_input_size_exceeded_error(
-            [field.name.as_str(), "variants"],
+            [root_name, "variants"],
             size,
             2048,
             Some(json!([{
-                "line": field.location.line,
-                "column": field.location.column
+                "line": root_location.line,
+                "column": root_location.column
             }])),
         )
     }
@@ -2142,25 +2086,18 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let request = invocation.request;
         let query = invocation.query;
-        let variables = invocation.variables;
-        let Some(document) = parsed_document(query, variables) else {
-            return ResolverOutcome::error("No productChangeStatus root field found");
-        };
-        let Some(field) = document
-            .root_fields
-            .iter()
-            .find(|field| field.name == "productChangeStatus")
-        else {
-            return ResolverOutcome::error("No productChangeStatus root field found");
-        };
-        if matches!(field.arguments.get("productId"), Some(ResolvedValue::Null)) {
+        if invocation
+            .raw_arguments
+            .get("productId")
+            .is_some_and(|argument| matches!(argument.resolved_value(), ResolvedValue::Null))
+        {
             return graphql_error_outcome(
                 vec![argument_literals_incompatible_error_envelope(
                     "Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.".to_string(),
-                    Some(field.location),
+                    Some(invocation.root_location),
                     Some(json!([
-                        document.operation_path.as_str(),
-                        field.response_key.clone(),
+                        invocation.operation_path,
+                        invocation.response_key,
                         "productId"
                     ])),
                     Some("Field"),
@@ -2179,11 +2116,15 @@ impl DraftProxy {
         if let Some(errors) = product_status_argument_validation_errors(
             request,
             query,
-            field,
-            "status",
-            "Field",
-            "productChangeStatus",
-            "ProductStatus!",
+            invocation.root_name,
+            invocation.root_location,
+            &invocation.raw_arguments,
+            ProductStatusArgumentContext {
+                argument_name: "status",
+                container_type_name: "Field",
+                container_name: "productChangeStatus",
+                expected_type: "ProductStatus!",
+            },
         ) {
             return graphql_error_outcome(errors, invocation.response_key);
         }
@@ -3300,13 +3241,11 @@ mod tests {
     }
 
     #[test]
-    fn bulk_update_position_resolver_reorders_connection_and_positions() {
+    fn bulk_update_position_is_rejected_by_the_versioned_schema_before_staging() {
         let mut proxy = test_proxy();
-        let red = create_variant(&mut proxy, "RED", "10.00");
-        let blue = create_variant(&mut proxy, "BLUE", "11.00");
+        create_variant(&mut proxy, "RED", "10.00");
+        create_variant(&mut proxy, "BLUE", "11.00");
         let green = create_variant(&mut proxy, "GREEN", "12.00");
-        let red_id = red["id"].as_str().unwrap().to_string();
-        let blue_id = blue["id"].as_str().unwrap().to_string();
         let green_id = green["id"].as_str().unwrap().to_string();
 
         let query = r#"
@@ -3334,21 +3273,14 @@ mod tests {
         let response = proxy.process_request(request);
 
         assert_eq!(response.status, 200);
+        assert_eq!(response.body.get("data"), None);
         assert_eq!(
-            response.body["data"]["productVariantsBulkUpdate"]["userErrors"],
-            json!([])
+            response.body["errors"][0]["extensions"]["code"],
+            json!("INVALID_VARIABLE")
         );
         assert_eq!(
-            response.body["data"]["productVariantsBulkUpdate"]["productVariants"],
-            json!([{ "id": green_id, "sku": "GREEN", "position": 1 }])
-        );
-        assert_eq!(
-            response.body["data"]["productVariantsBulkUpdate"]["product"]["variants"]["nodes"],
-            json!([
-                { "id": green_id, "sku": "GREEN", "position": 1 },
-                { "id": red_id, "sku": "RED", "position": 2 },
-                { "id": blue_id, "sku": "BLUE", "position": 3 }
-            ])
+            response.body["errors"][0]["extensions"]["problems"][0]["path"],
+            json!([0, "position"])
         );
 
         let read = proxy.process_request(test_request(
@@ -3367,9 +3299,9 @@ mod tests {
         assert_eq!(
             read.body["data"]["product"]["variants"]["nodes"],
             json!([
-                { "sku": "GREEN", "position": 1 },
-                { "sku": "RED", "position": 2 },
-                { "sku": "BLUE", "position": 3 }
+                { "sku": "RED", "position": 1 },
+                { "sku": "BLUE", "position": 2 },
+                { "sku": "GREEN", "position": 3 }
             ])
         );
     }

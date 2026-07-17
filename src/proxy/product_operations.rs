@@ -46,7 +46,7 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         let request = invocation.request;
-        let root_field = self.execution_primary_root_field(invocation.query, invocation.variables);
+        let root_location = invocation.root_location;
         let response_key = invocation.response_key;
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let input = match product_input(&arguments) {
@@ -233,14 +233,10 @@ impl DraftProxy {
                         .insert("category".to_string(), category);
                 }
                 None => {
-                    let location = root_field
-                        .as_ref()
-                        .map(|field| field.location)
-                        .unwrap_or(SourceLocation { line: 1, column: 1 });
                     return graphql_error_outcome(
                         vec![invalid_product_taxonomy_node_id_error(
                             response_key,
-                            location,
+                            root_location,
                         )],
                         invocation.response_key,
                     );
@@ -387,20 +383,20 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let request = invocation.request;
         let query = invocation.query;
-        let variables = invocation.variables;
-        let field = self.execution_primary_root_field(query, variables);
-        if let Some(field) = field.as_ref() {
-            if let Some(errors) = product_status_argument_validation_errors(
-                request,
-                query,
-                field,
-                "newStatus",
-                "Field",
-                "productDuplicate",
-                "ProductStatus",
-            ) {
-                return graphql_error_outcome(errors, invocation.response_key);
-            }
+        if let Some(errors) = product_status_argument_validation_errors(
+            request,
+            query,
+            invocation.root_name,
+            invocation.root_location,
+            &invocation.raw_arguments,
+            ProductStatusArgumentContext {
+                argument_name: "newStatus",
+                container_type_name: "Field",
+                container_name: "productDuplicate",
+                expected_type: "ProductStatus",
+            },
+        ) {
+            return graphql_error_outcome(errors, invocation.response_key);
         }
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let product_id = resolved_string_field(&arguments, "productId").unwrap_or_default();

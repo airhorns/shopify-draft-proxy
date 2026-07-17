@@ -7,10 +7,10 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "dev": "cd .. && corepack pnpm dev",
-    "start": "cd .. && corepack pnpm start",
-    "build": "cd .. && corepack pnpm exec tsc -p js",
-    "test": "cd .. && corepack pnpm exec vitest run tests/integration/rust-public-api.test.ts tests/integration/rust-http-adapter-parity.test.ts"
+    "dev": "cd .. && pnpm dev",
+    "start": "cd .. && pnpm start",
+    "build": "cd .. && pnpm exec tsc -p js",
+    "test": "cd .. && pnpm exec vitest run tests/integration/rust-public-api.test.ts tests/integration/rust-http-adapter-parity.test.ts"
   },
   "devDependencies": {
     "@types/node": "^24.6.1",

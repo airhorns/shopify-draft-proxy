@@ -1,45 +1,131 @@
 use crate::proxy::*;
 use std::cmp::Ordering;
 
+struct GiftCardMutationInput {
+    name: String,
+    response_key: String,
+    location: SourceLocation,
+    raw_arguments: BTreeMap<String, RawArgumentValue>,
+    arguments: BTreeMap<String, ResolvedValue>,
+    requests_transactions: bool,
+}
+
+pub(in crate::proxy) fn gift_card_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
+    vec![FieldResolverRegistration::explicit(
+        ApiSurface::Admin,
+        "GiftCard",
+        "transactions",
+        gift_card_transactions_field,
+    )]
+}
+
+pub(in crate::proxy) fn gift_card_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
+    [
+        "GiftCard",
+        "GiftCardCashOutTransaction",
+        "GiftCardCreditTransaction",
+        "GiftCardDebitTransaction",
+        "GiftCardRecipient",
+        "GiftCardTransaction",
+    ]
+    .into_iter()
+    .map(|parent_type| {
+        FieldResolverTypePolicy::property_backed_ordinary_fields(
+            ApiSurface::Admin,
+            parent_type,
+            "argument-bearing gift-card field has no explicit canonical resolver",
+        )
+    })
+    .collect()
+}
+
+fn gift_card_transactions_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    if let Some(connection) = invocation.parent.get("transactions") {
+        if connection
+            .get(GIFT_CARD_SEEDED_CONNECTION_MARKER)
+            .and_then(Value::as_bool)
+            == Some(true)
+        {
+            return Ok(seeded_connection_value(connection, &arguments));
+        }
+    }
+    let card_id = invocation.parent.get("id").and_then(Value::as_str);
+    let card = if gift_card_record_has_transactions(invocation.parent) {
+        invocation.parent.clone()
+    } else {
+        card_id
+            .and_then(|id| proxy.gift_card_effective_record_with_hydration(request, id, true))
+            .unwrap_or_else(|| invocation.parent.clone())
+    };
+    if !gift_card_record_has_transactions(&card) {
+        if let Some(connection) = invocation.parent.get("transactions") {
+            return Ok(seeded_connection_value(connection, &arguments));
+        }
+    }
+    Ok(connection_value_with_args(
+        card.get("transactions")
+            .map(connection_nodes)
+            .unwrap_or_default(),
+        &arguments,
+        value_id_cursor,
+    ))
+}
+
 impl DraftProxy {
-    pub(crate) fn resolve_gift_cards_graphql(
+    pub(crate) fn gift_card_query_root(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        let requests_transactions = invocation
+            .requested_field_paths
+            .iter()
+            .any(|path| path.iter().any(|field| field == "transactions"));
         let RootInvocation {
             response_key,
             arguments,
             request,
-            query,
-            variables,
             root_name,
-            mode,
+            upstream_value,
             ..
         } = invocation;
-        let mut fields = match self.root_fields_or_error(query, variables) {
-            Ok(fields) => fields,
-            Err(_) => return resolver_http_error_outcome(400, "Could not parse GraphQL operation"),
+        self.gift_card_read_outcome(
+            request,
+            root_name,
+            &resolved_arguments_from_json(&arguments),
+            response_key,
+            requests_transactions,
+            upstream_value.as_ref(),
+        )
+    }
+
+    pub(crate) fn gift_card_mutation_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let requests_transactions = invocation.requests_field_path(&["giftCard", "transactions"]);
+        let RootInvocation {
+            response_key,
+            arguments,
+            raw_arguments,
+            request,
+            root_name,
+            root_location,
+            ..
+        } = invocation;
+        let field = GiftCardMutationInput {
+            name: root_name.to_string(),
+            response_key: response_key.to_string(),
+            location: root_location,
+            raw_arguments,
+            arguments: resolved_arguments_from_json(&arguments),
+            requests_transactions,
         };
-        fields.retain(|field| field.response_key == response_key);
-        if let Some(field) = fields.first_mut() {
-            field.arguments = arguments
-                .iter()
-                .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
-                .collect();
-        }
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                self.gift_card_read_outcome(request, &fields, response_key)
-            }
-            LocalResolverMode::StageLocally => self.gift_card_mutation_outcome(
-                &fields,
-                request,
-                query,
-                variables,
-                response_key,
-                root_name,
-            ),
-        }
+        self.gift_card_mutation_outcome(&field, request)
     }
 }
 
@@ -255,150 +341,127 @@ impl DraftProxy {
     pub(in crate::proxy) fn gift_card_read_outcome(
         &mut self,
         request: &Request,
-        fields: &[RootFieldSelection],
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
         response_key: &str,
+        requests_transactions: bool,
+        upstream_value: Option<&Value>,
     ) -> ResolverOutcome<Value> {
         if self.config.read_mode == ReadMode::LiveHybrid
-            && self.gift_card_read_needs_upstream(fields)
+            && self.gift_card_root_needs_upstream(root_name, arguments, requests_transactions)
         {
             let mut outcome = self.cached_or_forward_upstream_root_outcome(request, response_key);
             if outcome.errors.is_empty() {
-                let mut data = json!({ (response_key): outcome.value.clone() });
-                self.hydrate_gift_card_read_state_from_response(fields, &data);
+                let canonical_upstream = upstream_value
+                    .cloned()
+                    .unwrap_or_else(|| outcome.value.clone());
+                self.observe_gift_card_root_value(root_name, arguments, &canonical_upstream);
                 if self.has_gift_card_overlay_state() {
-                    self.overlay_gift_card_read_response(fields, &mut data);
-                    outcome.value = data
-                        .as_object_mut()
-                        .and_then(|data| data.remove(response_key))
-                        .unwrap_or(Value::Null);
+                    outcome.value =
+                        self.overlay_gift_card_read_value(root_name, arguments, canonical_upstream);
+                    outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
                 }
             }
             return outcome;
         }
-        let mut data = self.gift_card_read_data(fields);
-        ResolverOutcome::value(
-            data.as_object_mut()
-                .and_then(|data| data.remove(response_key))
-                .unwrap_or(Value::Null),
-        )
+        ResolverOutcome::value(self.gift_card_read_value(root_name, arguments))
     }
 
     pub(in crate::proxy) fn gift_card_read_needs_upstream(
         &self,
         fields: &[RootFieldSelection],
     ) -> bool {
-        fields.iter().any(|field| match field.name.as_str() {
+        fields.iter().any(|field| {
+            self.gift_card_root_needs_upstream(
+                &field.name,
+                &field.arguments,
+                gift_card_selection_needs_transactions(&field.selection),
+            )
+        })
+    }
+
+    fn gift_card_root_needs_upstream(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        requests_transactions: bool,
+    ) -> bool {
+        match root_name {
             "giftCard" => {
-                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                let needs_transaction_window =
-                    gift_card_selection_needs_transactions(&field.selection)
-                        && self
-                            .gift_card_effective_record(&id)
-                            .as_ref()
-                            .is_none_or(|card| !gift_card_record_has_transactions(card));
+                let id = resolved_string_field(arguments, "id").unwrap_or_default();
+                let needs_transaction_window = requests_transactions
+                    && self
+                        .gift_card_effective_record(&id)
+                        .as_ref()
+                        .is_none_or(|card| !gift_card_record_has_transactions(card));
                 !id.is_empty()
                     && (!self.store.staged.gift_cards.contains_key(&id) || needs_transaction_window)
             }
-            "giftCards" | "giftCardsCount" => {
-                !self.gift_card_query_baseline_complete(&field.arguments)
-            }
+            "giftCards" | "giftCardsCount" => !self.gift_card_query_baseline_complete(arguments),
             "giftCardConfiguration" => self.store.base.gift_card_configuration.is_none(),
             _ => false,
-        })
+        }
     }
 
     fn has_gift_card_overlay_state(&self) -> bool {
         !self.store.staged.gift_cards.is_empty()
     }
 
-    pub(in crate::proxy) fn gift_card_read_data(&self, fields: &[RootFieldSelection]) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "giftCard" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.gift_card_effective_record(&id)
-                        .map(|card| selected_json(&card, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "giftCards" => self.gift_card_connection_field(field),
-                "giftCardsCount" => self.gift_cards_count_field(field),
-                "giftCardConfiguration" => {
-                    selected_json(&self.gift_card_configuration_record(), &field.selection)
-                }
-                _ => return None,
-            })
-        })
+    fn gift_card_read_value(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        match root_name {
+            "giftCard" => {
+                let id = resolved_string_field(arguments, "id").unwrap_or_default();
+                self.gift_card_effective_record(&id).unwrap_or(Value::Null)
+            }
+            "giftCards" => self.gift_card_connection_value(arguments),
+            "giftCardsCount" => self.gift_cards_count_value(arguments),
+            "giftCardConfiguration" => self.gift_card_configuration_record(),
+            _ => Value::Null,
+        }
     }
 
-    pub(in crate::proxy) fn gift_card_mutation_outcome(
+    fn gift_card_mutation_outcome(
         &mut self,
-        fields: &[RootFieldSelection],
+        field: &GiftCardMutationInput,
         request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        response_key: &str,
-        root_name: &str,
     ) -> ResolverOutcome<Value> {
         let mut staged_ids = Vec::new();
-        let operation_path = parsed_document(query, variables)
-            .and_then(|document| document.operation_name.map(|_| document.operation_path));
-
-        for field in fields {
-            if matches!(field.name.as_str(), "giftCardCreate" | "giftCardUpdate") {
-                if let Some(error) =
-                    gift_card_missing_recipient_id_error(query, field, operation_path.as_deref())
-                {
-                    return graphql_error_outcome(vec![error], response_key);
-                }
-                if self
-                    .gift_card_assignment_errors(
-                        &field.name,
-                        &resolved_object_field(&field.arguments, "input").unwrap_or_default(),
-                        "input",
-                    )
-                    .is_empty()
-                {
-                    if let Some(error) = gift_card_invalid_recipient_id_error(field) {
-                        return graphql_error_outcome(vec![error], response_key);
-                    }
-                }
-            }
-            if matches!(field.name.as_str(), "giftCardCredit" | "giftCardDebit") {
-                if let Some(error) =
-                    gift_card_transaction_payload_selection_error(field, operation_path.as_deref())
-                {
-                    return graphql_error_outcome(vec![error], response_key);
-                }
+        if matches!(field.name.as_str(), "giftCardCreate" | "giftCardUpdate")
+            && self
+                .gift_card_assignment_errors(
+                    &field.name,
+                    &resolved_object_field(&field.arguments, "input").unwrap_or_default(),
+                    "input",
+                )
+                .is_empty()
+        {
+            if let Some(error) = gift_card_invalid_recipient_id_error(field) {
+                return graphql_error_outcome(vec![error], &field.response_key);
             }
         }
+        let value = match field.name.as_str() {
+            "giftCardCreate" => self.gift_card_create_field(field, request, &mut staged_ids),
+            "giftCardUpdate" => self.gift_card_update_field(field, request, &mut staged_ids),
+            "giftCardCredit" => self.gift_card_credit_field(field, request, &mut staged_ids),
+            "giftCardDebit" => self.gift_card_debit_field(field, request, &mut staged_ids),
+            "giftCardDeactivate" => {
+                self.gift_card_deactivate_field(field, request, &mut staged_ids)
+            }
+            "giftCardSendNotificationToCustomer" | "giftCardSendNotificationToRecipient" => {
+                self.gift_card_notification_field(field, request, &mut staged_ids)
+            }
+            _ => Value::Null,
+        };
 
-        let data = root_payload_json(fields, |field| {
-            let payload = match field.name.as_str() {
-                "giftCardCreate" => self.gift_card_create_field(field, request, &mut staged_ids),
-                "giftCardUpdate" => self.gift_card_update_field(field, request, &mut staged_ids),
-                "giftCardCredit" => self.gift_card_credit_field(field, request, &mut staged_ids),
-                "giftCardDebit" => self.gift_card_debit_field(field, request, &mut staged_ids),
-                "giftCardDeactivate" => {
-                    self.gift_card_deactivate_field(field, request, &mut staged_ids)
-                }
-                "giftCardSendNotificationToCustomer" | "giftCardSendNotificationToRecipient" => {
-                    self.gift_card_notification_field(field, request, &mut staged_ids)
-                }
-                _ => return None,
-            };
-            Some(payload)
-        });
-
-        let mut value = data
-            .as_object()
-            .and_then(|data| data.get(response_key))
-            .cloned()
-            .unwrap_or(Value::Null);
-        let outcome = ResolverOutcome::value(std::mem::take(&mut value));
+        let outcome = ResolverOutcome::value(value);
         if !staged_ids.is_empty() {
             staged_ids.sort();
             staged_ids.dedup();
-            return outcome.with_log_draft(LogDraft::staged(root_name, "gift_cards", staged_ids));
+            return outcome.with_log_draft(LogDraft::staged(&field.name, "gift_cards", staged_ids));
         }
         outcome
     }
@@ -417,24 +480,18 @@ impl DraftProxy {
         )
     }
 
-    fn gift_card_connection_field(&self, field: &RootFieldSelection) -> Value {
-        let result = self.staged_gift_cards_query(&field.arguments);
-        selected_json(
-            &connection_json_with_cursor(
-                result.records,
-                |_, card| value_id_cursor(card),
-                result.page_info,
-            ),
-            &field.selection,
+    fn gift_card_connection_value(&self, arguments: &BTreeMap<String, ResolvedValue>) -> Value {
+        let result = self.staged_gift_cards_query(arguments);
+        connection_json_with_cursor(
+            result.records,
+            |_, card| value_id_cursor(card),
+            result.page_info,
         )
     }
 
-    fn gift_cards_count_field(&self, field: &RootFieldSelection) -> Value {
-        let result = self.staged_gift_cards_query(&field.arguments);
-        selected_json(
-            &snapshot_count_with_limit_precision(result.total_count, &field.arguments),
-            &field.selection,
-        )
+    fn gift_cards_count_value(&self, arguments: &BTreeMap<String, ResolvedValue>) -> Value {
+        let result = self.staged_gift_cards_query(arguments);
+        snapshot_count_with_limit_precision(result.total_count, arguments)
     }
 
     fn gift_card_effective_records(&self) -> Vec<Value> {
@@ -460,14 +517,23 @@ impl DraftProxy {
         data: &Value,
     ) {
         for field in fields {
-            let value = &data[&field.response_key];
-            match field.name.as_str() {
-                "giftCard" => self.observe_gift_card_read_value(value),
-                "giftCards" => self.observe_gift_card_connection_value(value),
-                "giftCardsCount" => self.observe_gift_card_count_baseline(&field.arguments, value),
-                "giftCardConfiguration" => self.observe_gift_card_configuration(value),
-                _ => {}
-            }
+            let value = canonicalize_upstream_value(&data[&field.response_key], &field.selection);
+            self.observe_gift_card_root_value(&field.name, &field.arguments, &value);
+        }
+    }
+
+    fn observe_gift_card_root_value(
+        &mut self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        value: &Value,
+    ) {
+        match root_name {
+            "giftCard" => self.observe_gift_card_read_value(value),
+            "giftCards" => self.observe_gift_card_connection_value(value),
+            "giftCardsCount" => self.observe_gift_card_count_baseline(arguments, value),
+            "giftCardConfiguration" => self.observe_gift_card_configuration(value),
+            _ => {}
         }
     }
 
@@ -523,41 +589,34 @@ impl DraftProxy {
         self.store.base.gift_card_complete_queries.contains(&query)
     }
 
-    fn overlay_gift_card_read_response(&self, fields: &[RootFieldSelection], data: &mut Value) {
-        for field in fields {
-            match field.name.as_str() {
-                "giftCard" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    if let Some(card) = self.store.staged.gift_cards.get(&id) {
-                        let mut projected = selected_json(card, &field.selection);
-                        preserve_upstream_selected_gift_card_transactions(
-                            &mut projected,
-                            &data[&field.response_key],
-                            &field.selection,
-                        );
-                        data[&field.response_key] = projected;
-                    }
-                }
-                "giftCards" => {
-                    self.overlay_gift_card_connection(
-                        &mut data[&field.response_key],
-                        &field.arguments,
-                        &field.selection,
-                    );
-                }
-                "giftCardsCount" => {
-                    self.overlay_gift_card_count(
-                        &mut data[&field.response_key],
-                        &field.arguments,
-                        &field.selection,
-                    );
-                }
-                "giftCardConfiguration" => {
-                    data[&field.response_key] =
-                        selected_json(&self.gift_card_configuration_record(), &field.selection);
-                }
-                _ => {}
+    fn overlay_gift_card_read_value(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        mut upstream: Value,
+    ) -> Value {
+        match root_name {
+            "giftCard" => {
+                let id = resolved_string_field(arguments, "id").unwrap_or_default();
+                self.store
+                    .staged
+                    .gift_cards
+                    .get(&id)
+                    .map(|card| {
+                        gift_card_merge_seeded_transactions_if_missing(card.clone(), &upstream)
+                    })
+                    .unwrap_or(upstream)
             }
+            "giftCards" => {
+                self.overlay_gift_card_connection(&mut upstream, arguments);
+                upstream
+            }
+            "giftCardsCount" => {
+                self.overlay_gift_card_count(&mut upstream, arguments);
+                upstream
+            }
+            "giftCardConfiguration" => self.gift_card_configuration_record(),
+            _ => upstream,
         }
     }
 
@@ -565,24 +624,17 @@ impl DraftProxy {
         &self,
         connection: &mut Value,
         arguments: &BTreeMap<String, ResolvedValue>,
-        selection: &[SelectedField],
     ) {
         if self.gift_card_query_baseline_complete(arguments) {
-            let result = self.staged_gift_cards_query(arguments);
-            *connection = selected_json(
-                &connection_json_with_cursor(
-                    result.records,
-                    |_, card| value_id_cursor(card),
-                    result.page_info,
-                ),
-                selection,
-            );
+            *connection = self.gift_card_connection_value(arguments);
+            return;
+        }
+        if !connection.is_object() {
+            *connection = self.gift_card_connection_value(arguments);
             return;
         }
         let query = resolved_string_field(arguments, "query").unwrap_or_default();
         let mut seen_ids = BTreeSet::new();
-        let node_selection = nested_selected_fields(selection, &["nodes"]);
-        let edge_node_selection = nested_selected_fields(selection, &["edges", "node"]);
         if let Some(nodes) = connection.get_mut("nodes").and_then(Value::as_array_mut) {
             nodes.retain_mut(|node| {
                 let Some(id) = node.get("id").and_then(Value::as_str).map(str::to_string) else {
@@ -590,7 +642,7 @@ impl DraftProxy {
                 };
                 if let Some(card) = self.store.staged.gift_cards.get(&id) {
                     if gift_card_matches_search_query(card, &query) {
-                        *node = selected_json(card, &node_selection);
+                        *node = gift_card_merge_seeded_transactions_if_missing(card.clone(), node);
                         seen_ids.insert(id);
                         true
                     } else {
@@ -613,7 +665,10 @@ impl DraftProxy {
                 };
                 if let Some(card) = self.store.staged.gift_cards.get(&id) {
                     if gift_card_matches_search_query(card, &query) {
-                        edge["node"] = selected_json(card, &edge_node_selection);
+                        edge["node"] = gift_card_merge_seeded_transactions_if_missing(
+                            card.clone(),
+                            &edge["node"],
+                        );
                         seen_ids.insert(id);
                         true
                     } else {
@@ -651,13 +706,10 @@ impl DraftProxy {
             },
             value_id_cursor,
         );
-        let local = selected_json(
-            &connection_json_with_cursor(
-                result.records,
-                |_, card| value_id_cursor(card),
-                result.page_info,
-            ),
-            selection,
+        let local = connection_json_with_cursor(
+            result.records,
+            |_, card| value_id_cursor(card),
+            result.page_info,
         );
         if let (Some(existing), Some(additional)) = (
             connection.get_mut("nodes").and_then(Value::as_array_mut),
@@ -677,14 +729,9 @@ impl DraftProxy {
         &self,
         count: &mut Value,
         arguments: &BTreeMap<String, ResolvedValue>,
-        selection: &[SelectedField],
     ) {
         if self.gift_card_query_baseline_complete(arguments) {
-            let result = self.staged_gift_cards_query(arguments);
-            *count = selected_json(
-                &snapshot_count_with_limit_precision(result.total_count, arguments),
-                selection,
-            );
+            *count = self.gift_cards_count_value(arguments);
             return;
         }
         let query = resolved_string_field(arguments, "query").unwrap_or_default();
@@ -708,16 +755,13 @@ impl DraftProxy {
         }
         if let Some(current) = count.get("count").and_then(Value::as_i64) {
             let adjusted = (current + delta).max(0) as usize;
-            *count = selected_json(
-                &snapshot_count_with_limit_precision(adjusted, arguments),
-                selection,
-            );
+            *count = snapshot_count_with_limit_precision(adjusted, arguments);
         }
     }
 
     fn gift_card_create_field(
         &mut self,
-        field: &RootFieldSelection,
+        field: &GiftCardMutationInput,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
@@ -779,7 +823,7 @@ impl DraftProxy {
         }
 
         if !user_errors.is_empty() {
-            return gift_card_payload_json_nullable(None, &field.selection, user_errors);
+            return gift_card_payload_json_nullable(None, user_errors);
         }
 
         let id = self.next_proxy_synthetic_gid("GiftCard");
@@ -821,22 +865,22 @@ impl DraftProxy {
             .gift_cards
             .insert(id.clone(), card.clone());
         staged_ids.push(id);
-        gift_card_payload_json(&card, &field.selection, Vec::new())
+        gift_card_payload_json(&card, Vec::new())
     }
 
     fn gift_card_update_field(
         &mut self,
-        field: &RootFieldSelection,
+        field: &GiftCardMutationInput,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
-        let existing = self.gift_card_effective_record_for_mutation(
+        let existing = self.gift_card_effective_record_with_hydration(
             request,
             &id,
-            gift_card_payload_selection_needs_transactions(&field.selection),
+            field.requests_transactions,
         );
         if user_errors.is_empty() && existing.is_none() {
             user_errors.push(gift_card_not_found_error(&field.name));
@@ -887,13 +931,12 @@ impl DraftProxy {
             ));
         }
         if !user_errors.is_empty() {
-            return gift_card_payload_json_nullable(None, &field.selection, user_errors);
+            return gift_card_payload_json_nullable(None, user_errors);
         }
 
         let Some(mut card) = existing else {
             return gift_card_payload_json_nullable(
                 None,
-                &field.selection,
                 vec![gift_card_not_found_error(&field.name)],
             );
         };
@@ -921,12 +964,12 @@ impl DraftProxy {
             .gift_cards
             .insert(id.clone(), card.clone());
         staged_ids.push(id);
-        gift_card_payload_json(&card, &field.selection, Vec::new())
+        gift_card_payload_json(&card, Vec::new())
     }
 
     fn gift_card_credit_field(
         &mut self,
-        field: &RootFieldSelection,
+        field: &GiftCardMutationInput,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
@@ -935,7 +978,7 @@ impl DraftProxy {
 
     fn gift_card_debit_field(
         &mut self,
-        field: &RootFieldSelection,
+        field: &GiftCardMutationInput,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
@@ -944,7 +987,7 @@ impl DraftProxy {
 
     fn gift_card_transaction_field(
         &mut self,
-        field: &RootFieldSelection,
+        field: &GiftCardMutationInput,
         request: &Request,
         spec: GiftCardTransactionSpec,
         staged_ids: &mut Vec<String>,
@@ -960,7 +1003,7 @@ impl DraftProxy {
             .unwrap_or_else(|| "0".to_string());
         let requested_amount_number = requested_amount.parse::<f64>().unwrap_or(0.0);
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
-        let mut card = self.gift_card_effective_record_for_mutation(request, &id, true);
+        let mut card = self.gift_card_effective_record_with_hydration(request, &id, true);
 
         if user_errors.is_empty() && requested_amount_number <= 0.0 {
             user_errors.push(gift_card_user_error(
@@ -1043,17 +1086,11 @@ impl DraftProxy {
         }
 
         if !user_errors.is_empty() {
-            return gift_card_transaction_payload(
-                &field.selection,
-                spec.transaction_field,
-                None,
-                user_errors,
-            );
+            return gift_card_transaction_payload(spec.transaction_field, None, user_errors);
         }
 
         let Some(mut card) = card.take() else {
             return gift_card_transaction_payload(
-                &field.selection,
                 spec.transaction_field,
                 None,
                 vec![gift_card_not_found_error(&field.name)],
@@ -1095,37 +1132,31 @@ impl DraftProxy {
         push_gift_card_transaction(&mut card, transaction.clone());
         self.store.staged.gift_cards.insert(id.clone(), card);
         staged_ids.push(id);
-        gift_card_transaction_payload(
-            &field.selection,
-            spec.transaction_field,
-            Some(transaction),
-            Vec::new(),
-        )
+        gift_card_transaction_payload(spec.transaction_field, Some(transaction), Vec::new())
     }
 
     fn gift_card_deactivate_field(
         &mut self,
-        field: &RootFieldSelection,
+        field: &GiftCardMutationInput,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
-        let mut card = self.gift_card_effective_record_for_mutation(
+        let mut card = self.gift_card_effective_record_with_hydration(
             request,
             &id,
-            gift_card_payload_selection_needs_transactions(&field.selection),
+            field.requests_transactions,
         );
         if user_errors.is_empty() && card.is_none() {
             user_errors.push(gift_card_not_found_error(&field.name));
         }
         if !user_errors.is_empty() {
-            return gift_card_payload_json_nullable(None, &field.selection, user_errors);
+            return gift_card_payload_json_nullable(None, user_errors);
         }
         let Some(mut card) = card.take() else {
             return gift_card_payload_json_nullable(
                 None,
-                &field.selection,
                 vec![gift_card_not_found_error(&field.name)],
             );
         };
@@ -1138,12 +1169,12 @@ impl DraftProxy {
             .gift_cards
             .insert(id.clone(), card.clone());
         staged_ids.push(id);
-        gift_card_payload_json(&card, &field.selection, Vec::new())
+        gift_card_payload_json(&card, Vec::new())
     }
 
     fn gift_card_notification_field(
         &mut self,
-        field: &RootFieldSelection,
+        field: &GiftCardMutationInput,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
@@ -1166,9 +1197,11 @@ impl DraftProxy {
             ));
         }
         if user_errors.is_empty() && !id.is_empty() {
-            let include_transactions =
-                gift_card_payload_selection_needs_transactions(&field.selection);
-            card = self.gift_card_effective_record_for_mutation(request, &id, include_transactions);
+            card = self.gift_card_effective_record_with_hydration(
+                request,
+                &id,
+                field.requests_transactions,
+            );
         }
         if user_errors.is_empty() && card.is_none() {
             user_errors.push(gift_card_not_found_error(&field.name));
@@ -1236,23 +1269,14 @@ impl DraftProxy {
             }
         }
         if !user_errors.is_empty() {
-            return gift_card_payload_json_nullable(None, &field.selection, user_errors);
+            return gift_card_payload_json_nullable(None, user_errors);
         }
         if let Some(card) = card.as_ref() {
             staged_ids.push(id);
-            gift_card_payload_json(card, &field.selection, Vec::new())
+            gift_card_payload_json(card, Vec::new())
         } else {
-            gift_card_payload_json_nullable(None, &field.selection, user_errors)
+            gift_card_payload_json_nullable(None, user_errors)
         }
-    }
-
-    fn hydrate_gift_card_for_mutation(
-        &mut self,
-        request: &Request,
-        id: &str,
-        include_transactions: bool,
-    ) -> Option<Value> {
-        self.hydrate_gift_card(request, id, include_transactions)
     }
 
     fn hydrate_gift_card(
@@ -1337,7 +1361,7 @@ impl DraftProxy {
             .find(|transaction| transaction.get("id").and_then(Value::as_str) == Some(id))
     }
 
-    fn gift_card_effective_record_for_mutation(
+    fn gift_card_effective_record_with_hydration(
         &mut self,
         request: &Request,
         id: &str,
@@ -1349,21 +1373,28 @@ impl DraftProxy {
                 .as_ref()
                 .is_some_and(|card| !gift_card_record_has_transactions(card))
         {
-            if let Some(hydrated) = self.hydrate_gift_card_for_mutation(request, id, true) {
-                return Some(gift_card_merge_transactions_if_missing(
+            if let Some(hydrated) = self.hydrate_gift_card(request, id, true) {
+                let merged = gift_card_merge_transactions_if_missing(
                     effective.unwrap_or_else(|| hydrated.clone()),
                     &hydrated,
-                ));
+                );
+                if self.store.staged.gift_cards.contains_key(id) {
+                    self.store
+                        .staged
+                        .gift_cards
+                        .insert(id.to_string(), merged.clone());
+                }
+                return Some(merged);
             }
         }
-        effective.or_else(|| self.hydrate_gift_card_for_mutation(request, id, include_transactions))
+        effective.or_else(|| self.hydrate_gift_card(request, id, include_transactions))
     }
 
     fn gift_card_notification_is_trial_shop(&self, _id: &str) -> bool {
         self.gift_card_shop_is_trial()
     }
 
-    fn gift_card_plan_errors_for_field(&self, field: &RootFieldSelection) -> Vec<Value> {
+    fn gift_card_plan_errors_for_field(&self, field: &GiftCardMutationInput) -> Vec<Value> {
         if self.gift_card_entitlement_disabled() {
             vec![gift_card_user_error(
                 &field.name,
@@ -1636,7 +1667,7 @@ impl DraftProxy {
     }
 }
 
-fn gift_card_update_is_empty(field: &RootFieldSelection) -> bool {
+fn gift_card_update_is_empty(field: &GiftCardMutationInput) -> bool {
     match field.raw_arguments.get("input") {
         Some(RawArgumentValue::Object(input)) => {
             !input.keys().any(|key| gift_card_update_editable_key(key))
@@ -1665,15 +1696,11 @@ fn gift_card_selection_needs_transactions(selection: &[SelectedField]) -> bool {
     selection_contains_any(selection, &["transactions"])
 }
 
-fn gift_card_payload_selection_needs_transactions(selection: &[SelectedField]) -> bool {
-    selection.iter().any(|field| {
-        field.name == "giftCard" && gift_card_selection_needs_transactions(&field.selection)
-    })
-}
-
 fn gift_card_record_has_transactions(card: &Value) -> bool {
     card.get("transactions").is_some_and(Value::is_object)
 }
+
+const GIFT_CARD_SEEDED_CONNECTION_MARKER: &str = "__draftProxySeededConnection";
 
 fn gift_card_merge_transactions_if_missing(mut card: Value, hydrated: &Value) -> Value {
     if !gift_card_record_has_transactions(&card)
@@ -1684,31 +1711,14 @@ fn gift_card_merge_transactions_if_missing(mut card: Value, hydrated: &Value) ->
     card
 }
 
-fn preserve_upstream_selected_gift_card_transactions(
-    projected: &mut Value,
-    upstream: &Value,
-    selection: &[SelectedField],
-) {
-    let Some(projected) = projected.as_object_mut() else {
-        return;
-    };
-    let Some(upstream) = upstream.as_object() else {
-        return;
-    };
-    for field in selection
-        .iter()
-        .filter(|field| field.name == "transactions")
+fn gift_card_merge_seeded_transactions_if_missing(mut card: Value, upstream: &Value) -> Value {
+    if !gift_card_record_has_transactions(&card)
+        && upstream.get("transactions").is_some_and(Value::is_object)
     {
-        if projected.contains_key(&field.response_key) {
-            continue;
-        }
-        if let Some(value) = upstream.get(&field.response_key) {
-            projected.insert(
-                field.response_key.clone(),
-                selected_json(value, &field.selection),
-            );
-        }
+        card["transactions"] = upstream["transactions"].clone();
+        card["transactions"][GIFT_CARD_SEEDED_CONNECTION_MARKER] = json!(true);
     }
+    card
 }
 
 fn gift_card_deactivated_update_error(
@@ -2211,128 +2221,37 @@ fn format_gift_card_currency_limit(amount: f64) -> String {
 
 pub(in crate::proxy) fn gift_card_payload_json(
     gift_card: &Value,
-    selections: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    gift_card_payload_json_nullable(Some(gift_card), selections, user_errors)
+    gift_card_payload_json_nullable(Some(gift_card), user_errors)
 }
 
 pub(in crate::proxy) fn gift_card_transaction_payload(
-    selections: &[SelectedField],
     transaction_field: &str,
     transaction: Option<Value>,
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        name if name == transaction_field => Some(match transaction.as_ref() {
-            Some(transaction) => selected_abstract_json(transaction, &selection.selection),
-            None => Value::Null,
-        }),
-        "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-        _ => None,
+    json!({
+        (transaction_field): transaction.unwrap_or(Value::Null),
+        "userErrors": user_errors,
     })
 }
 
 pub(in crate::proxy) fn gift_card_payload_json_nullable(
     gift_card: Option<&Value>,
-    selections: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "giftCard" => Some(match gift_card {
-            Some(card) => selected_json(card, &selection.selection),
-            None => Value::Null,
-        }),
-        "giftCardCode" => Some(
-            gift_card
-                .and_then(|card| card.get("giftCardCode"))
-                .cloned()
-                .unwrap_or(Value::Null),
-        ),
-        "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-        _ => None,
+    json!({
+        "giftCard": gift_card.cloned().unwrap_or(Value::Null),
+        "giftCardCode": gift_card
+            .and_then(|card| card.get("giftCardCode"))
+            .cloned()
+            .unwrap_or(Value::Null),
+        "userErrors": user_errors,
     })
 }
 
-fn gift_card_error_path(operation_path: Option<&str>, segments: Vec<Value>) -> Value {
-    let mut path = Vec::new();
-    if let Some(operation_path) = operation_path {
-        path.push(json!(operation_path));
-    }
-    path.extend(segments);
-    Value::Array(path)
-}
-
-fn gift_card_transaction_payload_selection_error(
-    field: &RootFieldSelection,
-    operation_path: Option<&str>,
-) -> Option<Value> {
-    let selected = field
-        .selection
-        .iter()
-        .find(|selection| selection.name == "giftCard")?;
-    let type_name = match field.name.as_str() {
-        "giftCardCredit" => "GiftCardCreditPayload",
-        "giftCardDebit" => "GiftCardDebitPayload",
-        _ => return None,
-    };
-    Some(json!({
-        "message": format!("Field 'giftCard' doesn't exist on type '{}'", type_name),
-        "locations": graphql_locations(selected.location),
-        "path": gift_card_error_path(
-            operation_path,
-            vec![
-                json!(field.response_key.clone()),
-                json!(selected.response_key.clone())
-            ]
-        ),
-        "extensions": {
-            "code": "undefinedField",
-            "typeName": type_name,
-            "fieldName": "giftCard"
-        }
-    }))
-}
-
-fn gift_card_missing_recipient_id_error(
-    query: &str,
-    field: &RootFieldSelection,
-    operation_path: Option<&str>,
-) -> Option<Value> {
-    let input = resolved_object_field(&field.arguments, "input")?;
-    let recipient = resolved_object_field(&input, "recipientAttributes")?;
-    if recipient.contains_key("id") {
-        return None;
-    }
-    match field.name.as_str() {
-        "giftCardCreate" | "giftCardUpdate" => {}
-        _ => return None,
-    }
-    let location =
-        inline_input_field_name_location(query, field.location, 2, "recipientAttributes")
-            .unwrap_or(field.location);
-    Some(json!({
-        "message": "Argument 'id' on InputObject 'GiftCardRecipientInput' is required. Expected type ID!",
-        "locations": graphql_locations(location),
-        "path": gift_card_error_path(
-            operation_path,
-            vec![
-                json!(field.response_key.clone()),
-                json!("input"),
-                json!("recipientAttributes"),
-                json!("id")
-            ]
-        ),
-        "extensions": {
-            "code": "missingRequiredInputObjectAttribute",
-            "argumentName": "id",
-            "argumentType": "ID!",
-            "inputObjectType": "GiftCardRecipientInput"
-        }
-    }))
-}
-
-fn gift_card_invalid_recipient_id_error(field: &RootFieldSelection) -> Option<Value> {
+fn gift_card_invalid_recipient_id_error(field: &GiftCardMutationInput) -> Option<Value> {
     let input = resolved_object_field(&field.arguments, "input")?;
     let recipient = resolved_object_field(&input, "recipientAttributes")?;
     let recipient_id = resolved_string_field(&recipient, "id")?;

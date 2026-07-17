@@ -9,10 +9,10 @@ use super::storefront::{
 };
 use super::*;
 use crate::admin_graphql::{
-    FieldResolverInvocation, FieldResolverResult, RootExecutionContext, RootFieldError,
-    RootFieldExecutor, RootFieldInvocation, RootFieldResult,
+    apply_null_list_item_paths, FieldResolverInvocation, FieldResolverResult, ResolverValueSource,
+    RootExecutionContext, RootFieldError, RootFieldExecutor, RootFieldInvocation, RootFieldResult,
 };
-use crate::graphql::ParsedOperation;
+use crate::graphql::{ParsedOperation, VariableDefinitionInfo};
 use crate::resolver_registry::FieldResolverImplementation;
 use crate::resolver_registry::GraphqlApiVersion;
 use crate::storefront_graphql::{self, StorefrontApiVersion};
@@ -25,6 +25,8 @@ struct PreparedStorefrontRootCall {
     query: String,
     variables: BTreeMap<String, ResolvedValue>,
     operation: ParsedOperation,
+    operation_path: String,
+    variable_definitions: BTreeMap<String, VariableDefinitionInfo>,
     field: RootFieldSelection,
 }
 
@@ -53,14 +55,6 @@ struct StorefrontRootExecutor {
     original_request: Request,
     logged: std::sync::Mutex<bool>,
     passthrough_response: Arc<std::sync::Mutex<Option<Response>>>,
-    nullable_list_repairs: Arc<std::sync::Mutex<Vec<NullableListRepair>>>,
-}
-
-#[derive(Debug, Clone)]
-struct NullableListRepair {
-    path: Vec<String>,
-    original_len: usize,
-    null_indices: Vec<usize>,
 }
 
 impl StorefrontRootExecutor {
@@ -158,6 +152,7 @@ impl StorefrontRootExecutor {
         response_key: &str,
         root_name: &str,
         arguments: BTreeMap<String, Value>,
+        requested_field_paths: BTreeSet<Vec<String>>,
     ) -> Result<RootFieldResult, String> {
         let mut call = self.calls.get(response_key).cloned().ok_or_else(|| {
             format!("No request-scoped Storefront resolver input was prepared for `{root_name}`")
@@ -189,7 +184,12 @@ impl StorefrontRootExecutor {
                 root_name,
                 root_location: call.field.location,
                 directives: call.field.directives.clone(),
+                operation_path: &call.operation_path,
+                variable_definitions: &call.variable_definitions,
+                raw_arguments: call.field.raw_arguments.clone(),
                 arguments,
+                requested_field_paths,
+                upstream_value: None,
                 request: &call.request,
                 query: &call.query,
                 variables: &call.variables,
@@ -203,6 +203,7 @@ impl StorefrontRootExecutor {
         Ok(RootFieldResult {
             value: outcome.value,
             errors: outcome.errors,
+            value_source: outcome.value_source,
         })
     }
 
@@ -239,6 +240,7 @@ impl StorefrontRootExecutor {
         response_key: &str,
         root_name: &str,
         arguments: BTreeMap<String, Value>,
+        requested_field_paths: BTreeSet<Vec<String>>,
     ) -> Result<RootFieldResult, String> {
         let has_local_registration = self
             .proxy
@@ -248,7 +250,12 @@ impl StorefrontRootExecutor {
             .registration_for_surface(ApiSurface::Storefront, OperationType::Query, root_name)
             .is_some();
         if has_local_registration {
-            return self.execute_local_root(response_key, root_name, arguments);
+            return self.execute_local_root(
+                response_key,
+                root_name,
+                arguments,
+                requested_field_paths,
+            );
         }
         let call = self.calls.get(response_key).ok_or_else(|| {
             format!("No Storefront snapshot selection was prepared for `{root_name}`")
@@ -261,6 +268,7 @@ impl StorefrontRootExecutor {
         Ok(RootFieldResult {
             value,
             errors: Vec::new(),
+            value_source: ResolverValueSource::Local,
         })
     }
 }
@@ -268,20 +276,24 @@ impl StorefrontRootExecutor {
 impl RootFieldExecutor for StorefrontRootExecutor {
     fn execute_root(&self, invocation: RootFieldInvocation) -> Result<RootFieldResult, String> {
         self.record_execution_once()?;
+        let RootFieldInvocation {
+            response_key,
+            root_name,
+            arguments,
+            requested_field_paths,
+        } = invocation;
         match self.mode {
-            StorefrontExecutionMode::LocalRead | StorefrontExecutionMode::LocalStage => self
-                .execute_local_root(
-                    &invocation.response_key,
-                    &invocation.root_name,
-                    invocation.arguments,
-                ),
+            StorefrontExecutionMode::LocalRead | StorefrontExecutionMode::LocalStage => {
+                self.execute_local_root(&response_key, &root_name, arguments, requested_field_paths)
+            }
             StorefrontExecutionMode::Passthrough => {
-                self.execute_passthrough_root(&invocation.response_key, &invocation.root_name)
+                self.execute_passthrough_root(&response_key, &root_name)
             }
             StorefrontExecutionMode::SnapshotQuery => self.execute_snapshot_root(
-                &invocation.response_key,
-                &invocation.root_name,
-                invocation.arguments,
+                &response_key,
+                &root_name,
+                arguments,
+                requested_field_paths,
             ),
             StorefrontExecutionMode::SnapshotMutation => Ok(RootFieldResult::default()),
         }
@@ -305,8 +317,7 @@ impl RootFieldExecutor for StorefrontRootExecutor {
             FieldResolverImplementation::PropertyBacked => Ok(FieldResolverResult::PropertyBacked),
             FieldResolverImplementation::Explicit(handler) => {
                 let value = handler(&mut proxy, &self.original_request, &invocation)?;
-                self.prepare_nullable_list_value(&invocation.path, value)
-                    .map(FieldResolverResult::Resolved)
+                Ok(FieldResolverResult::Resolved(value))
             }
             FieldResolverImplementation::DeliberatelyUnsupported(reason) => Ok(
                 FieldResolverResult::DeliberatelyUnsupported(reason.to_string()),
@@ -315,44 +326,16 @@ impl RootFieldExecutor for StorefrontRootExecutor {
     }
 }
 
-impl StorefrontRootExecutor {
-    fn prepare_nullable_list_value(&self, path: &[String], value: Value) -> Result<Value, String> {
-        let Value::Array(values) = value else {
-            return Ok(value);
-        };
-        let null_indices = values
-            .iter()
-            .enumerate()
-            .filter_map(|(index, value)| value.is_null().then_some(index))
-            .collect::<Vec<_>>();
-        if null_indices.is_empty() {
-            return Ok(Value::Array(values));
-        }
-        let original_len = values.len();
-        let values = values
-            .into_iter()
-            .filter(|value| !value.is_null())
-            .collect();
-        self.nullable_list_repairs
-            .lock()
-            .map_err(|_| "Storefront nullable-list repair lock was poisoned".to_string())?
-            .push(NullableListRepair {
-                path: path.to_vec(),
-                original_len,
-                null_indices,
-            });
-        Ok(Value::Array(values))
-    }
-}
-
 impl DraftProxy {
     pub(in crate::proxy) fn execute_storefront_graphql(&mut self, request: &Request) -> Response {
+        self.execution_session = ExecutionSession::default();
         let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
             return json_error(400, "Expected JSON body with a string `query`");
         };
         let Some(version) = StorefrontApiVersion::from_route(&request.path) else {
             return self.execute_legacy_storefront_graphql(request, &graphql_request);
         };
+        self.execution_session = ExecutionSession::storefront(version);
         let schema = match storefront_graphql::schema(version) {
             Ok(schema) => schema,
             Err(error) => {
@@ -386,6 +369,8 @@ impl DraftProxy {
                                 operation_type: document.operation_type,
                                 root_fields: vec![field.name.clone()],
                             },
+                            operation_path: document.operation_path.clone(),
+                            variable_definitions: document.variable_definitions.clone(),
                             field: field.clone(),
                         },
                     )
@@ -541,8 +526,8 @@ impl DraftProxy {
             .unwrap_or_default();
         let passthrough_response = Arc::new(std::sync::Mutex::new(None));
         let passthrough_for_executor = Arc::clone(&passthrough_response);
-        let nullable_list_repairs = Arc::new(std::sync::Mutex::new(Vec::new()));
-        let nullable_list_repairs_for_executor = Arc::clone(&nullable_list_repairs);
+        let null_list_item_paths = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let null_list_item_paths_for_engine = Arc::clone(&null_list_item_paths);
         let engine_response = with_request_owned_proxy(self, move |shared_proxy| {
             let executor: Arc<dyn RootFieldExecutor> = Arc::new(StorefrontRootExecutor {
                 proxy: shared_proxy,
@@ -552,11 +537,13 @@ impl DraftProxy {
                 original_request: request.clone(),
                 logged: std::sync::Mutex::new(false),
                 passthrough_response: passthrough_for_executor,
-                nullable_list_repairs: nullable_list_repairs_for_executor,
             });
             let mut engine_request = async_graphql::Request::new(engine_query)
                 .variables(async_graphql::Variables::from_json(engine_variables))
-                .data(RootExecutionContext { executor });
+                .data(RootExecutionContext::with_null_list_item_paths(
+                    executor,
+                    null_list_item_paths_for_engine,
+                ));
             if let Some(operation_name) = engine_operation_name {
                 engine_request = engine_request.operation_name(operation_name);
             }
@@ -592,8 +579,8 @@ impl DraftProxy {
             prepared.as_ref().map(|(document, _, _)| document),
             selected_query.as_deref().unwrap_or(&graphql_request.query),
         );
-        if let Ok(repairs) = nullable_list_repairs.lock() {
-            apply_nullable_list_repairs(&mut body, &repairs);
+        if let Ok(paths) = null_list_item_paths.lock() {
+            apply_null_list_item_paths(&mut body, &paths);
         }
         ok_json(body)
     }
@@ -620,50 +607,6 @@ impl DraftProxy {
         .unwrap_or_else(|_| graphql_request.variables.clone());
         self.storefront_snapshot_graphql_response(&graphql_request.query, &variables, None)
     }
-}
-
-fn apply_nullable_list_repairs(body: &mut Value, repairs: &[NullableListRepair]) {
-    let Some(data) = body.get_mut("data") else {
-        return;
-    };
-    let mut repairs = repairs.to_vec();
-    repairs.sort_by_key(|repair| std::cmp::Reverse(repair.path.len()));
-    for repair in repairs {
-        let Some(value) = value_at_response_path_mut(data, &repair.path) else {
-            continue;
-        };
-        let Some(projected) = value.as_array_mut() else {
-            continue;
-        };
-        let projected = std::mem::take(projected);
-        let mut projected = projected.into_iter();
-        let null_indices = repair.null_indices.into_iter().collect::<BTreeSet<_>>();
-        *value = Value::Array(
-            (0..repair.original_len)
-                .map(|index| {
-                    if null_indices.contains(&index) {
-                        Value::Null
-                    } else {
-                        projected.next().unwrap_or(Value::Null)
-                    }
-                })
-                .collect(),
-        );
-    }
-}
-
-fn value_at_response_path_mut<'a>(
-    mut value: &'a mut Value,
-    path: &[String],
-) -> Option<&'a mut Value> {
-    for segment in path {
-        value = match value {
-            Value::Object(object) => object.get_mut(segment)?,
-            Value::Array(array) => array.get_mut(segment.parse::<usize>().ok()?)?,
-            _ => return None,
-        };
-    }
-    Some(value)
 }
 
 fn storefront_root_result(
@@ -749,7 +692,11 @@ fn storefront_root_result(
             locations: Vec::new(),
         });
     }
-    RootFieldResult { value, errors }
+    RootFieldResult {
+        value,
+        errors,
+        value_source: ResolverValueSource::Upstream,
+    }
 }
 
 /// `async-graphql` dynamic schemas cannot register executable custom directive

@@ -12,7 +12,7 @@ pub(in crate::proxy) use self::saved_search::*;
 pub(in crate::proxy) use self::search::*;
 
 pub(in crate::proxy) fn product_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
-    vec![
+    let mut policies = vec![
         FieldResolverTypePolicy::unsupported_remaining(
             ApiSurface::Admin,
             "Product",
@@ -258,7 +258,27 @@ pub(in crate::proxy) fn product_field_resolver_type_policies() -> Vec<FieldResol
             "CollectionReorderProductsPayload",
             "field is not yet modeled by the canonical collection resolver",
         ),
-    ]
+    ];
+    policies.extend(
+        [
+            "CombinedListing",
+            "ProductOption",
+            "ProductOptionValue",
+            "ProductTaxonomyNode",
+            "Publishable",
+            "TaxonomyCategory",
+            "TaxonomyValue",
+        ]
+            .into_iter()
+            .map(|parent_type| {
+                FieldResolverTypePolicy::property_backed_ordinary_fields(
+                    ApiSurface::Admin,
+                    parent_type,
+                    "argument-bearing product taxonomy or publication field has no explicit canonical resolver",
+                )
+            }),
+    );
+    policies
 }
 
 pub(in crate::proxy) fn product_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
@@ -447,6 +467,12 @@ pub(in crate::proxy) fn product_field_resolver_registrations() -> Vec<FieldResol
         "CollectionDeletePayload",
         "shop",
         mutation_payload_shop_field,
+    ));
+    registrations.push(FieldResolverRegistration::explicit(
+        ApiSurface::Admin,
+        "CombinedListing",
+        "combinedListingChildren",
+        combined_listing_children_field,
     ));
     for (field, handler) in [
         (
@@ -652,11 +678,8 @@ pub(in crate::proxy) fn product_field_resolver_registrations() -> Vec<FieldResol
         ("variants", product_variants_field),
         ("variantsCount", product_variants_count_field),
     ] {
-        let registration = if matches!(field, "metafield" | "metafields") {
-            FieldResolverRegistration::explicit(ApiSurface::Admin, "Product", field, handler)
-        } else {
-            FieldResolverRegistration::explicit(ApiSurface::Admin, "Product", field, handler)
-        };
+        let registration =
+            FieldResolverRegistration::explicit(ApiSurface::Admin, "Product", field, handler);
         registrations.push(registration);
     }
     registrations.extend([
@@ -910,9 +933,12 @@ impl DraftProxy {
             .and_then(Value::as_str)
             .unwrap_or_default();
         let has_local_answer = self.store.product_variant_by_id(id).is_some()
-            || self.store.staged.product_variants.is_tombstoned(id)
+            || self.store.product_variants.staged.is_tombstoned(id)
             || self.owner_has_metafield_local_effects(id)
-            || self.request_owner_metafield_hydrated_ids.contains(id);
+            || self
+                .execution_session
+                .owner_metafield_hydrated_ids
+                .contains(id);
         if self.config.read_mode == ReadMode::Live
             || (self.config.read_mode == ReadMode::LiveHybrid && !has_local_answer)
         {
@@ -924,7 +950,7 @@ impl DraftProxy {
             .owner_metafields
             .keys()
             .any(|owner_id| shopify_gid_resource_type(owner_id) == Some("ProductVariant"));
-        let value = if self.store.staged.product_variants.is_tombstoned(id) {
+        let value = if self.store.product_variants.staged.is_tombstoned(id) {
             Value::Null
         } else {
             self.store
@@ -953,7 +979,10 @@ impl DraftProxy {
         let has_local_answer = self.store.has_product(id)
             || self.store.product_is_tombstoned(id)
             || self.owner_has_metafield_local_effects(id)
-            || self.request_owner_metafield_hydrated_ids.contains(id);
+            || self
+                .execution_session
+                .owner_metafield_hydrated_ids
+                .contains(id);
         if self.config.read_mode == ReadMode::Live
             || (self.config.read_mode == ReadMode::LiveHybrid && !has_local_answer)
         {
@@ -1141,6 +1170,28 @@ fn product_field_arguments(
         .iter()
         .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
         .collect()
+}
+
+fn combined_listing_children_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(connection_value_with_args(
+        invocation
+            .parent
+            .get("combinedListingChildren")
+            .map(connection_nodes)
+            .unwrap_or_default(),
+        &product_field_arguments(invocation),
+        |child| {
+            child
+                .pointer("/product/id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        },
+    ))
 }
 
 fn product_field_record(
@@ -1511,20 +1562,21 @@ fn product_selling_plan_groups_count_field(
 
 fn metafield_reference_field(
     proxy: &mut DraftProxy,
-    _request: &Request,
+    request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    Ok(proxy.canonical_metafield_reference_value(invocation.parent))
+    Ok(proxy.canonical_metafield_reference_value(invocation.parent, Some(request)))
 }
 
 fn metafield_references_field(
     proxy: &mut DraftProxy,
-    _request: &Request,
+    request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     Ok(proxy.canonical_metafield_references_connection_value(
         invocation.parent,
         &product_field_arguments(invocation),
+        Some(request),
     ))
 }
 
@@ -1732,6 +1784,13 @@ struct ProductStatusInputContext<'a> {
     input_object_type: &'a str,
     field_name: &'a str,
     expected_type: &'a str,
+}
+
+pub(in crate::proxy) struct ProductStatusArgumentContext<'a> {
+    pub argument_name: &'a str,
+    pub container_type_name: &'a str,
+    pub container_name: &'a str,
+    pub expected_type: &'a str,
 }
 
 struct ProductStatusLiteralError<'a> {
@@ -2013,31 +2072,6 @@ fn resource_publication_connection_node_json(
     })
 }
 
-fn staged_resource_publication_connection_node_json(
-    resource_id: &str,
-    resource_type: &str,
-    entry: &ProductPublicationEntry,
-    typename: &str,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!(typename)),
-        "channel" => Some(Value::Null),
-        "isPublished" => Some(json!(true)),
-        "publication" => Some(publication_node_json(
-            &entry.publication_id,
-            &selection.selection,
-        )),
-        "publishDate" => Some(product_publication_publish_date_json(entry)),
-        "publishable" => Some(publishable_node_json(
-            resource_id,
-            resource_type,
-            &selection.selection,
-        )),
-        _ => None,
-    })
-}
-
 fn product_publication_publish_date_json(entry: &ProductPublicationEntry) -> Value {
     entry
         .publish_date
@@ -2072,38 +2106,6 @@ fn resource_publication_connection_json(
         selections,
         |entry, selections| {
             resource_publication_connection_node_json(product, entry, typename, selections)
-        },
-        |entry| entry.publication_id.clone(),
-        |selections| selected_json(&empty_page_info(), selections),
-    )
-}
-
-pub(in crate::proxy) fn staged_resource_publication_connection_json(
-    resource_id: &str,
-    resource_type: &str,
-    publication_ids: &BTreeSet<String>,
-    typename: &str,
-    selections: &[SelectedField],
-) -> Value {
-    let entries = publication_ids
-        .iter()
-        .map(|publication_id| ProductPublicationEntry {
-            publication_id: publication_id.clone(),
-            publish_date: None,
-            published_at: None,
-        })
-        .collect::<Vec<_>>();
-    selected_typed_connection(
-        &entries,
-        selections,
-        |entry, selections| {
-            staged_resource_publication_connection_node_json(
-                resource_id,
-                resource_type,
-                entry,
-                typename,
-                selections,
-            )
         },
         |entry| entry.publication_id.clone(),
         |selections| selected_json(&empty_page_info(), selections),
@@ -2596,17 +2598,17 @@ impl DraftProxy {
             .unwrap_or_default()
     }
 
-    fn promote_all_product_media_ready_on_read(&mut self) {
+    pub(in crate::proxy) fn promote_all_product_media_ready_on_read(&mut self) {
         let ready_on_read_ids = self.store.staged.media_ready_on_read.clone();
         let product_ids = self
             .store
-            .staged
             .products
+            .staged
             .iter()
             .map(|(id, _)| id.clone())
             .collect::<Vec<_>>();
         for product_id in product_ids {
-            let Some(product) = self.store.staged.products.get_mut(&product_id) else {
+            let Some(product) = self.store.products.staged.get_mut(&product_id) else {
                 continue;
             };
             let mut promoted = Vec::new();
@@ -5257,18 +5259,22 @@ fn product_scalar_length_field_label(field: ProductScalarLengthField) -> &'stati
 pub(in crate::proxy) fn product_create_status_validation_errors(
     request: &Request,
     query: &str,
-    field: &RootFieldSelection,
+    root_name: &str,
+    root_location: SourceLocation,
+    raw_arguments: &BTreeMap<String, RawArgumentValue>,
 ) -> Option<Vec<Value>> {
-    let (argument_name, input_object_type) = if field.raw_arguments.contains_key("product") {
+    let (argument_name, input_object_type) = if raw_arguments.contains_key("product") {
         ("product", "ProductCreateInput")
     } else {
         ("input", "ProductInput")
     };
-    let input = field.raw_arguments.get(argument_name)?;
+    let input = raw_arguments.get(argument_name)?;
     product_status_input_field_validation_errors(
         request,
         query,
-        field,
+        root_name,
+        root_location,
+        raw_arguments,
         input,
         ProductStatusInputContext {
             argument_name,
@@ -5282,13 +5288,12 @@ pub(in crate::proxy) fn product_create_status_validation_errors(
 pub(in crate::proxy) fn product_status_argument_validation_errors(
     request: &Request,
     query: &str,
-    field: &RootFieldSelection,
-    argument_name: &str,
-    container_type_name: &str,
-    container_name: &str,
-    expected_type: &str,
+    root_name: &str,
+    root_location: SourceLocation,
+    raw_arguments: &BTreeMap<String, RawArgumentValue>,
+    context: ProductStatusArgumentContext<'_>,
 ) -> Option<Vec<Value>> {
-    let raw = field.raw_arguments.get(argument_name)?;
+    let raw = raw_arguments.get(context.argument_name)?;
     match raw {
         RawArgumentValue::Variable { name, value } => {
             let status = resolved_status_value(value.as_ref()?)?;
@@ -5299,7 +5304,7 @@ pub(in crate::proxy) fn product_status_argument_validation_errors(
             let variable_type = definition
                 .as_ref()
                 .map(|definition| definition.type_display.clone())
-                .unwrap_or_else(|| expected_type.to_string());
+                .unwrap_or_else(|| context.expected_type.to_string());
             let location = definition.map(|definition| definition.location);
             Some(vec![invalid_product_status_variable_error(
                 request,
@@ -5318,13 +5323,15 @@ pub(in crate::proxy) fn product_status_argument_validation_errors(
             }
             Some(vec![invalid_product_status_literal_error(
                 query,
-                field,
+                root_name,
+                root_location,
+                raw_arguments,
                 ProductStatusLiteralError {
                     value: &status,
-                    argument_name,
-                    type_name: container_type_name,
-                    container_name,
-                    expected_type,
+                    argument_name: context.argument_name,
+                    type_name: context.container_type_name,
+                    container_name: context.container_name,
+                    expected_type: context.expected_type,
                     location: None,
                 },
             )])
@@ -5335,7 +5342,9 @@ pub(in crate::proxy) fn product_status_argument_validation_errors(
 fn product_status_input_field_validation_errors(
     request: &Request,
     query: &str,
-    field: &RootFieldSelection,
+    root_name: &str,
+    root_location: SourceLocation,
+    raw_arguments: &BTreeMap<String, RawArgumentValue>,
     input: &RawArgumentValue,
     context: ProductStatusInputContext<'_>,
 ) -> Option<Vec<Value>> {
@@ -5345,10 +5354,13 @@ fn product_status_input_field_validation_errors(
             if product_status_allowed(&status, request) {
                 return None;
             }
-            let location = inline_argument_value_location(query, field, context.argument_name);
+            let location =
+                argument_value_location_after(query, root_location, context.argument_name);
             Some(vec![invalid_product_status_literal_error(
                 query,
-                field,
+                root_name,
+                root_location,
+                raw_arguments,
                 ProductStatusLiteralError {
                     value: &status,
                     argument_name: context.field_name,
@@ -5390,29 +5402,30 @@ fn product_status_input_field_validation_errors(
 
 fn invalid_product_status_literal_error(
     query: &str,
-    field: &RootFieldSelection,
+    root_name: &str,
+    root_location: SourceLocation,
+    raw_arguments: &BTreeMap<String, RawArgumentValue>,
     error: ProductStatusLiteralError<'_>,
 ) -> Value {
     let operation_path = parsed_document(query, &BTreeMap::new())
         .map(|document| document.operation_path)
         .unwrap_or_else(|| "mutation".to_string());
     let path = if error.type_name == "InputObject" {
-        let input_argument_name = field
-            .raw_arguments
+        let input_argument_name = raw_arguments
             .contains_key("product")
             .then_some("product")
-            .or_else(|| field.raw_arguments.contains_key("input").then_some("input"))
+            .or_else(|| raw_arguments.contains_key("input").then_some("input"))
             .unwrap_or("input");
         json!([
             operation_path,
-            field.name.clone(),
+            root_name,
             input_argument_name,
             error.argument_name
         ])
     } else {
-        json!([operation_path, field.name.clone(), error.argument_name])
+        json!([operation_path, root_name, error.argument_name])
     };
-    let location = error.location.unwrap_or(field.location);
+    let location = error.location.unwrap_or(root_location);
     json!({
         "message": format!(
             "Argument '{}' on {} '{}' has an invalid value ({}). Expected type '{}'.",

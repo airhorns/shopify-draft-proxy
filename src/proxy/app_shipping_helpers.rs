@@ -105,47 +105,6 @@ fn fulfillment_service_shop_origin_host(shopify_admin_origin: &str) -> Option<St
         .filter(|host| host.ends_with(".myshopify.com"))
 }
 
-pub(in crate::proxy) fn delegate_access_token_create_payload_json(
-    token: Value,
-    shop: &Value,
-    payload_selection: &[SelectedField],
-    token_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_single_data_field_payload_json(
-        "delegateAccessToken",
-        token,
-        token_selection,
-        "UserError",
-        payload_selection,
-        user_errors,
-        |selection| match selection.name.as_str() {
-            "shop" => Some(selected_json(shop, &selection.selection)),
-            _ => None,
-        },
-    )
-}
-
-pub(in crate::proxy) fn delegate_access_token_destroy_payload_json(
-    status: bool,
-    shop: &Value,
-    user_errors: Vec<Value>,
-    payload_selection: &[SelectedField],
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "status" => Some(Value::Bool(status)),
-            "shop" => Some(selected_json(shop, &selection.selection)),
-            "userErrors" => Some(app_user_errors_json(
-                user_errors.clone(),
-                "UserError",
-                &selection.selection,
-            )),
-            _ => None,
-        }
-    })
-}
-
 pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
     message: &str,
     code: &str,
@@ -365,197 +324,6 @@ pub(in crate::proxy) fn merge_app_installation_json(base: &Value, observed: &Val
     merged
 }
 
-pub(in crate::proxy) fn app_uninstall_payload_json(
-    app: Value,
-    payload_selection: &[SelectedField],
-    app_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_single_data_field_payload_json(
-        "app",
-        app,
-        app_selection,
-        "AppUninstallAppUninstallError",
-        payload_selection,
-        user_errors,
-        |_| None,
-    )
-}
-
-pub(in crate::proxy) fn app_revoke_access_scopes_payload_json(
-    revoked: Option<Vec<Value>>,
-    user_errors: Vec<Value>,
-    payload_selection: &[SelectedField],
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "revoked" => Some(match &revoked {
-                Some(scopes) => Value::Array(
-                    scopes
-                        .iter()
-                        .map(|scope| selected_json(scope, &selection.selection))
-                        .collect(),
-                ),
-                None => Value::Null,
-            }),
-            "userErrors" => Some(app_user_errors_json(
-                user_errors.clone(),
-                "AppRevokeAccessScopesAppRevokeScopeError",
-                &selection.selection,
-            )),
-            _ => None,
-        }
-    })
-}
-
-pub(in crate::proxy) fn app_usage_record_payload_json(
-    usage_record: Value,
-    payload_selection: &[SelectedField],
-    usage_record_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_single_data_field_payload_json(
-        "appUsageRecord",
-        usage_record,
-        usage_record_selection,
-        "UserError",
-        payload_selection,
-        user_errors,
-        |_| None,
-    )
-}
-
-pub(in crate::proxy) fn app_purchase_one_time_payload_json(
-    purchase: Value,
-    payload_selection: &[SelectedField],
-    purchase_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-    confirmation_url: Option<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "appPurchaseOneTime" => {
-                if purchase.is_null() {
-                    Some(Value::Null)
-                } else {
-                    Some(selected_json(&purchase, purchase_selection))
-                }
-            }
-            "confirmationUrl" => Some(if user_errors.is_empty() {
-                confirmation_url.clone().unwrap_or(Value::Null)
-            } else {
-                Value::Null
-            }),
-            "userErrors" => Some(app_user_errors_json(
-                user_errors.clone(),
-                "UserError",
-                &selection.selection,
-            )),
-            _ => None,
-        }
-    })
-}
-
-pub(in crate::proxy) fn app_subscription_create_payload_json(
-    subscription: &Value,
-    payload_selection: &[SelectedField],
-    subscription_selection: &[SelectedField],
-    confirmation_url: Value,
-) -> Value {
-    app_subscription_payload_json_with_confirmation_url(
-        subscription.clone(),
-        payload_selection,
-        subscription_selection,
-        vec![],
-        Some(confirmation_url),
-    )
-}
-
-pub(in crate::proxy) fn app_subscription_payload_json(
-    subscription: Value,
-    payload_selection: &[SelectedField],
-    subscription_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    app_subscription_payload_json_with_confirmation_url(
-        subscription,
-        payload_selection,
-        subscription_selection,
-        user_errors,
-        None,
-    )
-}
-
-pub(in crate::proxy) fn app_subscription_payload_json_with_confirmation_url(
-    subscription: Value,
-    payload_selection: &[SelectedField],
-    subscription_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-    confirmation_url: Option<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "confirmationUrl" => Some(if user_errors.is_empty() {
-                confirmation_url.clone().unwrap_or(Value::Null)
-            } else {
-                Value::Null
-            }),
-            "appSubscription" => Some(if subscription.is_null() {
-                Value::Null
-            } else {
-                selected_json(&subscription, subscription_selection)
-            }),
-            "userErrors" => Some(app_user_errors_json(
-                user_errors.clone(),
-                "UserError",
-                &selection.selection,
-            )),
-            _ => None,
-        }
-    })
-}
-
-pub(in crate::proxy) fn app_user_errors_json(
-    user_errors: Vec<Value>,
-    typename: &str,
-    selection: &[SelectedField],
-) -> Value {
-    Value::Array(
-        user_errors
-            .into_iter()
-            .map(|error| app_user_error_json(error, typename, selection))
-            .collect(),
-    )
-}
-
-pub(in crate::proxy) fn selected_single_data_field_payload_json(
-    field_name: &'static str,
-    field_value: Value,
-    field_selection: &[SelectedField],
-    user_error_typename: &'static str,
-    payload_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-    extra_field: impl Fn(&SelectedField) -> Option<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        if selection.name == field_name {
-            Some(if field_value.is_null() {
-                Value::Null
-            } else {
-                selected_json(&field_value, field_selection)
-            })
-        } else if selection.name == "userErrors" {
-            Some(app_user_errors_json(
-                user_errors.clone(),
-                user_error_typename,
-                &selection.selection,
-            ))
-        } else {
-            extra_field(selection)
-        }
-    })
-}
-
 pub(in crate::proxy) fn failed_payload_outcome(
     payload: Value,
 ) -> (Value, &'static str, Vec<String>) {
@@ -564,14 +332,6 @@ pub(in crate::proxy) fn failed_payload_outcome(
 
 pub(in crate::proxy) fn response_is_success(response: &Response) -> bool {
     (200..300).contains(&response.status)
-}
-
-fn app_user_error_json(error: Value, typename: &str, selection: &[SelectedField]) -> Value {
-    let mut error = error;
-    if let Value::Object(fields) = &mut error {
-        fields.insert("__typename".to_string(), json!(typename));
-    }
-    selected_json(&error, selection)
 }
 
 pub(in crate::proxy) fn app_subscription_line_items_from_arguments(
@@ -658,145 +418,94 @@ fn app_subscription_line_item_from_input(value: &ResolvedValue, id: String) -> V
     })
 }
 
-pub(in crate::proxy) fn current_app_installation_json(
+pub(in crate::proxy) fn current_app_installation_value(
     installation: &Value,
     subscriptions: &BTreeMap<String, Value>,
     one_time_purchases: &BTreeMap<String, Value>,
     revoked_access_scopes: &BTreeSet<String>,
-    selections: &[SelectedField],
 ) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "id" => app_installation_id(installation).map(Value::String),
-            "__typename" => Some(json!("AppInstallation")),
-            "app" => installation
-                .get("app")
-                .map(|app| selected_json(app, &selection.selection)),
-            "activeSubscriptions" if subscriptions.is_empty() => Some(
-                installation
-                    .get("activeSubscriptions")
-                    .map(|value| selected_json(value, &selection.selection))
-                    .unwrap_or_else(|| Value::Array(Vec::new())),
-            ),
-            "activeSubscriptions" => Some(Value::Array(
+    let mut value = installation.clone();
+    let Some(fields) = value.as_object_mut() else {
+        return value;
+    };
+    fields.insert("__typename".to_string(), json!("AppInstallation"));
+    if let Some(id) = app_installation_id(installation) {
+        fields.insert("id".to_string(), json!(id));
+    }
+    if subscriptions.is_empty() {
+        fields
+            .entry("activeSubscriptions".to_string())
+            .or_insert_with(|| Value::Array(Vec::new()));
+    } else {
+        fields.insert(
+            "activeSubscriptions".to_string(),
+            Value::Array(
                 subscriptions
                     .values()
                     .filter(|subscription| subscription["status"] == "ACTIVE")
-                    .map(|subscription| selected_json(subscription, &selection.selection))
+                    .cloned()
                     .collect(),
-            )),
-            "allSubscriptions" => Some(app_installation_connection_field(
-                installation,
-                "allSubscriptions",
-                subscriptions.is_empty(),
-                subscriptions.values(),
-                selection,
-            )),
-            "oneTimePurchases" => Some(app_installation_connection_field(
-                installation,
-                "oneTimePurchases",
-                one_time_purchases.is_empty(),
-                one_time_purchases.values(),
-                selection,
-            )),
-            "accessScopes" => Some(Value::Array(
-                installation
-                    .get("accessScopes")
-                    .and_then(Value::as_array)
-                    .into_iter()
-                    .flatten()
-                    .filter(|scope| {
-                        scope
-                            .get("handle")
-                            .and_then(Value::as_str)
-                            .is_none_or(|handle| !revoked_access_scopes.contains(handle))
-                    })
-                    .map(|scope| selected_json(scope, &selection.selection))
-                    .collect(),
-            )),
-            _ => installation
-                .get(selection.name.as_str())
-                .filter(|_| !selection.name.starts_with("__draftProxy"))
-                .map(|value| selected_json(value, &selection.selection)),
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
-        }
+            ),
+        );
     }
-    Value::Object(fields)
-}
-
-fn app_installation_connection_field<'a>(
-    installation: &Value,
-    field_name: &str,
-    records_empty: bool,
-    records: impl Iterator<Item = &'a Value>,
-    selection: &SelectedField,
-) -> Value {
-    if records_empty {
-        if let Some(value) = installation.get(field_name) {
-            return selected_json(value, &selection.selection);
-        }
+    fields.insert(
+        "accessScopes".to_string(),
+        Value::Array(
+            installation
+                .get("accessScopes")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter(|scope| {
+                    scope
+                        .get("handle")
+                        .and_then(Value::as_str)
+                        .is_none_or(|handle| !revoked_access_scopes.contains(handle))
+                })
+                .cloned()
+                .collect(),
+        ),
+    );
+    if !one_time_purchases.is_empty() {
+        fields.insert(
+            "oneTimePurchases".to_string(),
+            connection_json(one_time_purchases.values().cloned().collect()),
+        );
     }
-    let node_selection =
-        selected_child_selection(&selection.selection, "nodes").unwrap_or_default();
-    json!({
-        "nodes": records
-            .map(|record| selected_json(record, &node_selection))
-            .collect::<Vec<_>>()
-    })
+    value
 }
 
 pub(in crate::proxy) fn location_deactivate_payload_json(
     location: Value,
-    payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "location" => Some(selected_json(&location, &selection.selection)),
-            "locationDeactivateUserErrors" | "userErrors" => {
-                selected_user_errors_field(user_errors.as_slice(), selection)
-            }
-            _ => None,
-        }
+    json!({
+        "location": location,
+        "locationDeactivateUserErrors": user_errors,
     })
 }
 
 pub(in crate::proxy) fn delivery_profile_payload_json(
     profile: Value,
-    payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "profile" => Some(if profile.is_null() {
-                Value::Null
-            } else {
-                delivery_profile_selected_json(&profile, &selection.selection)
-            }),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
+    json!({
+        "profile": if profile.is_null() {
+            Value::Null
+        } else {
+            canonical_delivery_profile_value(&profile)
+        },
+        "userErrors": user_errors,
     })
 }
 
 pub(in crate::proxy) fn delivery_profile_remove_payload_json(
     job: Value,
-    payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "job" => Some(if job.is_null() {
-                Value::Null
-            } else {
-                selected_json(&job, &selection.selection)
-            }),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
+    json!({
+        "job": job,
+        "userErrors": user_errors,
     })
 }
 
@@ -915,102 +624,288 @@ fn delivery_profile_unknown_location_user_error() -> Value {
     )
 }
 
-pub(in crate::proxy) fn delivery_profile_selected_json(
-    profile: &Value,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("DeliveryProfile")),
-        "id"
-        | "name"
-        | "default"
-        | "version"
-        | "originLocationCount"
-        | "zoneCountryCount"
-        | "activeMethodDefinitionsCount"
-        | "locationsWithoutRatesCount" => profile
-            .get(&selection.name)
-            .cloned()
-            .map(|value| nullable_selected_json(&value, &selection.selection)),
-        "productVariantsCount" => {
-            let default_count = count_object(0);
-            Some(selected_json(
-                profile
-                    .get("productVariantsCount")
-                    .unwrap_or(&default_count),
-                &selection.selection,
-            ))
-        }
-        "profileItems" => Some(delivery_profile_items_connection_json(
-            profile
-                .get("profileItems")
-                .and_then(Value::as_array)
-                .cloned()
-                .unwrap_or_default(),
-            &selection.arguments,
-            &selection.selection,
-        )),
-        "profileLocationGroups" => Some(Value::Array(
-            profile
-                .get("profileLocationGroups")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .map(|group| {
-                    delivery_profile_location_group_selected_json(group, &selection.selection)
-                })
-                .collect(),
-        )),
-        "sellingPlanGroups" => Some(selected_empty_connection_json(&selection.selection)),
-        "unassignedLocationsPaginated" => {
-            Some(selected_empty_connection_json(&selection.selection))
-        }
-        "unassignedLocations" => Some(Value::Array(Vec::new())),
-        _ => profile
-            .get(&selection.name)
-            .cloned()
-            .map(|value| nullable_selected_json(&value, &selection.selection)),
+pub(in crate::proxy) fn delivery_profile_field_resolver_registrations(
+) -> Vec<FieldResolverRegistration> {
+    [
+        (
+            "DeliveryProfile",
+            "profileItems",
+            delivery_profile_items_field as crate::resolver_registry::FieldResolverHandler,
+        ),
+        (
+            "DeliveryProfile",
+            "profileLocationGroups",
+            delivery_profile_location_groups_field,
+        ),
+        (
+            "DeliveryProfile",
+            "sellingPlanGroups",
+            delivery_profile_selling_plan_groups_field,
+        ),
+        (
+            "DeliveryProfile",
+            "unassignedLocationsPaginated",
+            delivery_profile_unassigned_locations_field,
+        ),
+        (
+            "DeliveryLocationGroup",
+            "locations",
+            delivery_location_group_locations_field,
+        ),
+        (
+            "DeliveryProfileItem",
+            "variants",
+            delivery_profile_item_variants_field,
+        ),
+        (
+            "DeliveryProfileLocationGroup",
+            "locationGroupZones",
+            delivery_profile_location_group_zones_field,
+        ),
+        (
+            "DeliveryLocationGroupZone",
+            "methodDefinitions",
+            delivery_location_group_zone_method_definitions_field,
+        ),
+    ]
+    .into_iter()
+    .map(|(parent_type, field_name, handler)| {
+        FieldResolverRegistration::explicit(ApiSurface::Admin, parent_type, field_name, handler)
     })
+    .collect()
 }
 
-fn delivery_profile_location_group_selected_json(
-    group: &Value,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "locationGroup" => Some(delivery_location_group_selected_json(
-            &group["locationGroup"],
-            &selection.selection,
-        )),
-        "locationGroupZones" => Some(delivery_location_group_zones_connection_json(
-            group
-                .get("locationGroupZones")
-                .and_then(Value::as_array)
-                .cloned()
-                .unwrap_or_default(),
-            &selection.arguments,
-            &selection.selection,
-        )),
-        "countriesInAnyZone" => {
-            let stored = group
-                .get("countriesInAnyZone")
-                .and_then(Value::as_array)
-                .cloned()
-                .unwrap_or_default();
-            let countries = if stored.is_empty() {
-                delivery_profile_countries_in_any_zone(group)
-            } else {
-                stored
-            };
-            Some(Value::Array(
-                countries
-                    .into_iter()
-                    .map(|country| selected_json(&country, &selection.selection))
-                    .collect(),
-            ))
-        }
-        _ => None,
-    })
+pub(in crate::proxy) fn canonical_delivery_profile_value(profile: &Value) -> Value {
+    if profile.is_null() {
+        return Value::Null;
+    }
+    let mut profile = profile.clone();
+    let items = stored_delivery_profile_nodes(&profile["profileItems"])
+        .iter()
+        .map(canonical_delivery_profile_item_value)
+        .collect::<Vec<_>>();
+    let groups = profile
+        .get("profileLocationGroups")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(canonical_delivery_profile_location_group_value)
+        .collect::<Vec<_>>();
+    if let Some(fields) = profile.as_object_mut() {
+        fields.insert("__typename".to_string(), json!("DeliveryProfile"));
+        fields.insert("profileItems".to_string(), Value::Array(items));
+        fields.insert("profileLocationGroups".to_string(), Value::Array(groups));
+        fields
+            .entry("productVariantsCount".to_string())
+            .or_insert_with(|| count_object(0));
+        fields
+            .entry("sellingPlanGroups".to_string())
+            .or_insert_with(|| Value::Array(Vec::new()));
+        fields
+            .entry("unassignedLocations".to_string())
+            .or_insert_with(|| Value::Array(Vec::new()));
+    }
+    profile
+}
+
+fn canonical_delivery_profile_item_value(item: &Value) -> Value {
+    let mut item = item.clone();
+    if let Some(fields) = item.as_object_mut() {
+        fields.insert("__typename".to_string(), json!("DeliveryProfileItem"));
+        fields
+            .entry("variants".to_string())
+            .or_insert_with(|| Value::Array(Vec::new()));
+    }
+    item
+}
+
+fn canonical_delivery_profile_location_group_value(group: &Value) -> Value {
+    let mut group = group.clone();
+    let zones = group
+        .get("locationGroupZones")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(canonical_delivery_location_group_zone_value)
+        .collect::<Vec<_>>();
+    let stored_countries = group
+        .get("countriesInAnyZone")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let countries = if stored_countries.is_empty() {
+        delivery_profile_countries_in_any_zone(&group)
+    } else {
+        stored_countries
+    };
+    let mut location_group = group["locationGroup"].clone();
+    if let Some(fields) = location_group.as_object_mut() {
+        fields.insert("__typename".to_string(), json!("DeliveryLocationGroup"));
+        let location_count = fields
+            .get("locations")
+            .and_then(Value::as_array)
+            .map(Vec::len)
+            .unwrap_or_default();
+        fields
+            .entry("locationsCount".to_string())
+            .or_insert_with(|| count_object(location_count));
+    }
+    if let Some(fields) = group.as_object_mut() {
+        fields.insert(
+            "__typename".to_string(),
+            json!("DeliveryProfileLocationGroup"),
+        );
+        fields.insert("locationGroup".to_string(), location_group);
+        fields.insert("locationGroupZones".to_string(), Value::Array(zones));
+        fields.insert("countriesInAnyZone".to_string(), Value::Array(countries));
+    }
+    group
+}
+
+fn canonical_delivery_location_group_zone_value(zone: &Value) -> Value {
+    let mut zone = zone.clone();
+    if let Some(fields) = zone.as_object_mut() {
+        fields.insert("__typename".to_string(), json!("DeliveryLocationGroupZone"));
+        fields
+            .entry("methodDefinitions".to_string())
+            .or_insert_with(|| Value::Array(Vec::new()));
+    }
+    zone
+}
+
+fn stored_delivery_profile_nodes(value: &Value) -> Vec<Value> {
+    value
+        .as_array()
+        .cloned()
+        .unwrap_or_else(|| connection_nodes(value))
+}
+
+fn delivery_profile_items_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let items = stored_delivery_profile_nodes(&invocation.parent["profileItems"])
+        .iter()
+        .map(canonical_delivery_profile_item_value)
+        .collect::<Vec<_>>();
+    Ok(connection_value_with_args(
+        items,
+        &resolved_arguments_from_json(&invocation.arguments),
+        delivery_profile_item_cursor,
+    ))
+}
+
+fn delivery_profile_location_groups_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    let location_group_id = resolved_string_field(&arguments, "locationGroupId");
+    Ok(Value::Array(
+        invocation.parent["profileLocationGroups"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|group| {
+                location_group_id
+                    .as_deref()
+                    .is_none_or(|id| group["locationGroup"]["id"].as_str() == Some(id))
+            })
+            .map(canonical_delivery_profile_location_group_value)
+            .collect(),
+    ))
+}
+
+fn delivery_profile_selling_plan_groups_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(connection_value_with_args(
+        stored_delivery_profile_nodes(&invocation.parent["sellingPlanGroups"]),
+        &resolved_arguments_from_json(&invocation.arguments),
+        value_id_cursor,
+    ))
+}
+
+fn delivery_profile_unassigned_locations_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(connection_value_with_args(
+        stored_delivery_profile_nodes(&invocation.parent["unassignedLocations"]),
+        &resolved_arguments_from_json(&invocation.arguments),
+        value_id_cursor,
+    ))
+}
+
+fn delivery_location_group_locations_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(connection_value_with_args(
+        stored_delivery_profile_nodes(&invocation.parent["locations"]),
+        &resolved_arguments_from_json(&invocation.arguments),
+        value_id_cursor,
+    ))
+}
+
+fn delivery_profile_item_variants_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(connection_value_with_args(
+        stored_delivery_profile_nodes(&invocation.parent["variants"]),
+        &resolved_arguments_from_json(&invocation.arguments),
+        value_id_cursor,
+    ))
+}
+
+fn delivery_profile_location_group_zones_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let zones = stored_delivery_profile_nodes(&invocation.parent["locationGroupZones"])
+        .iter()
+        .map(canonical_delivery_location_group_zone_value)
+        .collect::<Vec<_>>();
+    Ok(connection_value_with_args(
+        zones,
+        &resolved_arguments_from_json(&invocation.arguments),
+        delivery_location_group_zone_cursor,
+    ))
+}
+
+fn delivery_location_group_zone_method_definitions_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(connection_value_with_args(
+        stored_delivery_profile_nodes(&invocation.parent["methodDefinitions"]),
+        &resolved_arguments_from_json(&invocation.arguments),
+        value_id_cursor,
+    ))
+}
+
+fn delivery_profile_item_cursor(item: &Value) -> String {
+    item["product"]["id"]
+        .as_str()
+        .map(str::to_string)
+        .unwrap_or_else(|| value_id_cursor(item))
+}
+
+fn delivery_location_group_zone_cursor(zone: &Value) -> String {
+    zone["zone"]["id"]
+        .as_str()
+        .map(str::to_string)
+        .unwrap_or_else(|| value_id_cursor(zone))
 }
 
 fn delivery_profile_countries_in_any_zone(group: &Value) -> Vec<Value> {
@@ -1041,211 +936,6 @@ fn delivery_profile_country_union_key(country: &Value) -> String {
         .or_else(|| country.get("id").and_then(Value::as_str))
         .unwrap_or_default()
         .to_string()
-}
-
-fn delivery_location_group_selected_json(group: &Value, selections: &[SelectedField]) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "id" => group.get("id").cloned(),
-        "locations" => Some(delivery_profile_locations_connection_json(
-            group
-                .get("locations")
-                .and_then(Value::as_array)
-                .cloned()
-                .unwrap_or_default(),
-            &selection.arguments,
-            &selection.selection,
-        )),
-        "locationsCount" => {
-            let default_count = count_object(0);
-            Some(selected_json(
-                group.get("locationsCount").unwrap_or(&default_count),
-                &selection.selection,
-            ))
-        }
-        _ => group
-            .get(&selection.name)
-            .cloned()
-            .map(|value| nullable_selected_json(&value, &selection.selection)),
-    })
-}
-
-fn delivery_location_group_zones_connection_json(
-    zones: Vec<Value>,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
-) -> Value {
-    let nodes = limited_nodes(zones, arguments);
-    selected_typed_connection(
-        &nodes,
-        selections,
-        delivery_location_group_zone_selected_json,
-        |node| node["zone"]["id"].as_str().unwrap_or_default().to_string(),
-        |selections| selected_json(&empty_page_info(), selections),
-    )
-}
-
-fn delivery_location_group_zone_selected_json(zone: &Value, selections: &[SelectedField]) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "zone" => Some(delivery_zone_selected_json(
-            &zone["zone"],
-            &selection.selection,
-        )),
-        "methodDefinitions" => Some(delivery_method_definitions_connection_json(
-            zone.get("methodDefinitions")
-                .and_then(Value::as_array)
-                .cloned()
-                .unwrap_or_default(),
-            &selection.arguments,
-            &selection.selection,
-        )),
-        _ => None,
-    })
-}
-
-fn delivery_zone_selected_json(zone: &Value, selections: &[SelectedField]) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "id" | "name" => zone.get(&selection.name).cloned(),
-        "countries" => Some(Value::Array(
-            zone.get("countries")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .map(|country| selected_json(country, &selection.selection))
-                .collect(),
-        )),
-        _ => None,
-    })
-}
-
-fn delivery_method_definitions_connection_json(
-    methods: Vec<Value>,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
-) -> Value {
-    let nodes = limited_nodes(methods, arguments);
-    selected_typed_connection(
-        &nodes,
-        selections,
-        delivery_method_definition_selected_json,
-        value_id_cursor,
-        |selections| selected_json(&empty_page_info(), selections),
-    )
-}
-
-fn delivery_method_definition_selected_json(method: &Value, selections: &[SelectedField]) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "id" | "name" | "active" | "description" => method.get(&selection.name).cloned(),
-        "rateProvider" => Some(delivery_rate_provider_selected_json(
-            &method["rateProvider"],
-            &selection.selection,
-        )),
-        "methodConditions" => Some(Value::Array(
-            method
-                .get("methodConditions")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .map(|condition| selected_json(condition, &selection.selection))
-                .collect(),
-        )),
-        _ => None,
-    })
-}
-
-fn delivery_rate_provider_selected_json(
-    rate_provider: &Value,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" | "id" => rate_provider.get(&selection.name).cloned(),
-        "price" => Some(selected_json(&rate_provider["price"], &selection.selection)),
-        "fixedFee" | "percentageOfRateFee" => rate_provider.get(&selection.name).cloned(),
-        _ => None,
-    })
-}
-
-fn delivery_profile_items_connection_json(
-    items: Vec<Value>,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
-) -> Value {
-    let nodes = limited_nodes(items, arguments);
-    let connection = connection_json_with_cursor(
-        nodes,
-        |index, node| {
-            node["product"]["id"]
-                .as_str()
-                .map(str::to_string)
-                .unwrap_or_else(|| format!("delivery-profile-item-{index}"))
-        },
-        connection_page_info(false, false, None, None),
-    );
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "nodes" => Some(Value::Array(
-            connection["nodes"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .map(|item| delivery_profile_item_selected_json(item, &selection.selection))
-                .collect(),
-        )),
-        "pageInfo" => Some(selected_json(&connection["pageInfo"], &selection.selection)),
-        _ => None,
-    })
-}
-
-fn delivery_profile_item_selected_json(item: &Value, selections: &[SelectedField]) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "product" => Some(selected_json(&item["product"], &selection.selection)),
-        "variants" => Some(delivery_profile_variants_connection_json(
-            item.get("variants")
-                .and_then(Value::as_array)
-                .cloned()
-                .unwrap_or_default(),
-            &selection.arguments,
-            &selection.selection,
-        )),
-        _ => None,
-    })
-}
-
-fn delivery_profile_variants_connection_json(
-    variants: Vec<Value>,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
-) -> Value {
-    let nodes = limited_nodes(variants, arguments);
-    selected_json(
-        &connection_json_with_cursor(
-            nodes,
-            |_, node| value_id_cursor(node),
-            connection_page_info(false, false, None, None),
-        ),
-        selections,
-    )
-}
-
-fn delivery_profile_locations_connection_json(
-    locations: Vec<Value>,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
-) -> Value {
-    let nodes = limited_nodes(locations, arguments);
-    selected_json(
-        &connection_json_with_cursor(
-            nodes,
-            |_, node| value_id_cursor(node),
-            connection_page_info(false, false, None, None),
-        ),
-        selections,
-    )
-}
-
-fn limited_nodes(mut nodes: Vec<Value>, arguments: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
-    if let Some(limit) = arguments.get("first").and_then(resolved_as_usize) {
-        nodes.truncate(limit);
-    }
-    nodes
 }
 
 pub(in crate::proxy) fn refresh_delivery_profile_counts(profile: &mut Value) {
@@ -1396,21 +1086,13 @@ pub(in crate::proxy) fn fulfillment_order_move_payload_json(
     moved: Value,
     original: Value,
     remaining: Value,
-    payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "movedFulfillmentOrder" => Some(nullable_selected_json(&moved, &selection.selection)),
-            "originalFulfillmentOrder" => {
-                Some(nullable_selected_json(&original, &selection.selection))
-            }
-            "remainingFulfillmentOrder" => {
-                Some(nullable_selected_json(&remaining, &selection.selection))
-            }
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
+    json!({
+        "movedFulfillmentOrder": moved,
+        "originalFulfillmentOrder": original,
+        "remainingFulfillmentOrder": remaining,
+        "userErrors": user_errors,
     })
 }
 
@@ -1418,125 +1100,68 @@ pub(in crate::proxy) fn fulfillment_order_hold_payload_json(
     fulfillment_hold: Value,
     fulfillment_order: Value,
     remaining: Value,
-    payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "fulfillmentHold" => Some(nullable_selected_json(
-                &fulfillment_hold,
-                &selection.selection,
-            )),
-            "fulfillmentOrder" => Some(nullable_selected_json(
-                &fulfillment_order,
-                &selection.selection,
-            )),
-            "remainingFulfillmentOrder" => {
-                Some(nullable_selected_json(&remaining, &selection.selection))
-            }
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
+    json!({
+        "fulfillmentHold": fulfillment_hold,
+        "fulfillmentOrder": fulfillment_order,
+        "remainingFulfillmentOrder": remaining,
+        "userErrors": user_errors,
     })
 }
 
 pub(in crate::proxy) fn fulfillment_order_simple_payload_json(
     fulfillment_order: Value,
-    payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "fulfillmentOrder" => Some(nullable_selected_json(
-                &fulfillment_order,
-                &selection.selection,
-            )),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
+    json!({
+        "fulfillmentOrder": fulfillment_order,
+        "userErrors": user_errors,
     })
 }
 
 pub(in crate::proxy) fn fulfillment_order_cancel_payload_json(
     fulfillment_order: Value,
     replacement: Value,
-    payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "fulfillmentOrder" => Some(nullable_selected_json(
-                &fulfillment_order,
-                &selection.selection,
-            )),
-            "replacementFulfillmentOrder" => {
-                Some(nullable_selected_json(&replacement, &selection.selection))
-            }
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
+    json!({
+        "fulfillmentOrder": fulfillment_order,
+        "replacementFulfillmentOrder": replacement,
+        "userErrors": user_errors,
     })
 }
 
 pub(in crate::proxy) fn fulfillment_orders_reroute_payload_json(
     moved_orders: Vec<Value>,
-    payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "movedFulfillmentOrders" => Some(Value::Array(
-                moved_orders
-                    .iter()
-                    .map(|order| selected_json(order, &selection.selection))
-                    .collect(),
-            )),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
+    json!({
+        "movedFulfillmentOrders": moved_orders,
+        "userErrors": user_errors,
     })
 }
 
 pub(in crate::proxy) fn fulfillment_order_deadline_payload_json(
     success: bool,
-    payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "success" => Some(Value::Bool(success)),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
-    })
+    json!({ "success": success, "userErrors": user_errors })
 }
 
 pub(in crate::proxy) fn fulfillment_service_payload_json(
     service: Value,
-    payload_selection: &[SelectedField],
-    service_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "fulfillmentService" => Some(if service.is_null() {
-                Value::Null
-            } else {
-                selected_json(&service, service_selection)
-            }),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
+    json!({
+        "fulfillmentService": service,
+        "userErrors": user_errors,
     })
 }
 
-pub(in crate::proxy) fn fulfillment_service_not_found_payload(
-    payload_selection: &[SelectedField],
-) -> Value {
+pub(in crate::proxy) fn fulfillment_service_not_found_payload() -> Value {
     fulfillment_service_payload_json(
         Value::Null,
-        payload_selection,
-        &[],
         vec![user_error_omit_code(
             ["id"],
             "Fulfillment service could not be found.",
@@ -1547,15 +1172,11 @@ pub(in crate::proxy) fn fulfillment_service_not_found_payload(
 
 pub(in crate::proxy) fn fulfillment_service_delete_payload(
     deleted_id: Value,
-    payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "deletedId" => Some(deleted_id.clone()),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
+    json!({
+        "deletedId": deleted_id,
+        "userErrors": user_errors,
     })
 }
 
@@ -1594,31 +1215,14 @@ pub(in crate::proxy) fn carrier_service_cursor(service: &Value) -> String {
 
 pub(in crate::proxy) fn carrier_service_payload_json(
     carrier: Value,
-    payload_selection: &[SelectedField],
-    carrier_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "carrierService" => Some(if carrier.is_null() {
-                Value::Null
-            } else {
-                selected_json(&carrier, carrier_selection)
-            }),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
-    })
+    json!({ "carrierService": carrier, "userErrors": user_errors })
 }
 
-pub(in crate::proxy) fn carrier_service_not_found_payload(
-    payload_selection: &[SelectedField],
-    code: &str,
-) -> Value {
+pub(in crate::proxy) fn carrier_service_not_found_payload(code: &str) -> Value {
     carrier_service_payload_json(
         Value::Null,
-        payload_selection,
-        &[],
         vec![user_error(
             Value::Null,
             "The carrier or app could not be found.",
@@ -1629,16 +1233,9 @@ pub(in crate::proxy) fn carrier_service_not_found_payload(
 
 pub(in crate::proxy) fn carrier_service_delete_payload(
     deleted_id: Value,
-    payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "deletedId" => Some(deleted_id.clone()),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
-    })
+    json!({ "deletedId": deleted_id, "userErrors": user_errors })
 }
 
 pub(in crate::proxy) fn carrier_service_callback_url_error(

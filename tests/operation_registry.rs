@@ -2,9 +2,9 @@ use pretty_assertions::assert_eq;
 use shopify_draft_proxy::admin_graphql::{schema, AdminApiVersion};
 use shopify_draft_proxy::graphql::OperationType;
 use shopify_draft_proxy::operation_registry::{
-    default_registry, execution_for_operation_type, implemented_entries, operation_capability,
-    operation_capability_for_surface, ApiSurface, CapabilityDomain, CapabilityExecution,
-    OperationRegistryEntry,
+    default_graphql_root_catalog, default_registry, execution_for_operation_type,
+    implemented_entries, operation_capability, operation_capability_for_surface, ApiSurface,
+    CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -230,6 +230,53 @@ fn default_registry_classifies_core_local_targets_without_runtime_io() {
     let app = operation_capability(&registry, OperationType::Query, Some("app"));
     assert_eq!(app.domain, CapabilityDomain::Unknown);
     assert_eq!(app.execution, CapabilityExecution::Passthrough);
+}
+
+#[test]
+fn captured_root_catalog_exposes_version_presence_and_registration_gaps() {
+    let catalog = default_graphql_root_catalog();
+
+    let product_create = catalog
+        .iter()
+        .find(|entry| {
+            entry.api_surface == ApiSurface::Admin
+                && entry.operation_type == OperationType::Mutation
+                && entry.name == "productCreate"
+        })
+        .expect("productCreate should be present in the captured root catalog");
+    assert_eq!(
+        product_create.api_versions,
+        ["2025-01", "2025-10", "2026-01", "2026-04", "2026-07"]
+    );
+    assert!(product_create
+        .registration
+        .as_ref()
+        .is_some_and(|registration| registration.implemented));
+
+    let cash_drawer = catalog
+        .iter()
+        .find(|entry| {
+            entry.api_surface == ApiSurface::Admin
+                && entry.operation_type == OperationType::Query
+                && entry.name == "cashDrawer"
+        })
+        .expect("version-specific unimplemented roots should remain visible");
+    assert_eq!(cash_drawer.api_versions, ["2026-04", "2026-07"]);
+    assert!(cash_drawer.registration.is_none());
+
+    let storefront_shop = catalog
+        .iter()
+        .find(|entry| {
+            entry.api_surface == ApiSurface::Storefront
+                && entry.operation_type == OperationType::Query
+                && entry.name == "shop"
+        })
+        .expect("Storefront shop should have an independent catalog entry");
+    assert_eq!(storefront_shop.api_versions, ["2026-04"]);
+    assert!(storefront_shop
+        .registration
+        .as_ref()
+        .is_some_and(|registration| registration.implemented));
 }
 
 #[test]

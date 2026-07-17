@@ -22,8 +22,8 @@ impl DraftProxy {
         let mut item_ids = Vec::new();
 
         for variant in effective_records(
-            &self.store.base.product_variants,
-            &self.store.staged.product_variants,
+            &self.store.product_variants.base,
+            &self.store.product_variants.staged,
         ) {
             let inventory_item_id = variant.inventory_item.id;
             if seen.insert(inventory_item_id.clone()) {
@@ -733,27 +733,23 @@ impl DraftProxy {
         StagedSearchDecision::Match
     }
 
-    pub(in crate::proxy) fn location_inventory_levels_connection_selected_json(
+    pub(in crate::proxy) fn location_inventory_levels_connection_value(
         &self,
         location_id: &str,
         location: Option<&Value>,
         arguments: &BTreeMap<String, ResolvedValue>,
-        selections: &[SelectedField],
     ) -> Value {
         let include_inactive = resolved_bool_field(arguments, "includeInactive").unwrap_or(false);
-        let levels = self.inventory_levels_for_location(location_id, location, include_inactive);
-        selected_staged_connection_with_args(
-            levels,
+        staged_connection_value_with_args(
+            self.inventory_levels_for_location(location_id, location, include_inactive),
             arguments,
-            selections,
             |level, query| self.inventory_location_level_search_decision(level, query),
             inventory_location_level_sort_key,
-            |level, node_selection| {
-                self.inventory_level_json_with_item(
+            |level| {
+                self.inventory_level_canonical_value(
                     &level.inventory_item_id,
                     &level.location_id,
                     &level.quantities,
-                    node_selection,
                 )
             },
             |level| self.inventory_location_level_cursor(level),
@@ -2391,35 +2387,6 @@ impl DraftProxy {
         Some(self.inventory_level_canonical_value(inventory_item_id, location_id, quantities))
     }
 
-    /// Render an inventory level, overriding the `item` sub-selection with the
-    /// store-backed item payload (so `tracked`/`variant` resolve correctly).
-    /// The free `inventory_level_selected_json` only knows the item id; reads of
-    /// `inventoryLevel { item { tracked } }` need this `&self` override.
-    pub(in crate::proxy) fn inventory_level_json_with_item(
-        &self,
-        inventory_item_id: &str,
-        location_id: &str,
-        quantities: &BTreeMap<String, i64>,
-        selections: &[SelectedField],
-    ) -> Value {
-        let mut value = inventory_level_selected_json(
-            inventory_item_id,
-            location_id,
-            quantities,
-            &self.inventory_level_view_state(),
-            selections,
-        );
-        if let Some(item_selection) = selections.iter().find(|selection| selection.name == "item") {
-            if let Some(object) = value.as_object_mut() {
-                object.insert(
-                    item_selection.response_key.clone(),
-                    self.inventory_level_item_payload(inventory_item_id, &item_selection.selection),
-                );
-            }
-        }
-        value
-    }
-
     pub(in crate::proxy) fn inventory_node_value_by_id(&self, id: &str) -> Option<Value> {
         match shopify_gid_resource_type(id)? {
             "InventoryItem" => Some(if self.inventory_item_exists(id) {
@@ -2443,38 +2410,6 @@ impl DraftProxy {
             "InventoryShipmentLineItem" => Some(self.inventory_shipment_line_item_value_by_id(id)),
             _ => None,
         }
-    }
-
-    fn inventory_level_item_payload(
-        &self,
-        inventory_item_id: &str,
-        selections: &[SelectedField],
-    ) -> Value {
-        let variant = self
-            .store
-            .product_variant_by_inventory_item_id(inventory_item_id);
-        let product = variant.and_then(|variant| self.store.product_by_id(&variant.product_id));
-        let variant_for_payload = variant.cloned().map(|mut variant| {
-            variant.inventory_quantity = self.inventory_total(inventory_item_id, "available");
-            variant
-        });
-        selected_payload_json(selections, |selection| match selection.name.as_str() {
-            "id" => Some(json!(inventory_item_id)),
-            "tracked" => Some(json!(variant
-                .map(|variant| variant.inventory_item.tracked)
-                .unwrap_or(true))),
-            "requiresShipping" => Some(json!(variant
-                .map(|variant| variant.inventory_item.requires_shipping)
-                .unwrap_or(true))),
-            "variant" => variant_for_payload.as_ref().map(|variant| {
-                self.product_variant_json_with_current_publication_context(
-                    variant,
-                    product,
-                    &selection.selection,
-                )
-            }),
-            _ => None,
-        })
     }
 
     fn inventory_activate_payload(

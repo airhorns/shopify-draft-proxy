@@ -1,37 +1,26 @@
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn quantity_pricing_by_variant_update_outcome(
+    pub(crate) fn quantity_pricing_by_variant_update_root(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
+        invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        let (_response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || {
-                "quantityPricingByVariantUpdate".to_string()
-            });
+        self.quantity_pricing_rules_mutation_preflight(invocation.request, invocation.variables);
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
         let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let price_list_id = resolved_string_field(&arguments, "priceListId").unwrap_or_default();
         let mut product_variant_ids = quantity_pricing_variant_ids_from_input(&input);
         let user_errors = quantity_pricing_by_variant_errors(&self.store, &price_list_id, &input);
+        let mut touched_ids = Vec::new();
         let product_variants_value = if user_errors.is_empty() {
             if product_variant_ids.is_empty() {
                 product_variant_ids = quantity_pricing_delete_variant_ids_from_input(&input);
             }
             self.stage_quantity_pricing_by_variant_update(&price_list_id, &input);
-            let mut touched_ids = Vec::new();
             if !price_list_id.is_empty() {
                 touched_ids.push(price_list_id.clone());
             }
             extend_unique_strings(&mut touched_ids, product_variant_ids.clone());
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                "quantityPricingByVariantUpdate",
-                touched_ids,
-            );
             Value::Array(quantity_pricing_product_variants(
                 &self.store,
                 &product_variant_ids,
@@ -43,7 +32,16 @@ impl DraftProxy {
             "productVariants": product_variants_value,
             "userErrors": user_errors
         });
-        ResolverOutcome::value(selected_json(&payload, &payload_selection))
+        let outcome = ResolverOutcome::value(payload);
+        if touched_ids.is_empty() {
+            outcome
+        } else {
+            outcome.with_log_draft(LogDraft::staged(
+                "quantityPricingByVariantUpdate",
+                "markets",
+                touched_ids,
+            ))
+        }
     }
 
     fn stage_quantity_pricing_by_variant_update(

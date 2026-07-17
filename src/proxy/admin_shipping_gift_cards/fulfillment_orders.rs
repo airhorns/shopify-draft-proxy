@@ -114,7 +114,6 @@ query ShippingFulfillmentOrdersDeadlineHydrate($ids: [ID!]!) {
 
 struct FulfillmentOrderStoreBackedPreamble {
     response_key: String,
-    payload_selection: Vec<SelectedField>,
     arguments: BTreeMap<String, ResolvedValue>,
     id: String,
     order_id: String,
@@ -229,148 +228,82 @@ const SHIPPING_FULFILLMENT_ORDER_RELEASE_HOLD_HYDRATE_QUERY: &str = r#"query Ful
 }"#;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn shipping_fulfillment_order_read_outcome(
+    pub(crate) fn fulfillment_order_query_root(
         &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-        response_key: &str,
+        invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        let all_connection_reads = fields.iter().all(|field| {
-            matches!(
-                field.name.as_str(),
-                "fulfillmentOrders" | "assignedFulfillmentOrders" | "manualHoldsFulfillmentOrders"
-            )
-        });
-        if all_connection_reads {
-            if self.shipping_fulfillment_orders().is_empty() {
-                return self.cached_or_forward_upstream_root_outcome(request, response_key);
-            }
-            return self.shipping_fulfillment_order_connection_read_outcome(
-                request,
-                fields,
-                response_key,
+        let RootInvocation {
+            root_name,
+            response_key,
+            arguments,
+            upstream_value,
+            request,
+            ..
+        } = invocation;
+        let arguments = resolved_arguments_from_json(&arguments);
+        if root_name == "fulfillmentOrder" {
+            let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+            self.ensure_shipping_fulfillment_order_hydrated(request, &id);
+            return ResolverOutcome::value(
+                self.shipping_fulfillment_order_by_id(&id)
+                    .unwrap_or(Value::Null),
             );
         }
-        let data = root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "fulfillmentOrder" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.ensure_shipping_fulfillment_order_hydrated(request, &id);
-                    let fulfillment_order = self
-                        .shipping_fulfillment_order_by_id(&id)
-                        .unwrap_or(Value::Null);
-                    nullable_selected_json(&fulfillment_order, &field.selection)
-                }
-                "fulfillmentOrders"
-                | "assignedFulfillmentOrders"
-                | "manualHoldsFulfillmentOrders" => {
-                    self.shipping_fulfillment_order_connection_field(field, Vec::new())
-                }
-                _ => return None,
-            })
-        });
-        ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
-    }
-
-    fn shipping_fulfillment_order_connection_read_outcome(
-        &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-        response_key: &str,
-    ) -> ResolverOutcome<Value> {
-        let upstream_result = self.cached_or_forward_upstream_graphql_result(request, response_key);
-        let upstream_data = if upstream_result.transport_succeeded {
-            self.observe_shipping_fulfillment_order_connection_response(
-                fields,
-                &upstream_result.data,
-            );
-            Some(upstream_result.data)
-        } else {
-            None
-        };
-        let data = root_payload_json(fields, |field| {
-            let live_records = upstream_data
-                .as_ref()
-                .map(|data| self.shipping_fulfillment_order_connection_records(data, field))
-                .unwrap_or_default();
-            Some(match field.name.as_str() {
-                "fulfillmentOrders"
-                | "assignedFulfillmentOrders"
-                | "manualHoldsFulfillmentOrders" => {
-                    self.shipping_fulfillment_order_connection_field(field, live_records)
-                }
-                _ => return None,
-            })
-        });
-        ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
-    }
-
-    fn observe_shipping_fulfillment_order_connection_response(
-        &mut self,
-        fields: &[RootFieldSelection],
-        body: &Value,
-    ) {
-        for field in fields {
-            for record in self.shipping_fulfillment_order_connection_records(body, field) {
-                self.stage_observed_shipping_fulfillment_order_cursor(field, &record);
-                self.stage_observed_shipping_fulfillment_order_record(record.node);
-            }
-        }
-    }
-
-    fn shipping_fulfillment_order_connection_records(
-        &self,
-        body: &Value,
-        field: &RootFieldSelection,
-    ) -> Vec<FulfillmentOrderConnectionRecord> {
         if !matches!(
-            field.name.as_str(),
+            root_name,
             "fulfillmentOrders" | "assignedFulfillmentOrders" | "manualHoldsFulfillmentOrders"
         ) {
-            return Vec::new();
+            return ResolverOutcome::value(Value::Null);
         }
-        let connection = &body[&field.response_key];
-        let edge_records = connection
-            .get("edges")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|edge| {
-                Some(FulfillmentOrderConnectionRecord {
-                    node: edge.get("node")?.clone(),
-                    cursor: edge
-                        .get("cursor")
-                        .and_then(Value::as_str)
-                        .map(str::to_string),
-                })
-            })
-            .collect::<Vec<_>>();
-        if !edge_records.is_empty() {
-            return edge_records;
+
+        let upstream = self.cached_or_forward_upstream_graphql_result(request, response_key);
+        if self.shipping_fulfillment_orders().is_empty() {
+            return upstream.outcome;
         }
-        connection_nodes(connection)
-            .into_iter()
-            .map(|node| FulfillmentOrderConnectionRecord { node, cursor: None })
-            .collect()
+        let live_records = upstream_value
+            .as_ref()
+            .map(shipping_fulfillment_order_connection_records)
+            .unwrap_or_default();
+        if upstream.transport_succeeded {
+            for record in &live_records {
+                self.stage_observed_shipping_fulfillment_order_root_cursor(
+                    root_name, &arguments, record,
+                );
+                self.stage_observed_shipping_fulfillment_order_record(record.node.clone());
+            }
+        }
+        ResolverOutcome::value(self.shipping_fulfillment_order_root_connection_value(
+            root_name,
+            &arguments,
+            live_records,
+        ))
     }
 
-    fn shipping_fulfillment_order_connection_field(
+    fn shipping_fulfillment_order_root_connection_value(
         &self,
-        field: &RootFieldSelection,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
         live_records: Vec<FulfillmentOrderConnectionRecord>,
     ) -> Value {
-        let records = self.shipping_effective_fulfillment_order_records(field, live_records);
+        let records =
+            self.shipping_effective_fulfillment_order_records(root_name, arguments, live_records);
         let result = staged_connection_query(
             records,
-            &field.arguments,
-            |record, query| self.fulfillment_order_root_search_decision(field, &record.node, query),
+            arguments,
+            |record, query| {
+                self.fulfillment_order_root_search_decision(
+                    root_name,
+                    arguments,
+                    &record.node,
+                    query,
+                )
+            },
             |record, sort_key| fulfillment_order_staged_sort_key(&record.node, sort_key),
             fulfillment_order_record_cursor,
         );
-        selected_typed_connection_with_page_info(
+        typed_connection_value(
             &result.records,
-            &field.selection,
-            |record, selection| selected_json(&record.node, selection),
+            |record| record.node.clone(),
             fulfillment_order_record_cursor,
             result.page_info,
         )
@@ -378,7 +311,8 @@ impl DraftProxy {
 
     fn shipping_effective_fulfillment_order_records(
         &self,
-        field: &RootFieldSelection,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
         live_records: Vec<FulfillmentOrderConnectionRecord>,
     ) -> Vec<FulfillmentOrderConnectionRecord> {
         let staged_nodes = self.shipping_fulfillment_orders();
@@ -411,7 +345,8 @@ impl DraftProxy {
             {
                 continue;
             }
-            let cursor = self.shipping_fulfillment_order_staged_cursor(field, &staged_node);
+            let cursor =
+                self.shipping_fulfillment_order_staged_cursor(root_name, arguments, &staged_node);
             effective.push(FulfillmentOrderConnectionRecord {
                 node: staged_node,
                 cursor,
@@ -420,9 +355,10 @@ impl DraftProxy {
         effective
     }
 
-    fn stage_observed_shipping_fulfillment_order_cursor(
+    fn stage_observed_shipping_fulfillment_order_root_cursor(
         &mut self,
-        field: &RootFieldSelection,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
         record: &FulfillmentOrderConnectionRecord,
     ) {
         let Some(id) = record.node["id"].as_str() else {
@@ -436,12 +372,16 @@ impl DraftProxy {
             .fulfillment_order_cursors
             .entry(id.to_string())
             .or_default()
-            .insert(fulfillment_order_cursor_key(field), cursor.to_string());
+            .insert(
+                fulfillment_order_cursor_key(root_name, arguments),
+                cursor.to_string(),
+            );
     }
 
     fn shipping_fulfillment_order_staged_cursor(
         &self,
-        field: &RootFieldSelection,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
         fulfillment_order: &Value,
     ) -> Option<String> {
         let id = fulfillment_order["id"].as_str()?;
@@ -449,19 +389,20 @@ impl DraftProxy {
             .staged
             .fulfillment_order_cursors
             .get(id)?
-            .get(&fulfillment_order_cursor_key(field))
+            .get(&fulfillment_order_cursor_key(root_name, arguments))
             .cloned()
     }
 
     fn fulfillment_order_root_search_decision(
         &self,
-        field: &RootFieldSelection,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
         fulfillment_order: &Value,
         query: Option<&str>,
     ) -> StagedSearchDecision {
-        match field.name.as_str() {
+        match root_name {
             "fulfillmentOrders" => {
-                if !resolved_bool_field(&field.arguments, "includeClosed").unwrap_or(false)
+                if !resolved_bool_field(arguments, "includeClosed").unwrap_or(false)
                     && fulfillment_order_is_closed(fulfillment_order)
                 {
                     return StagedSearchDecision::NoMatch;
@@ -472,13 +413,13 @@ impl DraftProxy {
                 if fulfillment_order_is_closed(fulfillment_order) {
                     return StagedSearchDecision::NoMatch;
                 }
-                let assignment_status = resolved_string_field(&field.arguments, "assignmentStatus");
+                let assignment_status = resolved_string_field(arguments, "assignmentStatus");
                 if assignment_status.as_deref().is_some_and(|status| {
                     !fulfillment_order_matches_assignment_status(fulfillment_order, status)
                 }) {
                     return StagedSearchDecision::NoMatch;
                 }
-                let location_ids = resolved_string_list_arg(&field.arguments, "locationIds");
+                let location_ids = resolved_string_list_arg(arguments, "locationIds");
                 if !location_ids.is_empty()
                     && !fulfillment_order_assigned_location_matches_any(
                         fulfillment_order,
@@ -525,73 +466,62 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn shipping_fulfillment_order_local_order_outcome(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        response_key: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> ResolverOutcome<Value> {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return resolver_http_error_outcome(
-                400,
-                "Could not parse shipping fulfillment-order order read",
-            );
-        };
-        let data = root_payload_json(&fields, |field| {
-            Some(match field.name.as_str() {
-                "order" => {
-                    let id = resolved_string_field(&field.arguments, "id")
-                        .or_else(|| resolved_string_field(&field.arguments, "orderId"))
-                        .unwrap_or_default();
-                    let order = self
-                        .store
-                        .staged
-                        .orders
-                        .get(&id)
-                        .cloned()
-                        .unwrap_or(Value::Null);
-                    selected_json(&order, &field.selection)
-                }
-                "fulfillmentOrder" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    let fulfillment_order = self
-                        .shipping_fulfillment_order_by_id(&id)
-                        .unwrap_or(Value::Null);
-                    nullable_selected_json(&fulfillment_order, &field.selection)
-                }
-                "fulfillmentOrders"
-                | "assignedFulfillmentOrders"
-                | "manualHoldsFulfillmentOrders" => {
-                    self.shipping_fulfillment_order_connection_field(field, Vec::new())
-                }
-                _ => return None,
-            })
-        });
-        ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
+        let id = resolved_string_field(arguments, "id")
+            .or_else(|| resolved_string_field(arguments, "orderId"))
+            .unwrap_or_default();
+        ResolverOutcome::value(
+            self.store
+                .staged
+                .orders
+                .get(&id)
+                .cloned()
+                .unwrap_or(Value::Null),
+        )
     }
 
     pub(in crate::proxy) fn should_handle_shipping_fulfillment_order_local_order_read(
         &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        requested_field_paths: &BTreeSet<Vec<String>>,
     ) -> bool {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return false;
-        };
-        fields.iter().any(|field| match field.name.as_str() {
-            "order" => {
-                let order_id = resolved_string_field(&field.arguments, "id")
-                    .or_else(|| resolved_string_field(&field.arguments, "orderId"));
-                let selects_fulfillment_orders =
-                    selected_child_selection(&field.selection, "fulfillmentOrders").is_some();
-                selects_fulfillment_orders
-                    && order_id.is_some_and(|id| self.store.staged.orders.contains_key(&id))
-            }
-            "fulfillmentOrder"
-            | "fulfillmentOrders"
-            | "assignedFulfillmentOrders"
-            | "manualHoldsFulfillmentOrders" => !self.store.staged.orders.is_empty(),
-            _ => false,
-        })
+        let order_id = resolved_string_field(arguments, "id")
+            .or_else(|| resolved_string_field(arguments, "orderId"));
+        let selects_fulfillment_orders = requested_field_paths.iter().any(|path| {
+            path.first()
+                .is_some_and(|field| field == "fulfillmentOrders")
+        });
+        selects_fulfillment_orders
+            && order_id.is_some_and(|id| self.store.staged.orders.contains_key(&id))
     }
+}
+
+fn shipping_fulfillment_order_connection_records(
+    connection: &Value,
+) -> Vec<FulfillmentOrderConnectionRecord> {
+    let edge_records = connection
+        .get("edges")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|edge| {
+            Some(FulfillmentOrderConnectionRecord {
+                node: edge.get("node")?.clone(),
+                cursor: edge
+                    .get("cursor")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+            })
+        })
+        .collect::<Vec<_>>();
+    if !edge_records.is_empty() {
+        return edge_records;
+    }
+    connection_nodes(connection)
+        .into_iter()
+        .map(|node| FulfillmentOrderConnectionRecord { node, cursor: None })
+        .collect()
 }
 
 fn fulfillment_order_is_closed(order: &Value) -> bool {
@@ -626,11 +556,14 @@ fn fulfillment_order_record_cursor(record: &FulfillmentOrderConnectionRecord) ->
         .unwrap_or_else(|| value_id_cursor(&record.node))
 }
 
-fn fulfillment_order_cursor_key(field: &RootFieldSelection) -> String {
+fn fulfillment_order_cursor_key(
+    root_name: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> String {
     format!(
         "{}:{}",
-        field.name,
-        resolved_string_field(&field.arguments, "sortKey").unwrap_or_else(|| "ID".to_string())
+        root_name,
+        resolved_string_field(arguments, "sortKey").unwrap_or_else(|| "ID".to_string())
     )
 }
 
@@ -762,51 +695,72 @@ fn order_value_string(order: &Value, path: &[&str]) -> Option<String> {
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn shipping_fulfillment_order_mutation_outcome(
+    pub(crate) fn fulfillment_order_mutation_root(
         &mut self,
-        root_field: &str,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        response_key: &str,
+        invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            root_name: root_field,
+            request,
+            query,
+            variables,
+            response_key,
+            arguments,
+            ..
+        } = invocation;
+        let arguments = resolved_arguments_from_json(&arguments);
         match root_field {
             "fulfillmentOrderHold" => {
-                self.fulfillment_order_hold_store_backed(query, variables, request)
+                self.fulfillment_order_hold_store_backed(&arguments, response_key, request)
             }
             "fulfillmentOrderReleaseHold" => {
-                self.fulfillment_order_release_hold_store_backed(query, variables, request)
+                self.fulfillment_order_release_hold_store_backed(
+                    &arguments,
+                    response_key,
+                    request,
+                )
             }
             "fulfillmentOrderMove" => {
-                self.fulfillment_order_move_store_backed(query, variables, request)
+                self.fulfillment_order_move_store_backed(&arguments, response_key, request)
             }
             "fulfillmentOrderOpen" => self.fulfillment_order_status_store_backed(
-                root_field, "OPEN", query, variables, request,
+                root_field,
+                "OPEN",
+                &arguments,
+                response_key,
+                request,
             ),
             "fulfillmentOrderReportProgress" => self.fulfillment_order_status_store_backed(
                 root_field,
                 "IN_PROGRESS",
-                query,
-                variables,
+                &arguments,
+                response_key,
                 request,
             ),
             "fulfillmentOrderCancel" => {
-                self.fulfillment_order_cancel_store_backed(query, variables, request)
+                self.fulfillment_order_cancel_store_backed(&arguments, response_key, request)
             }
             "fulfillmentOrdersSetFulfillmentDeadline" => {
-                self.fulfillment_order_set_deadline_store_backed(query, variables, request)
+                self.fulfillment_order_set_deadline_store_backed(
+                    &arguments,
+                    response_key,
+                    request,
+                )
             }
             "fulfillmentOrderLineItemsPreparedForPickup" => self
-                .fulfillment_order_prepared_for_pickup_store_backed(query, variables, request),
+                .fulfillment_order_prepared_for_pickup_store_backed(
+                    &arguments,
+                    response_key,
+                    request,
+                ),
             "fulfillmentOrderClose" => {
-                self.fulfillment_order_close_store_backed(query, variables, request)
+                self.fulfillment_order_close_store_backed(&arguments, response_key, request)
             }
             "fulfillmentOrderReschedule" => self.fulfillment_order_guardrail_response(
                 root_field,
-                query,
                 "Fulfillment order must be scheduled.",
             ),
-            "fulfillmentOrdersReroute" => self.fulfillment_orders_reroute_guardrail_response(query),
+            "fulfillmentOrdersReroute" => self.fulfillment_orders_reroute_guardrail_response(),
             // Request-lifecycle transitions, split, and merge stage against the
             // shared staged.orders fulfillment-order engine.
             "fulfillmentOrderSubmitFulfillmentRequest"
@@ -820,9 +774,9 @@ impl DraftProxy {
                 if let Some(outcome) = self.fulfillment_order_local_mutation_outcome(
                     request,
                     root_field,
+                    &arguments,
                     query,
                     variables,
-                    response_key,
                 )
                 {
                     outcome
@@ -844,31 +798,19 @@ impl DraftProxy {
         }
     }
 
-    fn fulfillment_order_store_backed_parts(
-        &self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> (String, Vec<SelectedField>, BTreeMap<String, ResolvedValue>) {
-        self.execution_primary_root_response_parts(query, variables, || root_field.to_string())
-    }
-
     fn fulfillment_order_store_backed_preamble(
         &mut self,
         root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
         guardrail_message: Option<&str>,
     ) -> Result<FulfillmentOrderStoreBackedPreamble, ResolverOutcome<Value>> {
-        let (response_key, payload_selection, arguments) =
-            self.fulfillment_order_store_backed_parts(root_field, query, variables);
-        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(arguments, "id").unwrap_or_default();
         if !self.ensure_shipping_fulfillment_order_hydrated(request, &id) {
             return Err(self.fulfillment_order_missing_response(
                 root_field,
-                query,
-                &response_key,
+                response_key,
                 &id,
                 guardrail_message,
             ));
@@ -876,16 +818,14 @@ impl DraftProxy {
         let Some((order_id, index)) = self.shipping_fulfillment_order_location(&id) else {
             return Err(self.fulfillment_order_missing_response(
                 root_field,
-                query,
-                &response_key,
+                response_key,
                 &id,
                 guardrail_message,
             ));
         };
         Ok(FulfillmentOrderStoreBackedPreamble {
-            response_key,
-            payload_selection,
-            arguments,
+            response_key: response_key.to_string(),
+            arguments: arguments.clone(),
             id,
             order_id,
             index,
@@ -895,13 +835,12 @@ impl DraftProxy {
     fn fulfillment_order_missing_response(
         &self,
         root_field: &str,
-        query: &str,
         response_key: &str,
         id: &str,
         guardrail_message: Option<&str>,
     ) -> ResolverOutcome<Value> {
         if let Some(message) = guardrail_message {
-            self.fulfillment_order_guardrail_response(root_field, query, message)
+            self.fulfillment_order_guardrail_response(root_field, message)
         } else {
             self.fulfillment_order_not_found_response(root_field, response_key, id)
         }
@@ -909,21 +848,20 @@ impl DraftProxy {
 
     fn fulfillment_order_hold_store_backed(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
         request: &Request,
     ) -> ResolverOutcome<Value> {
         let FulfillmentOrderStoreBackedPreamble {
             response_key,
-            payload_selection,
             arguments,
             id,
             order_id,
             index,
         } = match self.fulfillment_order_store_backed_preamble(
             "fulfillmentOrderHold",
-            query,
-            variables,
+            response_key,
+            arguments,
             request,
             None,
         ) {
@@ -937,7 +875,6 @@ impl DraftProxy {
                     Value::Null,
                     Value::Null,
                     Value::Null,
-                    &payload_selection,
                     vec![user_error(
                         ["fulfillmentHold"],
                         "Fulfillment hold is required.",
@@ -962,7 +899,6 @@ impl DraftProxy {
                     Value::Null,
                     Value::Null,
                     Value::Null,
-                    &payload_selection,
                     vec![user_error(
                         ["fulfillmentHold", "fulfillmentOrderLineItems"],
                         "must contain unique line item ids",
@@ -982,7 +918,6 @@ impl DraftProxy {
                     Value::Null,
                     Value::Null,
                     Value::Null,
-                    &payload_selection,
                     vec![user_error(
                         [
                             "fulfillmentHold",
@@ -1011,7 +946,6 @@ impl DraftProxy {
                     Value::Null,
                     Value::Null,
                     Value::Null,
-                    &payload_selection,
                     vec![user_error(
                         ["fulfillmentHold", "handle"],
                         "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.",
@@ -1027,7 +961,6 @@ impl DraftProxy {
                     Value::Null,
                     Value::Null,
                     Value::Null,
-                    &payload_selection,
                     vec![user_error(
                         ["id"],
                         "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.",
@@ -1043,7 +976,6 @@ impl DraftProxy {
                     Value::Null,
                     Value::Null,
                     Value::Null,
-                    &payload_selection,
                     vec![user_error(
                         ["fulfillmentHold", "fulfillmentOrderLineItems"],
                         "The fulfillment order is not in a splittable state.",
@@ -1112,7 +1044,7 @@ impl DraftProxy {
         }
         fulfillment_order_data_response(
             &response_key,
-            fulfillment_order_hold_payload_json(hold, held, remaining, &payload_selection, vec![]),
+            fulfillment_order_hold_payload_json(hold, held, remaining, vec![]),
         )
         .with_log_draft(LogDraft::staged(
             "fulfillmentOrderHold",
@@ -1123,21 +1055,20 @@ impl DraftProxy {
 
     fn fulfillment_order_release_hold_store_backed(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
         request: &Request,
     ) -> ResolverOutcome<Value> {
         let FulfillmentOrderStoreBackedPreamble {
             response_key,
-            payload_selection,
             arguments,
             id,
             order_id,
             index,
         } = match self.fulfillment_order_store_backed_preamble(
             "fulfillmentOrderReleaseHold",
-            query,
-            variables,
+            response_key,
+            arguments,
             request,
             None,
         ) {
@@ -1190,7 +1121,7 @@ impl DraftProxy {
         }
         fulfillment_order_data_response(
             &response_key,
-            fulfillment_order_simple_payload_json(released, &payload_selection, vec![]),
+            fulfillment_order_simple_payload_json(released, vec![]),
         )
         .with_log_draft(LogDraft::staged(
             "fulfillmentOrderReleaseHold",
@@ -1201,21 +1132,20 @@ impl DraftProxy {
 
     fn fulfillment_order_move_store_backed(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
         request: &Request,
     ) -> ResolverOutcome<Value> {
         let FulfillmentOrderStoreBackedPreamble {
             response_key,
-            payload_selection,
             arguments,
             id,
             order_id,
             index,
         } = match self.fulfillment_order_store_backed_preamble(
             "fulfillmentOrderMove",
-            query,
-            variables,
+            response_key,
+            arguments,
             request,
             None,
         ) {
@@ -1237,7 +1167,6 @@ impl DraftProxy {
                     Value::Null,
                     Value::Null,
                     Value::Null,
-                    &payload_selection,
                     vec![user_error(
                         Value::Null,
                         "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
@@ -1283,7 +1212,6 @@ impl DraftProxy {
                     Value::Null,
                     Value::Null,
                     Value::Null,
-                    &payload_selection,
                     vec![error],
                 ),
             );
@@ -1353,13 +1281,7 @@ impl DraftProxy {
         }
         fulfillment_order_data_response(
             &response_key,
-            fulfillment_order_move_payload_json(
-                moved,
-                original,
-                remaining,
-                &payload_selection,
-                vec![],
-            ),
+            fulfillment_order_move_payload_json(moved, original, remaining, vec![]),
         )
         .with_log_draft(LogDraft::staged(
             "fulfillmentOrderMove",
@@ -1372,20 +1294,23 @@ impl DraftProxy {
         &mut self,
         root_field: &str,
         next_status: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
         request: &Request,
     ) -> ResolverOutcome<Value> {
         let FulfillmentOrderStoreBackedPreamble {
             response_key,
-            payload_selection,
             arguments: _,
             id,
             order_id,
             index,
-        } = match self
-            .fulfillment_order_store_backed_preamble(root_field, query, variables, request, None)
-        {
+        } = match self.fulfillment_order_store_backed_preamble(
+            root_field,
+            response_key,
+            arguments,
+            request,
+            None,
+        ) {
             Ok(preamble) => preamble,
             Err(response) => return response,
         };
@@ -1419,7 +1344,6 @@ impl DraftProxy {
                 &response_key,
                 fulfillment_order_simple_payload_json(
                     Value::Null,
-                    &payload_selection,
                     vec![user_error(field, &message, code)],
                 ),
             );
@@ -1448,7 +1372,7 @@ impl DraftProxy {
         }
         fulfillment_order_data_response(
             &response_key,
-            fulfillment_order_simple_payload_json(updated, &payload_selection, vec![]),
+            fulfillment_order_simple_payload_json(updated, vec![]),
         )
         .with_log_draft(LogDraft::staged(
             root_field,
@@ -1459,21 +1383,20 @@ impl DraftProxy {
 
     fn fulfillment_order_cancel_store_backed(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
         request: &Request,
     ) -> ResolverOutcome<Value> {
         let FulfillmentOrderStoreBackedPreamble {
             response_key,
-            payload_selection,
             arguments: _,
             id,
             order_id,
             index,
         } = match self.fulfillment_order_store_backed_preamble(
             "fulfillmentOrderCancel",
-            query,
-            variables,
+            response_key,
+            arguments,
             request,
             None,
         ) {
@@ -1490,7 +1413,6 @@ impl DraftProxy {
                 fulfillment_order_cancel_payload_json(
                     Value::Null,
                     Value::Null,
-                    &payload_selection,
                     vec![user_error(
                         Value::Null,
                         "Fulfillment order is not in cancelable request state and can't be canceled.",
@@ -1505,7 +1427,6 @@ impl DraftProxy {
                 fulfillment_order_cancel_payload_json(
                     Value::Null,
                     Value::Null,
-                    &payload_selection,
                     vec![user_error(
                         ["id"],
                         "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.",
@@ -1538,12 +1459,7 @@ impl DraftProxy {
         }
         fulfillment_order_data_response(
             &response_key,
-            fulfillment_order_cancel_payload_json(
-                cancelled,
-                replacement,
-                &payload_selection,
-                vec![],
-            ),
+            fulfillment_order_cancel_payload_json(cancelled, replacement, vec![]),
         )
         .with_log_draft(LogDraft::staged(
             "fulfillmentOrderCancel",
@@ -1554,17 +1470,11 @@ impl DraftProxy {
 
     fn fulfillment_order_set_deadline_store_backed(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
         request: &Request,
     ) -> ResolverOutcome<Value> {
-        let (response_key, payload_selection, arguments) = self
-            .fulfillment_order_store_backed_parts(
-                "fulfillmentOrdersSetFulfillmentDeadline",
-                query,
-                variables,
-            );
-        let ids = list_string_field(&arguments, "fulfillmentOrderIds");
+        let ids = list_string_field(arguments, "fulfillmentOrderIds");
         self.ensure_shipping_fulfillment_orders_deadline_hydrated(request, &ids);
         let known_ids: Vec<String> = ids
             .iter()
@@ -1582,7 +1492,7 @@ impl DraftProxy {
                 )],
             )
         } else {
-            let deadline = resolved_string_field(&arguments, "fulfillmentDeadline")
+            let deadline = resolved_string_field(arguments, "fulfillmentDeadline")
                 .map(|value| shopify_datetime_seconds(&value))
                 .unwrap_or_default();
             let timestamp = self.next_shipping_fulfillment_timestamp();
@@ -1608,8 +1518,8 @@ impl DraftProxy {
             (true, vec![])
         };
         let outcome = fulfillment_order_data_response(
-            &response_key,
-            fulfillment_order_deadline_payload_json(success, &payload_selection, errors),
+            response_key,
+            fulfillment_order_deadline_payload_json(success, errors),
         );
         match log_draft {
             Some(draft) => outcome.with_log_draft(draft),
@@ -1619,21 +1529,20 @@ impl DraftProxy {
 
     fn fulfillment_order_close_store_backed(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
         request: &Request,
     ) -> ResolverOutcome<Value> {
         let FulfillmentOrderStoreBackedPreamble {
             response_key,
-            payload_selection,
             arguments: _,
             id,
             order_id,
             index,
         } = match self.fulfillment_order_store_backed_preamble(
             "fulfillmentOrderClose",
-            query,
-            variables,
+            response_key,
+            arguments,
             request,
             Some("The fulfillment order's assigned fulfillment service must be of api type"),
         ) {
@@ -1648,7 +1557,6 @@ impl DraftProxy {
         if !accepted_request {
             return self.fulfillment_order_guardrail_response(
                 "fulfillmentOrderClose",
-                query,
                 "The fulfillment order's assigned fulfillment service must be of api type",
             );
         }
@@ -1673,7 +1581,7 @@ impl DraftProxy {
         }
         fulfillment_order_data_response(
             &response_key,
-            fulfillment_order_simple_payload_json(closed, &payload_selection, vec![]),
+            fulfillment_order_simple_payload_json(closed, vec![]),
         )
         .with_log_draft(LogDraft::staged(
             "fulfillmentOrderClose",
@@ -1684,23 +1592,18 @@ impl DraftProxy {
 
     fn fulfillment_order_prepared_for_pickup_store_backed(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
         request: &Request,
     ) -> ResolverOutcome<Value> {
-        let (response_key, payload_selection, arguments) = self
-            .fulfillment_order_store_backed_parts(
-                "fulfillmentOrderLineItemsPreparedForPickup",
-                query,
-                variables,
-            );
-        let Some(input) = resolved_object_field(&arguments, "input") else {
+        let Some(input) = resolved_object_field(arguments, "input") else {
             return fulfillment_order_data_response(
-                &response_key,
-                fulfillment_order_prepared_for_pickup_payload_json(
-                    &payload_selection,
-                    vec![user_error(["input"], "Input is required.", Some("INVALID"))],
-                ),
+                response_key,
+                fulfillment_order_prepared_for_pickup_payload_json(vec![user_error(
+                    ["input"],
+                    "Input is required.",
+                    Some("INVALID"),
+                )]),
             );
         };
         let requested = resolved_object_list_field(&input, "lineItemsByFulfillmentOrder")
@@ -1743,8 +1646,8 @@ impl DraftProxy {
 
         if !errors.is_empty() {
             return fulfillment_order_data_response(
-                &response_key,
-                fulfillment_order_prepared_for_pickup_payload_json(&payload_selection, errors),
+                response_key,
+                fulfillment_order_prepared_for_pickup_payload_json(errors),
             );
         }
 
@@ -1769,8 +1672,8 @@ impl DraftProxy {
             }
         }
         fulfillment_order_data_response(
-            &response_key,
-            fulfillment_order_prepared_for_pickup_payload_json(&payload_selection, vec![]),
+            response_key,
+            fulfillment_order_prepared_for_pickup_payload_json(vec![]),
         )
         .with_log_draft(LogDraft::staged(
             "fulfillmentOrderLineItemsPreparedForPickup",
@@ -1781,41 +1684,24 @@ impl DraftProxy {
 
     fn fulfillment_order_guardrail_response(
         &self,
-        root_field: &str,
-        query: &str,
+        _root_field: &str,
         message: &str,
     ) -> ResolverOutcome<Value> {
-        let (response_key, payload_selection) =
-            self.execution_primary_root_response_selection(query, &BTreeMap::new(), || {
-                root_field.to_string()
-            });
-        fulfillment_order_data_response(
-            &response_key,
-            fulfillment_order_simple_payload_json(
-                Value::Null,
-                &payload_selection,
-                vec![user_error(Value::Null, message, None)],
-            ),
-        )
+        ResolverOutcome::value(fulfillment_order_simple_payload_json(
+            Value::Null,
+            vec![user_error(Value::Null, message, None)],
+        ))
     }
 
-    fn fulfillment_orders_reroute_guardrail_response(&self, query: &str) -> ResolverOutcome<Value> {
-        let (response_key, payload_selection) =
-            self.execution_primary_root_response_selection(query, &BTreeMap::new(), || {
-                "fulfillmentOrdersReroute".to_string()
-            });
-        fulfillment_order_data_response(
-            &response_key,
-            fulfillment_orders_reroute_payload_json(
-                Vec::new(),
-                &payload_selection,
-                vec![user_error(
-                    Value::Null,
-                    "Fulfillment orders could not be rerouted locally.",
-                    None,
-                )],
-            ),
-        )
+    fn fulfillment_orders_reroute_guardrail_response(&self) -> ResolverOutcome<Value> {
+        ResolverOutcome::value(fulfillment_orders_reroute_payload_json(
+            Vec::new(),
+            vec![user_error(
+                Value::Null,
+                "Fulfillment orders could not be rerouted locally.",
+                None,
+            )],
+        ))
     }
 
     fn fulfillment_order_not_found_response(
@@ -2229,11 +2115,8 @@ fn fulfillment_order_structural_invalid_id_outcome() -> ResolverOutcome<Value> {
     }])
 }
 
-fn fulfillment_order_prepared_for_pickup_payload_json(
-    selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_json(&json!({ "userErrors": user_errors }), selection)
+fn fulfillment_order_prepared_for_pickup_payload_json(user_errors: Vec<Value>) -> Value {
+    json!({ "userErrors": user_errors })
 }
 
 fn fulfillment_order_prepared_for_pickup_invalid_error(index: usize, id: &str) -> Value {

@@ -3,6 +3,40 @@ use crate::proxy::search::search_string_matches;
 
 const FUNCTION_CANONICAL_API_TYPE_FIELD: &str = "__draftProxyCanonicalApiType";
 
+struct FunctionRootInput {
+    name: String,
+    response_key: String,
+    location: SourceLocation,
+    raw_arguments: BTreeMap<String, RawArgumentValue>,
+    arguments: BTreeMap<String, ResolvedValue>,
+}
+
+impl DispatchField for FunctionRootInput {
+    fn response_key(&self) -> &str {
+        &self.response_key
+    }
+}
+
+pub(in crate::proxy) fn function_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
+    [
+        "CartTransform",
+        "FulfillmentConstraintRule",
+        "FunctionsAppBridge",
+        "FunctionsErrorHistory",
+        "ShopifyFunction",
+        "Validation",
+    ]
+    .into_iter()
+    .map(|parent_type| {
+        FieldResolverTypePolicy::property_backed_ordinary_fields(
+            ApiSurface::Admin,
+            parent_type,
+            "argument-bearing Function field has no explicit canonical resolver",
+        )
+    })
+    .collect()
+}
+
 const FUNCTION_HYDRATE_BY_ID_QUERY: &str = "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n";
 const FUNCTION_HYDRATE_BY_HANDLE_QUERY: &str = "query FunctionHydrateByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
 const FUNCTION_METADATA_CATALOG_HYDRATE_QUERY: &str = "query FunctionMetadataCatalogHydrate {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
@@ -13,243 +47,179 @@ const FUNCTION_CART_TRANSFORM_HYDRATE_BY_ID_QUERY: &str = "query FunctionCartTra
 const FUNCTION_FULFILLMENT_CONSTRAINT_RULES_HYDRATE_QUERY: &str = "query FunctionFulfillmentConstraintRulesHydrate {\n  fulfillmentConstraintRules {\n    id\n    deliveryMethodTypes\n    function {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n";
 
 impl DraftProxy {
-    pub(crate) fn resolve_functions_graphql(
+    pub(crate) fn functions_query_root(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         let RootInvocation {
             response_key,
-            request,
-            query,
-            variables,
             root_name,
-            mode,
+            root_location,
+            raw_arguments,
+            arguments,
+            request,
             ..
         } = invocation;
-        let fields = match self.root_fields_or_error(query, variables) {
-            Ok(fields) => fields,
-            Err(_) => return ResolverOutcome::error("Could not parse GraphQL operation"),
+        let field = FunctionRootInput {
+            name: root_name.to_string(),
+            response_key: response_key.to_string(),
+            location: root_location,
+            raw_arguments,
+            arguments: resolved_arguments_from_json(&arguments),
         };
-        match mode {
-            LocalResolverMode::StageLocally => {
-                let (mut data, errors) = self.functions_metadata_mutation_data(request, &fields);
-                let staged = data
-                    .as_object()
-                    .is_some_and(|fields| fields.values().any(|value| !value.is_null()));
-                let value = data
-                    .as_object_mut()
-                    .and_then(|data| data.remove(response_key))
-                    .unwrap_or(Value::Null);
-                let mut outcome = ResolverOutcome::value(value)
-                    .with_errors(root_field_errors_from_json(&errors, response_key));
-                if staged {
-                    outcome = outcome.with_log_draft(LogDraft::staged(
-                        root_name,
-                        "functions",
-                        Vec::new(),
-                    ));
-                }
-                outcome
+        // Cold reads preserve Shopify's installed Function catalog. Once a
+        // requested family intersects observed or staged state, hydrate that
+        // family and render the effective local overlay.
+        if self.config.read_mode != ReadMode::Snapshot
+            && !self.function_root_has_local_overlay(&field.name)
+        {
+            let outcome = self.cached_or_forward_upstream_root_outcome(request, response_key);
+            if outcome.errors.is_empty() {
+                self.hydrate_function_metadata_from_response_data(&json!({
+                    (response_key): outcome.value.clone()
+                }));
+                self.mark_function_read_root_hydrated(&field.name, &field.arguments);
             }
-            LocalResolverMode::OverlayRead => {
-                // Cold reads preserve Shopify's installed Function catalog. Once
-                // a requested family intersects observed or staged state, hydrate
-                // that family and render the effective local overlay.
-                if self.config.read_mode != ReadMode::Snapshot
-                    && !self.function_read_has_local_overlay(&fields)
-                {
-                    let outcome =
-                        self.cached_or_forward_upstream_root_outcome(request, response_key);
-                    if outcome.errors.is_empty() {
-                        self.hydrate_function_metadata_from_response_data(&json!({
-                            (response_key): outcome.value.clone()
-                        }));
-                        self.mark_function_read_fields_hydrated(&fields);
-                    }
-                    return outcome;
-                }
-                let selection_errors = functions_output_selection_errors(query, variables, &fields);
-                if !selection_errors.is_empty() {
-                    return ResolverOutcome::value(Value::Null)
-                        .with_errors(root_field_errors_from_json(&selection_errors, response_key));
-                }
-                if self.config.read_mode != ReadMode::Snapshot {
-                    self.hydrate_function_read_fields(request, &fields);
-                }
-                let mut data = self.functions_metadata_read_data(request, &fields);
-                ResolverOutcome::value(
-                    data.as_object_mut()
-                        .and_then(|data| data.remove(response_key))
-                        .unwrap_or(Value::Null),
-                )
-            }
+            return outcome;
         }
+        if self.config.read_mode != ReadMode::Snapshot {
+            self.hydrate_function_read_root(request, &field.name, &field.arguments);
+        }
+        ResolverOutcome::value(self.function_root_value(request, &field))
     }
 
-    pub(in crate::proxy) fn functions_metadata_mutation_data(
+    pub(crate) fn functions_mutation_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
+            arguments,
+            request,
+            root_name,
+            root_location,
+            raw_arguments,
+            ..
+        } = invocation;
+        let field = FunctionRootInput {
+            name: root_name.to_string(),
+            response_key: response_key.to_string(),
+            location: root_location,
+            raw_arguments,
+            arguments: resolved_arguments_from_json(&arguments),
+        };
+        let (value, errors) = self.function_mutation_value(request, &field);
+        let staged = !value.is_null();
+        let mut outcome = ResolverOutcome::value(value)
+            .with_errors(root_field_errors_from_json(&errors, response_key));
+        if staged {
+            outcome = outcome.with_log_draft(LogDraft::staged(root_name, "functions", Vec::new()));
+        }
+        outcome
+    }
+
+    fn function_mutation_value(
         &mut self,
         request: &Request,
-        fields: &[RootFieldSelection],
+        field: &FunctionRootInput,
     ) -> (Value, Vec<Value>) {
         let mut errors = Vec::new();
-        let data = root_payload_json(fields, |field| {
-            let value = match field.name.as_str() {
-                "validationCreate" => self.function_validation_create_payload(request, field),
-                "validationUpdate" => self.function_validation_update_payload(request, field),
-                "validationDelete" => self.function_validation_delete_payload(request, field),
-                "cartTransformCreate" => {
-                    self.function_cart_transform_create_payload(request, field)
-                }
-                "cartTransformDelete" => {
-                    self.function_cart_transform_delete_payload(request, field)
-                }
-                "fulfillmentConstraintRuleCreate" => {
-                    self.function_fulfillment_constraint_rule_create_payload(request, field)
-                }
-                "fulfillmentConstraintRuleUpdate" => {
-                    self.function_fulfillment_constraint_rule_update_payload(request, field)
-                }
-                "fulfillmentConstraintRuleDelete" => {
-                    self.function_fulfillment_constraint_rule_delete_payload(field)
-                }
-                "taxAppConfigure" => {
-                    if tax_app_configure_has_authority(request) {
-                        self.function_tax_app_configure_payload(field)
-                    } else {
-                        errors.push(tax_app_configure_access_denied_error(field));
-                        Value::Null
-                    }
-                }
-                _ => Value::Null,
-            };
-            if value.is_null() {
-                Some(Value::Null)
-            } else {
-                Some(selected_json(&value, &field.selection))
+        let value = match field.name.as_str() {
+            "validationCreate" => self.function_validation_create_payload(request, field),
+            "validationUpdate" => self.function_validation_update_payload(request, field),
+            "validationDelete" => self.function_validation_delete_payload(request, field),
+            "cartTransformCreate" => self.function_cart_transform_create_payload(request, field),
+            "cartTransformDelete" => self.function_cart_transform_delete_payload(request, field),
+            "fulfillmentConstraintRuleCreate" => {
+                self.function_fulfillment_constraint_rule_create_payload(request, field)
             }
-        });
-        (data, errors)
+            "fulfillmentConstraintRuleUpdate" => {
+                self.function_fulfillment_constraint_rule_update_payload(request, field)
+            }
+            "fulfillmentConstraintRuleDelete" => {
+                self.function_fulfillment_constraint_rule_delete_payload(field)
+            }
+            "taxAppConfigure" => {
+                if tax_app_configure_has_authority(request) {
+                    self.function_tax_app_configure_payload(field)
+                } else {
+                    errors.push(tax_app_configure_access_denied_error(field));
+                    Value::Null
+                }
+            }
+            _ => Value::Null,
+        };
+        (value, errors)
     }
 
-    pub(in crate::proxy) fn functions_metadata_read_data(
-        &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        root_payload_json(fields, |field| {
-            let value = match field.name.as_str() {
-                "validation" => resolved_string_field(&field.arguments, "id")
-                    .and_then(|id| {
-                        self.function_validation_read_value(request, &id, &field.selection)
-                    })
-                    .unwrap_or(Value::Null),
-                "validations" => local_function_connection_from_nodes_with_args(
-                    self.effective_function_validation_nodes(&field.selection),
-                    &field.arguments,
-                ),
-                "cartTransforms" => local_function_connection_from_nodes_with_args(
-                    self.effective_function_cart_transform_nodes(&field.selection),
-                    &field.arguments,
-                ),
-                "fulfillmentConstraintRules" => self.fulfillment_constraint_rules_read_value(field),
-                "shopifyFunctions" => {
-                    let api_type = requested_function_api_type(&field.arguments);
-                    local_function_connection_from_nodes_with_args(
-                        self.function_metadata_read_nodes(request, api_type.as_deref()),
-                        &field.arguments,
-                    )
-                }
-                "shopifyFunction" => match resolved_string_field(&field.arguments, "id") {
-                    Some(id) => self.function_metadata_read_value(request, &id),
-                    None => Value::Null,
-                },
-                "node" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.local_node_value_by_id(&id, &field.selection)
-                        .unwrap_or(Value::Null)
-                }
-                "nodes" => Value::Array(
-                    field
-                        .arguments
-                        .get("ids")
-                        .map(resolved_string_list)
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|id| {
-                            self.local_node_value_by_id(&id, &field.selection)
-                                .unwrap_or(Value::Null)
-                        })
-                        .collect(),
-                ),
-                _ => Value::Null,
-            };
-            if value.is_null() {
-                Some(Value::Null)
-            } else if field.name == "fulfillmentConstraintRules" {
-                Some(value)
-            } else {
-                Some(selected_json(&value, &field.selection))
+    fn function_root_value(&mut self, request: &Request, field: &FunctionRootInput) -> Value {
+        let connection_arguments = function_connection_arguments(field);
+        match field.name.as_str() {
+            "validation" => resolved_string_field(&field.arguments, "id")
+                .and_then(|id| self.function_validation_read_value(request, &id))
+                .unwrap_or(Value::Null),
+            "validations" => local_function_connection_from_nodes_with_args(
+                self.effective_function_validation_nodes(),
+                &connection_arguments,
+            ),
+            "cartTransforms" => local_function_connection_from_nodes_with_args(
+                self.effective_function_cart_transform_nodes(),
+                &connection_arguments,
+            ),
+            "fulfillmentConstraintRules" => self.fulfillment_constraint_rules_read_value(),
+            "shopifyFunctions" => {
+                let api_type = requested_function_api_type(&field.arguments);
+                local_function_connection_from_nodes_with_args(
+                    self.function_metadata_read_nodes(request, api_type.as_deref()),
+                    &connection_arguments,
+                )
             }
-        })
-    }
-
-    fn fulfillment_constraint_rules_read_value(&self, field: &RootFieldSelection) -> Value {
-        let records: Vec<Value> = self
-            .store
-            .base
-            .function_fulfillment_constraint_rule_order
-            .iter()
-            .chain(
-                self.store
-                    .staged
-                    .function_fulfillment_constraint_rule_order
-                    .iter(),
-            )
-            .filter_map(|id| {
-                if self
-                    .store
-                    .staged
-                    .deleted_function_fulfillment_constraint_rule_ids
-                    .contains(id)
-                {
-                    return None;
-                }
-                self.store
-                    .staged
-                    .function_fulfillment_constraint_rules
-                    .get(id)
-                    .or_else(|| {
-                        self.store
-                            .base
-                            .function_fulfillment_constraint_rules
-                            .get(id)
-                    })
-                    .map(|record| {
-                        fulfillment_constraint_rule_record_for_selection(record, &field.selection)
-                    })
-            })
-            .collect();
-        if fulfillment_constraint_rules_uses_connection_selection(&field.selection) {
-            selected_json(
-                &local_function_connection_from_nodes(records),
-                &field.selection,
-            )
-        } else {
-            Value::Array(
-                records
-                    .iter()
-                    .map(|record| selected_json(record, &field.selection))
-                    .collect(),
-            )
+            "shopifyFunction" => match resolved_string_field(&field.arguments, "id") {
+                Some(id) => self.function_metadata_read_value(request, &id),
+                None => Value::Null,
+            },
+            _ => Value::Null,
         }
     }
 
-    fn function_validation_read_value(
-        &mut self,
-        request: &Request,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+    fn fulfillment_constraint_rules_read_value(&self) -> Value {
+        Value::Array(
+            self.store
+                .base
+                .function_fulfillment_constraint_rule_order
+                .iter()
+                .chain(
+                    self.store
+                        .staged
+                        .function_fulfillment_constraint_rule_order
+                        .iter(),
+                )
+                .filter_map(|id| {
+                    if self
+                        .store
+                        .staged
+                        .deleted_function_fulfillment_constraint_rule_ids
+                        .contains(id)
+                    {
+                        return None;
+                    }
+                    self.store
+                        .staged
+                        .function_fulfillment_constraint_rules
+                        .get(id)
+                        .or_else(|| {
+                            self.store
+                                .base
+                                .function_fulfillment_constraint_rules
+                                .get(id)
+                        })
+                        .map(fulfillment_constraint_rule_record_value)
+                })
+                .collect(),
+        )
+    }
+
+    fn function_validation_read_value(&mut self, request: &Request, id: &str) -> Option<Value> {
         if self
             .store
             .staged
@@ -264,7 +234,7 @@ impl DraftProxy {
             self.hydrate_function_validation_by_id(request, id);
         }
         self.function_validation_by_id(id)
-            .map(|record| validation_record_for_selection(record, selection))
+            .map(validation_record_value)
     }
 
     fn function_metadata_read_value(&mut self, request: &Request, id: &str) -> Value {
@@ -394,17 +364,17 @@ impl DraftProxy {
         records
     }
 
-    fn effective_function_validation_nodes(&self, selection: &[SelectedField]) -> Vec<Value> {
+    fn effective_function_validation_nodes(&self) -> Vec<Value> {
         self.effective_function_validation_records()
             .into_iter()
-            .map(|record| validation_record_for_selection(record, selection))
+            .map(validation_record_value)
             .collect()
     }
 
-    fn effective_function_cart_transform_nodes(&self, selection: &[SelectedField]) -> Vec<Value> {
+    fn effective_function_cart_transform_nodes(&self) -> Vec<Value> {
         self.effective_function_cart_transform_records()
             .into_iter()
-            .map(|record| cart_transform_record_for_selection(record, selection))
+            .map(cart_transform_record_value)
             .collect()
     }
 
@@ -767,100 +737,92 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
     ) {
         for field in fields {
-            match field.name.as_str() {
-                "validations" => {
-                    self.store.base.function_validations_catalog_hydrated = true;
-                }
-                "cartTransforms" => {
-                    self.store.base.function_cart_transforms_catalog_hydrated = true;
-                }
-                "fulfillmentConstraintRules" => {
-                    self.store
-                        .base
-                        .function_fulfillment_constraint_rules_catalog_hydrated = true;
-                }
-                "shopifyFunctions" => {
-                    self.mark_function_metadata_catalog_hydrated(requested_function_api_type(
-                        &field.arguments,
-                    ));
-                }
-                _ => {}
-            }
+            self.mark_function_read_root_hydrated(&field.name, &field.arguments);
         }
     }
 
-    pub(in crate::proxy) fn hydrate_function_read_fields(
+    fn mark_function_read_root_hydrated(
+        &mut self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) {
+        match root_name {
+            "validations" => {
+                self.store.base.function_validations_catalog_hydrated = true;
+            }
+            "cartTransforms" => {
+                self.store.base.function_cart_transforms_catalog_hydrated = true;
+            }
+            "fulfillmentConstraintRules" => {
+                self.store
+                    .base
+                    .function_fulfillment_constraint_rules_catalog_hydrated = true;
+            }
+            "shopifyFunctions" => {
+                self.mark_function_metadata_catalog_hydrated(requested_function_api_type(
+                    arguments,
+                ));
+            }
+            _ => {}
+        }
+    }
+
+    fn hydrate_function_read_root(
         &mut self,
         request: &Request,
-        fields: &[RootFieldSelection],
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) {
-        for field in fields {
-            match field.name.as_str() {
-                "validation" => {
-                    if let Some(id) = resolved_string_field(&field.arguments, "id") {
-                        if self.function_validation_by_id(&id).is_none()
-                            && !self
-                                .store
-                                .staged
-                                .deleted_function_validation_ids
-                                .contains(&id)
-                        {
-                            self.hydrate_function_validation_by_id(request, &id);
-                        }
-                    }
-                }
-                "validations" => {
-                    if !self.store.base.function_validations_catalog_hydrated {
-                        self.hydrate_function_validation_catalog(request);
-                    }
-                }
-                "cartTransforms" => {
-                    if !self.store.base.function_cart_transforms_catalog_hydrated {
-                        self.hydrate_function_cart_transform_catalog(request);
-                    }
-                }
-                "fulfillmentConstraintRules" => {
-                    if !self
-                        .store
-                        .base
-                        .function_fulfillment_constraint_rules_catalog_hydrated
+        match root_name {
+            "validation" => {
+                if let Some(id) = resolved_string_field(arguments, "id") {
+                    if self.function_validation_by_id(&id).is_none()
+                        && !self
+                            .store
+                            .staged
+                            .deleted_function_validation_ids
+                            .contains(&id)
                     {
-                        self.hydrate_function_fulfillment_constraint_rule_catalog(request);
+                        self.hydrate_function_validation_by_id(request, &id);
                     }
                 }
-                "shopifyFunctions" => {
-                    let api_type = requested_function_api_type(&field.arguments);
-                    if !self.function_metadata_catalog_hydrated(api_type.as_deref()) {
-                        self.hydrate_function_metadata_catalog(request);
-                    }
-                }
-                "shopifyFunction" => {
-                    if let Some(id) = resolved_string_field(&field.arguments, "id") {
-                        if self
-                            .function_metadata_by_id_or_handle(Some(&id), None)
-                            .is_none()
-                        {
-                            self.hydrate_function_metadata_by_id(request, &id);
-                        }
-                    }
-                }
-                "node" => {
-                    if let Some(id) = resolved_string_field(&field.arguments, "id") {
-                        self.hydrate_function_node_id(request, &id);
-                    }
-                }
-                "nodes" => {
-                    for id in field
-                        .arguments
-                        .get("ids")
-                        .map(resolved_string_list)
-                        .unwrap_or_default()
-                    {
-                        self.hydrate_function_node_id(request, &id);
-                    }
-                }
-                _ => {}
             }
+            "validations" => {
+                if !self.store.base.function_validations_catalog_hydrated {
+                    self.hydrate_function_validation_catalog(request);
+                }
+            }
+            "cartTransforms" => {
+                if !self.store.base.function_cart_transforms_catalog_hydrated {
+                    self.hydrate_function_cart_transform_catalog(request);
+                }
+            }
+            "fulfillmentConstraintRules" => {
+                if !self
+                    .store
+                    .base
+                    .function_fulfillment_constraint_rules_catalog_hydrated
+                {
+                    self.hydrate_function_fulfillment_constraint_rule_catalog(request);
+                }
+            }
+            "shopifyFunctions" => {
+                let api_type = requested_function_api_type(arguments);
+                if !self.function_metadata_catalog_hydrated(api_type.as_deref()) {
+                    self.hydrate_function_metadata_catalog(request);
+                }
+            }
+            "shopifyFunction" => {
+                if let Some(id) = resolved_string_field(arguments, "id") {
+                    if self
+                        .function_metadata_by_id_or_handle(Some(&id), None)
+                        .is_none()
+                    {
+                        self.hydrate_function_metadata_by_id(request, &id);
+                    }
+                }
+            }
+            _ => {}
         }
     }
 
@@ -868,24 +830,21 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> bool {
-        fields.iter().any(|field| match field.name.as_str() {
+        fields
+            .iter()
+            .any(|field| self.function_root_has_local_overlay(&field.name))
+    }
+
+    fn function_root_has_local_overlay(&self, root_name: &str) -> bool {
+        match root_name {
             "validation" | "validations" => self.has_function_validation_overlay_state(),
             "cartTransforms" => self.has_function_cart_transform_overlay_state(),
             "fulfillmentConstraintRules" => {
                 self.has_function_fulfillment_constraint_rule_overlay_state()
             }
             "shopifyFunction" | "shopifyFunctions" => self.has_function_metadata_overlay_state(),
-            "node" => resolved_string_field(&field.arguments, "id")
-                .is_some_and(|id| self.function_node_has_local_overlay(&id)),
-            "nodes" => field
-                .arguments
-                .get("ids")
-                .map(resolved_string_list)
-                .unwrap_or_default()
-                .iter()
-                .any(|id| self.function_node_has_local_overlay(id)),
             _ => false,
-        })
+        }
     }
 
     fn hydrate_function_metadata_catalog(&mut self, request: &Request) {
@@ -1004,40 +963,6 @@ impl DraftProxy {
             normalized_function_cart_transform(response.body["data"]["node"].clone())?;
         self.stage_base_function_cart_transform(cart_transform.clone());
         Some(cart_transform)
-    }
-
-    fn hydrate_function_node_id(&mut self, request: &Request, id: &str) {
-        match shopify_gid_resource_type(id) {
-            Some("ShopifyFunction") => {
-                if self
-                    .function_metadata_by_id_or_handle(Some(id), None)
-                    .is_none()
-                {
-                    self.hydrate_function_metadata_by_id(request, id);
-                }
-            }
-            Some("Validation")
-                if self.function_validation_by_id(id).is_none()
-                    && !self
-                        .store
-                        .staged
-                        .deleted_function_validation_ids
-                        .contains(id) =>
-            {
-                self.hydrate_function_validation_by_id(request, id);
-            }
-            Some("CartTransform")
-                if self.function_cart_transform_by_id(id).is_none()
-                    && !self
-                        .store
-                        .staged
-                        .deleted_function_cart_transform_ids
-                        .contains(id) =>
-            {
-                self.hydrate_function_cart_transform_by_id(request, id);
-            }
-            _ => {}
-        }
     }
 
     fn stage_base_function_validation(&mut self, mut validation: Value) {
@@ -1207,45 +1132,6 @@ impl DraftProxy {
             self.store.base.function_metadata_catalog_hydrated = true;
         }
     }
-
-    fn function_node_has_local_overlay(&self, id: &str) -> bool {
-        match shopify_gid_resource_type(id) {
-            Some("ShopifyFunction") => self
-                .function_metadata_by_id_or_handle(Some(id), None)
-                .is_some(),
-            Some("Validation") => {
-                self.store
-                    .staged
-                    .deleted_function_validation_ids
-                    .contains(id)
-                    || self.function_validation_by_id(id).is_some()
-            }
-            Some("CartTransform") => {
-                self.store
-                    .staged
-                    .deleted_function_cart_transform_ids
-                    .contains(id)
-                    || self.function_cart_transform_by_id(id).is_some()
-            }
-            Some("FulfillmentConstraintRule") => {
-                self.store
-                    .staged
-                    .deleted_function_fulfillment_constraint_rule_ids
-                    .contains(id)
-                    || self
-                        .store
-                        .staged
-                        .function_fulfillment_constraint_rules
-                        .contains_key(id)
-                    || self
-                        .store
-                        .base
-                        .function_fulfillment_constraint_rules
-                        .contains_key(id)
-            }
-            _ => false,
-        }
-    }
 }
 
 const TAX_APP_CONFIGURE_REQUIRED_ACCESS: &str =
@@ -1275,7 +1161,7 @@ fn request_header_truthy(request: &Request, header: &str) -> bool {
     })
 }
 
-fn tax_app_configure_access_denied_error(field: &RootFieldSelection) -> Value {
+fn tax_app_configure_access_denied_error(field: &FunctionRootInput) -> Value {
     top_level_access_denied_error_envelope(
         format!(
             "Access denied for {} field. Required access: {TAX_APP_CONFIGURE_REQUIRED_ACCESS}",
@@ -1977,8 +1863,16 @@ fn selected_title(input: &BTreeMap<String, ResolvedValue>, function: &Value) -> 
     }
 }
 
-pub(in crate::proxy) fn local_function_connection_from_nodes(nodes: Vec<Value>) -> Value {
-    local_function_connection_from_nodes_with_args(nodes, &BTreeMap::new())
+fn function_connection_arguments(field: &FunctionRootInput) -> BTreeMap<String, ResolvedValue> {
+    let mut arguments = field.arguments.clone();
+    // Hydrated upstream records are already in Shopify's default order. Keep
+    // that order while merging staged records unless the caller explicitly
+    // requests a sort key; the schema-injected ID default must not compare
+    // synthetic and authoritative IDs as ordinary strings.
+    if !field.raw_arguments.contains_key("sortKey") {
+        arguments.remove("sortKey");
+    }
+    arguments
 }
 
 fn local_function_cursor(node: &Value) -> String {
@@ -2084,7 +1978,7 @@ fn cart_transform_metafield_error(
     None
 }
 
-fn cart_transform_metafield_errors(field: &RootFieldSelection) -> Vec<Value> {
+fn cart_transform_metafield_errors(field: &FunctionRootInput) -> Vec<Value> {
     function_metafield_errors(
         field.arguments.get("metafields"),
         cart_transform_metafield_error,
@@ -2123,7 +2017,7 @@ fn delete_staged_function_record(
 }
 
 fn function_metafields_from_field<IdForMetafield, DigestForValue>(
-    field: &RootFieldSelection,
+    field: &FunctionRootInput,
     ids: &[String],
     owner_type: &str,
     id_for_metafield: IdForMetafield,
@@ -2171,25 +2065,11 @@ fn cart_transform_metafield_id(owner_id: &str, namespace: &str, key: &str) -> St
     shopify_gid("Metafield", &digest[..16])
 }
 
-pub(in crate::proxy) fn cart_transform_record_for_selection(
-    record: &Value,
-    selection: &[SelectedField],
-) -> Value {
-    let mut public =
-        function_record_with_output_fields(record, "CartTransform", CART_TRANSFORM_OUTPUT_FIELDS);
-    if let Some(metafield_selection) =
-        selected_output_type_field(selection, "CartTransform", "metafield", true)
-    {
-        apply_metafield_for_selection(&mut public, metafield_selection);
-    }
-    public
-}
-
 pub(in crate::proxy) fn cart_transform_record_value(record: &Value) -> Value {
     function_record_with_output_fields(record, "CartTransform", CART_TRANSFORM_OUTPUT_FIELDS)
 }
 
-fn fulfillment_constraint_rule_delivery_method_types(field: &RootFieldSelection) -> Vec<String> {
+fn fulfillment_constraint_rule_delivery_method_types(field: &FunctionRootInput) -> Vec<String> {
     list_string_field(&field.arguments, "deliveryMethodTypes")
 }
 
@@ -2222,20 +2102,6 @@ const VALIDATION_OUTPUT_FIELDS: &[&str] = &[
     "__typename",
 ];
 
-pub(in crate::proxy) fn validation_record_for_selection(
-    record: &Value,
-    selection: &[SelectedField],
-) -> Value {
-    let mut public =
-        function_record_with_output_fields(record, "Validation", VALIDATION_OUTPUT_FIELDS);
-    if let Some(metafield_selection) =
-        selected_output_type_field(selection, "Validation", "metafield", true)
-    {
-        apply_metafield_for_selection(&mut public, metafield_selection);
-    }
-    public
-}
-
 pub(in crate::proxy) fn validation_record_value(record: &Value) -> Value {
     function_record_with_output_fields(record, "Validation", VALIDATION_OUTPUT_FIELDS)
 }
@@ -2248,23 +2114,6 @@ const FULFILLMENT_CONSTRAINT_RULE_OUTPUT_FIELDS: &[&str] = &[
     "metafields",
     "__typename",
 ];
-
-pub(in crate::proxy) fn fulfillment_constraint_rule_record_for_selection(
-    record: &Value,
-    selection: &[SelectedField],
-) -> Value {
-    let mut public = function_record_with_output_fields(
-        record,
-        "FulfillmentConstraintRule",
-        FULFILLMENT_CONSTRAINT_RULE_OUTPUT_FIELDS,
-    );
-    if let Some(metafield_selection) =
-        selected_output_type_field(selection, "FulfillmentConstraintRule", "metafield", true)
-    {
-        apply_metafield_for_selection(&mut public, metafield_selection);
-    }
-    public
-}
 
 pub(in crate::proxy) fn fulfillment_constraint_rule_record_value(record: &Value) -> Value {
     function_record_with_output_fields(
@@ -2290,332 +2139,11 @@ fn function_record_with_output_fields(
     Value::Object(public)
 }
 
-fn fulfillment_constraint_rules_uses_connection_selection(selection: &[SelectedField]) -> bool {
-    selection
-        .iter()
-        .any(|field| matches!(field.name.as_str(), "nodes" | "edges" | "pageInfo"))
-}
-
-fn selected_output_type_field<'a>(
-    selections: &'a [SelectedField],
-    type_name: &str,
-    field_name: &str,
-    include_direct: bool,
-) -> Option<&'a SelectedField> {
-    for selection in selections {
-        if include_direct
-            && selection.name == field_name
-            && selection_applies_to_output_type(selection, type_name)
-        {
-            return Some(selection);
-        }
-        match selection.name.as_str() {
-            "nodes" => {
-                if let Some(field) =
-                    selected_output_type_field(&selection.selection, type_name, field_name, true)
-                {
-                    return Some(field);
-                }
-            }
-            "edges" => {
-                for node in selection
-                    .selection
-                    .iter()
-                    .filter(|child| child.name == "node")
-                {
-                    if let Some(field) =
-                        selected_output_type_field(&node.selection, type_name, field_name, true)
-                    {
-                        return Some(field);
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
-fn selection_applies_to_output_type(selection: &SelectedField, type_name: &str) -> bool {
-    selected_field_applies_to_type(type_name, selection)
-}
-
-pub(in crate::proxy) fn functions_output_selection_errors(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-    fields: &[RootFieldSelection],
-) -> Vec<Value> {
-    let operation_path = parsed_document(query, variables)
-        .map(|document| document.operation_path)
-        .unwrap_or_default();
-    let mut errors = Vec::new();
-    for field in fields {
-        match field.name.as_str() {
-            "validation" => push_output_selection_errors(
-                &mut errors,
-                OutputSelectionErrorContext::new(
-                    &operation_path,
-                    &field.response_key,
-                    "Validation",
-                    VALIDATION_OUTPUT_FIELDS,
-                    true,
-                    false,
-                ),
-                &field.selection,
-            ),
-            "validations" => push_output_selection_errors(
-                &mut errors,
-                OutputSelectionErrorContext::new(
-                    &operation_path,
-                    &field.response_key,
-                    "Validation",
-                    VALIDATION_OUTPUT_FIELDS,
-                    false,
-                    false,
-                ),
-                &field.selection,
-            ),
-            "cartTransforms" => push_output_selection_errors(
-                &mut errors,
-                OutputSelectionErrorContext::new(
-                    &operation_path,
-                    &field.response_key,
-                    "CartTransform",
-                    CART_TRANSFORM_OUTPUT_FIELDS,
-                    false,
-                    false,
-                ),
-                &field.selection,
-            ),
-            "fulfillmentConstraintRules" => push_output_selection_errors(
-                &mut errors,
-                OutputSelectionErrorContext::new(
-                    &operation_path,
-                    &field.response_key,
-                    "FulfillmentConstraintRule",
-                    FULFILLMENT_CONSTRAINT_RULE_OUTPUT_FIELDS,
-                    true,
-                    false,
-                ),
-                &field.selection,
-            ),
-            "node" | "nodes" => {
-                push_output_selection_errors(
-                    &mut errors,
-                    OutputSelectionErrorContext::new(
-                        &operation_path,
-                        &field.response_key,
-                        "Validation",
-                        VALIDATION_OUTPUT_FIELDS,
-                        true,
-                        true,
-                    ),
-                    &field.selection,
-                );
-                push_output_selection_errors(
-                    &mut errors,
-                    OutputSelectionErrorContext::new(
-                        &operation_path,
-                        &field.response_key,
-                        "CartTransform",
-                        CART_TRANSFORM_OUTPUT_FIELDS,
-                        true,
-                        true,
-                    ),
-                    &field.selection,
-                );
-                push_output_selection_errors(
-                    &mut errors,
-                    OutputSelectionErrorContext::new(
-                        &operation_path,
-                        &field.response_key,
-                        "FulfillmentConstraintRule",
-                        FULFILLMENT_CONSTRAINT_RULE_OUTPUT_FIELDS,
-                        true,
-                        true,
-                    ),
-                    &field.selection,
-                );
-            }
-            _ => {}
-        }
-    }
-    errors
-}
-
-#[derive(Clone, Copy)]
-struct OutputSelectionErrorContext<'a> {
-    operation_path: &'a str,
-    response_key: &'a str,
-    type_name: &'static str,
-    output_fields: &'static [&'static str],
-    include_direct: bool,
-    require_type_condition: bool,
-}
-
-impl<'a> OutputSelectionErrorContext<'a> {
-    fn new(
-        operation_path: &'a str,
-        response_key: &'a str,
-        type_name: &'static str,
-        output_fields: &'static [&'static str],
-        include_direct: bool,
-        require_type_condition: bool,
-    ) -> Self {
-        Self {
-            operation_path,
-            response_key,
-            type_name,
-            output_fields,
-            include_direct,
-            require_type_condition,
-        }
-    }
-
-    fn nested(self) -> Self {
-        Self {
-            include_direct: true,
-            ..self
-        }
-    }
-}
-
-fn push_output_selection_errors(
-    errors: &mut Vec<Value>,
-    context: OutputSelectionErrorContext<'_>,
-    selections: &[SelectedField],
-) {
-    collect_output_selection_errors(errors, context, selections, &[]);
-}
-
-fn collect_output_selection_errors(
-    errors: &mut Vec<Value>,
-    context: OutputSelectionErrorContext<'_>,
-    selections: &[SelectedField],
-    container_path: &[&str],
-) {
-    for selection in selections {
-        match selection.name.as_str() {
-            "nodes" => {
-                let mut next_path = container_path.to_vec();
-                next_path.push("nodes");
-                collect_output_selection_errors(
-                    errors,
-                    context.nested(),
-                    &selection.selection,
-                    &next_path,
-                );
-            }
-            "edges" => {
-                for node in selection
-                    .selection
-                    .iter()
-                    .filter(|child| child.name == "node")
-                {
-                    let mut next_path = container_path.to_vec();
-                    next_path.push("edges");
-                    next_path.push("node");
-                    collect_output_selection_errors(
-                        errors,
-                        context.nested(),
-                        &node.selection,
-                        &next_path,
-                    );
-                }
-            }
-            _ if context.include_direct
-                && selection_matches_validation_scope(
-                    selection,
-                    context.type_name,
-                    context.require_type_condition,
-                )
-                && !context.output_fields.contains(&selection.name.as_str()) =>
-            {
-                errors.push(function_output_undefined_field_error(
-                    context.operation_path,
-                    context.response_key,
-                    container_path,
-                    context.type_name,
-                    selection,
-                ));
-            }
-            _ => {}
-        }
-    }
-}
-
-fn selection_matches_validation_scope(
-    selection: &SelectedField,
-    type_name: &str,
-    require_type_condition: bool,
-) -> bool {
-    if require_type_condition {
-        selection.type_condition.as_deref() == Some(type_name)
-    } else {
-        selection_applies_to_output_type(selection, type_name)
-    }
-}
-
-fn function_output_undefined_field_error(
-    operation_path: &str,
-    response_key: &str,
-    container_path: &[&str],
-    type_name: &str,
-    selection: &SelectedField,
-) -> Value {
-    let mut path = vec![Value::from(operation_path), Value::from(response_key)];
-    path.extend(container_path.iter().map(|segment| Value::from(*segment)));
-    if let Some(type_condition) = selection.type_condition.as_deref() {
-        path.push(Value::from(format!("... on {type_condition}")));
-    }
-    path.push(Value::from(selection.name.clone()));
-    json!({
-        "message": format!("Field '{}' doesn't exist on type '{type_name}'", selection.name),
-        "locations": [{ "line": selection.location.line, "column": selection.location.column }],
-        "path": path,
-        "extensions": {
-            "code": "undefinedField",
-            "typeName": type_name,
-            "fieldName": selection.name
-        }
-    })
-}
-
-fn apply_metafield_for_selection(record: &mut Value, metafield_selection: &SelectedField) {
-    let namespace = metafield_selection
-        .arguments
-        .get("namespace")
-        .and_then(|value| match value {
-            ResolvedValue::String(value) => Some(value.as_str()),
-            _ => None,
-        });
-    let key = metafield_selection
-        .arguments
-        .get("key")
-        .and_then(|value| match value {
-            ResolvedValue::String(value) => Some(value.as_str()),
-            _ => None,
-        });
-    if let (Some(namespace), Some(key)) = (namespace, key) {
-        let metafield = record["metafields"]["nodes"]
-            .as_array()
-            .and_then(|nodes| {
-                nodes.iter().find(|node| {
-                    node["namespace"].as_str() == Some(namespace)
-                        && node["key"].as_str() == Some(key)
-                })
-            })
-            .cloned()
-            .unwrap_or(Value::Null);
-        record["metafield"] = metafield;
-    }
-}
-
 impl DraftProxy {
-    pub(in crate::proxy) fn function_validation_create_payload(
+    fn function_validation_create_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        field: &FunctionRootInput,
     ) -> Value {
         let input = match field.arguments.get("validation") {
             Some(ResolvedValue::Object(input)) => input,
@@ -2676,10 +2204,10 @@ impl DraftProxy {
         json!({ "validation": validation, "userErrors": [] })
     }
 
-    pub(in crate::proxy) fn function_validation_update_payload(
+    fn function_validation_update_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        field: &FunctionRootInput,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = match field.arguments.get("validation") {
@@ -2751,10 +2279,10 @@ impl DraftProxy {
         json!({ "validation": validation, "userErrors": [] })
     }
 
-    pub(in crate::proxy) fn function_validation_delete_payload(
+    fn function_validation_delete_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        field: &FunctionRootInput,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if self.function_validation_by_id(&id).is_none()
@@ -2790,10 +2318,10 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn function_cart_transform_create_payload(
+    fn function_cart_transform_create_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        field: &FunctionRootInput,
     ) -> Value {
         let function_id = resolved_string_field(&field.arguments, "functionId");
         let function_handle = resolved_string_field(&field.arguments, "functionHandle");
@@ -2878,10 +2406,10 @@ impl DraftProxy {
         json!({ "cartTransform": cart_transform, "userErrors": [] })
     }
 
-    pub(in crate::proxy) fn function_cart_transform_delete_payload(
+    fn function_cart_transform_delete_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        field: &FunctionRootInput,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if self.function_cart_transform_by_id(&id).is_none()
@@ -2921,10 +2449,10 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn function_fulfillment_constraint_rule_create_payload(
+    fn function_fulfillment_constraint_rule_create_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        field: &FunctionRootInput,
     ) -> Value {
         let function_id = resolved_string_field(&field.arguments, "functionId");
         let function_handle = resolved_string_field(&field.arguments, "functionHandle");
@@ -2990,10 +2518,10 @@ impl DraftProxy {
         json!({ "fulfillmentConstraintRule": rule, "userErrors": [] })
     }
 
-    pub(in crate::proxy) fn function_fulfillment_constraint_rule_update_payload(
+    fn function_fulfillment_constraint_rule_update_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        field: &FunctionRootInput,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let function_id = resolved_string_field(&field.arguments, "functionId");
@@ -3050,9 +2578,9 @@ impl DraftProxy {
         json!({ "fulfillmentConstraintRule": rule, "userErrors": [] })
     }
 
-    pub(in crate::proxy) fn function_fulfillment_constraint_rule_delete_payload(
+    fn function_fulfillment_constraint_rule_delete_payload(
         &mut self,
-        field: &RootFieldSelection,
+        field: &FunctionRootInput,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let (payload, deleted) = delete_staged_function_record(
@@ -3093,10 +2621,7 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn function_tax_app_configure_payload(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> Value {
+    fn function_tax_app_configure_payload(&mut self, field: &FunctionRootInput) -> Value {
         let ready = resolved_bool_field(&field.arguments, "ready").unwrap_or(true);
         let id = self
             .store

@@ -11520,7 +11520,9 @@ fn staged_segment_reads_preserve_upstream_catalog_roots() {
                 "query": "number_of_orders >= 2"
             },
             created_segment
-        ])
+        ]),
+        "{}",
+        read.body,
     );
     assert_eq!(
         read.body["data"]["realSegment"],

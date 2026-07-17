@@ -1,30 +1,92 @@
 use super::media::media_file_record_from_node;
 use super::*;
 
+pub(in crate::proxy) fn owner_metafield_field_resolver_registrations(
+) -> Vec<FieldResolverRegistration> {
+    [
+        "CartTransform",
+        "DeliveryCustomization",
+        "FulfillmentConstraintRule",
+        "Location",
+        "PaymentCustomization",
+        "Shop",
+        "Validation",
+    ]
+    .into_iter()
+    .flat_map(|parent_type| {
+        [
+            FieldResolverRegistration::explicit(
+                ApiSurface::Admin,
+                parent_type,
+                "metafield",
+                owner_metafield_field,
+            ),
+            FieldResolverRegistration::explicit(
+                ApiSurface::Admin,
+                parent_type,
+                "metafields",
+                owner_metafields_field,
+            ),
+        ]
+    })
+    .collect()
+}
+
+fn owner_metafield_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    if let Some(value) = invocation.parent.get(&invocation.response_key) {
+        return Ok(value.clone());
+    }
+    let api_client_id = request_app_namespace_api_client_id(request);
+    Ok(proxy.canonical_embedded_or_owner_metafield_value(
+        invocation.parent,
+        &resolved_arguments_from_json(&invocation.arguments),
+        api_client_id.as_deref(),
+    ))
+}
+
+fn owner_metafields_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    if invocation.response_key != invocation.field_name {
+        if let Some(value) = invocation.parent.get(&invocation.response_key) {
+            return Ok(value.clone());
+        }
+    }
+    let api_client_id = request_app_namespace_api_client_id(request);
+    Ok(
+        proxy.canonical_embedded_or_owner_metafields_connection_value(
+            invocation.parent,
+            &resolved_arguments_from_json(&invocation.arguments),
+            api_client_id.as_deref(),
+        ),
+    )
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn should_route_owner_metafields_read(
         &self,
-        query: &str,
+        fields: &[RootFieldSelection],
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
-        self.should_handle_owner_metafields_read(query, variables)
-            && self
-                .execution_root_fields(query, variables)
-                .map(|fields| {
-                    fields.iter().all(|field| {
-                        matches!(
-                            field.name.as_str(),
-                            "product"
-                                | "productVariant"
-                                | "collection"
-                                | "customer"
-                                | "order"
-                                | "company"
-                                | "shop"
-                        )
-                    })
-                })
-                .unwrap_or(false)
+        self.should_handle_owner_metafields_read(fields, variables)
+            && fields.iter().all(|field| {
+                matches!(
+                    field.name.as_str(),
+                    "product"
+                        | "productVariant"
+                        | "collection"
+                        | "customer"
+                        | "order"
+                        | "company"
+                        | "shop"
+                )
+            })
     }
 }
 use base64::Engine as _;
@@ -551,12 +613,9 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn should_handle_owner_metafields_read(
         &self,
-        query: &str,
+        fields: &[RootFieldSelection],
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
-        let fields = self
-            .execution_root_fields(query, variables)
-            .unwrap_or_default();
         let mut has_non_product_owner_read = false;
         let mut needs_live_product_hydration = false;
         for field in fields {
@@ -564,7 +623,7 @@ impl DraftProxy {
                 continue;
             }
             if self.config.read_mode == ReadMode::LiveHybrid {
-                let owner_id = self.owner_field_id(&field, variables);
+                let owner_id = self.owner_field_id(field, variables);
                 let cold = self.owner_needs_metafield_hydration(&field.name, &owner_id);
                 // A cold (unstaged) owner that also selects sub-resources the
                 // metafields overlay cannot synthesize (addresses, orders, events, ...)
@@ -581,13 +640,13 @@ impl DraftProxy {
                     has_non_product_owner_read = true;
                 }
                 "shop" => {
-                    let owner_id = self.owner_field_id(&field, variables);
+                    let owner_id = self.owner_field_id(field, variables);
                     if !owner_id.is_empty() && self.owner_has_metafield_local_effects(&owner_id) {
                         has_non_product_owner_read = true;
                     }
                 }
                 "product" | "productVariant" if self.config.read_mode == ReadMode::LiveHybrid => {
-                    let owner_id = self.owner_field_id(&field, variables);
+                    let owner_id = self.owner_field_id(field, variables);
                     if self.owner_needs_metafield_hydration(&field.name, &owner_id) {
                         needs_live_product_hydration = true;
                     }
@@ -611,40 +670,26 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn owner_metafields_read(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        response_key: &str,
-    ) -> ResolverOutcome<Value> {
-        let data = self.owner_metafields_read_data(request, query, variables);
-        ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
-    }
-
     pub(in crate::proxy) fn owner_metafields_read_response(
         &mut self,
         request: &Request,
-        query: &str,
+        fields: &[RootFieldSelection],
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
         ok_json(json!({
-            "data": self.owner_metafields_read_data(request, query, variables)
+            "data": self.owner_metafields_read_data(request, fields, variables)
         }))
     }
 
     fn owner_metafields_read_data(
         &mut self,
         request: &Request,
-        query: &str,
+        fields: &[RootFieldSelection],
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let fields = self
-            .execution_root_fields(query, variables)
-            .unwrap_or_default();
-        self.hydrate_owner_metafield_read_fields(request, &fields, variables);
+        self.hydrate_owner_metafield_read_fields(request, fields, variables);
         let api_client_id = request_app_namespace_api_client_id(request);
-        let data = root_payload_json(&fields, |field| {
+        let data = root_payload_json(fields, |field| {
             if !matches!(
                 field.name.as_str(),
                 "product"
@@ -743,7 +788,12 @@ impl DraftProxy {
         }
         let ids = ids
             .into_iter()
-            .filter(|id| !self.request_owner_metafield_hydrated_ids.contains(id))
+            .filter(|id| {
+                !self
+                    .execution_session
+                    .owner_metafield_hydrated_ids
+                    .contains(id)
+            })
             .collect::<Vec<_>>();
         let Some((query, variables)) = owner_metafield_hydrate_request(ids.clone(), &shape) else {
             return;
@@ -760,7 +810,9 @@ impl DraftProxy {
             return;
         }
         if let Some(nodes) = response.body["data"]["nodes"].as_array() {
-            self.request_owner_metafield_hydrated_ids.extend(ids);
+            self.execution_session
+                .owner_metafield_hydrated_ids
+                .extend(ids);
             for node in nodes {
                 self.stage_observed_owner_metafield_node(node);
             }
@@ -920,7 +972,11 @@ impl DraftProxy {
     }
 
     fn owner_needs_metafield_hydration(&self, root_field: &str, owner_id: &str) -> bool {
-        if self.request_owner_metafield_hydrated_ids.contains(owner_id) {
+        if self
+            .execution_session
+            .owner_metafield_hydrated_ids
+            .contains(owner_id)
+        {
             return false;
         }
         match root_field {
@@ -1463,12 +1519,6 @@ impl DraftProxy {
         })
     }
 
-    pub(super) fn owner_field_selects_direct_metafields(selections: &[SelectedField]) -> bool {
-        selections
-            .iter()
-            .any(|selection| matches!(selection.name.as_str(), "metafield" | "metafields"))
-    }
-
     fn owner_field_selects_metafields(selections: &[SelectedField]) -> bool {
         selections.iter().any(|selection| {
             matches!(selection.name.as_str(), "metafield" | "metafields")
@@ -1770,6 +1820,44 @@ impl DraftProxy {
             .unwrap_or(Value::Null)
     }
 
+    pub(in crate::proxy) fn canonical_embedded_or_owner_metafield_value(
+        &self,
+        parent: &Value,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        api_client_id: Option<&str>,
+    ) -> Value {
+        let namespace = owner_metafield_read_namespace(arguments, api_client_id);
+        let key = resolved_string_field(arguments, "key").unwrap_or_default();
+        if namespace.is_empty() || key.is_empty() {
+            return Value::Null;
+        }
+        let embedded = parent["metafields"]
+            .as_array()
+            .cloned()
+            .unwrap_or_else(|| connection_nodes(&parent["metafields"]))
+            .into_iter()
+            .chain(
+                parent
+                    .get("metafield")
+                    .filter(|value| value.is_object())
+                    .cloned(),
+            )
+            .find(|metafield| {
+                metafield.get("namespace").and_then(Value::as_str) == Some(namespace.as_str())
+                    && metafield.get("key").and_then(Value::as_str) == Some(key.as_str())
+            });
+        if let Some(metafield) = embedded {
+            return metafield;
+        }
+        parent
+            .get("id")
+            .and_then(Value::as_str)
+            .map(|owner_id| {
+                self.canonical_owner_metafield_value(owner_id, arguments, api_client_id)
+            })
+            .unwrap_or(Value::Null)
+    }
+
     /// Resolve a complete owner-metafield connection from store state. Search,
     /// key ordering, reverse, and cursor windows are applied before the engine
     /// projects nodes/edges/pageInfo.
@@ -1803,12 +1891,77 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn canonical_metafield_reference_value(&self, record: &Value) -> Value {
+    pub(in crate::proxy) fn canonical_embedded_or_owner_metafields_connection_value(
+        &self,
+        parent: &Value,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        api_client_id: Option<&str>,
+    ) -> Value {
+        if parent.get("metafields").is_none() {
+            return parent
+                .get("id")
+                .and_then(Value::as_str)
+                .map(|owner_id| {
+                    self.canonical_owner_metafields_connection_value(
+                        owner_id,
+                        arguments,
+                        api_client_id,
+                    )
+                })
+                .unwrap_or_else(|| connection_json(Vec::new()));
+        }
+
+        let namespace = owner_metafields_connection_namespace(arguments, api_client_id);
+        let keys = owner_metafields_connection_keys_with_app_namespace(arguments, api_client_id);
+        let mut records = parent["metafields"]
+            .as_array()
+            .cloned()
+            .unwrap_or_else(|| connection_nodes(&parent["metafields"]))
+            .into_iter()
+            .filter(|metafield| {
+                namespace.as_deref().is_none_or(|namespace| {
+                    metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
+                })
+            })
+            .filter(|metafield| {
+                keys.as_deref()
+                    .is_none_or(|keys| owner_metafield_key_position(metafield, keys) != usize::MAX)
+            })
+            .collect::<Vec<_>>();
+        if let Some(keys) = keys.as_deref() {
+            records.sort_by_key(|metafield| owner_metafield_key_position(metafield, keys));
+        }
+        if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+            records.reverse();
+        }
+        let (records, page_info) = connection_window(&records, arguments, |metafield| {
+            metafield_cursor(metafield).unwrap_or_default()
+        });
+        let records = if keys.is_some() {
+            records
+                .into_iter()
+                .map(owner_metafield_with_connection_key)
+                .collect()
+        } else {
+            records
+        };
+        connection_json_with_cursor(
+            records,
+            |_, metafield| metafield_cursor(metafield).unwrap_or_default(),
+            page_info,
+        )
+    }
+
+    pub(in crate::proxy) fn canonical_metafield_reference_value(
+        &self,
+        record: &Value,
+        request: Option<&Request>,
+    ) -> Value {
         if let Some(existing) = record.get("reference") {
             return existing.clone();
         }
         scalar_reference_id(record)
-            .and_then(|id| self.canonical_metafield_reference_node(&id))
+            .and_then(|id| self.canonical_metafield_reference_node(&id, request))
             .unwrap_or(Value::Null)
     }
 
@@ -1816,6 +1969,7 @@ impl DraftProxy {
         &self,
         record: &Value,
         arguments: &BTreeMap<String, ResolvedValue>,
+        request: Option<&Request>,
     ) -> Value {
         let nodes =
             if let Some(existing) = record.get("references").filter(|value| value.is_object()) {
@@ -1823,7 +1977,7 @@ impl DraftProxy {
             } else {
                 list_reference_ids(record)
                     .into_iter()
-                    .filter_map(|id| self.canonical_metafield_reference_node(&id))
+                    .filter_map(|id| self.canonical_metafield_reference_node(&id, request))
                     .collect()
             };
         connection_value_with_args(nodes, arguments, |node| {
@@ -1834,15 +1988,16 @@ impl DraftProxy {
         })
     }
 
-    fn canonical_metafield_reference_node(&self, id: &str) -> Option<Value> {
-        match shopify_gid_resource_type(id) {
-            Some("Product") => {
-                let product = self.store.product_by_id(id)?;
-                let mut value = self.product_canonical_value(product);
-                value["__typename"] = json!("Product");
-                Some(value)
-            }
-            _ => None,
+    fn canonical_metafield_reference_node(
+        &self,
+        id: &str,
+        request: Option<&Request>,
+    ) -> Option<Value> {
+        match self.request_entity_load_state(ApiSurface::Admin, id, request) {
+            crate::node_resolver_inventory::NodeLoadState::Found(entity) => Some(entity.value),
+            crate::node_resolver_inventory::NodeLoadState::KnownMissing
+            | crate::node_resolver_inventory::NodeLoadState::NeedsHydration
+            | crate::node_resolver_inventory::NodeLoadState::UnsupportedType => None,
         }
     }
 
@@ -2098,8 +2253,7 @@ impl DraftProxy {
             }
             Some("Metaobject") => {
                 let record = self.metaobject_by_id(id)?;
-                let record = self.project_metaobject_against_definition(&record);
-                Some(self.selected_metaobject(&record, selections))
+                Some(self.metaobject_canonical_value(&record))
             }
             Some("MediaImage" | "Video" | "ExternalVideo" | "Model3d" | "GenericFile") => self
                 .store
@@ -2253,7 +2407,7 @@ fn owner_metafield_read_namespace(
 ) -> String {
     resolved_string_field(arguments, "namespace")
         .map(|namespace| canonical_app_metafield_read_namespace(&namespace, api_client_id))
-        .unwrap_or_default()
+        .unwrap_or_else(|| canonical_app_metafield_namespace(None, api_client_id))
 }
 
 fn owner_metafields_connection_namespace(

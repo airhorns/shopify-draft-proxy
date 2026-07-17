@@ -1,6 +1,90 @@
 use super::*;
 use std::sync::OnceLock;
 
+pub(in crate::proxy) fn store_property_field_resolver_registrations(
+) -> Vec<FieldResolverRegistration> {
+    vec![
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "ShopAddress",
+            "formatted",
+            shop_address_formatted_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "ShopPolicy",
+            "translations",
+            shop_policy_translations_field,
+        ),
+    ]
+}
+
+pub(in crate::proxy) fn store_property_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy>
+{
+    [
+        "BusinessEntity",
+        "Location",
+        "LocationAddress",
+        "LocationSuggestedAddress",
+        "Shop",
+        "ShopAddress",
+        "ShopFeatures",
+        "ShopPolicy",
+    ]
+    .into_iter()
+    .map(|parent_type| {
+        FieldResolverTypePolicy::property_backed_ordinary_fields(
+            ApiSurface::Admin,
+            parent_type,
+            "argument-bearing store-property field has no explicit canonical resolver",
+        )
+    })
+    .collect()
+}
+
+fn shop_address_formatted_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(invocation
+        .parent
+        .get(&invocation.response_key)
+        .or_else(|| invocation.parent.get("formatted"))
+        .cloned()
+        .unwrap_or_else(|| Value::Array(Vec::new())))
+}
+
+fn shop_policy_translations_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    let locale = resolved_string_field(&arguments, "locale").unwrap_or_default();
+    let market_id = resolved_string_field(&arguments, "marketId");
+    let translations = invocation
+        .parent
+        .get(&invocation.response_key)
+        .or_else(|| invocation.parent.get("translations"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|translation| {
+            locale.is_empty()
+                || translation.get("locale").and_then(Value::as_str) == Some(locale.as_str())
+        })
+        .filter(|translation| {
+            market_id.as_deref().is_none_or(|market_id| {
+                translation.pointer("/market/id").and_then(Value::as_str) == Some(market_id)
+                    || translation.get("marketId").and_then(Value::as_str) == Some(market_id)
+            })
+        })
+        .cloned()
+        .collect();
+    Ok(Value::Array(translations))
+}
+
 const SHOP_POLICY_BODY_MAX_BYTES: usize = 524_287;
 const SHOP_POLICY_TIMESTAMP: &str = "2024-01-01T00:00:00.000Z";
 const SHOP_POLICY_TYPE_VALUES: &[&str] = &[
@@ -45,70 +129,28 @@ pub(in crate::proxy) const SHOP_IDENTITY_HYDRATE_QUERY: &str = r#"#graphql
 "#;
 
 impl DraftProxy {
-    pub(crate) fn resolve_store_properties_graphql(
+    pub(crate) fn store_properties_query_root(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        if invocation.mode == LocalResolverMode::StageLocally
-            && matches!(
-                invocation.root_name,
-                "publishablePublish"
-                    | "publishableUnpublish"
-                    | "publishablePublishToCurrentChannel"
-                    | "publishableUnpublishToCurrentChannel"
-            )
-        {
-            return self.product_publishable_mutation(invocation);
-        }
-        if invocation.mode == LocalResolverMode::StageLocally
-            && matches!(
-                invocation.root_name,
-                "locationAdd"
-                    | "locationEdit"
-                    | "locationActivate"
-                    | "locationDeactivate"
-                    | "locationDelete"
-            )
-        {
-            return self.location_mutation(invocation);
-        }
+        let requests_owner_metafields = invocation.requested_field_paths.iter().any(|path| {
+            path.first()
+                .is_some_and(|field| matches!(field.as_str(), "metafield" | "metafields"))
+        });
         let RootInvocation {
             response_key,
             request,
-            query,
-            variables,
             root_name,
-            mode,
+            arguments,
             ..
         } = invocation;
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
-        };
-        let fields = fields
-            .into_iter()
-            .filter(|field| field.response_key == response_key)
-            .collect::<Vec<_>>();
-        match mode {
-            LocalResolverMode::OverlayRead if root_name == "collection" => {
-                if self.should_route_owner_metafields_read(query, variables) {
-                    self.owner_metafields_read(request, query, variables, response_key)
-                } else if self.collection_read_needs_upstream(&fields) {
-                    self.cached_or_forward_upstream_root_outcome(request, response_key)
-                } else {
-                    let data = self.collection_membership_downstream_read_data(&fields);
-                    ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
-                }
-            }
-            LocalResolverMode::OverlayRead if root_name == "shop" => {
-                if self.should_route_owner_metafields_read(query, variables) {
-                    return self.owner_metafields_read(request, query, variables, response_key);
-                }
-                if self.should_handle_shop_policy_query_locally() {
-                    if let Some(data) = self.shop_query_data(&fields, Some(request)) {
-                        return ResolverOutcome::value(
-                            data.get(response_key).cloned().unwrap_or(Value::Null),
-                        );
-                    }
+        let arguments = resolved_arguments_from_json(&arguments);
+        match root_name {
+            "shop" => {
+                if requests_owner_metafields || self.should_handle_shop_policy_query_locally() {
+                    return ResolverOutcome::value(
+                        self.shop_canonical_value(&self.store.effective_shop()),
+                    );
                 }
                 let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
                 if result.transport_succeeded {
@@ -117,44 +159,13 @@ impl DraftProxy {
                 }
                 result.outcome
             }
-            LocalResolverMode::OverlayRead
-                if self.has_location_overlay_state()
-                    || !self.location_read_needs_upstream(&fields) =>
+            _ if self.has_location_overlay_state()
+                || !self.location_root_needs_upstream(root_name, &arguments) =>
             {
-                if root_name == "locationsAvailableForDeliveryProfilesConnection" {
-                    let data = self.delivery_profile_locations_read_data(&fields);
-                    ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
-                } else {
-                    self.location_read_outcome(&fields, response_key)
-                }
+                self.location_root_outcome(root_name, &arguments, response_key)
             }
-            LocalResolverMode::OverlayRead => {
-                self.cached_or_forward_upstream_root_outcome(request, response_key)
-            }
-            LocalResolverMode::StageLocally if root_name == "shopPolicyUpdate" => {
-                self.shop_policy_update_outcome(request, query, variables, response_key)
-            }
-            LocalResolverMode::StageLocally => resolver_http_error_outcome(
-                501,
-                format!(
-                    "No Rust {} dispatcher implemented for root field: {root_name}",
-                    mode.registry_name()
-                ),
-            ),
+            _ => self.cached_or_forward_upstream_root_outcome(request, response_key),
         }
-    }
-
-    pub(in crate::proxy) fn payload_shop_selection_needs_hydration(
-        &self,
-        shop_selection: &[SelectedField],
-    ) -> bool {
-        if self.config.read_mode == ReadMode::Snapshot || shop_selection.is_empty() {
-            return false;
-        }
-        !self.shop_has_observed_identity()
-            || shop_selection
-                .iter()
-                .any(|field| self.store.base.shop.get(&field.name).is_none())
     }
 
     pub(in crate::proxy) fn shop_has_observed_identity(&self) -> bool {
@@ -167,29 +178,6 @@ impl DraftProxy {
                 let id = id.trim();
                 !id.is_empty() && !id.contains("shopify-draft-proxy=synthetic")
             })
-    }
-
-    pub(in crate::proxy) fn hydrate_payload_shop_identity_if_selected(
-        &mut self,
-        request: &Request,
-        payload_selection: &[SelectedField],
-    ) {
-        let Some(shop_selection) = selected_child_selection(payload_selection, "shop") else {
-            return;
-        };
-        if !self.payload_shop_selection_needs_hydration(&shop_selection) {
-            return;
-        }
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": SHOP_IDENTITY_HYDRATE_QUERY,
-                "variables": {}
-            }),
-        );
-        if (200..300).contains(&response.status) && response.body.get("errors").is_none() {
-            self.hydrate_shop_state_from_response_data(&response.body["data"]);
-        }
     }
 
     /// Hydrate the canonical Shop value for a mutation payload. Native field
@@ -241,99 +229,75 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn shop_policy_update_outcome(
+    pub(crate) fn shop_policy_update_root(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        response_key: &str,
+        invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        if let Some(error) = self.shop_policy_update_invalid_variable_error(query, variables) {
-            return ResolverOutcome::value(Value::Null)
-                .with_errors(root_field_errors_from_json(&[error], response_key));
+        if let Some(error) = self.shop_policy_update_invalid_variable_error(
+            invocation.query,
+            &invocation.raw_arguments,
+            invocation.root_location,
+        ) {
+            return ResolverOutcome::value(Value::Null).with_errors(root_field_errors_from_json(
+                &[error],
+                invocation.response_key,
+            ));
         }
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
-        };
-        let mut staged_ids = Vec::new();
-        let data = root_payload_json(&fields, |field| {
-            if field.name != "shopPolicyUpdate" {
-                return None;
-            }
-            let payload = self.shop_policy_update_field_payload(request, field);
-            if let Some(id) = payload
-                .get("shopPolicy")
-                .and_then(Value::as_object)
-                .and_then(|policy| policy.get("id"))
-                .and_then(Value::as_str)
-            {
-                staged_ids.push(id.to_string());
-            }
-            Some(payload)
-        });
-        let value = data.get(response_key).cloned().unwrap_or(Value::Null);
-        if !staged_ids.is_empty() {
-            ResolverOutcome::value(value).with_log_draft(LogDraft::staged(
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let payload = self.shop_policy_update_payload(invocation.request, &arguments);
+        let staged_id = payload
+            .pointer("/shopPolicy/id")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        if let Some(id) = staged_id {
+            ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
                 "shopPolicyUpdate",
                 "store-properties",
-                staged_ids,
+                vec![id],
             ))
         } else {
-            ResolverOutcome::value(value)
+            ResolverOutcome::value(payload)
         }
     }
 
-    fn shop_policy_update_field_payload(
+    fn shop_policy_update_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let payload_selection = &field.selection;
-        let input = match field.arguments.get("shopPolicy") {
+        let input = match arguments.get("shopPolicy") {
             Some(ResolvedValue::Object(input)) => input,
             _ => {
-                return selected_json(
-                    &json!({
-                        "shopPolicy": Value::Null,
-                        "userErrors": [user_error_with_code_value(vec!["shopPolicy"], "Shop policy is invalid", json!("INVALID"))]
-                    }),
-                    payload_selection,
-                );
+                return json!({
+                    "shopPolicy": Value::Null,
+                    "userErrors": [user_error_with_code_value(vec!["shopPolicy"], "Shop policy is invalid", json!("INVALID"))]
+                });
             }
         };
         let policy_type = resolved_string_field(input, "type").unwrap_or_default();
         let body = resolved_string_field(input, "body").unwrap_or_default();
         if policy_type == "SUBSCRIPTION_POLICY" && body.trim().is_empty() {
-            return selected_json(
-                &json!({
-                    "shopPolicy": Value::Null,
-                    "userErrors": [user_error_with_code_value(vec!["shopPolicy", "body"], "Purchase options cancellation policy required", Value::Null)]
-                }),
-                payload_selection,
-            );
+            return json!({
+                "shopPolicy": Value::Null,
+                "userErrors": [user_error_with_code_value(vec!["shopPolicy", "body"], "Purchase options cancellation policy required", Value::Null)]
+            });
         }
         if body.len() > SHOP_POLICY_BODY_MAX_BYTES {
-            return selected_json(
-                &json!({
-                    "shopPolicy": Value::Null,
-                    "userErrors": [user_error_with_code_value(vec!["shopPolicy", "body"], "Body is too big (maximum is 512 KB)", json!("TOO_BIG"))]
-                }),
-                payload_selection,
-            );
+            return json!({
+                "shopPolicy": Value::Null,
+                "userErrors": [user_error_with_code_value(vec!["shopPolicy", "body"], "Body is too big (maximum is 512 KB)", json!("TOO_BIG"))]
+            });
         }
         if policy_type == "PRIVACY_POLICY" {
             if let Some(message) = shop_policy_liquid_syntax_error_message(&body) {
-                return selected_json(
-                    &json!({
-                        "shopPolicy": Value::Null,
-                        "userErrors": [user_error_with_code_value(
-                            vec!["shopPolicy", "body"],
-                            &message,
-                            Value::Null
-                        )]
-                    }),
-                    payload_selection,
-                );
+                return json!({
+                    "shopPolicy": Value::Null,
+                    "userErrors": [user_error_with_code_value(
+                        vec!["shopPolicy", "body"],
+                        &message,
+                        Value::Null
+                    )]
+                });
             }
         }
 
@@ -364,30 +328,26 @@ impl DraftProxy {
         };
         self.store.stage_shop_policy(policy.clone());
 
-        selected_json(
-            &json!({
-                "shopPolicy": shop_policy_record_json(&policy),
-                "userErrors": []
-            }),
-            payload_selection,
-        )
+        json!({
+            "shopPolicy": shop_policy_record_json(&policy),
+            "userErrors": []
+        })
     }
 
     fn shop_policy_update_invalid_variable_error(
         &self,
         query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        raw_arguments: &BTreeMap<String, RawArgumentValue>,
+        root_location: SourceLocation,
     ) -> Option<Value> {
-        let field = self.execution_root_field(query, variables, "shopPolicyUpdate")?;
-        let RawArgumentValue::Variable { name, value } = field.raw_arguments.get("shopPolicy")?
-        else {
+        let RawArgumentValue::Variable { name, value } = raw_arguments.get("shopPolicy")? else {
             return None;
         };
         let input = match value {
             Some(ResolvedValue::Object(input)) => input,
             _ => return None,
         };
-        shop_policy_update_invalid_input_response(query, name, input, field.location)
+        shop_policy_update_invalid_input_response(query, name, input, root_location)
     }
 
     fn next_shop_policy_id(&mut self) -> String {
@@ -410,7 +370,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn hydrate_shop_policy_base(&mut self, request: &Request) {
         if self.config.read_mode == ReadMode::Snapshot
-            || !self.store.base.shop_policies.records.is_empty()
+            || !self.store.shop_policies.base.records.is_empty()
         {
             return;
         }
@@ -431,63 +391,40 @@ impl DraftProxy {
             {
                 let (policies, order) = shop_policy_state_from_shop(shop);
                 self.store
-                    .base
                     .shop_policies
+                    .base
                     .replace_with_order(policies, order);
             }
             self.hydrate_shop_state_from_response_data(&response.body["data"]);
         }
     }
 
-    pub(in crate::proxy) fn shop_query_data(
-        &self,
-        fields: &[RootFieldSelection],
-        request: Option<&Request>,
-    ) -> Option<Value> {
-        if !fields
-            .iter()
-            .all(|field| matches!(field.name.as_str(), "shop" | "node" | "nodes"))
-        {
-            return None;
-        }
-        let mut data = serde_json::Map::new();
-        let shop = self.store.effective_shop();
-        for field in fields {
-            if field.name == "shop" {
-                data.insert(
-                    field.response_key.clone(),
-                    self.shop_json(&shop, &field.selection),
-                );
-            }
-        }
-        if let Some(node_data) = self.local_node_query_data(fields, true, request) {
-            if let Some(node_data) = node_data.as_object() {
-                data.extend(node_data.clone());
-            }
-        }
-        Some(Value::Object(data))
-    }
-
     pub(in crate::proxy) fn should_handle_shop_policy_query_locally(&self) -> bool {
-        self.config.read_mode == ReadMode::Snapshot
-            || !self.store.base.shop_policies.records.is_empty()
-            || !self.store.staged.shop_policies.records.is_empty()
-            || !self.store.staged.shop_policies.tombstones.is_empty()
+        self.config.read_mode == ReadMode::Snapshot || self.store.shop_policies.has_state()
     }
 
-    fn shop_json(&self, shop: &Value, selection: &[SelectedField]) -> Value {
-        selected_payload_json(selection, |selection| match selection.name.as_str() {
-            "shopPolicies" => Some(Value::Array(
-                self.store
-                    .shop_policies()
-                    .into_iter()
-                    .map(|policy| shop_policy_json(&policy, &selection.selection))
-                    .collect(),
-            )),
-            _ => shop
-                .get(&selection.name)
-                .map(|value| nullable_selected_json(value, &selection.selection)),
-        })
+    pub(in crate::proxy) fn shop_canonical_value(&self, shop: &Value) -> Value {
+        let mut shop = shop.clone();
+        if shop.get("id").and_then(Value::as_str).is_none() {
+            if let Some(owner_id) = self
+                .store
+                .staged
+                .owner_metafields
+                .keys()
+                .find(|id| shopify_gid_resource_type(id) == Some("Shop"))
+            {
+                shop["id"] = json!(owner_id);
+            }
+        }
+        shop["__typename"] = json!("Shop");
+        shop["shopPolicies"] = Value::Array(
+            self.store
+                .shop_policies()
+                .into_iter()
+                .map(|policy| shop_policy_record_json(&policy))
+                .collect(),
+        );
+        shop
     }
 
     pub(in crate::proxy) fn shop_property_node_value_by_id(&self, id: &str) -> Option<Value> {
@@ -528,8 +465,8 @@ impl DraftProxy {
             Some("ShopPolicy") => {
                 if let Some(policy) = shop_policy_record_from_json(node) {
                     self.store
-                        .base
                         .shop_policies
+                        .base
                         .insert(policy.id.clone(), policy);
                 }
             }
@@ -544,7 +481,7 @@ pub(in crate::proxy) fn mutation_payload_shop_field(
     _invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     proxy.hydrate_payload_shop_identity(request);
-    Ok(proxy.store.effective_shop())
+    Ok(proxy.shop_canonical_value(&proxy.store.effective_shop()))
 }
 
 pub(in crate::proxy) fn shop_policy_record_json(policy: &ShopPolicyRecord) -> Value {
@@ -637,10 +574,6 @@ fn shop_policy_record_from_json(value: &Value) -> Option<ShopPolicyRecord> {
             .cloned()
             .unwrap_or_default(),
     })
-}
-
-fn shop_policy_json(policy: &ShopPolicyRecord, selection: &[SelectedField]) -> Value {
-    selected_json(&shop_policy_record_json(policy), selection)
 }
 
 fn shop_policy_update_invalid_input_response(

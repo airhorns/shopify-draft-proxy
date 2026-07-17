@@ -4,51 +4,35 @@ impl DraftProxy {
     pub(in crate::proxy) fn order_customer_error_paths_outcome(
         &mut self,
         request: &Request,
+        root_field: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-        response_key: &str,
     ) -> Option<ResolverOutcome<Value>> {
-        let fields = self.execution_root_fields(query, variables)?;
-        let mut declined = false;
-        let data = root_payload_json(&fields, |field| {
-            if declined {
-                return None;
+        let value = match root_field {
+            "customerCreate" => self.order_customer_paths_customer_create(arguments),
+            "companyCreate" => self.order_customer_paths_company_create(arguments),
+            "companyAssignCustomerAsContact" => {
+                self.order_customer_paths_assign_customer(arguments)
             }
-            let value = match field.name.as_str() {
-                "customerCreate" => self.order_customer_paths_customer_create(field),
-                "companyCreate" => self.order_customer_paths_company_create(field),
-                "companyAssignCustomerAsContact" => {
-                    self.order_customer_paths_assign_customer(field)
-                }
-                "orderCreate" => self.order_customer_paths_order_create(field),
-                "orderCancel" => {
-                    self.order_customer_paths_cancel_order(request, query, variables, field)
-                }
-                "orderCustomerSet" => Some(self.order_customer_set_error_paths(request, field)),
-                "orderCustomerRemove" => {
-                    Some(self.order_customer_remove_error_paths(request, field))
-                }
-                _ => None,
-            };
-            let Some(value) = value else {
-                declined = true;
-                return None;
-            };
-            Some(value)
-        });
-        if declined {
-            return None;
-        }
-        Some(ResolverOutcome::value(
-            data.get(response_key).cloned().unwrap_or(Value::Null),
-        ))
+            "orderCreate" => self.order_customer_paths_order_create(arguments),
+            "orderCancel" => {
+                self.order_customer_paths_cancel_order(request, query, variables, arguments)
+            }
+            "orderCustomerSet" => Some(self.order_customer_set_error_paths(request, arguments)),
+            "orderCustomerRemove" => {
+                Some(self.order_customer_remove_error_paths(request, arguments))
+            }
+            _ => None,
+        }?;
+        Some(ResolverOutcome::value(value))
     }
 
     pub(in crate::proxy) fn order_customer_paths_customer_create(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let input = resolved_object_field(arguments, "input").unwrap_or_default();
         let email = resolved_string_field(&input, "email").unwrap_or_default();
         let first_name = resolved_string_field(&input, "firstName");
         let last_name = resolved_string_field(&input, "lastName");
@@ -66,17 +50,14 @@ impl DraftProxy {
             customer["id"].as_str().unwrap_or_default().to_string(),
             customer.clone(),
         );
-        Some(selected_json(
-            &json!({ "customer": customer, "userErrors": [] }),
-            &field.selection,
-        ))
+        Some(json!({ "customer": customer, "userErrors": [] }))
     }
 
     pub(in crate::proxy) fn order_customer_paths_company_create(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let input = resolved_object_field(arguments, "input").unwrap_or_default();
         let company_input = resolved_object_field(&input, "company").unwrap_or_default();
         let name = resolved_string_field(&company_input, "name")
             .or_else(|| resolved_string_field(&input, "name"))
@@ -99,18 +80,15 @@ impl DraftProxy {
             company["id"].as_str().unwrap_or_default().to_string(),
             company.clone(),
         );
-        Some(selected_json(
-            &json!({ "company": company, "userErrors": [] }),
-            &field.selection,
-        ))
+        Some(json!({ "company": company, "userErrors": [] }))
     }
 
     pub(in crate::proxy) fn order_customer_paths_assign_customer(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let company_id = resolved_string_field(&field.arguments, "companyId")?;
-        let customer_id = resolved_string_field(&field.arguments, "customerId")?;
+        let company_id = resolved_string_field(arguments, "companyId")?;
+        let customer_id = resolved_string_field(arguments, "customerId")?;
         let customer = self.store.staged.customers.get(&customer_id)?.clone();
         let company = self.store.staged.b2b_companies.get(&company_id)?.clone();
         self.store
@@ -145,25 +123,22 @@ impl DraftProxy {
                 .b2b_companies
                 .insert(company_id.clone(), company_record);
         }
-        Some(selected_json(
-            &json!({
-                "companyContact": {
-                    "id": contact_id,
-                    "isMainContact": false,
-                    "customer": { "id": customer_id },
-                    "company": { "id": company_id, "name": company["name"].clone() }
-                },
-                "userErrors": []
-            }),
-            &field.selection,
-        ))
+        Some(json!({
+            "companyContact": {
+                "id": contact_id,
+                "isMainContact": false,
+                "customer": { "id": customer_id },
+                "company": { "id": company_id, "name": company["name"].clone() }
+            },
+            "userErrors": []
+        }))
     }
 
     pub(in crate::proxy) fn order_customer_paths_order_create(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let order_input = resolved_object_field(&field.arguments, "order")?;
+        let order_input = resolved_object_field(arguments, "order")?;
         let id = self.next_proxy_synthetic_gid("Order");
         let customer_id = resolved_string_field(&order_input, "customerId");
         // Retain purchasing entity so company delete detects B2B references.
@@ -189,10 +164,7 @@ impl DraftProxy {
             order["id"].as_str().unwrap_or_default().to_string(),
             order.clone(),
         );
-        Some(selected_json(
-            &json!({ "order": order, "userErrors": [] }),
-            &field.selection,
-        ))
+        Some(json!({ "order": order, "userErrors": [] }))
     }
 
     pub(super) fn order_create_b2b_purchasing_entity(
@@ -235,12 +207,11 @@ impl DraftProxy {
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let order_id = resolved_string_field(&field.arguments, "orderId")?;
+        let order_id = resolved_string_field(arguments, "orderId")?;
         let argument_present = |name: &str| {
-            field
-                .arguments
+            arguments
                 .get(name)
                 .is_some_and(|value| !matches!(value, ResolvedValue::Null))
         };
@@ -276,26 +247,20 @@ impl DraftProxy {
                 "userErrors": [error]
             })
         };
-        if let Some(staff_note) = resolved_string_field(&field.arguments, "staffNote") {
+        if let Some(staff_note) = resolved_string_field(arguments, "staffNote") {
             if staff_note.chars().count() > 255 {
-                return Some(selected_json(
-                    &error_payload(
-                        "staffNote",
-                        "Staff note is too long. Maximum length is 255 characters.",
-                        "INVALID",
-                    ),
-                    &field.selection,
+                return Some(error_payload(
+                    "staffNote",
+                    "Staff note is too long. Maximum length is 255 characters.",
+                    "INVALID",
                 ));
             }
         }
         if refund_present && refund_method_cancel {
-            return Some(selected_json(
-                &error_payload(
-                    "refund",
-                    "Only one of the arguments `refund` or `refund_method` is allowed.",
-                    "INVALID",
-                ),
-                &field.selection,
+            return Some(error_payload(
+                "refund",
+                "Only one of the arguments `refund` or `refund_method` is allowed.",
+                "INVALID",
             ));
         }
 
@@ -305,9 +270,10 @@ impl DraftProxy {
         // refunded/restocked projection (see the staging note above).
         if refund_method_cancel && !order_locally_known {
             if !self.order_exists_upstream(request, &order_id) {
-                return Some(selected_json(
-                    &error_payload("orderId", "Order does not exist", "NOT_FOUND"),
-                    &field.selection,
+                return Some(error_payload(
+                    "orderId",
+                    "Order does not exist",
+                    "NOT_FOUND",
                 ));
             }
             let job_id = synthetic_shopify_gid("Job", self.log_entries.len() + 1);
@@ -322,15 +288,12 @@ impl DraftProxy {
                     notes: "Acknowledged refundMethod orderCancel; downstream order read forwards upstream for the refunded/restocked projection.",
                 },
             });
-            return Some(selected_json(
-                &json!({
-                    "order": Value::Null,
-                    "job": { "id": job_id, "done": false },
-                    "orderCancelUserErrors": [],
-                    "userErrors": []
-                }),
-                &field.selection,
-            ));
+            return Some(json!({
+                "order": Value::Null,
+                "job": { "id": job_id, "done": false },
+                "orderCancelUserErrors": [],
+                "userErrors": []
+            }));
         }
 
         if self.store.staged.orders.contains_key(&order_id) {
@@ -342,18 +305,15 @@ impl DraftProxy {
                 .and_then(|order| order.get("cancelledAt"))
                 .is_some_and(|cancelled_at| !cancelled_at.is_null());
             if already_cancelled {
-                return Some(selected_json(
-                    &error_payload(
-                        "orderId",
-                        "Cannot cancel an order that has already been canceled",
-                        "INVALID",
-                    ),
-                    &field.selection,
+                return Some(error_payload(
+                    "orderId",
+                    "Cannot cancel an order that has already been canceled",
+                    "INVALID",
                 ));
             }
 
             let reason =
-                resolved_string_field(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
+                resolved_string_field(arguments, "reason").unwrap_or_else(|| "OTHER".into());
             let timestamp = self.order_cancel_timestamp();
             let job_id = synthetic_shopify_gid("Job", self.log_entries.len() + 1);
             let order = self
@@ -386,15 +346,12 @@ impl DraftProxy {
                 "orderCancel",
                 vec![order_id],
             );
-            return Some(selected_json(
-                &json!({
-                    "order": order,
-                    "job": { "id": job_id, "done": false },
-                    "orderCancelUserErrors": [],
-                    "userErrors": []
-                }),
-                &field.selection,
-            ));
+            return Some(json!({
+                "order": order,
+                "job": { "id": job_id, "done": false },
+                "orderCancelUserErrors": [],
+                "userErrors": []
+            }));
         }
 
         let Some(mut order) = self
@@ -404,9 +361,10 @@ impl DraftProxy {
             .get(&order_id)
             .cloned()
         else {
-            return Some(selected_json(
-                &error_payload("orderId", "Order does not exist", "NOT_FOUND"),
-                &field.selection,
+            return Some(error_payload(
+                "orderId",
+                "Order does not exist",
+                "NOT_FOUND",
             ));
         };
         if self
@@ -415,21 +373,17 @@ impl DraftProxy {
             .order_customer_cancelled_ids
             .contains(&order_id)
         {
-            return Some(selected_json(
-                &error_payload(
-                    "orderId",
-                    "Cannot cancel an order that has already been canceled",
-                    "INVALID",
-                ),
-                &field.selection,
+            return Some(error_payload(
+                "orderId",
+                "Cannot cancel an order that has already been canceled",
+                "INVALID",
             ));
         }
         self.store
             .staged
             .order_customer_cancelled_ids
             .insert(order_id.clone());
-        let reason =
-            resolved_string_field(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
+        let reason = resolved_string_field(arguments, "reason").unwrap_or_else(|| "OTHER".into());
         let timestamp = self.order_cancel_timestamp();
         order["closed"] = json!(true);
         order["closedAt"] = json!(timestamp.clone());
@@ -447,15 +401,12 @@ impl DraftProxy {
             vec![order_id.clone()],
         );
         let job_id = self.next_proxy_synthetic_gid("Job");
-        Some(selected_json(
-            &json!({
-                "order": order,
-                "job": { "id": job_id, "done": false },
-                "orderCancelUserErrors": [],
-                "userErrors": []
-            }),
-            &field.selection,
-        ))
+        Some(json!({
+            "order": order,
+            "job": { "id": job_id, "done": false },
+            "orderCancelUserErrors": [],
+            "userErrors": []
+        }))
     }
 
     pub(super) fn order_cancel_timestamp(&self) -> String {
@@ -468,10 +419,10 @@ impl DraftProxy {
     pub(in crate::proxy) fn order_customer_set_error_paths(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let order_id = resolved_string_field(&field.arguments, "orderId").unwrap_or_default();
-        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
+        let order_id = resolved_string_field(arguments, "orderId").unwrap_or_default();
+        let customer_id = resolved_string_field(arguments, "customerId").unwrap_or_default();
         // Earn order + customer from the backend on the happy path (no seed).
         // Synthetic error-path ids stay local-only.
         if !order_id.is_empty()
@@ -502,37 +453,28 @@ impl DraftProxy {
             .cloned()
             .or_else(|| self.store.staged.orders.get(&order_id).cloned())
         else {
-            return selected_json(
-                &json!({
-                    "order": Value::Null,
-                    "userErrors": [user_error(["orderId"], "Order does not exist", Some("NOT_FOUND"))]
-                }),
-                &field.selection,
-            );
+            return json!({
+                "order": Value::Null,
+                "userErrors": [user_error(["orderId"], "Order does not exist", Some("NOT_FOUND"))]
+            });
         };
         let Some(mut customer) = customer else {
-            return selected_json(
-                &json!({
-                    "order": Value::Null,
-                    "userErrors": [user_error(["customerId"], "Customer does not exist", Some("NOT_FOUND"))]
-                }),
-                &field.selection,
-            );
+            return json!({
+                "order": Value::Null,
+                "userErrors": [user_error(["customerId"], "Customer does not exist", Some("NOT_FOUND"))]
+            });
         };
         if self.order_customer_order_is_b2b(&order_id, &order)
             && self.order_customer_customer_is_b2b_contact_for_order(&customer_id, &order)
         {
-            return selected_json(
-                &json!({
-                    "order": Value::Null,
-                    "userErrors": [user_error(
-                        ["customerId"],
-                        "Customer does not have the permissions to place this order",
-                        Some("NOT_PERMITTED"),
-                    )]
-                }),
-                &field.selection,
-            );
+            return json!({
+                "order": Value::Null,
+                "userErrors": [user_error(
+                    ["customerId"],
+                    "Customer does not have the permissions to place this order",
+                    Some("NOT_PERMITTED"),
+                )]
+            });
         }
         customer["canDelete"] = json!(false);
         order["customer"] = customer;
@@ -558,10 +500,7 @@ impl DraftProxy {
             .entry(customer_id.clone())
             .or_default()
             .push(order.clone());
-        selected_json(
-            &json!({ "order": order, "userErrors": [] }),
-            &field.selection,
-        )
+        json!({ "order": order, "userErrors": [] })
     }
 
     /// Remove an order from every per-customer order index entry. Used when an
@@ -576,9 +515,9 @@ impl DraftProxy {
     pub(in crate::proxy) fn order_customer_remove_error_paths(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let order_id = resolved_string_field(&field.arguments, "orderId").unwrap_or_default();
+        let order_id = resolved_string_field(arguments, "orderId").unwrap_or_default();
         if !order_id.is_empty()
             && !order_id.contains(SYNTHETIC_MARKER)
             && !self
@@ -603,26 +542,20 @@ impl DraftProxy {
             .cloned()
             .or_else(|| self.store.staged.orders.get(&order_id).cloned())
         else {
-            return selected_json(
-                &json!({
-                    "order": Value::Null,
-                    "userErrors": [user_error(["orderId"], "Order does not exist", Some("NOT_FOUND"))]
-                }),
-                &field.selection,
-            );
+            return json!({
+                "order": Value::Null,
+                "userErrors": [user_error(["orderId"], "Order does not exist", Some("NOT_FOUND"))]
+            });
         };
         if self.order_customer_order_is_b2b(&order_id, &order) {
-            return selected_json(
-                &json!({
-                    "order": Value::Null,
-                    "userErrors": [user_error(
-                        ["orderId"],
-                        "Action not permitted on B2B Orders",
-                        Some("INVALID"),
-                    )]
-                }),
-                &field.selection,
-            );
+            return json!({
+                "order": Value::Null,
+                "userErrors": [user_error(
+                    ["orderId"],
+                    "Action not permitted on B2B Orders",
+                    Some("INVALID"),
+                )]
+            });
         }
         order["customer"] = Value::Null;
         if from_customer_map {
@@ -640,10 +573,7 @@ impl DraftProxy {
         // per-customer order index entry so `customer.orders` reads reflect the
         // removal.
         self.detach_order_from_customer_orders(&order_id);
-        selected_json(
-            &json!({ "order": order, "userErrors": [] }),
-            &field.selection,
-        )
+        json!({ "order": order, "userErrors": [] })
     }
 
     fn order_customer_order_is_b2b(&self, order_id: &str, order: &Value) -> bool {

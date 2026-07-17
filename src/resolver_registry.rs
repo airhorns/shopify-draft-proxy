@@ -8,14 +8,19 @@
 //! second routing table beside the exported operation registry.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     ops::Deref,
     sync::{Arc, OnceLock},
 };
 
 use crate::{
-    admin_graphql::{AdminApiVersion, FieldResolverInvocation, RootFieldError},
-    graphql::{OperationType, ParsedOperation, ResolvedValue, SourceLocation},
+    admin_graphql::{
+        AdminApiVersion, FieldResolverInvocation, ResolverValueSource, RootFieldError,
+    },
+    graphql::{
+        OperationType, ParsedOperation, RawArgumentValue, ResolvedValue, SourceLocation,
+        VariableDefinitionInfo,
+    },
     operation_registry::{
         ApiSurface, CapabilityDomain, CapabilityExecution, OperationCapability,
         OperationRegistryEntry,
@@ -24,7 +29,7 @@ use crate::{
     storefront_graphql::StorefrontApiVersion,
 };
 
-use serde_json::Value;
+use serde_json::{json, Value};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LocalResolverMode {
@@ -86,7 +91,26 @@ pub(crate) struct RootInvocation<'a> {
     /// exposing the output selection to domain resolvers.
     pub root_location: SourceLocation,
     pub directives: Vec<String>,
+    /// Source metadata that GraphQL coercion deliberately does not preserve in
+    /// argument values. Compatibility validators may use this to reproduce
+    /// Shopify's operation paths and variable-definition locations without
+    /// reparsing the caller's document inside a domain module.
+    pub operation_path: &'a str,
+    pub variable_definitions: &'a BTreeMap<String, VariableDefinitionInfo>,
+    /// Original literal/variable sources are retained for Shopify-compatible
+    /// validation branches that distinguish omission, explicit null, and an
+    /// unbound variable. Domain code must use `arguments` for normal values.
+    pub raw_arguments: BTreeMap<String, RawArgumentValue>,
     pub arguments: BTreeMap<String, Value>,
+    /// Output paths selected by the executable GraphQL engine. Domain roots
+    /// may use this only to plan hydration; projection remains engine-owned.
+    pub requested_field_paths: BTreeSet<Vec<String>>,
+    /// When a request-scoped read preflight fetched the original operation,
+    /// this is the current root value normalized back to canonical schema field
+    /// names. Aliases are a transport concern and never leak into domain/store
+    /// code. The raw upstream outcome remains available through the request
+    /// cache for roots that should return it unchanged.
+    pub upstream_value: Option<Value>,
     pub request: &'a Request,
     #[allow(dead_code)]
     pub query: &'a str,
@@ -99,6 +123,12 @@ pub(crate) struct RootInvocation<'a> {
 impl RootInvocation<'_> {
     pub(crate) fn has_directive(&self, name: &str) -> bool {
         self.directives.iter().any(|directive| directive == name)
+    }
+
+    pub(crate) fn requests_field_path(&self, path: &[&str]) -> bool {
+        self.requested_field_paths
+            .iter()
+            .any(|selected| selected.iter().map(String::as_str).eq(path.iter().copied()))
     }
 }
 
@@ -161,6 +191,7 @@ pub(crate) struct ResolverOutcome<T = Value> {
     pub errors: Vec<RootFieldError>,
     pub extensions: BTreeMap<String, Value>,
     pub log_drafts: Vec<MutationLogDraft>,
+    pub value_source: ResolverValueSource,
 }
 
 impl<T> ResolverOutcome<T> {
@@ -170,6 +201,7 @@ impl<T> ResolverOutcome<T> {
             errors: Vec::new(),
             extensions: BTreeMap::new(),
             log_drafts: Vec::new(),
+            value_source: ResolverValueSource::Local,
         }
     }
 
@@ -196,6 +228,7 @@ impl ResolverOutcome<Value> {
             }],
             extensions: BTreeMap::new(),
             log_drafts: Vec::new(),
+            value_source: ResolverValueSource::Local,
         }
     }
 }
@@ -246,44 +279,71 @@ impl std::fmt::Debug for FieldResolverImplementation {
     }
 }
 
+impl FieldResolverImplementation {
+    fn registry_name(self) -> &'static str {
+        match self {
+            Self::PropertyBacked => "property-backed",
+            Self::Explicit(_) => "explicit-resolver",
+            Self::DeliberatelyUnsupported(_) => "deliberately-unsupported",
+        }
+    }
+
+    fn unsupported_reason(self) -> Option<&'static str> {
+        match self {
+            Self::DeliberatelyUnsupported(reason) => Some(reason),
+            Self::PropertyBacked | Self::Explicit(_) => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct FieldResolverRegistration {
     pub coordinate: FieldCoordinate,
     pub implementation: FieldResolverImplementation,
     pub provenance: FieldResolverProvenance,
+    pub reaches_child_type: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FieldResolverProvenance {
     DeclaredProperty,
     ExplicitResolver,
-    LegacySelectionProjector,
+    TypePropertyPolicy,
     TypeUnsupportedPolicy,
-    InferredOrdinaryProperty,
-    InferredUnsupportedArgumentField,
+    GeneratedPropertyPolicy,
 }
 
-/// Measurable ownership/debt inventory for the executable field catalog.
-/// Shared registrations are counted once; version-inferred decisions are
+impl FieldResolverProvenance {
+    fn registry_name(self) -> &'static str {
+        match self {
+            Self::DeclaredProperty => "declared-property",
+            Self::ExplicitResolver => "explicit-resolver",
+            Self::TypePropertyPolicy => "type-property-policy",
+            Self::TypeUnsupportedPolicy => "type-unsupported-policy",
+            Self::GeneratedPropertyPolicy => "generated-property-policy",
+        }
+    }
+}
+
+/// Measurable ownership inventory for the executable field catalog. Shared
+/// registrations are counted once; generated and type-policy decisions are
 /// counted once per concrete surface/version coordinate.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FieldResolverAudit {
     pub declared_properties: usize,
     pub explicit_resolvers: usize,
-    pub legacy_selection_projectors: usize,
+    pub type_property_policies: usize,
     pub type_unsupported_policies: usize,
-    pub inferred_ordinary_properties: usize,
-    pub inferred_unsupported_argument_fields: usize,
+    pub generated_property_policies: usize,
 }
 
 impl FieldResolverAudit {
     pub fn total(self) -> usize {
         self.declared_properties
             + self.explicit_resolvers
-            + self.legacy_selection_projectors
+            + self.type_property_policies
             + self.type_unsupported_policies
-            + self.inferred_ordinary_properties
-            + self.inferred_unsupported_argument_fields
+            + self.generated_property_policies
     }
 }
 
@@ -298,23 +358,7 @@ impl FieldResolverRegistration {
             },
             implementation: FieldResolverImplementation::PropertyBacked,
             provenance: FieldResolverProvenance::DeclaredProperty,
-        }
-    }
-
-    pub(crate) fn legacy_projected_property(
-        api_surface: ApiSurface,
-        parent_type: &str,
-        field_name: &str,
-    ) -> Self {
-        Self {
-            coordinate: FieldCoordinate {
-                api_surface,
-                api_version: None,
-                parent_type: parent_type.to_string(),
-                field_name: field_name.to_string(),
-            },
-            implementation: FieldResolverImplementation::PropertyBacked,
-            provenance: FieldResolverProvenance::LegacySelectionProjector,
+            reaches_child_type: true,
         }
     }
 
@@ -333,7 +377,19 @@ impl FieldResolverRegistration {
             },
             implementation: FieldResolverImplementation::Explicit(handler),
             provenance: FieldResolverProvenance::ExplicitResolver,
+            reaches_child_type: true,
         }
+    }
+
+    pub(crate) fn explicit_terminal(
+        api_surface: ApiSurface,
+        parent_type: &str,
+        field_name: &str,
+        handler: FieldResolverHandler,
+    ) -> Self {
+        let mut registration = Self::explicit(api_surface, parent_type, field_name, handler);
+        registration.reaches_child_type = false;
+        registration
     }
 
     fn unsupported(
@@ -352,6 +408,7 @@ impl FieldResolverRegistration {
             },
             implementation: FieldResolverImplementation::DeliberatelyUnsupported(reason),
             provenance: FieldResolverProvenance::TypeUnsupportedPolicy,
+            reaches_child_type: false,
         }
     }
 }
@@ -359,22 +416,37 @@ impl FieldResolverRegistration {
 /// Explicit policy for a canonical type whose remaining captured fields are
 /// unsupported. This keeps per-field decisions auditable without forcing
 /// domains to hand-copy every field from every captured schema version.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct FieldResolverTypePolicy {
     pub api_surface: ApiSurface,
-    pub parent_type: &'static str,
+    pub parent_type: String,
+    pub ordinary_fields_are_property_backed: bool,
     pub unsupported_reason: &'static str,
 }
 
 impl FieldResolverTypePolicy {
     pub(crate) fn unsupported_remaining(
         api_surface: ApiSurface,
-        parent_type: &'static str,
+        parent_type: impl Into<String>,
         unsupported_reason: &'static str,
     ) -> Self {
         Self {
             api_surface,
-            parent_type,
+            parent_type: parent_type.into(),
+            ordinary_fields_are_property_backed: false,
+            unsupported_reason,
+        }
+    }
+
+    pub(crate) fn property_backed_ordinary_fields(
+        api_surface: ApiSurface,
+        parent_type: impl Into<String>,
+        unsupported_reason: &'static str,
+    ) -> Self {
+        Self {
+            api_surface,
+            parent_type: parent_type.into(),
+            ordinary_fields_are_property_backed: true,
             unsupported_reason,
         }
     }
@@ -561,22 +633,54 @@ impl ResolverRegistry {
             match registration.provenance {
                 FieldResolverProvenance::DeclaredProperty => audit.declared_properties += 1,
                 FieldResolverProvenance::ExplicitResolver => audit.explicit_resolvers += 1,
-                FieldResolverProvenance::LegacySelectionProjector => {
-                    audit.legacy_selection_projectors += 1;
+                FieldResolverProvenance::TypePropertyPolicy => {
+                    audit.type_property_policies += 1;
                 }
                 FieldResolverProvenance::TypeUnsupportedPolicy => {
                     audit.type_unsupported_policies += 1;
                 }
-                FieldResolverProvenance::InferredOrdinaryProperty => {
-                    audit.inferred_ordinary_properties += 1;
-                }
-                FieldResolverProvenance::InferredUnsupportedArgumentField => {
-                    audit.inferred_unsupported_argument_fields += 1;
+                FieldResolverProvenance::GeneratedPropertyPolicy => {
+                    audit.generated_property_policies += 1;
                 }
             }
         }
         audit
     }
+}
+
+/// Machine-readable field ownership derived from the same captured schemas,
+/// root callbacks, and resolver policies used by runtime execution. Tooling can
+/// audit implementation debt without maintaining a second field inventory.
+pub fn default_field_resolver_catalog_json_value() -> Value {
+    let registry = ResolverRegistry::new(crate::operation_registry::default_registry());
+    let audit = registry.field_resolver_audit();
+    let fields = registry
+        .field_resolvers
+        .values()
+        .map(|registration| {
+            json!({
+                "apiSurface": registration.coordinate.api_surface.registry_name(),
+                "apiVersion": registration.coordinate.api_version.as_deref(),
+                "parentType": &registration.coordinate.parent_type,
+                "fieldName": &registration.coordinate.field_name,
+                "implementation": registration.implementation.registry_name(),
+                "provenance": registration.provenance.registry_name(),
+                "unsupportedReason": registration.implementation.unsupported_reason(),
+                "reachesChildType": registration.reaches_child_type,
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({
+        "audit": {
+            "declaredProperties": audit.declared_properties,
+            "explicitResolvers": audit.explicit_resolvers,
+            "typePropertyPolicies": audit.type_property_policies,
+            "typeUnsupportedPolicies": audit.type_unsupported_policies,
+            "generatedPropertyPolicies": audit.generated_property_policies,
+            "total": audit.total(),
+        },
+        "fields": fields,
+    })
 }
 
 fn default_field_resolver_catalog() -> Arc<BTreeMap<FieldCoordinate, FieldResolverRegistration>> {
@@ -587,7 +691,18 @@ fn default_field_resolver_catalog() -> Arc<BTreeMap<FieldCoordinate, FieldResolv
 
 fn build_field_resolver_catalog() -> BTreeMap<FieldCoordinate, FieldResolverRegistration> {
     let mut field_resolvers = BTreeMap::new();
-    for registration in crate::proxy::field_resolver_registrations() {
+    let registrations = crate::proxy::field_resolver_registrations();
+    let declared_property_types = registrations
+        .iter()
+        .filter(|registration| registration.provenance == FieldResolverProvenance::DeclaredProperty)
+        .map(|registration| {
+            (
+                registration.coordinate.api_surface,
+                registration.coordinate.parent_type.clone(),
+            )
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    for registration in registrations {
         let coordinate = registration.coordinate.clone();
         let previous = field_resolvers.insert(coordinate.clone(), registration);
         assert!(
@@ -599,7 +714,22 @@ fn build_field_resolver_catalog() -> BTreeMap<FieldCoordinate, FieldResolverRegi
         );
     }
 
-    for policy in crate::proxy::field_resolver_type_policies() {
+    let mut type_policies = crate::proxy::field_resolver_type_policies();
+    for (api_surface, parent_type) in declared_property_types {
+        if type_policies
+            .iter()
+            .any(|policy| policy.api_surface == api_surface && policy.parent_type == parent_type)
+        {
+            continue;
+        }
+        type_policies.push(FieldResolverTypePolicy::unsupported_remaining(
+            api_surface,
+            parent_type,
+            "field is not declared property-backed or explicitly resolved for this canonical type",
+        ));
+    }
+
+    for policy in type_policies {
         let mut saw_type = false;
         match policy.api_surface {
             ApiSurface::Admin => {
@@ -610,9 +740,9 @@ fn build_field_resolver_catalog() -> BTreeMap<FieldCoordinate, FieldResolverRegi
                             policy.parent_type
                         )
                     });
-                    saw_type |= register_unsupported_type_fields(
+                    saw_type |= register_type_policy_fields(
                         &mut field_resolvers,
-                        policy,
+                        &policy,
                         version.as_str(),
                         schema,
                     );
@@ -627,9 +757,9 @@ fn build_field_resolver_catalog() -> BTreeMap<FieldCoordinate, FieldResolverRegi
                                 policy.parent_type
                             )
                         });
-                    saw_type |= register_unsupported_type_fields(
+                    saw_type |= register_type_policy_fields(
                         &mut field_resolvers,
-                        policy,
+                        &policy,
                         version.as_str(),
                         schema,
                     );
@@ -647,7 +777,7 @@ fn build_field_resolver_catalog() -> BTreeMap<FieldCoordinate, FieldResolverRegi
     for version in AdminApiVersion::ALL {
         let schema = crate::admin_graphql::schema(version)
             .unwrap_or_else(|error| panic!("could not catalog Admin {version} fields: {error}"));
-        register_captured_schema_field_decisions(
+        register_reachable_schema_field_decisions(
             &mut field_resolvers,
             ApiSurface::Admin,
             version.as_str(),
@@ -658,7 +788,7 @@ fn build_field_resolver_catalog() -> BTreeMap<FieldCoordinate, FieldResolverRegi
         let schema = crate::storefront_graphql::schema(version).unwrap_or_else(|error| {
             panic!("could not catalog Storefront {version} fields: {error}")
         });
-        register_captured_schema_field_decisions(
+        register_reachable_schema_field_decisions(
             &mut field_resolvers,
             ApiSurface::Storefront,
             version.as_str(),
@@ -669,16 +799,16 @@ fn build_field_resolver_catalog() -> BTreeMap<FieldCoordinate, FieldResolverRegi
     field_resolvers
 }
 
-fn register_unsupported_type_fields(
+fn register_type_policy_fields(
     field_resolvers: &mut BTreeMap<FieldCoordinate, FieldResolverRegistration>,
-    policy: FieldResolverTypePolicy,
+    policy: &FieldResolverTypePolicy,
     version: &str,
     schema: &async_graphql::dynamic::Schema,
 ) -> bool {
     let Some(fields) = schema
         .registry()
         .types
-        .get(policy.parent_type)
+        .get(policy.parent_type.as_str())
         .and_then(|schema_type| schema_type.fields())
     else {
         return false;
@@ -696,31 +826,81 @@ fn register_unsupported_type_fields(
         };
         if !field_resolvers.contains_key(&shared_coordinate) {
             field_resolvers.entry(coordinate).or_insert_with(|| {
-                FieldResolverRegistration::unsupported(
-                    policy.api_surface,
-                    version,
-                    policy.parent_type,
-                    field_name,
-                    policy.unsupported_reason,
-                )
+                let field = fields
+                    .get(field_name)
+                    .expect("captured type policy field should still exist");
+                if policy.ordinary_fields_are_property_backed && field.args.is_empty() {
+                    FieldResolverRegistration {
+                        coordinate: FieldCoordinate {
+                            api_surface: policy.api_surface,
+                            api_version: Some(version.to_string()),
+                            parent_type: policy.parent_type.clone(),
+                            field_name: field_name.clone(),
+                        },
+                        implementation: FieldResolverImplementation::PropertyBacked,
+                        provenance: FieldResolverProvenance::TypePropertyPolicy,
+                        reaches_child_type: true,
+                    }
+                } else {
+                    FieldResolverRegistration::unsupported(
+                        policy.api_surface,
+                        version,
+                        &policy.parent_type,
+                        field_name,
+                        policy.unsupported_reason,
+                    )
+                }
             });
         }
     }
     true
 }
 
-fn register_captured_schema_field_decisions(
+fn register_reachable_schema_field_decisions(
     field_resolvers: &mut BTreeMap<FieldCoordinate, FieldResolverRegistration>,
     api_surface: ApiSurface,
     version: &str,
     schema: &async_graphql::dynamic::Schema,
 ) {
-    const UNREGISTERED_ARGUMENT_FIELD_REASON: &str =
-        "argument-bearing field has no explicit local resolver";
-    for (parent_type, schema_type) in &schema.registry().types {
-        let Some(fields) = schema_type.fields() else {
+    use async_graphql::registry::MetaType;
+
+    let mut pending = crate::operation_registry::default_executable_registry()
+        .into_iter()
+        .filter(|registration| {
+            registration.entry.implemented && registration.entry.api_surface == api_surface
+        })
+        .filter_map(|registration| {
+            root_field_named_type(
+                schema,
+                registration.entry.operation_type,
+                &registration.entry.name,
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut visited = BTreeSet::new();
+    while let Some(parent_type) = pending.pop() {
+        if !visited.insert(parent_type.clone()) {
+            continue;
+        }
+        let Some(schema_type) = schema.registry().types.get(&parent_type) else {
             continue;
         };
+        let fields = match schema_type {
+            MetaType::Object { fields, .. } | MetaType::Interface { fields, .. } => fields,
+            MetaType::Union { possible_types, .. } => {
+                pending.extend(locally_reachable_abstract_types(
+                    api_surface,
+                    &parent_type,
+                    possible_types,
+                ));
+                continue;
+            }
+            MetaType::Scalar { .. } | MetaType::Enum { .. } | MetaType::InputObject { .. } => {
+                continue;
+            }
+        };
+        let generated_property_container = structural_property_container(&parent_type)
+            || fields.values().all(|field| field.args.is_empty());
         for (field_name, field) in fields {
             let coordinate = FieldCoordinate {
                 api_surface,
@@ -735,28 +915,122 @@ fn register_captured_schema_field_decisions(
             if field_resolvers.contains_key(&shared_coordinate)
                 || field_resolvers.contains_key(&coordinate)
             {
+                if field_decision(field_resolvers, &coordinate)
+                    .is_some_and(|registration| registration.reaches_child_type)
+                {
+                    if let Some(child) = named_output_type(&field.ty) {
+                        pending.push(child);
+                    }
+                }
                 continue;
             }
+            assert!(
+                generated_property_container && field.args.is_empty(),
+                "unclassified locally reachable GraphQL field {} {version} {parent_type}.{field_name}",
+                api_surface.registry_name(),
+            );
             field_resolvers.insert(
                 coordinate.clone(),
                 FieldResolverRegistration {
                     coordinate,
-                    implementation: if field.args.is_empty() {
-                        FieldResolverImplementation::PropertyBacked
-                    } else {
-                        FieldResolverImplementation::DeliberatelyUnsupported(
-                            UNREGISTERED_ARGUMENT_FIELD_REASON,
-                        )
-                    },
-                    provenance: if field.args.is_empty() {
-                        FieldResolverProvenance::InferredOrdinaryProperty
-                    } else {
-                        FieldResolverProvenance::InferredUnsupportedArgumentField
-                    },
+                    implementation: FieldResolverImplementation::PropertyBacked,
+                    provenance: FieldResolverProvenance::GeneratedPropertyPolicy,
+                    reaches_child_type: true,
                 },
             );
+            if let Some(child) = named_output_type(&field.ty) {
+                pending.push(child);
+            }
+        }
+        if let MetaType::Interface { possible_types, .. } = schema_type {
+            pending.extend(locally_reachable_abstract_types(
+                api_surface,
+                &parent_type,
+                possible_types,
+            ));
         }
     }
+}
+
+/// Captured GraphQL schemas contain a large, version-varying family of
+/// transport containers. They do not own commerce behavior: the engine reads
+/// their ordinary fields from the canonical connection/payload/error value,
+/// while any future argument-bearing field must still acquire an explicit
+/// resolver. Completely argument-free value-object types follow the same
+/// generated property rule. Keeping this schema-derived avoids maintaining
+/// lists of thousands of version-specific supporting coordinates; any type
+/// that introduces arguments immediately falls back to an explicit domain
+/// policy requirement.
+fn structural_property_container(parent_type: &str) -> bool {
+    parent_type.ends_with("Connection")
+        || parent_type.ends_with("Edge")
+        || parent_type.ends_with("Payload")
+        || parent_type.ends_with("Error")
+        || parent_type.ends_with("Warning")
+        || parent_type.ends_with("UserError")
+        || parent_type == "UserError"
+}
+
+fn locally_reachable_abstract_types<'a>(
+    api_surface: ApiSurface,
+    abstract_type: &str,
+    possible_types: impl IntoIterator<Item = &'a String>,
+) -> Vec<String> {
+    if abstract_type != "Node" {
+        return possible_types.into_iter().cloned().collect();
+    }
+    let supported = match api_surface {
+        ApiSurface::Admin => crate::node_resolver_inventory::default_node_resolver_inventory()
+            .iter()
+            .map(|registration| registration.type_name)
+            .collect::<BTreeSet<_>>(),
+        ApiSurface::Storefront => crate::node_resolver_inventory::STOREFRONT_NODE_TYPE_NAMES
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>(),
+    };
+    possible_types
+        .into_iter()
+        .filter(|type_name| supported.contains(type_name.as_str()))
+        .cloned()
+        .collect()
+}
+
+fn field_decision<'a>(
+    field_resolvers: &'a BTreeMap<FieldCoordinate, FieldResolverRegistration>,
+    exact: &FieldCoordinate,
+) -> Option<&'a FieldResolverRegistration> {
+    field_resolvers.get(exact).or_else(|| {
+        field_resolvers.get(&FieldCoordinate {
+            api_version: None,
+            ..exact.clone()
+        })
+    })
+}
+
+fn root_field_named_type(
+    schema: &async_graphql::dynamic::Schema,
+    operation_type: OperationType,
+    root_name: &str,
+) -> Option<String> {
+    let root_type = match operation_type {
+        OperationType::Query => Some(schema.registry().query_type.as_str()),
+        OperationType::Mutation => schema.registry().mutation_type.as_deref(),
+        OperationType::Subscription => schema.registry().subscription_type.as_deref(),
+    }?;
+    let field = schema
+        .registry()
+        .types
+        .get(root_type)?
+        .field_by_name(root_name)?;
+    named_output_type(&field.ty)
+}
+
+fn named_output_type(type_ref: &str) -> Option<String> {
+    type_ref
+        .split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
+        .find(|segment| !segment.is_empty())
+        .map(str::to_string)
 }
 
 impl Deref for ResolverRegistry {
@@ -771,38 +1045,6 @@ impl Deref for ResolverRegistry {
 mod tests {
     use super::*;
     use crate::{admin_graphql, operation_registry::default_registry, storefront_graphql};
-
-    fn assert_type_fields_classified(
-        registry: &ResolverRegistry,
-        surface: ApiSurface,
-        version: &str,
-        schema: &async_graphql::dynamic::Schema,
-        type_name: &str,
-    ) {
-        let schema_type = schema
-            .registry()
-            .types
-            .get(type_name)
-            .unwrap_or_else(|| panic!("{type_name} should exist on the captured schema"));
-        let fields = schema_type
-            .fields()
-            .unwrap_or_else(|| panic!("{type_name} should expose output fields"));
-        let missing = fields
-            .keys()
-            .filter(|field_name| {
-                registry
-                    .field_registration(surface, version, type_name, field_name)
-                    .is_none()
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-        assert!(
-            missing.is_empty(),
-            "{}.{type_name} has unclassified fields: {}",
-            surface.registry_name(),
-            missing.join(", ")
-        );
-    }
 
     fn root_named_type(
         schema: &async_graphql::dynamic::Schema,
@@ -860,16 +1102,19 @@ mod tests {
             match meta_type {
                 MetaType::Object { fields, .. } => {
                     for (field_name, field) in fields {
-                        assert!(
-                            registry
-                                .field_registration(surface, version, &type_name, field_name)
-                                .is_some(),
-                            "{} {version} {type_name}.{field_name} should be classified",
-                            surface.registry_name(),
-                        );
+                        let registration = registry
+                            .field_registration(surface, version, &type_name, field_name)
+                            .unwrap_or_else(|| {
+                                panic!(
+                                    "{} {version} {type_name}.{field_name} should be classified",
+                                    surface.registry_name(),
+                                )
+                            });
                         classified += 1;
-                        if let Some(child) = named_type(&field.ty) {
-                            pending.push(child);
+                        if registration.reaches_child_type {
+                            if let Some(child) = named_type(&field.ty) {
+                                pending.push(child);
+                            }
                         }
                     }
                 }
@@ -879,22 +1124,33 @@ mod tests {
                     ..
                 } => {
                     for (field_name, field) in fields {
-                        assert!(
-                            registry
-                                .field_registration(surface, version, &type_name, field_name)
-                                .is_some(),
-                            "{} {version} {type_name}.{field_name} should be classified",
-                            surface.registry_name(),
-                        );
+                        let registration = registry
+                            .field_registration(surface, version, &type_name, field_name)
+                            .unwrap_or_else(|| {
+                                panic!(
+                                    "{} {version} {type_name}.{field_name} should be classified",
+                                    surface.registry_name(),
+                                )
+                            });
                         classified += 1;
-                        if let Some(child) = named_type(&field.ty) {
-                            pending.push(child);
+                        if registration.reaches_child_type {
+                            if let Some(child) = named_type(&field.ty) {
+                                pending.push(child);
+                            }
                         }
                     }
-                    pending.extend(possible_types.iter().cloned());
+                    pending.extend(locally_reachable_abstract_types(
+                        surface,
+                        &type_name,
+                        possible_types,
+                    ));
                 }
                 MetaType::Union { possible_types, .. } => {
-                    pending.extend(possible_types.iter().cloned());
+                    pending.extend(locally_reachable_abstract_types(
+                        surface,
+                        &type_name,
+                        possible_types,
+                    ));
                 }
                 MetaType::Scalar { .. } | MetaType::Enum { .. } | MetaType::InputObject { .. } => {}
             }
@@ -928,36 +1184,12 @@ mod tests {
     }
 
     #[test]
-    fn field_resolver_debt_is_explicit_and_cannot_grow_silently() {
+    fn every_locally_reachable_field_has_a_fail_closed_ownership_decision() {
         let registry = ResolverRegistry::new(default_registry());
         let audit = registry.field_resolver_audit();
         assert_eq!(audit.total(), registry.field_resolvers.len());
         assert!(audit.explicit_resolvers > 0);
-        assert!(audit.inferred_unsupported_argument_fields > 0);
-
-        // Reduce this number whenever a canonical parent plus explicit field
-        // resolver replaces a SelectedField projector. Raising it requires an
-        // intentional review of newly introduced compatibility debt.
-        assert_eq!(audit.legacy_selection_projectors, 98);
-    }
-
-    #[test]
-    fn inferred_argument_fields_are_never_silently_property_backed() {
-        let registry = ResolverRegistry::new(default_registry());
-        let inferred = registry
-            .field_resolvers
-            .values()
-            .filter(|registration| {
-                registration.provenance == FieldResolverProvenance::InferredUnsupportedArgumentField
-            })
-            .collect::<Vec<_>>();
-        assert!(!inferred.is_empty());
-        for registration in inferred {
-            assert!(matches!(
-                registration.implementation,
-                FieldResolverImplementation::DeliberatelyUnsupported(_)
-            ));
-        }
+        assert!(audit.generated_property_policies > 0);
     }
 
     #[test]
@@ -998,7 +1230,7 @@ mod tests {
             .expect("Storefront collection should have a surface-qualified resolver");
         assert_eq!(admin_collection.resolver_name, "collection");
         assert_eq!(storefront_collection.resolver_name, "storefrontCollection");
-        assert_eq!(admin_collection.domain, CapabilityDomain::StoreProperties);
+        assert_eq!(admin_collection.domain, CapabilityDomain::Products);
         assert_eq!(storefront_collection.domain, CapabilityDomain::Storefront);
         assert!(!std::ptr::fn_addr_eq(
             admin_collection.handler,
@@ -1008,6 +1240,65 @@ mod tests {
             admin_registration.handler,
             storefront_registration.handler
         ));
+    }
+
+    #[test]
+    fn storefront_internal_names_and_domain_callbacks_remain_isolated() {
+        let registry = ResolverRegistry::new(default_registry());
+        for registration in registry
+            .local_resolvers()
+            .filter(|registration| registration.api_surface == ApiSurface::Storefront)
+        {
+            assert!(registration.resolver_name.starts_with("storefront"));
+            assert_ne!(registration.resolver_name, registration.graphql_root_name);
+        }
+
+        let representatives = [
+            (OperationType::Query, "shop"),
+            (OperationType::Query, "products"),
+            (OperationType::Query, "collections"),
+            (OperationType::Query, "articles"),
+            (OperationType::Query, "metaobjects"),
+            (OperationType::Query, "nodes"),
+            (OperationType::Query, "cart"),
+            (OperationType::Query, "customer"),
+            (OperationType::Mutation, "cartCreate"),
+            (OperationType::Mutation, "customerCreate"),
+        ]
+        .map(|(operation_type, root_name)| {
+            registry
+                .registration_for_surface(ApiSurface::Storefront, operation_type, root_name)
+                .unwrap_or_else(|| panic!("Storefront {root_name} should be locally registered"))
+                .handler
+        });
+        for (index, handler) in representatives.iter().enumerate() {
+            for other in &representatives[index + 1..] {
+                assert!(
+                    !std::ptr::fn_addr_eq(*handler, *other),
+                    "Storefront domain callbacks must not collapse into one dispatcher",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn b2b_query_and_mutation_roots_keep_distinct_domain_callbacks() {
+        let registry = ResolverRegistry::new(default_registry());
+        let query = registry
+            .registration_for_surface(ApiSurface::Admin, OperationType::Query, "companies")
+            .expect("B2B query roots should be locally registered");
+        let mutation = registry
+            .registration_for_surface(ApiSurface::Admin, OperationType::Mutation, "companyCreate")
+            .expect("B2B mutation roots should be locally registered");
+
+        assert_eq!(query.domain, CapabilityDomain::B2b);
+        assert_eq!(mutation.domain, CapabilityDomain::B2b);
+        assert_eq!(query.execution, CapabilityExecution::OverlayRead);
+        assert_eq!(mutation.execution, CapabilityExecution::StageLocally);
+        assert!(
+            !std::ptr::fn_addr_eq(query.handler, mutation.handler),
+            "B2B query and mutation roots must not collapse back into a shared dispatcher",
+        );
     }
 
     #[test]
@@ -1035,9 +1326,20 @@ mod tests {
         for (parent_type, field_name) in [
             ("DeliveryPromiseParticipant", "owner"),
             ("StoreCreditAccount", "transactions"),
+            ("Cart", "lines"),
         ] {
+            let surface = if parent_type == "Cart" {
+                ApiSurface::Storefront
+            } else {
+                ApiSurface::Admin
+            };
+            let version = if surface == ApiSurface::Storefront {
+                "2026-04"
+            } else {
+                "2026-07"
+            };
             let registration = registry
-                .field_registration(ApiSurface::Admin, "2026-07", parent_type, field_name)
+                .field_registration(surface, version, parent_type, field_name)
                 .unwrap_or_else(|| panic!("{parent_type}.{field_name} should be classified"));
             assert!(matches!(
                 registration.implementation,
@@ -1052,18 +1354,6 @@ mod tests {
         for version in AdminApiVersion::ALL {
             let schema = admin_graphql::schema(version)
                 .unwrap_or_else(|error| panic!("{version} schema should build: {error}"));
-            for (type_name, schema_type) in &schema.registry().types {
-                if schema_type.fields().is_none() {
-                    continue;
-                }
-                assert_type_fields_classified(
-                    &registry,
-                    ApiSurface::Admin,
-                    version.as_str(),
-                    schema,
-                    type_name,
-                );
-            }
             assert_reachable_fields_classified(
                 &registry,
                 ApiSurface::Admin,
@@ -1074,18 +1364,6 @@ mod tests {
         for version in StorefrontApiVersion::ALL {
             let schema = storefront_graphql::schema(version)
                 .unwrap_or_else(|error| panic!("{version} schema should build: {error}"));
-            for (type_name, schema_type) in &schema.registry().types {
-                if schema_type.fields().is_none() {
-                    continue;
-                }
-                assert_type_fields_classified(
-                    &registry,
-                    ApiSurface::Storefront,
-                    version.as_str(),
-                    schema,
-                    type_name,
-                );
-            }
             assert_reachable_fields_classified(
                 &registry,
                 ApiSurface::Storefront,

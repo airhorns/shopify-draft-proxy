@@ -1194,63 +1194,6 @@ impl DraftProxy {
                 .len(),
         )
     }
-
-    pub(in crate::proxy) fn product_json_with_selling_plan_overlay(
-        &self,
-        product: &ProductRecord,
-        variants: &[ProductVariantRecord],
-        selections: &[SelectedField],
-    ) -> Value {
-        let base = self.product_json_with_variants_and_currency_context(
-            product,
-            variants,
-            selections,
-            &self.store.shop_currency_code(),
-        );
-        let variant_ids = self
-            .store
-            .product_variants_for_product(&product.id)
-            .into_iter()
-            .map(|variant| variant.id)
-            .collect::<BTreeSet<_>>();
-        let groups = self.selling_plan_groups_for_nodes_matching(|group| {
-            group.product_ids.iter().any(|id| id == &product.id)
-                || group
-                    .product_variant_ids
-                    .iter()
-                    .any(|id| variant_ids.contains(id))
-        });
-        let count = self
-            .direct_group_ids_for_resource(ResourceKind::Product, &product.id)
-            .len();
-        self.apply_selling_plan_overlay(selections, base, groups, count)
-    }
-
-    fn apply_selling_plan_overlay(
-        &self,
-        selections: &[SelectedField],
-        base: Value,
-        groups: Vec<SellingPlanGroupRecord>,
-        count: usize,
-    ) -> Value {
-        let mut object = base.as_object().cloned().unwrap_or_default();
-        for selection in selections {
-            let value = match selection.name.as_str() {
-                "sellingPlanGroups" => Some(selected_nested_selling_plan_group_connection(
-                    groups.clone(),
-                    &selection.arguments,
-                    &selection.selection,
-                    selling_plan_group_summary_json,
-                )),
-                "sellingPlanGroupsCount" => Some(selected_count_json(count, &selection.selection)),
-                _ => None,
-            };
-            if let Some(value) = value {
-                object.insert(selection.response_key.clone(), value);
-            }
-        }
-        Value::Object(object)
-    }
 }
 
 fn canonical_selling_plan_group_connection(
@@ -1507,23 +1450,6 @@ fn string_values_from_json(value: Option<&Value>) -> Vec<String> {
         .filter_map(Value::as_str)
         .map(str::to_string)
         .collect()
-}
-
-fn selected_nested_selling_plan_group_connection<NodeJson>(
-    mut records: Vec<SellingPlanGroupRecord>,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    root_selection: &[SelectedField],
-    node_json: NodeJson,
-) -> Value
-where
-    NodeJson: Fn(&SellingPlanGroupRecord, &[SelectedField]) -> Value,
-{
-    if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
-        records.reverse();
-    }
-    selected_typed_connection_with_args(&records, arguments, root_selection, node_json, |group| {
-        group.id.clone()
-    })
 }
 
 fn selling_plan_group_effective_updated_at(group: &SellingPlanGroupRecord) -> &str {
@@ -2452,28 +2378,6 @@ fn format_summary_currency(
         Some("USD") => format!("${formatted_amount}"),
         Some(code) if !code.is_empty() => format!("{formatted_amount} {code}"),
         _ => formatted_amount,
-    }
-}
-
-fn selling_plan_group_summary_json(
-    group: &SellingPlanGroupRecord,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| {
-        selling_plan_group_common_json(group, selection)
-    })
-}
-
-fn selling_plan_group_common_json(
-    group: &SellingPlanGroupRecord,
-    selection: &SelectedField,
-) -> Option<Value> {
-    match selection.name.as_str() {
-        "__typename" => Some(json!("SellingPlanGroup")),
-        "id" => Some(json!(group.id)),
-        "name" => Some(json!(group.name)),
-        "merchantCode" => Some(json!(group.merchant_code)),
-        _ => None,
     }
 }
 

@@ -39,6 +39,54 @@ pub(in crate::proxy) fn selected_json(record: &Value, selections: &[SelectedFiel
     Value::Object(fields)
 }
 
+/// Normalize a value returned by an upstream GraphQL request back to schema
+/// field names. This is the inverse boundary operation to output projection:
+/// aliases belong to the caller-facing response, while domain/store code owns
+/// canonical entity values. Keeping this at the transport boundary lets local
+/// resolvers consume upstream evidence without learning about selections.
+pub(in crate::proxy) fn canonicalize_upstream_value(
+    value: &Value,
+    selections: &[SelectedField],
+) -> Value {
+    if value.is_null() || selections.is_empty() {
+        return value.clone();
+    }
+    if let Some(values) = value.as_array() {
+        return Value::Array(
+            values
+                .iter()
+                .map(|value| canonicalize_upstream_value(value, selections))
+                .collect(),
+        );
+    }
+    let Some(object) = value.as_object() else {
+        return value.clone();
+    };
+    let mut canonical = serde_json::Map::new();
+    for selection in selections {
+        let Some(selected) = object
+            .get(&selection.response_key)
+            .or_else(|| object.get(&selection.name))
+        else {
+            continue;
+        };
+        let selected = if selection.selection.is_empty() || selected.is_null() {
+            selected.clone()
+        } else if let Some(values) = selected.as_array() {
+            Value::Array(
+                values
+                    .iter()
+                    .map(|value| canonicalize_upstream_value(value, &selection.selection))
+                    .collect(),
+            )
+        } else {
+            canonicalize_upstream_value(selected, &selection.selection)
+        };
+        canonical.insert(selection.name.clone(), selected);
+    }
+    Value::Object(canonical)
+}
+
 pub(in crate::proxy) fn selected_field_applies_to_record(
     record: &Value,
     typename: Option<&str>,
@@ -58,53 +106,6 @@ pub(in crate::proxy) fn selected_field_applies_to_type(
         condition == type_name
             || crate::admin_graphql::output_type_condition_applies(type_name, condition)
     })
-}
-
-/// Project a concrete object that is returned through an interface or union.
-/// The hidden concrete typename is retained for the executable GraphQL engine;
-/// it is emitted only when the caller actually selects `__typename`.
-pub(in crate::proxy) fn selected_abstract_json(
-    record: &Value,
-    selections: &[SelectedField],
-) -> Value {
-    let mut projected = selected_json(record, selections);
-    if let (Some(projected), Some(typename)) = (
-        projected.as_object_mut(),
-        record.get("__typename").and_then(Value::as_str),
-    ) {
-        projected
-            .entry("__typename".to_string())
-            .or_insert_with(|| json!(typename));
-    }
-    projected
-}
-
-pub(in crate::proxy) fn selected_user_errors(
-    errors: &[Value],
-    selections: &[SelectedField],
-) -> Value {
-    Value::Array(
-        errors
-            .iter()
-            .map(|error| selected_json(error, selections))
-            .collect(),
-    )
-}
-
-pub(in crate::proxy) fn selected_user_errors_field(
-    errors: &[Value],
-    selection: &SelectedField,
-) -> Option<Value> {
-    Some(selected_user_errors(errors, &selection.selection))
-}
-
-pub(in crate::proxy) fn selected_field_json(
-    record: &Value,
-    field: &SelectedField,
-) -> Option<Value> {
-    selected_json(record, std::slice::from_ref(field))
-        .as_object()
-        .and_then(|object| object.get(&field.response_key).cloned())
 }
 
 pub(in crate::proxy) fn selection_contains_any(
@@ -358,6 +359,38 @@ mod tests {
     }
 
     #[test]
+    fn canonicalize_upstream_value_removes_aliases_recursively() {
+        let selections = vec![field(
+            "nodes",
+            "cards",
+            vec![
+                field("id", "identifier", vec![]),
+                field(
+                    "balance",
+                    "remaining",
+                    vec![field("amount", "value", vec![])],
+                ),
+            ],
+        )];
+        let upstream = json!({
+            "cards": [{
+                "identifier": "gid://shopify/GiftCard/1",
+                "remaining": { "value": "12.50" }
+            }]
+        });
+
+        assert_eq!(
+            canonicalize_upstream_value(&upstream, &selections),
+            json!({
+                "nodes": [{
+                    "id": "gid://shopify/GiftCard/1",
+                    "balance": { "amount": "12.50" }
+                }]
+            })
+        );
+    }
+
+    #[test]
     fn selected_json_filters_type_conditions_and_allows_file_interfaces() {
         let record = json!({
             "__typename": "GenericFile",
@@ -474,24 +507,6 @@ mod tests {
                 "shopAlias": { "name": "Example Shop" },
                 "unknownNull": null
             })
-        );
-    }
-
-    #[test]
-    fn selected_user_errors_field_projects_requested_error_fields() {
-        let selection = field(
-            "userErrors",
-            "userErrors",
-            vec![field("message", "messageText", vec![])],
-        );
-        let errors = vec![json!({
-            "field": ["input", "title"],
-            "message": "Title is required"
-        })];
-
-        assert_eq!(
-            selected_user_errors_field(errors.as_slice(), &selection),
-            Some(json!([{ "messageText": "Title is required" }]))
         );
     }
 

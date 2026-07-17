@@ -1,8 +1,198 @@
 use super::*;
 use std::sync::OnceLock;
 
+pub(in crate::proxy) fn metaobject_field_resolver_registrations() -> Vec<FieldResolverRegistration>
+{
+    [
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "Metaobject",
+            "field",
+            metaobject_field_by_key,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "Metaobject",
+            "definition",
+            metaobject_definition_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "MetaobjectField",
+            "reference",
+            metaobject_field_reference,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "MetaobjectField",
+            "references",
+            metaobject_field_references,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "MetaobjectDefinition",
+            "metaobjects",
+            metaobject_definition_metaobjects,
+        ),
+    ]
+    .into_iter()
+    .collect()
+}
+
+pub(in crate::proxy) fn metaobject_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
+    [
+        "Metaobject",
+        "MetaobjectCapabilities",
+        "MetaobjectDefinition",
+        "MetaobjectField",
+        "MetaobjectFieldDefinition",
+    ]
+    .into_iter()
+    .map(|parent_type| {
+        FieldResolverTypePolicy::property_backed_ordinary_fields(
+            ApiSurface::Admin,
+            parent_type,
+            "argument-bearing metaobject field has no explicit canonical resolver",
+        )
+    })
+    .collect()
+}
+
+fn metaobject_field_arguments(
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> BTreeMap<String, ResolvedValue> {
+    resolved_arguments_from_json(&invocation.arguments)
+}
+
+fn materialized_metaobject_field(
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Option<Value> {
+    invocation
+        .parent
+        .get(&invocation.response_key)
+        .or_else(|| invocation.parent.get(&invocation.field_name))
+        .cloned()
+}
+
+fn metaobject_field_by_key(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    if let Some(value) = materialized_metaobject_field(invocation) {
+        return Ok(value);
+    }
+    let arguments = metaobject_field_arguments(invocation);
+    let key = resolved_string_field(&arguments, "key").unwrap_or_default();
+    Ok(invocation
+        .parent
+        .get("fields")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find(|field| field.get("key").and_then(Value::as_str) == Some(key.as_str()))
+        .cloned()
+        .unwrap_or(Value::Null))
+}
+
+fn metaobject_definition_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    if let Some(value) = materialized_metaobject_field(invocation) {
+        return Ok(value);
+    }
+    let meta_type = invocation
+        .parent
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(proxy
+        .metaobject_definition_by_type(meta_type)
+        .map(|definition| proxy.metaobject_definition_canonical_value(&definition))
+        .unwrap_or(Value::Null))
+}
+
+fn metaobject_field_reference(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    if let Some(value) = materialized_metaobject_field(invocation) {
+        return Ok(value);
+    }
+    Ok(proxy.canonical_metafield_reference_value(invocation.parent, Some(request)))
+}
+
+fn metaobject_field_references(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    if invocation.response_key != invocation.field_name {
+        if let Some(value) = invocation.parent.get(&invocation.response_key) {
+            return Ok(value.clone());
+        }
+    }
+    Ok(proxy.canonical_metafield_references_connection_value(
+        invocation.parent,
+        &metaobject_field_arguments(invocation),
+        Some(request),
+    ))
+}
+
+fn metaobject_definition_metaobjects(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    if let Some(value) = materialized_metaobject_field(invocation) {
+        return Ok(value);
+    }
+    Ok(proxy.metaobject_definition_metaobjects_connection_value(
+        invocation.parent,
+        &metaobject_field_arguments(invocation),
+    ))
+}
+
+/// Canonical input shared by metaobject roots after the GraphQL engine has
+/// selected an operation and coerced its arguments. Domain behavior does not
+/// receive or reconstruct an output selection tree.
+struct MetaobjectRootInput {
+    name: String,
+    response_key: String,
+    location: SourceLocation,
+    arguments: BTreeMap<String, ResolvedValue>,
+}
+
 impl DraftProxy {
-    pub(crate) fn resolve_metaobjects_graphql(
+    pub(crate) fn metaobject_query_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
+            request,
+            root_name,
+            root_location,
+            arguments,
+            ..
+        } = invocation;
+        let field = MetaobjectRootInput {
+            name: root_name.to_string(),
+            response_key: response_key.to_string(),
+            location: root_location,
+            arguments: resolved_arguments_from_json(&arguments),
+        };
+        if self.config.read_mode != ReadMode::Snapshot {
+            self.metaobject_live_hybrid_outcome(request, &field)
+        } else {
+            ResolverOutcome::value(self.metaobject_query_value(&field, request))
+        }
+    }
+
+    pub(crate) fn metaobject_mutation_root(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
@@ -10,43 +200,24 @@ impl DraftProxy {
             response_key,
             request,
             query,
-            variables,
             root_name,
-            mode,
+            root_location,
+            arguments,
             ..
         } = invocation;
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
+        let field = MetaobjectRootInput {
+            name: root_name.to_string(),
+            response_key: response_key.to_string(),
+            location: root_location,
+            arguments: resolved_arguments_from_json(&arguments),
         };
-        let fields = fields
-            .into_iter()
-            .filter(|field| field.response_key == response_key)
-            .collect::<Vec<_>>();
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                if self.config.read_mode != ReadMode::Snapshot {
-                    self.metaobject_live_hybrid_outcome(request, &fields, response_key)
-                } else {
-                    let data = self.metaobject_query_data(&fields, request);
-                    ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
-                }
-            }
-            LocalResolverMode::StageLocally => {
-                if self.metaobject_mutation_is_local(&fields) {
-                    self.metaobject_mutation_outcome(
-                        &fields,
-                        request,
-                        query,
-                        root_name,
-                        response_key,
-                    )
-                } else {
-                    // Transitional compatibility for cold upstream targets. The
-                    // guarded transport still prevents a registered local write
-                    // from escaping during normal runtime execution.
-                    self.cached_or_forward_upstream_root_outcome(request, response_key)
-                }
-            }
+        if self.metaobject_mutation_is_local(&field) {
+            self.metaobject_mutation_outcome(&field, request, query)
+        } else {
+            // Transitional compatibility for cold upstream targets. The
+            // guarded transport still prevents a registered local write from
+            // escaping during normal runtime execution.
+            self.cached_or_forward_upstream_root_outcome(request, response_key)
         }
     }
 }
@@ -110,7 +281,10 @@ fn source_location_for_token_after(
     None
 }
 
-fn metaobject_bulk_delete_selector_error(field: &RootFieldSelection, query: &str) -> Option<Value> {
+fn metaobject_bulk_delete_selector_error(
+    field: &MetaobjectRootInput,
+    query: &str,
+) -> Option<Value> {
     let where_input = resolved_object_field(&field.arguments, "where");
     let ids_present = where_input
         .as_ref()
@@ -2581,7 +2755,6 @@ struct MetaobjectUpdateApplyContext<'a> {
     existing: Value,
     meta_type: &'a str,
     input: BTreeMap<String, ResolvedValue>,
-    selection: &'a [SelectedField],
     options: MetaobjectUpdateApplyOptions,
 }
 
@@ -2639,10 +2812,6 @@ fn metaobject_record_from_definition_with_options(
         record["createdAt"] = json!(created_at);
     }
     record
-}
-
-fn metaobject_value_is_field_record(value: &Value) -> bool {
-    value.get("key").is_some() && value.get("type").is_some() && value.get("value").is_some()
 }
 
 fn metaobject_nodes_from_upstream_data(data: &serde_json::Map<String, Value>) -> Vec<Value> {
@@ -3022,11 +3191,8 @@ impl DraftProxy {
     /// the proxy to mutate it locally. When the target lives upstream (seeded or
     /// live-captured records the proxy never created), the request is forwarded so
     /// the real backend response is used instead of a synthetic one.
-    pub(in crate::proxy) fn metaobject_mutation_is_local(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> bool {
-        fields.iter().all(|field| match field.name.as_str() {
+    fn metaobject_mutation_is_local(&self, field: &MetaobjectRootInput) -> bool {
+        match field.name.as_str() {
             "metaobjectUpdate" => resolved_string_field(&field.arguments, "id")
                 .map(|id| self.metaobject_staged_key_by_id(&id).is_some())
                 .unwrap_or(false),
@@ -3041,77 +3207,55 @@ impl DraftProxy {
                 .unwrap_or(false),
             // Creates and deletes are always emulated locally.
             _ => true,
-        })
+        }
     }
 
-    pub(in crate::proxy) fn metaobject_query_data(
-        &self,
-        fields: &[RootFieldSelection],
-        request: &Request,
-    ) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "metaobjects" => self.metaobject_connection(field),
-                "metaobject" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.metaobject_by_id(&id)
-                        .map(|record| self.project_metaobject_against_definition(&record))
-                        .map(|record| self.selected_metaobject(&record, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "metaobjectByHandle" => self.metaobject_by_handle_arg(field).unwrap_or(Value::Null),
-                "metaobjectDefinition" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.metaobject_definition_by_id(&id)
-                        .map(|definition| {
-                            self.selected_metaobject_definition(&definition, &field.selection)
-                        })
-                        .unwrap_or(Value::Null)
-                }
-                "metaobjectDefinitionByType" => {
-                    let meta_type = resolved_metaobject_definition_type_arg(
-                        field.arguments.get("type"),
-                        request,
-                    );
-                    self.metaobject_definition_by_type(&meta_type)
-                        .map(|definition| {
-                            self.selected_metaobject_definition(&definition, &field.selection)
-                        })
-                        .unwrap_or(Value::Null)
-                }
-                "metaobjectDefinitions" => self.metaobject_definition_connection(field),
-                _ => Value::Null,
-            })
-        })
+    fn metaobject_query_value(&self, field: &MetaobjectRootInput, request: &Request) -> Value {
+        match field.name.as_str() {
+            "metaobjects" => self.metaobject_connection(field),
+            "metaobject" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                self.metaobject_by_id(&id)
+                    .map(|record| self.metaobject_canonical_value(&record))
+                    .unwrap_or(Value::Null)
+            }
+            "metaobjectByHandle" => self.metaobject_by_handle_arg(field).unwrap_or(Value::Null),
+            "metaobjectDefinition" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                self.metaobject_definition_by_id(&id)
+                    .map(|definition| self.metaobject_definition_canonical_value(&definition))
+                    .unwrap_or(Value::Null)
+            }
+            "metaobjectDefinitionByType" => {
+                let meta_type =
+                    resolved_metaobject_definition_type_arg(field.arguments.get("type"), request);
+                self.metaobject_definition_by_type(&meta_type)
+                    .map(|definition| self.metaobject_definition_canonical_value(&definition))
+                    .unwrap_or(Value::Null)
+            }
+            "metaobjectDefinitions" => self.metaobject_definition_connection(field),
+            _ => Value::Null,
+        }
     }
 
-    pub(in crate::proxy) fn metaobject_live_hybrid_outcome(
+    fn metaobject_live_hybrid_outcome(
         &mut self,
         request: &Request,
-        fields: &[RootFieldSelection],
-        response_key: &str,
+        field: &MetaobjectRootInput,
     ) -> ResolverOutcome<Value> {
-        let mut result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+        let mut result =
+            self.cached_or_forward_upstream_graphql_result(request, &field.response_key);
         let Some(data) = result.data.as_object_mut() else {
             return result.outcome;
         };
-        let aliased_data = root_payload_json(fields, |field| {
-            if data.contains_key(&field.response_key) {
-                return None;
-            }
-            data.get(&field.name).cloned()
-        });
-        if let Some(aliased_data) = aliased_data.as_object() {
-            for (response_key, value) in aliased_data {
-                data.insert(response_key.clone(), value.clone());
+        if !data.contains_key(&field.response_key) {
+            if let Some(value) = data.get(&field.name).cloned() {
+                data.insert(field.response_key.clone(), value);
             }
         }
         let upstream_nodes = metaobject_nodes_from_upstream_data(data);
-        let fallback_data = root_payload_json(fields, |field| {
-            if data.contains_key(&field.response_key) {
-                return None;
-            }
-            let value = match field.name.as_str() {
+        if !data.contains_key(&field.response_key) {
+            let fallback = match field.name.as_str() {
                 "metaobject" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     upstream_nodes
@@ -3122,7 +3266,7 @@ impl DraftProxy {
                 }
                 "metaobjectByHandle" => {
                     let Some(ResolvedValue::Object(handle)) = field.arguments.get("handle") else {
-                        return None;
+                        return result.outcome;
                     };
                     let meta_type = resolved_string_field(handle, "type").unwrap_or_default();
                     let meta_handle = resolved_string_field(handle, "handle").unwrap_or_default();
@@ -3136,27 +3280,23 @@ impl DraftProxy {
                         .cloned()
                         .unwrap_or(Value::Null)
                 }
-                _ => return None,
+                _ => Value::Null,
             };
-            Some(value)
-        });
-        if let Some(fallback_data) = fallback_data.as_object() {
-            for (response_key, value) in fallback_data {
-                data.insert(response_key.clone(), value.clone());
-            }
+            data.insert(field.response_key.clone(), fallback);
         }
-        for field in fields {
-            if let Some(value) = self.metaobject_live_hybrid_overlay_value(field, request, data) {
-                data.insert(field.response_key.clone(), value);
-            }
+        if let Some(value) = self.metaobject_live_hybrid_overlay_value(field, request, data) {
+            data.insert(field.response_key.clone(), value);
         }
-        result.outcome.value = data.get(response_key).cloned().unwrap_or(Value::Null);
+        result.outcome.value = data
+            .get(&field.response_key)
+            .cloned()
+            .unwrap_or(Value::Null);
         result.outcome
     }
 
     fn metaobject_live_hybrid_overlay_value(
         &self,
-        field: &RootFieldSelection,
+        field: &MetaobjectRootInput,
         request: &Request,
         upstream_data: &serde_json::Map<String, Value>,
     ) -> Option<Value> {
@@ -3167,8 +3307,7 @@ impl DraftProxy {
                     return Some(Value::Null);
                 }
                 self.metaobject_by_id(&id)
-                    .map(|record| self.project_metaobject_against_definition(&record))
-                    .map(|record| self.selected_metaobject(&record, &field.selection))
+                    .map(|record| self.metaobject_canonical_value(&record))
             }
             "metaobjectByHandle" => {
                 let Some(ResolvedValue::Object(handle)) = field.arguments.get("handle") else {
@@ -3177,10 +3316,7 @@ impl DraftProxy {
                 let meta_type = resolved_string_field(handle, "type").unwrap_or_default();
                 let meta_handle = resolved_string_field(handle, "handle").unwrap_or_default();
                 if let Some(record) = self.metaobject_by_type_and_handle(&meta_type, &meta_handle) {
-                    return Some(self.selected_metaobject(
-                        &self.project_metaobject_against_definition(&record),
-                        &field.selection,
-                    ));
+                    return Some(self.metaobject_canonical_value(&record));
                 }
                 if upstream_response_id(upstream_data, &field.response_key)
                     .is_some_and(|id| self.store.staged.metaobjects.is_tombstoned(id))
@@ -3194,17 +3330,14 @@ impl DraftProxy {
                 if self.store.staged.metaobject_definitions.is_tombstoned(&id) {
                     return Some(Value::Null);
                 }
-                self.metaobject_definition_by_id(&id).map(|definition| {
-                    self.selected_metaobject_definition(&definition, &field.selection)
-                })
+                self.metaobject_definition_by_id(&id)
+                    .map(|definition| self.metaobject_definition_canonical_value(&definition))
             }
             "metaobjectDefinitionByType" => {
                 let meta_type =
                     resolved_metaobject_definition_type_arg(field.arguments.get("type"), request);
                 if let Some(definition) = self.metaobject_definition_by_type(&meta_type) {
-                    return Some(
-                        self.selected_metaobject_definition(&definition, &field.selection),
-                    );
+                    return Some(self.metaobject_definition_canonical_value(&definition));
                 }
                 if upstream_response_id(upstream_data, &field.response_key)
                     .is_some_and(|id| self.store.staged.metaobject_definitions.is_tombstoned(id))
@@ -3247,7 +3380,7 @@ impl DraftProxy {
         &self,
         upstream: Option<&Value>,
         local: Value,
-        field: &RootFieldSelection,
+        field: &MetaobjectRootInput,
         node_key: F,
         is_tombstoned: T,
     ) -> Value
@@ -3379,53 +3512,35 @@ impl DraftProxy {
         merged
     }
 
-    pub(in crate::proxy) fn metaobject_mutation_outcome(
+    fn metaobject_mutation_outcome(
         &mut self,
-        fields: &[RootFieldSelection],
+        field: &MetaobjectRootInput,
         request: &Request,
         query: &str,
-        root_name: &str,
-        response_key: &str,
     ) -> ResolverOutcome<Value> {
         let mut staged_ids = Vec::new();
         let mut log_successful_noop = false;
         let mut errors = Vec::new();
-        let data = root_payload_json(fields, |field| {
-            if field.name == "metaobjectBulkDelete" {
-                if let Some(error) = metaobject_bulk_delete_selector_error(field, query) {
-                    errors.push(error);
-                    return Some(Value::Null);
-                }
-            }
-            let value = match field.name.as_str() {
-                "metaobjectCreate" => self.metaobject_create(field, request, &mut staged_ids),
-                "metaobjectUpdate" => self.metaobject_update(field, request, &mut staged_ids),
-                "metaobjectUpsert" => self.metaobject_upsert(field, request, &mut staged_ids),
-                "metaobjectDelete" => self.metaobject_delete(field, request, &mut staged_ids),
-                "metaobjectBulkDelete" => self.metaobject_bulk_delete(
+        let value = if field.name == "metaobjectBulkDelete" {
+            if let Some(error) = metaobject_bulk_delete_selector_error(field, query) {
+                errors.push(error);
+                Value::Null
+            } else {
+                self.metaobject_mutation_value(
                     field,
                     request,
                     &mut staged_ids,
                     &mut log_successful_noop,
-                ),
-                "metaobjectDefinitionCreate" => {
-                    self.metaobject_definition_create(field, request, &mut staged_ids)
-                }
-                "metaobjectDefinitionUpdate" => {
-                    self.metaobject_definition_update(field, &mut staged_ids)
-                }
-                "metaobjectDefinitionDelete" => {
-                    self.metaobject_definition_delete(field, &mut staged_ids)
-                }
-                "standardMetaobjectDefinitionEnable" => self.standard_metaobject_definition_enable(
-                    field,
-                    &mut staged_ids,
-                    &mut log_successful_noop,
-                ),
-                _ => Value::Null,
-            };
-            Some(value)
-        });
+                )
+            }
+        } else {
+            self.metaobject_mutation_value(
+                field,
+                request,
+                &mut staged_ids,
+                &mut log_successful_noop,
+            )
+        };
         let should_log = !staged_ids.is_empty() || log_successful_noop;
         if should_log {
             // Each successful metaobject mutation reserves one synthetic id for its
@@ -3434,17 +3549,43 @@ impl DraftProxy {
             // the next entry on /3 because the definition's log entry consumed /2).
             self.reserve_synthetic_log_id();
         }
-        let value = data.get(response_key).cloned().unwrap_or(Value::Null);
         let mut outcome = ResolverOutcome::value(value);
         if !errors.is_empty() {
-            outcome.errors = root_field_errors_from_json(&errors, response_key);
+            outcome.errors = root_field_errors_from_json(&errors, &field.response_key);
         }
         if should_log {
             outcome
                 .log_drafts
-                .push(LogDraft::staged(root_name, "metaobjects", staged_ids));
+                .push(LogDraft::staged(&field.name, "metaobjects", staged_ids));
         }
         outcome
+    }
+
+    fn metaobject_mutation_value(
+        &mut self,
+        field: &MetaobjectRootInput,
+        request: &Request,
+        staged_ids: &mut Vec<String>,
+        log_successful_noop: &mut bool,
+    ) -> Value {
+        match field.name.as_str() {
+            "metaobjectCreate" => self.metaobject_create(field, request, staged_ids),
+            "metaobjectUpdate" => self.metaobject_update(field, request, staged_ids),
+            "metaobjectUpsert" => self.metaobject_upsert(field, request, staged_ids),
+            "metaobjectDelete" => self.metaobject_delete(field, request, staged_ids),
+            "metaobjectBulkDelete" => {
+                self.metaobject_bulk_delete(field, request, staged_ids, log_successful_noop)
+            }
+            "metaobjectDefinitionCreate" => {
+                self.metaobject_definition_create(field, request, staged_ids)
+            }
+            "metaobjectDefinitionUpdate" => self.metaobject_definition_update(field, staged_ids),
+            "metaobjectDefinitionDelete" => self.metaobject_definition_delete(field, staged_ids),
+            "standardMetaobjectDefinitionEnable" => {
+                self.standard_metaobject_definition_enable(field, staged_ids, log_successful_noop)
+            }
+            _ => Value::Null,
+        }
     }
 
     pub(in crate::proxy) fn metaobject_node_value_by_id(&self, id: &str) -> Option<Value> {
@@ -3459,11 +3600,7 @@ impl DraftProxy {
                     .metaobjects
                     .get(&key)
                     .cloned()
-                    .map(|record| {
-                        let mut record = self.project_metaobject_against_definition(&record);
-                        record["__typename"] = json!("Metaobject");
-                        record
-                    })
+                    .map(|record| self.metaobject_canonical_value(&record))
             }
             Some("MetaobjectDefinition") => {
                 let key = self.metaobject_definition_staged_key_by_id(id)?;
@@ -3475,13 +3612,22 @@ impl DraftProxy {
                     .metaobject_definitions
                     .get(&key)
                     .cloned()
-                    .map(|mut definition| {
-                        definition["__typename"] = json!("MetaobjectDefinition");
-                        definition
-                    })
+                    .map(|definition| self.metaobject_definition_canonical_value(&definition))
             }
             _ => None,
         }
+    }
+
+    pub(in crate::proxy) fn metaobject_canonical_value(&self, record: &Value) -> Value {
+        let mut record = self.project_metaobject_against_definition(record);
+        record["__typename"] = json!("Metaobject");
+        record
+    }
+
+    fn stored_metaobject_canonical_value(&self, record: &Value) -> Value {
+        let mut record = record.clone();
+        record["__typename"] = json!("Metaobject");
+        record
     }
 
     fn metaobject_staged_key_by_id(&self, id: &str) -> Option<String> {
@@ -3742,16 +3888,12 @@ impl DraftProxy {
         nodes
     }
 
-    pub(in crate::proxy) fn metaobject_by_handle_arg(
-        &self,
-        field: &RootFieldSelection,
-    ) -> Option<Value> {
+    fn metaobject_by_handle_arg(&self, field: &MetaobjectRootInput) -> Option<Value> {
         let handle = resolved_object_field(&field.arguments, "handle")?;
         let meta_type = resolved_string_field(&handle, "type").unwrap_or_default();
         let meta_handle = resolved_string_field(&handle, "handle").unwrap_or_default();
         self.metaobject_by_type_and_handle(&meta_type, &meta_handle)
-            .map(|record| self.project_metaobject_against_definition(&record))
-            .map(|record| self.selected_metaobject(&record, &field.selection))
+            .map(|record| self.metaobject_canonical_value(&record))
     }
 
     pub(in crate::proxy) fn metaobject_by_type_and_handle(
@@ -3775,7 +3917,7 @@ impl DraftProxy {
             .cloned()
     }
 
-    pub(in crate::proxy) fn metaobject_connection(&self, field: &RootFieldSelection) -> Value {
+    fn metaobject_connection(&self, field: &MetaobjectRootInput) -> Value {
         let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
         let records: Vec<Value> =
             self.store
@@ -3793,36 +3935,29 @@ impl DraftProxy {
                 // by the Admin search index that backs `metaobjects(type:)`.
                 .filter(|record| self.metaobject_visible_in_catalog(record))
                 .collect();
-        selected_staged_connection_with_args(
+        staged_connection_value_with_args(
             records,
             &field.arguments,
-            &field.selection,
             metaobject_search_decision,
             metaobject_staged_sort_key,
-            |record, selection| self.selected_metaobject(record, selection),
+            |record| self.metaobject_canonical_value(record),
             metaobject_cursor,
         )
     }
 
-    pub(in crate::proxy) fn metaobject_create(
+    fn metaobject_create(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MetaobjectRootInput,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let Some(input) = resolved_object_field(&field.arguments, "metaobject") else {
-            return self.selected_metaobject_payload(
-                &json!({"metaobject": null, "userErrors": []}),
-                &field.selection,
-            );
+            return self.metaobject_payload_canonical_value(json!({
+                "metaobject": null,
+                "userErrors": []
+            }));
         };
-        self.stage_metaobject_create_from_input(
-            &input,
-            request,
-            staged_ids,
-            &field.selection,
-            false,
-        )
+        self.stage_metaobject_create_from_input(&input, request, staged_ids, false)
     }
 
     fn stage_metaobject_create_from_input(
@@ -3830,7 +3965,6 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
         request: &Request,
         staged_ids: &mut Vec<String>,
-        selection: &[SelectedField],
         upsert_required_errors: bool,
     ) -> Value {
         let meta_type = resolved_string_field(input, "type").unwrap_or_default();
@@ -3840,37 +3974,31 @@ impl DraftProxy {
         let Some(definition) = definition else {
             let user_errors = metaobject_create_duplicate_field_errors(input);
             if !user_errors.is_empty() {
-                return self.selected_metaobject_payload(
-                    &json!({"metaobject": null, "userErrors": user_errors}),
-                    selection,
-                );
-            }
-            return self.selected_metaobject_payload(
-                &json!({
+                return self.metaobject_payload_canonical_value(json!({
                     "metaobject": null,
-                    "userErrors": [metaobject_no_definition_error(
-                        "metaobject",
-                        &meta_type,
-                        "UNDEFINED_OBJECT_TYPE",
-                    )]
-                }),
-                selection,
-            );
+                    "userErrors": user_errors
+                }));
+            }
+            return self.metaobject_payload_canonical_value(json!({
+                "metaobject": null,
+                "userErrors": [metaobject_no_definition_error(
+                    "metaobject",
+                    &meta_type,
+                    "UNDEFINED_OBJECT_TYPE",
+                )]
+            }));
         };
         if definition["access"]["admin"].as_str() == Some("MERCHANT_READ") {
-            return self.selected_metaobject_payload(
-                &json!({
-                    "metaobject": null,
-                    "userErrors": [metaobject_user_error(
-                        vec!["metaobject", "type"],
-                        "Not authorized to create metaobjects for this type.",
-                        "NOT_AUTHORIZED",
-                        Value::Null,
-                        Value::Null
-                    )]
-                }),
-                selection,
-            );
+            return self.metaobject_payload_canonical_value(json!({
+                "metaobject": null,
+                "userErrors": [metaobject_user_error(
+                    vec!["metaobject", "type"],
+                    "Not authorized to create metaobjects for this type.",
+                    "NOT_AUTHORIZED",
+                    Value::Null,
+                    Value::Null
+                )]
+            }));
         }
         let input_values = metaobject_create_input_values(input);
         let validation_context = MetaobjectFieldValueValidationContext {
@@ -3898,10 +4026,10 @@ impl DraftProxy {
             }
         }
         if !validation_errors.is_empty() {
-            return self.selected_metaobject_payload(
-                &json!({"metaobject": null, "userErrors": validation_errors}),
-                selection,
-            );
+            return self.metaobject_payload_canonical_value(json!({
+                "metaobject": null,
+                "userErrors": validation_errors
+            }));
         }
 
         let id = self.next_proxy_synthetic_gid("Metaobject");
@@ -3938,10 +4066,10 @@ impl DraftProxy {
             .insert(id.clone(), record.clone());
         self.increment_metaobject_definition_count(&meta_type, 1);
         staged_ids.push(id);
-        self.selected_metaobject_payload(
-            &json!({"metaobject": record, "userErrors": []}),
-            selection,
-        )
+        self.metaobject_payload_canonical_value(json!({
+            "metaobject": record,
+            "userErrors": []
+        }))
     }
 
     fn metaobject_display_name_conflict_errors(
@@ -3999,9 +4127,9 @@ impl DraftProxy {
         )]
     }
 
-    pub(in crate::proxy) fn metaobject_update(
+    fn metaobject_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MetaobjectRootInput,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
@@ -4010,19 +4138,16 @@ impl DraftProxy {
             .metaobject_by_id(&id)
             .or_else(|| self.hydrate_metaobject_by_id(request, &id))
         else {
-            return self.selected_metaobject_payload(
-                &json!({
+            return self.metaobject_payload_canonical_value(json!({
                     "metaobject": null,
                     "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
-                }),
-                &field.selection,
-            );
+                }));
         };
         let Some(input) = resolved_object_field(&field.arguments, "metaobject") else {
-            return self.selected_metaobject_payload(
-                &json!({"metaobject": existing, "userErrors": []}),
-                &field.selection,
-            );
+            return self.metaobject_payload_canonical_value(json!({
+                "metaobject": existing,
+                "userErrors": []
+            }));
         };
         let meta_type = existing
             .get("type")
@@ -4036,7 +4161,6 @@ impl DraftProxy {
                 existing,
                 meta_type: &meta_type,
                 input,
-                selection: &field.selection,
                 options: MetaobjectUpdateApplyOptions {
                     definition_error_path_root: "metaobject",
                     handle_error_path: vec!["metaobject", "handle"],
@@ -4049,35 +4173,35 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn metaobject_upsert(
+    fn metaobject_upsert(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MetaobjectRootInput,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let Some(handle) = resolved_object_field(&field.arguments, "handle") else {
-            return self.selected_metaobject_payload(
-                &json!({"metaobject": null, "userErrors": []}),
-                &field.selection,
-            );
+            return self.metaobject_payload_canonical_value(json!({
+                "metaobject": null,
+                "userErrors": []
+            }));
         };
         let meta_type = resolved_string_field(&handle, "type").unwrap_or_default();
         let meta_handle_input = resolved_string_field(&handle, "handle").unwrap_or_default();
         let meta_handle = slugify_handle(&meta_handle_input);
         let Some(input) = resolved_object_field(&field.arguments, "metaobject") else {
-            return self.selected_metaobject_payload(
-                &json!({"metaobject": null, "userErrors": []}),
-                &field.selection,
-            );
+            return self.metaobject_payload_canonical_value(json!({
+                "metaobject": null,
+                "userErrors": []
+            }));
         };
         if !meta_handle_input.is_empty() {
             let locator_errors =
                 metaobject_handle_validation_errors(&meta_handle_input, vec!["handle", "handle"]);
             if !locator_errors.is_empty() {
-                return self.selected_metaobject_payload(
-                    &json!({"metaobject": null, "userErrors": locator_errors}),
-                    &field.selection,
-                );
+                return self.metaobject_payload_canonical_value(json!({
+                    "metaobject": null,
+                    "userErrors": locator_errors
+                }));
             }
         }
         if let Some(existing) = self
@@ -4095,7 +4219,6 @@ impl DraftProxy {
                     existing,
                     meta_type: &meta_type,
                     input: update_input,
-                    selection: &field.selection,
                     options: MetaobjectUpdateApplyOptions {
                         definition_error_path_root: "handle",
                         handle_error_path: vec!["handle", "handle"],
@@ -4112,17 +4235,14 @@ impl DraftProxy {
             .metaobject_definition_by_type(&meta_type)
             .or_else(|| self.hydrate_metaobject_definition_by_type(request, &meta_type))
         else {
-            return self.selected_metaobject_payload(
-                &json!({
-                    "metaobject": null,
-                    "userErrors": [metaobject_no_definition_error(
-                        "handle",
-                        &meta_type,
-                        "UNDEFINED_OBJECT_TYPE",
-                    )]
-                }),
-                &field.selection,
-            );
+            return self.metaobject_payload_canonical_value(json!({
+                "metaobject": null,
+                "userErrors": [metaobject_no_definition_error(
+                    "handle",
+                    &meta_type,
+                    "UNDEFINED_OBJECT_TYPE",
+                )]
+            }));
         };
         let mut create_input = input.clone();
         create_input.insert("type".to_string(), ResolvedValue::String(meta_type));
@@ -4130,13 +4250,7 @@ impl DraftProxy {
             "handle".to_string(),
             ResolvedValue::String(meta_handle_input),
         );
-        self.stage_metaobject_create_from_input(
-            &create_input,
-            request,
-            staged_ids,
-            &field.selection,
-            true,
-        )
+        self.stage_metaobject_create_from_input(&create_input, request, staged_ids, true)
     }
 
     fn apply_metaobject_update_to_existing(
@@ -4149,7 +4263,6 @@ impl DraftProxy {
             existing,
             meta_type,
             input,
-            selection,
             options,
         } = context;
         let Some(definition) = self
@@ -4157,17 +4270,14 @@ impl DraftProxy {
             .or_else(|| self.hydrate_metaobject_definition_by_type(request, meta_type))
             .or_else(|| metaobject_definition_from_record(&existing))
         else {
-            return self.selected_metaobject_payload(
-                &json!({
-                    "metaobject": null,
-                    "userErrors": [metaobject_no_definition_error(
-                        options.definition_error_path_root,
-                        meta_type,
-                        "UNDEFINED_OBJECT_TYPE",
-                    )]
-                }),
-                selection,
-            );
+            return self.metaobject_payload_canonical_value(json!({
+                "metaobject": null,
+                "userErrors": [metaobject_no_definition_error(
+                    options.definition_error_path_root,
+                    meta_type,
+                    "UNDEFINED_OBJECT_TYPE",
+                )]
+            }));
         };
 
         let id = existing
@@ -4238,10 +4348,10 @@ impl DraftProxy {
             &handle_display_source,
         ));
         if !validation_errors.is_empty() {
-            return self.selected_metaobject_payload(
-                &json!({"metaobject": null, "userErrors": validation_errors}),
-                selection,
-            );
+            return self.metaobject_payload_canonical_value(json!({
+                "metaobject": null,
+                "userErrors": validation_errors
+            }));
         }
 
         let display_name =
@@ -4286,15 +4396,15 @@ impl DraftProxy {
             }
         }
         staged_ids.push(id);
-        self.selected_metaobject_payload(
-            &json!({"metaobject": record, "userErrors": []}),
-            selection,
-        )
+        self.metaobject_payload_canonical_value(json!({
+            "metaobject": record,
+            "userErrors": []
+        }))
     }
 
-    pub(in crate::proxy) fn metaobject_delete(
+    fn metaobject_delete(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MetaobjectRootInput,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
@@ -4304,19 +4414,16 @@ impl DraftProxy {
                 .hydrate_metaobject_by_id(request, &submitted_id)
                 .is_none()
         {
-            return selected_json(
-                &json!({
-                    "deletedId": null,
-                    "userErrors": [metaobject_indexed_user_error(
-                        ["id"],
-                        "Record not found",
-                        Some("RECORD_NOT_FOUND"),
-                        Value::Null,
-                        Value::Null
-                    )]
-                }),
-                &field.selection,
-            );
+            return json!({
+                "deletedId": null,
+                "userErrors": [metaobject_indexed_user_error(
+                    ["id"],
+                    "Record not found",
+                    Some("RECORD_NOT_FOUND"),
+                    Value::Null,
+                    Value::Null
+                )]
+            });
         }
         let storage_id = self
             .metaobject_staged_key_by_id(&submitted_id)
@@ -4334,15 +4441,12 @@ impl DraftProxy {
             self.increment_metaobject_definition_count(meta_type, -1);
         }
         staged_ids.push(storage_id);
-        selected_json(
-            &json!({"deletedId": submitted_id, "userErrors": []}),
-            &field.selection,
-        )
+        json!({"deletedId": submitted_id, "userErrors": []})
     }
 
-    pub(in crate::proxy) fn metaobject_bulk_delete(
+    fn metaobject_bulk_delete(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MetaobjectRootInput,
         request: &Request,
         staged_ids: &mut Vec<String>,
         log_successful_noop: &mut bool,
@@ -4410,17 +4514,14 @@ impl DraftProxy {
                 record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
             });
             if self.metaobject_definition_by_type(&meta_type).is_none() && !has_rows_for_type {
-                return selected_json(
-                    &json!({
-                        "job": null,
-                        "userErrors": [metaobject_no_definition_error(
-                            "where",
-                            &meta_type,
-                            "RECORD_NOT_FOUND",
-                        )]
-                    }),
-                    &field.selection,
-                );
+                return json!({
+                    "job": null,
+                    "userErrors": [metaobject_no_definition_error(
+                        "where",
+                        &meta_type,
+                        "RECORD_NOT_FOUND",
+                    )]
+                });
             }
             let ids_to_delete = self
                 .store
@@ -4447,108 +4548,33 @@ impl DraftProxy {
             *log_successful_noop = true;
         }
         staged_ids.extend(touched_ids);
-        selected_json(
-            &json!({
-                "job": {"id": self.next_proxy_synthetic_gid("Job"), "done": false},
-                "userErrors": user_errors
-            }),
-            &field.selection,
-        )
+        json!({
+            "job": {"id": self.next_proxy_synthetic_gid("Job"), "done": false},
+            "userErrors": user_errors
+        })
     }
 
-    fn selected_metaobject_value(&self, value: &Value, selection: &[SelectedField]) -> Value {
-        if let Some(values) = value.as_array() {
-            Value::Array(
-                values
-                    .iter()
-                    .map(|item| {
-                        if metaobject_value_is_field_record(item) {
-                            self.selected_reference_value_record_json(item, selection)
-                        } else {
-                            selected_json(item, selection)
-                        }
-                    })
-                    .collect(),
-            )
-        } else if metaobject_value_is_field_record(value) {
-            self.selected_reference_value_record_json(value, selection)
-        } else {
-            nullable_selected_json(value, selection)
+    fn metaobject_payload_canonical_value(&self, mut payload: Value) -> Value {
+        if let Some(metaobject) = payload
+            .get("metaobject")
+            .filter(|metaobject| metaobject.is_object())
+            .cloned()
+        {
+            payload["metaobject"] = self.stored_metaobject_canonical_value(&metaobject);
         }
+        payload
     }
 
-    pub(in crate::proxy) fn selected_metaobject(
-        &self,
-        record: &Value,
-        selection: &[SelectedField],
-    ) -> Value {
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "field" => {
-                let key = resolved_string_field(&field.arguments, "key").unwrap_or_default();
-                let value = record["fields"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .find(|candidate| {
-                        candidate.get("key").and_then(Value::as_str) == Some(key.as_str())
-                    })
-                    .cloned()
-                    .unwrap_or(Value::Null);
-                Some(self.selected_metaobject_value(&value, &field.selection))
-            }
-            "definition" => {
-                let meta_type = record
-                    .get("type")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default();
-                Some(
-                    self.metaobject_definition_by_type(meta_type)
-                        .map(|definition| {
-                            self.selected_metaobject_definition(&definition, &field.selection)
-                        })
-                        .unwrap_or(Value::Null),
-                )
-            }
-            _ => record
-                .get(&field.name)
-                .map(|value| self.selected_metaobject_value(value, &field.selection)),
-        })
-    }
-
-    fn selected_metaobject_payload(&self, payload: &Value, selection: &[SelectedField]) -> Value {
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "metaobject" => {
-                let metaobject = &payload["metaobject"];
-                Some(if metaobject.is_null() {
-                    Value::Null
-                } else {
-                    self.selected_metaobject(metaobject, &field.selection)
-                })
-            }
-            _ => payload
-                .get(&field.name)
-                .map(|value| self.selected_metaobject_value(value, &field.selection)),
-        })
-    }
-
-    fn selected_metaobject_definition_payload(
-        &self,
-        payload: &Value,
-        selection: &[SelectedField],
-    ) -> Value {
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "metaobjectDefinition" => {
-                let definition = &payload["metaobjectDefinition"];
-                Some(if definition.is_null() {
-                    Value::Null
-                } else {
-                    self.selected_metaobject_definition(definition, &field.selection)
-                })
-            }
-            _ => payload
-                .get(&field.name)
-                .map(|value| self.selected_metaobject_value(value, &field.selection)),
-        })
+    fn metaobject_definition_payload_canonical_value(&self, mut payload: Value) -> Value {
+        if let Some(definition) = payload
+            .get("metaobjectDefinition")
+            .filter(|definition| definition.is_object())
+            .cloned()
+        {
+            payload["metaobjectDefinition"] =
+                self.metaobject_definition_canonical_value(&definition);
+        }
+        payload
     }
 
     /// Re-projects a stored metaobject entry against the current local definition for
@@ -4686,15 +4712,12 @@ impl DraftProxy {
 
     fn metaobject_definition_create(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MetaobjectRootInput,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let Some(definition_input) = resolved_object_field(&field.arguments, "definition") else {
-            return selected_json(
-                &json!({"metaobjectDefinition": null, "userErrors": []}),
-                &field.selection,
-            );
+            return json!({"metaobjectDefinition": null, "userErrors": []});
         };
         let meta_type = metaobject_definition_type_from_input(&definition_input, request);
         let existing_definitions = self
@@ -4716,19 +4739,16 @@ impl DraftProxy {
             )
         };
         if !validation_errors.is_empty() {
-            return selected_json(
-                &json!({"metaobjectDefinition": null, "userErrors": validation_errors}),
-                &field.selection,
-            );
+            return json!({
+                "metaobjectDefinition": null,
+                "userErrors": validation_errors
+            });
         }
         if self.metaobject_definition_by_type(&meta_type).is_some() {
-            return selected_json(
-                &json!({
-                    "metaobjectDefinition": null,
-                    "userErrors": [metaobject_field_error(vec!["definition", "type"], "Type has already been taken", "TAKEN")]
-                }),
-                &field.selection,
-            );
+            return json!({
+                "metaobjectDefinition": null,
+                "userErrors": [metaobject_field_error(vec!["definition", "type"], "Type has already been taken", "TAKEN")]
+            });
         }
         let id = self.next_proxy_synthetic_gid("MetaobjectDefinition");
         let timestamp = self.next_mutation_timestamp();
@@ -4744,26 +4764,23 @@ impl DraftProxy {
             .tombstones
             .remove(&id);
         staged_ids.push(id);
-        self.selected_metaobject_definition_payload(
-            &json!({"metaobjectDefinition": definition, "userErrors": []}),
-            &field.selection,
-        )
+        self.metaobject_definition_payload_canonical_value(json!({
+            "metaobjectDefinition": definition,
+            "userErrors": []
+        }))
     }
 
     fn metaobject_definition_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MetaobjectRootInput,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let submitted_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(storage_id) = self.metaobject_definition_staged_key_by_id(&submitted_id) else {
-            return selected_json(
-                &json!({
-                    "metaobjectDefinition": null,
-                    "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
-                }),
-                &field.selection,
-            );
+            return json!({
+                "metaobjectDefinition": null,
+                "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
+            });
         };
         let Some(definition) = self
             .store
@@ -4772,19 +4789,16 @@ impl DraftProxy {
             .get(&storage_id)
             .cloned()
         else {
-            return selected_json(
-                &json!({
-                    "metaobjectDefinition": null,
-                    "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
-                }),
-                &field.selection,
-            );
+            return json!({
+                "metaobjectDefinition": null,
+                "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
+            });
         };
         let Some(definition_input) = resolved_object_field(&field.arguments, "definition") else {
-            return self.selected_metaobject_definition_payload(
-                &json!({"metaobjectDefinition": definition, "userErrors": []}),
-                &field.selection,
-            );
+            return self.metaobject_definition_payload_canonical_value(json!({
+                "metaobjectDefinition": definition,
+                "userErrors": []
+            }));
         };
         let meta_type = definition
             .get("type")
@@ -4808,17 +4822,14 @@ impl DraftProxy {
                 resolved_string_field(&definition_input, "displayNameKey")
                     .is_some_and(|next| Some(next.as_str()) != current_display_name_key);
             if changes_display_name_key {
-                return selected_json(
-                    &json!({
-                        "metaobjectDefinition": null,
-                        "userErrors": [metaobject_field_error(
-                            vec!["definition", "displayNameKey"],
-                            "Cannot change display name field when metaobject is used in product options",
-                            "IMMUTABLE",
-                        )]
-                    }),
-                    &field.selection,
-                );
+                return json!({
+                    "metaobjectDefinition": null,
+                    "userErrors": [metaobject_field_error(
+                        vec!["definition", "displayNameKey"],
+                        "Cannot change display name field when metaobject is used in product options",
+                        "IMMUTABLE",
+                    )]
+                });
             }
         }
         let existing_field_definitions = definition["fieldDefinitions"]
@@ -4831,10 +4842,10 @@ impl DraftProxy {
             &existing_field_definitions,
         );
         if !validation_errors.is_empty() {
-            return selected_json(
-                &json!({"metaobjectDefinition": null, "userErrors": validation_errors}),
-                &field.selection,
-            );
+            return json!({
+                "metaobjectDefinition": null,
+                "userErrors": validation_errors
+            });
         }
         let old_url_handle =
             metaobject_definition_online_store_url_handle(&definition).map(str::to_string);
@@ -4878,26 +4889,23 @@ impl DraftProxy {
             self.stage_url_redirect(path, target);
         }
         staged_ids.push(storage_id);
-        self.selected_metaobject_definition_payload(
-            &json!({"metaobjectDefinition": updated, "userErrors": []}),
-            &field.selection,
-        )
+        self.metaobject_definition_payload_canonical_value(json!({
+            "metaobjectDefinition": updated,
+            "userErrors": []
+        }))
     }
 
     fn metaobject_definition_delete(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MetaobjectRootInput,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let submitted_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(storage_id) = self.metaobject_definition_staged_key_by_id(&submitted_id) else {
-            return selected_json(
-                &json!({
-                    "deletedId": null,
-                    "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
-                }),
-                &field.selection,
-            );
+            return json!({
+                "deletedId": null,
+                "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
+            });
         };
         let Some(definition) = self
             .store
@@ -4906,13 +4914,10 @@ impl DraftProxy {
             .get(&storage_id)
             .cloned()
         else {
-            return selected_json(
-                &json!({
-                    "deletedId": null,
-                    "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
-                }),
-                &field.selection,
-            );
+            return json!({
+                "deletedId": null,
+                "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
+            });
         };
         let meta_type = definition["type"].as_str().unwrap_or_default().to_string();
         let ids_to_delete = self
@@ -4933,35 +4938,29 @@ impl DraftProxy {
             .metaobject_definitions
             .tombstone(storage_id.clone());
         staged_ids.push(storage_id);
-        selected_json(
-            &json!({"deletedId": submitted_id, "userErrors": []}),
-            &field.selection,
-        )
+        json!({"deletedId": submitted_id, "userErrors": []})
     }
 
     fn standard_metaobject_definition_enable(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MetaobjectRootInput,
         staged_ids: &mut Vec<String>,
         log_successful_noop: &mut bool,
     ) -> Value {
         let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
         if let Some(definition) = self.metaobject_definition_by_type(&meta_type) {
             *log_successful_noop = true;
-            return self.selected_metaobject_definition_payload(
-                &json!({"metaobjectDefinition": definition, "userErrors": []}),
-                &field.selection,
-            );
+            return self.metaobject_definition_payload_canonical_value(json!({
+                "metaobjectDefinition": definition,
+                "userErrors": []
+            }));
         }
 
         let Some(template) = standard_metaobject_definition_template(&meta_type) else {
-            return self.selected_metaobject_definition_payload(
-                &json!({
+            return self.metaobject_definition_payload_canonical_value(json!({
                     "metaobjectDefinition": null,
                     "userErrors": [metaobject_field_error(vec!["type"], "Record not found", "RECORD_NOT_FOUND")]
-                }),
-                &field.selection,
-            );
+                }));
         };
 
         let id = self.next_proxy_synthetic_gid("MetaobjectDefinition");
@@ -4977,10 +4976,10 @@ impl DraftProxy {
             .tombstones
             .remove(&id);
         staged_ids.push(id);
-        self.selected_metaobject_definition_payload(
-            &json!({"metaobjectDefinition": definition, "userErrors": []}),
-            &field.selection,
-        )
+        self.metaobject_definition_payload_canonical_value(json!({
+            "metaobjectDefinition": definition,
+            "userErrors": []
+        }))
     }
 
     fn metaobject_definition_staged_key_by_id(&self, id: &str) -> Option<String> {
@@ -5013,18 +5012,13 @@ impl DraftProxy {
         definition
     }
 
-    fn selected_metaobject_definition(
+    pub(in crate::proxy) fn metaobject_definition_canonical_value(
         &self,
         definition: &Value,
-        selection: &[SelectedField],
     ) -> Value {
-        let definition = self.metaobject_definition_with_derived_fields(definition);
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "metaobjects" => {
-                Some(self.metaobject_definition_metaobjects_connection(&definition, field))
-            }
-            _ => selected_field_json(&definition, field),
-        })
+        let mut definition = self.metaobject_definition_with_derived_fields(definition);
+        definition["__typename"] = json!("MetaobjectDefinition");
+        definition
     }
 
     fn metaobject_definition_child_metaobjects(&self, definition: &Value) -> Vec<Value> {
@@ -5053,22 +5047,18 @@ impl DraftProxy {
         records
     }
 
-    fn metaobject_definition_metaobjects_connection(
+    fn metaobject_definition_metaobjects_connection_value(
         &self,
         definition: &Value,
-        field: &SelectedField,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let mut records = self.metaobject_definition_child_metaobjects(definition);
-        if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
-            records.reverse();
-        }
-        let (records, page_info) = connection_window(&records, &field.arguments, metaobject_cursor);
-        selected_typed_connection_with_page_info(
-            &records,
-            &field.selection,
-            |record, selection| self.selected_metaobject(record, selection),
+        connection_value_with_args(
+            self.metaobject_definition_child_metaobjects(definition)
+                .into_iter()
+                .map(|record| self.metaobject_canonical_value(&record))
+                .collect(),
+            arguments,
             metaobject_cursor,
-            page_info,
         )
     }
 
@@ -5115,7 +5105,7 @@ impl DraftProxy {
         Some(definition)
     }
 
-    fn metaobject_definition_connection(&self, field: &RootFieldSelection) -> Value {
+    fn metaobject_definition_connection(&self, field: &MetaobjectRootInput) -> Value {
         let mut records = self
             .store
             .staged
@@ -5136,11 +5126,12 @@ impl DraftProxy {
                 .and_then(Value::as_str)
                 .cmp(&right.get("type").and_then(Value::as_str))
         });
-        selected_typed_connection_with_args(
-            &records,
+        connection_value_with_args(
+            records
+                .into_iter()
+                .map(|definition| self.metaobject_definition_canonical_value(&definition))
+                .collect(),
             &field.arguments,
-            &field.selection,
-            |definition, selection| self.selected_metaobject_definition(definition, selection),
             |definition| {
                 format!(
                     "cursor:{}",

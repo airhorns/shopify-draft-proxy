@@ -7,8 +7,9 @@ use super::graphql_error_compat::{
 };
 use super::*;
 use crate::admin_graphql::{
-    self, AdminApiVersion, FieldResolverInvocation, FieldResolverResult, RootExecutionContext,
-    RootFieldError, RootFieldExecutor, RootFieldInvocation, RootFieldResult,
+    self, apply_null_list_item_paths, AdminApiVersion, FieldResolverInvocation,
+    FieldResolverResult, ResolverValueSource, RootExecutionContext, RootFieldError,
+    RootFieldExecutor, RootFieldInvocation, RootFieldResult,
 };
 use crate::graphql::{DirectiveSelection, VariableDefinitionInfo};
 use crate::resolver_registry::{
@@ -42,6 +43,8 @@ struct PreparedRootCall {
     query: String,
     variables: BTreeMap<String, ResolvedValue>,
     operation: crate::graphql::ParsedOperation,
+    operation_path: String,
+    variable_definitions: BTreeMap<String, VariableDefinitionInfo>,
     field: RootFieldSelection,
 }
 
@@ -54,150 +57,85 @@ struct PreparedAtomicMutation {
 
 pub(crate) fn field_resolver_registrations() -> Vec<FieldResolverRegistration> {
     let mut registrations = saved_search_field_resolver_registrations();
+    registrations.extend([
+        FieldResolverRegistration::property(ApiSurface::Admin, "Job", "done"),
+        FieldResolverRegistration::property(ApiSurface::Admin, "Job", "id"),
+        FieldResolverRegistration::explicit_terminal(
+            ApiSurface::Admin,
+            "Job",
+            "query",
+            job_query_field,
+        ),
+    ]);
     registrations.extend(product_field_resolver_registrations());
     registrations.extend(super::selling_plans::selling_plan_field_resolver_registrations());
     registrations.extend(inventory_field_resolver_registrations());
     registrations.extend(super::privacy::privacy_field_resolver_registrations());
+    registrations.extend(super::discounts::discount_field_resolver_registrations());
     registrations.extend(event_field_resolver_registrations());
     registrations.extend(return_field_resolver_registrations());
+    registrations.extend(media_field_resolver_registrations());
+    registrations.extend(payment_terms_field_resolver_registrations());
+    registrations.extend(orders_field_resolver_registrations());
+    registrations.extend(store_property_field_resolver_registrations());
+    registrations.extend(localization_field_resolver_registrations());
+    registrations.extend(owner_metafield_field_resolver_registrations());
+    registrations.extend(metafield_definition_field_resolver_registrations());
+    registrations
+        .extend(super::admin_shipping_gift_cards::app_billing_field_resolver_registrations());
+    registrations
+        .extend(super::admin_shipping_gift_cards::gift_card_field_resolver_registrations());
+    registrations.extend(
+        super::admin_shipping_gift_cards::delivery_customization_field_resolver_registrations(),
+    );
+    registrations.extend(delivery_profile_field_resolver_registrations());
+    registrations.extend(super::online_store_content::online_store_field_resolver_registrations());
     registrations.extend(super::b2b_customers::customer_field_resolver_registrations());
     registrations.extend(super::b2b_customers::b2b_company_field_resolver_registrations());
+    registrations.extend(super::metaobjects::metaobject_field_resolver_registrations());
     registrations
         .extend(super::localization_markets_catalogs::markets_field_resolver_registrations());
     registrations
         .extend(super::admin_shipping_gift_cards::delivery_promise_field_resolver_registrations());
     registrations.extend(super::storefront::storefront_field_resolver_registrations());
-    registrations.extend(legacy_projected_field_resolver_registrations());
     registrations
 }
 
-/// Argument-bearing fields still rendered by a domain's legacy
-/// `SelectedField` projector. Keeping this list explicit prevents the captured
-/// schema from silently blessing new fields as property-backed. Each entry is
-/// deleted when its parent type moves to canonical values plus a real field
-/// resolver.
-fn legacy_projected_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
-    let admin = [
-        ("AppInstallation", "allSubscriptions"),
-        ("AppInstallation", "oneTimePurchases"),
-        ("AppSubscriptionLineItem", "usageRecords"),
-        ("Article", "comments"),
-        ("Article", "commentsCount"),
-        ("Article", "metafield"),
-        ("Article", "metafields"),
-        ("Blog", "articles"),
-        ("Blog", "articlesCount"),
-        ("CalculatedOrder", "lineItems"),
-        ("CartTransform", "metafield"),
-        ("CombinedListing", "combinedListingChildren"),
-        ("Company", "contactRoles"),
-        ("Company", "contacts"),
-        ("Company", "locations"),
-        ("Company", "orders"),
-        ("Company", "draftOrders"),
-        ("CompanyContact", "roleAssignments"),
-        ("CompanyLocation", "roleAssignments"),
-        ("CompanyLocation", "orders"),
-        ("CompanyLocation", "draftOrders"),
-        ("CompanyLocation", "staffMemberAssignments"),
-        ("CompanyLocationCatalog", "companyLocations"),
-        ("Customer", "addressesV2"),
-        ("Customer", "metafield"),
-        ("Customer", "metafields"),
-        ("Customer", "orders"),
-        ("Customer", "paymentMethods"),
-        ("Customer", "storeCreditAccounts"),
-        ("DeliveryCustomization", "metafield"),
-        ("DeliveryCustomization", "metafields"),
-        ("DeliveryProfile", "profileItems"),
-        ("DeliveryProfile", "profileLocationGroups"),
-        ("DeliveryLocationGroup", "locations"),
-        ("DeliveryProfileItem", "variants"),
-        ("DeliveryProfileLocationGroup", "locationGroupZones"),
-        ("DeliveryLocationGroupZone", "methodDefinitions"),
-        ("DiscountCodeApp", "codes"),
-        ("DiscountCodeBasic", "codes"),
-        ("DiscountCodeBxgy", "codes"),
-        ("DiscountCodeFreeShipping", "codes"),
-        ("DiscountCodeNode", "metafields"),
-        ("DiscountRedeemCodeBulkCreation", "codes"),
-        ("DiscountProducts", "products"),
-        ("DiscountProducts", "productVariants"),
-        ("DiscountCollections", "collections"),
-        ("DraftOrder", "lineItems"),
-        ("Fulfillment", "trackingInfo"),
-        ("Fulfillment", "events"),
-        ("Fulfillment", "fulfillmentLineItems"),
-        ("FulfillmentConstraintRule", "metafields"),
-        ("FulfillmentConstraintRule", "metafield"),
-        ("FulfillmentOrder", "lineItems"),
-        ("FulfillmentOrder", "merchantRequests"),
-        ("GiftCard", "transactions"),
-        ("Image", "url"),
-        ("Location", "inventoryLevels"),
-        ("Location", "metafield"),
-        ("Location", "metafields"),
-        ("LineItem", "taxLines"),
-        ("Market", "catalogs"),
-        ("Market", "webPresences"),
-        ("MarketCatalog", "markets"),
-        ("MarketLocalizableResource", "marketLocalizations"),
-        ("MarketsResolvedValues", "catalogs"),
-        ("MarketWebPresence", "markets"),
-        ("MarketsResolvedValues", "webPresences"),
-        ("MetafieldDefinition", "metafieldsCount"),
-        ("MetafieldDefinitionConstraints", "values"),
-        ("Metaobject", "field"),
-        ("MetaobjectField", "references"),
-        ("MetaobjectDefinition", "metaobjects"),
-        ("OnlineStoreTheme", "files"),
-        ("Order", "events"),
-        ("Order", "fulfillmentOrders"),
-        ("Order", "fulfillments"),
-        ("Order", "lineItems"),
-        ("Order", "refunds"),
-        ("Order", "returns"),
-        ("Order", "shippingLines"),
-        ("Order", "transactions"),
-        ("PaymentCustomization", "metafield"),
-        ("PaymentCustomization", "metafields"),
-        ("PaymentTerms", "paymentSchedules"),
-        ("Refund", "refundLineItems"),
-        ("Refund", "transactions"),
-        ("Return", "returnLineItems"),
-        ("Return", "reverseFulfillmentOrders"),
-        ("ReturnableFulfillment", "returnableFulfillmentLineItems"),
-        ("RegionsCondition", "regions"),
-        ("Shop", "metafield"),
-        ("Shop", "metafields"),
-        ("ShopAddress", "formatted"),
-        ("ShopPolicy", "translations"),
-        ("TranslatableResource", "translatableContent"),
-        ("TranslatableResource", "translations"),
-        ("Validation", "metafields"),
-    ];
-    let mut registrations = admin
-        .into_iter()
-        .map(|(parent_type, field_name)| {
-            FieldResolverRegistration::legacy_projected_property(
-                ApiSurface::Admin,
-                parent_type,
-                field_name,
-            )
-        })
-        .collect::<Vec<_>>();
-    registrations.push(FieldResolverRegistration::legacy_projected_property(
-        ApiSurface::Storefront,
-        "Customer",
-        "addresses",
-    ));
-    registrations
+fn job_query_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(invocation
+        .parent
+        .get(&invocation.response_key)
+        .or_else(|| invocation.parent.get("query"))
+        .cloned()
+        .unwrap_or(Value::Null))
 }
 
 pub(crate) fn field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
     let mut policies = product_field_resolver_type_policies();
     policies.extend(super::selling_plans::selling_plan_field_resolver_type_policies());
     policies.extend(inventory_field_resolver_type_policies());
+    policies.extend(orders_field_resolver_type_policies());
+    policies.extend(store_property_field_resolver_type_policies());
+    policies.extend(customer_field_resolver_type_policies());
+    policies.extend(b2b_company_field_resolver_type_policies());
+    policies.extend(app_billing_field_resolver_type_policies());
+    policies.extend(super::discounts::discount_field_resolver_type_policies());
+    policies.extend(markets_field_resolver_type_policies());
+    policies.extend(event_field_resolver_type_policies());
+    policies.extend(bulk_operation_field_resolver_type_policies());
+    policies.extend(function_field_resolver_type_policies());
+    policies.extend(shipping_field_resolver_type_policies());
+    policies.extend(segment_field_resolver_type_policies());
+    policies.extend(marketing_field_resolver_type_policies());
+    policies.extend(media_field_resolver_type_policies());
+    policies.extend(super::online_store_content::online_store_field_resolver_type_policies());
+    policies.extend(super::metaobjects::metaobject_field_resolver_type_policies());
+    policies.extend(metafield_definition_field_resolver_type_policies());
+    policies.extend(gift_card_field_resolver_type_policies());
     policies.extend(super::storefront::storefront_field_resolver_type_policies());
     policies
 }
@@ -228,8 +166,8 @@ pub(in crate::proxy) fn with_request_owned_proxy<T>(
             Err(poisoned) => poisoned.into_inner().clone(),
         },
     };
-    restored_proxy.engine_mutation_log_start = None;
-    restored_proxy.engine_discount_refs_preflighted = false;
+    restored_proxy.execution_session.mutation_log_start = None;
+    restored_proxy.execution_session.discount_refs_preflighted = false;
     *proxy = restored_proxy;
 
     match outcome {
@@ -250,6 +188,7 @@ impl RootFieldExecutor for ProxyRootExecutor {
             response_key,
             root_name,
             arguments,
+            requested_field_paths,
         } = invocation;
         if self.reject_mixed_mutation {
             return Err(
@@ -313,6 +252,7 @@ impl RootFieldExecutor for ProxyRootExecutor {
                 return Ok(RootFieldResult {
                     value: outcome.value,
                     errors: outcome.errors,
+                    value_source: outcome.value_source,
                 });
             }
         }
@@ -328,7 +268,7 @@ impl RootFieldExecutor for ProxyRootExecutor {
                     .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
                 proxy.hydrate_discount_item_refs(request, fields);
                 proxy.hydrate_discount_context_refs(request, fields);
-                proxy.engine_discount_refs_preflighted = true;
+                proxy.execution_session.discount_refs_preflighted = true;
                 *done = true;
             }
         }
@@ -380,6 +320,13 @@ impl RootFieldExecutor for ProxyRootExecutor {
                     .proxy
                     .lock()
                     .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
+                let upstream_value = proxy
+                    .execution_session
+                    .upstream_query_response
+                    .as_ref()
+                    .and_then(|response| response.body.get("data"))
+                    .and_then(|data| data.get(&response_key))
+                    .map(|value| canonicalize_upstream_value(value, &call.field.selection));
                 let outcome = handler(
                     &mut proxy,
                     crate::resolver_registry::RootInvocation {
@@ -389,7 +336,12 @@ impl RootFieldExecutor for ProxyRootExecutor {
                         root_name: &root_name,
                         root_location: call.field.location,
                         directives: call.field.directives.clone(),
+                        operation_path: &call.operation_path,
+                        variable_definitions: &call.variable_definitions,
+                        raw_arguments: call.field.raw_arguments.clone(),
                         arguments,
+                        requested_field_paths,
+                        upstream_value,
                         request: &call.request,
                         query: &call.query,
                         variables: &call.variables,
@@ -402,6 +354,7 @@ impl RootFieldExecutor for ProxyRootExecutor {
                     mut errors,
                     extensions,
                     log_drafts,
+                    value_source,
                 } = outcome;
                 if let Some(location) = self.root_locations.get(&response_key) {
                     for error in &mut errors {
@@ -440,7 +393,11 @@ impl RootFieldExecutor for ProxyRootExecutor {
                     .lock()
                     .map_err(|_| "Admin GraphQL resolver extensions lock was poisoned".to_string())?
                     .extend(extensions);
-                return Ok(RootFieldResult { value, errors });
+                return Ok(RootFieldResult {
+                    value,
+                    errors,
+                    value_source,
+                });
             }
             let mut proxy = self
                 .proxy
@@ -550,7 +507,11 @@ impl RootFieldExecutor for ProxyRootExecutor {
                 locations: Vec::new(),
             });
         }
-        Ok(RootFieldResult { value, errors })
+        Ok(RootFieldResult {
+            value,
+            errors,
+            value_source: ResolverValueSource::Upstream,
+        })
     }
 
     fn execute_field(
@@ -595,66 +556,6 @@ pub(in crate::proxy) fn operation_selection_error_response(
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn execution_root_fields(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Vec<RootFieldSelection>> {
-        root_fields(query, variables)
-    }
-
-    pub(in crate::proxy) fn execution_root_field(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_name: &str,
-    ) -> Option<RootFieldSelection> {
-        self.execution_root_fields(query, variables)?
-            .into_iter()
-            .find(|field| field.name == root_name)
-    }
-
-    pub(in crate::proxy) fn execution_primary_root_field(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<RootFieldSelection> {
-        self.execution_root_fields(query, variables)?
-            .into_iter()
-            .next()
-    }
-
-    pub(in crate::proxy) fn execution_primary_root_response_parts(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        default_response_key: impl FnOnce() -> String,
-    ) -> (String, Vec<SelectedField>, BTreeMap<String, ResolvedValue>) {
-        self.execution_primary_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection, field.arguments))
-            .unwrap_or_else(|| (default_response_key(), Vec::new(), BTreeMap::new()))
-    }
-
-    pub(in crate::proxy) fn execution_primary_root_response_selection(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        default_response_key: impl FnOnce() -> String,
-    ) -> (String, Vec<SelectedField>) {
-        self.execution_primary_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection))
-            .unwrap_or_else(|| (default_response_key(), Vec::new()))
-    }
-
-    pub(in crate::proxy) fn root_fields_or_error(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Result<Vec<RootFieldSelection>, Response> {
-        self.execution_root_fields(query, variables)
-            .ok_or_else(|| json_error(400, "Could not parse GraphQL operation"))
-    }
-
     pub(in crate::proxy) fn record_mutation_log_draft(
         &mut self,
         request: &Request,
@@ -703,18 +604,14 @@ impl DraftProxy {
     /// Domain code is reached only through root field resolvers; the GraphQL
     /// engine owns the executable language and response projection.
     pub(in crate::proxy) fn execute_graphql(&mut self, request: &Request) -> Response {
-        self.request_owner_metafield_hydrated_ids.clear();
-        self.request_upstream_query_response = None;
-        self.request_localization_context_preflighted = false;
-        self.request_markets_query_preflighted = false;
-        self.request_mixed_discount_local_read = false;
-        self.request_node_query_outcomes = None;
+        self.execution_session = ExecutionSession::default();
         let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
             return json_error(400, "Expected JSON body with a string `query`");
         };
         let Some(version) = AdminApiVersion::from_route(&request.path) else {
             return json_error(404, "No captured Admin GraphQL schema for this route");
         };
+        self.execution_session = ExecutionSession::admin(version);
         let schema = match admin_graphql::schema(version) {
             Ok(schema) => schema,
             Err(error) => {
@@ -775,6 +672,8 @@ impl DraftProxy {
                                 operation_type: document.operation_type,
                                 root_fields: vec![field.name.clone()],
                             },
+                            operation_path: document.operation_path.clone(),
+                            variable_definitions: document.variable_definitions.clone(),
                             field: field.clone(),
                         },
                     )
@@ -825,7 +724,7 @@ impl DraftProxy {
 
         let all_passthrough = !root_names.is_empty() && !has_local_root && has_passthrough_root;
         let product_original_query_passthrough =
-            prepared.as_ref().is_some_and(|(document, _, _)| {
+            prepared.as_ref().is_some_and(|(document, variables, _)| {
                 document.operation_type == OperationType::Query
                     && capabilities
                         .iter()
@@ -836,13 +735,11 @@ impl DraftProxy {
                             CapabilityDomain::Products | CapabilityDomain::Unknown
                         )
                     })
+                    && !self.should_route_owner_metafields_read(&document.root_fields, variables)
                     && self.product_read_needs_upstream(&document.root_fields)
             });
         let shop_original_query_passthrough =
             prepared.as_ref().is_some_and(|(document, variables, _)| {
-                let Some(query) = selected_query.as_deref() else {
-                    return false;
-                };
                 document.operation_type == OperationType::Query
                     && !document.root_fields.is_empty()
                     && document
@@ -850,7 +747,7 @@ impl DraftProxy {
                         .iter()
                         .all(|field| field.name == "shop")
                     && !self.should_handle_shop_policy_query_locally()
-                    && !self.should_route_owner_metafields_read(query, variables)
+                    && !self.should_route_owner_metafields_read(&document.root_fields, variables)
             });
         let direct_full_query_passthrough = product_original_query_passthrough
             || (self.config.read_mode == ReadMode::LiveHybrid && shop_original_query_passthrough)
@@ -921,11 +818,10 @@ impl DraftProxy {
             .then(|| (request.clone(), document.root_fields.clone()))
         });
         let owner_metafield_preflight = prepared.as_ref().and_then(|(document, variables, _)| {
-            let query = selected_query.as_deref()?;
             (document.operation_type == OperationType::Query
                 && has_local_root
                 && !product_original_query_passthrough
-                && self.should_route_owner_metafields_read(query, variables))
+                && self.should_route_owner_metafields_read(&document.root_fields, variables))
             .then(|| {
                 (
                     request.clone(),
@@ -942,7 +838,18 @@ impl DraftProxy {
                 && self.discount_query_has_mixed_local_read(&document.root_fields)
         });
         let overlay_query_preflight = prepared.as_ref().and_then(|(document, variables, _)| {
-            if self.config.read_mode != ReadMode::LiveHybrid
+            let shipping_fulfillment_orders = capabilities
+                .iter()
+                .all(|capability| capability.domain == CapabilityDomain::ShippingFulfillments)
+                && document.root_fields.iter().all(|field| {
+                    matches!(
+                        field.name.as_str(),
+                        "fulfillmentOrders"
+                            | "assignedFulfillmentOrders"
+                            | "manualHoldsFulfillmentOrders"
+                    )
+                });
+            if (self.config.read_mode != ReadMode::LiveHybrid && !shipping_fulfillment_orders)
                 || document.operation_type != OperationType::Query
                 || direct_full_query_passthrough
             {
@@ -956,8 +863,10 @@ impl DraftProxy {
             let customers = capabilities
                 .iter()
                 .all(|capability| capability.domain == CapabilityDomain::Customers)
-                && self.should_handle_customer_overlay_read(&document.root_fields)
-                && self.customer_overlay_needs_upstream_data(&document.root_fields);
+                && document.root_fields.iter().any(|field| {
+                    self.should_handle_customer_overlay_read(&field.name, &field.arguments, false)
+                        && self.customer_overlay_needs_upstream_data(&field.name, &field.arguments)
+                });
             let functions = capabilities
                 .iter()
                 .all(|capability| capability.domain == CapabilityDomain::Functions)
@@ -985,12 +894,47 @@ impl DraftProxy {
             let orders = capabilities
                 .iter()
                 .all(|capability| capability.domain == CapabilityDomain::Orders)
-                && document
-                    .root_fields
-                    .iter()
-                    .all(|field| matches!(field.name.as_str(), "order" | "orders" | "ordersCount"))
+                && document.root_fields.iter().all(|field| {
+                    matches!(
+                        field.name.as_str(),
+                        "order"
+                            | "orders"
+                            | "ordersCount"
+                            | "draftOrder"
+                            | "draftOrders"
+                            | "draftOrdersCount"
+                    )
+                })
                 && (document.root_fields.len() > 1
-                    || self.order_query_needs_shared_upstream(&document.root_fields));
+                    || self.order_query_needs_shared_upstream(&document.root_fields)
+                    || self.draft_order_query_needs_shared_upstream(&document.root_fields));
+            let return_reverse_logistics = capabilities.iter().all(|capability| {
+                matches!(
+                    capability.domain,
+                    CapabilityDomain::Orders | CapabilityDomain::ShippingFulfillments
+                )
+            }) && document.root_fields.iter().all(|field| {
+                matches!(
+                    field.name.as_str(),
+                    "return" | "reverseDelivery" | "reverseFulfillmentOrder"
+                )
+            }) && document.root_fields.iter().any(|field| {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                match field.name.as_str() {
+                    "return" => !self.store.staged.returns.contains_key(&id),
+                    "reverseDelivery" => !self.store.staged.reverse_deliveries.contains_key(&id),
+                    "reverseFulfillmentOrder" => !self
+                        .store
+                        .staged
+                        .reverse_fulfillment_orders
+                        .contains_key(&id),
+                    _ => false,
+                }
+            });
+            let bulk_operations = capabilities
+                .iter()
+                .all(|capability| capability.domain == CapabilityDomain::BulkOperations)
+                && document.root_fields.len() > 1;
             let markets = capabilities
                 .iter()
                 .all(|capability| capability.domain == CapabilityDomain::Markets)
@@ -1003,7 +947,10 @@ impl DraftProxy {
                 || metaobjects
                 || discounts
                 || orders
-                || markets)
+                || return_reverse_logistics
+                || bulk_operations
+                || markets
+                || shipping_fulfillment_orders)
                 .then(|| (request.clone(), document.root_fields.clone()))
         });
         let localization_context_preflight =
@@ -1050,22 +997,14 @@ impl DraftProxy {
             && capabilities
                 .iter()
                 .all(|capability| capability.domain == CapabilityDomain::Markets);
-        let node_query_preflight = prepared.as_ref().and_then(|(document, variables, _)| {
-            let query = selected_query.as_ref()?;
+        let node_query_preflight = prepared.as_ref().and_then(|(document, _, _)| {
             (document.operation_type == OperationType::Query
                 && document.root_fields.len() > 1
                 && document
                     .root_fields
                     .iter()
                     .all(|field| matches!(field.name.as_str(), "node" | "nodes")))
-            .then(|| {
-                (
-                    request.clone(),
-                    query.clone(),
-                    variables.clone(),
-                    document.root_fields.clone(),
-                )
-            })
+            .then(|| (request.clone(), document.root_fields.clone()))
         });
         let delivery_promise_mutation = prepared.as_ref().and_then(|(document, variables, _)| {
             let query = selected_query.as_ref()?;
@@ -1097,6 +1036,8 @@ impl DraftProxy {
         );
         let engine_variables = resolved_variables_json(&graphql_request.variables);
         let engine_operation_name = graphql_request.operation_name;
+        let null_list_item_paths = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let null_list_item_paths_for_engine = Arc::clone(&null_list_item_paths);
         let (
             engine_response,
             resolved_responses,
@@ -1114,7 +1055,7 @@ impl DraftProxy {
                 if let Some((request, fields, variables)) = &owner_metafield_preflight {
                     proxy.hydrate_owner_metafield_read_fields(request, fields, variables);
                 }
-                proxy.request_mixed_discount_local_read = mixed_discount_local_read;
+                proxy.execution_session.mixed_discount_local_read = mixed_discount_local_read;
                 if let Some((request, fields)) = &overlay_query_preflight {
                     let response = (proxy.upstream_transport)(request.clone());
                     if (200..300).contains(&response.status) {
@@ -1125,9 +1066,14 @@ impl DraftProxy {
                             &response.body["data"],
                         );
                         proxy.observe_order_read_response(request, &response);
+                        proxy.observe_draft_order_read_response(request, &response);
                         proxy.observe_discount_read_response(fields, &response);
+                        if markets_query_context {
+                            proxy.hydrate_markets_from_upstream_for_fields(&response.body, fields);
+                            proxy.hydrate_localization_from_upstream(&response.body);
+                        }
                     }
-                    proxy.request_upstream_query_response = Some(response);
+                    proxy.execution_session.upstream_query_response = Some(response);
                 }
                 if let Some((request, fields, use_original_request)) =
                     &localization_context_preflight
@@ -1139,27 +1085,14 @@ impl DraftProxy {
                     );
                 }
                 if markets_query_context {
-                    proxy.request_markets_query_preflighted = true;
+                    proxy.execution_session.markets_query_preflighted = true;
                 }
-                if let Some((request, query, variables, fields)) = &node_query_preflight {
-                    let mut outcomes = BTreeMap::new();
-                    for field in fields {
-                        outcomes.insert(
-                            field.response_key.clone(),
-                            proxy.resolve_node_query_fields(
-                                request,
-                                query,
-                                variables,
-                                fields,
-                                &field.response_key,
-                            ),
-                        );
-                    }
-                    proxy.request_node_query_outcomes = Some(outcomes);
+                if let Some((request, fields)) = &node_query_preflight {
+                    proxy.preflight_node_query_entities(request, fields);
                 }
                 let log_start = proxy.log_entries.len();
                 if operation_type == Some(OperationType::Mutation) && has_local_root {
-                    proxy.engine_mutation_log_start = Some(log_start);
+                    proxy.execution_session.mutation_log_start = Some(log_start);
                 }
                 log_start
             };
@@ -1184,9 +1117,10 @@ impl DraftProxy {
             });
             let mut engine_request = async_graphql::Request::new(engine_query)
                 .variables(async_graphql::Variables::from_json(engine_variables))
-                .data(RootExecutionContext {
-                    executor: Arc::clone(&root_executor),
-                });
+                .data(RootExecutionContext::with_null_list_item_paths(
+                    Arc::clone(&root_executor),
+                    null_list_item_paths_for_engine,
+                ));
             if let Some(operation_name) = engine_operation_name {
                 engine_request = engine_request.operation_name(operation_name);
             }
@@ -1280,6 +1214,9 @@ impl DraftProxy {
         };
         let mut body = body;
         restore_resolved_null_list_items(&mut body, &resolved_responses);
+        if let Ok(paths) = null_list_item_paths.lock() {
+            apply_null_list_item_paths(&mut body, &paths);
+        }
         let resolver_http_status = resolved_extensions
             .get(INTERNAL_HTTP_STATUS_EXTENSION)
             .and_then(Value::as_u64)
@@ -1395,13 +1332,25 @@ impl DraftProxy {
         prepared: Option<&PreparedRootCall>,
         preferred_root: Option<&str>,
     ) -> Response {
-        let (request, query, variables, operation, root_field_name) = if let Some(call) = prepared {
+        let (
+            request,
+            query,
+            variables,
+            operation,
+            root_field_name,
+            root_selections,
+            operation_path,
+            variable_definitions,
+        ) = if let Some(call) = prepared {
             (
                 &call.request,
                 call.query.clone(),
                 call.variables.clone(),
                 call.operation.clone(),
                 call.field.name.clone(),
+                vec![call.field.clone()],
+                call.operation_path.clone(),
+                call.variable_definitions.clone(),
             )
         } else {
             let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
@@ -1428,8 +1377,16 @@ impl DraftProxy {
                     Err(error) => return operation_selection_error_response(error),
                 };
 
-            let Some(operation) = parse_operation_with_variables(&query, &variables) else {
+            let Some(document) = parsed_document(&query, &variables) else {
                 return json_error(400, "Could not parse GraphQL operation");
+            };
+            let operation = crate::graphql::ParsedOperation {
+                operation_type: document.operation_type,
+                root_fields: document
+                    .root_fields
+                    .iter()
+                    .map(|field| field.name.clone())
+                    .collect(),
             };
             let Some(root_field) = preferred_root
                 .map(str::to_string)
@@ -1437,24 +1394,30 @@ impl DraftProxy {
             else {
                 return ok_json(json!({ "data": {} }));
             };
-            (request, query, variables, operation, root_field)
+            (
+                request,
+                query,
+                variables,
+                operation,
+                root_field,
+                document.root_fields,
+                document.operation_path,
+                document.variable_definitions,
+            )
         };
         let root_field = root_field_name.as_str();
 
         if operation.root_fields.len() > 1
             && operation.operation_type == OperationType::Query
-            && self.should_route_owner_metafields_read(&query, &variables)
+            && self.should_route_owner_metafields_read(&root_selections, &variables)
         {
-            return self.owner_metafields_read_response(request, &query, &variables);
+            return self.owner_metafields_read_response(request, &root_selections, &variables);
         }
 
         let capability = self.registry.resolve(operation.operation_type, root_field);
         if capability.domain == CapabilityDomain::Products
             && operation.operation_type == OperationType::Mutation
-            && self
-                .execution_root_fields(&query, &variables)
-                .as_deref()
-                .is_some_and(product_root_fields_select_shop_currency_money)
+            && product_root_fields_select_shop_currency_money(&root_selections)
         {
             self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
@@ -1463,29 +1426,27 @@ impl DraftProxy {
             .registry
             .registration(operation.operation_type, root_field)
         else {
-            return self.dispatch_unknown_passthrough_or_legacy_error(
+            return self.dispatch_unknown_passthrough_or_legacy_error(LegacyGraphqlDispatch {
                 request,
-                &query,
-                &variables,
-                operation.operation_type,
-                &operation.root_fields,
+                query: &query,
+                variables: &variables,
+                operation_type: operation.operation_type,
+                root_fields: &operation.root_fields,
+                root_selections: &root_selections,
                 root_field,
-            );
+            });
         };
         let handler = registration.handler;
         let Some(version) = AdminApiVersion::from_route(&request.path) else {
             return json_error(404, "No captured Admin GraphQL schema for this route");
         };
+        let compatibility_root_field = root_selections
+            .iter()
+            .find(|field| field.name == root_field);
         let response_key = prepared
             .map(|call| call.field.response_key.as_str())
+            .or_else(|| compatibility_root_field.map(|field| field.response_key.as_str()))
             .unwrap_or(root_field);
-        let compatibility_root_field = prepared
-            .is_none()
-            .then(|| {
-                root_fields(&query, &variables)
-                    .and_then(|fields| fields.into_iter().find(|field| field.name == root_field))
-            })
-            .flatten();
         let arguments = prepared
             .map(|call| {
                 call.field
@@ -1495,7 +1456,7 @@ impl DraftProxy {
                     .collect()
             })
             .or_else(|| {
-                compatibility_root_field.as_ref().map(|field| {
+                compatibility_root_field.map(|field| {
                     field
                         .arguments
                         .iter()
@@ -1504,12 +1465,14 @@ impl DraftProxy {
                 })
             })
             .unwrap_or_default();
+        let raw_arguments = prepared
+            .map(|call| call.field.raw_arguments.clone())
+            .or_else(|| compatibility_root_field.map(|field| field.raw_arguments.clone()))
+            .unwrap_or_default();
         let root_metadata = prepared
             .map(|call| (call.field.directives.clone(), call.field.location))
             .or_else(|| {
-                compatibility_root_field
-                    .as_ref()
-                    .map(|field| (field.directives.clone(), field.location))
+                compatibility_root_field.map(|field| (field.directives.clone(), field.location))
             });
         let (directives, root_location) =
             root_metadata.unwrap_or_else(|| (Vec::new(), SourceLocation { line: 1, column: 1 }));
@@ -1522,7 +1485,12 @@ impl DraftProxy {
                 root_name: root_field,
                 root_location,
                 directives,
+                operation_path: &operation_path,
+                variable_definitions: &variable_definitions,
+                raw_arguments,
                 arguments,
+                requested_field_paths: BTreeSet::new(),
+                upstream_value: None,
                 request,
                 query: &query,
                 variables: &variables,
@@ -1547,6 +1515,7 @@ fn resolver_outcome_compat_response(
         errors,
         extensions,
         log_drafts,
+        ..
     } = outcome;
     for draft in log_drafts {
         proxy.record_mutation_log_draft(request, query, variables, draft);
@@ -1572,9 +1541,21 @@ fn resolver_outcome_compat_response(
     ok_json(body)
 }
 
-pub(in crate::proxy) fn resolver_outcome_from_response(
+pub(in crate::proxy) fn resolver_outcome_from_upstream_response(
     response: Response,
     response_key: &str,
+) -> ResolverOutcome<Value> {
+    resolver_outcome_from_response_with_source(
+        response,
+        response_key,
+        ResolverValueSource::Upstream,
+    )
+}
+
+fn resolver_outcome_from_response_with_source(
+    response: Response,
+    response_key: &str,
+    value_source: ResolverValueSource,
 ) -> ResolverOutcome<Value> {
     let status = response.status;
     let body = response.body;
@@ -1607,6 +1588,7 @@ pub(in crate::proxy) fn resolver_outcome_from_response(
         errors,
         extensions,
         log_drafts: Vec::new(),
+        value_source,
     };
     if outcome.errors.is_empty() && status >= 400 {
         outcome.errors.push(RootFieldError {
@@ -1636,7 +1618,7 @@ fn upstream_graphql_result(response: Response, response_key: &str) -> UpstreamGr
     let data = response.body.get("data").cloned().unwrap_or(Value::Null);
     let transport_succeeded = response.status < 400;
     UpstreamGraphqlResult {
-        outcome: resolver_outcome_from_response(response, response_key),
+        outcome: resolver_outcome_from_upstream_response(response, response_key),
         data,
         transport_succeeded,
     }
@@ -1749,7 +1731,10 @@ impl DraftProxy {
         request: &Request,
         response_key: &str,
     ) -> ResolverOutcome<Value> {
-        resolver_outcome_from_response((self.upstream_transport)(request.clone()), response_key)
+        resolver_outcome_from_upstream_response(
+            (self.upstream_transport)(request.clone()),
+            response_key,
+        )
     }
 
     /// Reuse the request-scoped upstream response when the executor already
@@ -1760,10 +1745,11 @@ impl DraftProxy {
         response_key: &str,
     ) -> ResolverOutcome<Value> {
         let response = self
-            .request_upstream_query_response
+            .execution_session
+            .upstream_query_response
             .clone()
             .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
-        resolver_outcome_from_response(response, response_key)
+        resolver_outcome_from_upstream_response(response, response_key)
     }
 
     /// Decode a request-scoped upstream response once while also exposing its
@@ -1774,7 +1760,8 @@ impl DraftProxy {
         response_key: &str,
     ) -> UpstreamGraphqlResult {
         let response = self
-            .request_upstream_query_response
+            .execution_session
+            .upstream_query_response
             .clone()
             .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
         upstream_graphql_result(response, response_key)

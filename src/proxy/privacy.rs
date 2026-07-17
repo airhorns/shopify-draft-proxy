@@ -23,46 +23,33 @@ pub(in crate::proxy) fn privacy_field_resolver_registrations() -> Vec<FieldResol
 }
 
 impl DraftProxy {
-    pub(crate) fn resolve_privacy_graphql(
+    pub(crate) fn data_sale_opt_out_root(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         let RootInvocation {
-            request,
-            arguments,
-            root_name,
-            mode,
-            ..
+            request, arguments, ..
         } = invocation;
-        match mode {
-            LocalResolverMode::StageLocally if root_name == "dataSaleOptOut" => self
-                .data_sale_opt_out_value(request, &arguments)
-                .map_or_else(
-                    || {
-                        ResolverOutcome::value(json!({
-                            "customerId": Value::Null,
-                            "userErrors": data_sale_opt_out_failed_user_errors(),
-                        }))
-                    },
-                    |customer_id| {
-                        ResolverOutcome::value(json!({
-                            "customerId": customer_id.clone(),
-                            "userErrors": [],
-                        }))
-                        .with_log_draft(LogDraft::staged(
-                            "dataSaleOptOut",
-                            "privacy",
-                            vec![customer_id],
-                        ))
-                    },
-                ),
-            LocalResolverMode::OverlayRead | LocalResolverMode::StageLocally => {
-                ResolverOutcome::error(format!(
-                    "Privacy resolver `{root_name}` cannot execute in {} mode",
-                    mode.registry_name(),
-                ))
-            }
-        }
+        self.data_sale_opt_out_value(request, &arguments)
+            .map_or_else(
+                || {
+                    ResolverOutcome::value(json!({
+                        "customerId": Value::Null,
+                        "userErrors": data_sale_opt_out_failed_user_errors(),
+                    }))
+                },
+                |customer_id| {
+                    ResolverOutcome::value(json!({
+                        "customerId": customer_id.clone(),
+                        "userErrors": [],
+                    }))
+                    .with_log_draft(LogDraft::staged(
+                        "dataSaleOptOut",
+                        "privacy",
+                        vec![customer_id],
+                    ))
+                },
+            )
     }
 
     fn data_sale_opt_out_value(

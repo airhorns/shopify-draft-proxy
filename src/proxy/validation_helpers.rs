@@ -299,13 +299,6 @@ pub(in crate::proxy) fn graphql_locations(location: SourceLocation) -> Value {
     json!([{ "line": location.line, "column": location.column }])
 }
 
-pub(in crate::proxy) fn source_location_for_query_substring(
-    query: &str,
-    needle: &str,
-) -> Option<SourceLocation> {
-    source_location_for_byte_offset(query, query.find(needle)?)
-}
-
 pub(in crate::proxy) fn top_level_access_denied_error_envelope(
     message: String,
     location: Option<SourceLocation>,
@@ -555,7 +548,21 @@ pub(in crate::proxy) fn inline_argument_list_item_object_location(
     argument_name: &str,
     target_index: usize,
 ) -> Option<SourceLocation> {
-    let start = byte_offset_for_location(query, field.location)?;
+    inline_argument_list_item_object_location_after(
+        query,
+        field.location,
+        argument_name,
+        target_index,
+    )
+}
+
+pub(in crate::proxy) fn inline_argument_list_item_object_location_after(
+    query: &str,
+    field_location: SourceLocation,
+    argument_name: &str,
+    target_index: usize,
+) -> Option<SourceLocation> {
+    let start = byte_offset_for_location(query, field_location)?;
     let haystack = &query[start..];
     let argument_start = find_argument_name_with_colon(haystack, argument_name)?;
     let after_name = start + argument_start + argument_name.len();

@@ -96,6 +96,16 @@ pub(in crate::proxy) fn project_seeded_connection(
     arguments: &BTreeMap<String, ResolvedValue>,
     selections: &[SelectedField],
 ) -> Value {
+    selected_json(&seeded_connection_value(connection, arguments), selections)
+}
+
+/// Canonical seeded-connection counterpart used by real field resolvers. The
+/// recorded cursors and pageInfo remain authoritative while the requested
+/// first-page cap is applied before the GraphQL engine projects the result.
+pub(in crate::proxy) fn seeded_connection_value(
+    connection: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Value {
     let mut connection = connection.clone();
     if let Some(ResolvedValue::Int(first)) = arguments.get("first") {
         if *first >= 0 {
@@ -109,7 +119,7 @@ pub(in crate::proxy) fn project_seeded_connection(
             }
         }
     }
-    selected_json(&connection, selections)
+    connection
 }
 
 pub(in crate::proxy) fn value_id_cursor(record: &Value) -> String {
@@ -221,21 +231,6 @@ pub(in crate::proxy) fn selected_connection_json(
     selected_json(&connection_json(nodes), selections)
 }
 
-pub(in crate::proxy) fn selected_connection_json_with_args<F>(
-    nodes: Vec<Value>,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
-    cursor_for: F,
-) -> Value
-where
-    F: FnMut(&Value) -> String,
-{
-    selected_json(
-        &connection_value_with_args(nodes, arguments, cursor_for),
-        selections,
-    )
-}
-
 pub(in crate::proxy) fn connection_value_with_args<F>(
     mut nodes: Vec<Value>,
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -314,22 +309,6 @@ where
     selected_typed_connection(records, root_selection, node_json, cursor, |selections| {
         selected_json(&page_info, selections)
     })
-}
-
-pub(in crate::proxy) fn selected_typed_connection_with_args<T, NodeJson, Cursor>(
-    records: &[T],
-    arguments: &BTreeMap<String, ResolvedValue>,
-    root_selection: &[SelectedField],
-    node_json: NodeJson,
-    cursor: Cursor,
-) -> Value
-where
-    T: Clone,
-    NodeJson: Fn(&T, &[SelectedField]) -> Value,
-    Cursor: Fn(&T) -> String,
-{
-    let (records, page_info) = connection_window(records, arguments, |record| cursor(record));
-    selected_typed_connection_with_page_info(&records, root_selection, node_json, cursor, page_info)
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -428,9 +407,8 @@ where
     }
 }
 
-/// Canonical counterpart to `selected_staged_connection_with_args`. Filtering,
-/// sorting, reversing, and cursor windowing are shared, while output projection
-/// is left entirely to the GraphQL executor.
+/// Filtering, sorting, reversing, and cursor windowing are shared, while output
+/// projection is left entirely to the GraphQL executor.
 pub(in crate::proxy) fn staged_connection_value_with_args<
     T,
     Predicate,
@@ -456,82 +434,46 @@ where
     typed_connection_value(&result.records, node_value, cursor, result.page_info)
 }
 
-pub(in crate::proxy) fn selected_staged_connection_with_args<
-    T,
-    Predicate,
-    SortKey,
-    NodeJson,
-    Cursor,
->(
-    records: Vec<T>,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    root_selection: &[SelectedField],
-    predicate: Predicate,
-    sort_key: SortKey,
-    node_json: NodeJson,
-    cursor: Cursor,
-) -> Value
-where
-    T: Clone,
-    Predicate: Fn(&T, Option<&str>) -> StagedSearchDecision,
-    SortKey: Fn(&T, Option<&str>) -> StagedSortKey,
-    NodeJson: Fn(&T, &[SelectedField]) -> Value,
-    Cursor: Fn(&T) -> String + Copy,
-{
-    let result = staged_connection_query(records, arguments, predicate, sort_key, cursor);
-    selected_typed_connection_with_page_info(
-        &result.records,
-        root_selection,
-        node_json,
-        cursor,
-        result.page_info,
-    )
-}
-
-pub(in crate::proxy) fn upstream_count_total(
-    field: &RootFieldSelection,
-    upstream_data: Option<&Value>,
-) -> Option<usize> {
-    upstream_data?
-        .get(field.response_key.as_str())?
-        .get("count")?
-        .as_u64()
-        .and_then(|count| usize::try_from(count).ok())
-}
-
-fn upstream_count_precision<'a>(
-    field: &RootFieldSelection,
-    upstream_data: Option<&'a Value>,
-) -> Option<&'a str> {
-    upstream_data?
-        .get(field.response_key.as_str())?
-        .get("precision")
-        .and_then(Value::as_str)
-}
-
-pub(in crate::proxy) fn upstream_count_with_staged_delta(
-    field: &RootFieldSelection,
-    upstream_data: Option<&Value>,
+/// Canonical root-resolver counterpart to `upstream_count_with_staged_delta`.
+/// The caller supplies the upstream Count value directly, so domain code does
+/// not need a legacy root selection merely to find its response key.
+pub(in crate::proxy) fn upstream_count_value_with_staged_delta(
+    upstream_count: Option<&Value>,
     staged_delta: isize,
     arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Value> {
-    let base_count = upstream_count_total(field, upstream_data)?;
+    let upstream_count = upstream_count?;
+    let base_count = upstream_count
+        .get("count")?
+        .as_u64()
+        .and_then(|count| usize::try_from(count).ok())?;
     let effective_total = if staged_delta.is_negative() {
         base_count.saturating_sub(staged_delta.unsigned_abs())
     } else {
         base_count.saturating_add(staged_delta as usize)
     };
-    upstream_count_with_effective_total(field, upstream_data, effective_total, arguments)
+    let upstream_precision = upstream_count
+        .get("precision")
+        .and_then(Value::as_str)
+        .unwrap_or("EXACT");
+    Some(count_with_limit_precision_from_upstream(
+        effective_total,
+        upstream_precision,
+        arguments,
+    ))
 }
 
-pub(in crate::proxy) fn upstream_count_with_effective_total(
-    field: &RootFieldSelection,
-    upstream_data: Option<&Value>,
+pub(in crate::proxy) fn upstream_count_value_with_effective_total(
+    upstream_count: Option<&Value>,
     effective_total: usize,
     arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Value> {
-    upstream_count_total(field, upstream_data)?;
-    let upstream_precision = upstream_count_precision(field, upstream_data).unwrap_or("EXACT");
+    let upstream_count = upstream_count?;
+    upstream_count.get("count")?.as_u64()?;
+    let upstream_precision = upstream_count
+        .get("precision")
+        .and_then(Value::as_str)
+        .unwrap_or("EXACT");
     Some(count_with_limit_precision_from_upstream(
         effective_total,
         upstream_precision,

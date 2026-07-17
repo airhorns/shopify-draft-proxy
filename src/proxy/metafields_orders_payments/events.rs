@@ -28,8 +28,28 @@ pub(in crate::proxy) fn event_field_resolver_registrations() -> Vec<FieldResolve
     .collect()
 }
 
+pub(in crate::proxy) fn event_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
+    [
+        "BasicEvent",
+        "CommentEvent",
+        "CommentEventAttachment",
+        "CommentEventSubject",
+        "CustomerVisit",
+        "HasEvents",
+    ]
+    .into_iter()
+    .map(|parent_type| {
+        FieldResolverTypePolicy::property_backed_ordinary_fields(
+            ApiSurface::Admin,
+            parent_type,
+            "argument-bearing event field has no explicit canonical resolver",
+        )
+    })
+    .collect()
+}
+
 impl DraftProxy {
-    pub(crate) fn resolve_events_graphql(
+    pub(crate) fn event_query_root(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
@@ -37,25 +57,16 @@ impl DraftProxy {
             response_key,
             request,
             root_name,
-            mode,
             ..
         } = invocation;
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                if self.config.read_mode == ReadMode::LiveHybrid {
-                    return self.forward_upstream_root_outcome(request, response_key);
-                }
-                ResolverOutcome::value(match root_name {
-                    "event" => Value::Null,
-                    "events" => connection_json(Vec::new()),
-                    "eventsCount" => count_object(0),
-                    _ => Value::Null,
-                })
-            }
-            LocalResolverMode::StageLocally => ResolverOutcome::error(format!(
-                "Events resolver `{root_name}` cannot execute in {} mode",
-                mode.registry_name(),
-            )),
+        if self.config.read_mode == ReadMode::LiveHybrid {
+            return self.forward_upstream_root_outcome(request, response_key);
         }
+        ResolverOutcome::value(match root_name {
+            "event" => Value::Null,
+            "events" => connection_json(Vec::new()),
+            "eventsCount" => count_object(0),
+            root => return ResolverOutcome::error(format!("Unknown event query root `{root}`")),
+        })
     }
 }

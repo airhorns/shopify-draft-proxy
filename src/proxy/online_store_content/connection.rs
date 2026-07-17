@@ -2,18 +2,16 @@ use super::search::{online_store_search_decision, online_store_sort_key};
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn hydrate_online_store_content_query_baselines(
+    pub(in crate::proxy) fn hydrate_online_store_content_query_baseline(
         &mut self,
         request: &Request,
-        fields: &[RootFieldSelection],
+        field: &OnlineStoreRootCall,
     ) {
         if self.config.read_mode == ReadMode::Snapshot {
             return;
         }
         for (root, kind, hydrate_query) in ONLINE_STORE_COUNT_ROOTS {
-            if fields.iter().any(|field| field.name == root)
-                && kind.count_base(&self.store.staged).is_none()
-            {
+            if field.name == root && kind.count_base(&self.store.staged).is_none() {
                 self.hydrate_online_store_count_base(request, root, kind, hydrate_query);
             }
         }
@@ -22,13 +20,12 @@ impl DraftProxy {
     pub(super) fn online_store_connection_value(
         &self,
         kind: OnlineStoreKind,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
     ) -> Value {
         self.online_store_connection_from_records(
             kind,
             self.online_store_records(kind),
             &field.arguments,
-            &field.selection,
         )
     }
 
@@ -37,7 +34,6 @@ impl DraftProxy {
         kind: OnlineStoreKind,
         records: Vec<Value>,
         arguments: &BTreeMap<String, ResolvedValue>,
-        selection: &[SelectedField],
     ) -> Value {
         let indexed_records = records.into_iter().enumerate().collect::<Vec<_>>();
         let result = staged_connection_query(
@@ -52,10 +48,9 @@ impl DraftProxy {
             |(_, record)| value_id_cursor(record),
         );
 
-        selected_typed_connection_with_page_info(
+        typed_connection_value(
             &result.records,
-            selection,
-            |(_, record), selection| self.online_store_selected_record(kind, record, selection),
+            |(_, record)| self.enriched_online_store_record(kind, record),
             |(_, record)| value_id_cursor(record),
             result.page_info,
         )

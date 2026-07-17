@@ -6,36 +6,69 @@ mod online_store_helpers;
 mod sales_channel;
 mod search;
 
+pub(in crate::proxy) use self::content::online_store_field_resolver_registrations;
 pub(in crate::proxy) use self::online_store_helpers::*;
 
+pub(in crate::proxy) fn online_store_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy>
+{
+    [
+        "Article",
+        "ArticleAuthor",
+        "Blog",
+        "Comment",
+        "Link",
+        "OnlineStoreTheme",
+        "OnlineStoreThemeFile",
+        "Page",
+        "ScriptTag",
+    ]
+    .into_iter()
+    .map(|parent_type| {
+        FieldResolverTypePolicy::property_backed_ordinary_fields(
+            ApiSurface::Admin,
+            parent_type,
+            "argument-bearing online-store field has no explicit canonical resolver",
+        )
+    })
+    .collect()
+}
+
+/// Engine-coerced input for one online-store root. Output selections are
+/// intentionally absent: nested field ownership belongs to the executable
+/// schema and field-resolver catalog.
+#[derive(Clone)]
+pub(in crate::proxy) struct OnlineStoreRootCall {
+    name: String,
+    response_key: String,
+    location: SourceLocation,
+    arguments: BTreeMap<String, ResolvedValue>,
+}
+
 impl DraftProxy {
-    pub(crate) fn resolve_online_store_graphql(
+    pub(crate) fn online_store_query_root(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        let RootInvocation {
-            response_key,
-            request,
-            query,
-            variables,
-            root_name,
-            mode,
-            ..
-        } = invocation;
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
-        };
-        let fields = fields
-            .into_iter()
-            .filter(|field| field.response_key == response_key)
-            .collect::<Vec<_>>();
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                self.online_store_query_outcome(request, &fields, response_key)
-            }
-            LocalResolverMode::StageLocally => {
-                self.online_store_mutation_outcome(&fields, request, root_name, response_key)
-            }
+        let field = OnlineStoreRootCall::from_invocation(&invocation);
+        self.online_store_query_outcome(invocation.request, &field, invocation.response_key)
+    }
+
+    pub(crate) fn online_store_mutation_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let field = OnlineStoreRootCall::from_invocation(&invocation);
+        self.online_store_mutation_outcome(&field, invocation.request, invocation.response_key)
+    }
+}
+
+impl OnlineStoreRootCall {
+    fn from_invocation(invocation: &RootInvocation<'_>) -> Self {
+        Self {
+            name: invocation.root_name.to_string(),
+            response_key: invocation.response_key.to_string(),
+            location: invocation.root_location,
+            arguments: resolved_arguments_from_json(&invocation.arguments),
         }
     }
 }

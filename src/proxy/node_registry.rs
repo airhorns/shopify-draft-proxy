@@ -21,7 +21,184 @@ fn observed_node_values(body: &Value) -> Vec<Value> {
     nodes
 }
 
+fn node_load_value(state: NodeLoadState<EntityRef>, allow_unknown_null: bool) -> Option<Value> {
+    match state {
+        NodeLoadState::Found(entity) => Some(entity.value),
+        NodeLoadState::KnownMissing => Some(Value::Null),
+        NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType if allow_unknown_null => {
+            Some(Value::Null)
+        }
+        NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => None,
+    }
+}
+
+fn node_arguments_only_target_type(
+    root_name: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    resource_type: &str,
+) -> bool {
+    match root_name {
+        "node" => resolved_string_field(arguments, "id")
+            .as_deref()
+            .is_some_and(|id| shopify_gid_resource_type(id) == Some(resource_type)),
+        "nodes" => arguments
+            .get("ids")
+            .map(resolved_string_list)
+            .filter(|ids| !ids.is_empty())
+            .is_some_and(|ids| {
+                ids.iter()
+                    .all(|id| shopify_gid_resource_type(id) == Some(resource_type))
+            }),
+        _ => false,
+    }
+}
+
 impl DraftProxy {
+    pub(crate) fn admin_node_query_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let allow_unknown_null = node_arguments_only_target_type(
+            invocation.root_name,
+            &arguments,
+            "DeliveryCustomization",
+        );
+
+        if let Some(hydration) =
+            self.execution_session
+                .node_hydration
+                .as_ref()
+                .filter(|hydration| {
+                    hydration
+                        .upstream_response_keys
+                        .contains(invocation.response_key)
+                })
+        {
+            let mut outcome = resolver_outcome_from_upstream_response(
+                hydration.response.clone(),
+                invocation.response_key,
+            );
+            outcome.value = self.node_value_with_upstream_fallback(
+                invocation.root_name,
+                &arguments,
+                &outcome.value,
+                invocation.request,
+            );
+            return outcome;
+        }
+
+        if let Some(value) = self.local_node_root_value(
+            invocation.root_name,
+            &arguments,
+            allow_unknown_null,
+            Some(invocation.request),
+        ) {
+            return ResolverOutcome::value(value);
+        }
+
+        if self.config.read_mode != ReadMode::Snapshot {
+            let mut result = self.cached_or_forward_upstream_graphql_result(
+                invocation.request,
+                invocation.response_key,
+            );
+            if result.transport_succeeded {
+                result.outcome.value = self.node_value_with_upstream_fallback(
+                    invocation.root_name,
+                    &arguments,
+                    &result.outcome.value,
+                    invocation.request,
+                );
+            }
+            return result.outcome;
+        }
+
+        ResolverOutcome::value(
+            self.local_node_root_value(
+                invocation.root_name,
+                &arguments,
+                true,
+                Some(invocation.request),
+            )
+            .unwrap_or(Value::Null),
+        )
+    }
+
+    fn local_node_root_value(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        allow_unknown_null: bool,
+        request: Option<&Request>,
+    ) -> Option<Value> {
+        match root_name {
+            "node" => {
+                let id = resolved_string_field(arguments, "id").unwrap_or_default();
+                node_load_value(self.node_load_state(&id, request), allow_unknown_null)
+            }
+            "nodes" => arguments
+                .get("ids")
+                .map(resolved_string_list)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|id| node_load_value(self.node_load_state(&id, request), allow_unknown_null))
+                .collect::<Option<Vec<_>>>()
+                .map(Value::Array),
+            _ => Some(Value::Null),
+        }
+    }
+
+    fn node_value_with_upstream_fallback(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        upstream: &Value,
+        request: &Request,
+    ) -> Value {
+        match root_name {
+            "node" => {
+                let id = resolved_string_field(arguments, "id").unwrap_or_default();
+                let value = match self.node_load_state(&id, Some(request)) {
+                    NodeLoadState::Found(entity) => entity.value,
+                    NodeLoadState::KnownMissing => Value::Null,
+                    NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => {
+                        upstream.clone()
+                    }
+                };
+                self.cache_admin_entity_value(&id, &value);
+                value
+            }
+            "nodes" => {
+                let upstream_nodes = upstream.as_array();
+                let ids = arguments
+                    .get("ids")
+                    .map(resolved_string_list)
+                    .unwrap_or_default();
+                let values = ids
+                    .iter()
+                    .enumerate()
+                    .map(
+                        |(index, id)| match self.node_load_state(id, Some(request)) {
+                            NodeLoadState::Found(entity) => entity.value,
+                            NodeLoadState::KnownMissing => Value::Null,
+                            NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => {
+                                upstream_nodes
+                                    .and_then(|nodes| nodes.get(index))
+                                    .cloned()
+                                    .unwrap_or(Value::Null)
+                            }
+                        },
+                    )
+                    .collect::<Vec<_>>();
+                for (id, value) in ids.iter().zip(&values) {
+                    self.cache_admin_entity_value(id, value);
+                }
+                Value::Array(values)
+            }
+            _ => upstream.clone(),
+        }
+    }
+
     pub(in crate::proxy) fn local_node_query_data(
         &self,
         fields: &[RootFieldSelection],
@@ -91,24 +268,27 @@ impl DraftProxy {
             match field.name.as_str() {
                 "node" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    Some(match self.node_load_state(&id, request) {
+                    let value = match self.node_load_state(&id, request) {
                         NodeLoadState::Found(entity) => entity.value,
                         NodeLoadState::KnownMissing => Value::Null,
                         NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => {
                             upstream.cloned().unwrap_or(Value::Null)
                         }
-                    })
+                    };
+                    self.cache_admin_entity_value(&id, &value);
+                    Some(value)
                 }
                 "nodes" => {
                     let upstream_nodes = upstream.and_then(Value::as_array);
-                    let values = field
+                    let ids = field
                         .arguments
                         .get("ids")
                         .map(resolved_string_list)
-                        .unwrap_or_default()
-                        .into_iter()
+                        .unwrap_or_default();
+                    let values = ids
+                        .iter()
                         .enumerate()
-                        .map(|(index, id)| match self.node_load_state(&id, request) {
+                        .map(|(index, id)| match self.node_load_state(id, request) {
                             NodeLoadState::Found(entity) => entity.value,
                             NodeLoadState::KnownMissing => Value::Null,
                             NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => {
@@ -118,7 +298,10 @@ impl DraftProxy {
                                     .unwrap_or(Value::Null)
                             }
                         })
-                        .collect();
+                        .collect::<Vec<_>>();
+                    for (id, value) in ids.iter().zip(&values) {
+                        self.cache_admin_entity_value(id, value);
+                    }
                     Some(Value::Array(values))
                 }
                 _ => upstream.cloned(),
@@ -126,29 +309,63 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn local_node_value_by_id(
+    pub(in crate::proxy) fn request_entity_load_state(
         &self,
+        api_surface: ApiSurface,
         id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
-        self.local_node_value_by_id_with_request(id, selection, None)
+        request: Option<&Request>,
+    ) -> NodeLoadState<EntityRef> {
+        let api_version = self.execution_session.api_version(api_surface);
+        let key = match api_surface {
+            ApiSurface::Admin => RequestEntityCacheKey::admin(api_version, id),
+            ApiSurface::Storefront => {
+                RequestEntityCacheKey::storefront(api_version, id, String::new())
+            }
+        };
+        self.cached_request_entity_load_state(key, || match api_surface {
+            ApiSurface::Admin => registered_node_value(self, id, request),
+            ApiSurface::Storefront => NodeLoadState::UnsupportedType,
+        })
     }
 
-    fn local_node_value_by_id_with_request(
+    pub(in crate::proxy) fn cached_request_entity_load_state(
         &self,
-        id: &str,
-        selection: &[SelectedField],
-        request: Option<&Request>,
-    ) -> Option<Value> {
-        match self.node_load_state(id, request) {
-            NodeLoadState::Found(entity) => Some(selected_json(&entity.value, selection)),
-            NodeLoadState::KnownMissing => Some(Value::Null),
-            NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => None,
+        key: RequestEntityCacheKey,
+        load: impl FnOnce() -> NodeLoadState<EntityRef>,
+    ) -> NodeLoadState<EntityRef> {
+        if let Some(state) = self
+            .execution_session
+            .entity_cache
+            .borrow()
+            .get(&key)
+            .cloned()
+        {
+            return state;
         }
+        let state = load();
+        self.execution_session
+            .entity_cache
+            .borrow_mut()
+            .insert(key, state.clone());
+        state
     }
 
     fn node_load_state(&self, id: &str, request: Option<&Request>) -> NodeLoadState<EntityRef> {
-        registered_node_value(self, id, request)
+        self.request_entity_load_state(ApiSurface::Admin, id, request)
+    }
+
+    fn cache_admin_entity_value(&self, id: &str, value: &Value) {
+        let state = if value.is_null() {
+            NodeLoadState::KnownMissing
+        } else if let Some(type_name) = registered_node_type_name(id) {
+            NodeLoadState::Found(EntityRef::new(type_name, id, value.clone()))
+        } else {
+            NodeLoadState::UnsupportedType
+        };
+        self.execution_session.entity_cache.borrow_mut().insert(
+            RequestEntityCacheKey::admin(self.execution_session.api_version(ApiSurface::Admin), id),
+            state,
+        );
     }
 
     pub(in crate::proxy) fn observe_nodes_response(&mut self, response: &Response) {
@@ -331,20 +548,13 @@ pub(in crate::proxy) fn registered_node_value(
     // though the GraphQL runtime type is `MarketRegionCountry`. Resolve that
     // exceptional identity shape at the registry boundary so domain loaders
     // remain keyed by real GraphQL type names.
-    let resource_type = if id.starts_with("gid://shopify/Market/Region/") {
-        "MarketRegionCountry"
-    } else {
-        let Some(resource_type) = shopify_gid_resource_type(id) else {
-            return NodeLoadState::UnsupportedType;
-        };
-        resource_type
-    };
-    let Some(registration) = default_node_resolver_inventory()
-        .iter()
-        .find(|registration| registration.type_name == resource_type)
-    else {
+    let Some(resource_type) = registered_node_type_name(id) else {
         return NodeLoadState::UnsupportedType;
     };
+    let registration = default_node_resolver_inventory()
+        .iter()
+        .find(|registration| registration.type_name == resource_type)
+        .expect("registered node type should retain its executable loader");
     match (registration.loader)(proxy, id, request) {
         NodeLoadState::Found(entity) => {
             debug_assert_eq!(entity.type_name, resource_type);
@@ -355,6 +565,18 @@ pub(in crate::proxy) fn registered_node_value(
         NodeLoadState::NeedsHydration => NodeLoadState::NeedsHydration,
         NodeLoadState::UnsupportedType => NodeLoadState::UnsupportedType,
     }
+}
+
+fn registered_node_type_name(id: &str) -> Option<&'static str> {
+    let resource_type = if id.starts_with("gid://shopify/Market/Region/") {
+        "MarketRegionCountry"
+    } else {
+        shopify_gid_resource_type(id)?
+    };
+    default_node_resolver_inventory()
+        .iter()
+        .find(|registration| registration.type_name == resource_type)
+        .map(|registration| registration.type_name)
 }
 
 pub(crate) fn load_app(
@@ -553,7 +775,7 @@ pub(crate) fn load_product_variant(
     id: &str,
     _request: Option<&Request>,
 ) -> NodeLoadState<EntityRef> {
-    if proxy.store.staged.product_variants.is_tombstoned(id) {
+    if proxy.store.product_variants.staged.is_tombstoned(id) {
         return NodeLoadState::KnownMissing;
     }
     let value = proxy
@@ -948,6 +1170,7 @@ pub(crate) fn load_known_null(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::Cell;
 
     #[test]
     fn loader_type_names_are_unique() {
@@ -962,5 +1185,185 @@ mod tests {
         for registration in default_node_resolver_inventory() {
             let _loader = registration.loader;
         }
+    }
+
+    #[test]
+    fn request_entity_cache_loads_each_surface_context_id_once() {
+        let proxy = DraftProxy::new(Config::default());
+        let loads = Cell::new(0usize);
+        let id = "gid://shopify/Product/cache-once";
+        let key = RequestEntityCacheKey::admin("2026-07", id);
+        let first = proxy.cached_request_entity_load_state(key.clone(), || {
+            loads.set(loads.get() + 1);
+            NodeLoadState::Found(EntityRef::new(
+                "Product",
+                id,
+                json!({ "id": id, "title": "canonical" }),
+            ))
+        });
+        let second = proxy.cached_request_entity_load_state(key, || {
+            loads.set(loads.get() + 1);
+            NodeLoadState::UnsupportedType
+        });
+
+        assert_eq!(loads.get(), 1);
+        assert_eq!(first, second);
+        assert!(matches!(second, NodeLoadState::Found(_)));
+    }
+
+    #[test]
+    fn request_entity_cache_keeps_authoritative_missing_state() {
+        let proxy = DraftProxy::new(Config::default());
+        let id = "gid://shopify/Product/request-missing";
+        let key = RequestEntityCacheKey::admin("2026-07", id);
+        let first =
+            proxy.cached_request_entity_load_state(key.clone(), || NodeLoadState::KnownMissing);
+        let second = proxy.cached_request_entity_load_state(key, || {
+            NodeLoadState::Found(EntityRef::new(
+                "Product",
+                id,
+                json!({ "id": id, "title": "must not replace the miss" }),
+            ))
+        });
+
+        assert_eq!(first, NodeLoadState::KnownMissing);
+        assert_eq!(second, NodeLoadState::KnownMissing);
+    }
+
+    #[test]
+    fn request_entity_cache_separates_versions_surfaces_and_storefront_contexts() {
+        let proxy = DraftProxy::new(Config::default());
+        let loads = Cell::new(0usize);
+        let id = "gid://shopify/Product/surface-qualified";
+        let cases = [
+            (
+                RequestEntityCacheKey::admin("2026-04", id),
+                "Admin 2026-04 product",
+                "Product",
+            ),
+            (
+                RequestEntityCacheKey::admin("2026-07", id),
+                "Admin 2026-07 product",
+                "Product",
+            ),
+            (
+                RequestEntityCacheKey::storefront(
+                    "2026-04",
+                    id,
+                    "country=CA;language=EN".to_string(),
+                ),
+                "Canadian Storefront product",
+                "Product",
+            ),
+            (
+                RequestEntityCacheKey::storefront(
+                    "2026-04",
+                    id,
+                    "country=US;language=EN".to_string(),
+                ),
+                "US Storefront product",
+                "Product",
+            ),
+        ];
+
+        let values = cases
+            .into_iter()
+            .map(|(key, title, type_name)| {
+                proxy.cached_request_entity_load_state(key, || {
+                    loads.set(loads.get() + 1);
+                    NodeLoadState::Found(EntityRef::new(
+                        type_name,
+                        id,
+                        json!({ "id": id, "title": title }),
+                    ))
+                })
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(loads.get(), 4);
+        assert_eq!(
+            values
+                .iter()
+                .map(|state| match state {
+                    NodeLoadState::Found(entity) => entity.value["title"].as_str().unwrap(),
+                    _ => panic!("surface/context cache entry should be found"),
+                })
+                .collect::<Vec<_>>(),
+            vec![
+                "Admin 2026-04 product",
+                "Admin 2026-07 product",
+                "Canadian Storefront product",
+                "US Storefront product"
+            ]
+        );
+    }
+
+    #[test]
+    fn each_graphql_request_replaces_the_prior_execution_session() {
+        let mut proxy = DraftProxy::new(Config::default());
+        let id = "gid://shopify/Product/request-boundary";
+        proxy.execution_session =
+            ExecutionSession::admin(crate::admin_graphql::AdminApiVersion::V2026_04);
+        proxy.cached_request_entity_load_state(RequestEntityCacheKey::admin("2026-04", id), || {
+            NodeLoadState::Found(EntityRef::new(
+                "Product",
+                id,
+                json!({ "id": id, "title": "stale Admin entity" }),
+            ))
+        });
+
+        let storefront_response = proxy.process_request(Request {
+            method: "POST".to_string(),
+            path: "/api/2026-04/graphql.json".to_string(),
+            headers: BTreeMap::new(),
+            body: json!({ "query": "query RequestBoundary { __typename }" }).to_string(),
+        });
+
+        assert_eq!(
+            storefront_response.status, 200,
+            "{}",
+            storefront_response.body
+        );
+        assert_eq!(
+            proxy.execution_session.api_surface,
+            Some(ApiSurface::Storefront)
+        );
+        assert_eq!(
+            proxy.execution_session.api_version.as_deref(),
+            Some("2026-04")
+        );
+        assert!(proxy.execution_session.entity_cache.borrow().is_empty());
+
+        let loads = Cell::new(0usize);
+        let storefront_key = RequestEntityCacheKey::storefront("2026-04", id, String::new());
+        let storefront_entity = proxy.cached_request_entity_load_state(storefront_key, || {
+            loads.set(loads.get() + 1);
+            NodeLoadState::Found(EntityRef::new(
+                "Product",
+                id,
+                json!({ "id": id, "title": "fresh Storefront entity" }),
+            ))
+        });
+        assert_eq!(loads.get(), 1);
+        assert!(matches!(
+            storefront_entity,
+            NodeLoadState::Found(EntityRef { value, .. })
+                if value["title"] == "fresh Storefront entity"
+        ));
+
+        let admin_response = proxy.process_request(Request {
+            method: "POST".to_string(),
+            path: "/admin/api/2026-07/graphql.json".to_string(),
+            headers: BTreeMap::new(),
+            body: json!({ "query": "query RequestBoundary { __typename }" }).to_string(),
+        });
+
+        assert_eq!(admin_response.status, 200, "{}", admin_response.body);
+        assert_eq!(proxy.execution_session.api_surface, Some(ApiSurface::Admin));
+        assert_eq!(
+            proxy.execution_session.api_version.as_deref(),
+            Some("2026-07")
+        );
+        assert!(proxy.execution_session.entity_cache.borrow().is_empty());
     }
 }

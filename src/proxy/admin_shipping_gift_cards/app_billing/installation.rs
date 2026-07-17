@@ -83,36 +83,27 @@ impl DraftProxy {
             .unwrap_or_default()
     }
 
-    pub(in crate::proxy) fn current_app_installation_read_data(
+    pub(in crate::proxy) fn current_app_installation_root_value(
         &mut self,
         request: &Request,
-        fields: &[RootFieldSelection],
     ) -> Value {
         let app_id = self.ensure_current_app_installation(request);
         let installation = self.app_installation_for_app(&app_id).cloned();
         let revoked_access_scopes = self.revoked_access_scopes_for_app(&app_id);
-        root_payload_json(fields, |field| {
-            if field.name != "currentAppInstallation" {
-                return None;
-            }
-            let value = if self.store.staged.uninstalled_app_ids.contains(&app_id) {
-                Value::Null
-            } else {
-                installation
-                    .as_ref()
-                    .map(|installation| {
-                        current_app_installation_json(
-                            installation,
-                            &self.store.staged.app_subscriptions,
-                            &self.store.staged.app_one_time_purchases,
-                            &revoked_access_scopes,
-                            &field.selection,
-                        )
-                    })
-                    .unwrap_or(Value::Null)
-            };
-            Some(value)
-        })
+        if self.store.staged.uninstalled_app_ids.contains(&app_id) {
+            return Value::Null;
+        }
+        installation
+            .as_ref()
+            .map(|installation| {
+                current_app_installation_value(
+                    installation,
+                    &self.store.staged.app_subscriptions,
+                    &self.store.staged.app_one_time_purchases,
+                    &revoked_access_scopes,
+                )
+            })
+            .unwrap_or(Value::Null)
     }
 
     pub(in crate::proxy) fn find_staged_app_usage_record(&self, id: &str) -> Option<Value> {
@@ -133,19 +124,15 @@ impl DraftProxy {
             })
     }
 
-    pub(in crate::proxy) fn app_uninstall(
+    pub(crate) fn app_uninstall(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
+        invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        let (_response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || "appUninstall".to_string());
-        let app_selection = selected_child_selection(&payload_selection, "app").unwrap_or_default();
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
         let requested_id = resolved_object_field(&arguments, "input")
             .and_then(|input| resolved_string_field(&input, "id"));
 
-        let current_app_id = self.ensure_current_app_installation(request);
+        let current_app_id = self.ensure_current_app_installation(invocation.request);
         let target_app_id = requested_id
             .as_deref()
             .map(normalize_app_gid)
@@ -197,9 +184,9 @@ impl DraftProxy {
                             .is_none_or(|api_client_id| api_client_id != target_app_id)
                     });
                 self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
+                    invocation.request,
+                    invocation.query,
+                    invocation.variables,
                     "appUninstall",
                     vec![target_app_id.clone()],
                 );
@@ -209,11 +196,9 @@ impl DraftProxy {
                 )
             }
         };
-        ResolverOutcome::value(app_uninstall_payload_json(
-            app,
-            &payload_selection,
-            &app_selection,
-            user_errors,
-        ))
+        ResolverOutcome::value(json!({
+            "app": app,
+            "userErrors": user_errors,
+        }))
     }
 }

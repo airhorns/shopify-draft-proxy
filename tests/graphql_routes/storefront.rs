@@ -1873,8 +1873,18 @@ fn storefront_cart_lifecycle_stages_locally_with_aliases_fragments_and_state_rou
         }),
     ));
     assert_eq!(create.status, 200, "{}", create.body);
-    assert_eq!(create.body["data"]["created"]["userErrors"], json!([]));
-    assert_eq!(create.body["data"]["created"]["warnings"], json!([]));
+    assert_eq!(
+        create.body["data"]["created"]["userErrors"],
+        json!([]),
+        "{}",
+        create.body,
+    );
+    assert_eq!(
+        create.body["data"]["created"]["warnings"],
+        json!([]),
+        "{}",
+        create.body,
+    );
     let cart = &create.body["data"]["created"]["cart"];
     let cart_id = cart["id"].as_str().expect("cart id").to_string();
     assert!(cart_id.starts_with("gid://shopify/Cart/"));

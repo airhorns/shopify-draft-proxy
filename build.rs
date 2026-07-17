@@ -11,7 +11,9 @@ fn main() {
     let root =
         PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("Cargo sets CARGO_MANIFEST_DIR"));
     let admin_manifest_path = root.join("config/admin-graphql/manifest.json");
-    let storefront_manifest_path = root.join("config/storefront-graphql/manifest.json");
+    // Storefront captures are protected Shopify evidence. Keep this runtime
+    // route/version configuration beside, rather than inside, that directory.
+    let storefront_manifest_path = root.join("config/storefront-graphql-manifest.json");
     println!("cargo:rerun-if-changed={}", admin_manifest_path.display());
     println!(
         "cargo:rerun-if-changed={}",

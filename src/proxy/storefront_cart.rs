@@ -1,7 +1,8 @@
 use super::storefront::{
-    storefront_customer_json, storefront_money_value as storefront_catalog_money_value,
-    storefront_product_variant_value, storefront_sha256_hex, StorefrontRequestContext,
-    StorefrontVariantPricing, STOREFRONT_CART_MUTATION_ROOTS,
+    storefront_customer_json, storefront_mailing_address_formatted_field,
+    storefront_money_value as storefront_catalog_money_value, storefront_product_variant_value,
+    storefront_sha256_hex, StorefrontRequestContext, StorefrontVariantPricing,
+    STOREFRONT_CART_MUTATION_ROOTS,
 };
 use super::*;
 
@@ -15,6 +16,280 @@ pub(in crate::proxy) fn storefront_cart_root_is_sensitive(root: &str) -> bool {
 pub(in crate::proxy) struct StorefrontCartOutcome {
     pub value: Value,
     pub errors: Vec<Value>,
+}
+
+struct StorefrontCartMutationInput {
+    name: String,
+    response_key: String,
+    location: SourceLocation,
+    arguments: BTreeMap<String, ResolvedValue>,
+}
+
+pub(in crate::proxy) fn storefront_cart_field_resolver_registrations(
+) -> Vec<FieldResolverRegistration> {
+    [
+        (
+            "Cart",
+            "attribute",
+            storefront_cart_attribute_field as crate::resolver_registry::FieldResolverHandler,
+        ),
+        ("Cart", "lines", storefront_cart_lines_field),
+        (
+            "Cart",
+            "deliveryGroups",
+            storefront_cart_delivery_groups_field,
+        ),
+        (
+            "CartDelivery",
+            "addresses",
+            storefront_cart_delivery_addresses_field,
+        ),
+        (
+            "CartDeliveryGroup",
+            "cartLines",
+            storefront_cart_delivery_group_lines_field,
+        ),
+        (
+            "CartDeliveryAddress",
+            "formatted",
+            storefront_mailing_address_formatted_field,
+        ),
+        ("Cart", "metafield", storefront_cart_metafield_field),
+        ("Cart", "metafields", storefront_cart_metafields_field),
+        (
+            "BaseCartLine",
+            "attribute",
+            storefront_cart_line_attribute_field,
+        ),
+        (
+            "CartLine",
+            "attribute",
+            storefront_cart_line_attribute_field,
+        ),
+        (
+            "ComponentizableCartLine",
+            "attribute",
+            storefront_cart_line_attribute_field,
+        ),
+    ]
+    .into_iter()
+    .map(|(parent_type, field, handler)| {
+        FieldResolverRegistration::explicit(ApiSurface::Storefront, parent_type, field, handler)
+    })
+    .collect()
+}
+
+fn storefront_cart_record_for_parent(
+    proxy: &DraftProxy,
+    parent: &Value,
+) -> Option<StorefrontCartRecord> {
+    let internal_id = parent.get("_cartInternalId").and_then(Value::as_str)?;
+    proxy
+        .store
+        .staged
+        .storefront_carts
+        .get(internal_id)
+        .cloned()
+}
+
+fn storefront_cart_line_record_for_parent<'a>(
+    proxy: &'a DraftProxy,
+    parent: &Value,
+) -> Option<&'a StorefrontCartLineRecord> {
+    let internal_id = parent.get("_lineInternalId").and_then(Value::as_str)?;
+    proxy.store.staged.storefront_cart_lines.get(internal_id)
+}
+
+fn storefront_cart_attribute_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(cart) = storefront_cart_record_for_parent(proxy, invocation.parent) else {
+        return Ok(Value::Null);
+    };
+    let key = invocation
+        .arguments
+        .get("key")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(cart
+        .attributes
+        .iter()
+        .find(|attribute| attribute.key == key)
+        .map(storefront_cart_attribute_value)
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_cart_lines_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(cart) = storefront_cart_record_for_parent(proxy, invocation.parent) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    let lines = proxy.storefront_cart_lines(&cart.internal_id);
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    let (lines, page_info) = connection_window(&lines, &arguments, |line| {
+        proxy.storefront_cart_line_cursor(line)
+    });
+    Ok(typed_connection_value(
+        &lines,
+        |line| proxy.storefront_cart_line_value(&cart, line),
+        |line| proxy.storefront_cart_line_cursor(line),
+        page_info,
+    ))
+}
+
+fn storefront_cart_delivery_groups_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(cart) = storefront_cart_record_for_parent(proxy, invocation.parent) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    let lines = proxy.storefront_cart_lines(&cart.internal_id);
+    let groups = proxy.storefront_cart_delivery_groups(&cart, &lines);
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    let (groups, page_info) = connection_window(&groups, &arguments, |group| {
+        storefront_cart_delivery_group_cursor(&group.id)
+    });
+    Ok(typed_connection_value(
+        &groups,
+        |group| proxy.storefront_cart_delivery_group_value(&cart, group),
+        |group| storefront_cart_delivery_group_cursor(&group.id),
+        page_info,
+    ))
+}
+
+fn storefront_cart_delivery_addresses_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(cart) = storefront_cart_record_for_parent(proxy, invocation.parent) else {
+        return Ok(Value::Array(Vec::new()));
+    };
+    let selected_only = invocation
+        .arguments
+        .get("selected")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    Ok(Value::Array(
+        cart.delivery_addresses
+            .iter()
+            .filter(|address| !selected_only || address.selected)
+            .map(|address| storefront_cart_selectable_address_value(&cart, address))
+            .collect(),
+    ))
+}
+
+fn storefront_cart_delivery_group_lines_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(cart) = storefront_cart_record_for_parent(proxy, invocation.parent) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    let group_key = invocation
+        .parent
+        .get("_deliveryGroupKey")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let cart_lines = proxy.storefront_cart_lines(&cart.internal_id);
+    let Some(group) = proxy
+        .storefront_cart_delivery_groups(&cart, &cart_lines)
+        .into_iter()
+        .find(|group| group.key == group_key)
+    else {
+        return Ok(connection_json(Vec::new()));
+    };
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    let (lines, page_info) = connection_window(&group.lines, &arguments, |line| {
+        proxy.storefront_cart_line_cursor(line)
+    });
+    Ok(typed_connection_value(
+        &lines,
+        |line| proxy.storefront_cart_line_value(&cart, line),
+        |line| proxy.storefront_cart_line_cursor(line),
+        page_info,
+    ))
+}
+
+fn storefront_cart_metafield_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(cart) = storefront_cart_record_for_parent(proxy, invocation.parent) else {
+        return Ok(Value::Null);
+    };
+    let namespace = invocation
+        .arguments
+        .get("namespace")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let key = invocation
+        .arguments
+        .get("key")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(cart
+        .metafields
+        .iter()
+        .find(|metafield| metafield.namespace == namespace && metafield.key == key)
+        .map(|metafield| storefront_cart_metafield_value(cart.sequence, metafield))
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_cart_metafields_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(cart) = storefront_cart_record_for_parent(proxy, invocation.parent) else {
+        return Ok(Value::Array(Vec::new()));
+    };
+    let values = invocation
+        .arguments
+        .get("identifiers")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|identifier| {
+            let namespace = identifier.get("namespace")?.as_str()?;
+            let key = identifier.get("key")?.as_str()?;
+            cart.metafields
+                .iter()
+                .find(|metafield| metafield.namespace == namespace && metafield.key == key)
+                .map(|metafield| storefront_cart_metafield_value(cart.sequence, metafield))
+        })
+        .collect();
+    Ok(Value::Array(values))
+}
+
+fn storefront_cart_line_attribute_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(line) = storefront_cart_line_record_for_parent(proxy, invocation.parent) else {
+        return Ok(Value::Null);
+    };
+    let key = invocation
+        .arguments
+        .get("key")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(line
+        .attributes
+        .iter()
+        .find(|attribute| attribute.key == key)
+        .map(storefront_cart_attribute_value)
+        .unwrap_or(Value::Null))
 }
 
 struct StorefrontCartDiscountEvaluation {
@@ -62,23 +337,46 @@ struct StorefrontCartDeliveryGroup {
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn storefront_cart_query_root(
-        &self,
-        field: &RootFieldSelection,
-    ) -> StorefrontCartOutcome {
-        let cart = resolved_string_field(&field.arguments, "id")
-            .and_then(|id| self.storefront_cart_by_public_id(&id));
-        StorefrontCartOutcome {
-            value: cart
-                .map(|cart| self.storefront_cart_json(&cart, &field.selection))
+    pub(crate) fn storefront_cart_query_resolver(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let cart = invocation
+            .arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .and_then(|id| self.storefront_cart_by_public_id(id));
+        ResolverOutcome::value(
+            cart.map(|cart| self.storefront_cart_value(&cart))
                 .unwrap_or(Value::Null),
-            errors: Vec::new(),
-        }
+        )
     }
 
-    pub(in crate::proxy) fn storefront_cart_mutation_root(
+    pub(crate) fn storefront_cart_mutation_resolver(
         &mut self,
-        field: &RootFieldSelection,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
+            root_name,
+            root_location,
+            arguments,
+            ..
+        } = invocation;
+        let field = StorefrontCartMutationInput {
+            name: root_name.to_string(),
+            response_key: response_key.to_string(),
+            location: root_location,
+            arguments: resolved_arguments_from_json(&arguments),
+        };
+        let outcome = self.storefront_cart_mutation_root(&field);
+        ResolverOutcome::value(outcome.value)
+            .with_errors(root_field_errors_from_json(&outcome.errors, response_key))
+    }
+
+    fn storefront_cart_mutation_root(
+        &mut self,
+        field: &StorefrontCartMutationInput,
     ) -> StorefrontCartOutcome {
         match field.name.as_str() {
             "cartCreate" => self.storefront_cart_create(field),
@@ -110,7 +408,10 @@ impl DraftProxy {
         }
     }
 
-    fn storefront_cart_create(&mut self, field: &RootFieldSelection) -> StorefrontCartOutcome {
+    fn storefront_cart_create(
+        &mut self,
+        field: &StorefrontCartMutationInput,
+    ) -> StorefrontCartOutcome {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let attributes = resolved_object_list_field(&input, "attributes");
         let line_inputs = resolved_object_list_field(&input, "lines");
@@ -209,13 +510,16 @@ impl DraftProxy {
         let warnings = self.storefront_cart_all_warnings(&cart, warnings);
         self.storefront_cart_user_error_outcome(
             field,
-            self.storefront_cart_json(&cart, &cart_selection(field)),
+            self.storefront_cart_value(&cart),
             Vec::new(),
             warnings,
         )
     }
 
-    fn storefront_cart_lines_add(&mut self, field: &RootFieldSelection) -> StorefrontCartOutcome {
+    fn storefront_cart_lines_add(
+        &mut self,
+        field: &StorefrontCartMutationInput,
+    ) -> StorefrontCartOutcome {
         let inputs = resolved_object_list_field(&field.arguments, "lines");
         if inputs.len() > CART_INPUT_LIMIT {
             return storefront_cart_input_limit_outcome(field, "lines", "", inputs.len());
@@ -242,7 +546,7 @@ impl DraftProxy {
         let warnings = self.storefront_cart_all_warnings(&cart, warnings);
         self.storefront_cart_user_error_outcome(
             field,
-            self.storefront_cart_json(&cart, &cart_selection(field)),
+            self.storefront_cart_value(&cart),
             Vec::new(),
             warnings,
         )
@@ -250,7 +554,7 @@ impl DraftProxy {
 
     fn storefront_cart_lines_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
     ) -> StorefrontCartOutcome {
         let inputs = resolved_object_list_field(&field.arguments, "lines");
         if inputs.len() > CART_INPUT_LIMIT {
@@ -309,7 +613,7 @@ impl DraftProxy {
         if !user_errors.is_empty() {
             return self.storefront_cart_user_error_outcome(
                 field,
-                self.storefront_cart_json(&cart, &cart_selection(field)),
+                self.storefront_cart_value(&cart),
                 user_errors,
                 Vec::new(),
             );
@@ -354,7 +658,7 @@ impl DraftProxy {
         let warnings = self.storefront_cart_all_warnings(&cart, warnings);
         self.storefront_cart_user_error_outcome(
             field,
-            self.storefront_cart_json(&cart, &cart_selection(field)),
+            self.storefront_cart_value(&cart),
             Vec::new(),
             warnings,
         )
@@ -362,7 +666,7 @@ impl DraftProxy {
 
     fn storefront_cart_lines_remove(
         &mut self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
     ) -> StorefrontCartOutcome {
         let line_ids = list_string_field(&field.arguments, "lineIds");
         if line_ids.len() > CART_INPUT_LIMIT {
@@ -397,7 +701,7 @@ impl DraftProxy {
         let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
         self.storefront_cart_user_error_outcome(
             field,
-            self.storefront_cart_json(&cart, &cart_selection(field)),
+            self.storefront_cart_value(&cart),
             user_errors,
             warnings,
         )
@@ -405,7 +709,7 @@ impl DraftProxy {
 
     fn storefront_cart_attributes_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
     ) -> StorefrontCartOutcome {
         let inputs = resolved_object_list_field(&field.arguments, "attributes");
         if inputs.len() > CART_INPUT_LIMIT {
@@ -422,13 +726,16 @@ impl DraftProxy {
         let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
         self.storefront_cart_user_error_outcome(
             field,
-            self.storefront_cart_json(&cart, &cart_selection(field)),
+            self.storefront_cart_value(&cart),
             Vec::new(),
             warnings,
         )
     }
 
-    fn storefront_cart_note_update(&mut self, field: &RootFieldSelection) -> StorefrontCartOutcome {
+    fn storefront_cart_note_update(
+        &mut self,
+        field: &StorefrontCartMutationInput,
+    ) -> StorefrontCartOutcome {
         let cart_id = resolved_string_field(&field.arguments, "cartId").unwrap_or_default();
         let note = resolved_string_field(&field.arguments, "note").unwrap_or_default();
         if note.chars().count() > CART_NOTE_LIMIT {
@@ -453,7 +760,7 @@ impl DraftProxy {
         let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
         self.storefront_cart_user_error_outcome(
             field,
-            self.storefront_cart_json(&cart, &cart_selection(field)),
+            self.storefront_cart_value(&cart),
             Vec::new(),
             warnings,
         )
@@ -461,7 +768,7 @@ impl DraftProxy {
 
     fn storefront_cart_buyer_identity_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
     ) -> StorefrontCartOutcome {
         let cart_id = resolved_string_field(&field.arguments, "cartId").unwrap_or_default();
         let Some(mut cart) = self.storefront_cart_by_public_id(&cart_id) else {
@@ -474,7 +781,7 @@ impl DraftProxy {
             let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
             return self.storefront_cart_user_error_outcome(
                 field,
-                self.storefront_cart_json(&cart, &cart_selection(field)),
+                self.storefront_cart_value(&cart),
                 vec![cart_user_error(
                     ["buyerIdentity", "customerAccessToken"],
                     "Customer is invalid",
@@ -493,7 +800,7 @@ impl DraftProxy {
                 let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
                 return self.storefront_cart_user_error_outcome(
                     field,
-                    self.storefront_cart_json(&cart, &cart_selection(field)),
+                    self.storefront_cart_value(&cart),
                     vec![cart_user_error(
                         ["buyerIdentity", "companyLocationId"],
                         "Company location is invalid",
@@ -537,7 +844,7 @@ impl DraftProxy {
         let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
         self.storefront_cart_user_error_outcome(
             field,
-            self.storefront_cart_json(&cart, &cart_selection(field)),
+            self.storefront_cart_value(&cart),
             Vec::new(),
             warnings,
         )
@@ -545,7 +852,7 @@ impl DraftProxy {
 
     fn storefront_cart_delivery_addresses_add(
         &mut self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
     ) -> StorefrontCartOutcome {
         let inputs = resolved_object_list_field(&field.arguments, "addresses");
         if inputs.len() > CART_INPUT_LIMIT {
@@ -567,7 +874,7 @@ impl DraftProxy {
             let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
             return self.storefront_cart_user_error_outcome(
                 field,
-                self.storefront_cart_json(&cart, &cart_selection(field)),
+                self.storefront_cart_value(&cart),
                 user_errors,
                 warnings,
             );
@@ -603,7 +910,7 @@ impl DraftProxy {
         let warnings = self.storefront_cart_all_warnings(&cart, reconciliation_warnings);
         self.storefront_cart_user_error_outcome(
             field,
-            self.storefront_cart_json(&cart, &cart_selection(field)),
+            self.storefront_cart_value(&cart),
             Vec::new(),
             warnings,
         )
@@ -611,7 +918,7 @@ impl DraftProxy {
 
     fn storefront_cart_delivery_addresses_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
     ) -> StorefrontCartOutcome {
         let inputs = resolved_object_list_field(&field.arguments, "addresses");
         if inputs.len() > CART_INPUT_LIMIT {
@@ -648,7 +955,7 @@ impl DraftProxy {
             let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
             return self.storefront_cart_user_error_outcome(
                 field,
-                self.storefront_cart_json(&cart, &cart_selection(field)),
+                self.storefront_cart_value(&cart),
                 user_errors,
                 warnings,
             );
@@ -692,7 +999,7 @@ impl DraftProxy {
         let warnings = self.storefront_cart_all_warnings(&cart, reconciliation_warnings);
         self.storefront_cart_user_error_outcome(
             field,
-            self.storefront_cart_json(&cart, &cart_selection(field)),
+            self.storefront_cart_value(&cart),
             Vec::new(),
             warnings,
         )
@@ -700,7 +1007,7 @@ impl DraftProxy {
 
     fn storefront_cart_delivery_addresses_remove(
         &mut self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
     ) -> StorefrontCartOutcome {
         let address_ids = list_string_field(&field.arguments, "addressIds");
         if address_ids.len() > CART_INPUT_LIMIT {
@@ -746,7 +1053,7 @@ impl DraftProxy {
         let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
         self.storefront_cart_user_error_outcome(
             field,
-            self.storefront_cart_json(&cart, &cart_selection(field)),
+            self.storefront_cart_value(&cart),
             user_errors,
             warnings,
         )
@@ -754,7 +1061,7 @@ impl DraftProxy {
 
     fn storefront_cart_delivery_addresses_replace(
         &mut self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
     ) -> StorefrontCartOutcome {
         let inputs = resolved_object_list_field(&field.arguments, "addresses");
         if inputs.len() > CART_INPUT_LIMIT {
@@ -776,7 +1083,7 @@ impl DraftProxy {
             let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
             return self.storefront_cart_user_error_outcome(
                 field,
-                self.storefront_cart_json(&cart, &cart_selection(field)),
+                self.storefront_cart_value(&cart),
                 user_errors,
                 warnings,
             );
@@ -809,7 +1116,7 @@ impl DraftProxy {
         let warnings = self.storefront_cart_all_warnings(&cart, reconciliation_warnings);
         self.storefront_cart_user_error_outcome(
             field,
-            self.storefront_cart_json(&cart, &cart_selection(field)),
+            self.storefront_cart_value(&cart),
             Vec::new(),
             warnings,
         )
@@ -817,7 +1124,7 @@ impl DraftProxy {
 
     fn storefront_cart_selected_delivery_options_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
     ) -> StorefrontCartOutcome {
         let inputs = resolved_object_list_field(&field.arguments, "selectedDeliveryOptions");
         if inputs.len() > CART_INPUT_LIMIT {
@@ -852,7 +1159,7 @@ impl DraftProxy {
         let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
         self.storefront_cart_user_error_outcome(
             field,
-            self.storefront_cart_json(&cart, &cart_selection(field)),
+            self.storefront_cart_value(&cart),
             Vec::new(),
             warnings,
         )
@@ -860,7 +1167,7 @@ impl DraftProxy {
 
     fn storefront_cart_discount_codes_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
     ) -> StorefrontCartOutcome {
         let codes = list_string_field(&field.arguments, "discountCodes");
         if codes.len() > CART_INPUT_LIMIT {
@@ -881,7 +1188,7 @@ impl DraftProxy {
         let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
         self.storefront_cart_user_error_outcome(
             field,
-            self.storefront_cart_json(&cart, &cart_selection(field)),
+            self.storefront_cart_value(&cart),
             Vec::new(),
             warnings,
         )
@@ -889,7 +1196,7 @@ impl DraftProxy {
 
     fn storefront_cart_gift_card_codes_add(
         &mut self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
     ) -> StorefrontCartOutcome {
         let cart_id = resolved_string_field(&field.arguments, "cartId").unwrap_or_default();
         let Some(mut cart) = self.storefront_cart_by_public_id(&cart_id) else {
@@ -906,7 +1213,7 @@ impl DraftProxy {
         let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
         self.storefront_cart_user_error_outcome(
             field,
-            self.storefront_cart_json(&cart, &cart_selection(field)),
+            self.storefront_cart_value(&cart),
             Vec::new(),
             warnings,
         )
@@ -914,7 +1221,7 @@ impl DraftProxy {
 
     fn storefront_cart_gift_card_codes_remove(
         &mut self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
     ) -> StorefrontCartOutcome {
         let cart_id = resolved_string_field(&field.arguments, "cartId").unwrap_or_default();
         let Some(mut cart) = self.storefront_cart_by_public_id(&cart_id) else {
@@ -936,7 +1243,7 @@ impl DraftProxy {
         let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
         self.storefront_cart_user_error_outcome(
             field,
-            self.storefront_cart_json(&cart, &cart_selection(field)),
+            self.storefront_cart_value(&cart),
             Vec::new(),
             warnings,
         )
@@ -944,7 +1251,7 @@ impl DraftProxy {
 
     fn storefront_cart_gift_card_codes_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
     ) -> StorefrontCartOutcome {
         let cart_id = resolved_string_field(&field.arguments, "cartId").unwrap_or_default();
         let Some(mut cart) = self.storefront_cart_by_public_id(&cart_id) else {
@@ -962,7 +1269,7 @@ impl DraftProxy {
         let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
         self.storefront_cart_user_error_outcome(
             field,
-            self.storefront_cart_json(&cart, &cart_selection(field)),
+            self.storefront_cart_value(&cart),
             Vec::new(),
             warnings,
         )
@@ -1000,7 +1307,7 @@ impl DraftProxy {
 
     fn storefront_cart_metafields_set(
         &mut self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
     ) -> StorefrontCartOutcome {
         const CART_METAFIELD_LIMIT: usize = 25;
         let inputs = resolved_object_list_field(&field.arguments, "metafields");
@@ -1103,11 +1410,7 @@ impl DraftProxy {
         let values = changed
             .into_iter()
             .map(|(cart_sequence, metafield)| {
-                storefront_cart_metafield_json(
-                    cart_sequence,
-                    &metafield,
-                    &metafield_selection(field),
-                )
+                storefront_cart_metafield_value(cart_sequence, &metafield)
             })
             .collect();
         storefront_cart_metafields_set_outcome(field, values, Vec::new())
@@ -1115,7 +1418,7 @@ impl DraftProxy {
 
     fn storefront_cart_metafield_delete(
         &mut self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
     ) -> StorefrontCartOutcome {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
@@ -1173,7 +1476,7 @@ impl DraftProxy {
 
     fn storefront_cart_missing_mutation_outcome(
         &mut self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
         _cart_id: &str,
         note: Option<&str>,
     ) -> StorefrontCartOutcome {
@@ -1197,7 +1500,7 @@ impl DraftProxy {
                 delivery_warning_lines: Vec::new(),
             };
             self.storefront_cart_save(cart.clone(), Vec::new());
-            self.storefront_cart_json(&cart, &cart_selection(field))
+            self.storefront_cart_value(&cart)
         });
         self.storefront_cart_user_error_outcome(
             field,
@@ -1213,29 +1516,16 @@ impl DraftProxy {
 
     fn storefront_cart_user_error_outcome(
         &self,
-        field: &RootFieldSelection,
+        _field: &StorefrontCartMutationInput,
         cart: Value,
         user_errors: Vec<Value>,
         warnings: Vec<Value>,
     ) -> StorefrontCartOutcome {
         StorefrontCartOutcome {
-            value: selected_payload_json(&field.selection, |selection| {
-                match selection.name.as_str() {
-                    "cart" => Some(cart.clone()),
-                    "userErrors" => Some(Value::Array(
-                        user_errors
-                            .iter()
-                            .map(|error| selected_json(error, &selection.selection))
-                            .collect(),
-                    )),
-                    "warnings" => Some(Value::Array(
-                        warnings
-                            .iter()
-                            .map(|warning| selected_json(warning, &selection.selection))
-                            .collect(),
-                    )),
-                    _ => None,
-                }
+            value: json!({
+                "cart": cart,
+                "userErrors": user_errors,
+                "warnings": warnings,
             }),
             errors: Vec::new(),
         }
@@ -1311,7 +1601,7 @@ impl DraftProxy {
 
     fn storefront_cart_invalid_delivery_option_outcome(
         &self,
-        field: &RootFieldSelection,
+        field: &StorefrontCartMutationInput,
         handle: &str,
     ) -> StorefrontCartOutcome {
         self.storefront_cart_user_error_outcome(
@@ -2278,215 +2568,103 @@ impl DraftProxy {
         })
     }
 
-    fn storefront_cart_json(
-        &self,
-        cart: &StorefrontCartRecord,
-        selections: &[SelectedField],
-    ) -> Value {
+    fn storefront_cart_value(&self, cart: &StorefrontCartRecord) -> Value {
         let lines = self.storefront_cart_lines(&cart.internal_id);
         let total_quantity = lines.iter().map(|line| line.quantity).sum::<i64>();
         let calculation = self.storefront_cart_calculation(cart, &lines);
-        selected_payload_json(selections, |selection| match selection.name.as_str() {
-            "__typename" => Some(json!("Cart")),
-            "id" => Some(json!(storefront_cart_public_id(cart.sequence))),
-            "createdAt" => Some(json!(cart.created_at)),
-            "updatedAt" => Some(json!(cart.updated_at)),
-            "checkoutUrl" => Some(json!(self.storefront_cart_checkout_url(cart.sequence))),
-            "totalQuantity" => Some(json!(total_quantity)),
-            "note" => Some(
-                cart.note
-                    .as_ref()
-                    .map(|note| json!(note))
-                    .unwrap_or(Value::Null),
-            ),
-            "attribute" => Some(
-                resolved_string_field(&selection.arguments, "key")
-                    .and_then(|key| {
-                        cart.attributes
-                            .iter()
-                            .find(|attribute| attribute.key == key)
-                    })
-                    .map(|attribute| {
-                        storefront_cart_attribute_json(attribute, &selection.selection)
-                    })
-                    .unwrap_or(Value::Null),
-            ),
-            "attributes" => Some(Value::Array(
-                cart.attributes
-                    .iter()
-                    .map(|attribute| {
-                        storefront_cart_attribute_json(attribute, &selection.selection)
-                    })
-                    .collect(),
-            )),
-            "lines" => Some(selected_typed_connection_with_args(
-                &lines,
-                &selection.arguments,
-                &selection.selection,
-                |line, selections| self.storefront_cart_line_json(cart, line, selections),
-                |line| self.storefront_cart_line_cursor(line),
-            )),
-            "cost" => Some(storefront_cart_cost_json(
+        json!({
+            "__typename": "Cart",
+            "_cartInternalId": cart.internal_id,
+            "id": storefront_cart_public_id(cart.sequence),
+            "createdAt": cart.created_at,
+            "updatedAt": cart.updated_at,
+            "checkoutUrl": self.storefront_cart_checkout_url(cart.sequence),
+            "totalQuantity": total_quantity,
+            "note": cart.note,
+            "attributes": cart
+                .attributes
+                .iter()
+                .map(storefront_cart_attribute_value)
+                .collect::<Vec<_>>(),
+            "cost": storefront_cart_cost_value(
                 calculation.subtotal,
                 calculation.total,
                 &calculation.currency_code,
-                &selection.selection,
                 true,
-            )),
-            "estimatedCost" => Some(storefront_cart_cost_json(
+            ),
+            "estimatedCost": storefront_cart_cost_value(
                 calculation.subtotal,
                 calculation.total,
                 &calculation.currency_code,
-                &selection.selection,
                 false,
-            )),
-            "appliedGiftCards" => Some(Value::Array(
-                calculation
-                    .gift_cards
-                    .iter()
-                    .map(|gift_card| {
-                        storefront_cart_applied_gift_card_json(gift_card, &selection.selection)
-                    })
-                    .collect(),
-            )),
-            "discountAllocations" => Some(Value::Array(
-                calculation
-                    .discounts
-                    .iter()
-                    .filter(|discount| discount.applicable)
-                    .flat_map(|discount| {
-                        discount.discounted_amounts.iter().map(|amount| {
-                            storefront_cart_discount_allocation_json(
-                                discount,
-                                *amount,
-                                &calculation.currency_code,
-                                &selection.selection,
-                            )
-                        })
-                    })
-                    .collect(),
-            )),
-            "discountCodes" => Some(Value::Array(
-                calculation
-                    .discounts
-                    .iter()
-                    .map(|discount| {
-                        selected_json(
-                            &json!({ "code": discount.code, "applicable": discount.applicable }),
-                            &selection.selection,
-                        )
-                    })
-                    .collect(),
-            )),
-            "buyerIdentity" => {
-                Some(self.storefront_cart_buyer_identity_json(cart, &selection.selection))
-            }
-            "delivery" => Some(self.storefront_cart_delivery_json(cart, &selection.selection)),
-            "deliveryGroups" => Some(self.storefront_cart_delivery_groups_json(
-                cart,
-                &lines,
-                &selection.arguments,
-                &selection.selection,
-            )),
-            "metafield" => Some(
-                storefront_cart_metafield_lookup(cart, selection)
-                    .map(|metafield| {
-                        storefront_cart_metafield_json(
-                            cart.sequence,
-                            metafield,
-                            &selection.selection,
-                        )
-                    })
-                    .unwrap_or(Value::Null),
             ),
-            "metafields" => Some(Value::Array(
-                storefront_cart_metafields_lookup(cart, selection)
-                    .into_iter()
-                    .map(|metafield| {
-                        storefront_cart_metafield_json(
-                            cart.sequence,
-                            metafield,
-                            &selection.selection,
+            "appliedGiftCards": calculation
+                .gift_cards
+                .iter()
+                .map(storefront_cart_applied_gift_card_value)
+                .collect::<Vec<_>>(),
+            "discountAllocations": calculation
+                .discounts
+                .iter()
+                .filter(|discount| discount.applicable)
+                .flat_map(|discount| {
+                    discount.discounted_amounts.iter().map(|amount| {
+                        storefront_cart_discount_allocation_value(
+                            discount,
+                            *amount,
+                            &calculation.currency_code,
                         )
                     })
-                    .collect(),
-            )),
-            _ => None,
+                })
+                .collect::<Vec<_>>(),
+            "discountCodes": calculation
+                .discounts
+                .iter()
+                .map(|discount| json!({
+                    "code": discount.code,
+                    "applicable": discount.applicable,
+                }))
+                .collect::<Vec<_>>(),
+            "buyerIdentity": self.storefront_cart_buyer_identity_value(cart),
+            "delivery": self.storefront_cart_delivery_value(cart),
         })
     }
 
-    fn storefront_cart_buyer_identity_json(
-        &self,
-        cart: &StorefrontCartRecord,
-        selections: &[SelectedField],
-    ) -> Value {
-        selected_payload_json(selections, |selection| match selection.name.as_str() {
-            "countryCode" => Some(
-                cart.buyer_identity
-                    .country_code
-                    .as_ref()
-                    .map(|value| json!(value))
-                    .unwrap_or(Value::Null),
-            ),
-            "email" => Some(
-                cart.buyer_identity
-                    .email
-                    .as_ref()
-                    .map(|value| json!(value))
-                    .unwrap_or(Value::Null),
-            ),
-            "phone" => Some(
-                cart.buyer_identity
-                    .phone
-                    .as_ref()
-                    .map(|value| json!(value))
-                    .unwrap_or(Value::Null),
-            ),
-            "customer" => Some(
-                cart.buyer_identity
-                    .customer_id
-                    .as_deref()
-                    .and_then(|id| self.storefront_customer_by_id(id))
-                    .map(|customer| {
-                        selected_json(&storefront_customer_json(&customer), &selection.selection)
-                    })
-                    .unwrap_or(Value::Null),
-            ),
-            "deliveryAddressPreferences" => Some(Value::Array(
-                cart.buyer_identity.delivery_address_preferences.clone(),
-            )),
-            "preferences" => Some(
-                cart.buyer_identity
-                    .preferences
-                    .as_ref()
-                    .map(|value| selected_json(value, &selection.selection))
-                    .unwrap_or(Value::Null),
-            ),
-            "purchasingCompany" => Some(
-                cart.buyer_identity
-                    .company_location_id
-                    .as_deref()
-                    .and_then(|id| self.store.staged.b2b_locations.get(id))
-                    .map(|location| {
-                        selected_json(
-                            &json!({
-                                "company": location.get("company").cloned().unwrap_or(Value::Null),
-                                "location": location
-                            }),
-                            &selection.selection,
-                        )
-                    })
-                    .unwrap_or(Value::Null),
-            ),
-            _ => None,
+    fn storefront_cart_buyer_identity_value(&self, cart: &StorefrontCartRecord) -> Value {
+        json!({
+            "countryCode": cart.buyer_identity.country_code,
+            "email": cart.buyer_identity.email,
+            "phone": cart.buyer_identity.phone,
+            "customer": cart
+                .buyer_identity
+                .customer_id
+                .as_deref()
+                .and_then(|id| self.storefront_customer_by_id(id))
+                .map(|customer| storefront_customer_json(&customer))
+                .unwrap_or(Value::Null),
+            "deliveryAddressPreferences": cart.buyer_identity.delivery_address_preferences,
+            "preferences": cart
+                .buyer_identity
+                .preferences
+                .clone()
+                .unwrap_or(Value::Null),
+            "purchasingCompany": cart
+                .buyer_identity
+                .company_location_id
+                .as_deref()
+                .and_then(|id| self.store.staged.b2b_locations.get(id))
+                .map(|location| json!({
+                    "company": location.get("company").cloned().unwrap_or(Value::Null),
+                    "location": location,
+                }))
+                .unwrap_or(Value::Null),
         })
     }
 
-    fn storefront_cart_line_json(
+    fn storefront_cart_line_value(
         &self,
         cart: &StorefrontCartRecord,
         line: &StorefrontCartLineRecord,
-        selections: &[SelectedField],
     ) -> Value {
         let variant = self.store.product_variant_by_id(&line.merchandise_id);
         let product = variant.and_then(|variant| self.store.product_by_id(&variant.product_id));
@@ -2502,182 +2680,92 @@ impl DraftProxy {
             .and_then(|pricing| pricing.price.parse::<f64>().ok())
             .map(|price| price * line.quantity as f64)
             .unwrap_or(0.0);
-        selected_payload_json(selections, |selection| {
-            match selection.name.as_str() {
-            "__typename" => Some(json!("CartLine")),
-            "id" => Some(json!(self.storefront_cart_line_public_id(line))),
-            "quantity" => Some(json!(line.quantity)),
-            "attribute" => Some(
-                resolved_string_field(&selection.arguments, "key")
-                    .and_then(|key| line.attributes.iter().find(|attribute| attribute.key == key))
-                    .map(|attribute| storefront_cart_attribute_json(attribute, &selection.selection))
-                    .unwrap_or(Value::Null),
-            ),
-            "attributes" => Some(Value::Array(
-                line.attributes
-                    .iter()
-                    .map(|attribute| storefront_cart_attribute_json(attribute, &selection.selection))
-                    .collect(),
-            )),
-            "merchandise" => Some(
-                variant
-                    .map(|variant| {
-                        storefront_product_variant_value(
-                            self,
-                            variant,
-                            product,
-                            &context,
-                            Some(&currency_code),
-                        )
-                    })
-                    .unwrap_or(Value::Null),
-            ),
-            "sellingPlanAllocation" => Some(
-                line.selling_plan_id
-                    .as_deref()
-                    .and_then(|id| self.storefront_cart_selling_plan(id, &line.merchandise_id))
-                    .map(|plan| {
-                        selected_json(
-                            &json!({
-                                "sellingPlan": { "id": plan.id, "name": plan.name },
-                                "checkoutChargeAmount": storefront_money_value(0.0, &currency_code),
-                                "remainingBalanceChargeAmount": storefront_money_value(0.0, &currency_code),
-                                "priceAdjustments": []
-                            }),
-                            &selection.selection,
-                        )
-                    })
-                    .unwrap_or(Value::Null),
-            ),
-            "cost" => Some(storefront_cart_line_cost_json(
+        json!({
+            "__typename": "CartLine",
+            "_cartInternalId": cart.internal_id,
+            "_lineInternalId": line.internal_id,
+            "id": self.storefront_cart_line_public_id(line),
+            "quantity": line.quantity,
+            "attributes": line
+                .attributes
+                .iter()
+                .map(storefront_cart_attribute_value)
+                .collect::<Vec<_>>(),
+            "merchandise": variant
+                .map(|variant| {
+                    storefront_product_variant_value(
+                        self,
+                        variant,
+                        product,
+                        &context,
+                        Some(&currency_code),
+                    )
+                })
+                .unwrap_or(Value::Null),
+            "sellingPlanAllocation": line
+                .selling_plan_id
+                .as_deref()
+                .and_then(|id| self.storefront_cart_selling_plan(id, &line.merchandise_id))
+                .map(|plan| json!({
+                    "sellingPlan": { "id": plan.id, "name": plan.name },
+                    "checkoutChargeAmount": storefront_money_value(0.0, &currency_code),
+                    "remainingBalanceChargeAmount": storefront_money_value(0.0, &currency_code),
+                    "priceAdjustments": [],
+                }))
+                .unwrap_or(Value::Null),
+            "cost": storefront_cart_line_cost_value(
                 pricing.as_ref(),
                 line_total,
                 &currency_code,
-                &selection.selection,
                 true,
-            )),
-            "estimatedCost" => Some(storefront_cart_line_cost_json(
+            ),
+            "estimatedCost": storefront_cart_line_cost_value(
                 pricing.as_ref(),
                 line_total,
                 &currency_code,
-                &selection.selection,
                 false,
-            )),
-            "discountAllocations" => Some(Value::Array(Vec::new())),
-            "instructions" => Some(selected_json(
-                &json!({ "deliveryProfile": Value::Null }),
-                &selection.selection,
-            )),
-            "parentRelationship" => Some(Value::Null),
-            _ => None,
-        }
+            ),
+            "discountAllocations": [],
+            "instructions": { "deliveryProfile": Value::Null },
+            "parentRelationship": Value::Null,
         })
     }
 
-    fn storefront_cart_delivery_json(
-        &self,
-        cart: &StorefrontCartRecord,
-        selections: &[SelectedField],
-    ) -> Value {
-        selected_payload_json(selections, |selection| match selection.name.as_str() {
-            "addresses" => Some(Value::Array(
-                cart.delivery_addresses
-                    .iter()
-                    .map(|address| {
-                        self.storefront_cart_selectable_address_json(
-                            cart,
-                            address,
-                            &selection.selection,
-                        )
-                    })
-                    .collect(),
-            )),
-            _ => None,
+    fn storefront_cart_delivery_value(&self, cart: &StorefrontCartRecord) -> Value {
+        json!({
+            "__typename": "CartDelivery",
+            "_cartInternalId": cart.internal_id,
         })
     }
 
-    fn storefront_cart_delivery_groups_json(
-        &self,
-        cart: &StorefrontCartRecord,
-        lines: &[StorefrontCartLineRecord],
-        arguments: &BTreeMap<String, ResolvedValue>,
-        selections: &[SelectedField],
-    ) -> Value {
-        let groups = self.storefront_cart_delivery_groups(cart, lines);
-        selected_typed_connection_with_args(
-            &groups,
-            arguments,
-            selections,
-            |group, selections| self.storefront_cart_delivery_group_json(cart, group, selections),
-            |group| storefront_cart_delivery_group_cursor(&group.id),
-        )
-    }
-
-    fn storefront_cart_delivery_group_json(
+    fn storefront_cart_delivery_group_value(
         &self,
         cart: &StorefrontCartRecord,
         group: &StorefrontCartDeliveryGroup,
-        selections: &[SelectedField],
     ) -> Value {
         let selected_address = cart
             .delivery_addresses
             .iter()
             .find(|address| address.selected);
-        selected_payload_json(selections, |selection| match selection.name.as_str() {
-            "__typename" => Some(json!("CartDeliveryGroup")),
-            "id" => Some(json!(group.id)),
-            "groupType" => Some(json!(group.group_type)),
-            "deliveryAddress" => selected_address.map(|address| {
-                storefront_cart_group_delivery_address_json(address, &selection.selection)
-            }),
-            "deliveryOptions" => Some(Value::Array(
-                group
-                    .options
-                    .iter()
-                    .map(|option| {
-                        storefront_cart_delivery_option_json(option, &selection.selection)
-                    })
-                    .collect(),
-            )),
-            "selectedDeliveryOption" => Some(
-                group
-                    .selected_option
-                    .as_ref()
-                    .map(|option| {
-                        storefront_cart_delivery_option_json(option, &selection.selection)
-                    })
-                    .unwrap_or(Value::Null),
-            ),
-            "cartLines" => Some(selected_typed_connection_with_args(
-                &group.lines,
-                &selection.arguments,
-                &selection.selection,
-                |line, selections| self.storefront_cart_line_json(cart, line, selections),
-                |line| self.storefront_cart_line_cursor(line),
-            )),
-            _ => None,
-        })
-    }
-
-    fn storefront_cart_selectable_address_json(
-        &self,
-        cart: &StorefrontCartRecord,
-        address: &StorefrontCartDeliveryAddressRecord,
-        selections: &[SelectedField],
-    ) -> Value {
-        selected_payload_json(selections, |selection| match selection.name.as_str() {
-            "__typename" => Some(json!("CartSelectableAddress")),
-            "id" => Some(json!(storefront_cart_delivery_address_id(
-                cart.sequence,
-                address.sequence
-            ))),
-            "selected" => Some(json!(address.selected)),
-            "oneTimeUse" => Some(json!(address.one_time_use)),
-            "address" => Some(storefront_cart_delivery_address_json(
-                address,
-                &selection.selection,
-            )),
-            _ => None,
+        json!({
+            "__typename": "CartDeliveryGroup",
+            "_cartInternalId": cart.internal_id,
+            "_deliveryGroupKey": group.key,
+            "id": group.id,
+            "groupType": group.group_type,
+            "deliveryAddress": selected_address
+                .map(storefront_cart_group_delivery_address_value)
+                .unwrap_or(Value::Null),
+            "deliveryOptions": group
+                .options
+                .iter()
+                .map(storefront_cart_delivery_option_value)
+                .collect::<Vec<_>>(),
+            "selectedDeliveryOption": group
+                .selected_option
+                .as_ref()
+                .map(storefront_cart_delivery_option_value)
+                .unwrap_or(Value::Null),
         })
     }
 
@@ -2830,13 +2918,6 @@ fn storefront_cart_delivery_option_handle(
         .to_string()
 }
 
-fn storefront_cart_optional_string(value: &Option<String>) -> Value {
-    value
-        .as_ref()
-        .map(|value| json!(value))
-        .unwrap_or(Value::Null)
-}
-
 fn storefront_cart_address_name(fields: &StorefrontCartDeliveryAddressFields) -> Option<String> {
     let name = [fields.first_name.as_deref(), fields.last_name.as_deref()]
         .into_iter()
@@ -2846,10 +2927,7 @@ fn storefront_cart_address_name(fields: &StorefrontCartDeliveryAddressFields) ->
     (!name.is_empty()).then_some(name)
 }
 
-fn storefront_cart_delivery_address_json(
-    address: &StorefrontCartDeliveryAddressRecord,
-    selections: &[SelectedField],
-) -> Value {
+fn storefront_cart_delivery_address_value(address: &StorefrontCartDeliveryAddressRecord) -> Value {
     let fields = &address.fields;
     let country_name = fields
         .country_code
@@ -2886,38 +2964,28 @@ fn storefront_cart_delivery_address_json(
         (Some(city), None, Some(country)) => Some(format!("{city}, {country}")),
         _ => None,
     };
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("CartDeliveryAddress")),
-        "firstName" => Some(storefront_cart_optional_string(&fields.first_name)),
-        "lastName" => Some(storefront_cart_optional_string(&fields.last_name)),
-        "company" => Some(storefront_cart_optional_string(&fields.company)),
-        "address1" => Some(storefront_cart_optional_string(&fields.address1)),
-        "address2" => Some(storefront_cart_optional_string(&fields.address2)),
-        "city" => Some(storefront_cart_optional_string(&fields.city)),
-        "provinceCode" => Some(storefront_cart_optional_string(&fields.province_code)),
-        "countryCode" => Some(storefront_cart_optional_string(&fields.country_code)),
-        "zip" => Some(storefront_cart_optional_string(&fields.zip)),
-        "phone" => Some(storefront_cart_optional_string(&fields.phone)),
-        "name" => Some(
-            storefront_cart_address_name(fields)
-                .map(|name| json!(name))
-                .unwrap_or(Value::Null),
-        ),
-        "formatted" => Some(Value::Array(formatted.clone())),
-        "formattedArea" => Some(
-            formatted_area
-                .as_ref()
-                .map(|area| json!(area))
-                .unwrap_or(Value::Null),
-        ),
-        "latitude" | "longitude" => Some(Value::Null),
-        _ => None,
+    json!({
+        "__typename": "CartDeliveryAddress",
+        "firstName": fields.first_name,
+        "lastName": fields.last_name,
+        "company": fields.company,
+        "address1": fields.address1,
+        "address2": fields.address2,
+        "city": fields.city,
+        "provinceCode": fields.province_code,
+        "countryCode": fields.country_code,
+        "zip": fields.zip,
+        "phone": fields.phone,
+        "name": storefront_cart_address_name(fields),
+        "formatted": formatted,
+        "formattedArea": formatted_area,
+        "latitude": Value::Null,
+        "longitude": Value::Null,
     })
 }
 
-fn storefront_cart_group_delivery_address_json(
+fn storefront_cart_group_delivery_address_value(
     address: &StorefrontCartDeliveryAddressRecord,
-    selections: &[SelectedField],
 ) -> Value {
     let fields = &address.fields;
     let formatted = [fields.address1.as_deref(), fields.city.as_deref()]
@@ -2947,95 +3015,56 @@ fn storefront_cart_group_delivery_address_json(
         (Some(city), None) => Some(city.to_string()),
         _ => None,
     };
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("MailingAddress")),
-        "id" => Some(json!(synthetic_shopify_gid(
+    json!({
+        "__typename": "MailingAddress",
+        "id": synthetic_shopify_gid(
             "MailingAddress",
             format!("cart-delivery-address-{}", address.sequence)
-        ))),
-        "firstName" => Some(storefront_cart_optional_string(&fields.first_name)),
-        "lastName" => Some(storefront_cart_optional_string(&fields.last_name)),
-        "company" => Some(storefront_cart_optional_string(&fields.company)),
-        "address1" => Some(storefront_cart_optional_string(&fields.address1)),
-        "address2" => Some(storefront_cart_optional_string(&fields.address2)),
-        "city" => Some(storefront_cart_optional_string(&fields.city)),
-        "province" => Some(storefront_cart_optional_string(&fields.province_code)),
-        "provinceCode" => Some(Value::Null),
-        "country" => Some(storefront_cart_optional_string(&fields.country_code)),
-        "countryCode" => Some(json!("*")),
-        "countryCodeV2" => Some(json!("ZZ")),
-        "zip" => Some(storefront_cart_optional_string(&fields.zip)),
-        "phone" => Some(storefront_cart_optional_string(&fields.phone)),
-        "name" => Some(
-            storefront_cart_address_name(fields)
-                .map(|name| json!(name))
-                .unwrap_or(Value::Null),
         ),
-        "formatted" => Some(Value::Array(formatted.clone())),
-        "formattedArea" => Some(
-            formatted_area
-                .as_ref()
-                .map(|area| json!(area))
-                .unwrap_or(Value::Null),
-        ),
-        "latitude" | "longitude" => Some(Value::Null),
-        _ => None,
+        "firstName": fields.first_name,
+        "lastName": fields.last_name,
+        "company": fields.company,
+        "address1": fields.address1,
+        "address2": fields.address2,
+        "city": fields.city,
+        "province": fields.province_code,
+        "provinceCode": Value::Null,
+        "country": fields.country_code,
+        "countryCode": "*",
+        "countryCodeV2": "ZZ",
+        "zip": fields.zip,
+        "phone": fields.phone,
+        "name": storefront_cart_address_name(fields),
+        "formatted": formatted,
+        "formattedArea": formatted_area,
+        "latitude": Value::Null,
+        "longitude": Value::Null,
     })
 }
 
-fn storefront_cart_delivery_option_json(
-    option: &StorefrontCartDeliveryOption,
-    selections: &[SelectedField],
+fn storefront_cart_delivery_option_value(option: &StorefrontCartDeliveryOption) -> Value {
+    json!({
+        "__typename": "CartDeliveryOption",
+        "handle": option.handle,
+        "code": option.code,
+        "title": option.title,
+        "description": option.description,
+        "deliveryMethodType": option.delivery_method_type,
+        "estimatedCost": storefront_money_value(option.amount, &option.currency_code),
+    })
+}
+
+fn storefront_cart_selectable_address_value(
+    cart: &StorefrontCartRecord,
+    address: &StorefrontCartDeliveryAddressRecord,
 ) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("CartDeliveryOption")),
-        "handle" => Some(json!(option.handle)),
-        "code" => Some(
-            option
-                .code
-                .as_ref()
-                .map(|code| json!(code))
-                .unwrap_or(Value::Null),
-        ),
-        "title" => Some(
-            option
-                .title
-                .as_ref()
-                .map(|title| json!(title))
-                .unwrap_or(Value::Null),
-        ),
-        "description" => Some(
-            option
-                .description
-                .as_ref()
-                .map(|description| json!(description))
-                .unwrap_or(Value::Null),
-        ),
-        "deliveryMethodType" => Some(json!(option.delivery_method_type)),
-        "estimatedCost" => Some(selected_json(
-            &storefront_money_value(option.amount, &option.currency_code),
-            &selection.selection,
-        )),
-        _ => None,
+    json!({
+        "__typename": "CartSelectableAddress",
+        "id": storefront_cart_delivery_address_id(cart.sequence, address.sequence),
+        "selected": address.selected,
+        "oneTimeUse": address.one_time_use,
+        "address": storefront_cart_delivery_address_value(address),
     })
-}
-
-fn cart_selection(field: &RootFieldSelection) -> Vec<SelectedField> {
-    field
-        .selection
-        .iter()
-        .find(|selection| selection.name == "cart")
-        .map(|selection| selection.selection.clone())
-        .unwrap_or_default()
-}
-
-fn metafield_selection(field: &RootFieldSelection) -> Vec<SelectedField> {
-    field
-        .selection
-        .iter()
-        .find(|selection| selection.name == "metafields")
-        .map(|selection| selection.selection.clone())
-        .unwrap_or_default()
 }
 
 fn storefront_cart_normalized_code(code: &str) -> String {
@@ -3080,159 +3109,91 @@ fn storefront_cart_metafield_set_error(
 }
 
 fn storefront_cart_metafields_set_outcome(
-    field: &RootFieldSelection,
+    _field: &StorefrontCartMutationInput,
     metafields: Vec<Value>,
     user_errors: Vec<Value>,
 ) -> StorefrontCartOutcome {
     StorefrontCartOutcome {
-        value: selected_payload_json(&field.selection, |selection| {
-            match selection.name.as_str() {
-                "metafields" => Some(Value::Array(metafields.clone())),
-                "userErrors" => Some(Value::Array(
-                    user_errors
-                        .iter()
-                        .map(|error| selected_json(error, &selection.selection))
-                        .collect(),
-                )),
-                _ => None,
-            }
+        value: json!({
+            "metafields": metafields,
+            "userErrors": user_errors,
         }),
         errors: Vec::new(),
     }
 }
 
 fn storefront_cart_metafield_delete_outcome(
-    field: &RootFieldSelection,
+    _field: &StorefrontCartMutationInput,
     deleted_id: Option<String>,
     user_errors: Vec<Value>,
 ) -> StorefrontCartOutcome {
     StorefrontCartOutcome {
-        value: selected_payload_json(&field.selection, |selection| {
-            match selection.name.as_str() {
-                "deletedId" => Some(
-                    deleted_id
-                        .as_ref()
-                        .map(|id| json!(id))
-                        .unwrap_or(Value::Null),
-                ),
-                "userErrors" => Some(Value::Array(
-                    user_errors
-                        .iter()
-                        .map(|error| selected_json(error, &selection.selection))
-                        .collect(),
-                )),
-                _ => None,
-            }
+        value: json!({
+            "deletedId": deleted_id.map(Value::String).unwrap_or(Value::Null),
+            "userErrors": user_errors,
         }),
         errors: Vec::new(),
     }
 }
 
-fn storefront_cart_metafield_json(
+fn storefront_cart_metafield_value(
     cart_sequence: u64,
     metafield: &StorefrontCartMetafieldRecord,
-    selections: &[SelectedField],
 ) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("Metafield")),
-        "id" => Some(json!(storefront_cart_metafield_id(
-            cart_sequence,
-            metafield.sequence
-        ))),
-        "namespace" => Some(json!(metafield.namespace)),
-        "key" => Some(json!(metafield.key)),
-        "value" => Some(json!(metafield.value)),
-        "type" => Some(json!(metafield.metafield_type)),
-        "list" => Some(json!(metafield.metafield_type.starts_with("list."))),
-        "createdAt" => Some(json!(metafield.created_at)),
-        "updatedAt" => Some(json!(metafield.updated_at)),
-        "description" | "reference" | "references" => Some(Value::Null),
-        "parentResource" => Some(selected_payload_json(
-            &selection.selection,
-            |parent_selection| match parent_selection.name.as_str() {
-                "__typename" => Some(json!("Cart")),
-                "id" => Some(json!(storefront_cart_public_id(cart_sequence))),
-                _ => None,
-            },
-        )),
-        _ => None,
+    json!({
+        "__typename": "Metafield",
+        "id": storefront_cart_metafield_id(cart_sequence, metafield.sequence),
+        "namespace": metafield.namespace,
+        "key": metafield.key,
+        "value": metafield.value,
+        "type": metafield.metafield_type,
+        "list": metafield.metafield_type.starts_with("list."),
+        "createdAt": metafield.created_at,
+        "updatedAt": metafield.updated_at,
+        "description": Value::Null,
+        "reference": Value::Null,
+        "references": Value::Null,
+        "parentResource": {
+            "__typename": "Cart",
+            "id": storefront_cart_public_id(cart_sequence),
+        },
     })
 }
 
-fn storefront_cart_metafield_lookup<'a>(
-    cart: &'a StorefrontCartRecord,
-    selection: &SelectedField,
-) -> Option<&'a StorefrontCartMetafieldRecord> {
-    let namespace = resolved_string_field(&selection.arguments, "namespace")?;
-    let key = resolved_string_field(&selection.arguments, "key")?;
-    cart.metafields
-        .iter()
-        .find(|metafield| metafield.namespace == namespace && metafield.key == key)
-}
-
-fn storefront_cart_metafields_lookup<'a>(
-    cart: &'a StorefrontCartRecord,
-    selection: &SelectedField,
-) -> Vec<&'a StorefrontCartMetafieldRecord> {
-    resolved_object_list_field(&selection.arguments, "identifiers")
-        .into_iter()
-        .filter_map(|identifier| {
-            let namespace = resolved_string_field(&identifier, "namespace")?;
-            let key = resolved_string_field(&identifier, "key")?;
-            cart.metafields
-                .iter()
-                .find(|metafield| metafield.namespace == namespace && metafield.key == key)
-        })
-        .collect()
-}
-
-fn storefront_cart_applied_gift_card_json(
-    gift_card: &StorefrontCartGiftCardApplication,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("AppliedGiftCard")),
-        "id" => Some(json!(gift_card.id)),
-        "lastCharacters" => Some(json!(gift_card.last_characters)),
-        "amountUsed" | "amountUsedV2" | "presentmentAmountUsed" => Some(selected_json(
-            &storefront_money_value(gift_card.amount_used, &gift_card.currency_code),
-            &selection.selection,
-        )),
-        "balance" | "balanceV2" => Some(selected_json(
-            &storefront_money_value(gift_card.balance, &gift_card.currency_code),
-            &selection.selection,
-        )),
-        _ => None,
+fn storefront_cart_applied_gift_card_value(gift_card: &StorefrontCartGiftCardApplication) -> Value {
+    let amount_used = storefront_money_value(gift_card.amount_used, &gift_card.currency_code);
+    let balance = storefront_money_value(gift_card.balance, &gift_card.currency_code);
+    json!({
+        "__typename": "AppliedGiftCard",
+        "id": gift_card.id,
+        "lastCharacters": gift_card.last_characters,
+        "amountUsed": amount_used,
+        "amountUsedV2": amount_used,
+        "presentmentAmountUsed": amount_used,
+        "balance": balance,
+        "balanceV2": balance,
     })
 }
 
-fn storefront_cart_discount_allocation_json(
+fn storefront_cart_discount_allocation_value(
     discount: &StorefrontCartDiscountEvaluation,
     discounted_amount: f64,
     currency_code: &str,
-    selections: &[SelectedField],
 ) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("CartCodeDiscountAllocation")),
-        "code" => Some(json!(discount.code)),
-        "discountedAmount" => Some(selected_json(
-            &storefront_money_value(discounted_amount, currency_code),
-            &selection.selection,
-        )),
-        "targetType" => Some(json!("LINE_ITEM")),
-        "discountApplication" => Some(selected_json(
-            &json!({
-                "allocationMethod": "ACROSS",
-                "targetSelection": "ALL",
-                "targetType": "LINE_ITEM",
-                "value": {
-                    "__typename": "PricingPercentageValue",
-                    "percentage": 0.0
-                }
-            }),
-            &selection.selection,
-        )),
-        _ => None,
+    json!({
+        "__typename": "CartCodeDiscountAllocation",
+        "code": discount.code,
+        "discountedAmount": storefront_money_value(discounted_amount, currency_code),
+        "targetType": "LINE_ITEM",
+        "discountApplication": {
+            "allocationMethod": "ACROSS",
+            "targetSelection": "ALL",
+            "targetType": "LINE_ITEM",
+            "value": {
+                "__typename": "PricingPercentageValue",
+                "percentage": 0.0,
+            },
+        },
     })
 }
 
@@ -3272,14 +3233,8 @@ fn storefront_cart_merge_duplicate_lines(lines: &mut Vec<StorefrontCartLineRecor
     }
 }
 
-fn storefront_cart_attribute_json(
-    attribute: &StorefrontCartAttributeRecord,
-    selections: &[SelectedField],
-) -> Value {
-    selected_json(
-        &json!({ "key": attribute.key, "value": attribute.value }),
-        selections,
-    )
+fn storefront_cart_attribute_value(attribute: &StorefrontCartAttributeRecord) -> Value {
+    json!({ "key": attribute.key, "value": attribute.value })
 }
 
 fn storefront_cart_public_id(sequence: u64) -> String {
@@ -3329,7 +3284,7 @@ fn storefront_cart_stock_capped_warning(quantity: i64, target: &str) -> Value {
 }
 
 fn storefront_cart_input_limit_outcome(
-    field: &RootFieldSelection,
+    field: &StorefrontCartMutationInput,
     first_path: &str,
     second_path: &str,
     size: usize,
@@ -3356,65 +3311,44 @@ fn storefront_money_value(amount: f64, currency_code: &str) -> Value {
     })
 }
 
-fn storefront_cart_cost_json(
+fn storefront_cart_cost_value(
     subtotal: f64,
     total: f64,
     currency_code: &str,
-    selections: &[SelectedField],
     current: bool,
 ) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "checkoutChargeAmount" | "subtotalAmount" => Some(selected_json(
-            &storefront_money_value(subtotal, currency_code),
-            &selection.selection,
-        )),
-        "totalAmount" => Some(selected_json(
-            &storefront_money_value(total, currency_code),
-            &selection.selection,
-        )),
-        "totalDutyAmount" | "totalTaxAmount" => Some(Value::Null),
-        "subtotalAmountEstimated"
-        | "totalAmountEstimated"
-        | "totalDutyAmountEstimated"
-        | "totalTaxAmountEstimated"
-            if current =>
-        {
-            Some(json!(true))
-        }
-        _ => None,
+    json!({
+        "checkoutChargeAmount": storefront_money_value(subtotal, currency_code),
+        "subtotalAmount": storefront_money_value(subtotal, currency_code),
+        "totalAmount": storefront_money_value(total, currency_code),
+        "totalDutyAmount": Value::Null,
+        "totalTaxAmount": Value::Null,
+        "subtotalAmountEstimated": current,
+        "totalAmountEstimated": current,
+        "totalDutyAmountEstimated": current,
+        "totalTaxAmountEstimated": current,
     })
 }
 
-fn storefront_cart_line_cost_json(
+fn storefront_cart_line_cost_value(
     pricing: Option<&StorefrontVariantPricing>,
     total: f64,
     currency_code: &str,
-    selections: &[SelectedField],
-    current: bool,
+    _current: bool,
 ) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "amountPerQuantity" if current => {
-            pricing.map(|pricing| storefront_catalog_money_value(&pricing.price, currency_code))
-        }
-        "compareAtAmountPerQuantity" if current => Some(
-            pricing
-                .and_then(|pricing| pricing.compare_at_price.as_deref())
-                .map(|amount| storefront_catalog_money_value(amount, currency_code))
-                .unwrap_or(Value::Null),
-        ),
-        "amount" if !current => {
-            pricing.map(|pricing| storefront_catalog_money_value(&pricing.price, currency_code))
-        }
-        "compareAtAmount" if !current => Some(
-            pricing
-                .and_then(|pricing| pricing.compare_at_price.as_deref())
-                .map(|amount| storefront_catalog_money_value(amount, currency_code))
-                .unwrap_or(Value::Null),
-        ),
-        "subtotalAmount" | "totalAmount" => Some(selected_json(
-            &storefront_money_value(total, currency_code),
-            &selection.selection,
-        )),
-        _ => None,
+    let amount = pricing
+        .map(|pricing| storefront_catalog_money_value(&pricing.price, currency_code))
+        .unwrap_or(Value::Null);
+    let compare_at = pricing
+        .and_then(|pricing| pricing.compare_at_price.as_deref())
+        .map(|amount| storefront_catalog_money_value(amount, currency_code))
+        .unwrap_or(Value::Null);
+    json!({
+        "amount": amount,
+        "amountPerQuantity": amount,
+        "compareAtAmount": compare_at,
+        "compareAtAmountPerQuantity": compare_at,
+        "subtotalAmount": storefront_money_value(total, currency_code),
+        "totalAmount": storefront_money_value(total, currency_code),
     })
 }

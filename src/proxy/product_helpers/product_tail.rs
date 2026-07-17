@@ -934,71 +934,58 @@ impl DraftProxy {
         self.variant_relationship_outcome(Vec::new(), parent_variants, staged_ids)
     }
 
-    fn product_tail_job_read_with_error(
-        &self,
-        field: &RootFieldSelection,
-    ) -> (Value, Option<Value>) {
-        let Some(id) = resolved_string_field(&field.arguments, "id") else {
-            return (Value::Null, None);
-        };
-        if let Some(job) = self.store.staged.collection_jobs.get(&id) {
-            return (selected_json(job, &field.selection), None);
+    pub(crate) fn job_query_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let id = invocation
+            .arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if let Some(job) = self.customer_merge_job_value(id) {
+            return ResolverOutcome::value(job);
+        }
+        if let Some(job) = self.store.staged.collection_jobs.get(id) {
+            return ResolverOutcome::value(job.clone());
         }
         // A job enqueued locally (e.g. a metafield-definition validation job)
         // is addressed by a synthetic Job gid. Reading it back returns a
         // freshly-enqueued, not-yet-complete Job with no backing bulk query —
         // matching Shopify's shape for a pending async job.
-        if is_synthetic_gid(&id) && shopify_gid_resource_type(&id) == Some("Job") {
+        if is_synthetic_gid(id) && shopify_gid_resource_type(id) == Some("Job") {
             let job = json!({
                 "__typename": "Job",
                 "id": id,
                 "done": false,
                 "query": Value::Null,
             });
-            return (selected_json(&job, &field.selection), None);
+            return ResolverOutcome::value(job);
         }
-        match shopify_gid_resource_type(&id) {
-            Some("Job") => {
-                let job = json!({
-                    "__typename": "Job",
-                    "id": id,
-                    "done": true,
-                    "query": { "__typename": "QueryRoot" },
-                });
-                (selected_json(&job, &field.selection), None)
-            }
-            Some(_) => (
-                Value::Null,
-                Some(json!({
+        match shopify_gid_resource_type(id) {
+            Some("Job") => ResolverOutcome::value(json!({
+                "__typename": "Job",
+                "id": id,
+                "done": true,
+                "query": { "__typename": "QueryRoot" },
+            })),
+            Some(_) => {
+                let error = json!({
                     "message": format!("Invalid id: {id}"),
-                    "locations": [{ "line": field.location.line, "column": field.location.column }],
+                    "locations": [{
+                        "line": invocation.root_location.line,
+                        "column": invocation.root_location.column
+                    }],
                     "extensions": { "code": "RESOURCE_NOT_FOUND" },
-                    "path": [field.response_key.clone()]
-                })),
-            ),
-            None => (Value::Null, None),
-        }
-    }
-
-    pub(in crate::proxy) fn product_tail_job_query_outcome(
-        &self,
-        fields: &[RootFieldSelection],
-        response_key: &str,
-    ) -> ResolverOutcome<Value> {
-        let mut errors = Vec::new();
-        let data = root_payload_json(fields, |field| {
-            if field.name == "job" {
-                let (value, error) = self.product_tail_job_read_with_error(field);
-                if let Some(error) = error {
-                    errors.push(error);
-                }
-                Some(value)
-            } else {
-                None
+                    "path": [invocation.response_key]
+                });
+                ResolverOutcome::value(Value::Null).with_errors(root_field_errors_from_json(
+                    &[error],
+                    invocation.response_key,
+                ))
             }
-        });
-        ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
-            .with_errors(root_field_errors_from_json(&errors, response_key))
+            None => ResolverOutcome::value(Value::Null),
+        }
     }
 
     fn combined_listing_outcome(

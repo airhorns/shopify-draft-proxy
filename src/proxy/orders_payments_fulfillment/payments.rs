@@ -317,35 +317,24 @@ pub(in crate::proxy) fn refund_order_payload(
 }
 
 pub(in crate::proxy) fn refund_validation_payload(
-    field: &RootFieldSelection,
     refund: Value,
     order: Option<Value>,
     user_errors: Vec<Value>,
     shop_currency_code: &str,
 ) -> Value {
-    selected_json(
-        &json!({
-            "refund": refund,
-            "order": refund_order_payload(order, shop_currency_code),
-            "userErrors": user_errors
-        }),
-        &field.selection,
-    )
+    json!({
+        "refund": refund,
+        "order": refund_order_payload(order, shop_currency_code),
+        "userErrors": user_errors
+    })
 }
 
 pub(in crate::proxy) fn refund_input_error(
-    field: &RootFieldSelection,
     order: Option<Value>,
     user_error: Value,
     shop_currency_code: &str,
 ) -> Value {
-    refund_validation_payload(
-        field,
-        Value::Null,
-        order,
-        vec![user_error],
-        shop_currency_code,
-    )
+    refund_validation_payload(Value::Null, order, vec![user_error], shop_currency_code)
 }
 
 pub(in crate::proxy) fn refund_transaction_validation_error(
@@ -858,29 +847,22 @@ const ORDER_CREATE_MANUAL_PAYMENT_REQUIRED_ACCESS: &str =
 const ORDER_CREATE_MANUAL_PAYMENT_ACCESS_DENIED_MESSAGE: &str =
     "Access denied for orderCreateManualPayment field. Required access: `write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.";
 
-fn manual_payment_access_denied_outcome(field: &RootFieldSelection) -> ResolverOutcome<Value> {
+fn manual_payment_access_denied_outcome(
+    root_location: SourceLocation,
+    response_key: &str,
+) -> ResolverOutcome<Value> {
     let error = top_level_access_denied_error_envelope(
         ORDER_CREATE_MANUAL_PAYMENT_ACCESS_DENIED_MESSAGE.to_string(),
-        Some(field.location),
-        vec![json!(field.response_key.clone())],
+        Some(root_location),
+        vec![json!(response_key)],
         Some(ORDER_CREATE_MANUAL_PAYMENT_REQUIRED_ACCESS),
     );
     ResolverOutcome::value(Value::Null)
-        .with_errors(root_field_errors_from_json(&[error], &field.response_key))
+        .with_errors(root_field_errors_from_json(&[error], response_key))
 }
 
-fn manual_payment_payload(
-    field: &RootFieldSelection,
-    order: Value,
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_json(
-        &json!({
-            "order": order,
-            "userErrors": user_errors
-        }),
-        &field.selection,
-    )
+fn manual_payment_payload(order: Value, user_errors: Vec<Value>) -> Value {
+    json!({ "order": order, "userErrors": user_errors })
 }
 
 fn manual_payment_user_error(field: Value, message: &str) -> Value {
@@ -888,12 +870,12 @@ fn manual_payment_user_error(field: Value, message: &str) -> Value {
 }
 
 fn manual_payment_amount_set(
-    field: &RootFieldSelection,
+    arguments: &BTreeMap<String, ResolvedValue>,
     order: &Value,
     outstanding_set: &Value,
     shop_currency_code: &str,
 ) -> Value {
-    let Some(amount_input) = resolved_object_field(&field.arguments, "amount") else {
+    let Some(amount_input) = resolved_object_field(arguments, "amount") else {
         return outstanding_set.clone();
     };
     let amount = resolved_string_field(&amount_input, "amount")
@@ -1057,49 +1039,35 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         root_field: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-        response_key: &str,
     ) -> Option<ResolverOutcome<Value>> {
         if root_field != "refundCreate" {
             return None;
         }
-        let mut fields = self.execution_root_fields(query, variables)?;
-        fields.retain(|field| field.response_key == response_key);
-        if !fields.iter().all(|field| field.name == "refundCreate") {
-            return None;
+        let (value, staged_ids) = self.stage_refund_create(request, arguments);
+        if !staged_ids.is_empty() {
+            self.record_staged_orders_log_entry(
+                request,
+                query,
+                variables,
+                "refundCreate",
+                staged_ids,
+            );
         }
-
-        let data = root_payload_json(&fields, |field| {
-            let (value, staged_ids) = self.stage_refund_create(request, query, variables, field);
-            if !staged_ids.is_empty() {
-                self.record_staged_orders_log_entry(
-                    request,
-                    query,
-                    variables,
-                    "refundCreate",
-                    staged_ids,
-                );
-            }
-            Some(value)
-        });
-        Some(ResolverOutcome::value(
-            data.get(response_key).cloned().unwrap_or(Value::Null),
-        ))
+        Some(ResolverOutcome::value(value))
     }
 
     pub(super) fn stage_refund_create(
         &mut self,
         request: &Request,
-        _query: &str,
-        _variables: &BTreeMap<String, ResolvedValue>,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Vec<String>) {
         let shop_currency_code = self.store.shop_currency_code();
-        let Some(input) = resolved_object_field(&field.arguments, "input") else {
+        let Some(input) = resolved_object_field(arguments, "input") else {
             return (
                 refund_input_error(
-                    field,
                     None,
                     user_error_omit_code(json!(["input"]), "Input is required", None),
                     &shop_currency_code,
@@ -1110,7 +1078,6 @@ impl DraftProxy {
         let Some(order_id) = resolved_string_field(&input, "orderId") else {
             return (
                 refund_input_error(
-                    field,
                     None,
                     user_error_omit_code(json!(["orderId"]), "Order does not exist", None),
                     &shop_currency_code,
@@ -1123,7 +1090,6 @@ impl DraftProxy {
         let Some(order) = self.store.staged.orders.get(&order_id).cloned() else {
             return (
                 refund_input_error(
-                    field,
                     None,
                     user_error_omit_code(json!(["orderId"]), "Order does not exist", None),
                     &shop_currency_code,
@@ -1135,19 +1101,19 @@ impl DraftProxy {
 
         if let Some(error) = refund_transaction_validation_error(&input, &order) {
             return (
-                refund_input_error(field, Some(order), error, &shop_currency_code),
+                refund_input_error(Some(order), error, &shop_currency_code),
                 Vec::new(),
             );
         }
         if let Some(error) = refund_quantity_validation_error(&input, &order) {
             return (
-                refund_input_error(field, Some(order), error, &shop_currency_code),
+                refund_input_error(Some(order), error, &shop_currency_code),
                 Vec::new(),
             );
         }
         if let Some(error) = refund_amount_validation_error(&input, &order, &shop_currency_code) {
             return (
-                refund_input_error(field, Some(order), error, &shop_currency_code),
+                refund_input_error(Some(order), error, &shop_currency_code),
                 Vec::new(),
             );
         }
@@ -1202,14 +1168,11 @@ impl DraftProxy {
             .insert(order_id.clone(), updated_order.clone());
 
         (
-            selected_json(
-                &json!({
-                    "refund": refund,
-                    "order": updated_order,
-                    "userErrors": []
-                }),
-                &field.selection,
-            ),
+            json!({
+                "refund": refund,
+                "order": updated_order,
+                "userErrors": []
+            }),
             vec![refund_id, order_id],
         )
     }
@@ -1265,26 +1228,275 @@ impl DraftProxy {
         }
     }
 
+    pub(crate) fn payment_transaction_mutation_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let (value, staged_ids) = match invocation.root_name {
+            "orderCapture" => self.order_capture_payload(&arguments),
+            "transactionVoid" => self.transaction_void_payload(&arguments),
+            "orderCreateMandatePayment" => self.order_create_mandate_payment_payload(&arguments),
+            root => {
+                return ResolverOutcome::error(format!(
+                    "Unknown payment-transaction mutation root `{root}`"
+                ));
+            }
+        };
+        let mut outcome = ResolverOutcome::value(value);
+        if !staged_ids.is_empty() {
+            outcome = outcome.with_log_draft(LogDraft::staged(
+                invocation.root_name,
+                "payments",
+                staged_ids,
+            ));
+        }
+        outcome
+    }
+
+    fn order_capture_payload(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> (Value, Vec<String>) {
+        let input = resolved_object_field(arguments, "input").unwrap_or_default();
+        let order_id = resolved_string_field(&input, "id").unwrap_or_default();
+        let (transaction, order, user_errors, staged_ids) =
+            match self.stage_payment_capture(&order_id, &input) {
+                Some(outcome) => outcome,
+                None => {
+                    let order = self
+                        .store
+                        .staged
+                        .orders
+                        .get(&order_id)
+                        .cloned()
+                        .unwrap_or(Value::Null);
+                    (
+                        Value::Null,
+                        order,
+                        vec![user_error_omit_code(
+                            Value::Null,
+                            "Unable to find parent transaction",
+                            None,
+                        )],
+                        Vec::new(),
+                    )
+                }
+            };
+        (
+            json!({
+                "transaction": transaction,
+                "order": order,
+                "userErrors": user_errors
+            }),
+            staged_ids,
+        )
+    }
+
+    fn transaction_void_payload(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> (Value, Vec<String>) {
+        let parent_id = resolved_string_field(arguments, "parentTransactionId").unwrap_or_default();
+        let (transaction, user_errors, staged_ids) = self.stage_payment_void(&parent_id);
+        (
+            json!({
+                "transaction": transaction,
+                "userErrors": user_errors
+            }),
+            staged_ids,
+        )
+    }
+
+    fn order_create_mandate_payment_payload(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> (Value, Vec<String>) {
+        let requested_order_id = resolved_string_field(arguments, "id");
+        let existing_order = requested_order_id
+            .as_deref()
+            .and_then(|id| self.store.staged.orders.get(id).cloned());
+        let idempotency_key = resolved_string_field(arguments, "idempotencyKey");
+        let Some(idempotency_key) = idempotency_key else {
+            return (
+                json!({
+                    "job": Value::Null,
+                    "paymentReferenceId": Value::Null,
+                    "order": existing_order.unwrap_or(Value::Null),
+                    "userErrors": [user_error_omit_code(
+                        ["idempotencyKey"],
+                        "Idempotency key is required",
+                        None
+                    )]
+                }),
+                Vec::new(),
+            );
+        };
+        let order_id = requested_order_id.unwrap_or_else(|| shopify_gid("Order", 1));
+        let amount_input = resolved_object_field(arguments, "amount").unwrap_or_default();
+        let existing_order = self.store.staged.orders.get(&order_id).cloned();
+        let shop_currency_code = self.store.shop_currency_code();
+        let outstanding_set = existing_order.as_ref().map(|order| {
+            order_money_set_with_presentment_fallback(
+                &order["totalOutstandingSet"],
+                order,
+                &shop_currency_code,
+            )
+        });
+        let amount = resolved_string_field(&amount_input, "amount")
+            .map(|amount| normalized_order_payment_amount(Some(amount)))
+            .or_else(|| {
+                outstanding_set
+                    .as_ref()
+                    .and_then(money_set_presentment_or_shop_amount)
+            })
+            .unwrap_or_else(|| "0.0".to_string());
+        let currency = resolved_string_field(&amount_input, "currencyCode")
+            .or_else(|| {
+                outstanding_set
+                    .as_ref()
+                    .and_then(money_set_presentment_or_shop_currency)
+            })
+            .unwrap_or_else(|| shop_currency_code.clone());
+        let auto_capture = resolved_bool_field(arguments, "autoCapture").unwrap_or(true);
+        let key = format!("{order_id}:{idempotency_key}");
+        let mut job_id = self.store.staged.orders.get(&order_id).and_then(|order| {
+            order
+                .get("__draftProxyMandatePaymentJobs")
+                .and_then(|jobs| jobs.get(&idempotency_key))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        });
+        if !self.store.staged.mandate_payment_keys.contains(&key)
+            || !self.store.staged.orders.contains_key(&order_id)
+        {
+            let transaction_id = self.next_order_transaction_id();
+            let allocated_job_id = job_id.unwrap_or_else(|| self.next_proxy_synthetic_gid("Job"));
+            let gateway = self
+                .store
+                .staged
+                .orders
+                .get(&order_id)
+                .map(order_payment_gateway)
+                .unwrap_or_else(|| "manual".to_string());
+            let mandate_input = MandatePaymentTransactionInput {
+                order_id: &order_id,
+                idempotency_key: &idempotency_key,
+                transaction_id: &transaction_id,
+                amount: &amount,
+                currency_code: &currency,
+                auto_capture,
+                gateway: &gateway,
+            };
+            let updated_order = if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
+                append_mandate_payment_to_order(order, &mandate_input, &shop_currency_code);
+                if order
+                    .get("__draftProxyMandatePaymentJobs")
+                    .is_none_or(|jobs| !jobs.is_object())
+                {
+                    order["__draftProxyMandatePaymentJobs"] = json!({});
+                }
+                if let Some(jobs) = order["__draftProxyMandatePaymentJobs"].as_object_mut() {
+                    jobs.insert(idempotency_key.clone(), json!(allocated_job_id.clone()));
+                }
+                Some(order.clone())
+            } else {
+                let mut order = mandate_payment_order_record(&mandate_input);
+                if let Some(order_object) = order.as_object_mut() {
+                    let mut jobs = serde_json::Map::new();
+                    jobs.insert(idempotency_key.clone(), json!(allocated_job_id.clone()));
+                    order_object.insert(
+                        "__draftProxyMandatePaymentJobs".to_string(),
+                        Value::Object(jobs),
+                    );
+                }
+                self.store.staged.orders.insert(order_id.clone(), order);
+                None
+            };
+            if let Some(order) = updated_order {
+                if let Some(customer_id) = order_customer_id(&order) {
+                    if let Some(customer_orders) =
+                        self.store.staged.customer_orders.get_mut(&customer_id)
+                    {
+                        for customer_order in customer_orders {
+                            if customer_order["id"].as_str() == Some(&order_id) {
+                                *customer_order = order.clone();
+                            }
+                        }
+                    }
+                }
+            }
+            self.store.staged.mandate_payment_keys.insert(key);
+            job_id = Some(allocated_job_id);
+        } else if job_id.is_none() {
+            let allocated_job_id = self.next_proxy_synthetic_gid("Job");
+            if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
+                if order
+                    .get("__draftProxyMandatePaymentJobs")
+                    .is_none_or(|jobs| !jobs.is_object())
+                {
+                    order["__draftProxyMandatePaymentJobs"] = json!({});
+                }
+                if let Some(jobs) = order["__draftProxyMandatePaymentJobs"].as_object_mut() {
+                    jobs.insert(idempotency_key.clone(), json!(allocated_job_id.clone()));
+                }
+            }
+            job_id = Some(allocated_job_id);
+        }
+        let order = self
+            .store
+            .staged
+            .orders
+            .get(&order_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let payment_reference_id = format!("{order_id}/{idempotency_key}");
+        let job_id = job_id.unwrap_or_else(|| self.next_proxy_synthetic_gid("Job"));
+        (
+            json!({
+                "job": {
+                    "id": job_id,
+                    "done": true
+                },
+                "paymentReferenceId": payment_reference_id,
+                "order": order,
+                "userErrors": []
+            }),
+            vec![order_id],
+        )
+    }
+
     pub(in crate::proxy) fn order_payment_transaction_local_outcome(
         &mut self,
-        request: &Request,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        response_key: &str,
+        context: &OrderRootContext<'_>,
     ) -> Option<ResolverOutcome<Value>> {
-        let field = self
-            .execution_root_fields(query, variables)?
-            .into_iter()
-            .find(|field| field.name == root_field && field.response_key == response_key);
+        let request = context.request;
+        let root_field = context.root_field;
+        let root_location = context.root_location;
+        let arguments = context.arguments;
+        let requested_field_paths = context.requested_field_paths;
+        let query = context.query;
+        let variables = context.variables;
+        let response_key = context.response_key;
         match root_field {
             "orderCreate"
-                if field
-                    .as_ref()
-                    .is_some_and(order_create_selects_payment_transaction_fields) =>
+                if requested_field_paths.iter().any(|path| {
+                    path.iter().any(|field| {
+                        matches!(
+                            field.as_str(),
+                            "capturable"
+                                | "totalCapturable"
+                                | "totalCapturableSet"
+                                | "totalOutstandingSet"
+                                | "totalReceivedSet"
+                                | "netPaymentSet"
+                                | "paymentGatewayNames"
+                                | "transactions"
+                        )
+                    })
+                }) =>
             {
-                let field = field?;
-                let order = self.stage_payment_order(&field);
+                let order = self.stage_payment_order(arguments);
                 let order_id = order["id"].as_str().unwrap_or_default().to_string();
                 self.record_mutation_log_entry(
                     request,
@@ -1293,51 +1505,12 @@ impl DraftProxy {
                     root_field,
                     vec![order_id],
                 );
-                Some(ResolverOutcome::value(selected_json(
-                    &json!({ "order": order, "userErrors": [] }),
-                    &field.selection,
-                )))
-            }
-            "orderCapture" => {
-                let field = field?;
-                let input = resolved_object_field(variables, "input")?;
-                let order_id = resolved_string_field(&input, "id")?;
-                let outcome = self.stage_payment_capture(&order_id, &input);
-                let (transaction, order, user_errors, staged_ids) = match outcome {
-                    Some(outcome) => outcome,
-                    None => {
-                        let order = self
-                            .store
-                            .staged
-                            .orders
-                            .get(&order_id)
-                            .cloned()
-                            .unwrap_or(Value::Null);
-                        (
-                            Value::Null,
-                            order,
-                            vec![user_error_omit_code(
-                                Value::Null,
-                                "Unable to find parent transaction",
-                                None,
-                            )],
-                            Vec::new(),
-                        )
-                    }
-                };
-                if !staged_ids.is_empty() {
-                    self.record_mutation_log_entry(
-                        request, query, variables, root_field, staged_ids,
-                    );
-                }
-                Some(ResolverOutcome::value(selected_json(
-                    &json!({ "transaction": transaction, "order": order, "userErrors": user_errors }),
-                    &field.selection,
-                )))
+                Some(ResolverOutcome::value(
+                    json!({ "order": order, "userErrors": [] }),
+                ))
             }
             "orderMarkAsPaid" => {
-                let field = field?;
-                let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+                let input = resolved_object_field(arguments, "input").unwrap_or_default();
                 let order_id = resolved_string_field(&input, "id").unwrap_or_default();
                 // Orders not created locally in this scenario are hydrated from the
                 // backend so the mutation operates on real money-bag state.
@@ -1350,16 +1523,13 @@ impl DraftProxy {
                         request, query, variables, root_field, staged_ids,
                     );
                 }
-                Some(ResolverOutcome::value(selected_json(
-                    &json!({ "order": order, "userErrors": user_errors }),
-                    &field.selection,
-                )))
+                Some(ResolverOutcome::value(
+                    json!({ "order": order, "userErrors": user_errors }),
+                ))
             }
             "orderCreateManualPayment" => {
-                let field = field?;
-                let Some(order_id) = resolved_string_field(&field.arguments, "id") else {
+                let Some(order_id) = resolved_string_field(arguments, "id") else {
                     return Some(ResolverOutcome::value(manual_payment_payload(
-                        &field,
                         Value::Null,
                         vec![manual_payment_user_error(
                             json!(["id"]),
@@ -1368,238 +1538,34 @@ impl DraftProxy {
                     )));
                 };
                 let Some(order_before) = self.store.staged.orders.get(&order_id).cloned() else {
-                    return Some(manual_payment_access_denied_outcome(&field));
+                    return Some(manual_payment_access_denied_outcome(
+                        root_location,
+                        response_key,
+                    ));
                 };
                 let (order, user_errors, staged_ids) =
-                    self.stage_order_create_manual_payment(&order_id, &order_before, &field);
+                    self.stage_order_create_manual_payment(&order_id, &order_before, arguments);
                 if !staged_ids.is_empty() {
                     self.record_mutation_log_entry(
                         request, query, variables, root_field, staged_ids,
                     );
                 }
                 Some(ResolverOutcome::value(manual_payment_payload(
-                    &field,
                     order,
                     user_errors,
-                )))
-            }
-            "transactionVoid" => {
-                let field = field?;
-                let parent_id = resolved_string_field(&field.arguments, "parentTransactionId")
-                    .or_else(|| resolved_string_field(variables, "id"))?;
-                let (transaction, user_errors, staged_ids) = self.stage_payment_void(&parent_id);
-                if !staged_ids.is_empty() {
-                    self.record_mutation_log_entry(
-                        request, query, variables, root_field, staged_ids,
-                    );
-                }
-                Some(ResolverOutcome::value(selected_json(
-                    &json!({ "transaction": transaction, "userErrors": user_errors }),
-                    &field.selection,
-                )))
-            }
-            "order"
-                if field
-                    .as_ref()
-                    .is_some_and(order_read_selects_payment_transaction_fields) =>
-            {
-                let field = field?;
-                let id = resolved_string_field(&field.arguments, "id")?;
-                let order = self.store.staged.orders.get(&id)?;
-                Some(ResolverOutcome::value(selected_json(
-                    order,
-                    &field.selection,
-                )))
-            }
-            "orderCreateMandatePayment" => {
-                let field = field?;
-                if !field.arguments.contains_key("mandateId") {
-                    let operation_path = parsed_document(query, variables)
-                        .map(|document| document.operation_path)
-                        .unwrap_or_else(|| "mutation".to_string());
-                    let error = missing_required_arguments_error(
-                        "orderCreateMandatePayment",
-                        "mandateId",
-                        field.location,
-                        vec![json!(operation_path), json!("orderCreateMandatePayment")],
-                    );
-                    return Some(
-                        ResolverOutcome::value(Value::Null)
-                            .with_errors(root_field_errors_from_json(&[error], response_key)),
-                    );
-                }
-                let order = resolved_string_field(&field.arguments, "id")
-                    .or_else(|| resolved_string_field(variables, "id"))
-                    .and_then(|id| self.store.staged.orders.get(&id).cloned())
-                    .unwrap_or(Value::Null);
-                let idempotency_key = resolved_string_field(&field.arguments, "idempotencyKey")
-                    .or_else(|| resolved_string_field(variables, "idempotencyKey"));
-                let Some(idempotency_key) = idempotency_key else {
-                    return Some(ResolverOutcome::value(selected_json(
-                        &json!({
-                            "job": Value::Null,
-                            "paymentReferenceId": Value::Null,
-                            "order": order,
-                            "userErrors": [user_error_omit_code(
-                                ["idempotencyKey"],
-                                "Idempotency key is required",
-                                None
-                            )]
-                        }),
-                        &field.selection,
-                    )));
-                };
-                let order_id = resolved_string_field(&field.arguments, "id")
-                    .or_else(|| resolved_string_field(variables, "id"))
-                    .unwrap_or_else(|| shopify_gid("Order", 1));
-                let amount_input = resolved_object_field(&field.arguments, "amount")
-                    .or_else(|| resolved_object_field(variables, "amount"))
-                    .unwrap_or_default();
-                let existing_order = self.store.staged.orders.get(&order_id).cloned();
-                let shop_currency_code = self.store.shop_currency_code();
-                let outstanding_set = existing_order.as_ref().map(|order| {
-                    order_money_set_with_presentment_fallback(
-                        &order["totalOutstandingSet"],
-                        order,
-                        &shop_currency_code,
-                    )
-                });
-                let amount = resolved_string_field(&amount_input, "amount")
-                    .map(|amount| normalized_order_payment_amount(Some(amount)))
-                    .or_else(|| {
-                        outstanding_set
-                            .as_ref()
-                            .and_then(money_set_presentment_or_shop_amount)
-                    })
-                    .unwrap_or_else(|| "0.0".to_string());
-                let currency = resolved_string_field(&amount_input, "currencyCode")
-                    .or_else(|| {
-                        outstanding_set
-                            .as_ref()
-                            .and_then(money_set_presentment_or_shop_currency)
-                    })
-                    .unwrap_or_else(|| shop_currency_code.clone());
-                let auto_capture =
-                    resolved_bool_field(&field.arguments, "autoCapture").unwrap_or(true);
-                let key = format!("{order_id}:{idempotency_key}");
-                let mut job_id = self.store.staged.orders.get(&order_id).and_then(|order| {
-                    order
-                        .get("__draftProxyMandatePaymentJobs")
-                        .and_then(|jobs| jobs.get(&idempotency_key))
-                        .and_then(Value::as_str)
-                        .map(str::to_string)
-                });
-                if !self.store.staged.mandate_payment_keys.contains(&key)
-                    || !self.store.staged.orders.contains_key(&order_id)
-                {
-                    let transaction_id = self.next_order_transaction_id();
-                    let allocated_job_id =
-                        job_id.unwrap_or_else(|| self.next_proxy_synthetic_gid("Job"));
-                    let gateway = self
-                        .store
-                        .staged
-                        .orders
-                        .get(&order_id)
-                        .map(order_payment_gateway)
-                        .unwrap_or_else(|| "manual".to_string());
-                    let mandate_input = MandatePaymentTransactionInput {
-                        order_id: &order_id,
-                        idempotency_key: &idempotency_key,
-                        transaction_id: &transaction_id,
-                        amount: &amount,
-                        currency_code: &currency,
-                        auto_capture,
-                        gateway: &gateway,
-                    };
-                    let updated_order = if let Some(order) =
-                        self.store.staged.orders.get_mut(&order_id)
-                    {
-                        append_mandate_payment_to_order(order, &mandate_input, &shop_currency_code);
-                        if order
-                            .get("__draftProxyMandatePaymentJobs")
-                            .is_none_or(|jobs| !jobs.is_object())
-                        {
-                            order["__draftProxyMandatePaymentJobs"] = json!({});
-                        }
-                        if let Some(jobs) = order["__draftProxyMandatePaymentJobs"].as_object_mut()
-                        {
-                            jobs.insert(idempotency_key.clone(), json!(allocated_job_id.clone()));
-                        }
-                        Some(order.clone())
-                    } else {
-                        let mut order = mandate_payment_order_record(&mandate_input);
-                        if let Some(order_object) = order.as_object_mut() {
-                            let mut jobs = serde_json::Map::new();
-                            jobs.insert(idempotency_key.clone(), json!(allocated_job_id.clone()));
-                            order_object.insert(
-                                "__draftProxyMandatePaymentJobs".to_string(),
-                                Value::Object(jobs),
-                            );
-                        }
-                        self.store.staged.orders.insert(order_id.clone(), order);
-                        None
-                    };
-                    if let Some(order) = updated_order {
-                        if let Some(customer_id) = order_customer_id(&order) {
-                            if let Some(customer_orders) =
-                                self.store.staged.customer_orders.get_mut(&customer_id)
-                            {
-                                for customer_order in customer_orders {
-                                    if customer_order["id"].as_str() == Some(&order_id) {
-                                        *customer_order = order.clone();
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    self.store.staged.mandate_payment_keys.insert(key);
-                    job_id = Some(allocated_job_id);
-                } else if job_id.is_none() {
-                    let allocated_job_id = self.next_proxy_synthetic_gid("Job");
-                    if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
-                        if order
-                            .get("__draftProxyMandatePaymentJobs")
-                            .is_none_or(|jobs| !jobs.is_object())
-                        {
-                            order["__draftProxyMandatePaymentJobs"] = json!({});
-                        }
-                        if let Some(jobs) = order["__draftProxyMandatePaymentJobs"].as_object_mut()
-                        {
-                            jobs.insert(idempotency_key.clone(), json!(allocated_job_id.clone()));
-                        }
-                    }
-                    job_id = Some(allocated_job_id);
-                }
-                let order = self
-                    .store
-                    .staged
-                    .orders
-                    .get(&order_id)
-                    .cloned()
-                    .unwrap_or(Value::Null);
-                let payment_reference_id = format!("{order_id}/{idempotency_key}");
-                let job_id = job_id.unwrap_or_else(|| self.next_proxy_synthetic_gid("Job"));
-                Some(ResolverOutcome::value(selected_json(
-                    &json!({
-                        "job": {
-                            "id": job_id,
-                            "done": true
-                        },
-                        "paymentReferenceId": payment_reference_id,
-                        "order": order,
-                        "userErrors": []
-                    }),
-                    &field.selection,
                 )))
             }
             _ => None,
         }
     }
 
-    pub(super) fn stage_payment_order(&mut self, field: &RootFieldSelection) -> Value {
+    pub(super) fn stage_payment_order(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
         let id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
-        let order_input = resolved_object_field(&field.arguments, "order").unwrap_or_default();
+        let order_input = resolved_object_field(arguments, "order").unwrap_or_default();
         let transaction_inputs = resolved_object_list_field(&order_input, "transactions");
         let first_transaction = transaction_inputs.first().cloned().unwrap_or_default();
         let transaction_amount_set = payment_money_set_from_input(&first_transaction);
@@ -1833,7 +1799,7 @@ impl DraftProxy {
         &mut self,
         order_id: &str,
         order_before: &Value,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Vec<Value>, Vec<String>) {
         let shop_currency_code = self.store.shop_currency_code();
         let outstanding_set = order_money_set_with_presentment_fallback(
@@ -1859,8 +1825,12 @@ impl DraftProxy {
             );
         }
 
-        let amount_set =
-            manual_payment_amount_set(field, order_before, &outstanding_set, &shop_currency_code);
+        let amount_set = manual_payment_amount_set(
+            arguments,
+            order_before,
+            &outstanding_set,
+            &shop_currency_code,
+        );
         let amount = order_money_amount_value(&amount_set);
         if amount <= 0.000_001 {
             return (
@@ -1885,10 +1855,10 @@ impl DraftProxy {
 
         let mut order = order_before.clone();
         let transaction_id = self.next_order_transaction_id();
-        let gateway = resolved_string_field(&field.arguments, "paymentMethodName")
+        let gateway = resolved_string_field(arguments, "paymentMethodName")
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| "manual".to_string());
-        let processed_at = resolved_string_field(&field.arguments, "processedAt")
+        let processed_at = resolved_string_field(arguments, "processedAt")
             .unwrap_or_else(|| order_mutation_timestamp(self.mutation_log_ordinal() as u64));
         let mut transaction = payment_transaction_record_from_amount_set(
             &transaction_id,
@@ -2240,56 +2210,48 @@ impl DraftProxy {
         (transaction, Vec::new(), vec![order_id, transaction_id])
     }
 
-    pub(in crate::proxy) fn payment_customization_query_data(
+    pub(crate) fn payment_customization_query_root(
         &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        for field in fields {
-            match field.name.as_str() {
-                "paymentCustomization" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.hydrate_payment_customization_by_id(request, &id);
-                }
-                "paymentCustomizations" => {
-                    self.hydrate_payment_customization_catalog(request);
-                }
-                _ => {}
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let value = match invocation.root_name {
+            "paymentCustomization" => {
+                let id = invocation
+                    .arguments
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                self.hydrate_payment_customization_by_id(invocation.request, id);
+                self.payment_customization_effective_record(id)
+                    .cloned()
+                    .unwrap_or(Value::Null)
             }
-        }
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "paymentCustomization" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    match self.payment_customization_effective_record(&id) {
-                        Some(record) => selected_json(record, &field.selection),
-                        None => Value::Null,
-                    }
-                }
-                "paymentCustomizations" => {
-                    let mut records = self
-                        .store
-                        .staged
-                        .payment_customizations
-                        .iter()
-                        .filter(|(id, _)| {
-                            !self
-                                .store
-                                .staged
-                                .deleted_payment_customization_ids
-                                .contains(*id)
-                        })
-                        .map(|(_, record)| record)
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    records.sort_by_key(|record| {
-                        record["id"].as_str().unwrap_or_default().to_string()
-                    });
-                    payment_customization_connection(&records, &field.selection)
-                }
-                _ => return None,
-            })
-        })
+            "paymentCustomizations" => {
+                self.hydrate_payment_customization_catalog(invocation.request);
+                let mut records = self
+                    .store
+                    .staged
+                    .payment_customizations
+                    .iter()
+                    .filter(|(id, _)| {
+                        !self
+                            .store
+                            .staged
+                            .deleted_payment_customization_ids
+                            .contains(*id)
+                    })
+                    .map(|(_, record)| record.clone())
+                    .collect::<Vec<_>>();
+                records.sort_by_key(|record| record["id"].as_str().unwrap_or_default().to_string());
+                payment_customization_connection(&records)
+            }
+            root => {
+                return ResolverOutcome::error(format!(
+                    "Unknown payment-customization query root `{root}`"
+                ));
+            }
+        };
+        ResolverOutcome::value(value)
     }
 
     fn payment_customization_effective_record(&self, id: &str) -> Option<&Value> {
@@ -2398,43 +2360,56 @@ impl DraftProxy {
         self.store.staged.payment_customization_catalog_hydrated = true;
     }
 
-    pub(in crate::proxy) fn payment_customization_mutation_data(
+    pub(crate) fn payment_customization_mutation_root(
         &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        let api_client_id = request_app_namespace_api_client_id(request);
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "paymentCustomizationCreate" => self.payment_customization_create_payload(
-                    request,
-                    field,
-                    api_client_id.as_deref(),
-                ),
-                "paymentCustomizationUpdate" => self.payment_customization_update_payload(
-                    request,
-                    field,
-                    api_client_id.as_deref(),
-                ),
-                "paymentCustomizationActivation" => {
-                    self.payment_customization_activation_payload(request, field)
-                }
-                "paymentCustomizationDelete" => {
-                    self.payment_customization_delete_payload(request, field)
-                }
-                _ => return None,
-            })
-        })
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let api_client_id = request_app_namespace_api_client_id(invocation.request);
+        let value = match invocation.root_name {
+            "paymentCustomizationCreate" => self.payment_customization_create_payload(
+                invocation.request,
+                &arguments,
+                api_client_id.as_deref(),
+            ),
+            "paymentCustomizationUpdate" => self.payment_customization_update_payload(
+                invocation.request,
+                &arguments,
+                api_client_id.as_deref(),
+            ),
+            "paymentCustomizationActivation" => {
+                self.payment_customization_activation_payload(invocation.request, &arguments)
+            }
+            "paymentCustomizationDelete" => {
+                self.payment_customization_delete_payload(invocation.request, &arguments)
+            }
+            root => {
+                return ResolverOutcome::error(format!(
+                    "Unknown payment-customization mutation root `{root}`"
+                ));
+            }
+        };
+        let staged_ids = value
+            .pointer("/paymentCustomization/id")
+            .or_else(|| value.get("deletedId"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .into_iter()
+            .collect();
+        ResolverOutcome::value(value).with_log_draft(LogDraft::staged(
+            invocation.root_name,
+            "payments",
+            staged_ids,
+        ))
     }
 
     pub(in crate::proxy) fn payment_customization_create_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
         api_client_id: Option<&str>,
     ) -> Value {
-        let input =
-            resolved_object_field(&field.arguments, "paymentCustomization").unwrap_or_default();
+        let input = resolved_object_field(arguments, "paymentCustomization").unwrap_or_default();
         let function_id = resolved_string_field(&input, "functionId");
         let function_handle = resolved_string_field(&input, "functionHandle");
         let mut required_errors = Vec::new();
@@ -2448,47 +2423,37 @@ impl DraftProxy {
             required_errors.push(payment_customization_required_input_field_error("enabled"));
         }
         if !required_errors.is_empty() {
-            return payment_customization_error_payload(&field.selection, required_errors);
+            return payment_customization_error_payload(required_errors);
         }
         if function_id.is_some() && function_handle.is_some() {
-            return payment_customization_error_payload(
-                &field.selection,
-                vec![payment_customization_user_error(
-                    vec!["paymentCustomization"],
-                    "MULTIPLE_FUNCTION_IDENTIFIERS",
-                    "Only one of function_id or function_handle can be provided, not both.",
-                )],
-            );
+            return payment_customization_error_payload(vec![payment_customization_user_error(
+                vec!["paymentCustomization"],
+                "MULTIPLE_FUNCTION_IDENTIFIERS",
+                "Only one of function_id or function_handle can be provided, not both.",
+            )]);
         }
         if function_id.is_none() && function_handle.is_none() {
             if request.path.contains("/admin/api/2025-01/") {
-                return payment_customization_error_payload(
-                    &field.selection,
-                    vec![payment_customization_required_input_field_error(
-                        "functionId",
-                    )],
-                );
+                return payment_customization_error_payload(vec![
+                    payment_customization_required_input_field_error("functionId"),
+                ]);
             }
-            return payment_customization_error_payload(
-                &field.selection,
-                vec![payment_customization_user_error(
-                    vec!["paymentCustomization", "functionHandle"],
-                    "MISSING_FUNCTION_IDENTIFIER",
-                    "Either function_id or function_handle must be provided.",
-                )],
-            );
+            return payment_customization_error_payload(vec![payment_customization_user_error(
+                vec!["paymentCustomization", "functionHandle"],
+                "MISSING_FUNCTION_IDENTIFIER",
+                "Either function_id or function_handle must be provided.",
+            )]);
         }
         let resolved_function = if let Some(handle) = function_handle.as_deref() {
             let Some(function) =
                 self.resolve_payment_customization_function(request, None, Some(handle))
             else {
-                return payment_customization_error_payload(
-                    &field.selection,
-                    vec![payment_customization_function_not_found_error(
+                return payment_customization_error_payload(vec![
+                    payment_customization_function_not_found_error(
                         handle,
                         &request_api_client_id(request),
-                    )],
-                );
+                    ),
+                ]);
             };
             Some(function)
         } else {
@@ -2496,7 +2461,7 @@ impl DraftProxy {
         };
         let metafield_errors = payment_customization_metafield_validation_errors(&input);
         if !metafield_errors.is_empty() {
-            return payment_customization_error_payload(&field.selection, metafield_errors);
+            return payment_customization_error_payload(metafield_errors);
         }
 
         let id = shopify_gid("PaymentCustomization", self.next_synthetic_id);
@@ -2510,69 +2475,61 @@ impl DraftProxy {
             &timestamp,
         );
         self.stage_payment_customization_record(record.clone());
-        payment_customization_record_payload(&record, &field.selection)
+        payment_customization_record_payload(&record)
     }
 
     pub(in crate::proxy) fn payment_customization_update_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
         api_client_id: Option<&str>,
     ) -> Value {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let input =
-            resolved_object_field(&field.arguments, "paymentCustomization").unwrap_or_default();
+        let id = resolved_string_field(arguments, "id").unwrap_or_default();
+        let input = resolved_object_field(arguments, "paymentCustomization").unwrap_or_default();
         let Some(existing) = self
             .hydrate_payment_customization_by_id(request, &id)
             .or_else(|| self.payment_customization_effective_record(&id).cloned())
         else {
-            return payment_customization_error_payload(
-                &field.selection,
-                vec![payment_customization_not_found_error(&id)],
-            );
+            return payment_customization_error_payload(vec![
+                payment_customization_not_found_error(&id),
+            ]);
         };
 
         if resolved_string_field(&input, "title").is_some_and(|title| title.trim().is_empty()) {
-            return payment_customization_error_payload(
-                &field.selection,
-                vec![payment_customization_required_input_field_error("title")],
-            );
+            return payment_customization_error_payload(vec![
+                payment_customization_required_input_field_error("title"),
+            ]);
         }
         if let Some(handle) = resolved_string_field(&input, "functionHandle") {
             let Some(function) =
                 self.resolve_payment_customization_function(request, None, Some(&handle))
             else {
-                return payment_customization_error_payload(
-                    &field.selection,
-                    vec![payment_customization_function_not_found_error(
+                return payment_customization_error_payload(vec![
+                    payment_customization_function_not_found_error(
                         &handle,
                         &request_api_client_id(request),
-                    )],
-                );
+                    ),
+                ]);
             };
             let Some(function_key) = function["id"]
                 .as_str()
                 .map(payment_customization_function_key)
             else {
-                return payment_customization_error_payload(
-                    &field.selection,
-                    vec![payment_customization_function_not_found_error(
+                return payment_customization_error_payload(vec![
+                    payment_customization_function_not_found_error(
                         &handle,
                         &request_api_client_id(request),
-                    )],
-                );
+                    ),
+                ]);
             };
             if !self.payment_customization_record_matches_function_key(
                 request,
                 &existing,
                 &function_key,
             ) {
-                return payment_customization_error_payload(
-                    &field.selection,
-                    vec![payment_customization_immutable_function_error(
-                        "functionHandle",
-                    )],
-                );
+                return payment_customization_error_payload(vec![
+                    payment_customization_immutable_function_error("functionHandle"),
+                ]);
             }
         }
         if let Some(function_id) = resolved_string_field(&input, "functionId") {
@@ -2582,15 +2539,14 @@ impl DraftProxy {
                 &existing,
                 &function_key,
             ) {
-                return payment_customization_error_payload(
-                    &field.selection,
-                    vec![payment_customization_immutable_function_error("functionId")],
-                );
+                return payment_customization_error_payload(vec![
+                    payment_customization_immutable_function_error("functionId"),
+                ]);
             }
         }
         let metafield_errors = payment_customization_metafield_validation_errors(&input);
         if !metafield_errors.is_empty() {
-            return payment_customization_error_payload(&field.selection, metafield_errors);
+            return payment_customization_error_payload(metafield_errors);
         }
 
         let mut updated = existing;
@@ -2607,16 +2563,16 @@ impl DraftProxy {
             payment_customization_set_metafields(&mut updated, metafields);
         }
         self.stage_payment_customization_record(updated.clone());
-        payment_customization_record_payload(&updated, &field.selection)
+        payment_customization_record_payload(&updated)
     }
 
     pub(in crate::proxy) fn payment_customization_activation_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let ids = resolved_string_list_arg(&field.arguments, "ids");
-        let enabled = match field.arguments.get("enabled") {
+        let ids = resolved_string_list_arg(arguments, "ids");
+        let enabled = match arguments.get("enabled") {
             Some(ResolvedValue::Bool(value)) => *value,
             _ => false,
         };
@@ -2651,15 +2607,15 @@ impl DraftProxy {
                 &missing_ids,
             )]
         };
-        payment_customization_payload(None, &field.selection, errors, Some(valid_ids), None)
+        payment_customization_payload(None, errors, Some(valid_ids), None)
     }
 
     pub(in crate::proxy) fn payment_customization_delete_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(arguments, "id").unwrap_or_default();
         self.hydrate_payment_customization_by_id(request, &id);
         if self
             .store
@@ -2672,11 +2628,10 @@ impl DraftProxy {
                 .staged
                 .deleted_payment_customization_ids
                 .insert(id.clone());
-            payment_customization_payload(None, &field.selection, Vec::new(), None, Some(json!(id)))
+            payment_customization_payload(None, Vec::new(), None, Some(json!(id)))
         } else {
             payment_customization_payload(
                 None,
-                &field.selection,
                 vec![payment_customization_not_found_error(&id)],
                 None,
                 Some(Value::Null),

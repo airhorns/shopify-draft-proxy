@@ -8,7 +8,23 @@ mod markets;
 mod web_presence;
 mod web_presence_helpers;
 
-pub(in crate::proxy) use self::markets::markets_field_resolver_registrations;
+pub(in crate::proxy) struct MarketsRootInput {
+    name: String,
+    response_key: String,
+    location: SourceLocation,
+    arguments: BTreeMap<String, ResolvedValue>,
+}
+
+impl DispatchField for MarketsRootInput {
+    fn response_key(&self) -> &str {
+        &self.response_key
+    }
+}
+
+pub(in crate::proxy) use self::localization::localization_field_resolver_registrations;
+pub(in crate::proxy) use self::markets::{
+    markets_field_resolver_registrations, markets_field_resolver_type_policies,
+};
 pub(in crate::proxy) use self::web_presence_helpers::*;
 
 #[allow(dead_code)]
@@ -67,23 +83,6 @@ fn market_related_records<'a>(
         .filter(|record| market_ids(record).iter().any(|id| id == market_id))
         .cloned()
         .collect()
-}
-
-fn selected_market_relation_connection<'a, Records, MarketIds, NodeJson>(
-    records: Records,
-    market_id: &str,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selection: &[SelectedField],
-    market_ids: MarketIds,
-    node_json: NodeJson,
-) -> Value
-where
-    Records: Iterator<Item = &'a Value>,
-    MarketIds: Fn(&Value) -> Vec<String>,
-    NodeJson: Fn(&Value, &[SelectedField]) -> Value,
-{
-    let records = market_related_records(records, market_id, market_ids);
-    selected_typed_connection_with_args(&records, arguments, selection, node_json, value_id_cursor)
 }
 
 /// Variant-level fixed-price mutations (`priceListFixedPricesAdd`/`Update`/`Delete`)
@@ -260,15 +259,12 @@ impl PriceListFieldOutcome {
         }
     }
 
-    fn price_list_error(field: &RootFieldSelection, error: PriceListValidationError) -> Self {
+    fn price_list_error(_field: &MarketsRootInput, error: PriceListValidationError) -> Self {
         let (path, message, code) = error;
-        Self::payload(selected_json(
-            &price_list_payload_error("priceList", path, message, code),
-            &field.selection,
-        ))
+        Self::payload(price_list_payload_error("priceList", path, message, code))
     }
 
-    fn resource_not_found(id: &str, field: &RootFieldSelection) -> Self {
+    fn resource_not_found(id: &str, field: &MarketsRootInput) -> Self {
         Self {
             value: Value::Null,
             errors: vec![json!({
@@ -282,40 +278,6 @@ impl PriceListFieldOutcome {
 
 fn price_list_catalog_id_has_wrong_gid_type(id: &str) -> bool {
     matches!(shopify_gid_resource_type(id), Some(resource_type) if resource_type != "MarketCatalog")
-}
-
-fn selected_record_field(record: &Value, selection: &SelectedField) -> Option<Value> {
-    let projected = selected_json(record, std::slice::from_ref(selection));
-    projected.get(&selection.response_key).cloned()
-}
-
-fn selected_record_with_connections(
-    record: &Value,
-    selections: &[SelectedField],
-    mut connection_field: impl FnMut(&SelectedField) -> Option<Value>,
-) -> Value {
-    if record.is_null() {
-        return Value::Null;
-    }
-    selected_payload_json(selections, |selection| {
-        connection_field(selection).or_else(|| selected_record_field(record, selection))
-    })
-}
-
-fn selected_resource_payload(
-    field: &RootFieldSelection,
-    resource_key: &str,
-    resource: Value,
-    user_errors: Vec<Value>,
-    resource_json: impl Fn(&Value, &[SelectedField]) -> Value,
-) -> Value {
-    selected_payload_json(&field.selection, |selection| {
-        match selection.name.as_str() {
-            "userErrors" => Some(selected_user_errors(&user_errors, &selection.selection)),
-            name if name == resource_key => Some(resource_json(&resource, &selection.selection)),
-            _ => None,
-        }
-    })
 }
 
 fn value_string<'a>(value: &'a Value, field: &str) -> &'a str {
@@ -567,15 +529,12 @@ fn next_markets_catalogs_numeric_id(store: &Store, extra_len: usize) -> usize {
     (store.staged.markets.len() * 2) + (store.staged.catalogs.len() * 2) + extra_len + 1
 }
 fn selected_catalog_error(
-    field: &RootFieldSelection,
+    _field: &MarketsRootInput,
     path: Vec<&str>,
     message: &str,
     code: &str,
 ) -> Value {
-    selected_json(
-        &catalog_payload_error(path, message, code),
-        &field.selection,
-    )
+    catalog_payload_error(path, message, code)
 }
 
 const CATALOG_CONTEXT_DRIVER_MISMATCH_MESSAGE: &str =
@@ -619,15 +578,12 @@ fn country_codes_from_context(context: &BTreeMap<String, ResolvedValue>) -> Vec<
         .collect()
 }
 
-fn selected_market_user_errors(field: &RootFieldSelection, user_errors: Vec<Value>) -> Value {
-    selected_json(
-        &json!({"market": Value::Null, "userErrors": user_errors}),
-        &field.selection,
-    )
+fn selected_market_user_errors(_field: &MarketsRootInput, user_errors: Vec<Value>) -> Value {
+    json!({"market": Value::Null, "userErrors": user_errors})
 }
 
 fn selected_market_error(
-    field: &RootFieldSelection,
+    field: &MarketsRootInput,
     path: Vec<&str>,
     message: &str,
     code: Value,
@@ -635,26 +591,17 @@ fn selected_market_error(
     selected_market_user_errors(field, vec![market_user_error(path, message, code)])
 }
 
-fn selected_payload_user_error(
-    selection: &[SelectedField],
-    root_key: &str,
-    user_error: Value,
-) -> Value {
-    selected_json(&payload_user_error(root_key, user_error), selection)
-}
-
 fn shop_locale_payload_error(root_key: &str, message: &str) -> Value {
     payload_user_error(root_key, shop_locale_user_error(vec!["locale"], message))
 }
 
 fn selected_market_localization_error(
-    selection: &[SelectedField],
+    _field: &MarketsRootInput,
     path: Vec<&str>,
     code: &str,
     message: &str,
 ) -> Value {
-    selected_payload_user_error(
-        selection,
+    payload_user_error(
         "marketLocalizations",
         market_localization_error(path, message, code),
     )
@@ -667,9 +614,8 @@ fn market_id_payload_error(root_key: &str, message: &str, code: &str) -> Value {
     )
 }
 
-fn selected_translation_error(selection: &[SelectedField], message: &str, code: &str) -> Value {
-    selected_payload_user_error(
-        selection,
+fn translation_payload_error(message: &str, code: &str) -> Value {
+    payload_user_error(
         "translations",
         user_error(["resourceId"], message, Some(code)),
     )
@@ -900,16 +846,6 @@ fn markets_collect_records(data: &Value, connection_key: &str, singular_key: &st
     records
 }
 
-/// The `marketId` argument applied to a read's nested `marketLocalizations`
-/// selection, used to filter staged localizations to a single market the way the
-/// live `marketLocalizableResource.marketLocalizations(marketId:)` field does.
-fn market_localizations_market_filter(selection: &[SelectedField]) -> Option<String> {
-    selection
-        .iter()
-        .find(|field| field.name == "marketLocalizations")
-        .and_then(|field| resolved_string_field(&field.arguments, "marketId"))
-}
-
 fn record_gid(record: &Value, resource_type: &str) -> Option<String> {
     record
         .get("id")
@@ -962,11 +898,14 @@ fn market_record_region_type(market: &Value) -> bool {
     }
 }
 
-fn market_field_omits_base_currency(field: &RootFieldSelection) -> bool {
-    if !matches!(field.name.as_str(), "marketCreate" | "marketUpdate") {
+fn market_field_omits_base_currency(
+    root_name: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    if !matches!(root_name, "marketCreate" | "marketUpdate") {
         return false;
     }
-    let Some(currency_settings) = resolved_object_field(&field.arguments, "input")
+    let Some(currency_settings) = resolved_object_field(arguments, "input")
         .and_then(|input| resolved_object_field(&input, "currencySettings"))
     else {
         return false;

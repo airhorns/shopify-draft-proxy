@@ -4,19 +4,36 @@ use crate::proxy::{DraftProxy, Request};
 
 pub(crate) type NodeLoader = fn(&DraftProxy, &str, Option<&Request>) -> NodeLoadState<EntityRef>;
 
+/// Concrete Storefront `Node` types backed by the local discovery model. Keep
+/// this beside the Admin loader inventory so schema reachability and runtime
+/// entity loading cannot silently treat every captured Storefront implementor
+/// as locally materializable.
+pub(crate) const STOREFRONT_NODE_TYPE_NAMES: &[&str] = &[
+    "Article",
+    "Blog",
+    "Collection",
+    "Location",
+    "Menu",
+    "Metaobject",
+    "Page",
+    "Product",
+    "ProductVariant",
+];
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct EntityRef {
-    pub type_name: &'static str,
+    pub type_name: String,
     pub id: String,
     pub value: Value,
 }
 
 impl EntityRef {
-    pub(crate) fn new(type_name: &'static str, id: &str, mut value: Value) -> Self {
+    pub(crate) fn new(type_name: impl Into<String>, id: &str, mut value: Value) -> Self {
+        let type_name = type_name.into();
         if let Some(object) = value.as_object_mut() {
             object
                 .entry("__typename".to_string())
-                .or_insert_with(|| json!(type_name));
+                .or_insert_with(|| json!(&type_name));
             object.entry("id".to_string()).or_insert_with(|| json!(id));
         }
         Self {
@@ -120,7 +137,7 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "CartTransform",
-        "DraftProxy::local_node_value_by_id",
+        "node_registry::load_cart_transform",
         NodeResolverBehavior::ProjectLocalRecord,
         load_cart_transform,
     ),
@@ -240,7 +257,7 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "FulfillmentConstraintRule",
-        "DraftProxy::local_node_value_by_id",
+        "node_registry::load_fulfillment_constraint_rule",
         NodeResolverBehavior::ProjectLocalRecord,
         load_fulfillment_constraint_rule,
     ),
@@ -564,7 +581,7 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "Validation",
-        "DraftProxy::local_node_value_by_id",
+        "node_registry::load_validation",
         NodeResolverBehavior::ProjectLocalRecord,
         load_validation,
     ),

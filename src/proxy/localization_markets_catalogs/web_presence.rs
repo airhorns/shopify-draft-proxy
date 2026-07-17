@@ -1,77 +1,15 @@
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn web_presence_create_price_list_response(
+    pub(crate) fn web_presences_query_root(
         &mut self,
-        field: &RootFieldSelection,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let payload =
-            self.web_presence_helper_create_payload_inner(&input, request, query, variables, false);
-        selected_json(&payload, &field.selection)
-    }
-
-    pub(in crate::proxy) fn web_presence_update_price_list_response(
-        &mut self,
-        field: &RootFieldSelection,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let payload = self.web_presence_helper_update_payload_inner(
-            &id, &input, request, query, variables, false,
-        );
-        selected_json(&payload, &field.selection)
-    }
-
-    pub(in crate::proxy) fn web_presence_delete_price_list_response(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> Value {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let payload = self.web_presence_delete_payload(&id);
-        selected_json(&payload, &field.selection)
-    }
-
-    pub(in crate::proxy) fn web_presence_helper_query_outcome(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        response_key: &str,
+        invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        let fields = self
-            .execution_root_fields(query, variables)
-            .unwrap_or_default();
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            if field.name == "webPresences" {
-                let records = self
-                    .store
-                    .staged
-                    .web_presences
-                    .values()
-                    .cloned()
-                    .collect::<Vec<_>>();
-                data.insert(
-                    field.response_key,
-                    selected_typed_connection_with_args(
-                        &records,
-                        &field.arguments,
-                        &field.selection,
-                        |web_presence, selection| {
-                            self.selected_web_presence_json(web_presence, selection)
-                        },
-                        value_id_cursor,
-                    ),
-                );
-            }
-        }
-        ResolverOutcome::value(data.remove(response_key).unwrap_or(Value::Null))
+        ResolverOutcome::value(connection_value_with_args(
+            self.store.staged.web_presences.values().cloned().collect(),
+            &resolved_arguments_from_json(&invocation.arguments),
+            value_id_cursor,
+        ))
     }
 
     /// Hydrate the staged store from a cassette-backed preflight before applying a
@@ -128,24 +66,22 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn web_presence_helper_mutation_outcome(
+    pub(crate) fn web_presence_mutation_root(
         &mut self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
+        invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        let (_response_key, payload_selection, arguments) =
-            self.execution_primary_root_response_parts(query, variables, || root_field.to_string());
+        self.web_presence_mutation_preflight(invocation.variables, invocation.request);
+        let root_field = invocation.root_name;
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
         let payload = match root_field {
             "webPresenceCreate" => {
                 let input = resolved_object_field(&arguments, "input").unwrap_or_default();
-                self.web_presence_helper_create_payload(&input, request, query, variables)
+                self.web_presence_helper_create_payload_inner(&input)
             }
             "webPresenceUpdate" => {
                 let id = resolved_string_field(&arguments, "id").unwrap_or_default();
                 let input = resolved_object_field(&arguments, "input").unwrap_or_default();
-                self.web_presence_helper_update_payload(&id, &input, request, query, variables)
+                self.web_presence_helper_update_payload_inner(&id, &input)
             }
             "webPresenceDelete" => {
                 let id = resolved_string_field(&arguments, "id").unwrap_or_default();
@@ -153,7 +89,16 @@ impl DraftProxy {
             }
             _ => Value::Null,
         };
-        ResolverOutcome::value(selected_json(&payload, &payload_selection))
+        let staged_id = match root_field {
+            "webPresenceDelete" => payload.get("deletedId"),
+            _ => payload.pointer("/webPresence/id"),
+        }
+        .and_then(Value::as_str)
+        .map(str::to_string);
+        let outcome = ResolverOutcome::value(payload);
+        staged_id.map_or(outcome.clone(), |id| {
+            outcome.with_log_draft(LogDraft::staged(root_field, "markets", vec![id]))
+        })
     }
 
     /// Stage a `webPresenceDelete`. Shopify rejects deleting a presence that does
@@ -179,23 +124,9 @@ impl DraftProxy {
         json!({"deletedId": id, "userErrors": []})
     }
 
-    pub(in crate::proxy) fn web_presence_helper_create_payload(
-        &mut self,
-        input: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        self.web_presence_helper_create_payload_inner(input, request, query, variables, true)
-    }
-
     fn web_presence_helper_create_payload_inner(
         &mut self,
         input: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        record_log: bool,
     ) -> Value {
         let mut errors = Vec::new();
         let primary_locale = self.localization_primary_locale();
@@ -236,37 +167,13 @@ impl DraftProxy {
             .web_presences
             .insert(id.clone(), record.clone());
         self.mark_markets_family_dirty("webPresences");
-        if record_log {
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                "webPresenceCreate",
-                vec![id],
-            );
-        }
         json!({"webPresence": record, "userErrors": []})
-    }
-
-    pub(in crate::proxy) fn web_presence_helper_update_payload(
-        &mut self,
-        id: &str,
-        input: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        self.web_presence_helper_update_payload_inner(id, input, request, query, variables, true)
     }
 
     fn web_presence_helper_update_payload_inner(
         &mut self,
         id: &str,
         input: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        record_log: bool,
     ) -> Value {
         let Some(existing) = self.store.staged.web_presences.get(id).cloned() else {
             return market_id_payload_error(
@@ -314,15 +221,6 @@ impl DraftProxy {
             .web_presences
             .insert(id.to_string(), record.clone());
         self.mark_markets_family_dirty("webPresences");
-        if record_log {
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                "webPresenceUpdate",
-                vec![id.to_string()],
-            );
-        }
         json!({"webPresence": record, "userErrors": []})
     }
 }

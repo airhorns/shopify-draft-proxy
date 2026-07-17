@@ -351,6 +351,7 @@ mod tests {
                 "shop" => Ok(RootFieldResult {
                     value: serde_json::json!({ "name": "Storefront schema shop" }),
                     errors: Vec::new(),
+                    value_source: crate::admin_graphql::ResolverValueSource::Local,
                 }),
                 root => Err(format!(
                     "Storefront root `{root}` is not implemented locally"
@@ -384,10 +385,8 @@ mod tests {
     #[test]
     fn storefront_schema_executes_storefront_types_independently_from_admin() {
         let schema = schema(StorefrontApiVersion::V2026_04).unwrap();
-        let storefront =
-            async_graphql::Request::new("{ shop { name } }").data(RootExecutionContext {
-                executor: Arc::new(StaticExecutor),
-            });
+        let storefront = async_graphql::Request::new("{ shop { name } }")
+            .data(RootExecutionContext::new(Arc::new(StaticExecutor)));
         let response = futures_executor::block_on(schema.execute(storefront));
         assert!(response.errors.is_empty(), "{:?}", response.errors);
         assert_eq!(

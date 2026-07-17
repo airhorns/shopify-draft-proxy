@@ -1,7 +1,127 @@
 use super::*;
 
+pub(in crate::proxy) fn localization_field_resolver_registrations() -> Vec<FieldResolverRegistration>
+{
+    vec![
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "TranslatableResource",
+            "translatableContent",
+            translatable_resource_content_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "TranslatableResource",
+            "translations",
+            translatable_resource_translations_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "MarketLocalizableResource",
+            "marketLocalizations",
+            market_localizable_resource_localizations_field,
+        ),
+    ]
+}
+
+fn market_localizable_resource_localizations_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let resource_id = invocation
+        .parent
+        .get("resourceId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    let market_id = resolved_string_field(&arguments, "marketId");
+    Ok(
+        proxy.market_localizable_resource(resource_id, market_id.as_deref())["marketLocalizations"]
+            .clone(),
+    )
+}
+
+fn translatable_resource_id(
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> String {
+    invocation
+        .parent
+        .get("resourceId")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn translatable_resource_content_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let resource_id = translatable_resource_id(invocation);
+    Ok(Value::Array(
+        proxy.localization_translatable_content(&resource_id),
+    ))
+}
+
+fn translatable_resource_translations_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    let locale = resolved_string_field(&arguments, "locale");
+    let market_id = resolved_string_field(&arguments, "marketId");
+    let resource_id = translatable_resource_id(invocation);
+    Ok(Value::Array(proxy.localization_translations_for(
+        &resource_id,
+        locale.as_deref(),
+        market_id.as_deref(),
+    )))
+}
+
+/// Engine-coerced input for one localization mutation root. Selection and
+/// transport metadata stay at the GraphQL executor boundary.
+struct LocalizationMutationInput {
+    name: String,
+    arguments: BTreeMap<String, ResolvedValue>,
+}
+
+fn localization_mutation_target_ids(
+    root_name: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Vec<String> {
+    let mut ids = Vec::new();
+    match root_name {
+        "shopLocaleEnable" => {
+            ids.extend(resolved_string_list_arg(arguments, "marketWebPresenceIds"));
+        }
+        "shopLocaleUpdate" => {
+            let input = resolved_object_field(arguments, "shopLocale").unwrap_or_default();
+            ids.extend(resolved_string_list_field_unsorted(
+                &input,
+                "marketWebPresenceIds",
+            ));
+        }
+        "translationsRegister" => {
+            for translation in resolved_list_arg(arguments, "translations") {
+                if let Some(market_id) = resolved_object_string(&translation, "marketId") {
+                    ids.push(market_id);
+                }
+            }
+        }
+        "translationsRemove" => {
+            ids.extend(resolved_string_list_arg(arguments, "marketIds"));
+        }
+        _ => {}
+    }
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
 impl DraftProxy {
-    pub(crate) fn resolve_localization_graphql(
+    pub(crate) fn localization_query_root(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
@@ -9,67 +129,58 @@ impl DraftProxy {
             response_key,
             arguments,
             request,
-            query,
-            variables,
             root_name,
-            mode,
             ..
         } = invocation;
-        let mut fields = match self.root_fields_or_error(query, variables) {
-            Ok(fields) => fields,
-            Err(_) => return resolver_http_error_outcome(400, "Could not parse GraphQL operation"),
+        let arguments = resolved_arguments_from_json(&arguments);
+        if self.execution_session.localization_context_preflighted {
+            return ResolverOutcome::value(self.localization_query_value(
+                root_name,
+                response_key,
+                &arguments,
+                request,
+                false,
+            ));
+        }
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && self.localization_should_fetch_upstream(root_name)
+        {
+            let outcome = self.forward_upstream_root_outcome(request, response_key);
+            if outcome.errors.is_empty() {
+                self.hydrate_localization_from_upstream(&json!({
+                    "data": { (response_key): outcome.value.clone() }
+                }));
+            }
+            return outcome;
+        }
+        ResolverOutcome::value(self.localization_query_value(
+            root_name,
+            response_key,
+            &arguments,
+            request,
+            true,
+        ))
+    }
+
+    pub(crate) fn localization_mutation_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
+            arguments,
+            request,
+            root_name,
+            ..
+        } = invocation;
+        let input = LocalizationMutationInput {
+            name: root_name.to_string(),
+            arguments: resolved_arguments_from_json(&arguments),
         };
-        fields.retain(|field| field.response_key == response_key);
-        if let Some(field) = fields.first_mut() {
-            field.arguments = arguments
-                .iter()
-                .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
-                .collect();
-        }
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                if self.request_localization_context_preflighted {
-                    let mut data =
-                        self.localization_query_data_without_upstream_hydration(&fields, request);
-                    return ResolverOutcome::value(
-                        data.as_object_mut()
-                            .and_then(|data| data.remove(response_key))
-                            .unwrap_or(Value::Null),
-                    );
-                }
-                if self.config.read_mode == ReadMode::LiveHybrid
-                    && self.localization_should_fetch_upstream(root_name)
-                {
-                    let outcome = self.forward_upstream_root_outcome(request, response_key);
-                    if outcome.errors.is_empty() {
-                        self.hydrate_localization_from_upstream(&json!({
-                            "data": { (response_key): outcome.value.clone() }
-                        }));
-                    }
-                    return outcome;
-                }
-                let mut data = self.localization_query_data(&fields, request);
-                ResolverOutcome::value(
-                    data.as_object_mut()
-                        .and_then(|data| data.remove(response_key))
-                        .unwrap_or(Value::Null),
-                )
-            }
-            LocalResolverMode::StageLocally => {
-                self.localization_mutation_preflight(&fields, request);
-                let mut data = self.localization_mutation_data(&fields);
-                ResolverOutcome::value(
-                    data.as_object_mut()
-                        .and_then(|data| data.remove(response_key))
-                        .unwrap_or(Value::Null),
-                )
-                .with_log_draft(LogDraft::staged(
-                    root_name,
-                    "localization",
-                    vec![response_key.to_string()],
-                ))
-            }
-        }
+        self.localization_mutation_preflight(&input, request);
+        ResolverOutcome::value(self.localization_mutation_value(&input)).with_log_draft(
+            LogDraft::staged(root_name, "localization", vec![response_key.to_string()]),
+        )
     }
 
     pub(in crate::proxy) fn preflight_localization_markets_context(
@@ -78,8 +189,8 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
         use_original_request: bool,
     ) {
-        self.request_localization_context_preflighted = true;
-        self.request_markets_query_preflighted = true;
+        self.execution_session.localization_context_preflighted = true;
+        self.execution_session.markets_query_preflighted = true;
         if use_original_request {
             let response = (self.upstream_transport)(request.clone());
             if (200..300).contains(&response.status) && response.body.get("errors").is_none() {
@@ -110,103 +221,69 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn localization_query_data(
+    fn localization_query_value(
         &mut self,
-        fields: &[RootFieldSelection],
-        request: &Request,
-    ) -> Value {
-        self.localization_query_data_with_market_hydration(fields, request, true)
-    }
-
-    fn localization_query_data_without_upstream_hydration(
-        &mut self,
-        fields: &[RootFieldSelection],
-        request: &Request,
-    ) -> Value {
-        self.localization_query_data_with_market_hydration(fields, request, false)
-    }
-
-    fn localization_query_data_with_market_hydration(
-        &mut self,
-        fields: &[RootFieldSelection],
+        root_name: &str,
+        response_key: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
         hydrate_missing_markets: bool,
     ) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "availableLocales" => Value::Array(
-                    self.localization_available_locales()
-                        .iter()
-                        .map(|locale| selected_json(locale, &field.selection))
-                        .collect(),
-                ),
-                "shopLocales" => {
-                    // Shopify's schema default is `published: false`, where false means
-                    // "do not restrict to published locales" rather than "only return
-                    // unpublished locales". Only true activates the filter.
-                    let published_filter = resolved_bool_field(&field.arguments, "published")
-                        .filter(|published| *published);
-                    Value::Array(
-                        self.localization_shop_locales(published_filter)
-                            .iter()
-                            .map(|locale| selected_json(locale, &field.selection))
-                            .collect(),
-                    )
+        match root_name {
+            "availableLocales" => Value::Array(self.localization_available_locales()),
+            "shopLocales" => {
+                // Shopify's schema default is `published: false`, where false means
+                // "do not restrict to published locales" rather than "only return
+                // unpublished locales". Only true activates the filter.
+                let published_filter =
+                    resolved_bool_field(arguments, "published").filter(|published| *published);
+                Value::Array(self.localization_shop_locales(published_filter))
+            }
+            "translatableResource" => {
+                let resource_id =
+                    resolved_string_field(arguments, "resourceId").unwrap_or_default();
+                if !self.localization_translatable_resource_exists(&resource_id) {
+                    Value::Null
+                } else {
+                    self.localization_translatable_resource_value(&resource_id)
                 }
-                "translatableResource" => {
-                    let resource_id =
-                        resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
-                    if !self.localization_translatable_resource_exists(&resource_id) {
-                        Value::Null
-                    } else {
-                        self.localization_translatable_resource_selected(
-                            &resource_id,
-                            &field.selection,
-                        )
-                    }
-                }
-                "translatableResources" => {
-                    self.localization_translatable_resources_connection(field)
-                }
-                "translatableResourcesByIds" => {
-                    self.localization_translatable_resources_by_ids_connection(field)
-                }
-                "markets" => self.localization_markets_connection_with_hydration(
-                    field,
-                    request,
-                    hydrate_missing_markets,
-                ),
-                _ => Value::Null,
-            })
-        })
+            }
+            "translatableResources" => {
+                self.localization_translatable_resources_connection(arguments)
+            }
+            "translatableResourcesByIds" => {
+                self.localization_translatable_resources_by_ids_connection(arguments)
+            }
+            "markets" => self.localization_markets_connection_with_hydration(
+                arguments,
+                response_key,
+                request,
+                hydrate_missing_markets,
+            ),
+            _ => Value::Null,
+        }
     }
 
-    pub(in crate::proxy) fn localization_mutation_data(
-        &mut self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "shopLocaleEnable" => self.shop_locale_enable_response(field),
-                "shopLocaleUpdate" => self.shop_locale_update_response(field),
-                "shopLocaleDisable" => self.shop_locale_disable_response(field),
-                "translationsRegister" => self.localization_register_response(field),
-                "translationsRemove" => self.localization_remove_response(field),
-                _ => Value::Null,
-            })
-        })
+    fn localization_mutation_value(&mut self, input: &LocalizationMutationInput) -> Value {
+        match input.name.as_str() {
+            "shopLocaleEnable" => self.shop_locale_enable_response(input),
+            "shopLocaleUpdate" => self.shop_locale_update_response(input),
+            "shopLocaleDisable" => self.shop_locale_disable_response(input),
+            "translationsRegister" => self.localization_register_response(input),
+            "translationsRemove" => self.localization_remove_response(input),
+            _ => Value::Null,
+        }
     }
 
-    pub(in crate::proxy) fn localization_mutation_preflight(
+    fn localization_mutation_preflight(
         &mut self,
-        fields: &[RootFieldSelection],
+        input: &LocalizationMutationInput,
         request: &Request,
     ) {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
-        let ids = self
-            .localization_mutation_target_ids(fields)
+        let ids = localization_mutation_target_ids(&input.name, &input.arguments)
             .into_iter()
             .filter(|id| {
                 (is_shopify_gid_of_type(id, "Market") && !self.market_exists(id))
@@ -228,42 +305,6 @@ impl DraftProxy {
         if response.status < 400 {
             self.hydrate_markets_from_upstream(&response.body);
         }
-    }
-
-    fn localization_mutation_target_ids(&self, fields: &[RootFieldSelection]) -> Vec<String> {
-        let mut ids = Vec::new();
-        for field in fields {
-            match field.name.as_str() {
-                "shopLocaleEnable" => {
-                    ids.extend(resolved_string_list_arg(
-                        &field.arguments,
-                        "marketWebPresenceIds",
-                    ));
-                }
-                "shopLocaleUpdate" => {
-                    let input =
-                        resolved_object_field(&field.arguments, "shopLocale").unwrap_or_default();
-                    ids.extend(resolved_string_list_field_unsorted(
-                        &input,
-                        "marketWebPresenceIds",
-                    ));
-                }
-                "translationsRegister" => {
-                    for translation in resolved_list_arg(&field.arguments, "translations") {
-                        if let Some(market_id) = resolved_object_string(&translation, "marketId") {
-                            ids.push(market_id);
-                        }
-                    }
-                }
-                "translationsRemove" => {
-                    ids.extend(resolved_string_list_arg(&field.arguments, "marketIds"));
-                }
-                _ => {}
-            }
-        }
-        ids.sort();
-        ids.dedup();
-        ids
     }
 
     pub(in crate::proxy) fn localization_available_locales(&self) -> Vec<Value> {
@@ -314,14 +355,11 @@ impl DraftProxy {
         locales
     }
 
-    pub(in crate::proxy) fn shop_locale_enable_response(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> Value {
+    fn shop_locale_enable_response(&mut self, input: &LocalizationMutationInput) -> Value {
         let locale =
-            resolved_string_field(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
+            resolved_string_field(&input.arguments, "locale").unwrap_or_else(|| "fr".to_string());
         let primary_locale = self.localization_primary_locale();
-        let payload = if locale == primary_locale {
+        if locale == primary_locale {
             shop_locale_payload_error("shopLocale", PRIMARY_LOCALE_CHANGE_MESSAGE)
         } else if self.localization_available_locale_name(&locale).is_none() {
             shop_locale_payload_error("shopLocale", "Locale is invalid")
@@ -347,7 +385,7 @@ impl DraftProxy {
                 .unwrap_or(locale.as_str());
             let mut record = shop_locale_record(&locale, name, false, &primary_locale);
             let target_web_presence_ids = self.known_market_web_presence_ids(
-                resolved_string_list_arg(&field.arguments, "marketWebPresenceIds"),
+                resolved_string_list_arg(&input.arguments, "marketWebPresenceIds"),
             );
             record["marketWebPresences"] = Value::Array(
                 target_web_presence_ids
@@ -364,34 +402,24 @@ impl DraftProxy {
                 .insert(locale.clone(), record.clone());
             self.sync_web_presence_locales(&locale, &target_web_presence_ids, false);
             json!({ "shopLocale": record, "userErrors": [] })
-        };
-        selected_json(&payload, &field.selection)
+        }
     }
 
-    pub(in crate::proxy) fn shop_locale_update_response(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> Value {
+    fn shop_locale_update_response(&mut self, input: &LocalizationMutationInput) -> Value {
         let locale =
-            resolved_string_field(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
-        let input = resolved_object_field(&field.arguments, "shopLocale").unwrap_or_default();
-        let published = resolved_bool_field(&input, "published");
-        let market_web_presence_ids = list_string_field(&input, "marketWebPresenceIds");
+            resolved_string_field(&input.arguments, "locale").unwrap_or_else(|| "fr".to_string());
+        let shop_locale = resolved_object_field(&input.arguments, "shopLocale").unwrap_or_default();
+        let published = resolved_bool_field(&shop_locale, "published");
+        let market_web_presence_ids = list_string_field(&shop_locale, "marketWebPresenceIds");
         let primary_locale = self.localization_primary_locale();
 
         if locale == primary_locale && published.is_some() {
-            return selected_json(
-                &shop_locale_payload_error("shopLocale", PRIMARY_LOCALE_CHANGE_MESSAGE),
-                &field.selection,
-            );
+            return shop_locale_payload_error("shopLocale", PRIMARY_LOCALE_CHANGE_MESSAGE);
         }
 
         let locale_exists = self.localization_shop_locale_added(&locale);
         if !locale_exists && published.is_some() {
-            return selected_json(
-                &shop_locale_payload_error("shopLocale", "The locale doesn't exist."),
-                &field.selection,
-            );
+            return shop_locale_payload_error("shopLocale", "The locale doesn't exist.");
         }
 
         let mut record = self
@@ -409,7 +437,7 @@ impl DraftProxy {
         if let Some(published) = published {
             record["published"] = json!(published);
         }
-        if input.contains_key("marketWebPresenceIds") {
+        if shop_locale.contains_key("marketWebPresenceIds") {
             let target_web_presence_ids =
                 self.known_market_web_presence_ids(market_web_presence_ids);
             record["marketWebPresences"] = Value::Array(
@@ -429,10 +457,7 @@ impl DraftProxy {
                 .shop_locales
                 .insert(locale, record.clone());
         }
-        selected_json(
-            &json!({ "shopLocale": record, "userErrors": [] }),
-            &field.selection,
-        )
+        json!({ "shopLocale": record, "userErrors": [] })
     }
 
     fn known_market_web_presence_ids(&self, ids: Vec<String>) -> Vec<String> {
@@ -465,14 +490,11 @@ impl DraftProxy {
             .unwrap_or_else(|| self.localization_primary_locale())
     }
 
-    pub(in crate::proxy) fn shop_locale_disable_response(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> Value {
+    fn shop_locale_disable_response(&mut self, input: &LocalizationMutationInput) -> Value {
         let locale =
-            resolved_string_field(&field.arguments, "locale").unwrap_or_else(|| "fr".to_string());
+            resolved_string_field(&input.arguments, "locale").unwrap_or_else(|| "fr".to_string());
         let primary_locale = self.localization_primary_locale();
-        let payload = if locale == primary_locale {
+        if locale == primary_locale {
             shop_locale_payload_error("locale", PRIMARY_LOCALE_CHANGE_MESSAGE)
         } else if !self.store.staged.shop_locales.contains_key(&locale) {
             shop_locale_payload_error("locale", "The locale doesn't exist.")
@@ -484,8 +506,7 @@ impl DraftProxy {
                 .retain(|translation| translation["locale"] != json!(locale));
             self.store.staged.localization_dirty = true;
             json!({ "locale": locale, "userErrors": [] })
-        };
-        selected_json(&payload, &field.selection)
+        }
     }
 
     /// Forward a market-localization mutation preflight on a cold store so the
@@ -509,39 +530,6 @@ impl DraftProxy {
             Self::hydrate_markets_from_upstream,
         );
     }
-    pub(in crate::proxy) fn market_localization_query_data(
-        &mut self,
-        fields: &[RootFieldSelection],
-        request: &Request,
-    ) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "marketLocalizableResource" => {
-                    let resource_id =
-                        resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
-                    if !self.market_localizable_resource_exists(&resource_id) {
-                        Value::Null
-                    } else {
-                        let market_filter = market_localizations_market_filter(&field.selection);
-                        selected_json(
-                            &self.market_localizable_resource(
-                                &resource_id,
-                                market_filter.as_deref(),
-                            ),
-                            &field.selection,
-                        )
-                    }
-                }
-                "marketLocalizableResources" => self.market_localizable_resources_connection(field),
-                "marketLocalizableResourcesByIds" => {
-                    self.market_localizable_resources_by_ids_connection(field)
-                }
-                "markets" => self.localization_markets_connection(field, request),
-                _ => Value::Null,
-            })
-        })
-    }
-
     /// Project a market-localizable resource from observed/staged state: the
     /// `marketLocalizableContent` recorded when the resource was first read (empty
     /// when never observed), plus the staged `marketLocalizations` for this resource
@@ -577,23 +565,11 @@ impl DraftProxy {
         })
     }
 
-    fn market_localizable_resource_selected(
-        &self,
-        resource_id: &str,
-        selections: &[SelectedField],
-    ) -> Value {
-        let market_filter = market_localizations_market_filter(selections);
-        selected_json(
-            &self.market_localizable_resource(resource_id, market_filter.as_deref()),
-            selections,
-        )
-    }
-
     pub(in crate::proxy) fn market_localizable_resources_connection(
         &self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let resource_type = resolved_string_field(&field.arguments, "resourceType");
+        let resource_type = resolved_string_field(arguments, "resourceType");
         let records = self
             .market_localizable_resource_ids()
             .into_iter()
@@ -603,33 +579,43 @@ impl DraftProxy {
                 })
             })
             .collect::<Vec<_>>();
-        selected_typed_connection_with_args(
-            &records,
-            &field.arguments,
-            &field.selection,
-            |resource_id, selection| {
-                self.market_localizable_resource_selected(resource_id, selection)
+        connection_value_with_args(
+            records
+                .iter()
+                .map(|resource_id| self.market_localizable_resource(resource_id, None))
+                .collect(),
+            arguments,
+            |resource| {
+                resource
+                    .get("resourceId")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
             },
-            |resource_id| resource_id.clone(),
         )
     }
 
     pub(in crate::proxy) fn market_localizable_resources_by_ids_connection(
         &self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let records = resolved_string_list_arg(&field.arguments, "resourceIds")
+        let records = resolved_string_list_arg(arguments, "resourceIds")
             .into_iter()
             .filter(|resource_id| self.market_localizable_resource_exists(resource_id))
             .collect::<Vec<_>>();
-        selected_typed_connection_with_args(
-            &records,
-            &field.arguments,
-            &field.selection,
-            |resource_id, selection| {
-                self.market_localizable_resource_selected(resource_id, selection)
+        connection_value_with_args(
+            records
+                .iter()
+                .map(|resource_id| self.market_localizable_resource(resource_id, None))
+                .collect(),
+            arguments,
+            |resource| {
+                resource
+                    .get("resourceId")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
             },
-            |resource_id| resource_id.clone(),
         )
     }
 
@@ -662,9 +648,9 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn market_localizable_resources_by_ids_should_fetch_upstream(
         &self,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
-        let resource_ids = resolved_string_list_arg(variables, "resourceIds");
+        let resource_ids = resolved_string_list_arg(arguments, "resourceIds");
         resource_ids.is_empty()
             || resource_ids.iter().any(|resource_id| {
                 !self
@@ -675,7 +661,7 @@ impl DraftProxy {
             })
     }
 
-    fn market_localizable_resource_exists(&self, resource_id: &str) -> bool {
+    pub(super) fn market_localizable_resource_exists(&self, resource_id: &str) -> bool {
         !resource_id.is_empty()
             && (self
                 .store
@@ -693,29 +679,27 @@ impl DraftProxy {
                     }))
     }
 
-    pub(in crate::proxy) fn market_localization_mutation_data(
+    pub(in crate::proxy) fn market_localization_mutation_value(
         &mut self,
-        fields: &[RootFieldSelection],
+        field: &MarketsRootInput,
     ) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "marketLocalizationsRegister" => self.market_localizations_register_response(field),
-                "marketLocalizationsRemove" => self.market_localizations_remove_response(field),
-                _ => Value::Null,
-            })
-        })
+        match field.name.as_str() {
+            "marketLocalizationsRegister" => self.market_localizations_register_response(field),
+            "marketLocalizationsRemove" => self.market_localizations_remove_response(field),
+            _ => Value::Null,
+        }
     }
 
     pub(in crate::proxy) fn market_localizations_register_response(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketsRootInput,
     ) -> Value {
         let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
         let localizations = resolved_list_arg(&field.arguments, "marketLocalizations");
         // 1. Per-mutation key cap fires before resource existence (matches live Shopify).
         if localizations.len() > 100 {
             return selected_market_localization_error(
-                &field.selection,
+                field,
                 vec!["resourceId"],
                 "TOO_MANY_KEYS_FOR_RESOURCE",
                 "Too many keys for resource - maximum 100 per mutation",
@@ -730,7 +714,7 @@ impl DraftProxy {
             .cloned()
         else {
             return selected_market_localization_error(
-                &field.selection,
+                field,
                 vec!["resourceId"],
                 "RESOURCE_NOT_FOUND",
                 &format!("Resource {resource_id} does not exist"),
@@ -743,7 +727,7 @@ impl DraftProxy {
             let market_id = resolved_object_string(input, "marketId").unwrap_or_default();
             if market_id.is_empty() || !self.market_exists(&market_id) {
                 return selected_market_localization_error(
-                    &field.selection,
+                    field,
                     vec!["marketLocalizations", &field_index, "marketId"],
                     "MARKET_DOES_NOT_EXIST",
                     "The market does not exist",
@@ -757,7 +741,7 @@ impl DraftProxy {
                     .find(|entry| entry["key"].as_str() == Some(key.as_str()))
             }) else {
                 return selected_market_localization_error(
-                    &field.selection,
+                    field,
                     vec!["marketLocalizations", &field_index, "key"],
                     "INVALID_KEY_FOR_MODEL",
                     &format!("Key {key} is not a valid market localizable field"),
@@ -769,7 +753,7 @@ impl DraftProxy {
                 != expected_digest
             {
                 return selected_market_localization_error(
-                    &field.selection,
+                    field,
                     vec![
                         "marketLocalizations",
                         &field_index,
@@ -782,7 +766,7 @@ impl DraftProxy {
             // 5. The localized value must not be blank.
             if resolved_object_string(input, "value").as_deref() == Some("") {
                 return selected_market_localization_error(
-                    &field.selection,
+                    field,
                     vec!["marketLocalizations", &field_index, "value"],
                     "FAILS_RESOURCE_VALIDATION",
                     "Value can't be blank",
@@ -793,7 +777,7 @@ impl DraftProxy {
             // during register with a resource-validation error.
             if market_localizable_content_is_money_metafield(content_entry) {
                 return selected_market_localization_error(
-                    &field.selection,
+                    field,
                     vec!["marketLocalizations", &field_index, "value"],
                     "FAILS_RESOURCE_VALIDATION",
                     "Market Localizable content is invalid",
@@ -837,10 +821,7 @@ impl DraftProxy {
                 .push(record.clone());
         }
 
-        selected_json(
-            &json!({ "marketLocalizations": staged, "userErrors": [] }),
-            &field.selection,
-        )
+        json!({ "marketLocalizations": staged, "userErrors": [] })
     }
 
     /// Build a staged market-localization record with the live market name resolved
@@ -875,7 +856,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn market_localizations_remove_response(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketsRootInput,
     ) -> Value {
         let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
         if !self
@@ -885,7 +866,7 @@ impl DraftProxy {
             .contains_key(&resource_id)
         {
             return selected_market_localization_error(
-                &field.selection,
+                field,
                 vec!["resourceId"],
                 "RESOURCE_NOT_FOUND",
                 &format!("Resource {resource_id} does not exist"),
@@ -894,10 +875,7 @@ impl DraftProxy {
         let keys = resolved_string_list_arg(&field.arguments, "marketLocalizationKeys");
         let market_ids = resolved_string_list_arg(&field.arguments, "marketIds");
         if keys.is_empty() {
-            return selected_json(
-                &payload_error("marketLocalizations", vec![]),
-                &field.selection,
-            );
+            return payload_error("marketLocalizations", vec![]);
         }
 
         let mut removed = Vec::new();
@@ -925,35 +903,24 @@ impl DraftProxy {
         } else {
             Value::Array(removed)
         };
-        selected_json(
-            &json!({ "marketLocalizations": removed, "userErrors": [] }),
-            &field.selection,
-        )
+        json!({ "marketLocalizations": removed, "userErrors": [] })
     }
 
-    pub(in crate::proxy) fn localization_register_response(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> Value {
-        let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
+    fn localization_register_response(&mut self, input: &LocalizationMutationInput) -> Value {
+        let resource_id = resolved_string_field(&input.arguments, "resourceId").unwrap_or_default();
         if !self.localization_translation_mutation_resource_exists(&resource_id) {
-            return selected_translation_error(
-                &field.selection,
+            return translation_payload_error(
                 &format!("Resource {resource_id} does not exist"),
                 "RESOURCE_NOT_FOUND",
             );
         }
 
-        let translations = resolved_list_arg(&field.arguments, "translations");
+        let translations = resolved_list_arg(&input.arguments, "translations");
         if translations.is_empty() {
-            return selected_json(
-                &json!({ "translations": [], "userErrors": [] }),
-                &field.selection,
-            );
+            return json!({ "translations": [], "userErrors": [] });
         }
         if translations.len() > 100 {
-            return selected_translation_error(
-                &field.selection,
+            return translation_payload_error(
                 "Too many keys for resource - maximum 100 per mutation",
                 "TOO_MANY_KEYS_FOR_RESOURCE",
             );
@@ -1086,29 +1053,22 @@ impl DraftProxy {
                 .push(translation.clone());
         }
 
-        selected_json(
-            &json!({ "translations": staged, "userErrors": user_errors }),
-            &field.selection,
-        )
+        json!({ "translations": staged, "userErrors": user_errors })
     }
 
-    pub(in crate::proxy) fn localization_remove_response(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> Value {
-        let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
+    fn localization_remove_response(&mut self, input: &LocalizationMutationInput) -> Value {
+        let resource_id = resolved_string_field(&input.arguments, "resourceId").unwrap_or_default();
         if !self.localization_translation_mutation_resource_exists(&resource_id) {
-            return selected_translation_error(
-                &field.selection,
+            return translation_payload_error(
                 &format!("Resource {resource_id} does not exist"),
                 "RESOURCE_NOT_FOUND",
             );
         }
-        let keys = resolved_string_list_arg(&field.arguments, "translationKeys");
-        let market_ids = resolved_string_list_arg(&field.arguments, "marketIds");
-        let locales = resolved_string_list_arg(&field.arguments, "locales");
+        let keys = resolved_string_list_arg(&input.arguments, "translationKeys");
+        let market_ids = resolved_string_list_arg(&input.arguments, "marketIds");
+        let locales = resolved_string_list_arg(&input.arguments, "locales");
         if keys.is_empty() || locales.is_empty() {
-            return selected_json(&payload_error("translations", vec![]), &field.selection);
+            return payload_error("translations", vec![]);
         }
         self.store.staged.localization_dirty = true;
         let mut removed = Vec::new();
@@ -1137,94 +1097,71 @@ impl DraftProxy {
         } else {
             Value::Array(removed)
         };
-        selected_json(
-            &json!({ "translations": removed, "userErrors": [] }),
-            &field.selection,
-        )
+        json!({ "translations": removed, "userErrors": [] })
     }
 
-    pub(in crate::proxy) fn localization_translatable_resource_selected(
+    pub(in crate::proxy) fn localization_translatable_resource_value(
         &self,
         resource_id: &str,
-        selections: &[SelectedField],
     ) -> Value {
-        selected_payload_json(selections, |selection| match selection.name.as_str() {
-            "resourceId" => Some(json!(resource_id)),
-            "translatableContent" => Some(Value::Array(
-                self.localization_translatable_content(resource_id)
-                    .iter()
-                    .map(|content| selected_json(content, &selection.selection))
-                    .collect(),
-            )),
-            "translations" => {
-                let locale = resolved_string_field(&selection.arguments, "locale");
-                let market_id = resolved_string_field(&selection.arguments, "marketId");
-                Some(Value::Array(
-                    self.localization_translations_for(
-                        resource_id,
-                        locale.as_deref(),
-                        market_id.as_deref(),
-                    )
-                    .iter()
-                    .map(|translation| selected_json(translation, &selection.selection))
-                    .collect(),
-                ))
-            }
-            _ => None,
-        })
+        json!({"resourceId": resource_id})
     }
 
     pub(in crate::proxy) fn localization_translatable_resources_connection(
         &self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let resource_type = resolved_string_field(&field.arguments, "resourceType")
+        let resource_type = resolved_string_field(arguments, "resourceType")
             .unwrap_or_else(|| "PRODUCT".to_string());
-        let mut records = self
+        let records = self
             .localization_translatable_resource_ids()
             .into_iter()
             .filter(|id| localization_resource_type_matches(id, &resource_type))
             .collect::<Vec<_>>();
-        if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
-            records.reverse();
-        }
-        selected_typed_connection_with_args(
-            &records,
-            &field.arguments,
-            &field.selection,
-            |id, selection| self.localization_translatable_resource_selected(id, selection),
-            |id| id.clone(),
+        connection_value_with_args(
+            records
+                .into_iter()
+                .map(|id| self.localization_translatable_resource_value(&id))
+                .collect(),
+            arguments,
+            |resource| {
+                resource
+                    .get("resourceId")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            },
         )
     }
 
     pub(in crate::proxy) fn localization_translatable_resources_by_ids_connection(
         &self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let records = resolved_string_list_arg(&field.arguments, "resourceIds")
+        let records = resolved_string_list_arg(arguments, "resourceIds")
             .into_iter()
             .filter(|id| self.localization_translatable_resource_exists(id))
             .collect::<Vec<_>>();
-        selected_typed_connection_with_args(
-            &records,
-            &field.arguments,
-            &field.selection,
-            |id, selection| self.localization_translatable_resource_selected(id, selection),
-            |id| id.clone(),
+        connection_value_with_args(
+            records
+                .into_iter()
+                .map(|id| self.localization_translatable_resource_value(&id))
+                .collect(),
+            arguments,
+            |resource| {
+                resource
+                    .get("resourceId")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            },
         )
-    }
-
-    pub(in crate::proxy) fn localization_markets_connection(
-        &mut self,
-        field: &RootFieldSelection,
-        request: &Request,
-    ) -> Value {
-        self.localization_markets_connection_with_hydration(field, request, true)
     }
 
     fn localization_markets_connection_with_hydration(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
         request: &Request,
         hydrate_if_missing: bool,
     ) -> Value {
@@ -1236,30 +1173,28 @@ impl DraftProxy {
             .cloned()
             .collect::<Vec<_>>();
         if records.is_empty() && hydrate_if_missing {
-            records = self.hydrate_localization_markets(field, request);
+            records = self.hydrate_localization_markets(arguments, response_key, request);
         }
-        selected_staged_connection_with_args(
+        staged_connection_value_with_args(
             records,
-            &field.arguments,
-            &field.selection,
+            arguments,
             market_search_decision,
             market_sort_key,
-            |market, selection| self.selected_market_json(market, selection),
+            Value::clone,
             value_id_cursor,
         )
     }
 
     fn hydrate_localization_markets(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
         request: &Request,
     ) -> Vec<Value> {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return Vec::new();
         }
-        let first = resolved_int_field(&field.arguments, "first")
-            .unwrap_or(50)
-            .max(0);
+        let first = resolved_int_field(arguments, "first").unwrap_or(50).max(0);
         if first == 0 {
             return Vec::new();
         }
@@ -1273,14 +1208,14 @@ impl DraftProxy {
         );
         self.stage_observed_localization_source_data(&response.body["data"]);
         if response.status >= 400 {
-            return self.hydrate_localization_markets_from_original_request(field, request);
+            return self.hydrate_localization_markets_from_original_request(response_key, request);
         }
         let records = response.body["data"]["markets"]["nodes"]
             .as_array()
             .cloned()
             .unwrap_or_default();
         if records.is_empty() && response.body["data"]["markets"].is_null() {
-            return self.hydrate_localization_markets_from_original_request(field, request);
+            return self.hydrate_localization_markets_from_original_request(response_key, request);
         }
         self.stage_observed_localization_markets(&records);
         records
@@ -1288,7 +1223,7 @@ impl DraftProxy {
 
     fn hydrate_localization_markets_from_original_request(
         &mut self,
-        field: &RootFieldSelection,
+        response_key: &str,
         request: &Request,
     ) -> Vec<Value> {
         let response = (self.upstream_transport)(request.clone());
@@ -1296,7 +1231,7 @@ impl DraftProxy {
         if response.status >= 400 {
             return Vec::new();
         }
-        let market_connection = &response.body["data"][&field.response_key];
+        let market_connection = &response.body["data"][response_key];
         let mut records = market_connection["nodes"]
             .as_array()
             .cloned()

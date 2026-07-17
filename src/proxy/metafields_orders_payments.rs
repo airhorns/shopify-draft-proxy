@@ -13,173 +13,41 @@ mod quantity_pricing;
 mod quantity_rules;
 mod returns;
 
-pub(in crate::proxy) use self::delivery_settings::*;
-pub(in crate::proxy) use self::events::event_field_resolver_registrations;
+pub(in crate::proxy) use self::events::{
+    event_field_resolver_registrations, event_field_resolver_type_policies,
+};
 pub(in crate::proxy) use self::payment_customizations::*;
 pub(in crate::proxy) use self::payment_terms::*;
 pub(in crate::proxy) use self::quantity_rules::*;
 pub(in crate::proxy) use self::returns::return_field_resolver_registrations;
 
 impl DraftProxy {
-    pub(crate) fn resolve_payments_graphql(
+    pub(crate) fn finance_no_data_root(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        let RootInvocation {
-            response_key,
-            request,
-            query,
-            variables,
-            root_name,
-            mode,
-            ..
-        } = invocation;
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
-        };
-        let fields = fields
-            .into_iter()
-            .filter(|field| field.response_key == response_key)
-            .collect::<Vec<_>>();
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                let value = if root_name == "customerPaymentMethod" {
-                    if let Some(outcome) = self.customer_payment_method_local_outcome(
-                        request,
-                        query,
-                        variables,
-                        response_key,
-                    ) {
-                        return outcome;
-                    }
-                    finance_risk_no_data_read_data(&fields)
-                } else if matches!(root_name, "paymentCustomization" | "paymentCustomizations") {
-                    self.payment_customization_query_data(request, &fields)
-                } else if root_name == "paymentTermsTemplates" {
-                    payment_terms_templates_query_data(&fields)
-                } else {
-                    finance_risk_no_data_read_data(&fields)
-                };
-                ResolverOutcome::value(value.get(response_key).cloned().unwrap_or(Value::Null))
-            }
-            LocalResolverMode::StageLocally => {
-                if root_name == "paymentReminderSend" {
-                    return self
-                        .payment_reminder_local_outcome(request, query, variables, response_key)
-                        .unwrap_or_else(|| {
-                            resolver_http_error_outcome(
-                                501,
-                                "Unsupported paymentReminderSend mutation",
-                            )
-                        });
-                }
-                if matches!(
-                    root_name,
-                    "customerPaymentMethodCreditCardCreate"
-                        | "customerPaymentMethodCreditCardUpdate"
-                        | "customerPaymentMethodCreateFromDuplicationData"
-                        | "customerPaymentMethodGetDuplicationData"
-                        | "customerPaymentMethodGetUpdateUrl"
-                        | "customerPaymentMethodPaypalBillingAgreementCreate"
-                        | "customerPaymentMethodPaypalBillingAgreementUpdate"
-                        | "customerPaymentMethodRemoteCreate"
-                        | "customerPaymentMethodRevoke"
-                ) {
-                    return self
-                        .customer_payment_method_local_outcome(
-                            request,
-                            query,
-                            variables,
-                            response_key,
-                        )
-                        .unwrap_or_else(|| {
-                            resolver_http_error_outcome(
-                                501,
-                                format!("Unsupported payment mutation: {root_name}"),
-                            )
-                        });
-                }
-                if matches!(
-                    root_name,
-                    "paymentTermsCreate" | "paymentTermsUpdate" | "paymentTermsDelete"
-                ) {
-                    return self
-                        .payment_terms_local_outcome(request, query, variables, response_key)
-                        .unwrap_or_else(|| {
-                            resolver_http_error_outcome(
-                                501,
-                                format!("Unsupported payment terms mutation: {root_name}"),
-                            )
-                        });
-                }
-                if matches!(
-                    root_name,
-                    "orderCapture" | "transactionVoid" | "orderCreateMandatePayment"
-                ) {
-                    return self
-                        .order_payment_transaction_local_outcome(
-                            request,
-                            root_name,
-                            query,
-                            variables,
-                            response_key,
-                        )
-                        .unwrap_or_else(|| {
-                            resolver_http_error_outcome(
-                                501,
-                                format!("Unsupported order payment mutation: {root_name}"),
-                            )
-                        });
-                }
-                if matches!(
-                    root_name,
-                    "paymentCustomizationActivation"
-                        | "paymentCustomizationCreate"
-                        | "paymentCustomizationDelete"
-                        | "paymentCustomizationUpdate"
-                ) {
-                    let data = self.payment_customization_mutation_data(request, &fields);
-                    let staged_ids = fields
-                        .iter()
-                        .filter_map(|field| {
-                            data[field.response_key.as_str()]["paymentCustomization"]["id"]
-                                .as_str()
-                                .map(ToString::to_string)
-                                .or_else(|| {
-                                    data[field.response_key.as_str()]["deletedId"]
-                                        .as_str()
-                                        .map(ToString::to_string)
-                                })
-                        })
-                        .collect();
-                    return ResolverOutcome::value(
-                        data.get(response_key).cloned().unwrap_or(Value::Null),
-                    )
-                    .with_log_draft(LogDraft::staged(root_name, "payments", staged_ids));
-                }
-                resolver_http_error_outcome(
-                    501,
-                    format!("Unsupported payment mutation: {root_name}"),
-                )
-            }
+        if invocation.mode != LocalResolverMode::OverlayRead {
+            return ResolverOutcome::error(format!(
+                "Finance no-data root `{}` cannot execute in {} mode",
+                invocation.root_name,
+                invocation.mode.registry_name(),
+            ));
         }
-    }
-}
-
-fn finance_risk_no_data_read_data(fields: &[RootFieldSelection]) -> Value {
-    root_payload_json(fields, |field| {
-        Some(match field.name.as_str() {
+        ResolverOutcome::value(match invocation.root_name {
+            "cashTrackingSessions" | "disputes" | "shopPayPaymentRequestReceipts" => {
+                connection_json(Vec::new())
+            }
             "cashTrackingSession"
             | "pointOfSaleDevice"
             | "dispute"
             | "disputeEvidence"
-            | "shopPayPaymentRequestReceipt" => Value::Null,
-            "cashTrackingSessions" | "disputes" | "shopPayPaymentRequestReceipts" => {
-                selected_empty_connection_json(&field.selection)
+            | "shopPayPaymentRequestReceipt"
+            | "shopifyPaymentsAccount" => Value::Null,
+            root => {
+                return ResolverOutcome::error(format!("Unknown Finance no-data root `{root}`"));
             }
-            _ => Value::Null,
         })
-    })
+    }
 }
 
 pub(in crate::proxy) fn metafield_compare_digest(value: &str) -> String {
@@ -2347,52 +2215,4 @@ fn line_items_price_set_values(
         format_money_amount(presentment_total),
         presentment_currency,
     ]
-}
-
-fn selected_field_contains_only_any(
-    selection: &SelectedField,
-    names: &[&str],
-    allowed_context: &[&str],
-) -> bool {
-    if names.contains(&selection.name.as_str()) {
-        return true;
-    }
-    if !allowed_context.contains(&selection.name.as_str()) {
-        return false;
-    }
-    selection.selection.is_empty()
-        || selection
-            .selection
-            .iter()
-            .all(|child| selected_field_contains_only_any(child, names, allowed_context))
-}
-
-fn selection_contains_only_any(
-    selections: &[SelectedField],
-    names: &[&str],
-    allowed_context: &[&str],
-) -> bool {
-    selections
-        .iter()
-        .all(|selection| selected_field_contains_only_any(selection, names, allowed_context))
-}
-
-impl DraftProxy {
-    pub(in crate::proxy) fn staged_order_input_and_first_line(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> (
-        String,
-        BTreeMap<String, ResolvedValue>,
-        BTreeMap<String, ResolvedValue>,
-    ) {
-        let order_input = resolved_object_field(&field.arguments, "order").unwrap_or_default();
-        let id = shopify_gid("Order", self.store.staged.next_order_id);
-        self.store.staged.next_order_id += 1;
-        let first_line = resolved_object_list_field(&order_input, "lineItems")
-            .first()
-            .cloned()
-            .unwrap_or_default();
-        (id, order_input, first_line)
-    }
 }

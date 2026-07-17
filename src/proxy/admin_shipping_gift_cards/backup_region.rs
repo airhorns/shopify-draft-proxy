@@ -56,36 +56,38 @@ fn backup_region_country_code_coercion_error(
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn backup_region_update(
+    pub(crate) fn backup_region_query_root(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        let document = parsed_document(query, variables);
-        let root_field = document.as_ref().and_then(|document| {
-            document
-                .root_fields
-                .iter()
-                .find(|field| field.name == "backupRegionUpdate")
-        });
-        let response_key = root_field
-            .map(|field| field.response_key.clone())
-            .unwrap_or_else(|| "backupRegionUpdate".to_string());
-        let operation_path = document
-            .as_ref()
-            .map(|document| document.operation_path.as_str())
-            .unwrap_or("mutation");
-        let access_denied_location = root_field
-            .map(|field| field.location)
-            .unwrap_or(SourceLocation { line: 1, column: 1 });
+        if self.store.staged.backup_region.is_null() && self.config.read_mode != ReadMode::Snapshot
+        {
+            self.hydrate_current_backup_region_from_upstream(invocation.request);
+        }
+        ResolverOutcome::value(self.store.staged.backup_region.clone())
+    }
+
+    pub(crate) fn backup_region_update_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            request,
+            query,
+            response_key,
+            operation_path,
+            root_location,
+            raw_arguments,
+            ..
+        } = invocation;
+        let access_denied_location = root_location;
         let access_denied_error =
-            || backup_region_update_access_denied_error(&response_key, access_denied_location);
+            || backup_region_update_access_denied_error(response_key, access_denied_location);
         let error_outcome = |error| {
             ResolverOutcome::value(Value::Null)
-                .with_errors(root_field_errors_from_json(&[error], &response_key))
+                .with_errors(root_field_errors_from_json(&[error], response_key))
         };
-        let country_code = match backup_region_update_country_code(root_field) {
+        let country_code = match backup_region_update_country_code(raw_arguments.get("region")) {
             BackupRegionCountryCodeInput::ReadCurrent => None,
             BackupRegionCountryCodeInput::CountryCode(country_code) => {
                 if !location_country_code_is_valid(&country_code) {
@@ -95,7 +97,7 @@ impl DraftProxy {
                         ),
                         operation_path,
                         "argumentLiteralsIncompatible",
-                        backup_region_update_region_value_location(query, root_field),
+                        backup_region_update_region_value_location(query, root_location),
                     ));
                 }
                 Some(country_code.to_ascii_uppercase())
@@ -105,7 +107,7 @@ impl DraftProxy {
                     "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' is required. Expected type CountryCode!",
                     operation_path,
                     "missingRequiredInputObjectAttribute",
-                    backup_region_update_region_value_location(query, root_field),
+                    backup_region_update_region_value_location(query, root_location),
                 ));
             }
             BackupRegionCountryCodeInput::Invalid(value) => {
@@ -115,7 +117,7 @@ impl DraftProxy {
                     ),
                     operation_path,
                     "argumentLiteralsIncompatible",
-                    backup_region_update_region_value_location(query, root_field),
+                    backup_region_update_region_value_location(query, root_location),
                 ));
             }
         };
@@ -160,10 +162,7 @@ impl DraftProxy {
         };
         match (country_code.as_deref(), region) {
             (None, region) => {
-                let backup_region = region
-                    .as_ref()
-                    .map(|region| selected_backup_region_value(region, root_field))
-                    .unwrap_or(Value::Null);
+                let backup_region = region.unwrap_or(Value::Null);
                 ResolverOutcome::value(json!({
                     "backupRegion": backup_region,
                     "userErrors": []
@@ -177,7 +176,7 @@ impl DraftProxy {
                     .unwrap_or("gid://shopify/MarketRegionCountry/local")
                     .to_string();
                 ResolverOutcome::value(json!({
-                    "backupRegion": selected_backup_region_value(&region, root_field),
+                    "backupRegion": region,
                     "userErrors": []
                 }))
                 .with_log_draft(LogDraft::staged(
@@ -187,19 +186,12 @@ impl DraftProxy {
                 ))
             }
             (Some(_), None) => {
-                let mut user_error = serde_json::Map::from_iter([
+                let user_error = serde_json::Map::from_iter([
+                    ("__typename".to_string(), json!("MarketUserError")),
                     ("field".to_string(), json!(["region"])),
                     ("message".to_string(), json!("Region not found.")),
                     ("code".to_string(), json!("REGION_NOT_FOUND")),
                 ]);
-                let include_user_error_typename = root_field
-                    .map(|field| nested_selected_fields(&field.selection, &["userErrors"]))
-                    .unwrap_or_default()
-                    .iter()
-                    .any(|field| field.name == "__typename");
-                if include_user_error_typename {
-                    user_error.insert("__typename".to_string(), json!("MarketUserError"));
-                }
                 ResolverOutcome::value(json!({
                     "backupRegion": null,
                     "userErrors": [Value::Object(user_error)]
@@ -313,13 +305,6 @@ impl DraftProxy {
     }
 }
 
-fn selected_backup_region_value(region: &Value, root_field: Option<&RootFieldSelection>) -> Value {
-    let selection = root_field
-        .and_then(|field| selected_child_selection(&field.selection, "backupRegion"))
-        .unwrap_or_default();
-    selected_json(region, &selection)
-}
-
 fn backup_region_country_from_code(country_code: &str) -> Value {
     let code = country_code.to_ascii_uppercase();
     let name = country_name_for_code(&code).unwrap_or(&code);
@@ -388,11 +373,9 @@ fn backup_region_response_is_access_denied(body: &Value) -> bool {
 
 fn backup_region_update_region_value_location(
     query: &str,
-    root_field: Option<&RootFieldSelection>,
+    root_location: SourceLocation,
 ) -> SourceLocation {
-    let fallback = root_field
-        .map(|field| field.location)
-        .unwrap_or(SourceLocation { line: 1, column: 1 });
+    let fallback = root_location;
     let Some(field_offset) = byte_offset_for_location(query, fallback) else {
         return fallback;
     };
@@ -426,12 +409,9 @@ fn source_location_after_field_colon(
 }
 
 fn backup_region_update_country_code(
-    root_field: Option<&RootFieldSelection>,
+    region: Option<&RawArgumentValue>,
 ) -> BackupRegionCountryCodeInput {
-    let Some(field) = root_field else {
-        return BackupRegionCountryCodeInput::ReadCurrent;
-    };
-    match field.raw_arguments.get("region") {
+    match region {
         None | Some(RawArgumentValue::Null) => BackupRegionCountryCodeInput::ReadCurrent,
         Some(RawArgumentValue::Variable { value, .. }) => {
             backup_region_update_variable_region_country_code(value.as_ref())

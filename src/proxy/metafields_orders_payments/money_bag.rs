@@ -1,25 +1,32 @@
 use super::*;
 
+fn requested_paths_only_use(
+    requested_field_paths: &BTreeSet<Vec<String>>,
+    allowed_fields: &[&str],
+) -> bool {
+    requested_field_paths.iter().all(|path| {
+        path.iter()
+            .all(|field| allowed_fields.contains(&field.as_str()))
+    })
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn money_bag_presentment_local_outcome(
         &mut self,
         request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        response_key: &str,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        requested_field_paths: &BTreeSet<Vec<String>>,
     ) -> Option<ResolverOutcome<Value>> {
-        let mut fields = self.execution_root_fields(query, variables)?;
-        fields.retain(|field| field.response_key == response_key);
-        if !fields.iter().all(|field| {
-            matches!(
-                field.name.as_str(),
-                "orderCreate" | "refundCreate" | "orderEditBegin" | "orderEditCommit"
-            )
-        }) {
+        if !matches!(
+            root_name,
+            "orderCreate" | "refundCreate" | "orderEditBegin" | "orderEditCommit"
+        ) {
             return None;
         }
-        let handles_money_bag_selection = fields.iter().any(|field| {
-            selection_contains_any(&field.selection, &["presentmentMoney", "totalRefundedSet"])
+        let handles_money_bag_selection = requested_field_paths.iter().any(|path| {
+            path.iter()
+                .any(|field| matches!(field.as_str(), "presentmentMoney" | "totalRefundedSet"))
         });
         if !handles_money_bag_selection {
             return None;
@@ -32,282 +39,230 @@ impl DraftProxy {
         // quantity validations. Claim refundCreate ONLY when every refundCreate
         // selection stays within the money-bag money fields; decline anything
         // richer so refund_create_local_data owns it.
-        let refund_is_money_bag_only = fields.iter().all(|field| {
-            field.name != "refundCreate"
-                || selection_contains_only_any(
-                    &field.selection,
-                    &["presentmentMoney", "totalRefundedSet"],
-                    &[
-                        "refund",
-                        "order",
-                        "userErrors",
-                        "totalRefundedSet",
-                        "shopMoney",
-                        "presentmentMoney",
-                        "amount",
-                        "currencyCode",
-                        "field",
-                        "message",
-                        "code",
-                    ],
-                )
-        });
-        if !refund_is_money_bag_only {
+        let selection_is_money_bag_only = match root_name {
+            "refundCreate" => requested_paths_only_use(
+                requested_field_paths,
+                &[
+                    "refund",
+                    "order",
+                    "userErrors",
+                    "totalRefundedSet",
+                    "shopMoney",
+                    "presentmentMoney",
+                    "amount",
+                    "currencyCode",
+                    "field",
+                    "message",
+                    "code",
+                ],
+            ),
+            "orderCreate" => requested_paths_only_use(
+                requested_field_paths,
+                &[
+                    "order",
+                    "userErrors",
+                    "id",
+                    "field",
+                    "message",
+                    "code",
+                    "currentTotalPriceSet",
+                    "totalPriceSet",
+                    "totalTaxSet",
+                    "totalReceivedSet",
+                    "totalOutstandingSet",
+                    "lineItems",
+                    "nodes",
+                    "originalUnitPriceSet",
+                    "shopMoney",
+                    "presentmentMoney",
+                    "amount",
+                    "currencyCode",
+                ],
+            ),
+            // The money-bag handler's orderEditBegin/Commit path only projects a
+            // calculated order's totalPriceSet / committed order currentTotalPriceSet
+            // money bag. A real order-edit begin/commit selects the calculated
+            // line-item structure (lineItems, addedLineItems, originalOrder.name,
+            // subtotals, shippingLines) and needs the full local edit engine. Claim
+            // orderEditBegin/Commit ONLY when every selection stays within the
+            // money-bag money fields; decline anything richer so the order-edit
+            // engine owns it.
+            "orderEditBegin" => requested_paths_only_use(
+                requested_field_paths,
+                &[
+                    "calculatedOrder",
+                    "originalOrder",
+                    "id",
+                    "totalPriceSet",
+                    "shopMoney",
+                    "presentmentMoney",
+                    "amount",
+                    "currencyCode",
+                    "userErrors",
+                    "field",
+                    "message",
+                    "code",
+                ],
+            ),
+            "orderEditCommit" => requested_paths_only_use(
+                requested_field_paths,
+                &[
+                    "order",
+                    "id",
+                    "currentTotalPriceSet",
+                    "totalPriceSet",
+                    "shopMoney",
+                    "presentmentMoney",
+                    "amount",
+                    "currencyCode",
+                    "successMessages",
+                    "userErrors",
+                    "field",
+                    "message",
+                    "code",
+                ],
+            ),
+            _ => false,
+        };
+        if !selection_is_money_bag_only {
             return None;
         }
-        let order_create_is_money_bag_only = fields.iter().all(|field| {
-            field.name != "orderCreate"
-                || selection_contains_only_any(
-                    &field.selection,
-                    &["presentmentMoney", "totalRefundedSet"],
-                    &[
-                        "order",
-                        "userErrors",
-                        "id",
-                        "field",
-                        "message",
-                        "code",
-                        "currentTotalPriceSet",
-                        "totalPriceSet",
-                        "totalTaxSet",
-                        "totalReceivedSet",
-                        "totalOutstandingSet",
-                        "lineItems",
-                        "nodes",
-                        "originalUnitPriceSet",
-                        "shopMoney",
-                        "amount",
-                        "currencyCode",
-                    ],
-                )
-        });
-        if !order_create_is_money_bag_only {
-            return None;
-        }
-        // The money-bag handler's orderEditBegin/Commit path only projects a
-        // calculated order's totalPriceSet / committed order currentTotalPriceSet
-        // money bag. A real order-edit begin/commit selects the calculated
-        // line-item structure (lineItems, addedLineItems, originalOrder.name,
-        // subtotals, shippingLines) and needs the full local edit engine. Claim
-        // orderEditBegin/Commit ONLY when every selection stays within the
-        // money-bag money fields; decline anything richer so the order-edit
-        // engine owns it.
-        let order_edit_begin_is_money_bag_only = fields.iter().all(|field| {
-            field.name != "orderEditBegin"
-                || selection_contains_only_any(
-                    &field.selection,
-                    &["presentmentMoney", "totalRefundedSet"],
-                    &[
-                        "calculatedOrder",
-                        "originalOrder",
-                        "id",
-                        "totalPriceSet",
-                        "shopMoney",
-                        "presentmentMoney",
-                        "amount",
-                        "currencyCode",
-                        "userErrors",
-                        "field",
-                        "message",
-                        "code",
-                    ],
-                )
-        });
-        if !order_edit_begin_is_money_bag_only {
-            return None;
-        }
-        let order_edit_commit_is_money_bag_only = fields.iter().all(|field| {
-            field.name != "orderEditCommit"
-                || selection_contains_only_any(
-                    &field.selection,
-                    &["presentmentMoney", "totalRefundedSet"],
-                    &[
-                        "order",
-                        "id",
-                        "currentTotalPriceSet",
-                        "totalPriceSet",
-                        "shopMoney",
-                        "presentmentMoney",
-                        "amount",
-                        "currencyCode",
-                        "successMessages",
-                        "userErrors",
-                        "field",
-                        "message",
-                        "code",
-                    ],
-                )
-        });
-        if !order_edit_commit_is_money_bag_only {
-            return None;
-        }
-        if fields.iter().any(|field| {
-            field.name == "orderCreate"
-                && resolved_object_field(&field.arguments, "order")
-                    .is_some_and(|input| order_create_input_needs_shop_currency_default(&input))
-        }) {
+        if root_name == "orderCreate"
+            && resolved_object_field(arguments, "order")
+                .is_some_and(|input| order_create_input_needs_shop_currency_default(&input))
+        {
             self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
         let shop_currency_code = self.store.shop_currency_code();
 
-        let mut staged_ids = Vec::new();
-        let mut early_response = None;
-        let data = root_payload_json(&fields, |field| {
-            if early_response.is_some() {
-                return None;
+        let (value, staged_ids) = match root_name {
+            "orderCreate" => {
+                let order = self.stage_money_bag_order(arguments, &shop_currency_code);
+                let id = order["id"].as_str().unwrap_or_default().to_string();
+                (json!({ "order": order, "userErrors": [] }), vec![id])
             }
-            let value = match field.name.as_str() {
-                "orderCreate" => {
-                    let order = self.stage_money_bag_order(field, &shop_currency_code);
-                    staged_ids.push(order["id"].as_str().unwrap_or_default().to_string());
-                    selected_json(
-                        &json!({ "order": order, "userErrors": [] }),
-                        &field.selection,
-                    )
-                }
-                "refundCreate" => {
-                    let input =
-                        resolved_object_field(&field.arguments, "input").unwrap_or_default();
-                    let transactions = resolved_object_list_field(&input, "transactions");
-                    let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
-                    let Some(order) = self.store.staged.orders.get(&order_id).cloned() else {
-                        early_response = Some(refund_input_error(
-                            field,
-                            None,
-                            user_error_omit_code(
-                                json!(["orderId"]),
-                                "Order does not exist",
-                                Some("NOT_FOUND"),
-                            ),
-                            &shop_currency_code,
-                        ));
-                        return None;
-                    };
-                    let total = if let Some(total) = transactions.first().and_then(|transaction| {
+            "refundCreate" => {
+                let input = resolved_object_field(arguments, "input").unwrap_or_default();
+                let transactions = resolved_object_list_field(&input, "transactions");
+                let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
+                let Some(order) = self.store.staged.orders.get(&order_id).cloned() else {
+                    return Some(ResolverOutcome::value(json!({
+                        "refund": Value::Null,
+                        "order": refund_order_payload(None, &shop_currency_code),
+                        "userErrors": [user_error_omit_code(
+                            json!(["orderId"]),
+                            "Order does not exist",
+                            Some("NOT_FOUND"),
+                        )]
+                    })));
+                };
+                let total = transactions
+                    .first()
+                    .and_then(|transaction| {
                         money_bag_refund_transaction_total(
                             &order,
                             &input,
                             transaction,
                             &shop_currency_code,
                         )
-                    }) {
-                        total
-                    } else {
+                    })
+                    .unwrap_or_else(|| {
                         money_bag_order_money_set(
                             &order,
                             "totalOutstandingSet",
                             &shop_currency_code,
                         )
-                    };
-                    if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
-                        order["totalRefundedSet"] = total.clone();
-                    }
-                    selected_json(
-                        &json!({
-                            "refund": { "totalRefundedSet": total.clone() },
-                            "order": { "totalRefundedSet": total },
-                            "userErrors": []
-                        }),
-                        &field.selection,
-                    )
-                }
-                "orderEditBegin" => {
-                    let order_id =
-                        resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    let order = self.store.staged.orders.get(&order_id).cloned();
-                    if order.is_none() {
-                        early_response = Some(selected_json(
-                            &json!({
-                                "calculatedOrder": Value::Null,
-                                "userErrors": [user_error_omit_code(["id"], "The order does not exist.", None)]
-                            }),
-                            &field.selection,
-                        ));
-                        return None;
-                    }
-                    let order = order.unwrap_or(Value::Null);
-                    if order_edit_order_is_not_editable(&order) {
-                        early_response = Some(selected_json(
-                            &json!({
-                                "calculatedOrder": Value::Null,
-                                "userErrors": [user_error_omit_code(Value::Null, "The order cannot be edited.", None)]
-                            }),
-                            &field.selection,
-                        ));
-                        return None;
-                    }
-                    let calculated_id = self.next_proxy_synthetic_gid("CalculatedOrder");
-                    let calculated = json!({
-                        "id": calculated_id,
-                        "originalOrder": { "id": order_id },
-                        "totalPriceSet": money_bag_order_money_set(&order, "totalPriceSet", &shop_currency_code)
                     });
-                    self.store
-                        .staged
-                        .order_edit_money_bag_calculated_order_ids
-                        .insert(
-                            calculated["id"].as_str().unwrap_or_default().to_string(),
-                            calculated["originalOrder"]["id"]
-                                .as_str()
-                                .unwrap_or_default()
-                                .to_string(),
-                        );
-                    self.store.staged.order_edit_existing_calculated_order =
-                        Some(calculated.clone());
-                    selected_json(
-                        &json!({ "calculatedOrder": calculated, "userErrors": [] }),
-                        &field.selection,
-                    )
+                if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
+                    order["totalRefundedSet"] = total.clone();
                 }
-                "orderEditCommit" => {
-                    let calculated_id =
-                        resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    if !self
-                        .store
-                        .staged
-                        .order_edit_money_bag_calculated_order_ids
-                        .contains_key(&calculated_id)
-                    {
-                        early_response = Some(selected_json(
-                            &json!({
-                                "order": Value::Null,
-                                "successMessages": [],
-                                "userErrors": [user_error_omit_code(["id"], "The calculated order does not exist.", None)]
-                            }),
-                            &field.selection,
-                        ));
-                        return None;
-                    }
-                    selected_json(
-                        &json!({
-                            "order": Value::Null,
-                            "successMessages": [],
-                            "userErrors": [user_error_omit_code(["id"], "There must be at least one change to be made.", None)]
-                        }),
-                        &field.selection,
-                    )
+                (
+                    json!({
+                        "refund": { "totalRefundedSet": total.clone() },
+                        "order": { "totalRefundedSet": total },
+                        "userErrors": []
+                    }),
+                    Vec::new(),
+                )
+            }
+            "orderEditBegin" => {
+                let order_id = resolved_string_field(arguments, "id").unwrap_or_default();
+                let Some(order) = self.store.staged.orders.get(&order_id).cloned() else {
+                    return Some(ResolverOutcome::value(json!({
+                        "calculatedOrder": Value::Null,
+                        "userErrors": [user_error_omit_code(["id"], "The order does not exist.", None)]
+                    })));
+                };
+                if order_edit_order_is_not_editable(&order) {
+                    return Some(ResolverOutcome::value(json!({
+                        "calculatedOrder": Value::Null,
+                        "userErrors": [user_error_omit_code(Value::Null, "The order cannot be edited.", None)]
+                    })));
                 }
-                _ => return None,
-            };
-            Some(value)
-        });
-        if let Some(response) = early_response {
-            return Some(ResolverOutcome::value(response));
-        }
+                let calculated_id = self.next_proxy_synthetic_gid("CalculatedOrder");
+                let calculated = json!({
+                    "id": calculated_id,
+                    "originalOrder": { "id": order_id },
+                    "totalPriceSet": money_bag_order_money_set(&order, "totalPriceSet", &shop_currency_code)
+                });
+                self.store
+                    .staged
+                    .order_edit_money_bag_calculated_order_ids
+                    .insert(
+                        calculated["id"].as_str().unwrap_or_default().to_string(),
+                        calculated["originalOrder"]["id"]
+                            .as_str()
+                            .unwrap_or_default()
+                            .to_string(),
+                    );
+                self.store.staged.order_edit_existing_calculated_order = Some(calculated.clone());
+                (
+                    json!({ "calculatedOrder": calculated, "userErrors": [] }),
+                    Vec::new(),
+                )
+            }
+            "orderEditCommit" => {
+                let calculated_id = resolved_string_field(arguments, "id").unwrap_or_default();
+                let message = if self
+                    .store
+                    .staged
+                    .order_edit_money_bag_calculated_order_ids
+                    .contains_key(&calculated_id)
+                {
+                    "There must be at least one change to be made."
+                } else {
+                    "The calculated order does not exist."
+                };
+                (
+                    json!({
+                        "order": Value::Null,
+                        "successMessages": [],
+                        "userErrors": [user_error_omit_code(["id"], message, None)]
+                    }),
+                    Vec::new(),
+                )
+            }
+            _ => return None,
+        };
+        let mut outcome = ResolverOutcome::value(value);
         if !staged_ids.is_empty() {
-            self.record_mutation_log_entry(request, query, variables, "orderCreate", staged_ids);
+            outcome = outcome.with_log_draft(LogDraft::staged("orderCreate", "orders", staged_ids));
         }
-        Some(ResolverOutcome::value(
-            data.get(response_key).cloned().unwrap_or(Value::Null),
-        ))
+        Some(outcome)
     }
 
     fn stage_money_bag_order(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
         shop_currency_code: &str,
     ) -> Value {
-        let (id, order_input, first_line) = self.staged_order_input_and_first_line(field);
+        let order_input = resolved_object_field(arguments, "order").unwrap_or_default();
+        let id = shopify_gid("Order", self.store.staged.next_order_id);
+        self.store.staged.next_order_id += 1;
+        let first_line = resolved_object_list_field(&order_input, "lineItems")
+            .first()
+            .cloned()
+            .unwrap_or_default();
         let default_currency = resolved_string_field(&order_input, "currency")
             .or_else(|| resolved_string_field(&order_input, "currencyCode"))
             .unwrap_or_else(|| shop_currency_code.to_string());

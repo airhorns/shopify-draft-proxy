@@ -1281,32 +1281,26 @@ pub(in crate::proxy) fn read_fixed_price_update_inputs(
 /// pulled from resolved root arguments plus the de-duplicated product ids
 /// referenced by `pricesToAdd` and `pricesToDeleteByProductIds`.
 pub(in crate::proxy) fn product_fixed_prices_preflight_variables(
-    fields: &[RootFieldSelection],
+    root_name: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
-    let mut price_list_id: Option<String> = None;
+    let mut price_list_id = None;
     let mut price_query = Value::Null;
     let mut product_ids: Vec<String> = Vec::new();
 
-    for field in fields {
-        if field.name != "priceListFixedPricesByProductUpdate" {
-            continue;
+    if root_name == "priceListFixedPricesByProductUpdate" {
+        price_list_id = read_price_list_id(arguments);
+        if let Some(value) = arguments.get("priceQuery") {
+            price_query = resolved_value_json(value);
         }
-        if price_list_id.is_none() {
-            price_list_id = read_price_list_id(&field.arguments);
-        }
-        if price_query.is_null() {
-            if let Some(value) = field.arguments.get("priceQuery") {
-                price_query = resolved_value_json(value);
-            }
-        }
-        for item in resolved_object_list(&field.arguments, "pricesToAdd") {
+        for item in resolved_object_list(arguments, "pricesToAdd") {
             if let Some(id) = resolved_nonempty_string(&item, "productId") {
                 push_unique_string(&mut product_ids, id);
             }
         }
         extend_unique_strings(
             &mut product_ids,
-            resolved_string_list_arg(&field.arguments, "pricesToDeleteByProductIds"),
+            resolved_string_list_arg(arguments, "pricesToDeleteByProductIds"),
         );
     }
 
@@ -1318,46 +1312,42 @@ pub(in crate::proxy) fn product_fixed_prices_preflight_variables(
 }
 
 pub(in crate::proxy) fn variant_fixed_prices_preflight_variables(
-    fields: &[RootFieldSelection],
+    root_name: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
-    let mut price_list_id: Option<String> = None;
+    let mut price_list_id = None;
     let mut variant_ids: Vec<String> = Vec::new();
     let mut output = serde_json::Map::new();
 
-    for field in fields {
-        if !matches!(
-            field.name.as_str(),
-            "priceListFixedPricesAdd" | "priceListFixedPricesUpdate" | "priceListFixedPricesDelete"
-        ) {
-            continue;
-        }
-        if price_list_id.is_none() {
-            price_list_id = read_price_list_id(&field.arguments);
-        }
+    if matches!(
+        root_name,
+        "priceListFixedPricesAdd" | "priceListFixedPricesUpdate" | "priceListFixedPricesDelete"
+    ) {
+        price_list_id = read_price_list_id(arguments);
         for argument_name in ["prices", "pricesToAdd", "variantIdsToDelete", "variantIds"] {
-            if let Some(value) = field.arguments.get(argument_name) {
+            if let Some(value) = arguments.get(argument_name) {
                 output.insert(argument_name.to_string(), resolved_value_json(value));
             }
         }
-        match field.name.as_str() {
+        match root_name {
             "priceListFixedPricesAdd" => {
                 extend_unique_strings(
                     &mut variant_ids,
-                    mutation_variant_ids(&resolved_object_list(&field.arguments, "prices")),
+                    mutation_variant_ids(&resolved_object_list(arguments, "prices")),
                 );
             }
             "priceListFixedPricesUpdate" => {
-                let (price_inputs, _) = read_fixed_price_update_inputs(&field.arguments);
+                let (price_inputs, _) = read_fixed_price_update_inputs(arguments);
                 extend_unique_strings(&mut variant_ids, mutation_variant_ids(&price_inputs));
                 extend_unique_strings(
                     &mut variant_ids,
-                    resolved_string_list_arg(&field.arguments, "variantIdsToDelete"),
+                    resolved_string_list_arg(arguments, "variantIdsToDelete"),
                 );
             }
             "priceListFixedPricesDelete" => {
                 extend_unique_strings(
                     &mut variant_ids,
-                    resolved_string_list_arg(&field.arguments, "variantIds"),
+                    resolved_string_list_arg(arguments, "variantIds"),
                 );
             }
             _ => {}
