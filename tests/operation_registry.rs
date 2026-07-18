@@ -16,7 +16,6 @@ fn sample_registry() -> Vec<OperationRegistryEntry> {
             operation_type: OperationType::Query,
             domain: CapabilityDomain::Products,
             implemented: true,
-            match_names: vec!["product".to_string(), "Product".to_string()],
             runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
         },
         OperationRegistryEntry {
@@ -25,7 +24,6 @@ fn sample_registry() -> Vec<OperationRegistryEntry> {
             operation_type: OperationType::Mutation,
             domain: CapabilityDomain::Products,
             implemented: true,
-            match_names: vec!["productCreate".to_string()],
             runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
         },
         OperationRegistryEntry {
@@ -34,7 +32,6 @@ fn sample_registry() -> Vec<OperationRegistryEntry> {
             operation_type: OperationType::Mutation,
             domain: CapabilityDomain::Customers,
             implemented: true,
-            match_names: vec!["customerCreate".to_string()],
             runtime_tests: vec![],
         },
         OperationRegistryEntry {
@@ -43,7 +40,6 @@ fn sample_registry() -> Vec<OperationRegistryEntry> {
             operation_type: OperationType::Query,
             domain: CapabilityDomain::Apps,
             implemented: false,
-            match_names: vec!["app".to_string(), "App".to_string()],
             runtime_tests: vec![],
         },
     ]
@@ -86,7 +82,6 @@ fn operation_capability_returns_implemented_canonical_registry_matches_only() {
         operation_type: OperationType::Query,
         domain: CapabilityDomain::Apps,
         implemented: true,
-        match_names: vec!["syntheticLocalRoot".to_string()],
         runtime_tests: vec![],
     });
 
@@ -109,11 +104,11 @@ fn operation_capability_returns_implemented_canonical_registry_matches_only() {
     assert_eq!(customer_create.domain, CapabilityDomain::Customers);
     assert_eq!(customer_create.execution, CapabilityExecution::StageLocally);
 
-    let noncanonical_match_name =
+    let noncanonical_root_name =
         operation_capability(&registry, OperationType::Query, Some("Product"));
-    assert_eq!(noncanonical_match_name.domain, CapabilityDomain::Unknown);
+    assert_eq!(noncanonical_root_name.domain, CapabilityDomain::Unknown);
     assert_eq!(
-        noncanonical_match_name.execution,
+        noncanonical_root_name.execution,
         CapabilityExecution::Passthrough
     );
 
@@ -139,7 +134,6 @@ fn operation_capability_is_scoped_by_api_surface() {
             operation_type: OperationType::Query,
             domain: CapabilityDomain::StoreProperties,
             implemented: true,
-            match_names: vec!["shop".to_string()],
             runtime_tests: vec![],
         },
         OperationRegistryEntry {
@@ -148,7 +142,6 @@ fn operation_capability_is_scoped_by_api_surface() {
             operation_type: OperationType::Query,
             domain: CapabilityDomain::Storefront,
             implemented: false,
-            match_names: vec!["shop".to_string()],
             runtime_tests: vec![],
         },
     ];

@@ -67,11 +67,7 @@ fn metaobject_field_arguments(
 fn materialized_metaobject_field(
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Option<Value> {
-    invocation
-        .parent
-        .get(&invocation.response_key)
-        .or_else(|| invocation.parent.get(&invocation.field_name))
-        .cloned()
+    invocation.parent.get(&invocation.field_name).cloned()
 }
 
 fn metaobject_field_by_key(
@@ -130,11 +126,6 @@ fn metaobject_field_references(
     request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    if invocation.response_key != invocation.field_name {
-        if let Some(value) = invocation.parent.get(&invocation.response_key) {
-            return Ok(value.clone());
-        }
-    }
     Ok(proxy.canonical_metafield_references_connection_value(
         invocation.parent,
         &metaobject_field_arguments(invocation),

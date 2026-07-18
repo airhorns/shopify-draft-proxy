@@ -70,7 +70,6 @@ export const operationRegistryEntrySchema = z.strictObject({
   ]),
   execution: z.enum(['overlay-read', 'stage-locally']),
   implemented: z.boolean(),
-  matchNames: z.array(z.string().min(1)),
   runtimeTests: z.array(z.string().min(1)),
   supportNotes: z.string().min(1).optional(),
 });

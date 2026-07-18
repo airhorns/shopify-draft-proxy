@@ -29,7 +29,7 @@ function parseArgs(argv: string[]): { filter: string | null; passthroughArgs: st
 }
 
 const { filter, passthroughArgs } = parseArgs(process.argv.slice(2));
-const vitestArgs = ['exec', 'vitest', 'run', ...conformanceTestFiles];
+const vitestArgs = ['pnpm', 'exec', 'vitest', 'run', ...conformanceTestFiles];
 
 if (filter) {
   vitestArgs.push('-t', filter);
@@ -37,7 +37,7 @@ if (filter) {
 
 vitestArgs.push(...passthroughArgs);
 
-const result = spawnSync('pnpm', vitestArgs, {
+const result = spawnSync('corepack', vitestArgs, {
   stdio: 'inherit',
 });
 

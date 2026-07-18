@@ -15,10 +15,7 @@ fn payment_terms_schedules_field(
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    let connection = invocation
-        .parent
-        .get(&invocation.response_key)
-        .or_else(|| invocation.parent.get("paymentSchedules"));
+    let connection = invocation.parent.get("paymentSchedules");
     Ok(connection_value_with_args(
         connection.map(connection_nodes).unwrap_or_default(),
         &resolved_arguments_from_json(&invocation.arguments),

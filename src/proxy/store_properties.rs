@@ -49,8 +49,7 @@ fn shop_address_formatted_field(
 ) -> Result<Value, String> {
     Ok(invocation
         .parent
-        .get(&invocation.response_key)
-        .or_else(|| invocation.parent.get("formatted"))
+        .get("formatted")
         .cloned()
         .unwrap_or_else(|| Value::Array(Vec::new())))
 }
@@ -65,8 +64,7 @@ fn shop_policy_translations_field(
     let market_id = resolved_string_field(&arguments, "marketId");
     let translations = invocation
         .parent
-        .get(&invocation.response_key)
-        .or_else(|| invocation.parent.get("translations"))
+        .get("translations")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()

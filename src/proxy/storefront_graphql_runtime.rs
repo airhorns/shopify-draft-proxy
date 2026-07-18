@@ -175,6 +175,26 @@ impl StorefrontRootExecutor {
             .cloned()
             .ok_or_else(|| format!("Storefront root `{root_name}` has no local registration"))?;
         let handler = registration.handler;
+        let operation_roots = self
+            .calls
+            .values()
+            .map(
+                |prepared| crate::resolver_registry::OperationRootInvocation {
+                    name: prepared.field.name.clone(),
+                    response_key: prepared.field.response_key.clone(),
+                    arguments: if prepared.field.response_key == response_key {
+                        arguments.clone()
+                    } else {
+                        prepared
+                            .field
+                            .arguments
+                            .iter()
+                            .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+                            .collect()
+                    },
+                },
+            )
+            .collect();
         let outcome = handler(
             &mut proxy,
             RootInvocation {
@@ -186,11 +206,7 @@ impl StorefrontRootExecutor {
                 directives: call.field.directives.clone(),
                 operation_path: &call.operation_path,
                 operation_root_names: call.operation.root_fields.clone(),
-                operation_roots: vec![crate::resolver_registry::OperationRootInvocation {
-                    name: root_name.to_string(),
-                    response_key: response_key.to_string(),
-                    arguments: arguments.clone(),
-                }],
+                operation_roots,
                 variable_definitions: &call.variable_definitions,
                 raw_arguments: call.field.raw_arguments.clone(),
                 arguments,

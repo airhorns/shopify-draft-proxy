@@ -96,7 +96,7 @@ pub struct Request {
     pub body: String,
 }
 
-pub(in crate::proxy) struct LegacyGraphqlDispatch<'a> {
+pub(in crate::proxy) struct UnsupportedOperationDispatch<'a> {
     pub request: &'a Request,
     pub query: &'a str,
     pub variables: &'a BTreeMap<String, ResolvedValue>,
@@ -545,7 +545,6 @@ struct StagedState {
     created_catalog_ids: BTreeSet<String>,
     price_lists: BTreeMap<String, Value>,
     web_presences: BTreeMap<String, Value>,
-    #[allow(dead_code)]
     markets_hydrated_scopes: BTreeSet<String>,
     markets_upstream_counts: BTreeMap<String, Value>,
     markets_dirty_families: BTreeSet<String>,

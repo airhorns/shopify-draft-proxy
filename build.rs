@@ -47,6 +47,14 @@ fn main() {
         "Storefront acceptedVersions",
         &storefront_manifest_path,
     );
+    for version in &storefront_versions {
+        require_member(
+            &storefront_accepted,
+            version,
+            "Storefront executable version",
+            &storefront_manifest_path,
+        );
+    }
 
     let mut generated = String::new();
     generate_version_enum(

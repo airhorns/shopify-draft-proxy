@@ -341,7 +341,7 @@ impl DraftProxy {
             })
             .unwrap_or_default();
         if named_type.ends_with("Connection") {
-            storefront_legacy_empty_connection_value(&field.selection)
+            connection_json(Vec::new())
         } else if matches!(field.name.as_str(), "nodes" | "publicApiVersions")
             || (field.name.ends_with('s') && field.name != "shop")
         {
@@ -2881,33 +2881,6 @@ impl DraftProxy {
         }
         self.store.staged.next_draft_order_id = next_draft_order_id;
     }
-}
-
-/// The accepted Storefront 2025 route has no executable captured schema, so
-/// its snapshot compatibility response must shape an empty connection itself.
-/// Newer Storefront versions always leave projection to the GraphQL engine.
-fn storefront_legacy_empty_connection_value(selections: &[SelectedField]) -> Value {
-    let mut connection = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "edges" | "nodes" => Value::Array(Vec::new()),
-            "pageInfo" => {
-                let mut page_info = serde_json::Map::new();
-                for field in &selection.selection {
-                    let value = match field.name.as_str() {
-                        "hasNextPage" | "hasPreviousPage" => Value::Bool(false),
-                        "startCursor" | "endCursor" => Value::Null,
-                        _ => continue,
-                    };
-                    page_info.insert(field.response_key.clone(), value);
-                }
-                Value::Object(page_info)
-            }
-            _ => continue,
-        };
-        connection.insert(selection.response_key.clone(), value);
-    }
-    Value::Object(connection)
 }
 
 fn string_set_from_json(value: Option<&Value>) -> BTreeSet<String> {

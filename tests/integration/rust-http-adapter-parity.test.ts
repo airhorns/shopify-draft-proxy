@@ -8,12 +8,12 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = new URL('../..', import.meta.url);
 const integrationCargoTargetDir = fileURLToPath(new URL('../../target/integration-rust-server', import.meta.url));
-const pnpmCommand = 'pnpm';
+const pnpmCommand = 'corepack';
 const serverStartupTimeoutMs = 90_000;
 const adapterTestTimeoutMs = serverStartupTimeoutMs + 30_000;
 
 function pnpmArgs(args: string[]): string[] {
-  return args;
+  return ['pnpm', ...args];
 }
 
 function collectOutput(child: ChildProcessWithoutNullStreams): { getOutput: () => string } {

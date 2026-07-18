@@ -37,9 +37,6 @@ fn owner_metafield_field(
     request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    if let Some(value) = invocation.parent.get(&invocation.response_key) {
-        return Ok(value.clone());
-    }
     let api_client_id = request_app_namespace_api_client_id(request);
     Ok(proxy.canonical_embedded_or_owner_metafield_value(
         invocation.parent,
@@ -53,11 +50,6 @@ fn owner_metafields_field(
     request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    if invocation.response_key != invocation.field_name {
-        if let Some(value) = invocation.parent.get(&invocation.response_key) {
-            return Ok(value.clone());
-        }
-    }
     let api_client_id = request_app_namespace_api_client_id(request);
     Ok(
         proxy.canonical_embedded_or_owner_metafields_connection_value(

@@ -182,8 +182,7 @@ fn job_query_field(
 ) -> Result<Value, String> {
     Ok(invocation
         .parent
-        .get(&invocation.response_key)
-        .or_else(|| invocation.parent.get("query"))
+        .get("query")
         .cloned()
         .unwrap_or(Value::Null))
 }
@@ -1373,7 +1372,7 @@ impl DraftProxy {
             .registry
             .registration(operation.operation_type, root_field)
         else {
-            return self.dispatch_unknown_passthrough_or_legacy_error(LegacyGraphqlDispatch {
+            return self.dispatch_unsupported_operation(UnsupportedOperationDispatch {
                 request,
                 query: &query,
                 variables: &variables,
@@ -1458,6 +1457,79 @@ impl DraftProxy {
             },
         );
         resolver_outcome_compat_response(self, request, &query, &variables, response_key, outcome)
+    }
+
+    fn dispatch_unsupported_operation(
+        &mut self,
+        dispatch: UnsupportedOperationDispatch<'_>,
+    ) -> Response {
+        let UnsupportedOperationDispatch {
+            request,
+            query,
+            variables,
+            operation_type,
+            root_fields,
+            root_field,
+        } = dispatch;
+        match operation_type {
+            OperationType::Mutation
+                if self.config.unsupported_mutation_mode
+                    == Some(UnsupportedMutationMode::Reject) =>
+            {
+                json_error(
+                    400,
+                    &format!("Unsupported mutation rejected by configuration: {root_field}"),
+                )
+            }
+            OperationType::Query if self.config.read_mode == ReadMode::Snapshot => json_error(
+                400,
+                &format!("No domain dispatcher implemented for root field: {root_field}"),
+            ),
+            OperationType::Mutation if self.config.read_mode == ReadMode::Snapshot => json_error(
+                400,
+                &format!("No mutation dispatcher implemented for root field: {root_field}"),
+            ),
+            OperationType::Subscription if self.config.read_mode == ReadMode::Snapshot => {
+                json_error(
+                    400,
+                    &format!("No domain dispatcher implemented for root field: {root_field}"),
+                )
+            }
+            _ => {
+                if operation_type == OperationType::Mutation {
+                    self.record_passthrough_log_entry(
+                        request,
+                        query,
+                        variables,
+                        root_fields,
+                        root_field,
+                    );
+                }
+                let response = (self.upstream_transport)(request.clone());
+                if operation_type == OperationType::Mutation && root_field == "customerMerge" {
+                    self.observe_customer_merge_passthrough_response(query, variables, &response);
+                }
+                if operation_type == OperationType::Query
+                    && root_fields
+                        .iter()
+                        .all(|field| matches!(field.as_str(), "node" | "nodes"))
+                {
+                    self.observe_collection_passthrough_response(&response);
+                }
+                if operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "collectionAddProducts" | "collectionCreate" | "collectionReorderProducts"
+                    )
+                {
+                    self.observe_collection_passthrough_response(&response);
+                    let hydrate_ids =
+                        collection_passthrough_hydration_ids(root_field, &response, variables);
+                    self.hydrate_product_nodes_for_observation(hydrate_ids);
+                }
+                response
+            }
+        }
     }
 }
 
@@ -1578,7 +1650,7 @@ fn upstream_graphql_result(
     response_key: &str,
     data: Value,
 ) -> UpstreamGraphqlResult {
-    let transport_succeeded = response.status < 400;
+    let transport_succeeded = (200..300).contains(&response.status);
     UpstreamGraphqlResult {
         outcome: resolver_outcome_from_upstream_response(response, response_key),
         data,

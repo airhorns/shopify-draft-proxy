@@ -1362,7 +1362,6 @@ fn feedback_generated_at_is_future(generated_at: &str) -> bool {
     generated_at > now.as_secs() as i64
 }
 
-#[allow(dead_code)]
 fn app_granted_access_scopes(request: &Request) -> Vec<String> {
     request_header(request, ACCESS_SCOPES_HEADER)
         .map(|header| {

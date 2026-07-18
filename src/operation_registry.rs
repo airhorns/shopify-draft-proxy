@@ -129,7 +129,6 @@ pub struct OperationRegistryEntry {
     pub operation_type: OperationType,
     pub domain: CapabilityDomain,
     pub implemented: bool,
-    pub match_names: Vec<String>,
     pub runtime_tests: Vec<String>,
 }
 
@@ -299,7 +298,6 @@ pub fn operation_capability_for_surface(
             && entry.api_surface == api_surface
             && entry.operation_type == operation_type
             && entry.name == field
-            && entry.match_names.iter().any(|name| name == field)
     });
 
     match local_entry {
@@ -330,7 +328,6 @@ fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
         json!(entry.execution().registry_name()),
     );
     object.insert("implemented".to_string(), json!(entry.implemented));
-    object.insert("matchNames".to_string(), json!(entry.match_names));
     object.insert("runtimeTests".to_string(), json!(entry.runtime_tests));
     Value::Object(object)
 }
@@ -374,19 +371,15 @@ fn debug_assert_default_registry_local_routing_contract(registry: &[OperationReg
 fn storefront_registry_bindings() -> Vec<ExecutableRootRegistration> {
     let mut entries = Vec::new();
     let mut seen = BTreeSet::new();
-    entries.extend(storefront_registry_bindings_for_roots(
-        storefront_graphql::root_field_names(StorefrontApiVersion::DEFAULT, OperationType::Query),
-        OperationType::Query,
-        &mut seen,
-    ));
-    entries.extend(storefront_registry_bindings_for_roots(
-        storefront_graphql::root_field_names(
-            StorefrontApiVersion::DEFAULT,
-            OperationType::Mutation,
-        ),
-        OperationType::Mutation,
-        &mut seen,
-    ));
+    for version in StorefrontApiVersion::ALL {
+        for operation_type in [OperationType::Query, OperationType::Mutation] {
+            entries.extend(storefront_registry_bindings_for_roots(
+                storefront_graphql::root_field_names(version, operation_type),
+                operation_type,
+                &mut seen,
+            ));
+        }
+    }
     entries
 }
 
@@ -407,7 +400,6 @@ fn storefront_registry_bindings_for_roots(
                     operation_type,
                     domain: CapabilityDomain::Storefront,
                     implemented: handler.is_some(),
-                    match_names: default_match_names(&name),
                     runtime_tests: storefront_runtime_tests(operation_type, &name),
                 },
                 handler,
@@ -497,12 +489,28 @@ fn storefront_runtime_tests(operation_type: OperationType, name: &str) -> Vec<St
     }
 }
 
-fn default_match_names(name: &str) -> Vec<String> {
-    let mut chars = name.chars();
-    let mut capitalized = String::with_capacity(name.len());
-    if let Some(first) = chars.next() {
-        capitalized.extend(first.to_uppercase());
-        capitalized.push_str(chars.as_str());
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn storefront_bindings_cover_known_handlers_in_every_executable_version() {
+        let bindings = storefront_registry_bindings();
+        for version in StorefrontApiVersion::ALL {
+            for operation_type in [OperationType::Query, OperationType::Mutation] {
+                for root_name in storefront_graphql::root_field_names(version, operation_type) {
+                    if storefront_root_handler(operation_type, &root_name).is_none() {
+                        continue;
+                    }
+                    assert!(bindings.iter().any(|binding| {
+                        binding.entry.api_surface == ApiSurface::Storefront
+                            && binding.entry.operation_type == operation_type
+                            && binding.entry.name == root_name
+                            && binding.entry.implemented
+                            && binding.handler.is_some()
+                    }));
+                }
+            }
+        }
     }
-    vec![name.to_string(), capitalized]
 }

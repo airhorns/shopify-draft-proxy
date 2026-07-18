@@ -130,7 +130,7 @@ impl DraftProxy {
         }
 
         let response = (self.upstream_transport)(request.clone());
-        if response.status < 400 {
+        if (200..300).contains(&response.status) {
             let data =
                 self.node_query_data_with_upstream_fallback(fields, &response.body, Some(request));
             self.observe_nodes_data(&json!({ "data": data }));

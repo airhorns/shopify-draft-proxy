@@ -34,7 +34,6 @@ const adminPlatformNodeCapturePath = resolve(
 function listOperationRegistryEntries() {
   return operationRegistryEntries.map((entry) => ({
     ...entry,
-    matchNames: [...entry.matchNames],
     runtimeTests: [...entry.runtimeTests],
   }));
 }

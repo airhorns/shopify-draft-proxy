@@ -21,34 +21,6 @@ pub(in crate::proxy) use self::markets::{
 };
 pub(in crate::proxy) use self::web_presence_helpers::*;
 
-#[allow(dead_code)]
-const BACKUP_REGION_MARKETS_HYDRATE_QUERY: &str = r#"query BackupRegionMarketsHydrate($first: Int!, $regionsFirst: Int!) {
-  markets(first: $first) {
-    nodes {
-      id
-      name
-      handle
-      status
-      type
-      conditions {
-        conditionTypes
-        regionsCondition {
-          regions(first: $regionsFirst) {
-            nodes {
-              __typename
-              id
-              name
-              ... on MarketRegionCountry {
-                code
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}"#;
-
 const BACKUP_REGION_AVAILABLE_HYDRATE_QUERY: &str = r#"query BackupRegionAvailableHydrate {
   availableBackupRegions {
     __typename

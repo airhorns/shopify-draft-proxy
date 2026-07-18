@@ -77,25 +77,27 @@ arguments, raw argument-source metadata, root/operation source locations, and
 variable-definition metadata for compatibility validation. It also receives a
 set of engine-selected output paths for hydration planning plus a shallow,
 selection-free inventory of the operation's root names, response keys, and
-coerced arguments. Those values may choose a narrow or broad hydration but
-never shape the returned JSON; output projection remains engine-owned. A local resolver receives `RootInvocation`,
+resolved arguments. The current root's arguments are engine-coerced; sibling
+root arguments in compatibility planning come from the parsed operation. Those
+values may choose a narrow or broad hydration but never shape the returned JSON;
+output projection remains engine-owned. A local resolver receives `RootInvocation`,
 whose `LocalResolverMode` can only be `OverlayRead` or `StageLocally`;
 passthrough is decided before domain code is entered. Domain roots route from
 the invocation's canonical root name and do not reparse the operation or
 manufacture `RootFieldSelection` values. The runtime serializes a single root
 only at the upstream transport boundary when that root genuinely must be
-forwarded. A few intentionally grouped read/hydration and Shopify error
+forwarded. Grouped read/hydration, bulk GraphQL-as-data, and Shopify error
 compatibility paths retain the parsed operation. Multi-root
 mutations containing both local and passthrough roots are rejected before
 execution because splitting would change atomicity and could leak a supported
 write upstream. A fully passthrough document is forwarded once, not once per
-selected root. For overlay reads, the first domain resolver that needs upstream
-evidence forwards the caller's complete original operation and caches the
-response for the request. The domain observes every relevant sibling root from
-that response and records only the scopes actually represented. There is no
-centralized cross-domain preflight predicate matrix and no per-root transport
-document reconstruction. Alias canonicalization for observed upstream values
-stays at the GraphQL runtime boundary.
+selected root. Overlay reads can cache the caller's complete upstream response
+for reuse by sibling resolvers, while several compatibility paths still use
+root-specific hydration reads. Request setup also retains explicit preflight
+planning for discounts, owner metafields, localization/markets, and generic
+nodes. Consolidating those paths behind one request-scoped upstream snapshot is
+a remaining architectural improvement. Alias canonicalization for observed
+upstream values stays at the GraphQL runtime boundary.
 
 ## GraphQL schema and resolver boundaries
 
@@ -172,7 +174,7 @@ stays at the GraphQL runtime boundary.
 - group supported runtime behavior by commerce area, including products/saved searches, localization/markets/catalogs, marketing/webhooks/inventory, online store, metaobjects, metafields, orders/payments/fulfillment, discounts/gift cards, B2B/customers, and admin/shipping/app helpers
 - own each area's root resolver beside those domain methods; `graphql_runtime.rs` contains no compatibility-domain switch
 - keep local staging, overlay reads, canonical resolver values, and live-hybrid passthrough/reject behavior near the domain logic that owns it; ordinary Admin and Storefront output projection belongs exclusively to the executable engine
-- keep syntax-aware output shaping only where GraphQL is itself operation input, currently bulk-operation JSONL, and in the explicit schema-less Storefront 2025 empty-connection compatibility boundary
+- keep syntax-aware output shaping only where GraphQL is itself operation input, currently bulk-operation JSONL; the schema-less Storefront 2025 compatibility route retains only a shallow root null/empty heuristic until it has a captured executable schema
 - use shared `Store` effective-get/list/count helpers for migrated product and saved-search read-after-write behavior, with base state, staged state, order arrays, and tombstones dumped/restored consistently
 - use the shared staged-connection query helpers for staged resource lists that need Shopify-like search filtering, sort-key mapping, `reverse`, cursor windows, and filtered counts; resource modules supply predicate and sort adapters while `connection.rs` owns the order of operations
 - share proxy-internal helpers only within `crate::proxy`; public package surface still flows through `DraftProxy`

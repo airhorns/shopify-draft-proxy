@@ -37,12 +37,7 @@ fn image_url_field(
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    Ok(invocation
-        .parent
-        .get(&invocation.response_key)
-        .or_else(|| invocation.parent.get("url"))
-        .cloned()
-        .unwrap_or(Value::Null))
+    Ok(invocation.parent.get("url").cloned().unwrap_or(Value::Null))
 }
 
 // fileUpdate validates against existing file records that may only be known

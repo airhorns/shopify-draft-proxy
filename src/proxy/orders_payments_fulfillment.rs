@@ -209,9 +209,7 @@ fn orders_parent_field_value(
 ) -> Option<Value> {
     parent
         .get(&invocation.field_name)
-        .or_else(|| parent.get(&invocation.response_key))
         .or_else(|| invocation.parent.get(&invocation.field_name))
-        .or_else(|| invocation.parent.get(&invocation.response_key))
         .or_else(|| {
             (invocation.parent_type == "Fulfillment"
                 && invocation.field_name == "fulfillmentLineItems")

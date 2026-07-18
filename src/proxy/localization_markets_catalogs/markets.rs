@@ -344,10 +344,7 @@ fn regions_condition_regions_field(
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    let connection = invocation
-        .parent
-        .get(&invocation.response_key)
-        .or_else(|| invocation.parent.get("regions"));
+    let connection = invocation.parent.get("regions");
     Ok(connection_value_with_args(
         connection.map(connection_nodes).unwrap_or_default(),
         &resolved_arguments_from_json(&invocation.arguments),
@@ -1572,7 +1569,6 @@ impl DraftProxy {
             .insert(family.to_string());
     }
 
-    #[allow(dead_code)]
     fn markets_scope_needs_upstream(&self, key: &str) -> bool {
         if self.store.staged.markets_hydrated_scopes.contains(key) {
             return false;
@@ -1582,7 +1578,6 @@ impl DraftProxy {
             || self.markets_family_has_records(family)
     }
 
-    #[allow(dead_code)]
     fn markets_family_has_records(&self, family: &str) -> bool {
         match family {
             "markets" => {
@@ -1596,7 +1591,6 @@ impl DraftProxy {
         }
     }
 
-    #[allow(dead_code)]
     pub(in crate::proxy) fn hydrate_markets_from_upstream_for_fields(
         &mut self,
         body: &Value,
@@ -1811,7 +1805,6 @@ impl DraftProxy {
             .len()
     }
 
-    #[allow(dead_code)]
     fn mark_markets_hydrated_scopes_from_fields(
         &mut self,
         body: &Value,
@@ -2091,7 +2084,6 @@ fn markets_hydration_scope_keys(field: &RootFieldSelection) -> Vec<String> {
     }
 }
 
-#[allow(dead_code)]
 fn markets_hydration_scope_key(
     family: &str,
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -2108,17 +2100,14 @@ fn markets_hydration_scope_key(
     format!("{family}:{}", Value::Object(scope_arguments))
 }
 
-#[allow(dead_code)]
 fn markets_scope_family(key: &str) -> &str {
     key.split_once(':').map(|(family, _)| family).unwrap_or(key)
 }
 
-#[allow(dead_code)]
 fn markets_pagination_argument(name: &str) -> bool {
     matches!(name, "first" | "last" | "after" | "before")
 }
 
-#[allow(dead_code)]
 fn markets_response_connection_complete(value: Option<&Value>) -> bool {
     let Some(connection) = value.filter(|value| value.is_object()) else {
         return false;
@@ -2147,7 +2136,6 @@ fn markets_record_is_richer_than_existing(
         .unwrap_or(true)
 }
 
-#[allow(dead_code)]
 fn markets_body_with_canonical_response_keys(body: &Value, fields: &[RootFieldSelection]) -> Value {
     let mut normalized = body.clone();
     let Some(data) = normalized.get_mut("data").and_then(Value::as_object_mut) else {

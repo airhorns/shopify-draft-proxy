@@ -118,11 +118,12 @@ pub struct FieldResolverInvocation<'a> {
     pub api_version: &'static str,
     pub parent_type: String,
     pub field_name: String,
-    pub response_key: String,
     /// Response-key path to this field. List indices are decimal strings.
     /// The execution bridges use it only for request-scoped engine workarounds;
     /// domain handlers should not route behavior by this path.
     pub path: Vec<String>,
+    /// Canonical, alias-free local parent value. Response aliases are owned by
+    /// the GraphQL engine and are intentionally unavailable to field callbacks.
     pub parent: &'a Value,
     pub arguments: BTreeMap<String, Value>,
 }
@@ -278,24 +279,18 @@ pub(crate) fn root_field_names(
 }
 
 /// Test whether a concrete output type satisfies an interface or union type
-/// condition in an executable Admin schema. Legacy JSON projection helpers use
-/// this only while domain handlers are being migrated to return unprojected
-/// resolver values; the GraphQL engine remains the final authority.
-pub(crate) fn output_type_condition_applies(concrete_type: &str, type_condition: &str) -> bool {
+/// condition in the requested executable Admin schema. Bulk-operation JSONL
+/// projection uses this because its inner query is GraphQL-as-data rather than
+/// an ordinary response projected by the outer GraphQL engine.
+pub(crate) fn output_type_condition_applies(
+    version: AdminApiVersion,
+    concrete_type: &str,
+    type_condition: &str,
+) -> bool {
     if concrete_type == type_condition {
         return true;
     }
-    let mut saw_initialized_schema = false;
-    for schema in SCHEMAS.iter().filter_map(OnceLock::get) {
-        saw_initialized_schema = true;
-        if schema_type_condition_applies(schema, concrete_type, type_condition) {
-            return true;
-        }
-    }
-    if saw_initialized_schema {
-        return false;
-    }
-    schema(AdminApiVersion::DEFAULT)
+    schema(version)
         .ok()
         .is_some_and(|schema| schema_type_condition_applies(schema, concrete_type, type_condition))
 }
@@ -1160,7 +1155,6 @@ fn dynamic_object_field(
                 api_version,
                 parent_type: parent_type.clone(),
                 field_name: resolver_field_name.clone(),
-                response_key: response_key.clone(),
                 path: field_path.clone(),
                 parent: &parent.value,
                 arguments,
@@ -1177,12 +1171,7 @@ fn dynamic_object_field(
                 FieldResolverResult::PropertyBacked => parent
                     .value
                     .as_object()
-                    .and_then(|object| {
-                        object
-                            .get(&response_key)
-                            .filter(|_| response_key != resolver_field_name)
-                            .or_else(|| object.get(&resolver_field_name))
-                    })
+                    .and_then(|object| object.get(&resolver_field_name))
                     .cloned(),
                 FieldResolverResult::DeliberatelyUnsupported(reason) => {
                     context.add_error(context.set_error_path(ServerError::new(
@@ -1282,7 +1271,7 @@ fn json_field_value<'a>(
             for (index, value) in values.iter().enumerate() {
                 let mut item_path = path.to_vec();
                 item_path.push(index.to_string());
-                if value.is_null() {
+                if value.is_null() && item_type.nullable {
                     if let BaseType::Named(name) = &item_type.base {
                         match metadata.output_kinds.get(name.as_str()) {
                             Some(OutputKind::Object) => {
@@ -1792,6 +1781,58 @@ mod tests {
                 }
             })
         );
+    }
+
+    #[test]
+    fn local_property_resolution_uses_the_canonical_field_when_an_alias_collides() {
+        let request = Request::new("{ shop { id: name } }")
+            .data(RootExecutionContext::new(Arc::new(StaticExecutor)));
+        let response = block_on(schema(AdminApiVersion::V2026_04).unwrap().execute(request));
+        assert!(response.errors.is_empty(), "{:?}", response.errors);
+        assert_eq!(
+            response.data.into_json().unwrap(),
+            serde_json::json!({ "shop": { "id": "Schema Shop" } })
+        );
+    }
+
+    #[test]
+    fn output_type_conditions_use_the_requested_schema_version() {
+        assert!(!output_type_condition_applies(
+            AdminApiVersion::V2025_01,
+            "Image",
+            "HasPublishedTranslations",
+        ));
+        assert!(output_type_condition_applies(
+            AdminApiVersion::V2026_04,
+            "Image",
+            "HasPublishedTranslations",
+        ));
+    }
+
+    #[test]
+    fn non_null_object_list_items_still_use_engine_null_propagation() {
+        struct NullListExecutor;
+
+        impl RootFieldExecutor for NullListExecutor {
+            fn execute_root(
+                &self,
+                invocation: RootFieldInvocation,
+            ) -> Result<RootFieldResult, String> {
+                assert_eq!(invocation.root_name, "publicApiVersions");
+                Ok(RootFieldResult {
+                    value: serde_json::json!([null]),
+                    errors: Vec::new(),
+                    value_source: ResolverValueSource::Local,
+                })
+            }
+        }
+
+        let request = Request::new("{ publicApiVersions { handle } }")
+            .data(RootExecutionContext::new(Arc::new(NullListExecutor)));
+        let response = block_on(schema(AdminApiVersion::V2026_04).unwrap().execute(request));
+
+        assert_eq!(response.data, async_graphql::Value::Null);
+        assert_eq!(response.errors.len(), 1);
     }
 
     #[test]

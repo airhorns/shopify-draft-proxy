@@ -200,6 +200,35 @@ fn product_money_ranges_hydrate_shop_currency_in_live_hybrid() {
 }
 
 #[test]
+fn product_hydration_planning_ignores_response_alias_names() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| {
+        panic!("an alias must not be mistaken for a selected price range")
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductAliasDoesNotRequestPricing {
+          productCreate(product: { title: "Alias-safe product" }) {
+            product { priceRange: title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productCreate"]["product"]["priceRange"],
+        json!("Alias-safe product")
+    );
+    assert_eq!(
+        response.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
 fn product_variant_count_and_compare_at_range_follow_effective_variants() {
     let mut proxy = snapshot_proxy();
     restore_shop_currency(&mut proxy, "USD");
@@ -14853,7 +14882,6 @@ fn implemented_registry_entry_without_direct_binding_fails_construction() {
             operation_type: OperationType::Query,
             domain: CapabilityDomain::Products,
             implemented: true,
-            match_names: vec!["productVariants".to_string()],
             runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
         }])
     });

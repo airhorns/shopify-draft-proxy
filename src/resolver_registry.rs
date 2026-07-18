@@ -106,9 +106,10 @@ pub(crate) struct RootInvocation<'a> {
     /// Shopify's operation paths and variable-definition locations without
     /// reparsing the caller's document inside a domain module.
     pub operation_path: &'a str,
-    /// Canonical roots in the caller's selected operation. Domain hydration
-    /// may use this shallow inventory to coalesce a multi-root read; nested
-    /// output selections remain engine-owned.
+    /// Canonical roots in the caller's selected operation. The active root's
+    /// arguments are engine-coerced; sibling arguments come from compatibility
+    /// parsing. Domain hydration may use this shallow inventory to coalesce a
+    /// multi-root read; nested output selections remain engine-owned.
     pub operation_root_names: Vec<String>,
     pub operation_roots: Vec<OperationRootInvocation>,
     pub variable_definitions: &'a BTreeMap<String, VariableDefinitionInfo>,
@@ -127,9 +128,7 @@ pub(crate) struct RootInvocation<'a> {
     /// cache for roots that should return it unchanged.
     pub upstream_value: Option<Value>,
     pub request: &'a Request,
-    #[allow(dead_code)]
     pub query: &'a str,
-    #[allow(dead_code)]
     pub variables: &'a BTreeMap<String, ResolvedValue>,
     pub operation: &'a ParsedOperation,
     pub mode: LocalResolverMode,
@@ -277,7 +276,6 @@ pub(crate) enum FieldResolverImplementation {
     /// owned by one authoritative callback. Canonical parents must not bypass
     /// that callback by materializing a selection-shaped copy of the field.
     Explicit(FieldResolverHandler),
-    #[allow(dead_code)]
     DeliberatelyUnsupported(&'static str),
 }
 

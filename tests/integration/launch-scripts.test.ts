@@ -7,11 +7,11 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = new URL('../..', import.meta.url);
 const testOrigin = 'https://example.myshopify.com';
-const pnpmCommand = 'pnpm';
+const pnpmCommand = 'corepack';
 const serverStartupTimeoutMs = 90_000;
 
 function pnpmArgs(args: string[]): string[] {
-  return args;
+  return ['pnpm', ...args];
 }
 
 function collectOutput(child: ChildProcessWithoutNullStreams): { getOutput: () => string } {

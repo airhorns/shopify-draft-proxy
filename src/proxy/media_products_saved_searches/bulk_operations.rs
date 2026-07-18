@@ -118,7 +118,11 @@ impl DraftProxy {
         id
     }
 
-    fn bulk_operation_run_query_result(&self, query_text: &str) -> BulkOperationRunQueryResult {
+    fn bulk_operation_run_query_result(
+        &self,
+        query_text: &str,
+        api_version: crate::admin_graphql::AdminApiVersion,
+    ) -> BulkOperationRunQueryResult {
         let Some(document) = parsed_document(query_text, &BTreeMap::new()) else {
             return BulkOperationRunQueryResult {
                 jsonl: String::new(),
@@ -133,8 +137,8 @@ impl DraftProxy {
         };
 
         match field.name.as_str() {
-            "products" => self.bulk_operation_products_result(field),
-            "productVariants" => self.bulk_operation_product_variants_result(field),
+            "products" => self.bulk_operation_products_result(field, api_version),
+            "productVariants" => self.bulk_operation_product_variants_result(field, api_version),
             _ => BulkOperationRunQueryResult {
                 jsonl: String::new(),
                 root_object_count: 0,
@@ -145,6 +149,7 @@ impl DraftProxy {
     fn bulk_operation_products_result(
         &self,
         field: &RootFieldSelection,
+        api_version: crate::admin_graphql::AdminApiVersion,
     ) -> BulkOperationRunQueryResult {
         let products = self.products_filtered_by_search_query(field.arguments.get("query"));
         let root_object_count = products.len();
@@ -161,12 +166,17 @@ impl DraftProxy {
         let mut rows = Vec::new();
         for product in products {
             let variants = self.store.product_variants_for_product(&product.id);
-            let product_json =
-                bulk_project_value(&self.product_canonical_value(&product), &product_selection);
+            let product_json = bulk_project_value(
+                &self.product_canonical_value(&product),
+                &product_selection,
+                api_version,
+            );
             rows.push(product_json);
 
             for selection in &nested_connections {
-                for child in self.bulk_jsonl_product_child_rows(&product, &variants, selection) {
+                for child in
+                    self.bulk_jsonl_product_child_rows(&product, &variants, selection, api_version)
+                {
                     rows.push(bulk_jsonl_child_node(child, &product.id));
                 }
             }
@@ -183,6 +193,7 @@ impl DraftProxy {
         product: &ProductRecord,
         variants: &[ProductVariantRecord],
         selection: &SelectedField,
+        api_version: crate::admin_graphql::AdminApiVersion,
     ) -> Vec<Value> {
         let child_node_selection = edge_node_selection(&selection.selection);
         let child_node_selection = bulk_jsonl_node_selection(&child_node_selection);
@@ -194,18 +205,20 @@ impl DraftProxy {
             "collections" => product
                 .collections
                 .iter()
-                .map(|collection| bulk_project_value(collection, &child_node_selection))
+                .map(|collection| {
+                    bulk_project_value(collection, &child_node_selection, api_version)
+                })
                 .collect(),
             "images" => product
                 .media
                 .iter()
                 .filter_map(product_image_json_from_media)
-                .map(|image| bulk_project_value(&image, &child_node_selection))
+                .map(|image| bulk_project_value(&image, &child_node_selection, api_version))
                 .collect(),
             "media" => product
                 .media
                 .iter()
-                .map(|media| bulk_project_value(media, &child_node_selection))
+                .map(|media| bulk_project_value(media, &child_node_selection, api_version))
                 .collect(),
             "metafields" => self
                 .bulk_owner_metafield_nodes(
@@ -214,7 +227,9 @@ impl DraftProxy {
                     selection,
                 )
                 .into_iter()
-                .map(|metafield| self.bulk_metafield_value(metafield, &child_node_selection))
+                .map(|metafield| {
+                    self.bulk_metafield_value(metafield, &child_node_selection, api_version)
+                })
                 .collect(),
             "variants" => variants
                 .iter()
@@ -223,11 +238,16 @@ impl DraftProxy {
             _ => Vec::new(),
         };
         rows.into_iter()
-            .map(|row| bulk_project_value(&row, &child_node_selection))
+            .map(|row| bulk_project_value(&row, &child_node_selection, api_version))
             .collect()
     }
 
-    fn bulk_metafield_value(&self, mut metafield: Value, selection: &[SelectedField]) -> Value {
+    fn bulk_metafield_value(
+        &self,
+        mut metafield: Value,
+        selection: &[SelectedField],
+        api_version: crate::admin_graphql::AdminApiVersion,
+    ) -> Value {
         for field in selection {
             match field.name.as_str() {
                 "reference" => {
@@ -244,7 +264,7 @@ impl DraftProxy {
                 _ => {}
             }
         }
-        bulk_project_value(&metafield, selection)
+        bulk_project_value(&metafield, selection, api_version)
     }
 
     fn bulk_owner_metafield_nodes(
@@ -317,6 +337,7 @@ impl DraftProxy {
     fn bulk_operation_product_variants_result(
         &self,
         field: &RootFieldSelection,
+        api_version: crate::admin_graphql::AdminApiVersion,
     ) -> BulkOperationRunQueryResult {
         let products = self.products_filtered_by_search_query(field.arguments.get("query"));
         let node_selection = edge_node_selection(&field.selection);
@@ -335,12 +356,15 @@ impl DraftProxy {
                 root_object_count += 1;
                 let mut value = self.product_variant_canonical_value(&variant);
                 value["product"] = self.product_canonical_value(&product);
-                rows.push(bulk_project_value(&value, &variant_selection));
+                rows.push(bulk_project_value(&value, &variant_selection, api_version));
 
                 for selection in &nested_connections {
-                    for child in
-                        self.bulk_jsonl_product_variant_child_rows(&product, &variant, selection)
-                    {
+                    for child in self.bulk_jsonl_product_variant_child_rows(
+                        &product,
+                        &variant,
+                        selection,
+                        api_version,
+                    ) {
                         rows.push(bulk_jsonl_child_node(child, &variant.id));
                     }
                 }
@@ -358,6 +382,7 @@ impl DraftProxy {
         product: &ProductRecord,
         variant: &ProductVariantRecord,
         selection: &SelectedField,
+        api_version: crate::admin_graphql::AdminApiVersion,
     ) -> Vec<Value> {
         let child_node_selection = edge_node_selection(&selection.selection);
         let child_node_selection = bulk_jsonl_node_selection(&child_node_selection);
@@ -368,7 +393,7 @@ impl DraftProxy {
         let rows = match selection.name.as_str() {
             "media" => variant_attached_media_nodes(variant, Some(product))
                 .iter()
-                .map(|media| bulk_project_value(media, &child_node_selection))
+                .map(|media| bulk_project_value(media, &child_node_selection, api_version))
                 .collect(),
             "metafields" => self
                 .bulk_owner_metafield_nodes(
@@ -377,12 +402,14 @@ impl DraftProxy {
                     selection,
                 )
                 .into_iter()
-                .map(|metafield| self.bulk_metafield_value(metafield, &child_node_selection))
+                .map(|metafield| {
+                    self.bulk_metafield_value(metafield, &child_node_selection, api_version)
+                })
                 .collect(),
             _ => Vec::new(),
         };
         rows.into_iter()
-            .map(|row| bulk_project_value(&row, &child_node_selection))
+            .map(|row| bulk_project_value(&row, &child_node_selection, api_version))
             .collect()
     }
 
@@ -732,7 +759,9 @@ impl DraftProxy {
 
         let id = self.next_bulk_operation_gid();
         let created_at = self.next_product_timestamp();
-        let result = self.bulk_operation_run_query_result(&query_text);
+        let api_version = crate::admin_graphql::AdminApiVersion::from_route(&request.path)
+            .unwrap_or(crate::admin_graphql::AdminApiVersion::DEFAULT);
+        let result = self.bulk_operation_run_query_result(&query_text, api_version);
         let (object_count, file_size) = bulk_operation_result_metadata(&result.jsonl);
         let root_object_count = result.root_object_count.to_string();
         let terminal_operation = self.bulk_operation_record(BulkOperationRecordSpec {
@@ -2765,7 +2794,11 @@ fn bulk_jsonl_node_selection(selection: &[SelectedField]) -> Vec<SelectedField> 
 /// outer API executor. Keep this syntax-aware projection local to bulk output;
 /// ordinary Admin and Storefront responses are always projected by the schema
 /// engine.
-fn bulk_project_value(value: &Value, selection: &[SelectedField]) -> Value {
+fn bulk_project_value(
+    value: &Value,
+    selection: &[SelectedField],
+    api_version: crate::admin_graphql::AdminApiVersion,
+) -> Value {
     if value.is_null() || selection.is_empty() {
         return value.clone();
     }
@@ -2773,7 +2806,7 @@ fn bulk_project_value(value: &Value, selection: &[SelectedField]) -> Value {
         return Value::Array(
             values
                 .iter()
-                .map(|value| bulk_project_value(value, selection))
+                .map(|value| bulk_project_value(value, selection, api_version))
                 .collect(),
         );
     }
@@ -2791,7 +2824,11 @@ fn bulk_project_value(value: &Value, selection: &[SelectedField]) -> Value {
         if field.type_condition.as_deref().is_some_and(|condition| {
             record_type.is_some_and(|record_type| {
                 condition != record_type
-                    && !crate::admin_graphql::output_type_condition_applies(record_type, condition)
+                    && !crate::admin_graphql::output_type_condition_applies(
+                        api_version,
+                        record_type,
+                        condition,
+                    )
             })
         }) {
             continue;
@@ -2807,7 +2844,7 @@ fn bulk_project_value(value: &Value, selection: &[SelectedField]) -> Value {
             if field.selection.is_empty() || field_value.is_null() {
                 field_value.clone()
             } else {
-                bulk_project_value(field_value, &field.selection)
+                bulk_project_value(field_value, &field.selection, api_version)
             },
         );
     }

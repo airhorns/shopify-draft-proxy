@@ -53,10 +53,11 @@ Use `src/operation_registry.rs` and `src/resolver_registry.rs` before adding cap
 - `default_graphql_root_catalog()` / `graphql-root-catalog-json` derive all captured roots across both surfaces and every executable version, including roots absent from the capability registry.
 - `ApiSurface::resolver_name(...)` keeps Admin resolver names unchanged and maps Storefront roots to a `storefront*` internal name (`shop` becomes `storefrontShop`). `resolve_for_surface(...)` and `registration_for_surface(...)` perform this translation and verify the API surface, operation type, and public root before returning a callback. Use them for non-Admin execution; the shorter lookup methods intentionally default to Admin for existing callers.
 
-`RootInvocation` carries engine-coerced arguments, raw argument-source metadata,
+`RootInvocation` carries engine-coerced arguments for the active root, raw
+argument-source metadata,
 the response key/root location, operation path, and variable-definition
 locations needed by Shopify-compatible errors. `operation_roots` carries only
-the selected operation's root names, response keys, and coerced arguments so a
+the selected operation's root names, response keys, and resolved arguments so a
 domain can hydrate sibling roots from one cached upstream response without
 receiving a nested selection tree. It also exposes
 `requests_field_path(...)`, backed by `async-graphql`'s selected field tree. Use

@@ -2907,9 +2907,8 @@ fn product_root_field_selects_shop_currency_money(field: &RootFieldSelection) ->
 
 fn product_selections_include_names(selections: &[SelectedField], names: &[&str]) -> bool {
     selections.iter().any(|selection| {
-        names.iter().any(|field_name| {
-            selection.name == *field_name || selection.response_key == *field_name
-        }) || product_selections_include_names(&selection.selection, names)
+        names.iter().any(|field_name| selection.name == *field_name)
+            || product_selections_include_names(&selection.selection, names)
     })
 }
 
