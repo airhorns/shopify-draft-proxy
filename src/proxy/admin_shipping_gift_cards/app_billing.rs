@@ -182,7 +182,7 @@ impl DraftProxy {
             "status": if test { "ACTIVE" } else { "PENDING" },
             "test": test,
             "trialDays": trial_days,
-            "currentPeriodEnd": "2024-02-07T00:00:00.000Z",
+            "currentPeriodEnd": app_subscription_current_period_end(trial_days, &line_items),
             "lineItems": line_items
         });
         self.store
@@ -1083,6 +1083,61 @@ fn app_subscription_trial_is_active(subscription: &Value) -> bool {
         })
 }
 
+fn app_subscription_current_period_end(trial_days: i64, line_items: &[Value]) -> String {
+    let created_at = app_domain_synthetic_now_epoch_seconds();
+    let trial_end = created_at.saturating_add(trial_days.saturating_mul(86_400));
+    let period_end = match app_subscription_billing_interval(line_items).as_deref() {
+        Some("ANNUAL") => add_years_to_utc_epoch_seconds(trial_end, 1),
+        _ => trial_end.saturating_add(30 * 86_400),
+    };
+    format_utc_epoch_seconds_millis_z(period_end)
+}
+
+fn app_subscription_billing_interval(line_items: &[Value]) -> Option<String> {
+    line_items
+        .iter()
+        .find_map(|line_item| {
+            let pricing = &line_item["plan"]["pricingDetails"];
+            (pricing["__typename"] == "AppRecurringPricing").then(|| {
+                pricing["interval"]
+                    .as_str()
+                    .unwrap_or("EVERY_30_DAYS")
+                    .to_string()
+            })
+        })
+        .or_else(|| {
+            line_items.iter().find_map(|line_item| {
+                line_item["plan"]["pricingDetails"]["interval"]
+                    .as_str()
+                    .map(str::to_string)
+            })
+        })
+}
+
+fn add_years_to_utc_epoch_seconds(seconds: i64, years: i32) -> i64 {
+    let days = seconds.div_euclid(86_400);
+    let seconds_of_day = seconds.rem_euclid(86_400);
+    let (year, month, day) = civil_from_days(days);
+    let target_year = year.saturating_add(years);
+    let target_day = day.min(days_in_month(target_year, month));
+    days_from_civil(target_year, month, target_day) * 86_400 + seconds_of_day
+}
+
+fn format_utc_epoch_seconds_millis_z(seconds: i64) -> String {
+    let days = seconds.div_euclid(86_400);
+    let seconds_of_day = seconds.rem_euclid(86_400);
+    let (year, month, day) = civil_from_days(days);
+    let hour = seconds_of_day / 3_600;
+    let minute = seconds_of_day % 3_600 / 60;
+    let second = seconds_of_day % 60;
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.000Z")
+}
+
+fn app_domain_synthetic_now_epoch_seconds() -> i64 {
+    parse_rfc3339_epoch_seconds(APP_DOMAIN_SYNTHETIC_NOW)
+        .expect("app synthetic clock must be a valid RFC3339 timestamp")
+}
+
 fn delegate_expires_after_parent(request: &Request, expires_in: i64) -> bool {
     let Some(parent_expires_at) =
         request_header(request, "x-shopify-draft-proxy-access-token-expires-at")
@@ -1090,10 +1145,7 @@ fn delegate_expires_after_parent(request: &Request, expires_in: i64) -> bool {
     else {
         return false;
     };
-    let Some(created_at) = parse_rfc3339_epoch_seconds(APP_DOMAIN_SYNTHETIC_NOW) else {
-        return false;
-    };
-    created_at + expires_in > parent_expires_at
+    app_domain_synthetic_now_epoch_seconds() + expires_in > parent_expires_at
 }
 
 fn app_revoke_access_scopes_missing_source_app(request: &Request) -> bool {

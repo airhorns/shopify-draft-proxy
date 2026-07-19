@@ -392,6 +392,8 @@ pub(in crate::proxy) fn app_subscription_line_item_from_input(
             if let Some(ResolvedValue::Object(details)) = plan.get("appRecurringPricingDetails") {
                 let mut price_amount = "1.0".to_string();
                 let mut price_currency = "USD".to_string();
+                let interval = resolved_string_field(details, "interval")
+                    .unwrap_or_else(|| "EVERY_30_DAYS".to_string());
                 if let Some(ResolvedValue::Object(price)) = details.get("price") {
                     price_amount = resolved_money_amount_string(price.get("amount"));
                     price_currency = match price.get("currencyCode") {
@@ -403,7 +405,8 @@ pub(in crate::proxy) fn app_subscription_line_item_from_input(
                     "id": default_id,
                     "plan": { "pricingDetails": {
                         "__typename": "AppRecurringPricing",
-                        "price": money_value(&price_amount, &price_currency)
+                        "price": money_value(&price_amount, &price_currency),
+                        "interval": interval
                     }}
                 });
             }

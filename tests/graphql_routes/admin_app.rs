@@ -1026,7 +1026,7 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
         })
     );
 
-    let expired_trial = proxy.process_request(json_graphql_request(
+    let trial_extend = proxy.process_request(json_graphql_request(
         r#"
         mutation AppSubscriptionTrialExtendLocalLifecycle($id: ID!) {
           appSubscriptionTrialExtend(id: $id, days: 3) {
@@ -1038,10 +1038,13 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
         json!({ "id": "gid://shopify/AppSubscription/expected" }),
     ));
     assert_eq!(
-        expired_trial.body["data"]["appSubscriptionTrialExtend"],
+        trial_extend.body["data"]["appSubscriptionTrialExtend"],
         json!({
-            "appSubscription": null,
-            "userErrors": [{ "field": ["id"], "message": "The trial can't be extended after expiration." }]
+            "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "trialDays": 10
+            },
+            "userErrors": []
         })
     );
 
@@ -1075,7 +1078,7 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
             "allSubscriptions": { "nodes": [{
                 "id": "gid://shopify/AppSubscription/expected",
                 "status": "CANCELLED",
-                "trialDays": 7,
+                "trialDays": 10,
                 "lineItems": [{
                     "id": "gid://shopify/AppSubscriptionLineItem/expected",
                     "usageRecords": { "nodes": [{
@@ -1437,6 +1440,89 @@ fn app_subscription_trial_extend_validates_days_unknown_and_inactive_status() {
 }
 
 #[test]
+fn app_subscription_create_computes_current_period_end_from_trial_and_interval() {
+    let mut proxy = snapshot_proxy();
+
+    let every_30_with_trial = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EveryThirtyWithTrial {
+          appSubscriptionCreate(
+            name: "Every thirty with trial"
+            returnUrl: "https://app.example.test/return"
+            trialDays: 7
+            test: true
+            lineItems: [
+              { plan: { appRecurringPricingDetails: { price: { amount: "10.00", currencyCode: USD }, interval: EVERY_30_DAYS } } }
+            ]
+          ) {
+            appSubscription { currentPeriodEnd }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        every_30_with_trial.body["data"]["appSubscriptionCreate"]["appSubscription"]
+            ["currentPeriodEnd"],
+        json!("2026-06-04T02:10:00.000Z")
+    );
+
+    let no_trial = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EveryThirtyWithoutTrial {
+          appSubscriptionCreate(
+            name: "Every thirty without trial"
+            returnUrl: "https://app.example.test/return"
+            test: true
+            lineItems: [
+              { plan: { appRecurringPricingDetails: { price: { amount: "10.00", currencyCode: USD }, interval: EVERY_30_DAYS } } }
+            ]
+          ) {
+            appSubscription { currentPeriodEnd }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        no_trial.body["data"]["appSubscriptionCreate"]["appSubscription"]["currentPeriodEnd"],
+        json!("2026-05-28T02:10:00.000Z")
+    );
+
+    let annual_with_trial = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AnnualWithTrial {
+          appSubscriptionCreate(
+            name: "Annual with trial"
+            returnUrl: "https://app.example.test/return"
+            trialDays: 7
+            test: true
+            lineItems: [
+              { plan: { appRecurringPricingDetails: { price: { amount: "10.00", currencyCode: USD }, interval: ANNUAL } } }
+            ]
+          ) {
+            appSubscription { currentPeriodEnd lineItems { plan { pricingDetails { __typename ... on AppRecurringPricing { interval } } } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        annual_with_trial.body["data"]["appSubscriptionCreate"]["appSubscription"]
+            ["currentPeriodEnd"],
+        json!("2027-05-05T02:10:00.000Z")
+    );
+    assert_eq!(
+        annual_with_trial.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"][0]
+            ["plan"]["pricingDetails"]["interval"],
+        json!("ANNUAL")
+    );
+}
+
+#[test]
 fn app_subscription_create_activates_test_charge_and_reads_back_current_installation() {
     let mut proxy = snapshot_proxy();
 
@@ -1473,7 +1559,7 @@ fn app_subscription_create_activates_test_charge_and_reads_back_current_installa
                 "status": "ACTIVE",
                 "test": true,
                 "trialDays": 7,
-                "currentPeriodEnd": "2024-02-07T00:00:00.000Z"
+                "currentPeriodEnd": "2026-06-04T02:10:00.000Z"
             },
             "userErrors": []
         })
@@ -1497,7 +1583,7 @@ fn app_subscription_create_activates_test_charge_and_reads_back_current_installa
                     "activeSubscriptions": [{
                         "id": subscription_id,
                         "status": "ACTIVE",
-                        "currentPeriodEnd": "2024-02-07T00:00:00.000Z"
+                        "currentPeriodEnd": "2026-06-04T02:10:00.000Z"
                     }]
                 }
             }
