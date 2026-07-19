@@ -4,21 +4,27 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-handle-validation-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-update-too-long-handle-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/productUpdate-too-long-handle-parity.graphql",
-    "variablesCapturePath": "$.tooLongUpdate.variables"
+    "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Executable parity coverage for Shopify's captured explicit productUpdate handle length validation, including preserving the unchanged product payload.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
+    "expectedDifferences": [
+      {
+        "path": "$.productUpdate.product.onlineStorePreviewUrl",
+        "matcher": "non-empty-string",
+        "reason": "Shopify regenerates the signed product preview token between the exact mutation preflight read and the productUpdate response."
+      }
+    ],
     "targets": [
       {
         "name": "too-long-handle-product-update-data",
-        "capturePath": "$.tooLongUpdate.response.data",
+        "capturePath": "$.mutation.response.data",
         "proxyPath": "$.data"
       }
     ]

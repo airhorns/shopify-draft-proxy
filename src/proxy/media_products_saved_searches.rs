@@ -519,9 +519,10 @@ impl DraftProxy {
         let Some(id) = resolved_string_field(&input, "id") else {
             return ResolverOutcome::value(product_update_missing_payload_value());
         };
-        if self.store.product_by_id(&id).is_none() && self.config.read_mode == ReadMode::LiveHybrid
+        if !self.ensure_product_mutation_hydrated(request, &id)
+            && self.config.read_mode == ReadMode::LiveHybrid
         {
-            self.hydrate_product_nodes_for_observation_with_request(request, vec![id.clone()]);
+            return ResolverOutcome::value(product_update_missing_payload_value());
         }
         let Some(existing) = self.store.product_staged_or_base(&id) else {
             return ResolverOutcome::value(product_update_missing_payload_value());
@@ -577,6 +578,27 @@ impl DraftProxy {
         };
 
         let mut extra_fields = existing.extra_fields;
+        if let Some(seo_input) = resolved_object_field(&input, "seo") {
+            let mut seo = extra_fields
+                .get("seo")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_else(|| {
+                    serde_json::Map::from_iter([
+                        ("title".to_string(), json!(existing.seo_title.clone())),
+                        (
+                            "description".to_string(),
+                            json!(existing.seo_description.clone()),
+                        ),
+                    ])
+                });
+            for field in ["title", "description"] {
+                if let Some(value) = seo_input.get(field) {
+                    seo.insert(field.to_string(), resolved_value_json(value));
+                }
+            }
+            extra_fields.insert("seo".to_string(), Value::Object(seo));
+        }
         if let Some(category_id) = product_category_input_id(&input) {
             match self.product_category_value_for_input(request, &category_id) {
                 Some(category) => {
@@ -1461,9 +1483,8 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let product_id = resolved_string_field(arguments, "productId").unwrap_or_default();
         let variant_ids = resolved_string_list_arg(arguments, "variantsIds");
-        // Hydrate the product together with the variants being deleted so a cold
-        // backend stages both before applying the delete, matching the node
-        // hydration recorded during capture.
+        // Hydrate the complete product catalog before applying the delete so a
+        // cold backend preserves every surviving variant and omitted product field.
         let Some(product) = self
             .product_for_bulk_variant_mutation_with_variant_ids(request, &product_id, &variant_ids)
             .cloned()
@@ -1688,19 +1709,10 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         product_id: &str,
-        variant_ids: &[String],
+        _variant_ids: &[String],
     ) -> Option<&ProductRecord> {
-        if self.store.product_by_id(product_id).is_none()
-            && self.config.read_mode == ReadMode::LiveHybrid
-        {
-            let mut hydrate_ids = vec![product_id.to_string()];
-            hydrate_ids.extend(variant_ids.iter().cloned());
-            if hydrate_ids.len() > 1 {
-                let mut tail = hydrate_ids.split_off(1);
-                tail.sort();
-                hydrate_ids.extend(tail);
-            }
-            self.hydrate_product_nodes_for_observation_with_request(request, hydrate_ids);
+        if !self.ensure_product_mutation_hydrated(request, product_id) {
+            return None;
         }
         self.store.product_by_id(product_id)
     }

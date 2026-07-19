@@ -1,0 +1,200 @@
+query ProductMutationPreflightHydrate(
+  $id: ID!
+  $variantsAfter: String
+  $mediaAfter: String
+  $collectionsAfter: String
+) {
+  product(id: $id) {
+    __typename
+    id
+    legacyResourceId
+    createdAt
+    updatedAt
+    title
+    handle
+    status
+    publishedAt
+    descriptionHtml
+    vendor
+    productType
+    tags
+    templateSuffix
+    totalInventory
+    tracksInventory
+    onlineStorePreviewUrl
+    requiresSellingPlan
+    isGiftCard
+    giftCardTemplateSuffix
+    seo {
+      title
+      description
+    }
+    category {
+      id
+      name
+      fullName
+      isLeaf
+      level
+      parentId
+    }
+    options {
+      id
+      name
+      position
+      values
+      optionValues {
+        id
+        name
+        hasVariants
+      }
+    }
+    variants(first: 250, after: $variantsAfter) {
+      nodes {
+        id
+        title
+        sku
+        barcode
+        price
+        compareAtPrice
+        position
+        taxable
+        taxCode
+        inventoryPolicy
+        inventoryQuantity
+        requiresComponents
+        showUnitPrice
+        unitPriceMeasurement {
+          quantityValue
+          quantityUnit
+          referenceValue
+          referenceUnit
+        }
+        selectedOptions {
+          name
+          value
+        }
+        metafields(first: 250) {
+          nodes {
+            id
+            namespace
+            key
+            type
+            value
+            compareDigest
+            jsonValue
+            createdAt
+            updatedAt
+            ownerType
+          }
+        }
+        inventoryItem {
+          id
+          tracked
+          requiresShipping
+          countryCodeOfOrigin
+          provinceCodeOfOrigin
+          harmonizedSystemCode
+          measurement {
+            weight {
+              unit
+              value
+            }
+          }
+        }
+        media(first: 10) {
+          nodes {
+            id
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    media(first: 250, after: $mediaAfter) {
+      nodes {
+        __typename
+        id
+        alt
+        mediaContentType
+        status
+        preview {
+          image {
+            url
+            width
+            height
+          }
+        }
+        ... on MediaImage {
+          image {
+            url
+            width
+            height
+          }
+        }
+        ... on ExternalVideo {
+          embedUrl
+          host
+          originUrl
+        }
+        ... on Video {
+          duration
+          filename
+          originalSource {
+            fileSize
+            format
+            height
+            mimeType
+            url
+            width
+          }
+          sources {
+            fileSize
+            format
+            height
+            mimeType
+            url
+            width
+          }
+        }
+        ... on Model3d {
+          filename
+          originalSource {
+            filesize
+            format
+            mimeType
+            url
+          }
+          sources {
+            filesize
+            format
+            mimeType
+            url
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    collections(first: 250, after: $collectionsAfter) {
+      nodes {
+        id
+        title
+        handle
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

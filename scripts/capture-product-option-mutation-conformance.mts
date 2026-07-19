@@ -7,6 +7,10 @@ import path from 'node:path';
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import {
+  captureProductMutationPreflight,
+  captureProductOptionLifecycleHydration,
+} from './product-mutation-preflight-capture.js';
 
 import { parseWriteScopeBlocker, renderWriteScopeBlockerNote } from './product-mutation-conformance-lib.mjs';
 
@@ -15,7 +19,7 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-option-mutation-conformance-scope-blocker.md');
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
@@ -256,48 +260,8 @@ try {
   }
 
   const preCreateRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
-  // Run the real hydrate-nodes query so the cassette has a real upstream call entry.
-  const hydrateNodesQuery = `query ProductOptionLifecycleHydrateNodes($ids: [ID!]!) {
-  nodes(ids: $ids) {
-    ... on Product {
-      id
-      options {
-        id
-        name
-        position
-        values
-        optionValues {
-          id
-          name
-          hasVariants
-        }
-      }
-      totalInventory
-      tracksInventory
-      variants(first: 110) {
-        nodes {
-          id
-          title
-          sku
-          barcode
-          price
-          inventoryQuantity
-          selectedOptions {
-            name
-            value
-          }
-          inventoryItem {
-            id
-            tracked
-            requiresShipping
-          }
-        }
-      }
-    }
-  }
-}`;
-  const hydrateNodesVariables = { ids: [createdProductId] };
-  const hydrateNodesResponse = await runGraphql(hydrateNodesQuery, hydrateNodesVariables);
+  const preCreateLifecycleHydration = await captureProductOptionLifecycleHydration(runGraphqlRaw, createdProductId);
+  const preCreateHydration = await captureProductMutationPreflight(runGraphqlRaw, createdProductId);
   const optionsCreateVariables = buildOptionsCreateVariables(createdProductId);
   optionsCreateResponse = await runGraphql(optionsCreateMutation, optionsCreateVariables);
   const createdOptions = optionsCreateResponse.data?.productOptionsCreate?.product?.options ?? [];
@@ -319,17 +283,15 @@ try {
     throw new Error('Option create capture did not yield the created option/value ids.');
   }
   const postCreateRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
-  // Run hydrate-nodes query after options are created (for preUpdate state).
-  const hydrateNodesAfterCreateVariables = { ids: [createdProductId] };
-  const hydrateNodesAfterCreateResponse = await runGraphql(hydrateNodesQuery, hydrateNodesAfterCreateVariables);
+  const preUpdateLifecycleHydration = await captureProductOptionLifecycleHydration(runGraphqlRaw, createdProductId);
+  const preUpdateHydration = await captureProductMutationPreflight(runGraphqlRaw, createdProductId);
 
   const preUpdateRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
   const optionUpdateVariables = buildOptionUpdateVariables(createdProductId, createdOptionId, redValueId, greenValueId);
   optionUpdateResponse = await runGraphql(optionUpdateMutation, optionUpdateVariables);
   const postUpdateRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
-  // Run hydrate-nodes query after options are updated (for preDelete state).
-  const hydrateNodesAfterUpdateVariables = { ids: [createdProductId] };
-  const hydrateNodesAfterUpdateResponse = await runGraphql(hydrateNodesQuery, hydrateNodesAfterUpdateVariables);
+  const preDeleteLifecycleHydration = await captureProductOptionLifecycleHydration(runGraphqlRaw, createdProductId);
+  const preDeleteHydration = await captureProductMutationPreflight(runGraphqlRaw, createdProductId);
 
   const preDeleteRead = await runGraphql(downstreamReadQuery, { id: createdProductId });
   const optionsDeleteVariables = { productId: createdProductId, options: [sizeOptionId, createdOptionId] };
@@ -362,9 +324,11 @@ try {
     throw new Error('Product option variantStrategy CREATE capture did not return a product id.');
   }
   const variantStrategyPreCreateRead = await runGraphql(downstreamReadQuery, { id: variantStrategyProductId });
-  // Run hydrate-nodes for variant strategy product so the cassette has a real upstream call.
-  const hydrateNodesVSVariables = { ids: [variantStrategyProductId] };
-  const hydrateNodesVSResponse = await runGraphql(hydrateNodesQuery, hydrateNodesVSVariables);
+  const variantStrategyLifecycleHydration = await captureProductOptionLifecycleHydration(
+    runGraphqlRaw,
+    variantStrategyProductId,
+  );
+  const variantStrategyHydration = await captureProductMutationPreflight(runGraphqlRaw, variantStrategyProductId);
   const variantStrategyCreateVariables = buildOptionsCreateVariantStrategyVariables(variantStrategyProductId);
   const variantStrategyCreateResponse = await runGraphql(
     optionsCreateVariantStrategyMutation,
@@ -383,14 +347,7 @@ try {
       validation: {
         createUnknownProduct: validation.createUnknownProduct,
       },
-      upstreamCalls: [
-        {
-          operationName: 'ProductOptionLifecycleHydrateNodes',
-          variables: hydrateNodesVariables,
-          query: hydrateNodesQuery,
-          response: hydrateNodesResponse,
-        },
-      ],
+      upstreamCalls: [preCreateLifecycleHydration, ...preCreateHydration],
     },
     'product-option-update-parity.json': {
       preMutationRead: preUpdateRead,
@@ -402,14 +359,7 @@ try {
       validation: {
         updateUnknownOption: validation.updateUnknownOption,
       },
-      upstreamCalls: [
-        {
-          operationName: 'ProductOptionLifecycleHydrateNodes',
-          variables: hydrateNodesAfterCreateVariables,
-          query: hydrateNodesQuery,
-          response: hydrateNodesAfterCreateResponse,
-        },
-      ],
+      upstreamCalls: [preUpdateLifecycleHydration, ...preUpdateHydration],
     },
     'product-options-delete-parity.json': {
       preMutationRead: preDeleteRead,
@@ -421,14 +371,7 @@ try {
       validation: {
         deleteUnknownOption: validation.deleteUnknownOption,
       },
-      upstreamCalls: [
-        {
-          operationName: 'ProductOptionLifecycleHydrateNodes',
-          variables: hydrateNodesAfterUpdateVariables,
-          query: hydrateNodesQuery,
-          response: hydrateNodesAfterUpdateResponse,
-        },
-      ],
+      upstreamCalls: [preDeleteLifecycleHydration, ...preDeleteHydration],
     },
     'product-options-create-variant-strategy-create-parity.json': {
       preMutationRead: variantStrategyPreCreateRead,
@@ -437,14 +380,7 @@ try {
         response: variantStrategyCreateResponse,
       },
       downstreamRead: variantStrategyPostCreateRead,
-      upstreamCalls: [
-        {
-          operationName: 'ProductOptionLifecycleHydrateNodes',
-          variables: hydrateNodesVSVariables,
-          query: hydrateNodesQuery,
-          response: hydrateNodesVSResponse,
-        },
-      ],
+      upstreamCalls: [variantStrategyLifecycleHydration, ...variantStrategyHydration],
     },
   };
 

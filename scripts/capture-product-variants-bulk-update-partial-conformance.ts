@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
+import { captureProductMutationPreflight } from './product-mutation-preflight-capture.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 type JsonRecord = Record<string, unknown>;
@@ -27,11 +28,6 @@ const errorOrderDocument = await readFile(
   path.join('config', 'parity-requests', 'products', 'productVariantsBulkUpdate-error-order.graphql'),
   'utf8',
 );
-const productsHydrateNodesObservationQuery = await readFile(
-  path.join('config', 'parity-requests', 'products', 'products-hydrate-nodes-observation.graphql'),
-  'utf8',
-);
-
 const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
@@ -175,32 +171,9 @@ function assertNoUserErrors(value: unknown, pathParts: readonly string[], label:
   }
 }
 
-function productHydrateIdsForVariables(variables: JsonRecord): string[] {
+async function captureProductHydrateCalls(variables: JsonRecord) {
   const productId = typeof variables['productId'] === 'string' ? variables['productId'] : null;
-  if (!productId) return [];
-  const variantIds = Array.isArray(variables['variants'])
-    ? variables['variants'].flatMap((variant) => {
-        if (typeof variant !== 'object' || variant === null) return [];
-        const variantId = (variant as JsonRecord)['id'];
-        return typeof variantId === 'string' ? [variantId] : [];
-      })
-    : [];
-  return [productId, ...[...new Set(variantIds)].sort()];
-}
-
-async function captureProductHydrateCall(variables: JsonRecord): Promise<JsonRecord | null> {
-  const ids = productHydrateIdsForVariables(variables);
-  if (ids.length === 0) return null;
-  const response = (await runGraphqlRaw(productsHydrateNodesObservationQuery, { ids })) as JsonRecord;
-  return {
-    operationName: 'ProductsHydrateNodes',
-    variables: { ids },
-    query: productsHydrateNodesObservationQuery,
-    response: {
-      status: response['status'],
-      body: response['payload'],
-    },
-  };
+  return productId ? await captureProductMutationPreflight(runGraphqlRaw, productId) : [];
 }
 
 await mkdir(outputDir, { recursive: true });
@@ -273,7 +246,7 @@ try {
       },
     ],
   };
-  const partialHydrateCall = await captureProductHydrateCall(partialVariables);
+  const partialHydrateCalls = await captureProductHydrateCalls(partialVariables);
   const partialResponse = (await runGraphqlRaw(allowPartialDocument, partialVariables)) as JsonRecord;
 
   const partialReadVariables: JsonRecord = { productId, redVariantId, blueVariantId };
@@ -305,7 +278,7 @@ try {
     },
     notes:
       'Live productVariantsBulkUpdate capture for allowPartialUpdates true with one valid and one invalid existing variant, downstream read-after-write, and same-input userErrors field/code ordering.',
-    upstreamCalls: partialHydrateCall ? [partialHydrateCall] : [],
+    upstreamCalls: partialHydrateCalls,
     partialUpdate: {
       request: { variables: partialVariables },
       response: partialResponse,

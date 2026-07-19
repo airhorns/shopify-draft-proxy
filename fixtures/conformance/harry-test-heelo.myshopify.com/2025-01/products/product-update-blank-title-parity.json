@@ -1,220 +1,48 @@
 {
-  "preMutationRead": {
-    "data": {
-      "product": {
-        "id": "gid://shopify/Product/10243941433650",
-        "options": [
-          {
-            "id": "gid://shopify/ProductOption/12804842946866",
-            "name": "Title",
-            "position": 1,
-            "values": ["Default Title"],
-            "optionValues": [
-              {
-                "id": "gid://shopify/ProductOptionValue/8322111373618",
-                "name": "Default Title",
-                "hasVariants": true
-              }
-            ]
-          }
-        ],
-        "totalInventory": 0,
-        "tracksInventory": false,
-        "variants": {
-          "nodes": [
-            {
-              "id": "gid://shopify/ProductVariant/51488204456242",
-              "title": "Default Title",
-              "sku": null,
-              "barcode": null,
-              "price": "0.00",
-              "inventoryQuantity": 0,
-              "selectedOptions": [
-                {
-                  "name": "Title",
-                  "value": "Default Title"
-                }
-              ],
-              "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53593802375474",
-                "tracked": false,
-                "requiresShipping": true
-              }
-            }
-          ]
-        }
-      }
-    },
-    "extensions": {
-      "cost": {
-        "requestedQueryCost": 32,
-        "actualQueryCost": 6,
-        "throttleStatus": {
-          "maximumAvailable": 2000,
-          "currentlyAvailable": 1994,
-          "restoreRate": 100
-        }
-      }
-    }
-  },
+  "sourceCapture": "product-update-parity.json#validation.blankTitle",
   "mutation": {
     "variables": {
-      "productId": "gid://shopify/Product/10243941433650",
-      "strategy": "DEFAULT",
-      "variants": [
-        {
-          "optionValues": [
-            {
-              "optionName": "Title",
-              "name": "Default Blue"
-            }
-          ],
-          "price": "25.00",
-          "inventoryItem": {
-            "sku": "HERMES-1784473339647-BULK-DEFAULT-DEFAULT",
-            "tracked": true,
-            "requiresShipping": true
-          }
-        }
-      ]
+      "product": {
+        "id": "gid://shopify/Product/10243938451762",
+        "title": ""
+      }
     },
     "response": {
       "data": {
-        "productVariantsBulkCreate": {
+        "productUpdate": {
           "product": {
-            "id": "gid://shopify/Product/10243941433650",
-            "options": [
-              {
-                "id": "gid://shopify/ProductOption/12804842946866",
-                "name": "Title",
-                "position": 1,
-                "values": ["Default Blue"],
-                "optionValues": [
-                  {
-                    "id": "gid://shopify/ProductOptionValue/8322111406386",
-                    "name": "Default Blue",
-                    "hasVariants": true
-                  }
-                ]
-              }
-            ],
-            "totalInventory": 0,
-            "tracksInventory": true,
-            "variants": {
-              "nodes": [
-                {
-                  "id": "gid://shopify/ProductVariant/51488204489010",
-                  "title": "Default Blue",
-                  "sku": "HERMES-1784473339647-BULK-DEFAULT-DEFAULT",
-                  "barcode": null,
-                  "price": "25.00",
-                  "inventoryQuantity": 0,
-                  "selectedOptions": [
-                    {
-                      "name": "Title",
-                      "value": "Default Blue"
-                    }
-                  ],
-                  "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53593802408242",
-                    "tracked": true,
-                    "requiresShipping": true
-                  }
-                }
-              ]
-            }
+            "id": "gid://shopify/Product/10243938451762",
+            "title": "Hermes Product Conformance 1784472826284",
+            "handle": "hermes-product-conformance-1784472826284",
+            "status": "DRAFT",
+            "vendor": "HERMES",
+            "productType": "ACCESSORIES",
+            "tags": ["1784472826284", "conformance", "product-mutation"],
+            "descriptionHtml": "<p>Hermes product mutation conformance 1784472826284</p>",
+            "templateSuffix": "product-mutation-parity",
+            "seo": {
+              "title": "Hermes Product 1784472826284",
+              "description": "Hermes product mutation conformance 1784472826284"
+            },
+            "onlineStorePreviewUrl": "https://adwzshsg5sv0hlo4-92891250994.shopifypreview.com/products_preview?preview_key=04a1536a76d4665f85b3adb0877dbc03&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xOVQxNTo1Mzo1MC4yNjlaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--a5f04846bfe57e7b28f3f3b5d66becda03d157a8"
           },
-          "productVariants": [
+          "userErrors": [
             {
-              "id": "gid://shopify/ProductVariant/51488204489010",
-              "title": "Default Blue",
-              "sku": "HERMES-1784473339647-BULK-DEFAULT-DEFAULT",
-              "barcode": null,
-              "price": "25.00",
-              "inventoryQuantity": 0,
-              "selectedOptions": [
-                {
-                  "name": "Title",
-                  "value": "Default Blue"
-                }
-              ],
-              "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53593802408242",
-                "tracked": true,
-                "requiresShipping": true
-              }
+              "field": ["title"],
+              "message": "Title can't be blank"
             }
-          ],
-          "userErrors": []
+          ]
         }
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 43,
-          "actualQueryCost": 17,
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1966,
+            "currentlyAvailable": 1780,
             "restoreRate": 100
           }
-        }
-      }
-    }
-  },
-  "downstreamRead": {
-    "data": {
-      "product": {
-        "id": "gid://shopify/Product/10243941433650",
-        "options": [
-          {
-            "id": "gid://shopify/ProductOption/12804842946866",
-            "name": "Title",
-            "position": 1,
-            "values": ["Default Blue"],
-            "optionValues": [
-              {
-                "id": "gid://shopify/ProductOptionValue/8322111406386",
-                "name": "Default Blue",
-                "hasVariants": true
-              }
-            ]
-          }
-        ],
-        "totalInventory": 0,
-        "tracksInventory": true,
-        "variants": {
-          "nodes": [
-            {
-              "id": "gid://shopify/ProductVariant/51488204489010",
-              "title": "Default Blue",
-              "sku": "HERMES-1784473339647-BULK-DEFAULT-DEFAULT",
-              "barcode": null,
-              "price": "25.00",
-              "inventoryQuantity": 0,
-              "selectedOptions": [
-                {
-                  "name": "Title",
-                  "value": "Default Blue"
-                }
-              ],
-              "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53593802408242",
-                "tracked": true,
-                "requiresShipping": true
-              }
-            }
-          ]
-        }
-      }
-    },
-    "extensions": {
-      "cost": {
-        "requestedQueryCost": 32,
-        "actualQueryCost": 6,
-        "throttleStatus": {
-          "maximumAvailable": 2000,
-          "currentlyAvailable": 1994,
-          "restoreRate": 100
         }
       }
     }
@@ -223,7 +51,7 @@
     {
       "operationName": "ProductMutationPreflightHydrate",
       "variables": {
-        "id": "gid://shopify/Product/10243941433650",
+        "id": "gid://shopify/Product/10243938451762",
         "variantsAfter": null,
         "mediaAfter": null,
         "collectionsAfter": null
@@ -235,39 +63,39 @@
           "data": {
             "product": {
               "__typename": "Product",
-              "id": "gid://shopify/Product/10243941433650",
-              "legacyResourceId": "10243941433650",
-              "createdAt": "2026-07-19T15:02:27Z",
-              "updatedAt": "2026-07-19T15:02:27Z",
-              "title": "Hermes Product Option Strategy Edge 1784473339647 bulk-default-default",
-              "handle": "hermes-product-option-strategy-edge-1784473339647-bulk-default-default",
+              "id": "gid://shopify/Product/10243938451762",
+              "legacyResourceId": "10243938451762",
+              "createdAt": "2026-07-19T14:53:46Z",
+              "updatedAt": "2026-07-19T14:53:47Z",
+              "title": "Hermes Product Conformance 1784472826284",
+              "handle": "hermes-product-conformance-1784472826284",
               "status": "DRAFT",
               "publishedAt": null,
-              "descriptionHtml": "",
-              "vendor": "harry-test-heelo",
-              "productType": "",
-              "tags": [],
-              "templateSuffix": null,
+              "descriptionHtml": "<p>Hermes product mutation conformance 1784472826284</p>",
+              "vendor": "HERMES",
+              "productType": "ACCESSORIES",
+              "tags": ["1784472826284", "conformance", "product-mutation"],
+              "templateSuffix": "product-mutation-parity",
               "totalInventory": 0,
               "tracksInventory": false,
-              "onlineStorePreviewUrl": "https://adwzshsg5sv0hlo4-92891250994.shopifypreview.com/products_preview?preview_key=344da3c265ec518abdffe1714a6d1505&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xOVQxNjowMjoyNy44MzZaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--c945ba6c22b742b35950606544b8006e850c257c",
+              "onlineStorePreviewUrl": "https://adwzshsg5sv0hlo4-92891250994.shopifypreview.com/products_preview?preview_key=04a1536a76d4665f85b3adb0877dbc03&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xOVQxNTo1Mzo0OS44ODlaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--b38dc5df89f076be9d24c7095312dc649c9802bd",
               "requiresSellingPlan": false,
               "isGiftCard": false,
               "giftCardTemplateSuffix": null,
               "seo": {
-                "title": null,
-                "description": null
+                "title": "Hermes Product 1784472826284",
+                "description": "Hermes product mutation conformance 1784472826284"
               },
               "category": null,
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12804842946866",
+                  "id": "gid://shopify/ProductOption/12804837835058",
                   "name": "Title",
                   "position": 1,
                   "values": ["Default Title"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8322111373618",
+                      "id": "gid://shopify/ProductOptionValue/8322095939890",
                       "name": "Default Title",
                       "hasVariants": true
                     }
@@ -277,7 +105,7 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51488204456242",
+                    "id": "gid://shopify/ProductVariant/51488183779634",
                     "title": "Default Title",
                     "sku": null,
                     "barcode": null,
@@ -306,7 +134,7 @@
                       "nodes": []
                     },
                     "inventoryItem": {
-                      "id": "gid://shopify/InventoryItem/53593802375474",
+                      "id": "gid://shopify/InventoryItem/53593781502258",
                       "tracked": false,
                       "requiresShipping": true,
                       "countryCodeOfOrigin": null,
@@ -327,8 +155,8 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo1MTQ4ODIwNDQ1NjI0MiwibGFzdF92YWx1ZSI6IjEifQ==",
-                  "endCursor": "eyJsYXN0X2lkIjo1MTQ4ODIwNDQ1NjI0MiwibGFzdF92YWx1ZSI6IjEifQ=="
+                  "startCursor": "eyJsYXN0X2lkIjo1MTQ4ODE4Mzc3OTYzNCwibGFzdF92YWx1ZSI6IjEifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTQ4ODE4Mzc3OTYzNCwibGFzdF92YWx1ZSI6IjEifQ=="
                 }
               },
               "media": {
@@ -357,7 +185,7 @@
               "actualQueryCost": 36,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1964,
+                "currentlyAvailable": 1801,
                 "restoreRate": 100
               }
             }

@@ -37,10 +37,10 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         match invocation.root_name {
-            "productOptionsCreate" => self.product_options_create(&arguments),
-            "productOptionUpdate" => self.product_option_update(&arguments),
-            "productOptionsDelete" => self.product_options_delete(&arguments),
-            "productOptionsReorder" => self.product_options_reorder(&arguments),
+            "productOptionsCreate" => self.product_options_create(invocation.request, &arguments),
+            "productOptionUpdate" => self.product_option_update(invocation.request, &arguments),
+            "productOptionsDelete" => self.product_options_delete(invocation.request, &arguments),
+            "productOptionsReorder" => self.product_options_reorder(invocation.request, &arguments),
             root => ResolverOutcome::error(format!(
                 "No mutation dispatcher implemented for product option root `{root}`"
             )),
@@ -49,9 +49,14 @@ impl DraftProxy {
 
     fn load_product_option_owner(
         &mut self,
+        request: &Request,
         product_id: &str,
     ) -> Result<ProductRecord, ProductOptionUserError> {
-        self.hydrate_product_option_owner_state(product_id);
+        if !self.hydrate_product_option_owner_state(request, product_id)
+            && self.config.read_mode == ReadMode::LiveHybrid
+        {
+            return Err(product_option_missing_product_error());
+        }
         self.store
             .product_staged_or_base(product_id)
             .ok_or_else(product_option_missing_product_error)
@@ -59,10 +64,11 @@ impl DraftProxy {
 
     fn product_options_create(
         &mut self,
+        request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> ResolverOutcome<Value> {
         let product_id = resolved_string_field(arguments, "productId").unwrap_or_default();
-        let mut product = match self.load_product_option_owner(&product_id) {
+        let mut product = match self.load_product_option_owner(request, &product_id) {
             Ok(product) => product,
             Err(error) => {
                 return ResolverOutcome::value(product_option_payload_value(
@@ -294,10 +300,11 @@ impl DraftProxy {
 
     fn product_option_update(
         &mut self,
+        request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> ResolverOutcome<Value> {
         let product_id = resolved_string_field(arguments, "productId").unwrap_or_default();
-        let mut product = match self.load_product_option_owner(&product_id) {
+        let mut product = match self.load_product_option_owner(request, &product_id) {
             Ok(product) => product,
             Err(error) => {
                 return ResolverOutcome::value(product_option_payload_value(
@@ -413,10 +420,11 @@ impl DraftProxy {
 
     fn product_options_delete(
         &mut self,
+        request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> ResolverOutcome<Value> {
         let product_id = resolved_string_field(arguments, "productId").unwrap_or_default();
-        let mut product = match self.load_product_option_owner(&product_id) {
+        let mut product = match self.load_product_option_owner(request, &product_id) {
             Ok(product) => product,
             Err(error) => {
                 return ResolverOutcome::value(product_options_delete_payload_value(
@@ -485,10 +493,11 @@ impl DraftProxy {
 
     fn product_options_reorder(
         &mut self,
+        request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> ResolverOutcome<Value> {
         let product_id = resolved_string_field(arguments, "productId").unwrap_or_default();
-        let mut product = match self.load_product_option_owner(&product_id) {
+        let mut product = match self.load_product_option_owner(request, &product_id) {
             Ok(product) => product,
             Err(error) => {
                 return ResolverOutcome::value(product_option_payload_value(
@@ -542,17 +551,19 @@ impl DraftProxy {
         ))
     }
 
-    fn hydrate_product_option_owner_state(&mut self, product_id: &str) {
-        if self.config.read_mode != ReadMode::LiveHybrid
-            || product_id.is_empty()
-            || self.store.product_by_id(product_id).is_some()
-        {
-            return;
+    fn hydrate_product_option_owner_state(&mut self, request: &Request, product_id: &str) -> bool {
+        if product_id.is_empty() {
+            return false;
         }
-        // The reorder graph is derived from the product's `options` field, which the
-        // generic node-observation query does not select. Forward the options-aware
-        // hydrate so the option/optionValue graph is observed into local state.
-        self.hydrate_product_options_owner(product_id);
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || self
+                .store
+                .product_by_id(product_id)
+                .is_some_and(product_mutation_hydration_complete)
+        {
+            return self.store.product_by_id(product_id).is_some();
+        }
+        self.hydrate_product_options_owner(request, product_id)
     }
 
     fn record_product_option_linked_metaobject_definitions(

@@ -1,0 +1,65 @@
+mutation ProductMutationHydrationVariantUpdate(
+  $productId: ID!
+  $variants: [ProductVariantsBulkInput!]!
+) {
+  productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+    product {
+      ...ProductMutationHydrationVariantProduct
+    }
+    productVariants {
+      id
+      title
+      sku
+      price
+      position
+      selectedOptions {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
+
+fragment ProductMutationHydrationVariantProduct on Product {
+  id
+  createdAt
+  updatedAt
+  title
+  vendor
+  tags
+  media(first: 250) {
+    nodes {
+      id
+      alt
+      mediaContentType
+    }
+  }
+  options {
+    id
+    name
+    position
+    optionValues {
+      id
+      name
+      hasVariants
+    }
+  }
+  variants(first: 250) {
+    nodes {
+      id
+      title
+      sku
+      price
+      position
+      selectedOptions {
+        name
+        value
+      }
+    }
+  }
+}

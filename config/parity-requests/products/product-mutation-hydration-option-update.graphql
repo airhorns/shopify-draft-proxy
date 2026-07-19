@@ -1,0 +1,50 @@
+mutation ProductMutationHydrationOptionUpdate(
+  $productId: ID!
+  $option: OptionUpdateInput!
+) {
+  productOptionUpdate(productId: $productId, option: $option) {
+    product {
+      id
+      createdAt
+      updatedAt
+      title
+      vendor
+      tags
+      media(first: 250) {
+        nodes {
+          id
+          alt
+          mediaContentType
+        }
+      }
+      options {
+        id
+        name
+        position
+        optionValues {
+          id
+          name
+          hasVariants
+        }
+      }
+      variants(first: 250) {
+        nodes {
+          id
+          title
+          sku
+          price
+          position
+          selectedOptions {
+            name
+            value
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

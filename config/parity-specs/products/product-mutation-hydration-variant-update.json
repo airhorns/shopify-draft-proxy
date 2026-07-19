@@ -1,0 +1,52 @@
+{
+  "scenarioId": "product-mutation-hydration-variant-update",
+  "operationNames": ["productVariantsBulkUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "mutation-no-write-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-mutation-hydration-variant-update.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-mutation-hydration-variant-update.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured productVariantsBulkUpdate for the twelfth real Shopify variant, beyond the former ten-node hydrate cap, with an exact production preflight cassette and full product readback.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "twelfth-variant-update-preserves-complete-product-payload",
+        "capturePath": "$.mutation.response.data.productVariantsBulkUpdate",
+        "proxyPath": "$.data.productVariantsBulkUpdate",
+        "expectedDifferences": [
+          {
+            "path": "$.product.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify can advance the aggregate product timestamp for a variant write while the proxy preserves the hydrated aggregate timestamp."
+          }
+        ]
+      },
+      {
+        "name": "read-after-twelfth-variant-update-retains-rich-product-and-updated-price",
+        "capturePath": "$.downstreamRead.response.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-mutation-hydration-read.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify can advance the aggregate product timestamp for a variant write while the proxy preserves the hydrated aggregate timestamp."
+          }
+        ]
+      }
+    ]
+  }
+}
