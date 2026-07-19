@@ -5219,6 +5219,127 @@ fn customer_delete_shop_payload_hydrates_live_shop_state_when_selected() {
     assert_eq!(calls.len(), 2);
     assert!(calls[0].contains("CustomerHydrate"));
     assert!(calls[1].contains("CustomerDeleteShopHydrate"));
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("CustomerDeleteLiveHydrateShop"));
+    assert_eq!(
+        log["entries"][0]["variables"],
+        json!({ "input": { "id": customer_id } })
+    );
+    assert_eq!(log["entries"][0]["stagedResourceIds"], json!([customer_id]));
+}
+
+#[test]
+fn customer_delete_honors_hydrated_can_delete_without_staging_side_effects() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let customer_id = "gid://shopify/Customer/customer-delete-hydrated-blocked";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_calls.lock().unwrap().push(body.clone());
+            let customer = json!({
+                "id": customer_id,
+                "firstName": "Hydrated",
+                "lastName": "Blocked",
+                "displayName": "Hydrated Blocked",
+                "email": "customer-delete-hydrated-blocked@example.test",
+                "phone": null,
+                "locale": "en",
+                "note": null,
+                "canDelete": false,
+                "verifiedEmail": true,
+                "dataSaleOptOut": false,
+                "taxExempt": false,
+                "taxExemptions": [],
+                "state": "DISABLED",
+                "tags": [],
+                "createdAt": "2026-07-19T00:00:00Z",
+                "updatedAt": "2026-07-19T00:00:00Z",
+                "defaultEmailAddress": {
+                    "emailAddress": "customer-delete-hydrated-blocked@example.test"
+                },
+                "defaultPhoneNumber": null,
+                "defaultAddress": null
+            });
+            match (
+                body["operationName"].as_str(),
+                body["query"].as_str().unwrap_or_default(),
+            ) {
+                (Some("CustomerHydrate"), _) => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "customer": customer } }),
+                },
+                (None, query) if query.contains("CustomerDeleteHydratedCanDeleteRead") => {
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({ "data": { "customer": customer } }),
+                    }
+                }
+                operation => panic!("unexpected upstream operation: {operation:?}"),
+            }
+        });
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteHydratedCanDelete($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) {
+            deletedCustomerId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": customer_id } }),
+    ));
+
+    assert_eq!(
+        delete.body["data"]["customerDelete"],
+        json!({
+            "deletedCustomerId": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Customer can’t be deleted because they have associated orders"
+            }]
+        })
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerDeleteHydratedCanDeleteRead($id: ID!) {
+          customer(id: $id) { id email canDelete }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["customer"],
+        json!({
+            "id": customer_id,
+            "email": "customer-delete-hydrated-blocked@example.test",
+            "canDelete": false
+        })
+    );
+
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert_eq!(calls[0]["operationName"], json!("CustomerHydrate"));
+    assert!(calls[1]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("CustomerDeleteHydratedCanDeleteRead"));
+    assert!(calls.iter().all(|call| !call["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("mutation")));
 }
 
 #[test]
@@ -5287,6 +5408,8 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
         json!("customer-delete-blocked@example.test")
     );
 
+    let state_before_blocked_delete = state_snapshot(&proxy);
+    let log_before_blocked_delete = log_snapshot(&proxy);
     let blocked = proxy.process_request(admin_2025_01_graphql_request(
         r#"
         mutation CustomerDeleteOrderPreconditionDelete($input: CustomerDeleteInput!) {
@@ -5302,6 +5425,8 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
             "userErrors": [{ "field": ["id"], "message": "Customer can’t be deleted because they have associated orders" }]
         })
     );
+    assert_eq!(state_snapshot(&proxy), state_before_blocked_delete);
+    assert_eq!(log_snapshot(&proxy), log_before_blocked_delete);
 
     let read = proxy.process_request(admin_2025_01_graphql_request(
         r#"
@@ -5386,6 +5511,97 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
             .unwrap()
             .len(),
         1
+    );
+}
+
+#[test]
+fn customer_delete_preserves_missing_and_draft_order_controls() {
+    let mut missing_proxy = snapshot_proxy();
+    let missing_state = state_snapshot(&missing_proxy);
+    let missing_log = log_snapshot(&missing_proxy);
+    let missing = missing_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteMissingControl($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) { deletedCustomerId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Customer/missing-delete-control" } }),
+    ));
+    assert_eq!(
+        missing.body["data"]["customerDelete"],
+        json!({
+            "deletedCustomerId": null,
+            "userErrors": [{ "field": ["id"], "message": "Customer can't be found" }]
+        })
+    );
+    assert_eq!(state_snapshot(&missing_proxy), missing_state);
+    assert_eq!(log_snapshot(&missing_proxy), missing_log);
+
+    let mut draft_proxy = snapshot_proxy();
+    let create = draft_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteDraftOrderControlCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "customer-delete-draft-order-control@example.test",
+                "firstName": "Draft",
+                "lastName": "Control"
+            }
+        }),
+    ));
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let draft = draft_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteDraftOrderControlDraft($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder { id customer { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "customer-delete-draft-order-control@example.test",
+                "purchasingEntity": { "customerId": customer_id },
+                "lineItems": [{
+                    "title": "Draft orders do not block customer deletion",
+                    "quantity": 1,
+                    "originalUnitPrice": "5.00",
+                    "requiresShipping": false,
+                    "taxable": false
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        draft.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        draft.body["data"]["draftOrderCreate"]["draftOrder"]["customer"]["id"],
+        json!(customer_id)
+    );
+
+    let delete = draft_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteDraftOrderControlDelete($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) { deletedCustomerId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": customer_id } }),
+    ));
+    assert_eq!(
+        delete.body["data"]["customerDelete"],
+        json!({ "deletedCustomerId": customer_id, "userErrors": [] })
     );
 }
 
