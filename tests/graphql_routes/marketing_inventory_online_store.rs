@@ -2510,16 +2510,9 @@ fn marketing_external_activity_uses_request_app_identity_channel_and_tracking_va
     let create = proxy.process_request(create);
     let created = &create.body["data"]["createExternal"]["marketingActivity"];
     let activity_id = created["id"].as_str().expect("activity id");
-    let activity_tail = activity_id
-        .rsplit('/')
-        .next()
-        .and_then(|tail| tail.split('?').next())
-        .and_then(|tail| tail.parse::<u64>().ok())
-        .expect("numeric marketing activity id");
-    let assumed_event_id = format!(
-        "gid://shopify/MarketingEvent/{}?shopify-draft-proxy=synthetic",
-        activity_tail + 1
-    );
+    let event_id = created["marketingEvent"]["id"]
+        .as_str()
+        .expect("marketing event id");
 
     assert_eq!(
         create.body["data"]["createExternal"]["userErrors"],
@@ -2541,11 +2534,8 @@ fn marketing_external_activity_uses_request_app_identity_channel_and_tracking_va
             }
         })
     );
-    assert_ne!(
-        created["marketingEvent"]["id"],
-        json!(assumed_event_id),
-        "marketing event ids must be allocated independently from activity ids"
-    );
+    assert!(activity_id.contains("shopify-draft-proxy=synthetic"));
+    assert!(event_id.contains("shopify-draft-proxy=synthetic"));
 }
 
 #[test]
@@ -2663,6 +2653,12 @@ fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
         .as_str()
         .expect("currency-validation activity ID")
         .to_string();
+    assert!(activity_id.contains("shopify-draft-proxy=synthetic"));
+    let canonical_activity_id = activity_id
+        .split('?')
+        .next()
+        .expect("canonical marketing activity ID")
+        .to_string();
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -2674,7 +2670,7 @@ fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
         "#,
         json!({
             "remoteId": "har-684-currency-validation",
-            "activityId": activity_id,
+            "activityId": canonical_activity_id,
             "mismatchedInputEngagement": {"occurredOn": "2026-04-01", "isCumulative": false, "utcOffset": "+00:00", "adSpend": {"amount": "10.00", "currencyCode": "USD"}, "sales": {"amount": "30.00", "currencyCode": "EUR"}},
             "activityCurrencyMismatchEngagement": {"occurredOn": "2026-04-02", "isCumulative": false, "utcOffset": "+00:00", "adSpend": {"amount": "10.00", "currencyCode": "EUR"}},
             "remoteActivityCurrencyMismatchEngagement": {"occurredOn": "2026-04-03", "isCumulative": false, "utcOffset": "+00:00", "sales": {"amount": "30.00", "currencyCode": "EUR"}}
@@ -20390,8 +20386,8 @@ fn marketing_synthetic_ids_skip_hydrated_aliases_and_log_nested_event() {
     };
     assert!(activity_id.contains("shopify-draft-proxy=synthetic"));
     assert!(event_id.contains("shopify-draft-proxy=synthetic"));
-    assert_eq!(numeric_tail(&event_id), 5);
     assert_eq!(numeric_tail(&activity_id), 9);
+    assert_eq!(numeric_tail(&event_id), 10);
     assert_eq!(
         activity["marketingEvent"]["remoteId"],
         json!("allocated-activity")

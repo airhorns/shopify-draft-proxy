@@ -1738,6 +1738,18 @@ impl Store {
             &self.staged.marketing_activities,
             id,
         )
+        .or_else(|| {
+            let staged_id = staged_record_key_for_shopify_gid(
+                &self.staged.marketing_activities,
+                id,
+                "MarketingActivity",
+            )?;
+            effective_get(
+                &self.base.marketing_activities,
+                &self.staged.marketing_activities,
+                &staged_id,
+            )
+        })
     }
 
     fn marketing_activities(&self) -> Vec<Value> {
@@ -1799,9 +1811,11 @@ impl Store {
     }
 
     fn marketing_event_by_id(&self, id: &str) -> Option<Value> {
-        self.marketing_events()
-            .into_iter()
-            .find(|event| event["id"].as_str() == Some(id))
+        self.marketing_events().into_iter().find(|event| {
+            event["id"].as_str().is_some_and(|candidate| {
+                candidate == id || shopify_gid_identities_overlap(candidate, id)
+            })
+        })
     }
 
     fn has_marketing_overlay_state(&self) -> bool {

@@ -918,7 +918,11 @@ impl DraftProxy {
                         if self.marketing_activity_hidden_by_delete_all(record, request) {
                             return false;
                         }
-                        if !ids.is_empty() && !ids.iter().any(|candidate| candidate == id) {
+                        if !ids.is_empty()
+                            && !ids.iter().any(|candidate| {
+                                candidate == id || shopify_gid_identities_overlap(candidate, id)
+                            })
+                        {
                             return false;
                         }
                         if !remote_ids.is_empty()
@@ -1094,10 +1098,22 @@ impl DraftProxy {
 
     fn marketing_update_native(&mut self, field: &MarketingRootInput, request: &Request) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let id = resolved_string_field(&input, "id").unwrap_or_else(|| {
-            self.next_proxy_synthetic_gid_avoiding("MarketingActivity", marketing_identity_known)
-        });
-        let existing = self.store.marketing_activity_by_id(&id).cloned();
+        let submitted_id = resolved_string_field(&input, "id");
+        let existing = submitted_id
+            .as_deref()
+            .and_then(|id| self.store.marketing_activity_by_id(id))
+            .cloned();
+        let id = existing
+            .as_ref()
+            .and_then(|activity| activity["id"].as_str())
+            .map(str::to_string)
+            .or(submitted_id)
+            .unwrap_or_else(|| {
+                self.next_proxy_synthetic_gid_avoiding(
+                    "MarketingActivity",
+                    marketing_identity_known,
+                )
+            });
         let timestamp = self.next_product_timestamp();
         let shop_currency_code = self.store.shop_currency_code();
         let app_context = self.marketing_app_context_for_request(request);
@@ -1340,6 +1356,17 @@ impl DraftProxy {
             .as_deref()
             .and_then(|id| self.store.marketing_activity_by_id(id))
             .cloned();
+        let id = existing
+            .as_ref()
+            .and_then(|activity| activity["id"].as_str())
+            .map(str::to_string)
+            .or(existing_id)
+            .unwrap_or_else(|| {
+                self.next_proxy_synthetic_gid_avoiding(
+                    "MarketingActivity",
+                    marketing_identity_known,
+                )
+            });
         let new_marketing_event_id = existing
             .as_ref()
             .and_then(|activity| activity.pointer("/marketingEvent/id"))
@@ -1348,9 +1375,6 @@ impl DraftProxy {
             .then(|| {
                 self.next_proxy_synthetic_gid_avoiding("MarketingEvent", marketing_identity_known)
             });
-        let id = existing_id.unwrap_or_else(|| {
-            self.next_proxy_synthetic_gid_avoiding("MarketingActivity", marketing_identity_known)
-        });
         let timestamp = self.next_product_timestamp();
         let shop_currency_code = self.store.shop_currency_code();
         let app_context = self.marketing_app_context_for_request(request);
@@ -1399,8 +1423,12 @@ impl DraftProxy {
         if self.marketing_activity_has_child_events(&activity) {
             return json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_child_events_error()] });
         }
-        self.store.staged.marketing_activities.tombstone(id.clone());
-        json!({ "deletedMarketingActivityId": id, "userErrors": [] })
+        let stored_id = activity["id"].as_str().unwrap_or(&id).to_string();
+        self.store
+            .staged
+            .marketing_activities
+            .tombstone(stored_id.clone());
+        json!({ "deletedMarketingActivityId": stored_id, "userErrors": [] })
     }
 
     fn marketing_activity_for_delete(&self, id: &str, request: &Request) -> Option<Value> {
