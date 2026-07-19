@@ -9,13 +9,13 @@
     "variablesPath": "config/parity-requests/events/event-non-empty-read.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live-captured top-level Event read against harry-test-heelo.myshopify.com. The capture script discovers a real event ID from events(first: 1, sortKey: ID, reverse: true), then records event(id:), a non-empty events connection, and eventsCount without a query filter. This scenario proves live-hybrid events roots must read through to Shopify instead of using the snapshot no-data serializer for stores with events.",
+  "notes": "Live-captured top-level Event read against harry-test-heelo.myshopify.com. The dedicated Events capture script discovers a real event ID from events(first: 1, sortKey: ID, reverse: true), then records event(id:), a non-empty events connection, and eventsCount without a query filter. This scenario proves top-level Events reads must return the real Shopify event set instead of falling back to the snapshot no-data serializer for stores with events.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "event-non-empty-read-data",
+        "name": "event-non-empty-top-level-read-data",
         "capturePath": "$.response.data",
         "proxyPath": "$.data",
         "upstreamCapturePath": null

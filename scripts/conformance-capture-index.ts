@@ -9898,11 +9898,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'events',
-    captureId: 'platform-payments-orphaned-fixtures-events',
-    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01', ORPHAN_FIXTURE_GROUP: 'events' },
-    scriptPath: 'scripts/capture-platform-payments-orphaned-fixtures-conformance.ts',
+    captureId: 'events-top-level-reads',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-events-conformance.ts',
     purpose:
-      'Re-records the event empty-read fixture and a non-empty top-level events read fixture consumed by the standard parity runner.',
+      'Re-records top-level event, events, and eventsCount read fixtures consumed by the standard parity runner.',
     requiredAuthScopes: ['active Admin API token'],
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/events/event-empty-read.json',
