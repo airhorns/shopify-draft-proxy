@@ -13266,6 +13266,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-operation-cold-catalog-hydration',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-cold-catalog-hydration-conformance.ts',
+    purpose:
+      'Cold LiveHybrid product bulk export hydration through exact paginated catalog reads and strict Shopify JSONL artifact parity.',
+    requiredAuthScopes: ['bulk operation access through active Admin token', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-cold-catalog-hydration.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-cold-catalog-hydration.json',
+      'config/parity-requests/bulk-operations/bulk-operation-cold-catalog-hydration-run-query.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable tagged product, captures the complete product catalog and a filtered Shopify bulk artifact, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'bulk-operation-run-query-validators',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-query-validators-conformance.ts',
