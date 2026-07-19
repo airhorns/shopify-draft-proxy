@@ -1,4 +1,4 @@
-use super::{DraftProxy, StagedRecords, StagedSortValue};
+use super::{DraftProxy, StagedRecords, StagedSortValue, Store};
 
 pub(in crate::proxy) const SYNTHETIC_MARKER: &str = "shopify-draft-proxy=synthetic";
 const SHOPIFY_GID_PREFIX: &str = "gid://shopify/";
@@ -42,6 +42,34 @@ pub(in crate::proxy) fn shopify_gid_tail_for_type<'a>(
 
 pub(in crate::proxy) fn is_shopify_gid_of_type(id: &str, resource_type: &str) -> bool {
     typed_shopify_gid_tail(id, resource_type).is_some()
+}
+
+fn shopify_gid_identity(id: &str) -> Option<(&str, &str)> {
+    let rest = id.strip_prefix(SHOPIFY_GID_PREFIX)?;
+    let (resource_type, resource_id) = rest.split_once('/')?;
+    let tail = resource_id.split('?').next()?;
+    (!resource_type.is_empty() && !tail.is_empty() && !tail.contains('/'))
+        .then_some((resource_type, tail))
+}
+
+pub(in crate::proxy) fn shopify_gid_identities_overlap(left: &str, right: &str) -> bool {
+    shopify_gid_identity(left)
+        .zip(shopify_gid_identity(right))
+        .is_some_and(|(left, right)| left == right)
+}
+
+fn value_contains_shopify_gid_identity(value: &serde_json::Value, candidate: &str) -> bool {
+    match value {
+        serde_json::Value::String(id) => shopify_gid_identities_overlap(id, candidate),
+        serde_json::Value::Array(values) => values
+            .iter()
+            .any(|value| value_contains_shopify_gid_identity(value, candidate)),
+        serde_json::Value::Object(fields) => fields.iter().any(|(key, value)| {
+            shopify_gid_identities_overlap(key, candidate)
+                || value_contains_shopify_gid_identity(value, candidate)
+        }),
+        _ => false,
+    }
 }
 
 pub(in crate::proxy) fn shopify_gid_resource_type(id: &str) -> Option<&str> {
@@ -107,6 +135,26 @@ impl DraftProxy {
         synthetic_shopify_gid(resource_type, id)
     }
 
+    pub(in crate::proxy) fn next_proxy_synthetic_gid_avoiding<IdentityKnown>(
+        &mut self,
+        resource_type: &str,
+        identity_known: IdentityKnown,
+    ) -> String
+    where
+        IdentityKnown: Fn(&Store, &str) -> bool,
+    {
+        loop {
+            let candidate = self.next_proxy_synthetic_gid(resource_type);
+            let present_in_log = self
+                .log_entries
+                .iter()
+                .any(|entry| value_contains_shopify_gid_identity(entry, &candidate));
+            if !identity_known(&self.store, &candidate) && !present_in_log {
+                return candidate;
+            }
+        }
+    }
+
     /// Mint a plain `gid://shopify/<type>/<id>` without the proxy-synthetic
     /// marker. Used for
     /// entities (e.g. media files) the proxy fabricates with stable identifiers
@@ -135,6 +183,18 @@ mod tests {
             synthetic_shopify_gid("Product", 42),
             "gid://shopify/Product/42?shopify-draft-proxy=synthetic"
         );
+        assert!(shopify_gid_identities_overlap(
+            "gid://shopify/Product/42",
+            "gid://shopify/Product/42?shopify-draft-proxy=synthetic"
+        ));
+        assert!(!shopify_gid_identities_overlap(
+            "gid://shopify/Product/42",
+            "gid://shopify/Customer/42?shopify-draft-proxy=synthetic"
+        ));
+        assert!(!shopify_gid_identities_overlap(
+            "gid://shopify/Market/42",
+            "gid://shopify/Market/Region/42"
+        ));
     }
 
     #[test]

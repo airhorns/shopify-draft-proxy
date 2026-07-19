@@ -3180,3 +3180,234 @@ fn rejects_missing_paths_and_wrong_methods_with_existing_error_envelopes() {
         json!({ "errors": [{ "message": "Method not allowed" }] })
     );
 }
+
+#[test]
+fn commit_maps_cross_domain_synthetic_ids_and_rewrites_later_references() {
+    let replayed = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_replays = Arc::clone(&replayed);
+    let attempts = Arc::new(Mutex::new(0usize));
+    let captured_attempts = Arc::clone(&attempts);
+    let mut proxy = snapshot_proxy().with_commit_transport(move |request| {
+        captured_replays.lock().unwrap().push(request);
+        let mut attempt = captured_attempts.lock().unwrap();
+        let body = match *attempt {
+            0 => json!({"data": {"marketCreate": {
+                "market": {"id": "gid://shopify/Market/101"}, "userErrors": []
+            }}}),
+            1 => json!({"data": {"catalogCreate": {
+                "catalog": {"id": "gid://shopify/MarketCatalog/202"}, "userErrors": []
+            }}}),
+            2 => json!({"data": {"priceListCreate": {
+                "priceList": {"id": "gid://shopify/PriceList/303"}, "userErrors": []
+            }}}),
+            3 => json!({"data": {"webPresenceCreate": {
+                "webPresence": {"id": "gid://shopify/MarketWebPresence/404"}, "userErrors": []
+            }}}),
+            4 => json!({"data": {"marketingActivityCreateExternal": {
+                "marketingActivity": {
+                    "id": "gid://shopify/MarketingActivity/505",
+                    "marketingEvent": {"id": "gid://shopify/MarketingEvent/606"}
+                },
+                "userErrors": []
+            }}}),
+            5 => json!({"data": {"marketingActivityUpdateExternal": {
+                "marketingActivity": {
+                    "id": "gid://shopify/MarketingActivity/505",
+                    "marketingEvent": {"id": "gid://shopify/MarketingEvent/606"}
+                },
+                "userErrors": []
+            }}}),
+            unexpected => panic!("unexpected commit attempt {unexpected}"),
+        };
+        *attempt += 1;
+        ok_transport_response(body)
+    });
+
+    let dump = proxy.process_request(request("POST", "/__meta/dump"));
+    let mut restored_dump = dump.body;
+    restored_dump["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/commit-identities",
+        "name": "Commit identities shop",
+        "myshopifyDomain": "commit-identities.myshopify.com",
+        "primaryDomain": {
+            "id": "gid://shopify/Domain/1000",
+            "host": "commit-identities.example",
+            "url": "https://commit-identities.example",
+            "sslEnabled": true
+        },
+        "domains": [{
+            "id": "gid://shopify/Domain/1000",
+            "host": "commit-identities.example",
+            "url": "https://commit-identities.example",
+            "sslEnabled": true
+        }]
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored_dump.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let market = proxy.process_request(graphql_request(
+        &json!({
+            "query": "mutation CreateCommitMarket($input: MarketCreateInput!) { marketCreate(input: $input) { market { id } userErrors { field message code } } }",
+            "variables": {"input": {"name": "Commit Japan", "regions": [{"countryCode": "JP"}]}}
+        })
+        .to_string(),
+    ));
+    assert_eq!(market.body["data"]["marketCreate"]["userErrors"], json!([]));
+    let market_id = market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let catalog = proxy.process_request(graphql_request(
+        &json!({
+            "query": "mutation CreateCommitCatalog($input: CatalogCreateInput!) { catalogCreate(input: $input) { catalog { id } userErrors { field message code } } }",
+            "variables": {"input": {
+                "title": "Commit Japan Catalog",
+                "status": "ACTIVE",
+                "context": {"marketIds": [market_id.clone()]}
+            }}
+        })
+        .to_string(),
+    ));
+    assert_eq!(
+        catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let catalog_id = catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let price_list = proxy.process_request(graphql_request(
+        &json!({
+            "query": "mutation CreateCommitPriceList($input: PriceListCreateInput!) { priceListCreate(input: $input) { priceList { id catalog { id } } userErrors { field message code } } }",
+            "variables": {"input": {
+                "name": "Commit Japan Prices",
+                "currency": "USD",
+                "catalogId": catalog_id.clone(),
+                "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}
+            }}
+        })
+        .to_string(),
+    ));
+    assert_eq!(
+        price_list.body["data"]["priceListCreate"]["userErrors"],
+        json!([])
+    );
+    let price_list_id = price_list.body["data"]["priceListCreate"]["priceList"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let web_presence = proxy.process_request(graphql_request(
+        &json!({
+            "query": "mutation CreateCommitWebPresence($input: WebPresenceCreateInput!) { webPresenceCreate(input: $input) { webPresence { id } userErrors { field message code } } }",
+            "variables": {"input": {"defaultLocale": "en", "subfolderSuffix": "commitjp"}}
+        })
+        .to_string(),
+    ));
+    assert_eq!(
+        web_presence.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    let web_presence_id = web_presence.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let marketing_create = proxy.process_request(graphql_request(
+        &json!({
+            "query": "mutation CreateCommitMarketingActivity($input: MarketingActivityCreateExternalInput!) { marketingActivityCreateExternal(input: $input) { marketingActivity { id marketingEvent { id } } userErrors { field message code } } }",
+            "variables": {"input": {
+                "title": "Commit campaign",
+                "remoteId": "commit-campaign",
+                "status": "ACTIVE",
+                "remoteUrl": "https://example.com/commit-campaign",
+                "tactic": "AD",
+                "marketingChannelType": "SEARCH",
+                "utm": {
+                    "campaign": "commit-campaign",
+                    "source": "search",
+                    "medium": "paid"
+                }
+            }}
+        })
+        .to_string(),
+    ));
+    assert_eq!(
+        marketing_create.body["data"]["marketingActivityCreateExternal"]["userErrors"],
+        json!([])
+    );
+    let activity =
+        &marketing_create.body["data"]["marketingActivityCreateExternal"]["marketingActivity"];
+    let activity_id = activity["id"].as_str().unwrap().to_string();
+    let event_id = activity["marketingEvent"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let marketing_update = proxy.process_request(graphql_request(
+        &json!({
+            "query": "mutation UpdateCommitMarketingActivity($marketingActivityId: ID!, $input: MarketingActivityUpdateExternalInput!) { marketingActivityUpdateExternal(marketingActivityId: $marketingActivityId, input: $input) { marketingActivity { id marketingEvent { id } } userErrors { field message code } } }",
+            "variables": {
+                "marketingActivityId": activity_id.clone(),
+                "input": {"title": "Commit campaign updated"}
+            }
+        })
+        .to_string(),
+    ));
+    assert_eq!(
+        marketing_update.body["data"]["marketingActivityUpdateExternal"]["userErrors"],
+        json!([])
+    );
+
+    for id in [
+        &market_id,
+        &catalog_id,
+        &price_list_id,
+        &web_presence_id,
+        &activity_id,
+        &event_id,
+    ] {
+        assert!(id.contains("shopify-draft-proxy=synthetic"), "{id}");
+    }
+
+    let commit = proxy.process_request(request("POST", "/__meta/commit"));
+    assert_eq!(commit.status, 200);
+    assert_eq!(commit.body["committed"], json!(6));
+    for (attempt, synthetic_id, authoritative_id) in [
+        (0, &market_id, "gid://shopify/Market/101"),
+        (1, &catalog_id, "gid://shopify/MarketCatalog/202"),
+        (2, &price_list_id, "gid://shopify/PriceList/303"),
+        (3, &web_presence_id, "gid://shopify/MarketWebPresence/404"),
+        (4, &activity_id, "gid://shopify/MarketingActivity/505"),
+        (4, &event_id, "gid://shopify/MarketingEvent/606"),
+    ] {
+        assert_eq!(
+            commit.body["attempts"][attempt]["mappedIds"][synthetic_id],
+            json!(authoritative_id)
+        );
+    }
+
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 6);
+    let catalog_replay = serde_json::from_str::<Value>(&replayed[1].body).unwrap();
+    assert_eq!(
+        catalog_replay["variables"]["input"]["context"]["marketIds"][0],
+        json!("gid://shopify/Market/101")
+    );
+    let price_list_replay = serde_json::from_str::<Value>(&replayed[2].body).unwrap();
+    assert_eq!(
+        price_list_replay["variables"]["input"]["catalogId"],
+        json!("gid://shopify/MarketCatalog/202")
+    );
+    let marketing_update_replay = serde_json::from_str::<Value>(&replayed[5].body).unwrap();
+    assert_eq!(
+        marketing_update_replay["variables"]["marketingActivityId"],
+        json!("gid://shopify/MarketingActivity/505")
+    );
+}

@@ -507,9 +507,11 @@ impl DraftProxy {
         self.selected_catalog_payload(field, updated_catalog, Vec::new())
     }
 
-    pub(in crate::proxy) fn next_catalog_id(&self, driver_type: CatalogContextDriver) -> String {
-        let numeric_id = next_markets_catalogs_numeric_id(&self.store, 0);
-        shopify_gid(driver_type.catalog_type_name(), numeric_id)
+    pub(in crate::proxy) fn next_catalog_id(
+        &mut self,
+        driver_type: CatalogContextDriver,
+    ) -> String {
+        self.next_markets_family_synthetic_gid(driver_type.catalog_type_name())
     }
 
     pub(in crate::proxy) fn staged_company_locations_for_catalog(&self) -> BTreeMap<String, Value> {
@@ -1191,10 +1193,8 @@ impl DraftProxy {
         payload
     }
 
-    pub(in crate::proxy) fn next_price_list_id(&self) -> String {
-        let numeric_id =
-            next_markets_catalogs_numeric_id(&self.store, self.store.staged.price_lists.len());
-        shopify_gid("PriceList", numeric_id)
+    pub(in crate::proxy) fn next_price_list_id(&mut self) -> String {
+        self.next_markets_family_synthetic_gid("PriceList")
     }
 
     pub(in crate::proxy) fn attach_price_list_to_catalog(
