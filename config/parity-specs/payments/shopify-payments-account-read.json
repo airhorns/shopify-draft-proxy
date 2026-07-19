@@ -6,11 +6,15 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/shopify-payments-account-access-denied.json"
   ],
+  "runtimeTestFiles": ["tests/graphql_routes/platform.rs"],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/payments/shopify-payments-account-read.graphql"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "The configured conformance credential lacks read_shopify_payments/read_shopify_payments_accounts, so Shopify returns the direct account root as null with ACCESS_DENIED. Strict data comparison keeps the snapshot no-account branch aligned while targeted integration coverage exercises fixture-backed safe scalar and empty connection behavior.",
+  "notes": "The configured conformance credential lacks read_shopify_payments/read_shopify_payments_accounts, so Shopify returns the direct account root as null with ACCESS_DENIED. Cold LiveHybrid replay uses that exact captured request/response as its upstream cassette; Snapshot unsupported behavior and non-empty transport preservation remain focused runtime coverage rather than claims about uncaptured financial values.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -19,6 +23,12 @@
         "name": "shopify-payments-account-data",
         "capturePath": "$.data",
         "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "shopify-payments-account-access-denied",
+        "capturePath": "$.errors",
+        "proxyPath": "$.errors",
         "upstreamCapturePath": null
       }
     ]

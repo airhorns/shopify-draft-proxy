@@ -115,7 +115,7 @@ try {
 }
 ```
 
-Commit replay sends the original staged mutation bodies upstream in original order and stops on the first failed attempt.
+Commit replay sends the original staged mutation bodies upstream in original order and stops on the first failed attempt. Each successful attempt can include `mappedIds`; when a selected create payload omits or ambiguously returns an authoritative ID, `unresolvedIds` describes the synthetic ID and declared response path that could not be mapped. Later replay bodies are never rewritten from guessed same-type IDs.
 
 ## HTTP Adapter
 

@@ -22,6 +22,8 @@ type CapturedGraphqlResult = {
   payload: unknown;
 };
 
+type ProductMutationRoot = 'productCreate' | 'productDuplicate' | 'productSet' | 'productUpdate';
+
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   defaultApiVersion: '2025-01',
   exitOnMissing: true,
@@ -36,7 +38,7 @@ const { runGraphqlRaw } = createAdminGraphqlClient({
 });
 
 const productCreateMutation = `#graphql
-  mutation ProductHandleDedupCreate($product: ProductCreateInput!) {
+  mutation ProductHandleLifecycleCreate($product: ProductCreateInput!) {
     productCreate(product: $product) {
       product {
         id
@@ -51,8 +53,40 @@ const productCreateMutation = `#graphql
   }
 `;
 
+const productUpdateMutation = `#graphql
+  mutation ProductHandleLifecycleUpdate($product: ProductUpdateInput!) {
+    productUpdate(product: $product) {
+      product {
+        id
+        title
+        handle
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const productSetMutation = `#graphql
+  mutation ProductHandleLifecycleSet($input: ProductSetInput!) {
+    productSet(input: $input, synchronous: true) {
+      product {
+        id
+        title
+        handle
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const productDuplicateMutation = `#graphql
-  mutation ProductHandleDedupDuplicate($productId: ID!, $newTitle: String!) {
+  mutation ProductHandleLifecycleDuplicate($productId: ID!, $newTitle: String!) {
     productDuplicate(productId: $productId, newTitle: $newTitle) {
       newProduct {
         id
@@ -67,38 +101,10 @@ const productDuplicateMutation = `#graphql
   }
 `;
 
-const collectionCreateMutation = `#graphql
-  mutation ProductHandleDedupCollectionCreate($input: CollectionInput!) {
-    collectionCreate(input: $input) {
-      collection {
-        id
-        title
-        handle
-      }
-      userErrors {
-        field
-        message
-      }
-    }
-  }
-`;
-
 const productDeleteMutation = `#graphql
-  mutation ProductHandleDedupProductDelete($input: ProductDeleteInput!) {
+  mutation ProductHandleLifecycleCleanup($input: ProductDeleteInput!) {
     productDelete(input: $input) {
       deletedProductId
-      userErrors {
-        field
-        message
-      }
-    }
-  }
-`;
-
-const collectionDeleteMutation = `#graphql
-  mutation ProductHandleDedupCollectionDelete($input: CollectionDeleteInput!) {
-    collectionDelete(input: $input) {
-      deletedCollectionId
       userErrors {
         field
         message
@@ -125,131 +131,172 @@ function readPath(value: unknown, pathSegments: string[]): unknown {
   }, value);
 }
 
-function assertGraphqlOk(capture: Capture, label: string): void {
-  if (readPath(capture.response, ['errors'])) {
-    throw new Error(`${label} returned top-level errors: ${JSON.stringify(capture.response, null, 2)}`);
+function assertGraphqlOk(result: Capture, label: string): void {
+  if (readPath(result.response, ['errors'])) {
+    throw new Error(`${label} returned top-level errors: ${JSON.stringify(result.response, null, 2)}`);
   }
 }
 
-function readProductId(capture: Capture, root: 'productCreate' | 'productDuplicate'): string | null {
-  const productKey = root === 'productCreate' ? 'product' : 'newProduct';
-  const id = readPath(capture.response, ['data', root, productKey, 'id']);
+function readProductId(result: Capture, root: ProductMutationRoot): string | null {
+  const productKey = root === 'productDuplicate' ? 'newProduct' : 'product';
+  const id = readPath(result.response, ['data', root, productKey, 'id']);
   return typeof id === 'string' && id.length > 0 ? id : null;
 }
 
-function readCollectionId(capture: Capture): string | null {
-  const id = readPath(capture.response, ['data', 'collectionCreate', 'collection', 'id']);
-  return typeof id === 'string' && id.length > 0 ? id : null;
+function requireProductId(result: Capture, root: ProductMutationRoot, label: string): string {
+  assertGraphqlOk(result, label);
+  const id = readProductId(result, root);
+  if (!id) {
+    throw new Error(`${label} did not return a product id.`);
+  }
+  return id;
 }
 
-async function cleanupProduct(id: string): Promise<Capture> {
-  return capture(productDeleteMutation, { input: { id } });
-}
-
-async function cleanupCollection(id: string): Promise<Capture> {
-  return capture(collectionDeleteMutation, { input: { id } });
+function requireProductHandle(result: Capture, root: ProductMutationRoot, label: string): string {
+  const productKey = root === 'productDuplicate' ? 'newProduct' : 'product';
+  const handle = readPath(result.response, ['data', root, productKey, 'handle']);
+  if (typeof handle !== 'string' || handle.length === 0) {
+    throw new Error(`${label} did not return a product handle.`);
+  }
+  return handle;
 }
 
 const runId = new Date()
   .toISOString()
   .replace(/[-:.TZ]/gu, '')
   .slice(0, 14);
-const productTitle = `HAR 579 Red Shirt ${runId}`;
-const duplicateTitle = `${productTitle} Copy`;
-const collectionTitle = `HAR 579 Red Collection ${runId}`;
+const generatedTitle = `Product Handle Lifecycle ${runId}`;
+const updateTitle = `Product Handle Update ${runId}`;
+const productSetTitle = `Product Set Handle ${runId}`;
+const duplicateTitle = `Product Duplicate Handle ${runId}`;
 
 const operations: Record<string, Capture> = {};
 const cleanup: Capture[] = [];
-const productIds: string[] = [];
-const collectionIds: string[] = [];
+const productIds = new Set<string>();
+
+function trackProduct(result: Capture, root: ProductMutationRoot, label: string): string {
+  const id = requireProductId(result, root, label);
+  productIds.add(id);
+  return id;
+}
 
 try {
-  operations.productCreateFirst = await capture(productCreateMutation, {
-    product: { title: productTitle, status: 'DRAFT' },
+  operations.generatedCreateFirst = await capture(productCreateMutation, {
+    product: { title: generatedTitle, status: 'DRAFT' },
   });
-  assertGraphqlOk(operations.productCreateFirst, 'productCreateFirst');
-  const sourceProductId = readProductId(operations.productCreateFirst, 'productCreate');
-  if (!sourceProductId) {
-    throw new Error('productCreateFirst did not return a source product id.');
-  }
-  productIds.push(sourceProductId);
+  const sourceProductId = trackProduct(operations.generatedCreateFirst, 'productCreate', 'generatedCreateFirst');
+  const sourceHandle = requireProductHandle(operations.generatedCreateFirst, 'productCreate', 'generatedCreateFirst');
 
-  operations.productCreateSecond = await capture(productCreateMutation, {
-    product: { title: productTitle, status: 'DRAFT' },
+  operations.generatedCreateSecond = await capture(productCreateMutation, {
+    product: { title: generatedTitle, status: 'DRAFT' },
   });
-  assertGraphqlOk(operations.productCreateSecond, 'productCreateSecond');
-  const secondProductId = readProductId(operations.productCreateSecond, 'productCreate');
-  if (secondProductId) productIds.push(secondProductId);
+  trackProduct(operations.generatedCreateSecond, 'productCreate', 'generatedCreateSecond');
 
-  operations.productCreateThird = await capture(productCreateMutation, {
-    product: { title: productTitle, status: 'DRAFT' },
+  operations.normalizedUnicodeCreate = await capture(productCreateMutation, {
+    product: {
+      title: `Normalized Unicode Handle ${runId}`,
+      handle: '  Mixed CASE / 東京 100 % ',
+      status: 'DRAFT',
+    },
   });
-  assertGraphqlOk(operations.productCreateThird, 'productCreateThird');
-  const thirdProductId = readProductId(operations.productCreateThird, 'productCreate');
-  if (thirdProductId) productIds.push(thirdProductId);
+  trackProduct(operations.normalizedUnicodeCreate, 'productCreate', 'normalizedUnicodeCreate');
 
-  operations.productCreateFourth = await capture(productCreateMutation, {
-    product: { title: productTitle, status: 'DRAFT' },
+  operations.punctuationCreateFirst = await capture(productCreateMutation, {
+    product: { title: `Punctuation Handle One ${runId}`, handle: '%%%', status: 'DRAFT' },
   });
-  assertGraphqlOk(operations.productCreateFourth, 'productCreateFourth');
-  const fourthProductId = readProductId(operations.productCreateFourth, 'productCreate');
-  if (fourthProductId) productIds.push(fourthProductId);
+  trackProduct(operations.punctuationCreateFirst, 'productCreate', 'punctuationCreateFirst');
 
-  operations.productCreateCopyFirst = await capture(productCreateMutation, {
+  operations.punctuationCreateSecond = await capture(productCreateMutation, {
+    product: { title: `Punctuation Handle Two ${runId}`, handle: '%%%', status: 'DRAFT' },
+  });
+  trackProduct(operations.punctuationCreateSecond, 'productCreate', 'punctuationCreateSecond');
+
+  operations.explicitCreateCollision = await capture(productCreateMutation, {
+    product: {
+      title: `Explicit Handle Collision ${runId}`,
+      handle: `  ${sourceHandle.toUpperCase()}  `,
+      status: 'DRAFT',
+    },
+  });
+  assertGraphqlOk(operations.explicitCreateCollision, 'explicitCreateCollision');
+
+  operations.updateTargetCreate = await capture(productCreateMutation, {
+    product: {
+      title: updateTitle,
+      handle: `product-handle-update-${runId}`,
+      status: 'DRAFT',
+    },
+  });
+  const updateProductId = trackProduct(operations.updateTargetCreate, 'productCreate', 'updateTargetCreate');
+
+  operations.normalizedUnicodeUpdate = await capture(productUpdateMutation, {
+    product: { id: updateProductId, handle: '  Updated / 大阪 200 % ' },
+  });
+  assertGraphqlOk(operations.normalizedUnicodeUpdate, 'normalizedUnicodeUpdate');
+
+  operations.blankUpdate = await capture(productUpdateMutation, {
+    product: { id: updateProductId, handle: '   ' },
+  });
+  assertGraphqlOk(operations.blankUpdate, 'blankUpdate');
+
+  operations.titleOnlyUpdate = await capture(productUpdateMutation, {
+    product: { id: updateProductId, title: `${updateTitle} Renamed` },
+  });
+  assertGraphqlOk(operations.titleOnlyUpdate, 'titleOnlyUpdate');
+
+  operations.explicitUpdateCollision = await capture(productUpdateMutation, {
+    product: { id: updateProductId, handle: `  ${sourceHandle.toUpperCase()}  ` },
+  });
+  assertGraphqlOk(operations.explicitUpdateCollision, 'explicitUpdateCollision');
+
+  operations.punctuationUpdate = await capture(productUpdateMutation, {
+    product: { id: updateProductId, handle: '%%%' },
+  });
+  assertGraphqlOk(operations.punctuationUpdate, 'punctuationUpdate');
+
+  operations.generatedProductSetFirst = await capture(productSetMutation, {
+    input: { title: productSetTitle, status: 'DRAFT' },
+  });
+  const productSetId = trackProduct(operations.generatedProductSetFirst, 'productSet', 'generatedProductSetFirst');
+
+  operations.generatedProductSetSecond = await capture(productSetMutation, {
+    input: { title: productSetTitle, status: 'DRAFT' },
+  });
+  trackProduct(operations.generatedProductSetSecond, 'productSet', 'generatedProductSetSecond');
+  const secondProductSetHandle = requireProductHandle(
+    operations.generatedProductSetSecond,
+    'productSet',
+    'generatedProductSetSecond',
+  );
+
+  operations.normalizedProductSetUpdate = await capture(productSetMutation, {
+    input: { id: productSetId, handle: '  Set / 東京 300 % ' },
+  });
+  assertGraphqlOk(operations.normalizedProductSetUpdate, 'normalizedProductSetUpdate');
+
+  operations.blankProductSetUpdate = await capture(productSetMutation, {
+    input: { id: productSetId, handle: '   ' },
+  });
+  assertGraphqlOk(operations.blankProductSetUpdate, 'blankProductSetUpdate');
+
+  operations.explicitProductSetCollision = await capture(productSetMutation, {
+    input: { id: productSetId, handle: `  ${secondProductSetHandle.toUpperCase()}  ` },
+  });
+  assertGraphqlOk(operations.explicitProductSetCollision, 'explicitProductSetCollision');
+
+  operations.duplicateHandleOwnerCreate = await capture(productCreateMutation, {
     product: { title: duplicateTitle, status: 'DRAFT' },
   });
-  assertGraphqlOk(operations.productCreateCopyFirst, 'productCreateCopyFirst');
-  const firstCopyProductId = readProductId(operations.productCreateCopyFirst, 'productCreate');
-  if (firstCopyProductId) productIds.push(firstCopyProductId);
+  trackProduct(operations.duplicateHandleOwnerCreate, 'productCreate', 'duplicateHandleOwnerCreate');
 
-  operations.productCreateCopySecond = await capture(productCreateMutation, {
-    product: { title: duplicateTitle, status: 'DRAFT' },
-  });
-  assertGraphqlOk(operations.productCreateCopySecond, 'productCreateCopySecond');
-  const secondCopyProductId = readProductId(operations.productCreateCopySecond, 'productCreate');
-  if (secondCopyProductId) productIds.push(secondCopyProductId);
-
-  operations.productDuplicateCopy = await capture(productDuplicateMutation, {
+  operations.productDuplicate = await capture(productDuplicateMutation, {
     productId: sourceProductId,
     newTitle: duplicateTitle,
   });
-  assertGraphqlOk(operations.productDuplicateCopy, 'productDuplicateCopy');
-  const duplicateProductId = readProductId(operations.productDuplicateCopy, 'productDuplicate');
-  if (duplicateProductId) productIds.push(duplicateProductId);
-
-  operations.collectionCreateFirst = await capture(collectionCreateMutation, {
-    input: { title: collectionTitle },
-  });
-  assertGraphqlOk(operations.collectionCreateFirst, 'collectionCreateFirst');
-  const firstCollectionId = readCollectionId(operations.collectionCreateFirst);
-  if (firstCollectionId) collectionIds.push(firstCollectionId);
-
-  operations.collectionCreateSecond = await capture(collectionCreateMutation, {
-    input: { title: collectionTitle },
-  });
-  assertGraphqlOk(operations.collectionCreateSecond, 'collectionCreateSecond');
-  const secondCollectionId = readCollectionId(operations.collectionCreateSecond);
-  if (secondCollectionId) collectionIds.push(secondCollectionId);
-
-  operations.collectionCreateThird = await capture(collectionCreateMutation, {
-    input: { title: collectionTitle },
-  });
-  assertGraphqlOk(operations.collectionCreateThird, 'collectionCreateThird');
-  const thirdCollectionId = readCollectionId(operations.collectionCreateThird);
-  if (thirdCollectionId) collectionIds.push(thirdCollectionId);
-
-  operations.collectionCreateFourth = await capture(collectionCreateMutation, {
-    input: { title: collectionTitle },
-  });
-  assertGraphqlOk(operations.collectionCreateFourth, 'collectionCreateFourth');
-  const fourthCollectionId = readCollectionId(operations.collectionCreateFourth);
-  if (fourthCollectionId) collectionIds.push(fourthCollectionId);
+  trackProduct(operations.productDuplicate, 'productDuplicate', 'productDuplicate');
 } finally {
-  for (const id of collectionIds.reverse()) {
-    cleanup.push(await cleanupCollection(id));
-  }
-  for (const id of productIds.reverse()) {
-    cleanup.push(await cleanupProduct(id));
+  for (const id of [...productIds].reverse()) {
+    cleanup.push(await capture(productDeleteMutation, { input: { id } }));
   }
 }
 

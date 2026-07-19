@@ -79,6 +79,13 @@ impl DraftProxy {
                 hydration.response.clone(),
                 invocation.response_key,
             );
+            if outcome.errors.is_empty() {
+                self.observe_delivery_promise_node_root_value(
+                    invocation.root_name,
+                    &arguments,
+                    &outcome.value,
+                );
+            }
             outcome.value = self.node_value_with_upstream_fallback(
                 invocation.root_name,
                 &arguments,
@@ -108,6 +115,13 @@ impl DraftProxy {
                 invocation.response_key,
             );
             if result.transport_succeeded {
+                if result.outcome.errors.is_empty() {
+                    self.observe_delivery_promise_node_root_value(
+                        invocation.root_name,
+                        &arguments,
+                        &result.outcome.value,
+                    );
+                }
                 if let Some(value) = result
                     .data
                     .get(invocation.response_key)
@@ -444,6 +458,11 @@ impl DraftProxy {
             self.observe_inventory_level_node(node);
         } else if shopify_gid_resource_type(id) == Some("Location") {
             self.merge_staged_location(node, &[]);
+        } else if matches!(
+            shopify_gid_resource_type(id),
+            Some("DeliveryPromiseParticipant" | "DeliveryPromiseProvider")
+        ) {
+            self.observe_delivery_promise_node_value(id, node);
         } else if matches!(
             shopify_gid_resource_type(id),
             Some("ShopAddress" | "ShopPolicy")

@@ -221,6 +221,11 @@ const safeBulkQuery = `#graphql
   }
 }`;
 
+// Keep this byte-identical to the production hydration document. The parity
+// cassette matches the exact GraphQL text and variables sent by the proxy.
+const productCatalogHydrationQuery =
+  'query BulkProductsCatalogHydrate($first: Int!, $after: String) { products(first: $first, after: $after) { nodes { id title } pageInfo { hasNextPage endCursor } } }';
+
 const invalidBulkQueryWithoutConnection = `#graphql
 {
   shop {
@@ -330,6 +335,45 @@ function numericIdFromGid(gid: string): string {
   return gid.slice(gid.lastIndexOf('/') + 1);
 }
 
+async function captureProductCatalogPages(): Promise<CapturedInteraction[]> {
+  const pages: CapturedInteraction[] = [];
+  const seenCursors = new Set<string>();
+  let after: string | null = null;
+
+  for (let index = 0; index < 10_000; index += 1) {
+    const page = await capture('BulkProductsCatalogHydrate', productCatalogHydrationQuery, {
+      first: 250,
+      after,
+      nestedFirst: 250,
+      nestedAfter: null,
+    });
+    pages.push(page);
+    const response = asRecord(page.response);
+    const errors = response?.['errors'];
+    const connection = asRecord(readData(page)?.['products']);
+    const pageInfo = asRecord(connection?.['pageInfo']);
+    if (
+      page.status >= 400 ||
+      (Array.isArray(errors) && errors.length > 0) ||
+      !Array.isArray(connection?.['nodes']) ||
+      typeof pageInfo?.['hasNextPage'] !== 'boolean'
+    ) {
+      throw new Error(`Product catalog hydration page was malformed: ${JSON.stringify(page.response)}`);
+    }
+    if (pageInfo['hasNextPage'] === false) {
+      return pages;
+    }
+    const endCursor = pageInfo['endCursor'];
+    if (typeof endCursor !== 'string' || seenCursors.has(endCursor)) {
+      throw new Error(`Product catalog hydration cursor did not prove progress: ${JSON.stringify(pageInfo)}`);
+    }
+    seenCursors.add(endCursor);
+    after = endCursor;
+  }
+
+  throw new Error('Product catalog hydration exceeded 10,000 pages.');
+}
+
 async function pollBulkOperationToTerminal(id: string): Promise<CapturedInteraction[]> {
   const polls: CapturedInteraction[] = [];
 
@@ -383,6 +427,7 @@ async function captureRunQueryLifecycle(
   query: string,
   options: { cancelImmediately?: boolean } = {},
 ): Promise<Record<string, unknown>> {
+  upstreamCalls.push(...(await captureProductCatalogPages()));
   const run = await capture('BulkOperationRunQueryCapture', bulkOperationRunQueryMutation, { query });
   const bulkOperation = readPayloadBulkOperation(run, 'bulkOperationRunQuery');
   const id = readBulkOperationId(bulkOperation);

@@ -22,7 +22,7 @@ pub(in crate::proxy) use self::quantity_rules::*;
 pub(in crate::proxy) use self::returns::return_field_resolver_registrations;
 
 impl DraftProxy {
-    pub(crate) fn finance_no_data_root(
+    pub(crate) fn finance_query_root(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
@@ -33,6 +33,12 @@ impl DraftProxy {
                 invocation.mode.registry_name(),
             ));
         }
+        if self.config.read_mode != ReadMode::Snapshot {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
         ResolverOutcome::value(match invocation.root_name {
             "cashTrackingSessions" | "disputes" | "shopPayPaymentRequestReceipts" => {
                 connection_json(Vec::new())
@@ -40,11 +46,9 @@ impl DraftProxy {
             "cashTrackingSession"
             | "pointOfSaleDevice"
             | "dispute"
-            | "disputeEvidence"
-            | "shopPayPaymentRequestReceipt"
-            | "shopifyPaymentsAccount" => Value::Null,
+            | "shopPayPaymentRequestReceipt" => Value::Null,
             root => {
-                return ResolverOutcome::error(format!("Unknown Finance no-data root `{root}`"));
+                return ResolverOutcome::error(format!("Unknown Finance query root `{root}`"));
             }
         })
     }

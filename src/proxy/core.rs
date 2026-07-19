@@ -471,8 +471,15 @@ impl DraftProxy {
                 "deliveryProfileOrder": self.store.base.delivery_profiles.order,
                 "deliveryPromiseProviders": self.store.base.delivery_promise_providers.records.clone(),
                 "deliveryPromiseProviderOrder": self.store.base.delivery_promise_providers.order,
+                "deliveryPromiseProviderCompleteLocationIds": self.store.base.delivery_promise_provider_complete_location_ids.iter().cloned().collect::<Vec<_>>(),
                 "deliveryPromiseParticipants": self.store.base.delivery_promise_participants.records.clone(),
                 "deliveryPromiseParticipantOrder": self.store.base.delivery_promise_participants.order,
+                "deliveryPromiseParticipantBaselineOrders": self.store.base.delivery_promise_participant_baseline_orders.clone(),
+                "deliveryPromiseParticipantCursorIds": self.store.base.delivery_promise_participant_cursor_ids.clone(),
+                "deliveryPromiseParticipantCompleteScopes": self.store.base.delivery_promise_participant_complete_scopes.iter().cloned().collect::<Vec<_>>(),
+                "deliveryPromiseParticipantNextCursors": self.store.base.delivery_promise_participant_next_cursors.clone(),
+                "deliveryPromiseParticipantPreviousCursors": self.store.base.delivery_promise_participant_previous_cursors.clone(),
+                "deliveryPromiseCompleteNodeIds": self.store.base.delivery_promise_complete_node_ids.iter().cloned().collect::<Vec<_>>(),
                 "orders": self.store.base.orders.records.clone(),
                 "orderOrder": self.store.base.orders.order,
                 "orderCountBaselines": self.store.base.order_count_baselines.clone(),
@@ -486,6 +493,14 @@ impl DraftProxy {
                 "bulkOperationsObserved": self.store.base.bulk_operations_observed,
                 "locations": self.store.base.locations.records.clone(),
                 "locationOrder": self.store.base.locations.order,
+                "inventoryLevels": inventory_levels_json(&self.store.base.inventory_levels),
+                "inventoryLevelIds": inventory_level_ids_json(&self.store.base.inventory_level_ids),
+                "inventoryLevelOrder": inventory_level_order_json(&self.store.base.inventory_level_order),
+                "inventoryLevelCursors": self.store.base.inventory_level_cursors.clone(),
+                "inventoryItemCursors": self.store.base.inventory_item_cursors.clone(),
+                "inventoryItemsCatalogHydrated": self.store.base.inventory_items_catalog_hydrated,
+                "inactiveInventoryLevels": inactive_inventory_levels_json(&self.store.base.inactive_inventory_levels),
+                "inventoryQuantityUpdatedAt": inventory_quantity_updated_at_json(&self.store.base.inventory_quantity_updated_at),
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
                 "giftCardCompleteQueries": self.store.base.gift_card_complete_queries.iter().cloned().collect::<Vec<_>>(),
@@ -677,6 +692,15 @@ impl DraftProxy {
                 json!(self.store.base.b2b_staff_assignments.records.clone());
             snapshot["baseState"]["b2bStaffAssignmentOrder"] =
                 json!(self.store.base.b2b_staff_assignments.order.clone());
+        }
+        if !self.store.base.b2b_staff_member_ids.is_empty() {
+            snapshot["baseState"]["b2bStaffMemberIds"] = json!(self
+                .store
+                .base
+                .b2b_staff_member_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
         }
         if !self.store.base.function_metadata.is_empty() {
             snapshot["baseState"]["functionMetadata"] =
@@ -1030,6 +1054,10 @@ impl DraftProxy {
         if !self.store.staged.inactive_inventory_levels.is_empty() {
             snapshot["stagedState"]["inactiveInventoryLevels"] =
                 inactive_inventory_levels_json(&self.store.staged.inactive_inventory_levels);
+        }
+        if !self.store.staged.active_inventory_levels.is_empty() {
+            snapshot["stagedState"]["activeInventoryLevels"] =
+                inactive_inventory_levels_json(&self.store.staged.active_inventory_levels);
         }
         if !self.store.base.inventory_transfers.records.is_empty() {
             snapshot["baseState"]["inventoryTransfers"] =
@@ -1813,6 +1841,11 @@ impl DraftProxy {
                 base_delivery_promise_providers,
                 base_delivery_promise_provider_order,
             );
+        self.store
+            .base
+            .delivery_promise_provider_complete_location_ids = string_set_from_json(
+            state["baseState"].get("deliveryPromiseProviderCompleteLocationIds"),
+        );
         let base_delivery_promise_participants =
             value_map_from_json(state["baseState"].get("deliveryPromiseParticipants"));
         let base_delivery_promise_participant_order = state["baseState"]
@@ -1826,6 +1859,23 @@ impl DraftProxy {
                 base_delivery_promise_participants,
                 base_delivery_promise_participant_order,
             );
+        self.store.base.delivery_promise_participant_baseline_orders = string_array_map_from_json(
+            state["baseState"].get("deliveryPromiseParticipantBaselineOrders"),
+        );
+        self.store.base.delivery_promise_participant_cursor_ids =
+            string_map_map_from_json(state["baseState"].get("deliveryPromiseParticipantCursorIds"));
+        self.store.base.delivery_promise_participant_complete_scopes = string_set_from_json(
+            state["baseState"].get("deliveryPromiseParticipantCompleteScopes"),
+        );
+        self.store.base.delivery_promise_participant_next_cursors =
+            string_map_from_json(state["baseState"].get("deliveryPromiseParticipantNextCursors"));
+        self.store
+            .base
+            .delivery_promise_participant_previous_cursors = string_map_from_json(
+            state["baseState"].get("deliveryPromiseParticipantPreviousCursors"),
+        );
+        self.store.base.delivery_promise_complete_node_ids =
+            string_set_from_json(state["baseState"].get("deliveryPromiseCompleteNodeIds"));
         let base_locations = value_map_from_json(state["baseState"].get("locations"));
         let base_location_order = state["baseState"]
             .get("locationOrder")
@@ -1835,6 +1885,29 @@ impl DraftProxy {
             .base
             .locations
             .replace_with_order(base_locations, base_location_order);
+        self.store.base.inventory_levels =
+            inventory_levels_from_json(&state["baseState"]["inventoryLevels"]);
+        self.store.base.inventory_level_ids =
+            inventory_level_ids_from_json(&state["baseState"]["inventoryLevelIds"]);
+        self.store.base.inventory_level_order =
+            inventory_level_order_from_json(&state["baseState"]["inventoryLevelOrder"]);
+        self.store.base.inventory_level_cursors = state["baseState"]
+            .get("inventoryLevelCursors")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
+        self.store.base.inventory_item_cursors = state["baseState"]
+            .get("inventoryItemCursors")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
+        self.store.base.inventory_items_catalog_hydrated = state["baseState"]
+            ["inventoryItemsCatalogHydrated"]
+            .as_bool()
+            .unwrap_or(false);
+        self.store.base.inactive_inventory_levels =
+            inactive_inventory_levels_from_json(&state["baseState"]["inactiveInventoryLevels"]);
+        self.store.base.inventory_quantity_updated_at = inventory_quantity_updated_at_from_json(
+            &state["baseState"]["inventoryQuantityUpdatedAt"],
+        );
         self.store.base.shop = base_shop;
         self.store.base.publication_ids =
             string_array_from_json(&state["baseState"]["publicationIds"])
@@ -2001,6 +2074,12 @@ impl DraftProxy {
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
+        self.store.base.b2b_staff_member_ids = state["baseState"]
+            .get("b2bStaffMemberIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.publication_ids =
             string_array_from_json(&state["stagedState"]["publicationIds"])
                 .into_iter()
@@ -2449,6 +2528,8 @@ impl DraftProxy {
             .unwrap_or_default();
         self.store.staged.inactive_inventory_levels =
             inactive_inventory_levels_from_json(&state["stagedState"]["inactiveInventoryLevels"]);
+        self.store.staged.active_inventory_levels =
+            inactive_inventory_levels_from_json(&state["stagedState"]["activeInventoryLevels"]);
         self.store
             .staged
             .inventory_transfers
@@ -3003,6 +3084,30 @@ fn string_map_from_json(value: Option<&Value>) -> BTreeMap<String, String> {
                 .filter_map(|(key, value)| {
                     value.as_str().map(|value| (key.clone(), value.to_string()))
                 })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn string_array_map_from_json(value: Option<&Value>) -> BTreeMap<String, Vec<String>> {
+    value
+        .and_then(Value::as_object)
+        .map(|records| {
+            records
+                .iter()
+                .map(|(key, value)| (key.clone(), string_array_from_json(value)))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn string_map_map_from_json(value: Option<&Value>) -> BTreeMap<String, BTreeMap<String, String>> {
+    value
+        .and_then(Value::as_object)
+        .map(|records| {
+            records
+                .iter()
+                .map(|(key, value)| (key.clone(), string_map_from_json(Some(value))))
                 .collect()
         })
         .unwrap_or_default()

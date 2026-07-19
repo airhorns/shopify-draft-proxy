@@ -1,0 +1,13 @@
+mutation ConnectionOverlaySavedSearchCreate(
+  $first: SavedSearchCreateInput!
+  $second: SavedSearchCreateInput!
+) {
+  first: savedSearchCreate(input: $first) {
+    savedSearch { id name }
+    userErrors { field message }
+  }
+  second: savedSearchCreate(input: $second) {
+    savedSearch { id name }
+    userErrors { field message }
+  }
+}

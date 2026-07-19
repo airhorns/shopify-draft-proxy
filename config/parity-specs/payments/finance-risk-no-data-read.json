@@ -6,14 +6,25 @@
     "pointOfSaleDevice",
     "dispute",
     "disputes",
+    "disputeEvidence",
     "shopPayPaymentRequestReceipt",
     "shopPayPaymentRequestReceipts"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "sensitive-data-minimization", "empty-state"],
+  "assertionKinds": [
+    "payload-shape",
+    "sensitive-data-minimization",
+    "empty-state",
+    "upstream-read-parity",
+    "access-denied"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/finance-risk-access-read.json"
   ],
+  "runtimeTestFiles": ["tests/graphql_routes/platform.rs"],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/payments/finance-risk-no-data-read.graphql",
     "variables": {
@@ -26,38 +37,44 @@
     }
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-316 promotes only captured no-data, sensitive-safe finance/risk/POS reads. Dispute evidence is selected to preserve the captured null data shape in the combined local read, but ACCESS_DENIED error payloads and non-empty financial records remain explicit blockers outside this implemented slice.",
+  "notes": "HAR-316 captured sensitive-safe no-data finance/risk/POS reads. Proxy replay now executes the exact combined request through a cold LiveHybrid upstream cassette, including the captured disputeEvidence ACCESS_DENIED response. Non-empty financial records remain outside captured parity and are covered only as transport-preservation mechanics by focused runtime tests.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
         "name": "cash-tracking-no-data",
-        "capturePath": "$.safeReads.cashTracking.payload",
+        "capturePath": "$.liveHybridRead.payload",
         "proxyPath": "$",
         "upstreamCapturePath": null,
         "selectedPaths": ["$.data.cashTrackingSession", "$.data.cashTrackingSessions"]
       },
       {
         "name": "point-of-sale-device-missing",
-        "capturePath": "$.safeReads.pointOfSaleDevice.payload",
+        "capturePath": "$.liveHybridRead.payload",
         "proxyPath": "$",
         "upstreamCapturePath": null,
         "selectedPaths": ["$.data.pointOfSaleDevice"]
       },
       {
         "name": "dispute-no-data",
-        "capturePath": "$.safeReads.disputes.payload",
+        "capturePath": "$.liveHybridRead.payload",
         "proxyPath": "$",
         "upstreamCapturePath": null,
         "selectedPaths": ["$.data.dispute", "$.data.disputeEvidence", "$.data.disputes"]
       },
       {
         "name": "shop-pay-receipt-no-data",
-        "capturePath": "$.safeReads.shopPayPaymentRequestReceipts.payload",
+        "capturePath": "$.liveHybridRead.payload",
         "proxyPath": "$",
         "upstreamCapturePath": null,
         "selectedPaths": ["$.data.shopPayPaymentRequestReceipt", "$.data.shopPayPaymentRequestReceipts"]
+      },
+      {
+        "name": "dispute-evidence-access-denied",
+        "capturePath": "$.liveHybridRead.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null
       }
     ]
   }

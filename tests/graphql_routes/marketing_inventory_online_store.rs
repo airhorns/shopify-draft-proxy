@@ -4719,6 +4719,606 @@ fn location_inventory_levels_preserves_hydrated_untouched_levels() {
 }
 
 #[test]
+fn inventory_live_hybrid_cold_roots_forward_one_complete_request() {
+    let inventory_item_id = "gid://shopify/InventoryItem/910001";
+    let inventory_level_id = "gid://shopify/InventoryLevel/920001?inventory_item_id=910001";
+    let location_id = "gid://shopify/Location/930001";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body)
+                .expect("cold inventory upstream body should parse");
+            captured_requests.lock().unwrap().push(body.clone());
+            assert!(
+                body["query"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("ColdInventoryRoots"),
+                "cold inventory reads should forward the caller's complete document: {body}"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "item": {
+                            "id": inventory_item_id,
+                            "tracked": true
+                        },
+                        "items": {
+                            "edges": [{
+                                "cursor": "opaque-inventory-item-cursor-1",
+                                "node": {
+                                    "id": inventory_item_id,
+                                    "tracked": true
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": false,
+                                "startCursor": "opaque-inventory-item-cursor-1",
+                                "endCursor": "opaque-inventory-item-cursor-1"
+                            }
+                        },
+                        "level": {
+                            "id": inventory_level_id,
+                            "isActive": true,
+                            "location": {
+                                "id": location_id,
+                                "name": "Cold stockroom"
+                            },
+                            "quantities": [{
+                                "name": "available",
+                                "quantity": 7
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdInventoryRoots($inventoryItemId: ID!, $inventoryLevelId: ID!) {
+          item: inventoryItem(id: $inventoryItemId) {
+            id
+            tracked
+          }
+          items: inventoryItems(first: 1, query: "tracked:true") {
+            edges { cursor node { id tracked } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          level: inventoryLevel(id: $inventoryLevelId) {
+            id
+            isActive
+            location { id name }
+            quantities(names: ["available"]) { name quantity }
+          }
+        }
+        "#,
+        json!({
+            "inventoryItemId": inventory_item_id,
+            "inventoryLevelId": inventory_level_id
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "item": {
+                "id": inventory_item_id,
+                "tracked": true
+            },
+            "items": {
+                "edges": [{
+                    "cursor": "opaque-inventory-item-cursor-1",
+                    "node": {
+                        "id": inventory_item_id,
+                        "tracked": true
+                    }
+                }],
+                "pageInfo": {
+                    "hasNextPage": true,
+                    "hasPreviousPage": false,
+                    "startCursor": "opaque-inventory-item-cursor-1",
+                    "endCursor": "opaque-inventory-item-cursor-1"
+                }
+            },
+            "level": {
+                "id": inventory_level_id,
+                "isActive": true,
+                "location": {
+                    "id": location_id,
+                    "name": "Cold stockroom"
+                },
+                "quantities": [{
+                    "name": "available",
+                    "quantity": 7
+                }]
+            }
+        })
+    );
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "all cold local inventory roots should share the request-scoped upstream call"
+    );
+}
+
+#[test]
+fn inventory_activate_hydrates_unobserved_targets_and_overlays_immediate_read() {
+    let inventory_item_id = "gid://shopify/InventoryItem/940001";
+    let variant_id = "gid://shopify/ProductVariant/940002";
+    let product_id = "gid://shopify/Product/940003";
+    let existing_location_id = "gid://shopify/Location/950001";
+    let target_location_id = "gid://shopify/Location/950002";
+    let existing_level_id = "gid://shopify/InventoryLevel/960001?inventory_item_id=940001";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let authoritative_item = json!({
+        "__typename": "InventoryItem",
+        "id": inventory_item_id,
+        "tracked": true,
+        "requiresShipping": true,
+        "variant": {
+            "id": variant_id,
+            "title": "Default Title",
+            "sku": "COLD-ACTIVATION",
+            "inventoryQuantity": 4,
+            "selectedOptions": [{ "name": "Title", "value": "Default Title" }],
+            "product": {
+                "id": product_id,
+                "title": "Cold activation product",
+                "handle": "cold-activation-product",
+                "status": "ACTIVE",
+                "totalInventory": 4,
+                "tracksInventory": true
+            }
+        },
+        "inventoryLevels": {
+            "nodes": [{
+                "id": existing_level_id,
+                "isActive": true,
+                "location": {
+                    "id": existing_location_id,
+                    "name": "Existing stockroom"
+                },
+                "quantities": [
+                    { "name": "available", "quantity": 4 },
+                    { "name": "on_hand", "quantity": 4 },
+                    { "name": "incoming", "quantity": 0 }
+                ]
+            }]
+        }
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let authoritative_item = authoritative_item.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body)
+                .expect("inventory activation upstream body should parse");
+            captured_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                !query.trim_start().starts_with("mutation"),
+                "supported inventory activation must never forward the caller mutation: {body}"
+            );
+            if query.contains("ProductsHydrateNodes") {
+                let nodes = if query.contains("includeInactive") {
+                    json!([authoritative_item.clone()])
+                } else {
+                    json!([{
+                        "__typename": "Location",
+                        "id": target_location_id,
+                        "name": "Target stockroom",
+                        "isActive": true
+                    }])
+                };
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "nodes": nodes } }),
+                };
+            }
+            if query.contains("InventoryBeforeColdActivation") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "inventoryItem": {
+                                "id": inventory_item_id,
+                                "tracked": true,
+                                "variant": {
+                                    "id": variant_id,
+                                    "product": { "id": product_id }
+                                }
+                            }
+                        }
+                    }),
+                };
+            }
+            assert!(
+                query.contains("InventoryAfterColdActivation"),
+                "unexpected upstream inventory request: {body}"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "inventoryItem": authoritative_item.clone() } }),
+            }
+        }
+    });
+
+    let partial_read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryBeforeColdActivation($inventoryItemId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            id
+            tracked
+            variant { id product { id } }
+          }
+        }
+        "#,
+        json!({ "inventoryItemId": inventory_item_id }),
+    ));
+    assert_eq!(
+        partial_read.body["data"]["inventoryItem"]["id"],
+        json!(inventory_item_id)
+    );
+
+    let activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ActivateUnobservedInventory($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId) {
+            inventoryLevel {
+              id
+              isActive
+              location { id name }
+              quantities(names: ["available", "on_hand", "incoming"]) { name quantity }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "inventoryItemId": inventory_item_id,
+            "locationId": target_location_id
+        }),
+    ));
+    assert_eq!(
+        activate.body["data"]["inventoryActivate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        activate.body["data"]["inventoryActivate"]["inventoryLevel"]["location"],
+        json!({ "id": target_location_id, "name": "Target stockroom" })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryAfterColdActivation($inventoryItemId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            id
+            inventoryLevels(first: 10) {
+              nodes {
+                isActive
+                location { id name }
+                quantities(names: ["available", "on_hand", "incoming"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "inventoryItemId": inventory_item_id }),
+    ));
+    let nodes = read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"]
+        .as_array()
+        .unwrap_or_else(|| panic!("unexpected immediate inventory read: {}", read.body));
+    assert_eq!(
+        nodes.len(),
+        2,
+        "unexpected immediate inventory read: {}",
+        read.body
+    );
+    assert!(nodes.iter().any(|node| {
+        node["location"] == json!({ "id": existing_location_id, "name": "Existing stockroom" })
+            && node["isActive"] == json!(true)
+            && node["quantities"]
+                == json!([
+                    { "name": "available", "quantity": 4 },
+                    { "name": "on_hand", "quantity": 4 },
+                    { "name": "incoming", "quantity": 0 }
+                ])
+    }));
+    assert!(nodes.iter().any(|node| {
+        node["location"] == json!({ "id": target_location_id, "name": "Target stockroom" })
+            && node["isActive"] == json!(true)
+            && node["quantities"]
+                == json!([
+                    { "name": "available", "quantity": 0 },
+                    { "name": "on_hand", "quantity": 0 },
+                    { "name": "incoming", "quantity": 0 }
+                ])
+    }));
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 3);
+    assert!(requests.iter().any(|body| body["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("ProductsHydrateNodes")));
+    assert_eq!(
+        requests[1]["variables"],
+        json!({ "ids": [inventory_item_id] })
+    );
+    assert_eq!(
+        requests[2]["variables"],
+        json!({ "ids": [target_location_id] })
+    );
+    assert!(
+        requests.iter().all(|body| !body["query"]
+            .as_str()
+            .unwrap_or_default()
+            .trim_start()
+            .starts_with("mutation")),
+        "only query hydration/read documents may reach upstream"
+    );
+}
+
+#[test]
+fn inventory_live_hybrid_catalog_hydrates_all_pages_before_overlay_windowing() {
+    let tombstoned_product_id = "gid://shopify/Product/1001";
+    let local_product_id = "gid://shopify/Product/1002";
+    let mut tombstoned_product = inventory_activation_base_product();
+    tombstoned_product.id = tombstoned_product_id.to_string();
+    let mut local_product = inventory_activation_base_product();
+    local_product.id = local_product_id.to_string();
+    local_product.handle = "local-inventory-overlay".to_string();
+
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![tombstoned_product, local_product]);
+    let local_variant =
+        create_legacy_variant(&mut proxy, local_product_id, "LOCAL-STAGED", "10.00");
+    let local_item_id = local_variant["inventoryItem"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let local_location_id = add_inventory_test_location(&mut proxy, "Local overlay stockroom");
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedLocalCatalogOverlay($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) { userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "quantities": [{
+                    "inventoryItemId": local_item_id,
+                    "locationId": local_location_id,
+                    "quantity": 9,
+                    "changeFromQuantity": null
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TombstoneAuthoritativeCatalogItem($input: ProductDeleteInput!) {
+          productDelete(input: $input) { deletedProductId }
+        }
+        "#,
+        json!({ "input": { "id": tombstoned_product_id } }),
+    ));
+    assert_eq!(
+        delete.body["data"]["productDelete"]["deletedProductId"],
+        json!(tombstoned_product_id)
+    );
+
+    let tombstoned_item = json!({
+        "id": "gid://shopify/InventoryItem/100",
+        "tracked": true,
+        "requiresShipping": true,
+        "variant": {
+            "id": "gid://shopify/ProductVariant/101",
+            "title": "Default Title",
+            "sku": "DROP-ME",
+            "inventoryQuantity": 1,
+            "selectedOptions": [{ "name": "Title", "value": "Default Title" }],
+            "product": {
+                "id": tombstoned_product_id,
+                "title": "Deleted authoritative product",
+                "handle": "deleted-authoritative-product",
+                "status": "ACTIVE",
+                "totalInventory": 1,
+                "tracksInventory": true
+            }
+        },
+        "inventoryLevels": { "nodes": [] }
+    });
+    let first_kept_item = json!({
+        "id": "gid://shopify/InventoryItem/200",
+        "tracked": true,
+        "requiresShipping": true,
+        "variant": {
+            "id": "gid://shopify/ProductVariant/201",
+            "title": "Default Title",
+            "sku": "KEEP-ONE",
+            "inventoryQuantity": 2,
+            "selectedOptions": [{ "name": "Title", "value": "Default Title" }],
+            "product": {
+                "id": "gid://shopify/Product/2001",
+                "title": "First authoritative product",
+                "handle": "first-authoritative-product",
+                "status": "ACTIVE",
+                "totalInventory": 2,
+                "tracksInventory": true
+            }
+        },
+        "inventoryLevels": { "nodes": [] }
+    });
+    let second_kept_item = json!({
+        "id": "gid://shopify/InventoryItem/300",
+        "tracked": true,
+        "requiresShipping": true,
+        "variant": {
+            "id": "gid://shopify/ProductVariant/301",
+            "title": "Default Title",
+            "sku": "KEEP-TWO",
+            "inventoryQuantity": 3,
+            "selectedOptions": [{ "name": "Title", "value": "Default Title" }],
+            "product": {
+                "id": "gid://shopify/Product/3001",
+                "title": "Second authoritative product",
+                "handle": "second-authoritative-product",
+                "status": "ACTIVE",
+                "totalInventory": 3,
+                "tracksInventory": true
+            }
+        },
+        "inventoryLevels": { "nodes": [] }
+    });
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    proxy = proxy.with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("inventory catalog upstream body should parse");
+        captured_requests.lock().unwrap().push(body.clone());
+        let query = body["query"].as_str().unwrap_or_default();
+        if query.contains("InventoryItemsCatalogHydrate") {
+            let after = body.pointer("/variables/after");
+            let connection = if after.is_none_or(Value::is_null) {
+                json!({
+                    "edges": [
+                        { "cursor": "auth-a", "node": tombstoned_item.clone() },
+                        { "cursor": "auth-b", "node": first_kept_item.clone() }
+                    ],
+                    "pageInfo": { "hasNextPage": true, "endCursor": "page-1" }
+                })
+            } else {
+                assert_eq!(after, Some(&json!("page-1")));
+                json!({
+                    "edges": [{ "cursor": "auth-c", "node": second_kept_item.clone() }],
+                    "pageInfo": { "hasNextPage": false, "endCursor": "auth-c" }
+                })
+            };
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "inventoryItems": connection } }),
+            };
+        }
+        if query.contains("CatalogWindowAfterOverlay") {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "inventoryItems": {
+                            "edges": [{ "cursor": "auth-c", "node": second_kept_item.clone() }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": true,
+                                "startCursor": "auth-c",
+                                "endCursor": "auth-c"
+                            }
+                        }
+                    }
+                }),
+            };
+        }
+        assert!(query.contains("StagedInventoryCatalogFilter"));
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "inventoryItems": {
+                        "edges": [],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }
+                }
+            }),
+        }
+    });
+
+    let windowed = proxy.process_request(json_graphql_request(
+        r#"
+        query CatalogWindowAfterOverlay($after: String!) {
+          inventoryItems(first: 2, after: $after, query: "tracked:true") {
+            edges { cursor node { id sku } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": "auth-b" }),
+    ));
+    assert_eq!(
+        windowed.body["data"]["inventoryItems"],
+        json!({
+            "edges": [{
+                "cursor": "auth-c",
+                "node": { "id": "gid://shopify/InventoryItem/300", "sku": "KEEP-TWO" }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "auth-c",
+                "endCursor": "auth-c"
+            }
+        })
+    );
+
+    let staged = proxy.process_request(json_graphql_request(
+        r#"
+        query StagedInventoryCatalogFilter {
+          inventoryItems(first: 5, query: "sku:LOCAL-STAGED") {
+            nodes {
+              id
+              sku
+              inventoryLevels(first: 5) {
+                nodes {
+                  location { id }
+                  quantities(names: ["available"]) { name quantity }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        staged.body["data"]["inventoryItems"]["nodes"],
+        json!([{
+            "id": local_item_id,
+            "sku": "LOCAL-STAGED",
+            "inventoryLevels": {
+                "nodes": [{
+                    "location": { "id": local_location_id },
+                    "quantities": [{ "name": "available", "quantity": 9 }]
+                }]
+            }
+        }])
+    );
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        4,
+        "one complete request per read plus both authoritative catalog pages"
+    );
+}
+
+#[test]
 fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field() {
     let mut proxy = inventory_seed_proxy();
     let (_variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "ADJUST-ROOT");
@@ -15737,6 +16337,242 @@ fn media_files_live_hybrid_cold_read_forwards_and_hydrates_files_and_saved_searc
 }
 
 #[test]
+fn media_files_live_hybrid_preserves_an_unmodified_opaque_page() {
+    let file = json!({
+        "__typename": "MediaImage",
+        "id": "gid://shopify/MediaImage/3001",
+        "alt": "Authoritative image",
+        "createdAt": "2026-07-01T00:00:00Z",
+        "updatedAt": "2026-07-01T00:00:00Z",
+        "fileStatus": "READY",
+        "image": {"url": "https://cdn.example.com/authoritative.jpg", "width": 10, "height": 10}
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let file = file.clone();
+        move |_| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({"data": {"files": {
+                "nodes": [file.clone()],
+                "edges": [{"cursor": "opaque-file-one", "node": file}],
+                "pageInfo": {
+                    "hasNextPage": true,
+                    "hasPreviousPage": false,
+                    "startCursor": "opaque-file-one",
+                    "endCursor": "opaque-file-one"
+                }
+            }}}),
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaOpaquePage {
+          files(first: 1) {
+            nodes { id alt }
+            edges { cursor node { id alt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["files"],
+        json!({
+            "nodes": [{"id": "gid://shopify/MediaImage/3001", "alt": "Authoritative image"}],
+            "edges": [{
+                "cursor": "opaque-file-one",
+                "node": {"id": "gid://shopify/MediaImage/3001", "alt": "Authoritative image"}
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-file-one",
+                "endCursor": "opaque-file-one"
+            }
+        })
+    );
+}
+
+#[test]
+fn media_files_live_hybrid_overlay_windows_a_complete_opaque_baseline() {
+    let requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&requests);
+    let first_file = json!({
+        "__typename": "MediaImage",
+        "id": "gid://shopify/MediaImage/3101",
+        "alt": "Authoritative first",
+        "createdAt": "2026-07-01T00:00:00Z",
+        "updatedAt": "2026-07-01T00:00:00Z",
+        "fileStatus": "READY",
+        "image": {"url": "https://cdn.example.com/first.jpg", "width": 10, "height": 10}
+    });
+    let second_file = json!({
+        "__typename": "MediaImage",
+        "id": "gid://shopify/MediaImage/3102",
+        "alt": "Authoritative second",
+        "createdAt": "2026-07-01T00:00:01Z",
+        "updatedAt": "2026-07-01T00:00:01Z",
+        "fileStatus": "READY",
+        "image": {"url": "https://cdn.example.com/second.jpg", "width": 10, "height": 10}
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let first_file = first_file.clone();
+        let second_file = second_file.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let complete_baseline = body
+                .get("query")
+                .and_then(Value::as_str)
+                .is_some_and(|query| query.contains("MediaFilesConnectionBaseline"));
+            let connection = if complete_baseline {
+                json!({
+                    "nodes": [first_file.clone(), second_file.clone()],
+                    "edges": [
+                        {"cursor": "opaque-file-one", "node": first_file.clone()},
+                        {"cursor": "opaque-file-two", "node": second_file.clone()}
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "opaque-file-one",
+                        "endCursor": "opaque-file-two"
+                    }
+                })
+            } else {
+                json!({
+                    "nodes": [first_file.clone()],
+                    "edges": [{"cursor": "opaque-file-one", "node": first_file.clone()}],
+                    "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "opaque-file-one",
+                        "endCursor": "opaque-file-one"
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"filesBaseline": connection, "files": connection}}),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalOverlayFile($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id alt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{
+            "alt": "Local third",
+            "contentType": "IMAGE",
+            "filename": "local-third.jpg",
+            "originalSource": "https://cdn.example.com/local-third.jpg"
+        }]}),
+    ));
+    let local_id = create.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .expect("local file id")
+        .to_string();
+
+    let before_second = proxy.process_request(json_graphql_request(
+        r#"
+        query FilesBeforeOpaque($before: String!) {
+          files(last: 1, before: $before, sortKey: ID) {
+            nodes { id alt }
+            edges { cursor node { id alt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"before": "opaque-file-two"}),
+    ));
+    assert_eq!(
+        before_second.body["data"]["files"]["nodes"],
+        json!([{"id": "gid://shopify/MediaImage/3101", "alt": "Authoritative first"}])
+    );
+    assert_eq!(
+        before_second.body["data"]["files"]["edges"][0]["cursor"],
+        json!("opaque-file-one")
+    );
+    assert_eq!(
+        before_second.body["data"]["files"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "opaque-file-one",
+            "endCursor": "opaque-file-one"
+        })
+    );
+
+    let reverse_first = proxy.process_request(json_graphql_request(
+        r#"
+        query FilesReverseOverlay {
+          files(first: 1, reverse: true, sortKey: ID) {
+            nodes { id alt }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        reverse_first.body["data"]["files"]["nodes"],
+        json!([{"id": local_id, "alt": "Local third"}])
+    );
+    assert_eq!(
+        reverse_first.body["data"]["files"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteAuthoritativeFile($fileIds: [ID!]!) {
+          fileDelete(fileIds: $fileIds) {
+            deletedFileIds
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"fileIds": ["gid://shopify/MediaImage/3102"]}),
+    ));
+    assert_eq!(
+        delete.body["data"]["fileDelete"]["deletedFileIds"],
+        json!(["gid://shopify/MediaImage/3102"])
+    );
+
+    let after_first = proxy.process_request(json_graphql_request(
+        r#"
+        query FilesAfterOpaque($after: String!) {
+          files(first: 1, after: $after, sortKey: ID) {
+            nodes { id alt }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"after": "opaque-file-one"}),
+    ));
+    assert_eq!(
+        after_first.body["data"]["files"]["nodes"],
+        json!([{"id": local_id, "alt": "Local third"}])
+    );
+    assert!(
+        requests.lock().unwrap().iter().any(|body| body["query"]
+            .as_str()
+            .is_some_and(|query| query.contains("MediaFilesConnectionBaseline"))),
+        "staged file overlays should fetch a proven-complete baseline"
+    );
+}
+
+#[test]
 fn media_file_saved_searches_live_hybrid_cold_read_forwards_standalone_root() {
     let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_bodies = Arc::clone(&upstream_bodies);
@@ -16157,7 +16993,46 @@ fn media_file_saved_searches_live_hybrid_deduplicates_equivalent_records() {
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
             captured_bodies.lock().unwrap().push(body);
+            if query.contains("MediaFilesConnectionBaseline") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({"data": {"filesBaseline": {
+                        "edges": [],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": Value::Null,
+                            "endCursor": Value::Null
+                        }
+                    }}}),
+                };
+            }
+            if query.contains("SavedSearchConnectionBaseline") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({"data": {"savedSearchBaseline": {
+                        "edges": [{
+                            "cursor": "opaque-file-saved-search",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/4080031203634",
+                                "name": "Alpha files",
+                                "query": "filename:alpha-file.pdf",
+                                "resourceType": "FILE"
+                            }
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-file-saved-search",
+                            "endCursor": "opaque-file-saved-search"
+                        }
+                    }}}),
+                };
+            }
             Response {
                 status: 200,
                 headers: Default::default(),
@@ -16267,8 +17142,8 @@ fn media_file_saved_searches_live_hybrid_deduplicates_equivalent_records() {
     );
     assert_eq!(
         upstream_bodies.lock().unwrap().len(),
-        1,
-        "the grouped LiveHybrid read should forward its original document once"
+        3,
+        "the grouped LiveHybrid read should forward once and fetch complete file/saved-search baselines"
     );
 }
 
@@ -17928,7 +18803,7 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         r#"
         mutation AnotherUnrelatedOperationName($article: ArticleCreateInput!) {
           madeArticle: articleCreate(article: $article) {
-            article { id title handle body summary tags isPublished publishedAt createdAt updatedAt author { name } blog { id title handle } commentsCount { count precision } }
+            article { id title handle body summary tags isPublished publishedAt createdAt updatedAt author { name } blog { id title handle updatedAt } commentsCount { count precision } }
             userErrors { field message code }
           }
         }
@@ -17968,6 +18843,10 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         &article_create.body["data"]["madeArticle"]["article"]["publishedAt"],
         "articleCreate.publishedAt",
     );
+    let blog_updated_after_article_at = assert_online_store_operation_timestamp(
+        &article_create.body["data"]["madeArticle"]["article"]["blog"]["updatedAt"],
+        "articleCreate.article.blog.updatedAt",
+    );
     assert_eq!(article_created_at, article_updated_at);
     assert_eq!(article_created_at, article_published_at);
 
@@ -18006,7 +18885,7 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
     );
     assert_eq!(
         read.body["data"]["blog"]["updatedAt"],
-        json!(blog_updated_at)
+        json!(blog_updated_after_article_at)
     );
     assert_eq!(
         read.body["data"]["page"]["createdAt"],
@@ -18157,6 +19036,457 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         json!([])
     );
     assert_eq!(*upstream_calls.lock().unwrap(), 2);
+}
+
+#[test]
+fn online_store_article_create_and_move_hydrate_unobserved_blogs_with_queries_only() {
+    let first_blog_id = "gid://shopify/Blog/authoritative-create-target";
+    let second_blog_id = "gid://shopify/Blog/authoritative-move-target";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_requests = Arc::clone(&upstream_requests);
+        move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            upstream_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("OnlineStoreBlogMutationHydrate"),
+                "unexpected upstream document: {query}"
+            );
+            assert!(
+                !query.contains("mutation"),
+                "supported article writes must not reach upstream: {query}"
+            );
+            let id = body["variables"]["id"].as_str().unwrap_or_default();
+            let title = match id {
+                value if value == first_blog_id => "Authoritative create target",
+                value if value == second_blog_id => "Authoritative move target",
+                value => panic!("unexpected blog hydrate id: {value}"),
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "blog": {
+                            "__typename": "Blog",
+                            "id": id,
+                            "title": title,
+                            "handle": title.to_ascii_lowercase().replace(' ', "-"),
+                            "commentPolicy": "MODERATED",
+                            "tags": [],
+                            "templateSuffix": null,
+                            "createdAt": "2026-07-01T00:00:00Z",
+                            "updatedAt": "2026-07-01T00:00:00Z",
+                            "articlesCount": { "count": 0, "precision": "EXACT" },
+                            "metafields": {
+                                "nodes": [],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null,
+                                    "endCursor": null
+                                }
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateInUnobservedBlog($article: ArticleCreateInput!) {
+          articleCreate(article: $article) {
+            article { id title blog { id title handle commentPolicy } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"article": {
+            "title": "Mutation-first article",
+            "blogId": first_blog_id,
+            "author": { "name": "Mutation-first author" }
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["articleCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["articleCreate"]["article"]["blog"]["id"],
+        json!(first_blog_id)
+    );
+    let article_id = create.body["data"]["articleCreate"]["article"]["id"]
+        .as_str()
+        .expect("articleCreate returns an ID")
+        .to_string();
+
+    let move_article = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MoveToUnobservedBlog($id: ID!, $article: ArticleUpdateInput!) {
+          articleUpdate(id: $id, article: $article) {
+            article { id title blog { id title handle commentPolicy } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": article_id,
+            "article": { "blogId": second_blog_id }
+        }),
+    ));
+    assert_eq!(
+        move_article.body["data"]["articleUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        move_article.body["data"]["articleUpdate"]["article"]["blog"]["id"],
+        json!(second_blog_id)
+    );
+
+    let upstream_requests = upstream_requests.lock().unwrap();
+    assert_eq!(upstream_requests.len(), 2);
+    assert!(upstream_requests.iter().all(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query"))));
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+}
+
+#[test]
+fn online_store_narrow_updates_hydrate_complete_article_and_blog_with_metafield_pages() {
+    let partial_article_id = "gid://shopify/Article/partial-selected-empty";
+    let rich_article_id = "gid://shopify/Article/authoritative-rich";
+    let article_blog_id = "gid://shopify/Blog/authoritative-article-parent";
+    let rich_blog_id = "gid://shopify/Blog/authoritative-rich";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_requests = Arc::clone(&upstream_requests);
+        move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            upstream_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            let after = body["variables"]["after"].as_str();
+
+            let data = if query.contains("ObserveSelectedEmptyArticle") {
+                json!({
+                    "article": {
+                        "__typename": "Article",
+                        "id": partial_article_id,
+                        "title": "Partially selected article",
+                        "summary": null,
+                        "tags": []
+                    }
+                })
+            } else if query.contains("OnlineStoreArticleMutationHydrate") {
+                let metafields = if after.is_none() {
+                    json!({
+                        "nodes": [{
+                            "__typename": "Metafield",
+                            "id": "gid://shopify/Metafield/article-hero",
+                            "namespace": "authoritative",
+                            "key": "hero",
+                            "type": "single_line_text_field",
+                            "value": "hero value",
+                            "jsonValue": "hero value",
+                            "compareDigest": "article-hero-digest",
+                            "ownerType": "ARTICLE",
+                            "createdAt": "2026-07-01T00:00:00Z",
+                            "updatedAt": "2026-07-01T00:00:00Z"
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "article-first",
+                            "endCursor": "article-next"
+                        }
+                    })
+                } else {
+                    assert_eq!(after, Some("article-next"));
+                    json!({
+                        "nodes": [{
+                            "__typename": "Metafield",
+                            "id": "gid://shopify/Metafield/article-secondary",
+                            "namespace": "authoritative",
+                            "key": "secondary",
+                            "type": "single_line_text_field",
+                            "value": "secondary value",
+                            "jsonValue": "secondary value",
+                            "compareDigest": "article-secondary-digest",
+                            "ownerType": "ARTICLE",
+                            "createdAt": "2026-07-01T00:00:00Z",
+                            "updatedAt": "2026-07-01T00:00:00Z"
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": true,
+                            "startCursor": "article-second",
+                            "endCursor": "article-second"
+                        }
+                    })
+                };
+                json!({
+                    "article": {
+                        "__typename": "Article",
+                        "id": rich_article_id,
+                        "title": "Authoritative rich article",
+                        "handle": "authoritative-rich-article",
+                        "body": "<p>Authoritative body</p>",
+                        "summary": "<p>Authoritative summary</p>",
+                        "tags": ["authoritative", "rich"],
+                        "isPublished": true,
+                        "publishedAt": "2026-07-01T00:00:00Z",
+                        "createdAt": "2026-06-01T00:00:00Z",
+                        "updatedAt": "2026-07-01T00:00:00Z",
+                        "templateSuffix": "feature",
+                        "author": { "name": "Authoritative Author" },
+                        "image": {
+                            "altText": "Authoritative alt",
+                            "url": "https://cdn.example.com/authoritative.jpg",
+                            "width": 1200,
+                            "height": 800
+                        },
+                        "blog": {
+                            "__typename": "Blog",
+                            "id": article_blog_id,
+                            "title": "Authoritative article parent",
+                            "handle": "authoritative-article-parent",
+                            "commentPolicy": "CLOSED",
+                            "tags": [],
+                            "templateSuffix": null,
+                            "createdAt": "2026-01-01T00:00:00Z",
+                            "updatedAt": "2026-01-01T00:00:00Z",
+                            "articlesCount": { "count": 1, "precision": "EXACT" },
+                            "metafields": {
+                                "nodes": [],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null,
+                                    "endCursor": null
+                                }
+                            }
+                        },
+                        "metafields": metafields
+                    }
+                })
+            } else if query.contains("OnlineStoreBlogMutationHydrate") {
+                let metafields = if after.is_none() {
+                    json!({
+                        "nodes": [{
+                            "__typename": "Metafield",
+                            "id": "gid://shopify/Metafield/blog-hero",
+                            "namespace": "authoritative",
+                            "key": "hero",
+                            "type": "single_line_text_field",
+                            "value": "blog hero",
+                            "jsonValue": "blog hero",
+                            "compareDigest": "blog-hero-digest",
+                            "ownerType": "BLOG",
+                            "createdAt": "2026-07-01T00:00:00Z",
+                            "updatedAt": "2026-07-01T00:00:00Z"
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "blog-first",
+                            "endCursor": "blog-next"
+                        }
+                    })
+                } else {
+                    assert_eq!(after, Some("blog-next"));
+                    json!({
+                        "nodes": [{
+                            "__typename": "Metafield",
+                            "id": "gid://shopify/Metafield/blog-secondary",
+                            "namespace": "authoritative",
+                            "key": "secondary",
+                            "type": "single_line_text_field",
+                            "value": "blog secondary",
+                            "jsonValue": "blog secondary",
+                            "compareDigest": "blog-secondary-digest",
+                            "ownerType": "BLOG",
+                            "createdAt": "2026-07-01T00:00:00Z",
+                            "updatedAt": "2026-07-01T00:00:00Z"
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": true,
+                            "startCursor": "blog-second",
+                            "endCursor": "blog-second"
+                        }
+                    })
+                };
+                json!({
+                    "blog": {
+                        "__typename": "Blog",
+                        "id": rich_blog_id,
+                        "title": "Authoritative rich blog",
+                        "handle": "authoritative-rich-blog",
+                        "commentPolicy": "MODERATED",
+                        "tags": ["authoritative-blog"],
+                        "templateSuffix": "journal",
+                        "createdAt": "2026-06-01T00:00:00Z",
+                        "updatedAt": "2026-07-01T00:00:00Z",
+                        "articlesCount": { "count": 0, "precision": "EXACT" },
+                        "metafields": metafields
+                    }
+                })
+            } else {
+                panic!("unexpected upstream document: {query}");
+            };
+
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        }
+    });
+
+    let partial = proxy.process_request(json_graphql_request(
+        r#"
+        query ObserveSelectedEmptyArticle($id: ID!) {
+          article(id: $id) { id title summary tags }
+        }
+        "#,
+        json!({ "id": partial_article_id }),
+    ));
+    assert_eq!(partial.body["data"]["article"]["summary"], Value::Null);
+    assert_eq!(partial.body["data"]["article"]["tags"], json!([]));
+    let partial_state = state_snapshot(&proxy);
+    let partial_record = &partial_state["stagedState"]["onlineStoreArticles"][partial_article_id];
+    assert_eq!(partial_record.get("summary"), Some(&Value::Null));
+    assert_eq!(partial_record.get("tags"), Some(&json!([])));
+    assert!(
+        partial_record.get("body").is_none(),
+        "an unselected body must remain absent rather than normalize to an empty string"
+    );
+    assert!(
+        partial_record.get("metafields").is_none(),
+        "an unselected connection must remain absent rather than normalize to empty"
+    );
+
+    let article_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NarrowAuthoritativeArticleUpdate($id: ID!, $article: ArticleUpdateInput!) {
+          articleUpdate(id: $id, article: $article) {
+            article {
+              id title handle body summary tags isPublished publishedAt createdAt updatedAt templateSuffix
+              author { name }
+              image { altText url width height }
+              blog { id title handle commentPolicy }
+              metafields(first: 10) { nodes { id namespace key type value jsonValue ownerType } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": rich_article_id,
+            "article": { "title": "Narrowly renamed authoritative article" }
+        }),
+    ));
+    assert_eq!(
+        article_update.body["data"]["articleUpdate"]["userErrors"],
+        json!([])
+    );
+    let article = &article_update.body["data"]["articleUpdate"]["article"];
+    assert_eq!(
+        article["title"],
+        json!("Narrowly renamed authoritative article")
+    );
+    assert_eq!(article["handle"], json!("authoritative-rich-article"));
+    assert_eq!(article["body"], json!("<p>Authoritative body</p>"));
+    assert_eq!(article["summary"], json!("<p>Authoritative summary</p>"));
+    assert_eq!(article["tags"], json!(["authoritative", "rich"]));
+    assert_eq!(article["isPublished"], json!(true));
+    assert_eq!(article["publishedAt"], json!("2026-07-01T00:00:00Z"));
+    assert_eq!(article["templateSuffix"], json!("feature"));
+    assert_eq!(article["author"], json!({ "name": "Authoritative Author" }));
+    assert_eq!(
+        article["image"],
+        json!({
+            "altText": "Authoritative alt",
+            "url": "https://cdn.example.com/authoritative.jpg",
+            "width": 1200,
+            "height": 800
+        })
+    );
+    assert_eq!(
+        article["metafields"]["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| node["key"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!("hero"), json!("secondary")]
+    );
+
+    let blog_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NarrowAuthoritativeBlogUpdate($id: ID!, $blog: BlogUpdateInput!) {
+          blogUpdate(id: $id, blog: $blog) {
+            blog {
+              id title handle commentPolicy tags templateSuffix createdAt updatedAt
+              metafields(first: 10) { nodes { id namespace key type value jsonValue ownerType } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": rich_blog_id,
+            "blog": { "title": "Narrowly renamed authoritative blog" }
+        }),
+    ));
+    assert_eq!(
+        blog_update.body["data"]["blogUpdate"]["userErrors"],
+        json!([])
+    );
+    let blog = &blog_update.body["data"]["blogUpdate"]["blog"];
+    assert_eq!(blog["title"], json!("Narrowly renamed authoritative blog"));
+    assert_eq!(blog["handle"], json!("authoritative-rich-blog"));
+    assert_eq!(blog["commentPolicy"], json!("MODERATED"));
+    assert_eq!(blog["tags"], json!(["authoritative-blog"]));
+    assert_eq!(blog["templateSuffix"], json!("journal"));
+    assert_eq!(
+        blog["metafields"]["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| node["key"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!("hero"), json!("secondary")]
+    );
+
+    let upstream_requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        upstream_requests
+            .iter()
+            .filter(|body| body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("OnlineStoreArticleMutationHydrate")))
+            .count(),
+        2
+    );
+    assert_eq!(
+        upstream_requests
+            .iter()
+            .filter(|body| body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("OnlineStoreBlogMutationHydrate")))
+            .count(),
+        2
+    );
+    assert!(upstream_requests.iter().all(|body| {
+        body["query"]
+            .as_str()
+            .is_some_and(|query| !query.contains("mutation"))
+    }));
 }
 
 #[test]
@@ -18345,6 +19675,9 @@ fn online_store_content_back_references_project_full_parent_records() {
         article_create.body["data"]["articleCreate"]["userErrors"],
         json!([])
     );
+    let blog_updated_by_article_at =
+        article_create.body["data"]["articleCreate"]["article"]["blog"]["updatedAt"].clone();
+    assert_ne!(blog_updated_by_article_at, blog_updated_at);
     assert_eq!(
         article_create.body["data"]["articleCreate"]["article"]["blog"],
         json!({
@@ -18353,7 +19686,7 @@ fn online_store_content_back_references_project_full_parent_records() {
             "handle": "back-reference-blog",
             "commentPolicy": "MODERATED",
             "createdAt": blog_created_at,
-            "updatedAt": blog_updated_at
+            "updatedAt": blog_updated_by_article_at
         })
     );
     let article_id = article_create.body["data"]["articleCreate"]["article"]["id"]

@@ -1,0 +1,38 @@
+query OnlineStoreBlogMutationHydrate($id: ID!, $after: String) {
+  blog(id: $id) {
+    __typename
+    id
+    title
+    handle
+    commentPolicy
+    tags
+    templateSuffix
+    createdAt
+    updatedAt
+    articlesCount {
+      count
+      precision
+    }
+    metafields(first: 250, after: $after) {
+      nodes {
+        __typename
+        id
+        namespace
+        key
+        type
+        value
+        jsonValue
+        compareDigest
+        ownerType
+        createdAt
+        updatedAt
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}
