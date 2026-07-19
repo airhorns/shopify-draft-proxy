@@ -2,14 +2,14 @@
   "scenarioId": "product-handle-dedup",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-05-05T05:21:33.171Z",
+  "capturedAt": "2026-07-19T11:45:44.733Z",
   "operations": {
-    "productCreateFirst": {
+    "generatedCreateFirst": {
       "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation ProductHandleLifecycleCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "product": {
-            "title": "HAR 579 Red Shirt 20260505052125",
+            "title": "Product Handle Lifecycle 20260719114534",
             "status": "DRAFT"
           }
         }
@@ -19,9 +19,9 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177065484594",
-              "title": "HAR 579 Red Shirt 20260505052125",
-              "handle": "har-579-red-shirt-20260505052125"
+              "id": "gid://shopify/Product/10243908469042",
+              "title": "Product Handle Lifecycle 20260719114534",
+              "handle": "product-handle-lifecycle-20260719114534"
             },
             "userErrors": []
           }
@@ -39,12 +39,12 @@
         }
       }
     },
-    "productCreateSecond": {
+    "generatedCreateSecond": {
       "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation ProductHandleLifecycleCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "product": {
-            "title": "HAR 579 Red Shirt 20260505052125",
+            "title": "Product Handle Lifecycle 20260719114534",
             "status": "DRAFT"
           }
         }
@@ -54,9 +54,9 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177065517362",
-              "title": "HAR 579 Red Shirt 20260505052125",
-              "handle": "har-579-red-shirt-20260505052126"
+              "id": "gid://shopify/Product/10243908501810",
+              "title": "Product Handle Lifecycle 20260719114534",
+              "handle": "product-handle-lifecycle-20260719114535"
             },
             "userErrors": []
           }
@@ -74,12 +74,13 @@
         }
       }
     },
-    "productCreateThird": {
+    "normalizedUnicodeCreate": {
       "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation ProductHandleLifecycleCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "product": {
-            "title": "HAR 579 Red Shirt 20260505052125",
+            "title": "Normalized Unicode Handle 20260719114534",
+            "handle": "  Mixed CASE / 東京 100 % ",
             "status": "DRAFT"
           }
         }
@@ -89,9 +90,9 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177065550130",
-              "title": "HAR 579 Red Shirt 20260505052125",
-              "handle": "har-579-red-shirt-20260505052127"
+              "id": "gid://shopify/Product/10243908534578",
+              "title": "Normalized Unicode Handle 20260719114534",
+              "handle": "mixed-case-東京-100"
             },
             "userErrors": []
           }
@@ -109,12 +110,13 @@
         }
       }
     },
-    "productCreateFourth": {
+    "punctuationCreateFirst": {
       "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation ProductHandleLifecycleCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "product": {
-            "title": "HAR 579 Red Shirt 20260505052125",
+            "title": "Punctuation Handle One 20260719114534",
+            "handle": "%%%",
             "status": "DRAFT"
           }
         }
@@ -124,9 +126,9 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177065582898",
-              "title": "HAR 579 Red Shirt 20260505052125",
-              "handle": "har-579-red-shirt-20260505052128"
+              "id": "gid://shopify/Product/10243908567346",
+              "title": "Punctuation Handle One 20260719114534",
+              "handle": "product"
             },
             "userErrors": []
           }
@@ -144,12 +146,13 @@
         }
       }
     },
-    "productCreateCopyFirst": {
+    "punctuationCreateSecond": {
       "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation ProductHandleLifecycleCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "product": {
-            "title": "HAR 579 Red Shirt 20260505052125 Copy",
+            "title": "Punctuation Handle Two 20260719114534",
+            "handle": "%%%",
             "status": "DRAFT"
           }
         }
@@ -159,9 +162,9 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177065615666",
-              "title": "HAR 579 Red Shirt 20260505052125 Copy",
-              "handle": "har-579-red-shirt-20260505052125-copy"
+              "id": "gid://shopify/Product/10243908600114",
+              "title": "Punctuation Handle Two 20260719114534",
+              "handle": "product-1"
             },
             "userErrors": []
           }
@@ -179,12 +182,50 @@
         }
       }
     },
-    "productCreateCopySecond": {
+    "explicitCreateCollision": {
       "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation ProductHandleLifecycleCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "product": {
-            "title": "HAR 579 Red Shirt 20260505052125 Copy",
+            "title": "Explicit Handle Collision 20260719114534",
+            "handle": "  PRODUCT-HANDLE-LIFECYCLE-20260719114534  ",
+            "status": "DRAFT"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": null,
+            "userErrors": [
+              {
+                "field": ["input", "handle"],
+                "message": "Handle '  PRODUCT-HANDLE-LIFECYCLE-20260719114534  ' already in use. Please provide a new handle."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updateTargetCreate": {
+      "request": {
+        "query": "#graphql\n  mutation ProductHandleLifecycleCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "product": {
+            "title": "Product Handle Update 20260719114534",
+            "handle": "product-handle-update-20260719114534",
             "status": "DRAFT"
           }
         }
@@ -194,9 +235,44 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177065648434",
-              "title": "HAR 579 Red Shirt 20260505052125 Copy",
-              "handle": "har-579-red-shirt-20260505052125-copy-1"
+              "id": "gid://shopify/Product/10243908632882",
+              "title": "Product Handle Update 20260719114534",
+              "handle": "product-handle-update-20260719114534"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "normalizedUnicodeUpdate": {
+      "request": {
+        "query": "#graphql\n  mutation ProductHandleLifecycleUpdate($product: ProductUpdateInput!) {\n    productUpdate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "product": {
+            "id": "gid://shopify/Product/10243908632882",
+            "handle": "  Updated / 大阪 200 % "
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10243908632882",
+              "title": "Product Handle Update 20260719114534",
+              "handle": "updated-大阪-200"
             },
             "userErrors": []
           }
@@ -214,12 +290,372 @@
         }
       }
     },
-    "productDuplicateCopy": {
+    "blankUpdate": {
       "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupDuplicate($productId: ID!, $newTitle: String!) {\n    productDuplicate(productId: $productId, newTitle: $newTitle) {\n      newProduct {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation ProductHandleLifecycleUpdate($product: ProductUpdateInput!) {\n    productUpdate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
-          "productId": "gid://shopify/Product/10177065484594",
-          "newTitle": "HAR 579 Red Shirt 20260505052125 Copy"
+          "product": {
+            "id": "gid://shopify/Product/10243908632882",
+            "handle": "   "
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10243908632882",
+              "title": "Product Handle Update 20260719114534",
+              "handle": "product-handle-update-20260719114534"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "titleOnlyUpdate": {
+      "request": {
+        "query": "#graphql\n  mutation ProductHandleLifecycleUpdate($product: ProductUpdateInput!) {\n    productUpdate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "product": {
+            "id": "gid://shopify/Product/10243908632882",
+            "title": "Product Handle Update 20260719114534 Renamed"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10243908632882",
+              "title": "Product Handle Update 20260719114534 Renamed",
+              "handle": "product-handle-update-20260719114534"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "explicitUpdateCollision": {
+      "request": {
+        "query": "#graphql\n  mutation ProductHandleLifecycleUpdate($product: ProductUpdateInput!) {\n    productUpdate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "product": {
+            "id": "gid://shopify/Product/10243908632882",
+            "handle": "  PRODUCT-HANDLE-LIFECYCLE-20260719114534  "
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10243908632882",
+              "title": "Product Handle Update 20260719114534 Renamed",
+              "handle": "product-handle-update-20260719114534"
+            },
+            "userErrors": [
+              {
+                "field": ["input", "handle"],
+                "message": "Handle '  PRODUCT-HANDLE-LIFECYCLE-20260719114534  ' already in use. Please provide a new handle."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "punctuationUpdate": {
+      "request": {
+        "query": "#graphql\n  mutation ProductHandleLifecycleUpdate($product: ProductUpdateInput!) {\n    productUpdate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "product": {
+            "id": "gid://shopify/Product/10243908632882",
+            "handle": "%%%"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10243908632882",
+              "title": "Product Handle Update 20260719114534 Renamed",
+              "handle": "product-2"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "generatedProductSetFirst": {
+      "request": {
+        "query": "#graphql\n  mutation ProductHandleLifecycleSet($input: ProductSetInput!) {\n    productSet(input: $input, synchronous: true) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "title": "Product Set Handle 20260719114534",
+            "status": "DRAFT"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productSet": {
+            "product": {
+              "id": "gid://shopify/Product/10243908665650",
+              "title": "Product Set Handle 20260719114534",
+              "handle": "product-set-handle-20260719114534"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "generatedProductSetSecond": {
+      "request": {
+        "query": "#graphql\n  mutation ProductHandleLifecycleSet($input: ProductSetInput!) {\n    productSet(input: $input, synchronous: true) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "title": "Product Set Handle 20260719114534",
+            "status": "DRAFT"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productSet": {
+            "product": {
+              "id": "gid://shopify/Product/10243908698418",
+              "title": "Product Set Handle 20260719114534",
+              "handle": "product-set-handle-20260719114535"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "normalizedProductSetUpdate": {
+      "request": {
+        "query": "#graphql\n  mutation ProductHandleLifecycleSet($input: ProductSetInput!) {\n    productSet(input: $input, synchronous: true) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10243908665650",
+            "handle": "  Set / 東京 300 % "
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productSet": {
+            "product": {
+              "id": "gid://shopify/Product/10243908665650",
+              "title": "Product Set Handle 20260719114534",
+              "handle": "set-東京-300"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "blankProductSetUpdate": {
+      "request": {
+        "query": "#graphql\n  mutation ProductHandleLifecycleSet($input: ProductSetInput!) {\n    productSet(input: $input, synchronous: true) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10243908665650",
+            "handle": "   "
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productSet": {
+            "product": {
+              "id": "gid://shopify/Product/10243908665650",
+              "title": "Product Set Handle 20260719114534",
+              "handle": "product-set-handle-20260719114534"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "explicitProductSetCollision": {
+      "request": {
+        "query": "#graphql\n  mutation ProductHandleLifecycleSet($input: ProductSetInput!) {\n    productSet(input: $input, synchronous: true) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10243908665650",
+            "handle": "  PRODUCT-SET-HANDLE-20260719114535  "
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productSet": {
+            "product": {
+              "id": "gid://shopify/Product/10243908665650",
+              "title": "Product Set Handle 20260719114534",
+              "handle": "product-set-handle-20260719114534"
+            },
+            "userErrors": [
+              {
+                "field": ["input", "handle"],
+                "message": "Handle '  PRODUCT-SET-HANDLE-20260719114535  ' already in use. Please provide a new handle."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "duplicateHandleOwnerCreate": {
+      "request": {
+        "query": "#graphql\n  mutation ProductHandleLifecycleCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "product": {
+            "title": "Product Duplicate Handle 20260719114534",
+            "status": "DRAFT"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10243908731186",
+              "title": "Product Duplicate Handle 20260719114534",
+              "handle": "product-duplicate-handle-20260719114534"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productDuplicate": {
+      "request": {
+        "query": "#graphql\n  mutation ProductHandleLifecycleDuplicate($productId: ID!, $newTitle: String!) {\n    productDuplicate(productId: $productId, newTitle: $newTitle) {\n      newProduct {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "productId": "gid://shopify/Product/10243908469042",
+          "newTitle": "Product Duplicate Handle 20260719114534"
         }
       },
       "status": 200,
@@ -227,145 +663,9 @@
         "data": {
           "productDuplicate": {
             "newProduct": {
-              "id": "gid://shopify/Product/10177065681202",
-              "title": "HAR 579 Red Shirt 20260505052125 Copy",
-              "handle": "har-579-red-shirt-20260505052125-copy-2"
-            },
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    "collectionCreateFirst": {
-      "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupCollectionCreate($input: CollectionInput!) {\n    collectionCreate(input: $input) {\n      collection {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
-        "variables": {
-          "input": {
-            "title": "HAR 579 Red Collection 20260505052125"
-          }
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "collectionCreate": {
-            "collection": {
-              "id": "gid://shopify/Collection/512411762994",
-              "title": "HAR 579 Red Collection 20260505052125",
-              "handle": "har-579-red-collection-20260505052125"
-            },
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    "collectionCreateSecond": {
-      "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupCollectionCreate($input: CollectionInput!) {\n    collectionCreate(input: $input) {\n      collection {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
-        "variables": {
-          "input": {
-            "title": "HAR 579 Red Collection 20260505052125"
-          }
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "collectionCreate": {
-            "collection": {
-              "id": "gid://shopify/Collection/512411795762",
-              "title": "HAR 579 Red Collection 20260505052125",
-              "handle": "har-579-red-collection-20260505052126"
-            },
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    "collectionCreateThird": {
-      "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupCollectionCreate($input: CollectionInput!) {\n    collectionCreate(input: $input) {\n      collection {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
-        "variables": {
-          "input": {
-            "title": "HAR 579 Red Collection 20260505052125"
-          }
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "collectionCreate": {
-            "collection": {
-              "id": "gid://shopify/Collection/512411828530",
-              "title": "HAR 579 Red Collection 20260505052125",
-              "handle": "har-579-red-collection-20260505052127"
-            },
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    "collectionCreateFourth": {
-      "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupCollectionCreate($input: CollectionInput!) {\n    collectionCreate(input: $input) {\n      collection {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
-        "variables": {
-          "input": {
-            "title": "HAR 579 Red Collection 20260505052125"
-          }
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "collectionCreate": {
-            "collection": {
-              "id": "gid://shopify/Collection/512411861298",
-              "title": "HAR 579 Red Collection 20260505052125",
-              "handle": "har-579-red-collection-20260505052128"
+              "id": "gid://shopify/Product/10243908763954",
+              "title": "Product Duplicate Handle 20260719114534",
+              "handle": "product-duplicate-handle-20260719114535"
             },
             "userErrors": []
           }
@@ -387,130 +687,10 @@
   "cleanup": [
     {
       "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupCollectionDelete($input: CollectionDeleteInput!) {\n    collectionDelete(input: $input) {\n      deletedCollectionId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation ProductHandleLifecycleCleanup($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Collection/512411861298"
-          }
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "collectionDelete": {
-            "deletedCollectionId": "gid://shopify/Collection/512411861298",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupCollectionDelete($input: CollectionDeleteInput!) {\n    collectionDelete(input: $input) {\n      deletedCollectionId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
-        "variables": {
-          "input": {
-            "id": "gid://shopify/Collection/512411828530"
-          }
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "collectionDelete": {
-            "deletedCollectionId": "gid://shopify/Collection/512411828530",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupCollectionDelete($input: CollectionDeleteInput!) {\n    collectionDelete(input: $input) {\n      deletedCollectionId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
-        "variables": {
-          "input": {
-            "id": "gid://shopify/Collection/512411795762"
-          }
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "collectionDelete": {
-            "deletedCollectionId": "gid://shopify/Collection/512411795762",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupCollectionDelete($input: CollectionDeleteInput!) {\n    collectionDelete(input: $input) {\n      deletedCollectionId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
-        "variables": {
-          "input": {
-            "id": "gid://shopify/Collection/512411762994"
-          }
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "collectionDelete": {
-            "deletedCollectionId": "gid://shopify/Collection/512411762994",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
-        "variables": {
-          "input": {
-            "id": "gid://shopify/Product/10177065681202"
+            "id": "gid://shopify/Product/10243908763954"
           }
         }
       },
@@ -518,7 +698,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177065681202",
+            "deletedProductId": "gid://shopify/Product/10243908763954",
             "userErrors": []
           }
         },
@@ -537,10 +717,10 @@
     },
     {
       "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation ProductHandleLifecycleCleanup($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Product/10177065648434"
+            "id": "gid://shopify/Product/10243908731186"
           }
         }
       },
@@ -548,7 +728,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177065648434",
+            "deletedProductId": "gid://shopify/Product/10243908731186",
             "userErrors": []
           }
         },
@@ -567,10 +747,10 @@
     },
     {
       "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation ProductHandleLifecycleCleanup($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Product/10177065615666"
+            "id": "gid://shopify/Product/10243908698418"
           }
         }
       },
@@ -578,7 +758,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177065615666",
+            "deletedProductId": "gid://shopify/Product/10243908698418",
             "userErrors": []
           }
         },
@@ -597,10 +777,10 @@
     },
     {
       "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation ProductHandleLifecycleCleanup($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Product/10177065582898"
+            "id": "gid://shopify/Product/10243908665650"
           }
         }
       },
@@ -608,7 +788,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177065582898",
+            "deletedProductId": "gid://shopify/Product/10243908665650",
             "userErrors": []
           }
         },
@@ -627,10 +807,10 @@
     },
     {
       "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation ProductHandleLifecycleCleanup($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Product/10177065550130"
+            "id": "gid://shopify/Product/10243908632882"
           }
         }
       },
@@ -638,7 +818,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177065550130",
+            "deletedProductId": "gid://shopify/Product/10243908632882",
             "userErrors": []
           }
         },
@@ -657,10 +837,10 @@
     },
     {
       "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation ProductHandleLifecycleCleanup($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Product/10177065517362"
+            "id": "gid://shopify/Product/10243908600114"
           }
         }
       },
@@ -668,7 +848,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177065517362",
+            "deletedProductId": "gid://shopify/Product/10243908600114",
             "userErrors": []
           }
         },
@@ -687,10 +867,10 @@
     },
     {
       "request": {
-        "query": "#graphql\n  mutation ProductHandleDedupProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation ProductHandleLifecycleCleanup($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Product/10177065484594"
+            "id": "gid://shopify/Product/10243908567346"
           }
         }
       },
@@ -698,7 +878,97 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177065484594",
+            "deletedProductId": "gid://shopify/Product/10243908567346",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation ProductHandleLifecycleCleanup($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10243908534578"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10243908534578",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation ProductHandleLifecycleCleanup($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10243908501810"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10243908501810",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation ProductHandleLifecycleCleanup($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10243908469042"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10243908469042",
             "userErrors": []
           }
         },
