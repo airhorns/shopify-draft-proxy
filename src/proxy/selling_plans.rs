@@ -1878,19 +1878,7 @@ fn format_summary_currency(
     shop_money_format: Option<&str>,
 ) -> String {
     let formatted_amount = format!("{:.0}", value.round());
-    if let Some(format) = shop_money_format {
-        let rendered = format
-            .replace("{{amount}}", &formatted_amount)
-            .replace("{{ amount }}", &formatted_amount);
-        if rendered != format {
-            return rendered;
-        }
-    }
-    match currency_code {
-        Some("USD") => format!("${formatted_amount}"),
-        Some(code) if !code.is_empty() => format!("{formatted_amount} {code}"),
-        _ => formatted_amount,
-    }
+    format_money_summary_formatted_amount(&formatted_amount, currency_code, shop_money_format)
 }
 
 fn selling_plan_group_summary_json(

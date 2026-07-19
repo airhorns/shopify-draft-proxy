@@ -2161,13 +2161,23 @@ impl DraftProxy {
     }
 
     fn discount_basic_summary_for_input(&self, input: &BTreeMap<String, ResolvedValue>) -> String {
+        let shop_currency_code = self.store.shop_currency_code();
+        let shop_money_format = self.store.shop_money_format();
         discount_summary_with_parts(
             format!(
                 "{} {}",
-                discount_amount_off_summary_value(input),
+                discount_amount_off_summary_value(
+                    input,
+                    &shop_currency_code,
+                    shop_money_format.as_deref()
+                ),
                 self.discount_basic_scope_for_input(input)
             ),
-            [discount_minimum_requirement_summary(input)],
+            [discount_minimum_requirement_summary(
+                input,
+                &shop_currency_code,
+                shop_money_format.as_deref(),
+            )],
         )
     }
 
@@ -2181,12 +2191,22 @@ impl DraftProxy {
         } else {
             discount_purchase_scope_summary(input, &[], "all products", false)
         };
+        let shop_currency_code = self.store.shop_currency_code();
+        let shop_money_format = self.store.shop_money_format();
         discount_summary_with_parts(
             format!("Free shipping on {scope}"),
             [
-                discount_minimum_requirement_summary(input),
+                discount_minimum_requirement_summary(
+                    input,
+                    &shop_currency_code,
+                    shop_money_format.as_deref(),
+                ),
                 Some(discount_destination_summary(input)),
-                discount_maximum_shipping_price_summary(input),
+                discount_maximum_shipping_price_summary(
+                    input,
+                    &shop_currency_code,
+                    shop_money_format.as_deref(),
+                ),
                 resolved_bool_path(input, &["appliesOncePerCustomer"])
                     .unwrap_or(false)
                     .then(|| "One use per customer".to_string()),
@@ -4292,7 +4312,11 @@ fn discount_bxgy_summary(input: &BTreeMap<String, ResolvedValue>) -> String {
     }
 }
 
-fn discount_amount_off_summary_value(input: &BTreeMap<String, ResolvedValue>) -> String {
+fn discount_amount_off_summary_value(
+    input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
+    shop_money_format: Option<&str>,
+) -> String {
     if let Some(percentage) = resolved_f64_path(input, &["customerGets", "value", "percentage"]) {
         return format!(
             "{}% off",
@@ -4303,7 +4327,10 @@ fn discount_amount_off_summary_value(input: &BTreeMap<String, ResolvedValue>) ->
         input,
         &["customerGets", "value", "discountAmount", "amount"],
     ) {
-        return format!("{} off", discount_money_summary_amount(&amount));
+        return format!(
+            "{} off",
+            discount_money_summary_amount(&amount, shop_currency_code, shop_money_format)
+        );
     }
     "10% off".to_string()
 }
@@ -4329,7 +4356,11 @@ fn discount_purchase_scope_summary(
     }
 }
 
-fn discount_minimum_requirement_summary(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+fn discount_minimum_requirement_summary(
+    input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
+    shop_money_format: Option<&str>,
+) -> Option<String> {
     if let Some(amount) = resolved_decimal_text_path(
         input,
         &[
@@ -4340,7 +4371,7 @@ fn discount_minimum_requirement_summary(input: &BTreeMap<String, ResolvedValue>)
     ) {
         return Some(format!(
             "Minimum purchase of {}",
-            discount_money_summary_amount(&amount)
+            discount_money_summary_amount(&amount, shop_currency_code, shop_money_format)
         ));
     }
     resolved_i64_path(
@@ -4368,11 +4399,13 @@ fn discount_destination_summary(input: &BTreeMap<String, ResolvedValue>) -> Stri
 
 fn discount_maximum_shipping_price_summary(
     input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
+    shop_money_format: Option<&str>,
 ) -> Option<String> {
     resolved_decimal_text_path(input, &["maximumShippingPrice"]).map(|amount| {
         format!(
             "Applies to shipping rates under {}",
-            discount_money_summary_amount(&amount)
+            discount_money_summary_amount(&amount, shop_currency_code, shop_money_format)
         )
     })
 }
@@ -4395,9 +4428,12 @@ fn discount_percentage_summary_number(value: f64) -> String {
     trim_decimal_zeros(&format!("{value:.2}"))
 }
 
-fn discount_money_summary_amount(amount: &str) -> String {
-    let parsed = amount.trim().parse::<f64>().unwrap_or(0.0).abs();
-    format!("${parsed:.2}")
+fn discount_money_summary_amount(
+    amount: &str,
+    shop_currency_code: &str,
+    shop_money_format: Option<&str>,
+) -> String {
+    format_money_summary_amount(amount, Some(shop_currency_code), shop_money_format)
 }
 
 fn trim_decimal_zeros(value: &str) -> String {
@@ -4408,18 +4444,7 @@ fn trim_decimal_zeros(value: &str) -> String {
 }
 
 fn discount_country_summary_name(country_code: &str) -> String {
-    match country_code {
-        "AU" => "Australia",
-        "CA" => "Canada",
-        "DE" => "Germany",
-        "DK" => "Denmark",
-        "FR" => "France",
-        "GB" => "United Kingdom",
-        "JP" => "Japan",
-        "US" => "United States",
-        _ => country_code,
-    }
-    .to_string()
+    country_display_name(country_code)
 }
 
 pub(in crate::proxy) fn gift_card_lifecycle_base_card(

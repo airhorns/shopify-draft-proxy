@@ -25,6 +25,33 @@ pub(in crate::proxy) fn money_set_pair(
     })
 }
 
+pub(in crate::proxy) fn format_money_summary_amount(
+    amount: &str,
+    currency_code: Option<&str>,
+    shop_money_format: Option<&str>,
+) -> String {
+    let parsed = amount.trim().parse::<f64>().unwrap_or(0.0).abs();
+    let formatted_amount = format!("{parsed:.2}");
+    format_money_summary_formatted_amount(&formatted_amount, currency_code, shop_money_format)
+}
+
+pub(in crate::proxy) fn format_money_summary_formatted_amount(
+    formatted_amount: &str,
+    currency_code: Option<&str>,
+    shop_money_format: Option<&str>,
+) -> String {
+    if let Some(format) = shop_money_format {
+        if let Some(rendered) = render_shop_money_format(format, formatted_amount) {
+            return rendered;
+        }
+    }
+    match currency_code {
+        Some("USD") => format!("${formatted_amount}"),
+        Some(code) if !code.is_empty() => format!("{formatted_amount} {code}"),
+        _ => formatted_amount.to_string(),
+    }
+}
+
 pub(in crate::proxy) fn money_bag_from_amount(
     amount: f64,
     shop_currency: &str,
@@ -121,4 +148,77 @@ pub(in crate::proxy) fn resolved_decimal_text(value: Option<&ResolvedValue>) -> 
         Some(ResolvedValue::Int(value)) => Some(shopify_decimal_text(&value.to_string())),
         _ => None,
     }
+}
+
+fn render_shop_money_format(format: &str, formatted_amount: &str) -> Option<String> {
+    let no_decimals = rounded_no_decimals(formatted_amount);
+    let comma_separator = amount_with_comma_separator(formatted_amount);
+    let no_decimals_comma_separator = grouped_integer(&no_decimals, '.');
+    let apostrophe_separator = amount_with_apostrophe_separator(formatted_amount);
+    let replacements = [
+        ("amount", formatted_amount.to_string()),
+        ("amount_no_decimals", no_decimals),
+        ("amount_with_comma_separator", comma_separator),
+        (
+            "amount_no_decimals_with_comma_separator",
+            no_decimals_comma_separator,
+        ),
+        ("amount_with_apostrophe_separator", apostrophe_separator),
+    ];
+
+    let mut rendered = format.to_string();
+    let mut changed = false;
+    for (token, value) in replacements {
+        for pattern in [format!("{{{{{token}}}}}"), format!("{{{{ {token} }}}}")] {
+            if rendered.contains(&pattern) {
+                rendered = rendered.replace(&pattern, &value);
+                changed = true;
+            }
+        }
+    }
+    changed.then_some(rendered)
+}
+
+fn rounded_no_decimals(formatted_amount: &str) -> String {
+    let parsed = formatted_amount.parse::<f64>().unwrap_or(0.0);
+    format!("{:.0}", parsed.round())
+}
+
+fn amount_with_comma_separator(formatted_amount: &str) -> String {
+    let (integer, fraction) = formatted_amount
+        .split_once('.')
+        .unwrap_or((formatted_amount, ""));
+    let mut amount = grouped_integer(integer, '.');
+    if !fraction.is_empty() {
+        amount.push(',');
+        amount.push_str(fraction);
+    }
+    amount
+}
+
+fn amount_with_apostrophe_separator(formatted_amount: &str) -> String {
+    let (integer, fraction) = formatted_amount
+        .split_once('.')
+        .unwrap_or((formatted_amount, ""));
+    let mut amount = grouped_integer(integer, '\'');
+    if !fraction.is_empty() {
+        amount.push('.');
+        amount.push_str(fraction);
+    }
+    amount
+}
+
+fn grouped_integer(integer: &str, separator: char) -> String {
+    let (sign, digits) = integer
+        .strip_prefix('-')
+        .map(|digits| ("-", digits))
+        .unwrap_or(("", integer));
+    let mut grouped = String::new();
+    for (index, digit) in digits.chars().enumerate() {
+        if index > 0 && (digits.len() - index) % 3 == 0 {
+            grouped.push(separator);
+        }
+        grouped.push(digit);
+    }
+    format!("{sign}{grouped}")
 }

@@ -12992,6 +12992,107 @@ fn discount_basic_summary_derives_value_scope_and_minimum_requirement() {
         created.body["data"]["product"]["automaticDiscountNode"]["automaticDiscount"]["summary"],
         json!("30% off The Complete Snowboard (Ice) • Minimum quantity of 3")
     );
+
+    let mut proxy = snapshot_proxy();
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"]["currencyCode"] = json!("EUR");
+        state["baseState"]["shop"]["currencyFormats"]["moneyFormat"] = json!("€{{amount}}");
+    });
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountSummaryShopFormatting(
+          $basicInput: DiscountCodeBasicInput!
+          $shippingInput: DiscountAutomaticFreeShippingInput!
+        ) {
+          basic: discountCodeBasicCreate(basicCodeDiscount: $basicInput) {
+            codeDiscountNode {
+              codeDiscount {
+                __typename
+                ... on DiscountCodeBasic {
+                  summary
+                  customerGets {
+                    value {
+                      __typename
+                      ... on DiscountAmount {
+                        amount { amount currencyCode }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+          shipping: discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: $shippingInput) {
+            automaticDiscountNode {
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticFreeShipping {
+                  summary
+                  destinationSelection {
+                    __typename
+                    ... on DiscountCountries {
+                      countries
+                      includeRestOfWorld
+                    }
+                  }
+                  maximumShippingPrice { amount currencyCode }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "basicInput": {
+                "title": "Euro fixed amount summary",
+                "code": "EUROSUMMARY",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": { "all": "ALL" },
+                "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "25.00" } },
+                "customerGets": {
+                    "value": { "discountAmount": { "amount": "10.00", "appliesOnEachItem": false } },
+                    "items": { "all": true }
+                }
+            },
+            "shippingInput": {
+                "title": "Italy free shipping summary",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": { "all": "ALL" },
+                "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "10.00" } },
+                "destination": { "countries": { "add": ["IT"] } },
+                "maximumShippingPrice": "25.00"
+            }
+        }),
+    ));
+
+    assert_eq!(created.body["data"]["basic"]["userErrors"], json!([]));
+    assert_eq!(
+        created.body["data"]["basic"]["codeDiscountNode"]["codeDiscount"]["customerGets"]
+            ["value"]["amount"],
+        json!({ "amount": "10.0", "currencyCode": "EUR" })
+    );
+    assert_eq!(
+        created.body["data"]["basic"]["codeDiscountNode"]["codeDiscount"]["summary"],
+        json!("€10.00 off entire order • Minimum purchase of €25.00")
+    );
+    assert_eq!(created.body["data"]["shipping"]["userErrors"], json!([]));
+    assert_eq!(
+        created.body["data"]["shipping"]["automaticDiscountNode"]["automaticDiscount"]
+            ["destinationSelection"],
+        json!({ "__typename": "DiscountCountries", "countries": ["IT"], "includeRestOfWorld": false })
+    );
+    assert_eq!(
+        created.body["data"]["shipping"]["automaticDiscountNode"]["automaticDiscount"]
+            ["maximumShippingPrice"],
+        json!({ "amount": "25.0", "currencyCode": "EUR" })
+    );
+    assert_eq!(
+        created.body["data"]["shipping"]["automaticDiscountNode"]["automaticDiscount"]["summary"],
+        json!("Free shipping on all products • Minimum purchase of €10.00 • For Italy • Applies to shipping rates under €25.00")
+    );
 }
 
 #[test]
