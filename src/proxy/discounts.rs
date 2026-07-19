@@ -7,6 +7,9 @@ mod redeem_codes;
 use self::errors::*;
 use self::hydrate_queries::*;
 use self::redeem_codes::*;
+use super::search::{
+    parse_search_query, search_string_matches, ParsedSearchExpression, ParsedSearchTerm,
+};
 
 const DISCOUNT_CONTEXT_CUSTOMER_SELECTION_CONFLICT_MESSAGE: &str =
     "Only one of context or customerSelection can be provided.";
@@ -1612,7 +1615,9 @@ impl DraftProxy {
                     &field.selection,
                     discount_search_decision,
                     discount_staged_sort_key,
-                    selected_discount_admin_node_for_record,
+                    |record, selection| {
+                        self.selected_discount_admin_node_for_record(record, selection)
+                    },
                     value_id_cursor,
                 ),
                 "automaticDiscountNodes" | "codeDiscountNodes" => {
@@ -1633,7 +1638,9 @@ impl DraftProxy {
                             }
                         },
                         discount_staged_sort_key,
-                        selected_discount_node_for_record,
+                        |record, selection| {
+                            self.selected_discount_node_for_record(record, selection)
+                        },
                         value_id_cursor,
                     )
                 }
@@ -1703,7 +1710,17 @@ impl DraftProxy {
         selection: &[SelectedField],
     ) -> Value {
         let record = self.discount_record_with_effective_status(record);
-        selected_discount_node_for_record(&record, selection)
+        let saved_search_query_for_id = |id: &str| {
+            self.store
+                .saved_search_by_id(id)
+                .filter(|record| record.resource_type == "DISCOUNT_REDEEM_CODE")
+                .map(|record| record.query)
+        };
+        selected_discount_node_for_record_with_saved_search(
+            &record,
+            selection,
+            &saved_search_query_for_id,
+        )
     }
 
     fn selected_discount_admin_node_for_record(
@@ -1712,7 +1729,17 @@ impl DraftProxy {
         selection: &[SelectedField],
     ) -> Value {
         let record = self.discount_record_with_effective_status(record);
-        selected_discount_admin_node_for_record(&record, selection)
+        let saved_search_query_for_id = |id: &str| {
+            self.store
+                .saved_search_by_id(id)
+                .filter(|record| record.resource_type == "DISCOUNT_REDEEM_CODE")
+                .map(|record| record.query)
+        };
+        selected_discount_admin_node_for_record_with_saved_search(
+            &record,
+            selection,
+            &saved_search_query_for_id,
+        )
     }
 
     fn discount_body_for_record(&self, record: &Value) -> Value {
@@ -3292,20 +3319,6 @@ fn app_discount_function_api_type_is_supported(function: &Value) -> bool {
     )
 }
 
-fn selected_discount_node_for_record(record: &Value, selection: &[SelectedField]) -> Value {
-    selected_json(
-        &discount_node_for_record_with_selection(record, selection),
-        selection,
-    )
-}
-
-fn selected_discount_admin_node_for_record(record: &Value, selection: &[SelectedField]) -> Value {
-    selected_json(
-        &discount_admin_node_for_record_with_selection(record, selection),
-        selection,
-    )
-}
-
 fn discount_node_for_record(record: &Value) -> Value {
     discount_node_for_record_with_selection(record, &[])
 }
@@ -3333,22 +3346,167 @@ fn discount_node_for_record_with_selection(record: &Value, selection: &[Selected
     }
 }
 
-fn discount_admin_node_for_record_with_selection(
+fn selected_discount_node_for_record_with_saved_search(
     record: &Value,
     selection: &[SelectedField],
+    saved_search_query_for_id: &dyn Fn(&str) -> Option<String>,
 ) -> Value {
-    let discount_selection = selected_child_selection(selection, "discount").unwrap_or_default();
+    let node_typename = if discount_kind(record) == "automatic" {
+        "DiscountAutomaticNode"
+    } else {
+        "DiscountCodeNode"
+    };
     let metafields = discount_metafields_connection_for_record(record);
-    json!({
-        "id": discount_id(record),
-        "discount": discount_body_for_record_with_selection(record, &discount_selection),
-        "metafields": metafields,
-        "__typename": if discount_kind(record) == "automatic" {
-            "DiscountAutomaticNode"
-        } else {
-            "DiscountCodeNode"
+    selected_payload_json(selection, |field| {
+        if !discount_node_selection_applies(record, field) {
+            return None;
+        }
+        match field.name.as_str() {
+            "id" => Some(json!(discount_id(record))),
+            "automaticDiscount" if discount_kind(record) == "automatic" => {
+                Some(selected_discount_body_for_record_with_saved_search(
+                    record,
+                    &field.selection,
+                    saved_search_query_for_id,
+                ))
+            }
+            "codeDiscount" if discount_kind(record) != "automatic" => {
+                Some(selected_discount_body_for_record_with_saved_search(
+                    record,
+                    &field.selection,
+                    saved_search_query_for_id,
+                ))
+            }
+            "metafields" => Some(project_discount_selected_value(
+                metafields.clone(),
+                &field.selection,
+            )),
+            "__typename" => Some(json!(node_typename)),
+            _ => None,
         }
     })
+}
+
+fn selected_discount_admin_node_for_record_with_saved_search(
+    record: &Value,
+    selection: &[SelectedField],
+    saved_search_query_for_id: &dyn Fn(&str) -> Option<String>,
+) -> Value {
+    let node_typename = if discount_kind(record) == "automatic" {
+        "DiscountAutomaticNode"
+    } else {
+        "DiscountCodeNode"
+    };
+    let metafields = discount_metafields_connection_for_record(record);
+    selected_payload_json(selection, |field| {
+        if !discount_node_selection_applies(record, field) {
+            return None;
+        }
+        match field.name.as_str() {
+            "id" => Some(json!(discount_id(record))),
+            "discount" => Some(selected_discount_body_for_record_with_saved_search(
+                record,
+                &field.selection,
+                saved_search_query_for_id,
+            )),
+            "metafields" => Some(project_discount_selected_value(
+                metafields.clone(),
+                &field.selection,
+            )),
+            "__typename" => Some(json!(node_typename)),
+            _ => None,
+        }
+    })
+}
+
+fn selected_discount_body_for_record_with_saved_search(
+    record: &Value,
+    selection: &[SelectedField],
+    saved_search_query_for_id: &dyn Fn(&str) -> Option<String>,
+) -> Value {
+    selected_payload_json(selection, |field| {
+        if !discount_body_selection_applies(record, field) {
+            return None;
+        }
+        let value = match field.name.as_str() {
+            "__typename" => record["typename"].clone(),
+            "discountId" => record["id"].clone(),
+            "title" => record["title"].clone(),
+            "status" => record["status"].clone(),
+            "summary" => record["summary"].clone(),
+            "startsAt" => record["startsAt"].clone(),
+            "endsAt" => record["endsAt"].clone(),
+            "createdAt" => record["createdAt"].clone(),
+            "updatedAt" => record["updatedAt"].clone(),
+            "asyncUsageCount" => record["asyncUsageCount"].clone(),
+            "usageLimit" => record["usageLimit"].clone(),
+            "usesPerOrderLimit" => record["usesPerOrderLimit"].clone(),
+            "discountClasses" => record["discountClasses"].clone(),
+            "combinesWith" => record["combinesWith"].clone(),
+            "context" => record["context"].clone(),
+            "customerBuys" => record["customerBuys"].clone(),
+            "customerGets" => record["customerGets"].clone(),
+            "minimumRequirement" => record["minimumRequirement"].clone(),
+            "codes" => {
+                discount_redeem_codes_connection_for_field(record, field, saved_search_query_for_id)
+            }
+            "codesCount" => record["codesCount"].clone(),
+            "destinationSelection" => record["destinationSelection"].clone(),
+            "maximumShippingPrice" => record["maximumShippingPrice"].clone(),
+            "appliesOncePerCustomer" => record["appliesOncePerCustomer"].clone(),
+            "appliesOnOneTimePurchase" => record["appliesOnOneTimePurchase"].clone(),
+            "appliesOnSubscription" => record["appliesOnSubscription"].clone(),
+            "recurringCycleLimit" => record
+                .get("recurringCycleLimit")
+                .cloned()
+                .unwrap_or(Value::Null),
+            "appDiscountType" => record
+                .get("appDiscountType")
+                .cloned()
+                .unwrap_or(Value::Null),
+            "metafields" => discount_metafields_connection_for_record(record),
+            _ => return None,
+        };
+        Some(project_discount_selected_value(value, &field.selection))
+    })
+}
+
+fn discount_node_selection_applies(record: &Value, field: &SelectedField) -> bool {
+    let Some(condition) = field.type_condition.as_deref() else {
+        return true;
+    };
+    match condition {
+        "Node" | "DiscountNode" => true,
+        "DiscountAutomaticNode" => discount_kind(record) == "automatic",
+        "DiscountCodeNode" => discount_kind(record) != "automatic",
+        _ => false,
+    }
+}
+
+fn discount_body_selection_applies(record: &Value, field: &SelectedField) -> bool {
+    field
+        .type_condition
+        .as_deref()
+        .is_none_or(|condition| record.get("typename").and_then(Value::as_str) == Some(condition))
+}
+
+fn project_discount_selected_value(value: Value, selection: &[SelectedField]) -> Value {
+    if selection.is_empty() || value.is_null() {
+        value
+    } else if let Some(values) = value.as_array() {
+        Value::Array(
+            values
+                .iter()
+                .map(|value| nullable_selected_json(value, selection))
+                .collect(),
+        )
+    } else {
+        selected_json(&value, selection)
+    }
+}
+
+fn no_discount_redeem_code_saved_search_query(_: &str) -> Option<String> {
+    None
 }
 
 fn discount_body_for_record(record: &Value) -> Value {
@@ -3406,9 +3564,251 @@ fn discount_redeem_codes_connection_for_record(
     let arguments = selected_discount_body_field(record, selection, "codes")
         .map(|field| field.arguments.clone())
         .unwrap_or_default();
+    discount_redeem_codes_connection_for_arguments(
+        record,
+        &arguments,
+        &no_discount_redeem_code_saved_search_query,
+    )
+}
+
+fn discount_redeem_codes_connection_for_field(
+    record: &Value,
+    field: &SelectedField,
+    saved_search_query_for_id: &dyn Fn(&str) -> Option<String>,
+) -> Value {
+    discount_redeem_codes_connection_for_arguments(
+        record,
+        &field.arguments,
+        saved_search_query_for_id,
+    )
+}
+
+fn discount_redeem_codes_connection_for_arguments(
+    record: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    saved_search_query_for_id: &dyn Fn(&str) -> Option<String>,
+) -> Value {
+    let arguments = discount_redeem_code_arguments_with_saved_search_query(
+        arguments,
+        saved_search_query_for_id,
+    );
     let codes = record["codes"].as_array().cloned().unwrap_or_default();
-    let (windowed, page_info) = connection_window(&codes, &arguments, value_id_cursor);
-    connection_json_with_cursor(windowed, |_, node| value_id_cursor(node), page_info)
+    let result = staged_connection_query(
+        codes,
+        &arguments,
+        |code, query| discount_redeem_code_search_decision(code, query, discount_id(record)),
+        discount_redeem_code_staged_sort_key,
+        value_id_cursor,
+    );
+    connection_json_with_cursor(
+        result.records,
+        |_, node| value_id_cursor(node),
+        result.page_info,
+    )
+}
+
+fn discount_redeem_code_arguments_with_saved_search_query(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    saved_search_query_for_id: &dyn Fn(&str) -> Option<String>,
+) -> BTreeMap<String, ResolvedValue> {
+    let Some(saved_search_id) = resolved_string_field(arguments, "savedSearchId") else {
+        return arguments.clone();
+    };
+    let mut merged = arguments.clone();
+    let query = match saved_search_query_for_id(&saved_search_id) {
+        Some(saved_search_query) => combine_discount_redeem_code_queries(
+            resolved_string_field(arguments, "query").as_deref(),
+            Some(&saved_search_query),
+        ),
+        None => "id:__shopify_draft_proxy_no_matching_saved_search__".to_string(),
+    };
+    merged.insert("query".to_string(), ResolvedValue::String(query));
+    merged
+}
+
+fn combine_discount_redeem_code_queries(
+    argument_query: Option<&str>,
+    saved_search_query: Option<&str>,
+) -> String {
+    match (
+        argument_query
+            .map(str::trim)
+            .filter(|query| !query.is_empty()),
+        saved_search_query
+            .map(str::trim)
+            .filter(|query| !query.is_empty()),
+    ) {
+        (Some(argument_query), Some(saved_search_query)) => {
+            format!("{saved_search_query} {argument_query}")
+        }
+        (Some(argument_query), None) => argument_query.to_string(),
+        (None, Some(saved_search_query)) => saved_search_query.to_string(),
+        (None, None) => String::new(),
+    }
+}
+
+fn discount_redeem_code_search_decision(
+    record: &Value,
+    query: Option<&str>,
+    parent_discount_id: &str,
+) -> StagedSearchDecision {
+    let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+        return StagedSearchDecision::Match;
+    };
+    parse_search_query(query)
+        .map(|expression| {
+            discount_redeem_code_search_expression_decision(record, parent_discount_id, &expression)
+        })
+        .unwrap_or(StagedSearchDecision::Unsupported)
+}
+
+fn discount_redeem_code_search_expression_decision(
+    record: &Value,
+    parent_discount_id: &str,
+    expression: &ParsedSearchExpression,
+) -> StagedSearchDecision {
+    match expression {
+        ParsedSearchExpression::Term(term) => {
+            discount_redeem_code_search_term_decision(record, parent_discount_id, term)
+        }
+        ParsedSearchExpression::Not(expression) => {
+            match discount_redeem_code_search_expression_decision(
+                record,
+                parent_discount_id,
+                expression,
+            ) {
+                StagedSearchDecision::Match => StagedSearchDecision::NoMatch,
+                StagedSearchDecision::NoMatch => StagedSearchDecision::Match,
+                StagedSearchDecision::Unsupported => StagedSearchDecision::Unsupported,
+            }
+        }
+        ParsedSearchExpression::And(expressions) => {
+            let mut saw_unsupported = false;
+            for expression in expressions {
+                match discount_redeem_code_search_expression_decision(
+                    record,
+                    parent_discount_id,
+                    expression,
+                ) {
+                    StagedSearchDecision::Match => {}
+                    StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
+                    StagedSearchDecision::Unsupported => saw_unsupported = true,
+                }
+            }
+            if saw_unsupported {
+                StagedSearchDecision::Unsupported
+            } else {
+                StagedSearchDecision::Match
+            }
+        }
+        ParsedSearchExpression::Or(expressions) => {
+            for expression in expressions {
+                if discount_redeem_code_search_expression_decision(
+                    record,
+                    parent_discount_id,
+                    expression,
+                ) == StagedSearchDecision::Match
+                {
+                    return StagedSearchDecision::Match;
+                }
+            }
+            StagedSearchDecision::NoMatch
+        }
+    }
+}
+
+fn discount_redeem_code_search_term_decision(
+    record: &Value,
+    parent_discount_id: &str,
+    term: &ParsedSearchTerm,
+) -> StagedSearchDecision {
+    match term.field.as_deref() {
+        Some(key) => {
+            discount_redeem_code_filter_decision(record, parent_discount_id, key, &term.value)
+        }
+        None => {
+            StagedSearchDecision::from_bool(discount_redeem_code_text_matches(record, &term.value))
+        }
+    }
+}
+
+fn discount_redeem_code_filter_decision(
+    record: &Value,
+    parent_discount_id: &str,
+    key: &str,
+    value: &str,
+) -> StagedSearchDecision {
+    let negated = key.ends_with("_not");
+    let base_key = key.trim_end_matches("_not");
+    let matches = match base_key {
+        "code" => Some(discount_redeem_code_code_matches(record, value)),
+        "id" => Some(discount_redeem_code_id_matches(record, value)),
+        "discount_id" => Some(search_string_matches(parent_discount_id, value)),
+        "created_at" | "updated_at" | "status" => Some(false),
+        "default" => Some(true),
+        _ => None,
+    };
+    match matches {
+        Some(matches) => StagedSearchDecision::from_bool(if negated { !matches } else { matches }),
+        None => StagedSearchDecision::Unsupported,
+    }
+}
+
+fn discount_redeem_code_text_matches(record: &Value, query: &str) -> bool {
+    discount_redeem_code_code_matches(record, query)
+        || discount_redeem_code_id_matches(record, query)
+}
+
+fn discount_redeem_code_code_matches(record: &Value, query: &str) -> bool {
+    record
+        .get("code")
+        .and_then(Value::as_str)
+        .map(|code| search_string_matches(code, query))
+        .unwrap_or(false)
+}
+
+fn discount_redeem_code_id_matches(record: &Value, query: &str) -> bool {
+    record
+        .get("id")
+        .and_then(Value::as_str)
+        .map(|id| search_string_matches(id, query) || resource_id_tail(id) == query)
+        .unwrap_or(false)
+}
+
+fn discount_redeem_code_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let primary = match sort_key.unwrap_or("ID") {
+        "CODE" => discount_redeem_code_normalized_string_sort_value(record, "code"),
+        "CREATED_AT" => discount_redeem_code_nullable_string_sort_value(record, "createdAt"),
+        "UPDATED_AT" => discount_redeem_code_nullable_string_sort_value(record, "updatedAt"),
+        "ID" | "RELEVANCE" => discount_redeem_code_gid_tail_sort_value(record),
+        _ => discount_redeem_code_gid_tail_sort_value(record),
+    };
+    vec![primary, discount_redeem_code_gid_tail_sort_value(record)]
+}
+
+fn discount_redeem_code_normalized_string_sort_value(
+    record: &Value,
+    field: &str,
+) -> StagedSortValue {
+    StagedSortValue::String(
+        record
+            .get(field)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_ascii_lowercase(),
+    )
+}
+
+fn discount_redeem_code_nullable_string_sort_value(record: &Value, field: &str) -> StagedSortValue {
+    record
+        .get(field)
+        .and_then(Value::as_str)
+        .map(|value| StagedSortValue::String(value.to_string()))
+        .unwrap_or(StagedSortValue::Null)
+}
+
+fn discount_redeem_code_gid_tail_sort_value(record: &Value) -> StagedSortValue {
+    resource_id_tail_sort_value(record.get("id").and_then(Value::as_str))
 }
 
 fn selected_discount_body_field<'a>(

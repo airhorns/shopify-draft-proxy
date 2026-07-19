@@ -8,6 +8,24 @@ fn json_string(value: &Value, context: &str) -> String {
         .to_string()
 }
 
+fn connection_node_codes(connection: &Value) -> Vec<String> {
+    connection["nodes"]
+        .as_array()
+        .unwrap_or_else(|| panic!("connection nodes should be an array, got {connection}"))
+        .iter()
+        .map(|node| json_string(&node["code"], "connection node code"))
+        .collect()
+}
+
+fn connection_edge_codes(connection: &Value) -> Vec<String> {
+    connection["edges"]
+        .as_array()
+        .unwrap_or_else(|| panic!("connection edges should be an array, got {connection}"))
+        .iter()
+        .map(|edge| json_string(&edge["node"]["code"], "connection edge node code"))
+        .collect()
+}
+
 fn upstream_code_basic_fixed_amount_discount(
     redeem_code_id: &str,
     title: &str,
@@ -4021,7 +4039,7 @@ fn discount_redeem_code_connection_windows_edges_and_page_info() {
         "#,
         json!({ "input": {
             "title": "Redeem code connection window",
-            "code": "CONNECTION-CODE-BASE",
+            "code": "BASE-CODE",
             "startsAt": "2026-06-10T00:00:00Z",
             "context": { "all": "ALL" },
             "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
@@ -4076,22 +4094,12 @@ fn discount_redeem_code_connection_windows_edges_and_page_info() {
     ));
     let first_codes = &first_page.body["data"]["codeDiscountNode"]["codeDiscount"]["codes"];
     assert_eq!(
-        first_codes["nodes"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|node| json_string(&node["code"], "redeem code"))
-            .collect::<Vec<_>>(),
-        vec!["CONNECTION-CODE-BASE", "CONNECTION-CODE-A"]
+        connection_node_codes(first_codes),
+        vec!["BASE-CODE", "CONNECTION-CODE-A"]
     );
     assert_eq!(
-        first_codes["edges"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|edge| json_string(&edge["node"]["code"], "redeem code edge"))
-            .collect::<Vec<_>>(),
-        vec!["CONNECTION-CODE-BASE", "CONNECTION-CODE-A"]
+        connection_edge_codes(first_codes),
+        vec!["BASE-CODE", "CONNECTION-CODE-A"]
     );
     assert_eq!(first_codes["pageInfo"]["hasNextPage"], json!(true));
     assert_eq!(first_codes["pageInfo"]["hasPreviousPage"], json!(false));
@@ -4124,20 +4132,142 @@ fn discount_redeem_code_connection_windows_edges_and_page_info() {
           }
         }
         "#,
-        json!({ "discountId": discount_id, "after": after }),
+        json!({ "discountId": discount_id.clone(), "after": after }),
     ));
     let second_codes = &second_page.body["data"]["codeDiscountNode"]["codeDiscount"]["codes"];
     assert_eq!(
-        second_codes["nodes"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|node| json_string(&node["code"], "redeem code"))
-            .collect::<Vec<_>>(),
+        connection_node_codes(second_codes),
         vec!["CONNECTION-CODE-B", "CONNECTION-CODE-C"]
     );
     assert_eq!(second_codes["pageInfo"]["hasNextPage"], json!(false));
     assert_eq!(second_codes["pageInfo"]["hasPreviousPage"], json!(true));
+
+    let saved_search = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountRedeemCodeSavedSearchCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "resourceType": "DISCOUNT_REDEEM_CODE",
+            "name": "Redeem code B",
+            "query": "code:CONNECTION-CODE-B"
+        }}),
+    ));
+    assert_eq!(saved_search.status, 200);
+    assert_eq!(
+        saved_search.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    let saved_search_id = json_string(
+        &saved_search.body["data"]["savedSearchCreate"]["savedSearch"]["id"],
+        "redeem code saved search id",
+    );
+
+    let filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountRedeemCodeFilterSort($discountId: ID!, $savedSearchId: ID!) {
+          codeDiscountNode(id: $discountId) {
+            codeDiscount {
+              ... on DiscountCodeBasic {
+                exactCode: codes(first: 10, query: "code:CONNECTION-CODE-B") {
+                  nodes { code }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+                filteredSorted: codes(first: 2, query: "CONNECTION-CODE", sortKey: CODE, reverse: true) {
+                  nodes { id code }
+                  edges { cursor node { code } }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+                savedSearch: codes(first: 10, savedSearchId: $savedSearchId) {
+                  nodes { code }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+                unknownFilter: codes(first: 10, query: "unknown_filter:whatever") {
+                  nodes { code }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "discountId": discount_id.clone(), "savedSearchId": saved_search_id }),
+    ));
+    assert_eq!(filtered.status, 200, "{:?}", filtered.body);
+    let code_discount = &filtered.body["data"]["codeDiscountNode"]["codeDiscount"];
+    assert_eq!(
+        connection_node_codes(&code_discount["exactCode"]),
+        vec!["CONNECTION-CODE-B"]
+    );
+    let filtered_sorted = &code_discount["filteredSorted"];
+    assert_eq!(
+        connection_node_codes(filtered_sorted),
+        vec!["CONNECTION-CODE-C", "CONNECTION-CODE-B"]
+    );
+    assert_eq!(
+        connection_edge_codes(filtered_sorted),
+        vec!["CONNECTION-CODE-C", "CONNECTION-CODE-B"]
+    );
+    assert_eq!(filtered_sorted["pageInfo"]["hasNextPage"], json!(true));
+    assert_eq!(filtered_sorted["pageInfo"]["hasPreviousPage"], json!(false));
+    assert_eq!(
+        filtered_sorted["pageInfo"]["startCursor"],
+        filtered_sorted["edges"][0]["cursor"]
+    );
+    assert_eq!(
+        filtered_sorted["pageInfo"]["endCursor"],
+        filtered_sorted["edges"][1]["cursor"]
+    );
+    assert_eq!(
+        connection_node_codes(&code_discount["savedSearch"]),
+        vec!["CONNECTION-CODE-B"]
+    );
+    assert_eq!(
+        connection_node_codes(&code_discount["unknownFilter"]),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        code_discount["unknownFilter"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+        })
+    );
+
+    let filtered_after = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountRedeemCodeFilterSortAfter($discountId: ID!, $after: String!) {
+          codeDiscountNode(id: $discountId) {
+            codeDiscount {
+              ... on DiscountCodeBasic {
+                codes(first: 1, after: $after, query: "CONNECTION-CODE", sortKey: CODE, reverse: true) {
+                  nodes { code }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({
+            "discountId": discount_id,
+            "after": json_string(&filtered_sorted["pageInfo"]["endCursor"], "filtered sorted end cursor")
+        }),
+    ));
+    assert_eq!(filtered_after.status, 200, "{:?}", filtered_after.body);
+    let after_codes = &filtered_after.body["data"]["codeDiscountNode"]["codeDiscount"]["codes"];
+    assert_eq!(
+        connection_node_codes(after_codes),
+        vec!["CONNECTION-CODE-A"]
+    );
+    assert_eq!(after_codes["pageInfo"]["hasNextPage"], json!(false));
+    assert_eq!(after_codes["pageInfo"]["hasPreviousPage"], json!(true));
 }
 
 #[test]
