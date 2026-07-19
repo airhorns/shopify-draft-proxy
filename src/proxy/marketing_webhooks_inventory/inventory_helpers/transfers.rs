@@ -1044,13 +1044,25 @@ impl DraftProxy {
         if ids.is_empty() {
             return;
         }
-        let response = self.upstream_post(
+        let mut response = self.upstream_post(
             request,
             json!({
-                "query": INVENTORY_TRANSFER_HYDRATE_NODES_QUERY,
+                "query": INVENTORY_LIFECYCLE_REFERENCE_HYDRATE_NODES_QUERY,
                 "variables": { "ids": ids }
             }),
         );
+        // Older captures contain the same read with legacy formatting. Retry that
+        // exact query only after a server failure; confirmed 4xx responses remain
+        // authoritative and supported mutations are never forwarded.
+        if response.status >= 500 {
+            response = self.upstream_post(
+                request,
+                json!({
+                    "query": INVENTORY_TRANSFER_HYDRATE_NODES_QUERY,
+                    "variables": { "ids": ids }
+                }),
+            );
+        }
         if response.status >= 400 {
             return;
         }

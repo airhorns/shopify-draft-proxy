@@ -8522,6 +8522,120 @@ fn inventory_transfer_create_keeps_empty_hydrated_origin_quantities_zero() {
 }
 
 #[test]
+fn inventory_transfer_reference_hydration_preserves_request_context_on_legacy_retry() {
+    let origin_id = "gid://shopify/Location/111111111111";
+    let destination_id = "gid://shopify/Location/222222222222";
+    let inventory_item_id = "gid://shopify/InventoryItem/333333333333";
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body)
+                .expect("inventory transfer reference hydrate body should parse");
+            let query = body["query"].as_str().unwrap_or_default();
+            let attempt = {
+                let mut requests = captured.lock().unwrap();
+                requests.push(request);
+                requests.len()
+            };
+            assert!(
+                !query.trim_start().starts_with("mutation"),
+                "transfer reference hydration must remain query-only"
+            );
+            if attempt == 1 {
+                assert_eq!(
+                    query.trim_end(),
+                    include_str!(
+                        "../../config/parity-requests/products/inventory-transfer-reference-hydrate.graphql"
+                    )
+                    .trim_end()
+                );
+                return Response {
+                    status: 503,
+                    headers: Default::default(),
+                    body: json!({"errors": [{"message": "formatted hydrate unavailable"}]}),
+                };
+            }
+            assert_eq!(attempt, 2, "reference hydration should retry at most once");
+            assert!(query.contains("measurement { weight { unit value } }"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"nodes": [
+                    {
+                        "__typename": "Location",
+                        "id": origin_id,
+                        "name": "Retry origin",
+                        "isActive": true
+                    },
+                    {
+                        "__typename": "Location",
+                        "id": destination_id,
+                        "name": "Retry destination",
+                        "isActive": true
+                    },
+                    {
+                        "__typename": "InventoryItem",
+                        "id": inventory_item_id,
+                        "tracked": true,
+                        "requiresShipping": true,
+                        "variant": {
+                            "id": "gid://shopify/ProductVariant/333333333333",
+                            "title": "Retry Transfer Variant",
+                            "inventoryQuantity": 2,
+                            "product": {
+                                "id": "gid://shopify/Product/333333333333",
+                                "title": "Retry Transfer Product",
+                                "handle": "retry-transfer-product",
+                                "status": "ACTIVE",
+                                "totalInventory": 2,
+                                "tracksInventory": true
+                            }
+                        },
+                        "inventoryLevels": {"nodes": [{
+                            "id": "gid://shopify/InventoryLevel/333333333333-111111111111?inventory_item_id=333333333333",
+                            "location": {"id": origin_id, "name": "Retry origin"},
+                            "quantities": [
+                                {"name": "available", "quantity": 2},
+                                {"name": "on_hand", "quantity": 2},
+                                {"name": "reserved", "quantity": 0}
+                            ]
+                        }]}
+                    }
+                ]}}),
+            }
+        },
+    );
+
+    let mut request = json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-transfer-create.graphql"),
+        json!({"input": {
+            "originLocationId": origin_id,
+            "destinationLocationId": destination_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 2}]
+        }}),
+    );
+    request.path = "/admin/api/2026-04/graphql.json".to_string();
+    request.headers.insert(
+        "x-shopify-access-token".to_string(),
+        "request-aware-transfer-reference-token".to_string(),
+    );
+    let response = proxy.process_request(request);
+
+    assert_eq!(
+        response.body["data"]["inventoryTransferCreate"]["userErrors"],
+        json!([])
+    );
+    let requests = forwarded.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert!(requests.iter().all(|request| {
+        request.path == "/admin/api/2026-04/graphql.json"
+            && request.headers.get("x-shopify-access-token")
+                == Some(&"request-aware-transfer-reference-token".to_string())
+    }));
+}
+
+#[test]
 fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store() {
     let mut proxy = inventory_seed_proxy();
 
