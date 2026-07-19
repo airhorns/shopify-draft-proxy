@@ -7290,7 +7290,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-storefront-catalog-enrichment-conformance.mts',
     purpose:
-      'Authenticated Storefront merchandising and context evidence for recommendations, tags/types, media/images, visible and hidden product/variant metafields, selling plans, market pricing, quantity rules/breaks, availability, and request-context isolation after public Admin setup.',
+      'Authenticated Storefront merchandising and context evidence for recommendations, tags/types, media/images, visible and hidden product/variant metafields, selling plans, default CAD and contextual EUR market pricing, quantity rules/breaks, availability, and request-context isolation after public Admin setup.',
     requiredAuthScopes: [
       'read_products',
       'write_products',
@@ -7469,6 +7469,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/storefront/storefront-customer-address-update.graphql',
       'config/parity-requests/storefront/storefront-customer-admin-address-create.graphql',
       'config/parity-requests/storefront/storefront-customer-admin-order-create.graphql',
+      'config/parity-requests/storefront/storefront-customer-admin-order-update.graphql',
       'config/parity-requests/storefront/storefront-customer-admin-read.graphql',
       'config/parity-requests/storefront/storefront-customer-default-address-update.graphql',
       'config/parity-requests/storefront/storefront-customer-profile-address-order-read.graphql',

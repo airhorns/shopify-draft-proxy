@@ -4471,3 +4471,53 @@ Practical rule:
   metafield page, before applying a narrow article or blog input
 - derive blog tags from known child articles and touch the appropriate parent or
   destination blog when staging article writes
+
+## 105. Storefront order numbers are independent of custom Admin order names
+
+Authenticated Admin plus Storefront GraphQL 2026-04 lifecycle capture created
+an order named `WEB-2026-#77-A`. Storefront returned that name unchanged while
+reporting an independently allocated numeric `orderNumber`; it did not parse or
+concatenate the digits in the name. The same projection returned the captured
+CAD subtotal and total, `AUTHORIZED` financial status, `UNFULFILLED`
+fulfillment status, and explicit processed timestamp. A later Admin
+`orderUpdate` changed email and phone while all of those other Storefront values
+remained stable. The checked-in anchor is
+`config/parity-specs/storefront/storefront-customer-profile-address-order-lifecycle.json`.
+
+Practical rule:
+
+- retain an explicit order number in shared order state and never derive it from
+  an arbitrary order name
+- project current Admin subtotal and total money sets ahead of original totals
+- overlay staged Admin lifecycle changes without replacing known Storefront
+  identity, money, status, or processed-time values
+- leave absent required Storefront Order values unknown so GraphQL applies its
+  schema error and null-propagation behavior; do not substitute zero money,
+  `USD`, `UNFULFILLED`, an epoch timestamp, or order number zero
+
+## 106. Storefront currency is observed context, not a schema-filling default
+
+Authenticated Storefront GraphQL 2026-04 catalog capture against a CAD shop
+returned CAD money in default context and EUR money after a disposable active
+DE market, market catalog, and EUR price list were attached to the product. The
+contextual product and variant fixed price was `799.0 EUR`. A country directive
+alone is not evidence of conversion: before that market setup, DE still
+resolved through the shop's CAD context.
+
+This makes currency provenance part of the money value. An incompletely
+hydrated snapshot cannot infer a shop or presentment currency merely from a
+non-null Storefront `MoneyV2` field. Returning USD in that state creates
+plausible but false prices; leaving the money unavailable lets the executable
+Storefront schema apply its standard null propagation and error path.
+
+Practical rule:
+
+- prefer hydrated localization, then its matched active catalog/price list and
+  market currency, before falling back to variant-observed or Storefront/Admin
+  shop currency
+- resolve one authoritative cart currency and use it for line, subtotal,
+  discount, gift-card, delivery, and total money projections
+- do not treat a country code as a currency mapping or use USD as a placeholder
+  when no observed state establishes currency
+- keep unavailable money as null and allow schema nullability to determine the
+  caller-visible error boundary

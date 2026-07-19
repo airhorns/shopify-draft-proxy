@@ -5,7 +5,7 @@
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
-  "capturedAt": "2026-07-16T03:01:20.803Z",
+  "capturedAt": "2026-07-19T12:42:10.465Z",
   "storefrontToken": "<redacted:storefront-access-token>",
   "setup": {
     "taxonomyBaseline": {
@@ -28,10 +28,6 @@
           "data": {
             "productTags": {
               "edges": [
-                {
-                  "cursor": "MDAwLWVucmljaG1lbnQtMjAyNjA3MTYwMjU4MjU=",
-                  "node": "000-enrichment-20260716025825"
-                },
                 {
                   "cursor": "MS84Ig==",
                   "node": "1/8\""
@@ -529,10 +525,6 @@
                   "node": "Dura-Ace"
                 },
                 {
-                  "cursor": "ZW5yaWNobWVudC1zaGFyZWQ=",
-                  "node": "enrichment-shared"
-                },
-                {
                   "cursor": "ZXNz",
                   "node": "ess"
                 },
@@ -849,10 +841,6 @@
                   "node": "men"
                 },
                 {
-                  "cursor": "bWVyY2hhbmRpc2luZw==",
-                  "node": "merchandising"
-                },
-                {
                   "cursor": "TWljcm8=",
                   "node": "Micro"
                 },
@@ -1027,10 +1015,21 @@
                 {
                   "cursor": "UmVhcg==",
                   "node": "Rear"
+                },
+                {
+                  "cursor": "UmVk",
+                  "node": "Red"
+                },
+                {
+                  "cursor": "UmV2bw==",
+                  "node": "Revo"
+                },
+                {
+                  "cursor": "UmltIFRhcGU=",
+                  "node": "Rim Tape"
                 }
               ],
               "nodes": [
-                "000-enrichment-20260716025825",
                 "1/8\"",
                 "10mm",
                 "14mm",
@@ -1155,7 +1154,6 @@
                 "Drivetrain",
                 "Drop Bars",
                 "Dura-Ace",
-                "enrichment-shared",
                 "ess",
                 "Essential",
                 "Essentials",
@@ -1235,7 +1233,6 @@
                 "Matte Black",
                 "Matte Grey",
                 "men",
-                "merchandising",
                 "Micro",
                 "Micro Series",
                 "Mint",
@@ -1279,13 +1276,16 @@
                 "Racing",
                 "Rack",
                 "Racks and Baskets",
-                "Rear"
+                "Rear",
+                "Red",
+                "Revo",
+                "Rim Tape"
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "MDAwLWVucmljaG1lbnQtMjAyNjA3MTYwMjU4MjU=",
-                "endCursor": "UmVhcg=="
+                "startCursor": "MS84Ig==",
+                "endCursor": "UmltIFRhcGU="
               }
             },
             "productTypes": {
@@ -1640,13 +1640,13 @@
         "query": "mutation StorefrontEnrichmentProductCreate($product: ProductCreateInput!, $media: [CreateMediaInput!]) {\n  productCreate(product: $product, media: $media) {\n    product {\n      id\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      variants(first: 5) {\n        nodes {\n          id\n          title\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n          }\n        }\n      }\n      media(first: 5) {\n        nodes {\n          __typename\n          id\n          alt\n          mediaContentType\n          status\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
         "variables": {
           "product": {
-            "title": "Storefront Enrichment Primary 20260716030112",
-            "handle": "storefront-enrichment-primary-20260716030112",
+            "title": "Storefront Enrichment Primary 20260719124200",
+            "handle": "storefront-enrichment-primary-20260719124200",
             "status": "ACTIVE",
             "vendor": "Hermes Enrichment",
-            "productType": "000 Enrichment 20260716030112",
-            "tags": ["000-enrichment-20260716030112", "enrichment-shared", "merchandising"],
-            "descriptionHtml": "<p>Storefront enrichment primary 20260716030112</p>",
+            "productType": "000 Enrichment 20260719124200",
+            "tags": ["000-enrichment-20260719124200", "enrichment-shared", "merchandising"],
+            "descriptionHtml": "<p>Storefront enrichment primary 20260719124200</p>",
             "productOptions": [
               {
                 "name": "Color",
@@ -1660,9 +1660,9 @@
           },
           "media": [
             {
-              "alt": "Storefront enrichment image 20260716030112",
+              "alt": "Storefront enrichment image 20260719124200",
               "mediaContentType": "IMAGE",
-              "originalSource": "https://placehold.co/640x480/png?text=storefront-enrichment-20260716030112"
+              "originalSource": "https://placehold.co/640x480/png?text=storefront-enrichment-20260719124200"
             }
           ]
         }
@@ -1672,20 +1672,20 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10241375699250",
-              "title": "Storefront Enrichment Primary 20260716030112",
-              "handle": "storefront-enrichment-primary-20260716030112",
+              "id": "gid://shopify/Product/10243914858802",
+              "title": "Storefront Enrichment Primary 20260719124200",
+              "handle": "storefront-enrichment-primary-20260719124200",
               "status": "ACTIVE",
               "vendor": "Hermes Enrichment",
-              "productType": "000 Enrichment 20260716030112",
-              "tags": ["000-enrichment-20260716030112", "enrichment-shared", "merchandising"],
+              "productType": "000 Enrichment 20260719124200",
+              "tags": ["000-enrichment-20260719124200", "enrichment-shared", "merchandising"],
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51478545170738",
+                    "id": "gid://shopify/ProductVariant/51487967084850",
                     "title": "Blue",
                     "inventoryItem": {
-                      "id": "gid://shopify/InventoryItem/53584040624434",
+                      "id": "gid://shopify/InventoryItem/53593563431218",
                       "tracked": false,
                       "requiresShipping": true
                     }
@@ -1696,8 +1696,8 @@
                 "nodes": [
                   {
                     "__typename": "MediaImage",
-                    "id": "gid://shopify/MediaImage/44055966023986",
-                    "alt": "Storefront enrichment image 20260716030112",
+                    "id": "gid://shopify/MediaImage/44070522618162",
+                    "alt": "Storefront enrichment image 20260719124200",
                     "mediaContentType": "IMAGE",
                     "status": "UPLOADED"
                   }
@@ -1726,13 +1726,13 @@
         "query": "mutation StorefrontEnrichmentProductCreate($product: ProductCreateInput!, $media: [CreateMediaInput!]) {\n  productCreate(product: $product, media: $media) {\n    product {\n      id\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      variants(first: 5) {\n        nodes {\n          id\n          title\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n          }\n        }\n      }\n      media(first: 5) {\n        nodes {\n          __typename\n          id\n          alt\n          mediaContentType\n          status\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
         "variables": {
           "product": {
-            "title": "Storefront Enrichment Candidate 20260716030112",
-            "handle": "storefront-enrichment-candidate-20260716030112",
+            "title": "Storefront Enrichment Candidate 20260719124200",
+            "handle": "storefront-enrichment-candidate-20260719124200",
             "status": "ACTIVE",
             "vendor": "Hermes Enrichment",
-            "productType": "000 Enrichment 20260716030112",
-            "tags": ["000-enrichment-20260716030112", "enrichment-shared", "recommendation-candidate"],
-            "descriptionHtml": "<p>Storefront enrichment candidate 20260716030112</p>"
+            "productType": "000 Enrichment 20260719124200",
+            "tags": ["000-enrichment-20260719124200", "enrichment-shared", "recommendation-candidate"],
+            "descriptionHtml": "<p>Storefront enrichment candidate 20260719124200</p>"
           },
           "media": []
         }
@@ -1742,20 +1742,20 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10241375732018",
-              "title": "Storefront Enrichment Candidate 20260716030112",
-              "handle": "storefront-enrichment-candidate-20260716030112",
+              "id": "gid://shopify/Product/10243914891570",
+              "title": "Storefront Enrichment Candidate 20260719124200",
+              "handle": "storefront-enrichment-candidate-20260719124200",
               "status": "ACTIVE",
               "vendor": "Hermes Enrichment",
-              "productType": "000 Enrichment 20260716030112",
-              "tags": ["000-enrichment-20260716030112", "enrichment-shared", "recommendation-candidate"],
+              "productType": "000 Enrichment 20260719124200",
+              "tags": ["000-enrichment-20260719124200", "enrichment-shared", "recommendation-candidate"],
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51478545203506",
+                    "id": "gid://shopify/ProductVariant/51487967117618",
                     "title": "Default Title",
                     "inventoryItem": {
-                      "id": "gid://shopify/InventoryItem/53584040657202",
+                      "id": "gid://shopify/InventoryItem/53593563463986",
                       "tracked": false,
                       "requiresShipping": true
                     }
@@ -1787,15 +1787,15 @@
       "request": {
         "query": "mutation StorefrontCatalogVariantUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  updateVariant: productVariantsBulkUpdate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n      title\n      sku\n      barcode\n      price\n      compareAtPrice\n      inventoryQuantity\n      selectedOptions {\n        name\n        value\n      }\n      inventoryItem {\n        id\n        tracked\n        requiresShipping\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
-          "productId": "gid://shopify/Product/10241375699250",
+          "productId": "gid://shopify/Product/10243914858802",
           "variants": [
             {
-              "id": "gid://shopify/ProductVariant/51478545170738",
+              "id": "gid://shopify/ProductVariant/51487967084850",
               "price": "149.00",
               "compareAtPrice": "179.00",
-              "barcode": "sf-enrichment-20260716030112",
+              "barcode": "sf-enrichment-20260719124200",
               "inventoryItem": {
-                "sku": "SF-ENRICH-20260716030112",
+                "sku": "SF-ENRICH-20260719124200",
                 "tracked": true,
                 "requiresShipping": true
               }
@@ -1809,10 +1809,10 @@
           "updateVariant": {
             "productVariants": [
               {
-                "id": "gid://shopify/ProductVariant/51478545170738",
+                "id": "gid://shopify/ProductVariant/51487967084850",
                 "title": "Blue",
-                "sku": "SF-ENRICH-20260716030112",
-                "barcode": "sf-enrichment-20260716030112",
+                "sku": "SF-ENRICH-20260719124200",
+                "barcode": "sf-enrichment-20260719124200",
                 "price": "149.00",
                 "compareAtPrice": "179.00",
                 "inventoryQuantity": 0,
@@ -1823,7 +1823,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53584040624434",
+                  "id": "gid://shopify/InventoryItem/53593563431218",
                   "tracked": true,
                   "requiresShipping": true
                 }
@@ -1851,7 +1851,7 @@
         "query": "mutation StorefrontCatalogLocationAdd($input: LocationAddInput!) {\n  locationAdd(input: $input) {\n    location {\n      id\n      name\n      isActive\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
           "input": {
-            "name": "Storefront Enrichment 20260716030112",
+            "name": "Storefront Enrichment 20260719124200",
             "fulfillsOnlineOrders": true,
             "address": {
               "countryCode": "DK",
@@ -1866,8 +1866,8 @@
         "data": {
           "locationAdd": {
             "location": {
-              "id": "gid://shopify/Location/113978900786",
-              "name": "Storefront Enrichment 20260716030112",
+              "id": "gid://shopify/Location/114037915954",
+              "name": "Storefront Enrichment 20260719124200",
               "isActive": true
             },
             "userErrors": []
@@ -1894,17 +1894,17 @@
           "input": {
             "name": "available",
             "reason": "correction",
-            "referenceDocumentUri": "logistics://storefront-enrichment/20260716030112",
+            "referenceDocumentUri": "logistics://storefront-enrichment/20260719124200",
             "quantities": [
               {
-                "inventoryItemId": "gid://shopify/InventoryItem/53584040624434",
-                "locationId": "gid://shopify/Location/113978900786",
+                "inventoryItemId": "gid://shopify/InventoryItem/53593563431218",
+                "locationId": "gid://shopify/Location/114037915954",
                 "quantity": 37,
                 "changeFromQuantity": 0
               }
             ]
           },
-          "idempotencyKey": "storefront-enrichment-inventory-20260716030112"
+          "idempotencyKey": "storefront-enrichment-inventory-20260719124200"
         }
       },
       "status": 200,
@@ -1990,7 +1990,7 @@
       "request": {
         "query": "mutation StorefrontCatalogPublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {\n  publishablePublish(id: $id, input: $input) {\n    publishable {\n      ... on Product {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Product/10241375699250",
+          "id": "gid://shopify/Product/10243914858802",
           "input": [
             {
               "publicationId": "gid://shopify/Publication/268039389490"
@@ -2004,7 +2004,7 @@
         "data": {
           "publishablePublish": {
             "publishable": {
-              "id": "gid://shopify/Product/10241375699250",
+              "id": "gid://shopify/Product/10243914858802",
               "publishedOnPublication": true
             },
             "userErrors": []
@@ -2028,7 +2028,7 @@
       "request": {
         "query": "mutation StorefrontCatalogPublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {\n  publishablePublish(id: $id, input: $input) {\n    publishable {\n      ... on Product {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Product/10241375732018",
+          "id": "gid://shopify/Product/10243914891570",
           "input": [
             {
               "publicationId": "gid://shopify/Publication/268039389490"
@@ -2042,7 +2042,7 @@
         "data": {
           "publishablePublish": {
             "publishable": {
-              "id": "gid://shopify/Product/10241375732018",
+              "id": "gid://shopify/Product/10243914891570",
               "publishedOnPublication": true
             },
             "userErrors": []
@@ -2067,9 +2067,9 @@
         "query": "mutation StorefrontEnrichmentMetafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n      }\n      access {\n        admin\n        storefront\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
           "definition": {
-            "name": "Storefront visible product 20260716030112",
+            "name": "Storefront visible product 20260719124200",
             "namespace": "custom",
-            "key": "sf_visible_20260716030112",
+            "key": "sf_visible_20260719124200",
             "type": "single_line_text_field",
             "ownerType": "PRODUCT",
             "access": {
@@ -2083,10 +2083,10 @@
         "data": {
           "metafieldDefinitionCreate": {
             "createdDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/226342928690",
-              "name": "Storefront visible product 20260716030112",
+              "id": "gid://shopify/MetafieldDefinition/227262562610",
+              "name": "Storefront visible product 20260719124200",
               "namespace": "custom",
-              "key": "sf_visible_20260716030112",
+              "key": "sf_visible_20260719124200",
               "ownerType": "PRODUCT",
               "type": {
                 "name": "single_line_text_field"
@@ -2118,9 +2118,9 @@
         "query": "mutation StorefrontEnrichmentMetafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n      }\n      access {\n        admin\n        storefront\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
           "definition": {
-            "name": "Storefront hidden product 20260716030112",
+            "name": "Storefront hidden product 20260719124200",
             "namespace": "custom",
-            "key": "sf_hidden_20260716030112",
+            "key": "sf_hidden_20260719124200",
             "type": "single_line_text_field",
             "ownerType": "PRODUCT",
             "access": {
@@ -2134,10 +2134,10 @@
         "data": {
           "metafieldDefinitionCreate": {
             "createdDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/226342961458",
-              "name": "Storefront hidden product 20260716030112",
+              "id": "gid://shopify/MetafieldDefinition/227262595378",
+              "name": "Storefront hidden product 20260719124200",
               "namespace": "custom",
-              "key": "sf_hidden_20260716030112",
+              "key": "sf_hidden_20260719124200",
               "ownerType": "PRODUCT",
               "type": {
                 "name": "single_line_text_field"
@@ -2169,9 +2169,9 @@
         "query": "mutation StorefrontEnrichmentMetafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n      }\n      access {\n        admin\n        storefront\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
           "definition": {
-            "name": "Storefront visible variant 20260716030112",
+            "name": "Storefront visible variant 20260719124200",
             "namespace": "custom",
-            "key": "sf_variant_20260716030112",
+            "key": "sf_variant_20260719124200",
             "type": "single_line_text_field",
             "ownerType": "PRODUCTVARIANT",
             "access": {
@@ -2185,10 +2185,10 @@
         "data": {
           "metafieldDefinitionCreate": {
             "createdDefinition": {
-              "id": "gid://shopify/MetafieldDefinition/226342994226",
-              "name": "Storefront visible variant 20260716030112",
+              "id": "gid://shopify/MetafieldDefinition/227262628146",
+              "name": "Storefront visible variant 20260719124200",
               "namespace": "custom",
-              "key": "sf_variant_20260716030112",
+              "key": "sf_variant_20260719124200",
               "ownerType": "PRODUCTVARIANT",
               "type": {
                 "name": "single_line_text_field"
@@ -2221,25 +2221,25 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10241375699250",
+              "ownerId": "gid://shopify/Product/10243914858802",
               "namespace": "custom",
-              "key": "sf_visible_20260716030112",
+              "key": "sf_visible_20260719124200",
               "type": "single_line_text_field",
-              "value": "visible product 20260716030112"
+              "value": "visible product 20260719124200"
             },
             {
-              "ownerId": "gid://shopify/Product/10241375699250",
+              "ownerId": "gid://shopify/Product/10243914858802",
               "namespace": "custom",
-              "key": "sf_hidden_20260716030112",
+              "key": "sf_hidden_20260719124200",
               "type": "single_line_text_field",
-              "value": "hidden product 20260716030112"
+              "value": "hidden product 20260719124200"
             },
             {
-              "ownerId": "gid://shopify/ProductVariant/51478545170738",
+              "ownerId": "gid://shopify/ProductVariant/51487967084850",
               "namespace": "custom",
-              "key": "sf_variant_20260716030112",
+              "key": "sf_variant_20260719124200",
               "type": "single_line_text_field",
-              "value": "visible variant 20260716030112"
+              "value": "visible variant 20260719124200"
             }
           ]
         }
@@ -2250,27 +2250,27 @@
           "metafieldsSet": {
             "metafields": [
               {
-                "id": "gid://shopify/Metafield/45077192966450",
+                "id": "gid://shopify/Metafield/45213001351474",
                 "namespace": "custom",
-                "key": "sf_visible_20260716030112",
+                "key": "sf_visible_20260719124200",
                 "type": "single_line_text_field",
-                "value": "visible product 20260716030112",
+                "value": "visible product 20260719124200",
                 "ownerType": "PRODUCT"
               },
               {
-                "id": "gid://shopify/Metafield/45077192999218",
+                "id": "gid://shopify/Metafield/45213001384242",
                 "namespace": "custom",
-                "key": "sf_hidden_20260716030112",
+                "key": "sf_hidden_20260719124200",
                 "type": "single_line_text_field",
-                "value": "hidden product 20260716030112",
+                "value": "hidden product 20260719124200",
                 "ownerType": "PRODUCT"
               },
               {
-                "id": "gid://shopify/Metafield/45077193031986",
+                "id": "gid://shopify/Metafield/45213001417010",
                 "namespace": "custom",
-                "key": "sf_variant_20260716030112",
+                "key": "sf_variant_20260719124200",
                 "type": "single_line_text_field",
-                "value": "visible variant 20260716030112",
+                "value": "visible variant 20260719124200",
                 "ownerType": "PRODUCTVARIANT"
               }
             ],
@@ -2283,7 +2283,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -2296,14 +2296,14 @@
         "query": "mutation StorefrontEnrichmentSellingPlanGroupCreate(\n  $input: SellingPlanGroupInput!\n  $resources: SellingPlanGroupResourceInput!\n) {\n  sellingPlanGroupCreate(input: $input, resources: $resources) {\n    sellingPlanGroup {\n      id\n      name\n      merchantCode\n      productsCount {\n        count\n        precision\n      }\n      productVariantsCount {\n        count\n        precision\n      }\n      sellingPlans(first: 5) {\n        nodes {\n          id\n          name\n          description\n          options\n          category\n          pricingPolicies {\n            __typename\n            ... on SellingPlanFixedPricingPolicy {\n              adjustmentType\n              adjustmentValue {\n                __typename\n                ... on MoneyV2 {\n                  amount\n                  currencyCode\n                }\n                ... on SellingPlanPricingPolicyPercentageValue {\n                  percentage\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
           "input": {
-            "name": "Storefront Enrichment Subscription 20260716030112",
-            "merchantCode": "sf-enrichment-20260716030112",
+            "name": "Storefront Enrichment Subscription 20260719124200",
+            "merchantCode": "sf-enrichment-20260719124200",
             "options": ["Delivery frequency"],
             "position": 1,
             "sellingPlansToCreate": [
               {
                 "name": "Monthly enrichment delivery",
-                "description": "Monthly Storefront enrichment 20260716030112",
+                "description": "Monthly Storefront enrichment 20260719124200",
                 "options": ["Every month"],
                 "position": 1,
                 "category": "SUBSCRIPTION",
@@ -2333,7 +2333,7 @@
             ]
           },
           "resources": {
-            "productIds": ["gid://shopify/Product/10241375699250"]
+            "productIds": ["gid://shopify/Product/10243914858802"]
           }
         }
       },
@@ -2342,9 +2342,9 @@
         "data": {
           "sellingPlanGroupCreate": {
             "sellingPlanGroup": {
-              "id": "gid://shopify/SellingPlanGroup/3154051378",
-              "name": "Storefront Enrichment Subscription 20260716030112",
-              "merchantCode": "sf-enrichment-20260716030112",
+              "id": "gid://shopify/SellingPlanGroup/3158475058",
+              "name": "Storefront Enrichment Subscription 20260719124200",
+              "merchantCode": "sf-enrichment-20260719124200",
               "productsCount": {
                 "count": 1,
                 "precision": "EXACT"
@@ -2356,9 +2356,9 @@
               "sellingPlans": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/SellingPlan/7317487922",
+                    "id": "gid://shopify/SellingPlan/7322009906",
                     "name": "Monthly enrichment delivery",
-                    "description": "Monthly Storefront enrichment 20260716030112",
+                    "description": "Monthly Storefront enrichment 20260719124200",
                     "options": ["Every month"],
                     "category": "SUBSCRIPTION",
                     "pricingPolicies": [
@@ -2397,13 +2397,13 @@
         "query": "mutation StorefrontEnrichmentMarketCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n      currencySettings {\n        baseCurrency {\n          currencyCode\n        }\n        localCurrencies\n      }\n      regions(first: 5) {\n        nodes {\n          id\n          ... on MarketRegionCountry {\n            code\n            name\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
           "input": {
-            "name": "Storefront Enrichment Denmark 20260716030112",
+            "name": "Storefront Enrichment Europe 20260719124200",
             "status": "ACTIVE",
             "conditions": {
               "regionsCondition": {
                 "regions": [
                   {
-                    "countryCode": "DK"
+                    "countryCode": "DE"
                   }
                 ]
               }
@@ -2419,9 +2419,9 @@
         "data": {
           "marketCreate": {
             "market": {
-              "id": "gid://shopify/Market/98926133554",
-              "name": "Storefront Enrichment Denmark 20260716030112",
-              "handle": "storefront-enrichment-denmark-20260716030112",
+              "id": "gid://shopify/Market/98969551154",
+              "name": "Storefront Enrichment Europe 20260719124200",
+              "handle": "storefront-enrichment-europe-20260719124200",
               "status": "ACTIVE",
               "enabled": true,
               "currencySettings": {
@@ -2433,9 +2433,9 @@
               "regions": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/MarketRegionCountry/4062110712114",
-                    "code": "DK",
-                    "name": "Denmark"
+                    "id": "gid://shopify/MarketRegionCountry/4062110679346",
+                    "code": "DE",
+                    "name": "Germany"
                   }
                 ]
               }
@@ -2462,8 +2462,8 @@
         "query": "mutation StorefrontEnrichmentPriceListCreate($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      name\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
           "input": {
-            "name": "Storefront Enrichment DKK 20260716030112",
-            "currency": "DKK",
+            "name": "Storefront Enrichment EUR 20260719124200",
+            "currency": "EUR",
             "parent": {
               "adjustment": {
                 "type": "PERCENTAGE_DECREASE",
@@ -2478,9 +2478,9 @@
         "data": {
           "priceListCreate": {
             "priceList": {
-              "id": "gid://shopify/PriceList/32314523954",
-              "name": "Storefront Enrichment DKK 20260716030112",
-              "currency": "DKK",
+              "id": "gid://shopify/PriceList/32316129586",
+              "name": "Storefront Enrichment EUR 20260719124200",
+              "currency": "EUR",
               "parent": {
                 "adjustment": {
                   "type": "PERCENTAGE_DECREASE",
@@ -2510,12 +2510,12 @@
         "query": "mutation StorefrontEnrichmentCatalogCreate($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      priceList {\n        id\n        currency\n      }\n      publication {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
           "input": {
-            "title": "Storefront Enrichment Denmark Catalog 20260716030112",
+            "title": "Storefront Enrichment Europe Catalog 20260719124200",
             "status": "ACTIVE",
             "context": {
-              "marketIds": ["gid://shopify/Market/98926133554"]
+              "marketIds": ["gid://shopify/Market/98969551154"]
             },
-            "priceListId": "gid://shopify/PriceList/32314523954"
+            "priceListId": "gid://shopify/PriceList/32316129586"
           }
         }
       },
@@ -2524,20 +2524,20 @@
         "data": {
           "catalogCreate": {
             "catalog": {
-              "id": "gid://shopify/MarketCatalog/154915176754",
-              "title": "Storefront Enrichment Denmark Catalog 20260716030112",
+              "id": "gid://shopify/MarketCatalog/155295940914",
+              "title": "Storefront Enrichment Europe Catalog 20260719124200",
               "status": "ACTIVE",
               "markets": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Market/98926133554",
-                    "name": "Storefront Enrichment Denmark 20260716030112"
+                    "id": "gid://shopify/Market/98969551154",
+                    "name": "Storefront Enrichment Europe 20260719124200"
                   }
                 ]
               },
               "priceList": {
-                "id": "gid://shopify/PriceList/32314523954",
-                "currency": "DKK"
+                "id": "gid://shopify/PriceList/32316129586",
+                "currency": "EUR"
               },
               "publication": null
             },
@@ -2562,13 +2562,13 @@
       "request": {
         "query": "mutation StorefrontEnrichmentQuantityPricing(\n  $priceListId: ID!\n  $input: QuantityPricingByVariantUpdateInput!\n) {\n  quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
-          "priceListId": "gid://shopify/PriceList/32314523954",
+          "priceListId": "gid://shopify/PriceList/32316129586",
           "input": {
             "pricesToAdd": [],
             "pricesToDeleteByVariantId": [],
             "quantityRulesToAdd": [
               {
-                "variantId": "gid://shopify/ProductVariant/51478545170738",
+                "variantId": "gid://shopify/ProductVariant/51487967084850",
                 "minimum": 5,
                 "maximum": 50,
                 "increment": 5
@@ -2577,11 +2577,11 @@
             "quantityRulesToDeleteByVariantId": [],
             "quantityPriceBreaksToAdd": [
               {
-                "variantId": "gid://shopify/ProductVariant/51478545170738",
+                "variantId": "gid://shopify/ProductVariant/51487967084850",
                 "minimumQuantity": 10,
                 "price": {
                   "amount": "749.00",
-                  "currencyCode": "DKK"
+                  "currencyCode": "EUR"
                 }
               }
             ],
@@ -2622,18 +2622,18 @@
       "request": {
         "query": "mutation StorefrontEnrichmentQuantityPricing(\n  $priceListId: ID!\n  $input: QuantityPricingByVariantUpdateInput!\n) {\n  quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {\n    productVariants {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
-          "priceListId": "gid://shopify/PriceList/32314523954",
+          "priceListId": "gid://shopify/PriceList/32316129586",
           "input": {
             "pricesToAdd": [
               {
-                "variantId": "gid://shopify/ProductVariant/51478545170738",
+                "variantId": "gid://shopify/ProductVariant/51487967084850",
                 "price": {
                   "amount": "799.00",
-                  "currencyCode": "DKK"
+                  "currencyCode": "EUR"
                 },
                 "compareAtPrice": {
                   "amount": "999.00",
-                  "currencyCode": "DKK"
+                  "currencyCode": "EUR"
                 }
               }
             ],
@@ -2652,7 +2652,7 @@
           "quantityPricingByVariantUpdate": {
             "productVariants": [
               {
-                "id": "gid://shopify/ProductVariant/51478545170738"
+                "id": "gid://shopify/ProductVariant/51487967084850"
               }
             ],
             "userErrors": []
@@ -2691,10 +2691,6 @@
           "data": {
             "productTags": {
               "edges": [
-                {
-                  "cursor": "MDAwLWVucmljaG1lbnQtMjAyNjA3MTYwMjU4MjU=",
-                  "node": "000-enrichment-20260716025825"
-                },
                 {
                   "cursor": "MS84Ig==",
                   "node": "1/8\""
@@ -3192,10 +3188,6 @@
                   "node": "Dura-Ace"
                 },
                 {
-                  "cursor": "ZW5yaWNobWVudC1zaGFyZWQ=",
-                  "node": "enrichment-shared"
-                },
-                {
                   "cursor": "ZXNz",
                   "node": "ess"
                 },
@@ -3512,10 +3504,6 @@
                   "node": "men"
                 },
                 {
-                  "cursor": "bWVyY2hhbmRpc2luZw==",
-                  "node": "merchandising"
-                },
-                {
                   "cursor": "TWljcm8=",
                   "node": "Micro"
                 },
@@ -3690,10 +3678,21 @@
                 {
                   "cursor": "UmVhcg==",
                   "node": "Rear"
+                },
+                {
+                  "cursor": "UmVk",
+                  "node": "Red"
+                },
+                {
+                  "cursor": "UmV2bw==",
+                  "node": "Revo"
+                },
+                {
+                  "cursor": "UmltIFRhcGU=",
+                  "node": "Rim Tape"
                 }
               ],
               "nodes": [
-                "000-enrichment-20260716025825",
                 "1/8\"",
                 "10mm",
                 "14mm",
@@ -3818,7 +3817,6 @@
                 "Drivetrain",
                 "Drop Bars",
                 "Dura-Ace",
-                "enrichment-shared",
                 "ess",
                 "Essential",
                 "Essentials",
@@ -3898,7 +3896,6 @@
                 "Matte Black",
                 "Matte Grey",
                 "men",
-                "merchandising",
                 "Micro",
                 "Micro Series",
                 "Mint",
@@ -3942,13 +3939,16 @@
                 "Racing",
                 "Rack",
                 "Racks and Baskets",
-                "Rear"
+                "Rear",
+                "Red",
+                "Revo",
+                "Rim Tape"
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "MDAwLWVucmljaG1lbnQtMjAyNjA3MTYwMjU4MjU=",
-                "endCursor": "UmVhcg=="
+                "startCursor": "MS84Ig==",
+                "endCursor": "UmltIFRhcGU="
               }
             },
             "productTypes": {
@@ -3958,8 +3958,8 @@
                   "node": ""
                 },
                 {
-                  "cursor": "MDAwIEVucmljaG1lbnQgMjAyNjA3MTYwMzAxMTI=",
-                  "node": "000 Enrichment 20260716030112"
+                  "cursor": "MDAwIEVucmljaG1lbnQgMjAyNjA3MTkxMjQyMDA=",
+                  "node": "000 Enrichment 20260719124200"
                 },
                 {
                   "cursor": "YWNjZXNzb3JpZXM=",
@@ -4220,7 +4220,7 @@
               ],
               "nodes": [
                 "",
-                "000 Enrichment 20260716030112",
+                "000 Enrichment 20260719124200",
                 "accessories",
                 "Apparel",
                 "Badge",
@@ -4316,12 +4316,12 @@
       "operationName": "StorefrontEnrichmentMerchandising",
       "query": "query StorefrontEnrichmentMerchandising(\n  $id: ID!\n  $handle: String!\n  $missingId: ID!\n  $visibleProductKey: String!\n  $hiddenProductKey: String!\n  $visibleVariantKey: String!\n) {\n  recommendations: productRecommendations(productId: $id, intent: RELATED) {\n    id\n    handle\n    title\n    productType\n    tags\n  }\n  recommendationsByHandle: productRecommendations(productHandle: $handle, intent: RELATED) {\n    id\n    handle\n    title\n  }\n  missingRecommendations: productRecommendations(productId: $missingId, intent: RELATED) {\n    id\n  }\n  productTags(first: 250) {\n    edges {\n      cursor\n      node\n    }\n    nodes\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  productTypes(first: 250) {\n    edges {\n      cursor\n      node\n    }\n    nodes\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  byHandle: productByHandle(handle: $handle) {\n    ...ProductEnrichmentFields\n  }\n  aliasedProduct: product(id: $id) {\n    ...ProductEnrichmentFields\n  }\n}\n\nfragment ProductEnrichmentFields on Product {\n  __typename\n  id\n  handle\n  title\n  productType\n  tags\n  requiresSellingPlan\n  featuredImage {\n    id\n    url\n    altText\n    width\n    height\n  }\n  images(first: 1) {\n    edges {\n      cursor\n      node {\n        id\n        url\n        altText\n        width\n        height\n      }\n    }\n    nodes {\n      id\n      url\n      altText\n      width\n      height\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  media(first: 1) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        alt\n        mediaContentType\n        previewImage {\n          id\n          url\n          altText\n          width\n          height\n        }\n        ... on MediaImage {\n          image {\n            id\n            url\n            altText\n            width\n            height\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  mediaTail: media(first: 1, reverse: true) {\n    nodes {\n      __typename\n      id\n      alt\n      mediaContentType\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  visibleProductMetafield: metafield(namespace: \"custom\", key: $visibleProductKey) {\n    id\n    namespace\n    key\n    type\n    value\n  }\n  hiddenProductMetafield: metafield(namespace: \"custom\", key: $hiddenProductKey) {\n    id\n    namespace\n    key\n    type\n    value\n  }\n  selectedProductMetafields: metafields(\n    identifiers: [\n      { namespace: \"custom\", key: $visibleProductKey }\n      { namespace: \"custom\", key: $hiddenProductKey }\n    ]\n  ) {\n    id\n    namespace\n    key\n    type\n    value\n  }\n  sellingPlanGroups(first: 5) {\n    edges {\n      cursor\n      node {\n        appName\n        name\n        options {\n          name\n          values\n        }\n        sellingPlans(first: 5) {\n          edges {\n            cursor\n            node {\n              id\n              name\n              description\n              recurringDeliveries\n              options {\n                name\n                value\n              }\n              priceAdjustments {\n                orderCount\n                adjustmentValue {\n                  __typename\n                  ... on SellingPlanPercentagePriceAdjustment {\n                    adjustmentPercentage\n                  }\n                  ... on SellingPlanFixedAmountPriceAdjustment {\n                    adjustmentAmount {\n                      amount\n                      currencyCode\n                    }\n                  }\n                  ... on SellingPlanFixedPriceAdjustment {\n                    price {\n                      amount\n                      currencyCode\n                    }\n                  }\n                }\n              }\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  variants(first: 5) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        title\n        price {\n          amount\n          currencyCode\n        }\n        compareAtPrice {\n          amount\n          currencyCode\n        }\n        availableForSale\n        quantityAvailable\n        image {\n          id\n          url\n          altText\n          width\n          height\n        }\n        visibleVariantMetafield: metafield(namespace: \"custom\", key: $visibleVariantKey) {\n          id\n          namespace\n          key\n          type\n          value\n        }\n        selectedVariantMetafields: metafields(\n          identifiers: [{ namespace: \"custom\", key: $visibleVariantKey }]\n        ) {\n          id\n          namespace\n          key\n          type\n          value\n        }\n        quantityRule {\n          minimum\n          maximum\n          increment\n        }\n        quantityPriceBreaks(first: 5) {\n          edges {\n            cursor\n            node {\n              minimumQuantity\n              price {\n                amount\n                currencyCode\n              }\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        sellingPlanAllocations(first: 5) {\n          edges {\n            cursor\n            node {\n              checkoutChargeAmount {\n                amount\n                currencyCode\n              }\n              remainingBalanceChargeAmount {\n                amount\n                currencyCode\n              }\n              priceAdjustments {\n                price {\n                  amount\n                  currencyCode\n                }\n                compareAtPrice {\n                  amount\n                  currencyCode\n                }\n                perDeliveryPrice {\n                  amount\n                  currencyCode\n                }\n                unitPrice {\n                  amount\n                  currencyCode\n                }\n              }\n              sellingPlan {\n                id\n                name\n              }\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        storeAvailability(first: 5) {\n          edges {\n            cursor\n            node {\n              available\n              pickUpTime\n              quantityAvailable\n              location {\n                id\n                name\n              }\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Product/10241375699250",
-        "handle": "storefront-enrichment-primary-20260716030112",
+        "id": "gid://shopify/Product/10243914858802",
+        "handle": "storefront-enrichment-primary-20260719124200",
         "missingId": "gid://shopify/Product/0",
-        "visibleProductKey": "sf_visible_20260716030112",
-        "hiddenProductKey": "sf_hidden_20260716030112",
-        "visibleVariantKey": "sf_variant_20260716030112"
+        "visibleProductKey": "sf_visible_20260719124200",
+        "hiddenProductKey": "sf_hidden_20260719124200",
+        "visibleVariantKey": "sf_variant_20260719124200"
       },
       "response": {
         "status": 200,
@@ -4471,10 +4471,6 @@
             "productTags": {
               "edges": [
                 {
-                  "cursor": "MDAwLWVucmljaG1lbnQtMjAyNjA3MTYwMjU4MjU=",
-                  "node": "000-enrichment-20260716025825"
-                },
-                {
                   "cursor": "MS84Ig==",
                   "node": "1/8\""
                 },
@@ -4971,10 +4967,6 @@
                   "node": "Dura-Ace"
                 },
                 {
-                  "cursor": "ZW5yaWNobWVudC1zaGFyZWQ=",
-                  "node": "enrichment-shared"
-                },
-                {
                   "cursor": "ZXNz",
                   "node": "ess"
                 },
@@ -5291,10 +5283,6 @@
                   "node": "men"
                 },
                 {
-                  "cursor": "bWVyY2hhbmRpc2luZw==",
-                  "node": "merchandising"
-                },
-                {
                   "cursor": "TWljcm8=",
                   "node": "Micro"
                 },
@@ -5469,10 +5457,21 @@
                 {
                   "cursor": "UmVhcg==",
                   "node": "Rear"
+                },
+                {
+                  "cursor": "UmVk",
+                  "node": "Red"
+                },
+                {
+                  "cursor": "UmV2bw==",
+                  "node": "Revo"
+                },
+                {
+                  "cursor": "UmltIFRhcGU=",
+                  "node": "Rim Tape"
                 }
               ],
               "nodes": [
-                "000-enrichment-20260716025825",
                 "1/8\"",
                 "10mm",
                 "14mm",
@@ -5597,7 +5596,6 @@
                 "Drivetrain",
                 "Drop Bars",
                 "Dura-Ace",
-                "enrichment-shared",
                 "ess",
                 "Essential",
                 "Essentials",
@@ -5677,7 +5675,6 @@
                 "Matte Black",
                 "Matte Grey",
                 "men",
-                "merchandising",
                 "Micro",
                 "Micro Series",
                 "Mint",
@@ -5721,13 +5718,16 @@
                 "Racing",
                 "Rack",
                 "Racks and Baskets",
-                "Rear"
+                "Rear",
+                "Red",
+                "Revo",
+                "Rim Tape"
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "MDAwLWVucmljaG1lbnQtMjAyNjA3MTYwMjU4MjU=",
-                "endCursor": "UmVhcg=="
+                "startCursor": "MS84Ig==",
+                "endCursor": "UmltIFRhcGU="
               }
             },
             "productTypes": {
@@ -5737,8 +5737,8 @@
                   "node": ""
                 },
                 {
-                  "cursor": "MDAwIEVucmljaG1lbnQgMjAyNjA3MTYwMzAxMTI=",
-                  "node": "000 Enrichment 20260716030112"
+                  "cursor": "MDAwIEVucmljaG1lbnQgMjAyNjA3MTkxMjQyMDA=",
+                  "node": "000 Enrichment 20260719124200"
                 },
                 {
                   "cursor": "YWNjZXNzb3JpZXM=",
@@ -5999,7 +5999,7 @@
               ],
               "nodes": [
                 "",
-                "000 Enrichment 20260716030112",
+                "000 Enrichment 20260719124200",
                 "accessories",
                 "Apparel",
                 "Badge",
@@ -6074,27 +6074,27 @@
             },
             "byHandle": {
               "__typename": "Product",
-              "id": "gid://shopify/Product/10241375699250",
-              "handle": "storefront-enrichment-primary-20260716030112",
-              "title": "Storefront Enrichment Primary 20260716030112",
-              "productType": "000 Enrichment 20260716030112",
-              "tags": ["000-enrichment-20260716030112", "enrichment-shared", "merchandising"],
+              "id": "gid://shopify/Product/10243914858802",
+              "handle": "storefront-enrichment-primary-20260719124200",
+              "title": "Storefront Enrichment Primary 20260719124200",
+              "productType": "000 Enrichment 20260719124200",
+              "tags": ["000-enrichment-20260719124200", "enrichment-shared", "merchandising"],
               "requiresSellingPlan": false,
               "featuredImage": {
-                "id": "gid://shopify/ProductImage/54015260361010",
-                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_6cefcda9-5f04-4769-b4ae-3e217b228a69.png?v=1784170874",
-                "altText": "Storefront enrichment image 20260716030112",
+                "id": "gid://shopify/ProductImage/54029811351858",
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b66917bf-d3b1-451e-a1f9-ec7942822cca.png?v=1784464923",
+                "altText": "Storefront enrichment image 20260719124200",
                 "width": 640,
                 "height": 480
               },
               "images": {
                 "edges": [
                   {
-                    "cursor": "eyJsYXN0X2lkIjo1NDAxNTI2MDM2MTAxMCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                    "cursor": "eyJsYXN0X2lkIjo1NDAyOTgxMTM1MTg1OCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
                     "node": {
-                      "id": "gid://shopify/ProductImage/54015260361010",
-                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_6cefcda9-5f04-4769-b4ae-3e217b228a69.png?v=1784170874",
-                      "altText": "Storefront enrichment image 20260716030112",
+                      "id": "gid://shopify/ProductImage/54029811351858",
+                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b66917bf-d3b1-451e-a1f9-ec7942822cca.png?v=1784464923",
+                      "altText": "Storefront enrichment image 20260719124200",
                       "width": 640,
                       "height": 480
                     }
@@ -6102,9 +6102,9 @@
                 ],
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductImage/54015260361010",
-                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_6cefcda9-5f04-4769-b4ae-3e217b228a69.png?v=1784170874",
-                    "altText": "Storefront enrichment image 20260716030112",
+                    "id": "gid://shopify/ProductImage/54029811351858",
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b66917bf-d3b1-451e-a1f9-ec7942822cca.png?v=1784464923",
+                    "altText": "Storefront enrichment image 20260719124200",
                     "width": 640,
                     "height": 480
                   }
@@ -6112,30 +6112,30 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo1NDAxNTI2MDM2MTAxMCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
-                  "endCursor": "eyJsYXN0X2lkIjo1NDAxNTI2MDM2MTAxMCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
+                  "startCursor": "eyJsYXN0X2lkIjo1NDAyOTgxMTM1MTg1OCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo1NDAyOTgxMTM1MTg1OCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
                 }
               },
               "media": {
                 "edges": [
                   {
-                    "cursor": "eyJsYXN0X2lkIjo0NDA1NTk2NjAyMzk4NiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                    "cursor": "eyJsYXN0X2lkIjo0NDA3MDUyMjYxODE2MiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
                     "node": {
                       "__typename": "MediaImage",
-                      "id": "gid://shopify/MediaImage/44055966023986",
-                      "alt": "Storefront enrichment image 20260716030112",
+                      "id": "gid://shopify/MediaImage/44070522618162",
+                      "alt": "Storefront enrichment image 20260719124200",
                       "mediaContentType": "IMAGE",
                       "previewImage": {
-                        "id": "gid://shopify/ImageSource/44055966023986",
-                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_6cefcda9-5f04-4769-b4ae-3e217b228a69.png?v=1784170874",
-                        "altText": "Storefront enrichment image 20260716030112",
+                        "id": "gid://shopify/ImageSource/44070522618162",
+                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b66917bf-d3b1-451e-a1f9-ec7942822cca.png?v=1784464923",
+                        "altText": "Storefront enrichment image 20260719124200",
                         "width": 640,
                         "height": 480
                       },
                       "image": {
-                        "id": "gid://shopify/ImageSource/44055966023986",
-                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_6cefcda9-5f04-4769-b4ae-3e217b228a69.png?v=1784170874",
-                        "altText": "Storefront enrichment image 20260716030112",
+                        "id": "gid://shopify/ImageSource/44070522618162",
+                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b66917bf-d3b1-451e-a1f9-ec7942822cca.png?v=1784464923",
+                        "altText": "Storefront enrichment image 20260719124200",
                         "width": 640,
                         "height": 480
                       }
@@ -6145,51 +6145,51 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo0NDA1NTk2NjAyMzk4NiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
-                  "endCursor": "eyJsYXN0X2lkIjo0NDA1NTk2NjAyMzk4NiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
+                  "startCursor": "eyJsYXN0X2lkIjo0NDA3MDUyMjYxODE2MiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo0NDA3MDUyMjYxODE2MiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
                 }
               },
               "mediaTail": {
                 "nodes": [
                   {
                     "__typename": "MediaImage",
-                    "id": "gid://shopify/MediaImage/44055966023986",
-                    "alt": "Storefront enrichment image 20260716030112",
+                    "id": "gid://shopify/MediaImage/44070522618162",
+                    "alt": "Storefront enrichment image 20260719124200",
                     "mediaContentType": "IMAGE"
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo0NDA1NTk2NjAyMzk4NiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
-                  "endCursor": "eyJsYXN0X2lkIjo0NDA1NTk2NjAyMzk4NiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
+                  "startCursor": "eyJsYXN0X2lkIjo0NDA3MDUyMjYxODE2MiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo0NDA3MDUyMjYxODE2MiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
                 }
               },
               "visibleProductMetafield": {
-                "id": "gid://shopify/Metafield/45077192966450",
+                "id": "gid://shopify/Metafield/45213001351474",
                 "namespace": "custom",
-                "key": "sf_visible_20260716030112",
+                "key": "sf_visible_20260719124200",
                 "type": "single_line_text_field",
-                "value": "visible product 20260716030112"
+                "value": "visible product 20260719124200"
               },
               "hiddenProductMetafield": null,
               "selectedProductMetafields": [
                 {
-                  "id": "gid://shopify/Metafield/45077192966450",
+                  "id": "gid://shopify/Metafield/45213001351474",
                   "namespace": "custom",
-                  "key": "sf_visible_20260716030112",
+                  "key": "sf_visible_20260719124200",
                   "type": "single_line_text_field",
-                  "value": "visible product 20260716030112"
+                  "value": "visible product 20260719124200"
                 },
                 null
               ],
               "sellingPlanGroups": {
                 "edges": [
                   {
-                    "cursor": "eyJsYXN0X2lkIjozMTU0MDUxMzc4LCJsYXN0X3ZhbHVlIjozMTU0MDUxMzc4LCJvZmZzZXQiOjB9",
+                    "cursor": "eyJsYXN0X2lkIjozMTU4NDc1MDU4LCJsYXN0X3ZhbHVlIjozMTU4NDc1MDU4LCJvZmZzZXQiOjB9",
                     "node": {
                       "appName": null,
-                      "name": "Storefront Enrichment Subscription 20260716030112",
+                      "name": "Storefront Enrichment Subscription 20260719124200",
                       "options": [
                         {
                           "name": "Delivery frequency",
@@ -6199,11 +6199,11 @@
                       "sellingPlans": {
                         "edges": [
                           {
-                            "cursor": "eyJsYXN0X2lkIjo3MzE3NDg3OTIyLCJsYXN0X3ZhbHVlIjo3MzE3NDg3OTIyLCJvZmZzZXQiOjB9",
+                            "cursor": "eyJsYXN0X2lkIjo3MzIyMDA5OTA2LCJsYXN0X3ZhbHVlIjo3MzIyMDA5OTA2LCJvZmZzZXQiOjB9",
                             "node": {
-                              "id": "gid://shopify/SellingPlan/7317487922",
+                              "id": "gid://shopify/SellingPlan/7322009906",
                               "name": "Monthly enrichment delivery",
-                              "description": "Monthly Storefront enrichment 20260716030112",
+                              "description": "Monthly Storefront enrichment 20260719124200",
                               "recurringDeliveries": true,
                               "options": [
                                 {
@@ -6226,8 +6226,8 @@
                         "pageInfo": {
                           "hasNextPage": false,
                           "hasPreviousPage": false,
-                          "startCursor": "eyJsYXN0X2lkIjo3MzE3NDg3OTIyLCJsYXN0X3ZhbHVlIjo3MzE3NDg3OTIyLCJvZmZzZXQiOjB9",
-                          "endCursor": "eyJsYXN0X2lkIjo3MzE3NDg3OTIyLCJsYXN0X3ZhbHVlIjo3MzE3NDg3OTIyLCJvZmZzZXQiOjB9"
+                          "startCursor": "eyJsYXN0X2lkIjo3MzIyMDA5OTA2LCJsYXN0X3ZhbHVlIjo3MzIyMDA5OTA2LCJvZmZzZXQiOjB9",
+                          "endCursor": "eyJsYXN0X2lkIjo3MzIyMDA5OTA2LCJsYXN0X3ZhbHVlIjo3MzIyMDA5OTA2LCJvZmZzZXQiOjB9"
                         }
                       }
                     }
@@ -6236,17 +6236,17 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjozMTU0MDUxMzc4LCJsYXN0X3ZhbHVlIjozMTU0MDUxMzc4LCJvZmZzZXQiOjB9",
-                  "endCursor": "eyJsYXN0X2lkIjozMTU0MDUxMzc4LCJsYXN0X3ZhbHVlIjozMTU0MDUxMzc4LCJvZmZzZXQiOjB9"
+                  "startCursor": "eyJsYXN0X2lkIjozMTU4NDc1MDU4LCJsYXN0X3ZhbHVlIjozMTU4NDc1MDU4LCJvZmZzZXQiOjB9",
+                  "endCursor": "eyJsYXN0X2lkIjozMTU4NDc1MDU4LCJsYXN0X3ZhbHVlIjozMTU4NDc1MDU4LCJvZmZzZXQiOjB9"
                 }
               },
               "variants": {
                 "edges": [
                   {
-                    "cursor": "eyJsYXN0X2lkIjo1MTQ3ODU0NTE3MDczOCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                    "cursor": "eyJsYXN0X2lkIjo1MTQ4Nzk2NzA4NDg1MCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
                     "node": {
                       "__typename": "ProductVariant",
-                      "id": "gid://shopify/ProductVariant/51478545170738",
+                      "id": "gid://shopify/ProductVariant/51487967084850",
                       "title": "Blue",
                       "price": {
                         "amount": "149.0",
@@ -6259,26 +6259,26 @@
                       "availableForSale": false,
                       "quantityAvailable": 0,
                       "image": {
-                        "id": "gid://shopify/ProductImage/54015260361010",
-                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_6cefcda9-5f04-4769-b4ae-3e217b228a69.png?v=1784170874",
-                        "altText": "Storefront enrichment image 20260716030112",
+                        "id": "gid://shopify/ProductImage/54029811351858",
+                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b66917bf-d3b1-451e-a1f9-ec7942822cca.png?v=1784464923",
+                        "altText": "Storefront enrichment image 20260719124200",
                         "width": 640,
                         "height": 480
                       },
                       "visibleVariantMetafield": {
-                        "id": "gid://shopify/Metafield/45077193031986",
+                        "id": "gid://shopify/Metafield/45213001417010",
                         "namespace": "custom",
-                        "key": "sf_variant_20260716030112",
+                        "key": "sf_variant_20260719124200",
                         "type": "single_line_text_field",
-                        "value": "visible variant 20260716030112"
+                        "value": "visible variant 20260719124200"
                       },
                       "selectedVariantMetafields": [
                         {
-                          "id": "gid://shopify/Metafield/45077193031986",
+                          "id": "gid://shopify/Metafield/45213001417010",
                           "namespace": "custom",
-                          "key": "sf_variant_20260716030112",
+                          "key": "sf_variant_20260719124200",
                           "type": "single_line_text_field",
-                          "value": "visible variant 20260716030112"
+                          "value": "visible variant 20260719124200"
                         }
                       ],
                       "quantityRule": {
@@ -6326,7 +6326,7 @@
                                 }
                               ],
                               "sellingPlan": {
-                                "id": "gid://shopify/SellingPlan/7317487922",
+                                "id": "gid://shopify/SellingPlan/7322009906",
                                 "name": "Monthly enrichment delivery"
                               }
                             }
@@ -6354,34 +6354,34 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo1MTQ3ODU0NTE3MDczOCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
-                  "endCursor": "eyJsYXN0X2lkIjo1MTQ3ODU0NTE3MDczOCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
+                  "startCursor": "eyJsYXN0X2lkIjo1MTQ4Nzk2NzA4NDg1MCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTQ4Nzk2NzA4NDg1MCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
                 }
               }
             },
             "aliasedProduct": {
               "__typename": "Product",
-              "id": "gid://shopify/Product/10241375699250",
-              "handle": "storefront-enrichment-primary-20260716030112",
-              "title": "Storefront Enrichment Primary 20260716030112",
-              "productType": "000 Enrichment 20260716030112",
-              "tags": ["000-enrichment-20260716030112", "enrichment-shared", "merchandising"],
+              "id": "gid://shopify/Product/10243914858802",
+              "handle": "storefront-enrichment-primary-20260719124200",
+              "title": "Storefront Enrichment Primary 20260719124200",
+              "productType": "000 Enrichment 20260719124200",
+              "tags": ["000-enrichment-20260719124200", "enrichment-shared", "merchandising"],
               "requiresSellingPlan": false,
               "featuredImage": {
-                "id": "gid://shopify/ProductImage/54015260361010",
-                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_6cefcda9-5f04-4769-b4ae-3e217b228a69.png?v=1784170874",
-                "altText": "Storefront enrichment image 20260716030112",
+                "id": "gid://shopify/ProductImage/54029811351858",
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b66917bf-d3b1-451e-a1f9-ec7942822cca.png?v=1784464923",
+                "altText": "Storefront enrichment image 20260719124200",
                 "width": 640,
                 "height": 480
               },
               "images": {
                 "edges": [
                   {
-                    "cursor": "eyJsYXN0X2lkIjo1NDAxNTI2MDM2MTAxMCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                    "cursor": "eyJsYXN0X2lkIjo1NDAyOTgxMTM1MTg1OCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
                     "node": {
-                      "id": "gid://shopify/ProductImage/54015260361010",
-                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_6cefcda9-5f04-4769-b4ae-3e217b228a69.png?v=1784170874",
-                      "altText": "Storefront enrichment image 20260716030112",
+                      "id": "gid://shopify/ProductImage/54029811351858",
+                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b66917bf-d3b1-451e-a1f9-ec7942822cca.png?v=1784464923",
+                      "altText": "Storefront enrichment image 20260719124200",
                       "width": 640,
                       "height": 480
                     }
@@ -6389,9 +6389,9 @@
                 ],
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductImage/54015260361010",
-                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_6cefcda9-5f04-4769-b4ae-3e217b228a69.png?v=1784170874",
-                    "altText": "Storefront enrichment image 20260716030112",
+                    "id": "gid://shopify/ProductImage/54029811351858",
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b66917bf-d3b1-451e-a1f9-ec7942822cca.png?v=1784464923",
+                    "altText": "Storefront enrichment image 20260719124200",
                     "width": 640,
                     "height": 480
                   }
@@ -6399,30 +6399,30 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo1NDAxNTI2MDM2MTAxMCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
-                  "endCursor": "eyJsYXN0X2lkIjo1NDAxNTI2MDM2MTAxMCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
+                  "startCursor": "eyJsYXN0X2lkIjo1NDAyOTgxMTM1MTg1OCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo1NDAyOTgxMTM1MTg1OCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
                 }
               },
               "media": {
                 "edges": [
                   {
-                    "cursor": "eyJsYXN0X2lkIjo0NDA1NTk2NjAyMzk4NiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                    "cursor": "eyJsYXN0X2lkIjo0NDA3MDUyMjYxODE2MiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
                     "node": {
                       "__typename": "MediaImage",
-                      "id": "gid://shopify/MediaImage/44055966023986",
-                      "alt": "Storefront enrichment image 20260716030112",
+                      "id": "gid://shopify/MediaImage/44070522618162",
+                      "alt": "Storefront enrichment image 20260719124200",
                       "mediaContentType": "IMAGE",
                       "previewImage": {
-                        "id": "gid://shopify/ImageSource/44055966023986",
-                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_6cefcda9-5f04-4769-b4ae-3e217b228a69.png?v=1784170874",
-                        "altText": "Storefront enrichment image 20260716030112",
+                        "id": "gid://shopify/ImageSource/44070522618162",
+                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b66917bf-d3b1-451e-a1f9-ec7942822cca.png?v=1784464923",
+                        "altText": "Storefront enrichment image 20260719124200",
                         "width": 640,
                         "height": 480
                       },
                       "image": {
-                        "id": "gid://shopify/ImageSource/44055966023986",
-                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_6cefcda9-5f04-4769-b4ae-3e217b228a69.png?v=1784170874",
-                        "altText": "Storefront enrichment image 20260716030112",
+                        "id": "gid://shopify/ImageSource/44070522618162",
+                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b66917bf-d3b1-451e-a1f9-ec7942822cca.png?v=1784464923",
+                        "altText": "Storefront enrichment image 20260719124200",
                         "width": 640,
                         "height": 480
                       }
@@ -6432,51 +6432,51 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo0NDA1NTk2NjAyMzk4NiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
-                  "endCursor": "eyJsYXN0X2lkIjo0NDA1NTk2NjAyMzk4NiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
+                  "startCursor": "eyJsYXN0X2lkIjo0NDA3MDUyMjYxODE2MiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo0NDA3MDUyMjYxODE2MiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
                 }
               },
               "mediaTail": {
                 "nodes": [
                   {
                     "__typename": "MediaImage",
-                    "id": "gid://shopify/MediaImage/44055966023986",
-                    "alt": "Storefront enrichment image 20260716030112",
+                    "id": "gid://shopify/MediaImage/44070522618162",
+                    "alt": "Storefront enrichment image 20260719124200",
                     "mediaContentType": "IMAGE"
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo0NDA1NTk2NjAyMzk4NiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
-                  "endCursor": "eyJsYXN0X2lkIjo0NDA1NTk2NjAyMzk4NiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
+                  "startCursor": "eyJsYXN0X2lkIjo0NDA3MDUyMjYxODE2MiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo0NDA3MDUyMjYxODE2MiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
                 }
               },
               "visibleProductMetafield": {
-                "id": "gid://shopify/Metafield/45077192966450",
+                "id": "gid://shopify/Metafield/45213001351474",
                 "namespace": "custom",
-                "key": "sf_visible_20260716030112",
+                "key": "sf_visible_20260719124200",
                 "type": "single_line_text_field",
-                "value": "visible product 20260716030112"
+                "value": "visible product 20260719124200"
               },
               "hiddenProductMetafield": null,
               "selectedProductMetafields": [
                 {
-                  "id": "gid://shopify/Metafield/45077192966450",
+                  "id": "gid://shopify/Metafield/45213001351474",
                   "namespace": "custom",
-                  "key": "sf_visible_20260716030112",
+                  "key": "sf_visible_20260719124200",
                   "type": "single_line_text_field",
-                  "value": "visible product 20260716030112"
+                  "value": "visible product 20260719124200"
                 },
                 null
               ],
               "sellingPlanGroups": {
                 "edges": [
                   {
-                    "cursor": "eyJsYXN0X2lkIjozMTU0MDUxMzc4LCJsYXN0X3ZhbHVlIjozMTU0MDUxMzc4LCJvZmZzZXQiOjB9",
+                    "cursor": "eyJsYXN0X2lkIjozMTU4NDc1MDU4LCJsYXN0X3ZhbHVlIjozMTU4NDc1MDU4LCJvZmZzZXQiOjB9",
                     "node": {
                       "appName": null,
-                      "name": "Storefront Enrichment Subscription 20260716030112",
+                      "name": "Storefront Enrichment Subscription 20260719124200",
                       "options": [
                         {
                           "name": "Delivery frequency",
@@ -6486,11 +6486,11 @@
                       "sellingPlans": {
                         "edges": [
                           {
-                            "cursor": "eyJsYXN0X2lkIjo3MzE3NDg3OTIyLCJsYXN0X3ZhbHVlIjo3MzE3NDg3OTIyLCJvZmZzZXQiOjB9",
+                            "cursor": "eyJsYXN0X2lkIjo3MzIyMDA5OTA2LCJsYXN0X3ZhbHVlIjo3MzIyMDA5OTA2LCJvZmZzZXQiOjB9",
                             "node": {
-                              "id": "gid://shopify/SellingPlan/7317487922",
+                              "id": "gid://shopify/SellingPlan/7322009906",
                               "name": "Monthly enrichment delivery",
-                              "description": "Monthly Storefront enrichment 20260716030112",
+                              "description": "Monthly Storefront enrichment 20260719124200",
                               "recurringDeliveries": true,
                               "options": [
                                 {
@@ -6513,8 +6513,8 @@
                         "pageInfo": {
                           "hasNextPage": false,
                           "hasPreviousPage": false,
-                          "startCursor": "eyJsYXN0X2lkIjo3MzE3NDg3OTIyLCJsYXN0X3ZhbHVlIjo3MzE3NDg3OTIyLCJvZmZzZXQiOjB9",
-                          "endCursor": "eyJsYXN0X2lkIjo3MzE3NDg3OTIyLCJsYXN0X3ZhbHVlIjo3MzE3NDg3OTIyLCJvZmZzZXQiOjB9"
+                          "startCursor": "eyJsYXN0X2lkIjo3MzIyMDA5OTA2LCJsYXN0X3ZhbHVlIjo3MzIyMDA5OTA2LCJvZmZzZXQiOjB9",
+                          "endCursor": "eyJsYXN0X2lkIjo3MzIyMDA5OTA2LCJsYXN0X3ZhbHVlIjo3MzIyMDA5OTA2LCJvZmZzZXQiOjB9"
                         }
                       }
                     }
@@ -6523,17 +6523,17 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjozMTU0MDUxMzc4LCJsYXN0X3ZhbHVlIjozMTU0MDUxMzc4LCJvZmZzZXQiOjB9",
-                  "endCursor": "eyJsYXN0X2lkIjozMTU0MDUxMzc4LCJsYXN0X3ZhbHVlIjozMTU0MDUxMzc4LCJvZmZzZXQiOjB9"
+                  "startCursor": "eyJsYXN0X2lkIjozMTU4NDc1MDU4LCJsYXN0X3ZhbHVlIjozMTU4NDc1MDU4LCJvZmZzZXQiOjB9",
+                  "endCursor": "eyJsYXN0X2lkIjozMTU4NDc1MDU4LCJsYXN0X3ZhbHVlIjozMTU4NDc1MDU4LCJvZmZzZXQiOjB9"
                 }
               },
               "variants": {
                 "edges": [
                   {
-                    "cursor": "eyJsYXN0X2lkIjo1MTQ3ODU0NTE3MDczOCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                    "cursor": "eyJsYXN0X2lkIjo1MTQ4Nzk2NzA4NDg1MCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
                     "node": {
                       "__typename": "ProductVariant",
-                      "id": "gid://shopify/ProductVariant/51478545170738",
+                      "id": "gid://shopify/ProductVariant/51487967084850",
                       "title": "Blue",
                       "price": {
                         "amount": "149.0",
@@ -6546,26 +6546,26 @@
                       "availableForSale": false,
                       "quantityAvailable": 0,
                       "image": {
-                        "id": "gid://shopify/ProductImage/54015260361010",
-                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_6cefcda9-5f04-4769-b4ae-3e217b228a69.png?v=1784170874",
-                        "altText": "Storefront enrichment image 20260716030112",
+                        "id": "gid://shopify/ProductImage/54029811351858",
+                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b66917bf-d3b1-451e-a1f9-ec7942822cca.png?v=1784464923",
+                        "altText": "Storefront enrichment image 20260719124200",
                         "width": 640,
                         "height": 480
                       },
                       "visibleVariantMetafield": {
-                        "id": "gid://shopify/Metafield/45077193031986",
+                        "id": "gid://shopify/Metafield/45213001417010",
                         "namespace": "custom",
-                        "key": "sf_variant_20260716030112",
+                        "key": "sf_variant_20260719124200",
                         "type": "single_line_text_field",
-                        "value": "visible variant 20260716030112"
+                        "value": "visible variant 20260719124200"
                       },
                       "selectedVariantMetafields": [
                         {
-                          "id": "gid://shopify/Metafield/45077193031986",
+                          "id": "gid://shopify/Metafield/45213001417010",
                           "namespace": "custom",
-                          "key": "sf_variant_20260716030112",
+                          "key": "sf_variant_20260719124200",
                           "type": "single_line_text_field",
-                          "value": "visible variant 20260716030112"
+                          "value": "visible variant 20260719124200"
                         }
                       ],
                       "quantityRule": {
@@ -6613,7 +6613,7 @@
                                 }
                               ],
                               "sellingPlan": {
-                                "id": "gid://shopify/SellingPlan/7317487922",
+                                "id": "gid://shopify/SellingPlan/7322009906",
                                 "name": "Monthly enrichment delivery"
                               }
                             }
@@ -6641,8 +6641,8 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo1MTQ3ODU0NTE3MDczOCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
-                  "endCursor": "eyJsYXN0X2lkIjo1MTQ3ODU0NTE3MDczOCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
+                  "startCursor": "eyJsYXN0X2lkIjo1MTQ4Nzk2NzA4NDg1MCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTQ4Nzk2NzA4NDg1MCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
                 }
               }
             }
@@ -6720,7 +6720,7 @@
       "operationName": "StorefrontEnrichmentContext",
       "query": "query StorefrontEnrichmentContext(\n  $id: ID!\n  $country: CountryCode\n  $language: LanguageCode\n  $preferredLocationId: ID\n  $buyer: BuyerInput\n) @inContext(country: $country, language: $language, preferredLocationId: $preferredLocationId, buyer: $buyer) {\n  localization {\n    country {\n      isoCode\n      currency {\n        isoCode\n      }\n    }\n    language {\n      isoCode\n    }\n    market {\n      id\n      handle\n    }\n  }\n  product(id: $id) {\n    id\n    title\n    availableForSale\n    totalInventory\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n      maxVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    compareAtPriceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n      maxVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    variants(first: 5) {\n      nodes {\n        id\n        price {\n          amount\n          currencyCode\n        }\n        compareAtPrice {\n          amount\n          currencyCode\n        }\n        availableForSale\n        currentlyNotInStock\n        quantityAvailable\n        quantityRule {\n          minimum\n          maximum\n          increment\n        }\n        quantityPriceBreaks(first: 5) {\n          nodes {\n            minimumQuantity\n            price {\n              amount\n              currencyCode\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        storeAvailability(first: 5) {\n          nodes {\n            available\n            pickUpTime\n            quantityAvailable\n            location {\n              id\n              name\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Product/10241375699250",
+        "id": "gid://shopify/Product/10243914858802",
         "country": null,
         "language": null,
         "preferredLocationId": null,
@@ -6746,8 +6746,8 @@
               }
             },
             "product": {
-              "id": "gid://shopify/Product/10241375699250",
-              "title": "Storefront Enrichment Primary 20260716030112",
+              "id": "gid://shopify/Product/10243914858802",
+              "title": "Storefront Enrichment Primary 20260719124200",
               "availableForSale": false,
               "totalInventory": 0,
               "priceRange": {
@@ -6773,7 +6773,7 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51478545170738",
+                    "id": "gid://shopify/ProductVariant/51487967084850",
                     "price": {
                       "amount": "149.0",
                       "currencyCode": "CAD"
@@ -6813,8 +6813,8 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo1MTQ3ODU0NTE3MDczOCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
-                  "endCursor": "eyJsYXN0X2lkIjo1MTQ3ODU0NTE3MDczOCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
+                  "startCursor": "eyJsYXN0X2lkIjo1MTQ4Nzk2NzA4NDg1MCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTQ4Nzk2NzA4NDg1MCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
                 }
               }
             }
@@ -6845,7 +6845,7 @@
       "operationName": "StorefrontEnrichmentContextHydrate",
       "query": "query StorefrontEnrichmentContextHydrate(\n  $country: CountryCode\n  $language: LanguageCode\n  $preferredLocationId: ID\n  $buyer: BuyerInput\n) @inContext(country: $country, language: $language, preferredLocationId: $preferredLocationId, buyer: $buyer) {\n  localization {\n    country {\n      isoCode\n      currency {\n        isoCode\n      }\n    }\n    language {\n      isoCode\n    }\n    market {\n      id\n      handle\n    }\n  }\n}\n",
       "variables": {
-        "country": "DK",
+        "country": "DE",
         "language": "EN",
         "preferredLocationId": null,
         "buyer": null
@@ -6856,23 +6856,23 @@
           "data": {
             "localization": {
               "country": {
-                "isoCode": "DK",
+                "isoCode": "DE",
                 "currency": {
-                  "isoCode": "DKK"
+                  "isoCode": "EUR"
                 }
               },
               "language": {
                 "isoCode": "EN"
               },
               "market": {
-                "id": "gid://shopify/Market/98926133554",
-                "handle": "storefront-enrichment-denmark-20260716030112"
+                "id": "gid://shopify/Market/98969551154",
+                "handle": "storefront-enrichment-europe-20260719124200"
               }
             }
           },
           "extensions": {
             "context": {
-              "country": "DK",
+              "country": "DE",
               "language": "EN"
             },
             "cost": {
@@ -6896,8 +6896,8 @@
       "operationName": "StorefrontEnrichmentContext",
       "query": "query StorefrontEnrichmentContext(\n  $id: ID!\n  $country: CountryCode\n  $language: LanguageCode\n  $preferredLocationId: ID\n  $buyer: BuyerInput\n) @inContext(country: $country, language: $language, preferredLocationId: $preferredLocationId, buyer: $buyer) {\n  localization {\n    country {\n      isoCode\n      currency {\n        isoCode\n      }\n    }\n    language {\n      isoCode\n    }\n    market {\n      id\n      handle\n    }\n  }\n  product(id: $id) {\n    id\n    title\n    availableForSale\n    totalInventory\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n      maxVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    compareAtPriceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n      maxVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    variants(first: 5) {\n      nodes {\n        id\n        price {\n          amount\n          currencyCode\n        }\n        compareAtPrice {\n          amount\n          currencyCode\n        }\n        availableForSale\n        currentlyNotInStock\n        quantityAvailable\n        quantityRule {\n          minimum\n          maximum\n          increment\n        }\n        quantityPriceBreaks(first: 5) {\n          nodes {\n            minimumQuantity\n            price {\n              amount\n              currencyCode\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        storeAvailability(first: 5) {\n          nodes {\n            available\n            pickUpTime\n            quantityAvailable\n            location {\n              id\n              name\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Product/10241375699250",
-        "country": "DK",
+        "id": "gid://shopify/Product/10243914858802",
+        "country": "DE",
         "language": "EN",
         "preferredLocationId": null,
         "buyer": null
@@ -6908,55 +6908,55 @@
           "data": {
             "localization": {
               "country": {
-                "isoCode": "DK",
+                "isoCode": "DE",
                 "currency": {
-                  "isoCode": "DKK"
+                  "isoCode": "EUR"
                 }
               },
               "language": {
                 "isoCode": "EN"
               },
               "market": {
-                "id": "gid://shopify/Market/98926133554",
-                "handle": "storefront-enrichment-denmark-20260716030112"
+                "id": "gid://shopify/Market/98969551154",
+                "handle": "storefront-enrichment-europe-20260719124200"
               }
             },
             "product": {
-              "id": "gid://shopify/Product/10241375699250",
-              "title": "Storefront Enrichment Primary 20260716030112",
+              "id": "gid://shopify/Product/10243914858802",
+              "title": "Storefront Enrichment Primary 20260719124200",
               "availableForSale": false,
               "totalInventory": 0,
               "priceRange": {
                 "minVariantPrice": {
                   "amount": "799.0",
-                  "currencyCode": "DKK"
+                  "currencyCode": "EUR"
                 },
                 "maxVariantPrice": {
                   "amount": "799.0",
-                  "currencyCode": "DKK"
+                  "currencyCode": "EUR"
                 }
               },
               "compareAtPriceRange": {
                 "minVariantPrice": {
                   "amount": "999.0",
-                  "currencyCode": "DKK"
+                  "currencyCode": "EUR"
                 },
                 "maxVariantPrice": {
                   "amount": "999.0",
-                  "currencyCode": "DKK"
+                  "currencyCode": "EUR"
                 }
               },
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51478545170738",
+                    "id": "gid://shopify/ProductVariant/51487967084850",
                     "price": {
                       "amount": "799.0",
-                      "currencyCode": "DKK"
+                      "currencyCode": "EUR"
                     },
                     "compareAtPrice": {
                       "amount": "999.0",
-                      "currencyCode": "DKK"
+                      "currencyCode": "EUR"
                     },
                     "availableForSale": false,
                     "currentlyNotInStock": false,
@@ -6989,15 +6989,15 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo1MTQ3ODU0NTE3MDczOCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
-                  "endCursor": "eyJsYXN0X2lkIjo1MTQ3ODU0NTE3MDczOCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
+                  "startCursor": "eyJsYXN0X2lkIjo1MTQ4Nzk2NzA4NDg1MCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTQ4Nzk2NzA4NDg1MCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
                 }
               }
             }
           },
           "extensions": {
             "context": {
-              "country": "DK",
+              "country": "DE",
               "language": "EN"
             },
             "cost": {
@@ -7021,9 +7021,9 @@
       "operationName": "StorefrontEnrichmentContextHydrate",
       "query": "query StorefrontEnrichmentContextHydrate(\n  $country: CountryCode\n  $language: LanguageCode\n  $preferredLocationId: ID\n  $buyer: BuyerInput\n) @inContext(country: $country, language: $language, preferredLocationId: $preferredLocationId, buyer: $buyer) {\n  localization {\n    country {\n      isoCode\n      currency {\n        isoCode\n      }\n    }\n    language {\n      isoCode\n    }\n    market {\n      id\n      handle\n    }\n  }\n}\n",
       "variables": {
-        "country": "DK",
+        "country": "DE",
         "language": "EN",
-        "preferredLocationId": "gid://shopify/Location/113978900786",
+        "preferredLocationId": "gid://shopify/Location/114037915954",
         "buyer": null
       },
       "response": {
@@ -7032,23 +7032,23 @@
           "data": {
             "localization": {
               "country": {
-                "isoCode": "DK",
+                "isoCode": "DE",
                 "currency": {
-                  "isoCode": "DKK"
+                  "isoCode": "EUR"
                 }
               },
               "language": {
                 "isoCode": "EN"
               },
               "market": {
-                "id": "gid://shopify/Market/98926133554",
-                "handle": "storefront-enrichment-denmark-20260716030112"
+                "id": "gid://shopify/Market/98969551154",
+                "handle": "storefront-enrichment-europe-20260719124200"
               }
             }
           },
           "extensions": {
             "context": {
-              "country": "DK",
+              "country": "DE",
               "language": "EN"
             },
             "cost": {
@@ -7072,10 +7072,10 @@
       "operationName": "StorefrontEnrichmentContext",
       "query": "query StorefrontEnrichmentContext(\n  $id: ID!\n  $country: CountryCode\n  $language: LanguageCode\n  $preferredLocationId: ID\n  $buyer: BuyerInput\n) @inContext(country: $country, language: $language, preferredLocationId: $preferredLocationId, buyer: $buyer) {\n  localization {\n    country {\n      isoCode\n      currency {\n        isoCode\n      }\n    }\n    language {\n      isoCode\n    }\n    market {\n      id\n      handle\n    }\n  }\n  product(id: $id) {\n    id\n    title\n    availableForSale\n    totalInventory\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n      maxVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    compareAtPriceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n      maxVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    variants(first: 5) {\n      nodes {\n        id\n        price {\n          amount\n          currencyCode\n        }\n        compareAtPrice {\n          amount\n          currencyCode\n        }\n        availableForSale\n        currentlyNotInStock\n        quantityAvailable\n        quantityRule {\n          minimum\n          maximum\n          increment\n        }\n        quantityPriceBreaks(first: 5) {\n          nodes {\n            minimumQuantity\n            price {\n              amount\n              currencyCode\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        storeAvailability(first: 5) {\n          nodes {\n            available\n            pickUpTime\n            quantityAvailable\n            location {\n              id\n              name\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Product/10241375699250",
-        "country": "DK",
+        "id": "gid://shopify/Product/10243914858802",
+        "country": "DE",
         "language": "EN",
-        "preferredLocationId": "gid://shopify/Location/113978900786",
+        "preferredLocationId": "gid://shopify/Location/114037915954",
         "buyer": null
       },
       "response": {
@@ -7084,55 +7084,55 @@
           "data": {
             "localization": {
               "country": {
-                "isoCode": "DK",
+                "isoCode": "DE",
                 "currency": {
-                  "isoCode": "DKK"
+                  "isoCode": "EUR"
                 }
               },
               "language": {
                 "isoCode": "EN"
               },
               "market": {
-                "id": "gid://shopify/Market/98926133554",
-                "handle": "storefront-enrichment-denmark-20260716030112"
+                "id": "gid://shopify/Market/98969551154",
+                "handle": "storefront-enrichment-europe-20260719124200"
               }
             },
             "product": {
-              "id": "gid://shopify/Product/10241375699250",
-              "title": "Storefront Enrichment Primary 20260716030112",
+              "id": "gid://shopify/Product/10243914858802",
+              "title": "Storefront Enrichment Primary 20260719124200",
               "availableForSale": false,
               "totalInventory": 0,
               "priceRange": {
                 "minVariantPrice": {
                   "amount": "799.0",
-                  "currencyCode": "DKK"
+                  "currencyCode": "EUR"
                 },
                 "maxVariantPrice": {
                   "amount": "799.0",
-                  "currencyCode": "DKK"
+                  "currencyCode": "EUR"
                 }
               },
               "compareAtPriceRange": {
                 "minVariantPrice": {
                   "amount": "999.0",
-                  "currencyCode": "DKK"
+                  "currencyCode": "EUR"
                 },
                 "maxVariantPrice": {
                   "amount": "999.0",
-                  "currencyCode": "DKK"
+                  "currencyCode": "EUR"
                 }
               },
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51478545170738",
+                    "id": "gid://shopify/ProductVariant/51487967084850",
                     "price": {
                       "amount": "799.0",
-                      "currencyCode": "DKK"
+                      "currencyCode": "EUR"
                     },
                     "compareAtPrice": {
                       "amount": "999.0",
-                      "currencyCode": "DKK"
+                      "currencyCode": "EUR"
                     },
                     "availableForSale": false,
                     "currentlyNotInStock": false,
@@ -7165,15 +7165,15 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo1MTQ3ODU0NTE3MDczOCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
-                  "endCursor": "eyJsYXN0X2lkIjo1MTQ3ODU0NTE3MDczOCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
+                  "startCursor": "eyJsYXN0X2lkIjo1MTQ4Nzk2NzA4NDg1MCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTQ4Nzk2NzA4NDg1MCwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
                 }
               }
             }
           },
           "extensions": {
             "context": {
-              "country": "DK",
+              "country": "DE",
               "language": "EN"
             },
             "cost": {
@@ -7197,10 +7197,10 @@
       "operationName": "StorefrontEnrichmentContext",
       "query": "query StorefrontEnrichmentContext(\n  $id: ID!\n  $country: CountryCode\n  $language: LanguageCode\n  $preferredLocationId: ID\n  $buyer: BuyerInput\n) @inContext(country: $country, language: $language, preferredLocationId: $preferredLocationId, buyer: $buyer) {\n  localization {\n    country {\n      isoCode\n      currency {\n        isoCode\n      }\n    }\n    language {\n      isoCode\n    }\n    market {\n      id\n      handle\n    }\n  }\n  product(id: $id) {\n    id\n    title\n    availableForSale\n    totalInventory\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n      maxVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    compareAtPriceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n      maxVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    variants(first: 5) {\n      nodes {\n        id\n        price {\n          amount\n          currencyCode\n        }\n        compareAtPrice {\n          amount\n          currencyCode\n        }\n        availableForSale\n        currentlyNotInStock\n        quantityAvailable\n        quantityRule {\n          minimum\n          maximum\n          increment\n        }\n        quantityPriceBreaks(first: 5) {\n          nodes {\n            minimumQuantity\n            price {\n              amount\n              currencyCode\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        storeAvailability(first: 5) {\n          nodes {\n            available\n            pickUpTime\n            quantityAvailable\n            location {\n              id\n              name\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Product/10241375699250",
-        "country": "DK",
+        "id": "gid://shopify/Product/10243914858802",
+        "country": "DE",
         "language": "EN",
-        "preferredLocationId": "gid://shopify/Location/113978900786",
+        "preferredLocationId": "gid://shopify/Location/114037915954",
         "buyer": {
           "customerAccessToken": "invalid-storefront-enrichment-buyer-token",
           "companyLocationId": "gid://shopify/CompanyLocation/0"
@@ -7303,10 +7303,6 @@
             "productTags": {
               "edges": [
                 {
-                  "cursor": "MDAwLWVucmljaG1lbnQtMjAyNjA3MTYwMjU4MjU=",
-                  "node": "000-enrichment-20260716025825"
-                },
-                {
                   "cursor": "MS84Ig==",
                   "node": "1/8\""
                 },
@@ -7803,10 +7799,6 @@
                   "node": "Dura-Ace"
                 },
                 {
-                  "cursor": "ZW5yaWNobWVudC1zaGFyZWQ=",
-                  "node": "enrichment-shared"
-                },
-                {
                   "cursor": "ZXNz",
                   "node": "ess"
                 },
@@ -8123,10 +8115,6 @@
                   "node": "men"
                 },
                 {
-                  "cursor": "bWVyY2hhbmRpc2luZw==",
-                  "node": "merchandising"
-                },
-                {
                   "cursor": "TWljcm8=",
                   "node": "Micro"
                 },
@@ -8301,10 +8289,21 @@
                 {
                   "cursor": "UmVhcg==",
                   "node": "Rear"
+                },
+                {
+                  "cursor": "UmVk",
+                  "node": "Red"
+                },
+                {
+                  "cursor": "UmV2bw==",
+                  "node": "Revo"
+                },
+                {
+                  "cursor": "UmltIFRhcGU=",
+                  "node": "Rim Tape"
                 }
               ],
               "nodes": [
-                "000-enrichment-20260716025825",
                 "1/8\"",
                 "10mm",
                 "14mm",
@@ -8429,7 +8428,6 @@
                 "Drivetrain",
                 "Drop Bars",
                 "Dura-Ace",
-                "enrichment-shared",
                 "ess",
                 "Essential",
                 "Essentials",
@@ -8509,7 +8507,6 @@
                 "Matte Black",
                 "Matte Grey",
                 "men",
-                "merchandising",
                 "Micro",
                 "Micro Series",
                 "Mint",
@@ -8553,13 +8550,16 @@
                 "Racing",
                 "Rack",
                 "Racks and Baskets",
-                "Rear"
+                "Rear",
+                "Red",
+                "Revo",
+                "Rim Tape"
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "MDAwLWVucmljaG1lbnQtMjAyNjA3MTYwMjU4MjU=",
-                "endCursor": "UmVhcg=="
+                "startCursor": "MS84Ig==",
+                "endCursor": "UmltIFRhcGU="
               }
             },
             "productTypes": {
@@ -8569,8 +8569,8 @@
                   "node": ""
                 },
                 {
-                  "cursor": "MDAwIEVucmljaG1lbnQgMjAyNjA3MTYwMzAxMTI=",
-                  "node": "000 Enrichment 20260716030112"
+                  "cursor": "MDAwIEVucmljaG1lbnQgMjAyNjA3MTkxMjQyMDA=",
+                  "node": "000 Enrichment 20260719124200"
                 },
                 {
                   "cursor": "YWNjZXNzb3JpZXM=",
@@ -8831,7 +8831,7 @@
               ],
               "nodes": [
                 "",
-                "000 Enrichment 20260716030112",
+                "000 Enrichment 20260719124200",
                 "accessories",
                 "Apparel",
                 "Badge",
@@ -8978,7 +8978,7 @@
       "operationName": "StorefrontEnrichmentContextHydrate",
       "query": "query StorefrontEnrichmentContextHydrate(\n  $country: CountryCode\n  $language: LanguageCode\n  $preferredLocationId: ID\n  $buyer: BuyerInput\n) @inContext(country: $country, language: $language, preferredLocationId: $preferredLocationId, buyer: $buyer) {\n  localization {\n    country {\n      isoCode\n      currency {\n        isoCode\n      }\n    }\n    language {\n      isoCode\n    }\n    market {\n      id\n      handle\n    }\n  }\n}\n",
       "variables": {
-        "country": "DK",
+        "country": "DE",
         "language": "EN",
         "preferredLocationId": null,
         "buyer": null
@@ -8989,23 +8989,23 @@
           "data": {
             "localization": {
               "country": {
-                "isoCode": "DK",
+                "isoCode": "DE",
                 "currency": {
-                  "isoCode": "DKK"
+                  "isoCode": "EUR"
                 }
               },
               "language": {
                 "isoCode": "EN"
               },
               "market": {
-                "id": "gid://shopify/Market/98926133554",
-                "handle": "storefront-enrichment-denmark-20260716030112"
+                "id": "gid://shopify/Market/98969551154",
+                "handle": "storefront-enrichment-europe-20260719124200"
               }
             }
           },
           "extensions": {
             "context": {
-              "country": "DK",
+              "country": "DE",
               "language": "EN"
             },
             "cost": {
@@ -9029,9 +9029,9 @@
       "operationName": "StorefrontEnrichmentContextHydrate",
       "query": "query StorefrontEnrichmentContextHydrate(\n  $country: CountryCode\n  $language: LanguageCode\n  $preferredLocationId: ID\n  $buyer: BuyerInput\n) @inContext(country: $country, language: $language, preferredLocationId: $preferredLocationId, buyer: $buyer) {\n  localization {\n    country {\n      isoCode\n      currency {\n        isoCode\n      }\n    }\n    language {\n      isoCode\n    }\n    market {\n      id\n      handle\n    }\n  }\n}\n",
       "variables": {
-        "country": "DK",
+        "country": "DE",
         "language": "EN",
-        "preferredLocationId": "gid://shopify/Location/113978900786",
+        "preferredLocationId": "gid://shopify/Location/114037915954",
         "buyer": null
       },
       "response": {
@@ -9040,23 +9040,23 @@
           "data": {
             "localization": {
               "country": {
-                "isoCode": "DK",
+                "isoCode": "DE",
                 "currency": {
-                  "isoCode": "DKK"
+                  "isoCode": "EUR"
                 }
               },
               "language": {
                 "isoCode": "EN"
               },
               "market": {
-                "id": "gid://shopify/Market/98926133554",
-                "handle": "storefront-enrichment-denmark-20260716030112"
+                "id": "gid://shopify/Market/98969551154",
+                "handle": "storefront-enrichment-europe-20260719124200"
               }
             }
           },
           "extensions": {
             "context": {
-              "country": "DK",
+              "country": "DE",
               "language": "EN"
             },
             "cost": {
@@ -9073,14 +9073,14 @@
       "request": {
         "query": "#graphql\n  mutation StorefrontEnrichmentSellingPlanDelete($id: ID!) {\n    sellingPlanGroupDelete(id: $id) {\n      deletedSellingPlanGroupId\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/3154051378"
+          "id": "gid://shopify/SellingPlanGroup/3158475058"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "sellingPlanGroupDelete": {
-            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3154051378",
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3158475058",
             "userErrors": []
           }
         },
@@ -9103,7 +9103,7 @@
         "query": "mutation StorefrontCatalogProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Product/10241375732018"
+            "id": "gid://shopify/Product/10243914891570"
           }
         }
       },
@@ -9111,7 +9111,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10241375732018",
+            "deletedProductId": "gid://shopify/Product/10243914891570",
             "userErrors": []
           }
         },
@@ -9134,7 +9134,7 @@
         "query": "mutation StorefrontCatalogProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Product/10241375699250"
+            "id": "gid://shopify/Product/10243914858802"
           }
         }
       },
@@ -9142,7 +9142,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10241375699250",
+            "deletedProductId": "gid://shopify/Product/10243914858802",
             "userErrors": []
           }
         },
@@ -9164,14 +9164,14 @@
       "request": {
         "query": "#graphql\n  mutation StorefrontEnrichmentDefinitionDelete($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/226342994226"
+          "id": "gid://shopify/MetafieldDefinition/227262628146"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/226342994226",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227262628146",
             "userErrors": []
           }
         },
@@ -9193,14 +9193,14 @@
       "request": {
         "query": "#graphql\n  mutation StorefrontEnrichmentDefinitionDelete($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/226342961458"
+          "id": "gid://shopify/MetafieldDefinition/227262595378"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/226342961458",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227262595378",
             "userErrors": []
           }
         },
@@ -9222,14 +9222,14 @@
       "request": {
         "query": "#graphql\n  mutation StorefrontEnrichmentDefinitionDelete($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetafieldDefinition/226342928690"
+          "id": "gid://shopify/MetafieldDefinition/227262562610"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metafieldDefinitionDelete": {
-            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/226342928690",
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227262562610",
             "userErrors": []
           }
         },
@@ -9251,14 +9251,14 @@
       "request": {
         "query": "#graphql\n  mutation StorefrontEnrichmentCatalogDelete($id: ID!) {\n    catalogDelete(id: $id) {\n      deletedId\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MarketCatalog/154915176754"
+          "id": "gid://shopify/MarketCatalog/155295940914"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "catalogDelete": {
-            "deletedId": "gid://shopify/MarketCatalog/154915176754",
+            "deletedId": "gid://shopify/MarketCatalog/155295940914",
             "userErrors": []
           }
         },
@@ -9280,7 +9280,7 @@
       "request": {
         "query": "#graphql\n  mutation StorefrontEnrichmentPriceListDelete($id: ID!) {\n    priceListDelete(id: $id) {\n      deletedId\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/PriceList/32314523954"
+          "id": "gid://shopify/PriceList/32316129586"
         }
       },
       "status": 200,
@@ -9315,14 +9315,14 @@
       "request": {
         "query": "#graphql\n  mutation StorefrontEnrichmentMarketDelete($id: ID!) {\n    marketDelete(id: $id) {\n      deletedId\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Market/98926133554"
+          "id": "gid://shopify/Market/98969551154"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "marketDelete": {
-            "deletedId": "gid://shopify/Market/98926133554",
+            "deletedId": "gid://shopify/Market/98969551154",
             "userErrors": []
           }
         },
@@ -9332,7 +9332,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -9344,8 +9344,8 @@
       "request": {
         "query": "#graphql\n  mutation StorefrontEnrichmentLocationDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location { id isActive }\n      locationDeactivateUserErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "locationId": "gid://shopify/Location/113978900786",
-          "idempotencyKey": "storefront-enrichment-location-deactivate-20260716030112"
+          "locationId": "gid://shopify/Location/114037915954",
+          "idempotencyKey": "storefront-enrichment-location-deactivate-20260719124200"
         }
       },
       "status": 200,
@@ -9353,7 +9353,7 @@
         "data": {
           "locationDeactivate": {
             "location": {
-              "id": "gid://shopify/Location/113978900786",
+              "id": "gid://shopify/Location/114037915954",
               "isActive": false
             },
             "locationDeactivateUserErrors": []
@@ -9377,14 +9377,14 @@
       "request": {
         "query": "#graphql\n  mutation StorefrontEnrichmentLocationDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "locationId": "gid://shopify/Location/113978900786"
+          "locationId": "gid://shopify/Location/114037915954"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "locationDelete": {
-            "deletedLocationId": "gid://shopify/Location/113978900786",
+            "deletedLocationId": "gid://shopify/Location/114037915954",
             "locationDeleteUserErrors": []
           }
         },

@@ -1538,21 +1538,30 @@ impl DraftProxy {
         order.is_object().then_some(order)
     }
 
-    pub(in crate::proxy) fn next_order_name(&mut self) -> String {
+    pub(in crate::proxy) fn next_order_number(&mut self) -> u64 {
         let number = self
             .store
             .staged
             .orders
             .values()
-            .filter_map(|order| order.get("name").and_then(Value::as_str))
-            .filter_map(|name| name.strip_prefix('#'))
-            .filter_map(|suffix| suffix.parse::<u64>().ok())
+            .filter_map(|order| {
+                order
+                    .get("orderNumber")
+                    .and_then(Value::as_u64)
+                    .or_else(|| {
+                        order
+                            .get("name")
+                            .and_then(Value::as_str)
+                            .and_then(|name| name.strip_prefix('#'))
+                            .and_then(|suffix| suffix.parse::<u64>().ok())
+                    })
+            })
             .fold(
                 self.store.staged.next_order_number.max(1),
                 |next, number| next.max(number.saturating_add(1)),
             );
         self.store.staged.next_order_number = number.saturating_add(1);
-        format!("#{number}")
+        number
     }
 
     pub(in crate::proxy) fn next_order_transaction_id(&mut self) -> String {
@@ -2629,12 +2638,16 @@ impl DraftProxy {
             })
             .collect::<Vec<_>>();
         let financial_status = order_create_financial_status(order_input, &transactions, total);
-        let order_name = self.next_order_name();
+        let order_number = self.next_order_number();
+        let order_name = resolved_string_field(order_input, "name")
+            .unwrap_or_else(|| format!("#{order_number}"));
         let created_at = self.next_mutation_timestamp();
         let mut order = json!({
             "id": order_id,
             "name": order_name,
+            "orderNumber": order_number,
             "email": resolved_string_field(order_input, "email"),
+            "phone": resolved_string_field(order_input, "phone"),
             // Retain the purchasing entity (B2B purchasing company/contact) the
             // order was placed under, the way a real Order exposes it — both so it
             // reads back and so a company delete can detect the order still

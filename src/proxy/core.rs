@@ -2922,7 +2922,9 @@ impl DraftProxy {
             if let Some(record_id) = order.get("id").and_then(Value::as_str) {
                 advance_counter_past_gid_tail(&mut next_order_id, record_id);
             }
-            if let Some(name) = order.get("name").and_then(Value::as_str) {
+            if let Some(number) = order.get("orderNumber").and_then(Value::as_u64) {
+                next_order_number = next_order_number.max(number.saturating_add(1));
+            } else if let Some(name) = order.get("name").and_then(Value::as_str) {
                 advance_order_number_past_order_name(&mut next_order_number, name);
             }
             for transaction in json_records(&order["transactions"]) {

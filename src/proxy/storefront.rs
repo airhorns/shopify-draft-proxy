@@ -4275,28 +4275,118 @@ impl DraftProxy {
             })
     }
 
-    fn storefront_context_price_list(&self, context: &StorefrontRequestContext) -> Option<&Value> {
+    fn storefront_currency_context_localization(
+        &self,
+        context: &StorefrontRequestContext,
+    ) -> Option<&Value> {
         let localization = self.storefront_context_localization(context)?;
-        let observed_market_id = localization.pointer("/market/id").and_then(Value::as_str);
-        let observed_market_handle = localization
-            .pointer("/market/handle")
+        let Some(country_code) = context.country.as_deref() else {
+            return Some(localization);
+        };
+        localization
+            .pointer("/country/isoCode")
+            .and_then(Value::as_str)
+            .is_some_and(|observed| observed.eq_ignore_ascii_case(country_code))
+            .then_some(localization)
+    }
+
+    fn storefront_context_market(&self, context: &StorefrontRequestContext) -> Option<&Value> {
+        let localization = self.storefront_currency_context_localization(context);
+        let observed_market_id = localization
+            .and_then(|localization| localization.pointer("/market/id"))
             .and_then(Value::as_str);
-        let market_id = self
-            .store
+        let observed_market_handle = localization
+            .and_then(|localization| localization.pointer("/market/handle"))
+            .and_then(Value::as_str);
+        self.store
             .staged
             .markets
             .iter()
             .find_map(|(id, market)| {
-                (market.get("handle").and_then(Value::as_str) == observed_market_handle)
-                    .then_some(id.as_str())
+                (Some(id.as_str()) == observed_market_id
+                    || market.get("handle").and_then(Value::as_str) == observed_market_handle)
+                    .then_some(market)
             })
-            .or(observed_market_id)?;
+            .or_else(|| {
+                let country_code = context.country.as_deref()?;
+                self.store.staged.markets.values().find(|market| {
+                    market.get("status").and_then(Value::as_str) == Some("ACTIVE")
+                        && market_record_country_codes(market)
+                            .iter()
+                            .any(|code| code.eq_ignore_ascii_case(country_code))
+                })
+            })
+    }
+
+    fn storefront_context_market_id<'a>(
+        &'a self,
+        context: &'a StorefrontRequestContext,
+    ) -> Option<&'a str> {
+        self.storefront_context_market(context)
+            .and_then(|market| market.get("id"))
+            .and_then(Value::as_str)
+            .or_else(|| {
+                self.storefront_currency_context_localization(context)
+                    .and_then(|localization| localization.pointer("/market/id"))
+                    .and_then(Value::as_str)
+            })
+    }
+
+    fn storefront_context_price_list(&self, context: &StorefrontRequestContext) -> Option<&Value> {
+        let market_id = self.storefront_context_market_id(context)?;
         let catalog = self.store.staged.catalogs.values().find(|catalog| {
             catalog.get("status").and_then(Value::as_str) == Some("ACTIVE")
                 && catalog_market_ids(catalog).iter().any(|id| id == market_id)
         })?;
         let price_list_id = catalog_relation_id(catalog, "priceListId", "priceList")?;
         self.store.staged.price_lists.get(&price_list_id)
+    }
+
+    fn storefront_contextual_currency_code(
+        &self,
+        context: &StorefrontRequestContext,
+    ) -> Option<String> {
+        self.storefront_currency_context_localization(context)
+            .and_then(|localization| localization.pointer("/country/currency/isoCode"))
+            .and_then(Value::as_str)
+            .filter(|currency| !currency.is_empty())
+            .map(str::to_string)
+            .or_else(|| {
+                self.storefront_context_price_list(context)
+                    .and_then(|price_list| price_list.get("currency"))
+                    .and_then(Value::as_str)
+                    .filter(|currency| !currency.is_empty())
+                    .map(str::to_string)
+            })
+            .or_else(|| {
+                self.storefront_context_market(context)
+                    .and_then(|market| {
+                        market.pointer("/currencySettings/baseCurrency/currencyCode")
+                    })
+                    .and_then(Value::as_str)
+                    .filter(|currency| !currency.is_empty())
+                    .map(str::to_string)
+            })
+    }
+
+    fn storefront_default_currency_code(&self) -> Option<String> {
+        self.store
+            .base
+            .storefront_payment_settings
+            .get("currencyCode")
+            .and_then(Value::as_str)
+            .filter(|currency| !currency.is_empty())
+            .map(str::to_string)
+            .or_else(|| {
+                self.store
+                    .base
+                    .storefront_shop
+                    .pointer("/paymentSettings/currencyCode")
+                    .and_then(Value::as_str)
+                    .filter(|currency| !currency.is_empty())
+                    .map(str::to_string)
+            })
+            .or_else(|| self.store.observed_shop_currency_code())
     }
 
     pub(in crate::proxy) fn storefront_variant_pricing(
@@ -4313,12 +4403,7 @@ impl DraftProxy {
             })
         });
         let currency_code = self
-            .storefront_context_localization(context)
-            .and_then(|localization| localization.pointer("/country/currency/isoCode"))
-            .and_then(Value::as_str)
-            .map(str::to_string)
-            .or_else(|| contextual_price_list.map(price_list_currency))
-            .or_else(|| self.store.observed_shop_currency_code())
+            .storefront_contextual_currency_code(context)
             .or_else(|| {
                 variant
                     .extra_fields
@@ -4326,6 +4411,7 @@ impl DraftProxy {
                     .and_then(Value::as_str)
                     .map(str::to_string)
             })
+            .or_else(|| self.storefront_default_currency_code())
             .unwrap_or_default();
         StorefrontVariantPricing {
             price: fixed_price
@@ -4404,10 +4490,12 @@ impl DraftProxy {
         storefront_product_sort_key(product, &variants, sort_key)
     }
 
-    pub(in crate::proxy) fn storefront_currency_code(&self) -> String {
-        self.store
-            .observed_shop_currency_code()
-            .unwrap_or_else(|| "USD".to_string())
+    pub(in crate::proxy) fn storefront_currency_code(
+        &self,
+        context: &StorefrontRequestContext,
+    ) -> Option<String> {
+        self.storefront_contextual_currency_code(context)
+            .or_else(|| self.storefront_default_currency_code())
     }
 
     fn storefront_shop_value(&self) -> Value {
@@ -6372,6 +6460,9 @@ fn storefront_product_price_range_value(
 }
 
 pub(in crate::proxy) fn storefront_money_value(price: &str, currency_code: &str) -> Value {
+    if currency_code.is_empty() {
+        return Value::Null;
+    }
     json!({
         "__typename": "MoneyV2",
         "amount": normalize_money_amount(price),
@@ -6757,15 +6848,8 @@ fn storefront_product_currency_code(
                 .currency_code
         })
         .filter(|currency| !currency.is_empty())
-        .or_else(|| {
-            proxy
-                .storefront_context_localization(context)
-                .and_then(|localization| localization.pointer("/country/currency/isoCode"))
-                .and_then(Value::as_str)
-                .map(str::to_string)
-        })
-        .or_else(|| proxy.store.observed_shop_currency_code())
-        .unwrap_or_else(|| "USD".to_string())
+        .or_else(|| proxy.storefront_currency_code(context))
+        .unwrap_or_default()
 }
 
 fn storefront_product_variant_prices(
@@ -7274,29 +7358,31 @@ fn storefront_formatted_address_lines(address: &Value) -> Value {
 fn storefront_order_json(order: &Value) -> Value {
     let currency_code = order
         .get("currencyCode")
+        .filter(|value| !value.is_null())
         .or_else(|| order.pointer("/currentTotalPriceSet/shopMoney/currencyCode"))
         .or_else(|| order.pointer("/totalPriceSet/shopMoney/currencyCode"))
         .cloned()
-        .unwrap_or_else(|| json!("USD"));
+        .unwrap_or(Value::Null);
     let total_price = order
         .get("totalPriceV2")
+        .filter(|value| !value.is_null())
         .or_else(|| order.pointer("/currentTotalPriceSet/shopMoney"))
         .or_else(|| order.pointer("/totalPriceSet/shopMoney"))
         .cloned()
-        .unwrap_or_else(|| json!({ "amount": "0.0", "currencyCode": currency_code.clone() }));
+        .unwrap_or(Value::Null);
     json!({
         "__typename": "Order",
         "id": order.get("id").cloned().unwrap_or(Value::Null),
-        "name": order.get("name").cloned().unwrap_or_else(|| json!("")),
+        "name": order.get("name").cloned().unwrap_or(Value::Null),
         "email": order.get("email").cloned().unwrap_or(Value::Null),
         "phone": order.get("phone").cloned().unwrap_or(Value::Null),
         "currencyCode": currency_code,
         "customerUrl": order.get("customerUrl").cloned().unwrap_or(Value::Null),
         "financialStatus": order.get("displayFinancialStatus").or_else(|| order.get("financialStatus")).cloned().unwrap_or(Value::Null),
-        "fulfillmentStatus": order.get("displayFulfillmentStatus").or_else(|| order.get("fulfillmentStatus")).cloned().unwrap_or_else(|| json!("UNFULFILLED")),
+        "fulfillmentStatus": order.get("displayFulfillmentStatus").or_else(|| order.get("fulfillmentStatus")).cloned().unwrap_or(Value::Null),
         "orderNumber": storefront_order_number(order),
-        "processedAt": order.get("processedAt").or_else(|| order.get("createdAt")).cloned().unwrap_or_else(|| json!("1970-01-01T00:00:00Z")),
-        "subtotalPriceV2": order.get("subtotalPriceV2").or_else(|| order.pointer("/subtotalPriceSet/shopMoney")).cloned().unwrap_or(Value::Null),
+        "processedAt": order.get("processedAt").cloned().unwrap_or(Value::Null),
+        "subtotalPriceV2": order.get("subtotalPriceV2").filter(|value| !value.is_null()).or_else(|| order.pointer("/currentSubtotalPriceSet/shopMoney")).or_else(|| order.pointer("/subtotalPriceSet/shopMoney")).cloned().unwrap_or(Value::Null),
         "totalPrice": total_price.clone(),
         "totalPriceV2": total_price,
         "lineItems": order.get("lineItems").cloned().unwrap_or_else(|| connection_json_with_empty_edges(Vec::new()))
@@ -7304,20 +7390,11 @@ fn storefront_order_json(order: &Value) -> Value {
 }
 
 fn storefront_order_number(order: &Value) -> Value {
-    if let Some(number) = order.get("orderNumber").and_then(Value::as_i64) {
-        return json!(number);
-    }
-    let digits = order
-        .get("name")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .chars()
-        .filter(|ch| ch.is_ascii_digit())
-        .collect::<String>();
-    digits
-        .parse::<i64>()
-        .map(Value::from)
-        .unwrap_or_else(|_| json!(0))
+    order
+        .get("orderNumber")
+        .filter(|number| number.as_i64().is_some())
+        .cloned()
+        .unwrap_or(Value::Null)
 }
 
 fn storefront_order_cursor(order: &Value) -> String {
@@ -7671,4 +7748,70 @@ fn storefront_sensitive_customer_auth_key(key: &str) -> bool {
             | "token"
             | "multipassToken"
     )
+}
+
+#[cfg(test)]
+mod order_projection_tests {
+    use super::storefront_order_json;
+    use serde_json::{json, Value};
+
+    #[test]
+    fn partial_storefront_order_projection_does_not_fabricate_required_fields() {
+        let projected = storefront_order_json(&json!({
+            "id": "gid://shopify/Order/17",
+            "name": "IMPORT-9-X2-2026"
+        }));
+
+        for field in [
+            "currencyCode",
+            "fulfillmentStatus",
+            "orderNumber",
+            "processedAt",
+            "totalPrice",
+            "totalPriceV2",
+        ] {
+            assert_eq!(
+                projected[field],
+                Value::Null,
+                "partial Admin order must not invent Storefront Order.{field}"
+            );
+        }
+        assert!(!projected.to_string().contains("USD"));
+    }
+
+    #[test]
+    fn storefront_order_projection_preserves_authoritative_numbers_money_and_statuses() {
+        for (name, number, currency, amount, fulfillment_status) in [
+            ("WEB-2026-#77-A", 41, "CAD", "19.9", "UNFULFILLED"),
+            ("IMPORT-9-X2-2026", 42, "EUR", "31.25", "FULFILLED"),
+        ] {
+            let projected = storefront_order_json(&json!({
+                "id": format!("gid://shopify/Order/{number}"),
+                "name": name,
+                "orderNumber": number,
+                "currencyCode": currency,
+                "displayFulfillmentStatus": fulfillment_status,
+                "processedAt": "2026-01-02T03:04:05Z",
+                "currentSubtotalPriceSet": {
+                    "shopMoney": { "amount": amount, "currencyCode": currency }
+                },
+                "currentTotalPriceSet": {
+                    "shopMoney": { "amount": amount, "currencyCode": currency }
+                }
+            }));
+
+            assert_eq!(projected["name"], json!(name));
+            assert_eq!(projected["orderNumber"], json!(number));
+            assert_eq!(projected["currencyCode"], json!(currency));
+            assert_eq!(projected["fulfillmentStatus"], json!(fulfillment_status));
+            assert_eq!(
+                projected["subtotalPriceV2"],
+                json!({ "amount": amount, "currencyCode": currency })
+            );
+            assert_eq!(
+                projected["totalPriceV2"],
+                json!({ "amount": amount, "currencyCode": currency })
+            );
+        }
+    }
 }
