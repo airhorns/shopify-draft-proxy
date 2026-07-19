@@ -1696,7 +1696,7 @@ impl DraftProxy {
     /// remainder of the scenario. When the capability cannot be resolved (no
     /// upstream available, e.g. the default synthetic local-runtime shop) we
     /// default to `false`, which is the gated, non-subscription behaviour.
-    fn ensure_shop_sells_subscriptions(&mut self, request: &Request) -> bool {
+    pub(in crate::proxy) fn ensure_shop_sells_subscriptions(&mut self, request: &Request) -> bool {
         if let Some(cached) = self.shop_sells_subscriptions {
             return cached;
         }
@@ -1705,7 +1705,12 @@ impl DraftProxy {
         resolved
     }
 
-    fn fetch_shop_sells_subscriptions(&self, request: &Request) -> bool {
+    pub(in crate::proxy) fn fetch_shop_sells_subscriptions(&self, request: &Request) -> bool {
+        if let Some(sells_subscriptions) =
+            self.store.effective_shop()["features"]["sellsSubscriptions"].as_bool()
+        {
+            return sells_subscriptions;
+        }
         if self.config.read_mode == ReadMode::Snapshot {
             return false;
         }

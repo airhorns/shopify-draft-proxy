@@ -4849,6 +4849,186 @@ fn shop_policy_update_overlays_restored_base_shop_policies() {
     );
 }
 
+fn restore_shop_policy_baseline(
+    proxy: &mut DraftProxy,
+    sells_subscriptions: bool,
+    policies: Vec<Value>,
+) {
+    let restore = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/__meta/restore".to_string(),
+        headers: Default::default(),
+        body: json!({
+            "schema": "shopify-draft-proxy-rust-state/v1",
+            "createdAt": "2026-06-27T00:00:00.000Z",
+            "nextSyntheticId": 9,
+            "state": {
+                "baseState": {
+                    "products": {},
+                    "productOrder": [],
+                    "savedSearches": {},
+                    "savedSearchOrder": [],
+                    "shop": {
+                        "id": "gid://shopify/Shop/policy-capability",
+                        "myshopifyDomain": "policy-capability.myshopify.com",
+                        "primaryDomain": { "host": "policy-capability.example" },
+                        "features": { "sellsSubscriptions": sells_subscriptions },
+                        "shopPolicies": policies
+                    },
+                    "publicationIds": [],
+                    "publicationCount": 0
+                },
+                "stagedState": {
+                    "products": {},
+                    "productOrder": [],
+                    "deletedProductIds": [],
+                    "savedSearches": {},
+                    "savedSearchOrder": [],
+                    "deletedSavedSearchIds": [],
+                    "shippingPackages": {},
+                    "deletedShippingPackageIds": {},
+                    "delegatedAccessTokens": {},
+                    "customers": {},
+                    "deletedCustomerIds": [],
+                    "customerOrders": {}
+                }
+            },
+            "log": { "entries": [] }
+        })
+        .to_string(),
+    });
+    assert_eq!(restore.status, 200);
+}
+
+#[test]
+fn shop_policy_update_blank_subscription_clears_non_subscription_policy() {
+    let mut proxy = snapshot_proxy();
+    restore_shop_policy_baseline(
+        &mut proxy,
+        false,
+        vec![
+            json!({
+                "id": "gid://shopify/ShopPolicy/111",
+                "title": "Refund policy",
+                "body": "<p>Refund</p>",
+                "type": "REFUND_POLICY",
+                "url": "https://checkout.shopify.com/seed/policies/111.html?locale=en",
+                "createdAt": "2026-01-01T00:00:00Z",
+                "updatedAt": "2026-01-01T00:00:00Z"
+            }),
+            json!({
+                "id": "gid://shopify/ShopPolicy/222",
+                "title": "Subscription policy",
+                "body": "<p>Cancel subscriptions here</p>",
+                "type": "SUBSCRIPTION_POLICY",
+                "url": "https://checkout.shopify.com/seed/policies/222.html?locale=en",
+                "createdAt": "2026-01-02T00:00:00Z",
+                "updatedAt": "2026-01-02T00:00:00Z"
+            }),
+        ],
+    );
+    let query = r#"
+        mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) {
+          shopPolicyUpdate(shopPolicy: $shopPolicy) {
+            shopPolicy { id type body }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let clear = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "shopPolicy": { "type": "SUBSCRIPTION_POLICY", "body": "  \n" } }),
+    ));
+    assert_eq!(clear.status, 200);
+    assert_eq!(
+        clear.body["data"]["shopPolicyUpdate"],
+        json!({
+            "shopPolicy": null,
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ShopPoliciesAfterSubscriptionClear {
+          shop {
+            shopPolicies { id type body }
+            suggestedShopPolicyTypes
+          }
+          node(id: "gid://shopify/ShopPolicy/222") {
+            __typename
+            ... on ShopPolicy { id type body }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["shop"]["shopPolicies"],
+        json!([{
+            "id": "gid://shopify/ShopPolicy/111",
+            "type": "REFUND_POLICY",
+            "body": "<p>Refund</p>"
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["shop"]["suggestedShopPolicyTypes"],
+        json!(["REFUND_POLICY"])
+    );
+    assert_eq!(read.body["data"]["node"], json!(null));
+
+    let state = state_snapshot(&proxy);
+    assert_eq!(
+        state["stagedState"]["deletedShopPolicyIds"],
+        json!(["gid://shopify/ShopPolicy/222"])
+    );
+    let log = log_snapshot(&proxy);
+    assert_eq!(
+        log["entries"][0]["stagedResourceIds"],
+        json!(["gid://shopify/ShopPolicy/222"])
+    );
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .expect("raw body")
+        .contains("shopPolicyUpdate"));
+}
+
+#[test]
+fn shop_policy_update_blank_subscription_noops_without_existing_policy() {
+    let mut proxy = snapshot_proxy();
+    let query = r#"
+        mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) {
+          shopPolicyUpdate(shopPolicy: $shopPolicy) {
+            shopPolicy { id type body }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let clear = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "shopPolicy": { "type": "SUBSCRIPTION_POLICY", "body": "" } }),
+    ));
+    assert_eq!(clear.status, 200);
+    assert_eq!(
+        clear.body["data"]["shopPolicyUpdate"],
+        json!({
+            "shopPolicy": null,
+            "userErrors": []
+        })
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["deletedShopPolicyIds"],
+        json!([])
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"][0]["stagedResourceIds"],
+        json!([])
+    );
+}
+
 #[test]
 fn shop_policy_update_rejects_only_privacy_liquid_syntax_errors() {
     let mut proxy = snapshot_proxy();
@@ -4937,6 +5117,19 @@ fn shop_policy_update_rejects_only_privacy_liquid_syntax_errors() {
 #[test]
 fn shop_policy_update_validation_branches_match_shopify_shapes() {
     let mut proxy = snapshot_proxy();
+    restore_shop_policy_baseline(
+        &mut proxy,
+        true,
+        vec![json!({
+            "id": "gid://shopify/ShopPolicy/222",
+            "title": "Subscription policy",
+            "body": "<p>Existing</p>",
+            "type": "SUBSCRIPTION_POLICY",
+            "url": "https://checkout.shopify.com/seed/policies/222.html?locale=en",
+            "createdAt": "2026-01-02T00:00:00Z",
+            "updatedAt": "2026-01-02T00:00:00Z"
+        })],
+    );
     let query = r#"
         mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) {
           shopPolicyUpdate(shopPolicy: $shopPolicy) {
@@ -4964,6 +5157,22 @@ fn shop_policy_update_validation_branches_match_shopify_shapes() {
         }])
     );
     assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    let read_after_rejection = proxy.process_request(json_graphql_request(
+        r#"
+        query ShopPoliciesAfterSubscriptionBlankRejection {
+          shop { shopPolicies { id type body } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_rejection.body["data"]["shop"]["shopPolicies"],
+        json!([{
+            "id": "gid://shopify/ShopPolicy/222",
+            "type": "SUBSCRIPTION_POLICY",
+            "body": "<p>Existing</p>"
+        }])
+    );
 
     let max_body = "a".repeat(524_287);
     let max_response = proxy.process_request(json_graphql_request(

@@ -35,22 +35,20 @@ impl DraftProxy {
             return json_error(400, "Could not parse GraphQL operation");
         };
         let mut staged_ids = Vec::new();
+        let mut should_record_log = false;
         let data = root_payload_json(&fields, |field| {
             if field.name != "shopPolicyUpdate" {
                 return None;
             }
-            let payload = self.shop_policy_update_field_payload(request, field);
-            if let Some(id) = payload
-                .get("shopPolicy")
-                .and_then(Value::as_object)
-                .and_then(|policy| policy.get("id"))
-                .and_then(Value::as_str)
-            {
-                staged_ids.push(id.to_string());
+            let (payload, staged_resource_ids) =
+                self.shop_policy_update_field_payload(request, field);
+            if let Some(ids) = staged_resource_ids {
+                should_record_log = true;
+                staged_ids.extend(ids);
             }
             Some(payload)
         });
-        if !staged_ids.is_empty() {
+        if should_record_log {
             self.record_mutation_log_draft(
                 request,
                 query,
@@ -65,52 +63,83 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         field: &RootFieldSelection,
-    ) -> Value {
+    ) -> (Value, Option<Vec<String>>) {
         let payload_selection = &field.selection;
         let input = match field.arguments.get("shopPolicy") {
             Some(ResolvedValue::Object(input)) => input,
             _ => {
-                return selected_json(
-                    &json!({
-                        "shopPolicy": Value::Null,
-                        "userErrors": [user_error_with_code_value(vec!["shopPolicy"], "Shop policy is invalid", json!("INVALID"))]
-                    }),
-                    payload_selection,
+                return (
+                    selected_json(
+                        &json!({
+                            "shopPolicy": Value::Null,
+                            "userErrors": [user_error_with_code_value(vec!["shopPolicy"], "Shop policy is invalid", json!("INVALID"))]
+                        }),
+                        payload_selection,
+                    ),
+                    None,
                 );
             }
         };
         let policy_type = resolved_string_field(input, "type").unwrap_or_default();
         let body = resolved_string_field(input, "body").unwrap_or_default();
         if policy_type == "SUBSCRIPTION_POLICY" && body.trim().is_empty() {
-            return selected_json(
-                &json!({
-                    "shopPolicy": Value::Null,
-                    "userErrors": [user_error_with_code_value(vec!["shopPolicy", "body"], "Purchase options cancellation policy required", Value::Null)]
-                }),
-                payload_selection,
+            if self.ensure_shop_sells_subscriptions(request) {
+                return (
+                    selected_json(
+                        &json!({
+                            "shopPolicy": Value::Null,
+                            "userErrors": [user_error_with_code_value(vec!["shopPolicy", "body"], "Purchase options cancellation policy required", Value::Null)]
+                        }),
+                        payload_selection,
+                    ),
+                    None,
+                );
+            }
+
+            self.hydrate_shop_policy_base(request);
+            let staged_ids = self
+                .store
+                .delete_shop_policy_by_type("SUBSCRIPTION_POLICY")
+                .into_iter()
+                .collect();
+            return (
+                selected_json(
+                    &json!({
+                        "shopPolicy": Value::Null,
+                        "userErrors": []
+                    }),
+                    payload_selection,
+                ),
+                Some(staged_ids),
             );
         }
         if body.len() > SHOP_POLICY_BODY_MAX_BYTES {
-            return selected_json(
-                &json!({
-                    "shopPolicy": Value::Null,
-                    "userErrors": [user_error_with_code_value(vec!["shopPolicy", "body"], "Body is too big (maximum is 512 KB)", json!("TOO_BIG"))]
-                }),
-                payload_selection,
+            return (
+                selected_json(
+                    &json!({
+                        "shopPolicy": Value::Null,
+                        "userErrors": [user_error_with_code_value(vec!["shopPolicy", "body"], "Body is too big (maximum is 512 KB)", json!("TOO_BIG"))]
+                    }),
+                    payload_selection,
+                ),
+                None,
             );
         }
         if policy_type == "PRIVACY_POLICY" {
             if let Some(message) = shop_policy_liquid_syntax_error_message(&body) {
-                return selected_json(
-                    &json!({
-                        "shopPolicy": Value::Null,
-                        "userErrors": [user_error_with_code_value(
-                            vec!["shopPolicy", "body"],
-                            &message,
-                            Value::Null
-                        )]
-                    }),
-                    payload_selection,
+                return (
+                    selected_json(
+                        &json!({
+                            "shopPolicy": Value::Null,
+                            "userErrors": [user_error_with_code_value(
+                                vec!["shopPolicy", "body"],
+                                &message,
+                                Value::Null
+                            )]
+                        }),
+                        payload_selection,
+                    ),
+                    None,
                 );
             }
         }
@@ -142,12 +171,15 @@ impl DraftProxy {
         };
         self.store.stage_shop_policy(policy.clone());
 
-        selected_json(
-            &json!({
-                "shopPolicy": shop_policy_record_json(&policy),
-                "userErrors": []
-            }),
-            payload_selection,
+        (
+            selected_json(
+                &json!({
+                    "shopPolicy": shop_policy_record_json(&policy),
+                    "userErrors": []
+                }),
+                payload_selection,
+            ),
+            Some(vec![policy.id]),
         )
     }
 
@@ -238,6 +270,13 @@ impl DraftProxy {
                     .shop_policies()
                     .into_iter()
                     .map(|policy| shop_policy_json(&policy, &selection.selection))
+                    .collect(),
+            )),
+            "suggestedShopPolicyTypes" => Some(Value::Array(
+                self.store
+                    .shop_policies()
+                    .into_iter()
+                    .map(|policy| json!(policy.policy_type))
                     .collect(),
             )),
             _ => shop

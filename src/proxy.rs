@@ -1176,6 +1176,15 @@ impl Store {
         self.staged.shop_policies.stage(policy.id.clone(), policy);
     }
 
+    fn delete_shop_policy_by_type(&mut self, policy_type: &str) -> Option<String> {
+        let id = self
+            .shop_policy_by_type(policy_type)
+            .map(|policy| policy.id.clone())?;
+        self.staged.shop_policies.remove_staged(&id);
+        self.staged.shop_policies.tombstone(id.clone());
+        Some(id)
+    }
+
     fn domain_by_id(&self, id: &str) -> Option<Value> {
         if id.is_empty() {
             return None;
