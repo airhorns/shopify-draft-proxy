@@ -162,6 +162,14 @@ describe('Rust HTTP adapter route surface', () => {
             productVariantOrder: [],
             giftCards: {},
             giftCardConfiguration: null,
+            paymentGateways: {
+              'gid://shopify/PaymentGateway/1': {
+                id: 'gid://shopify/PaymentGateway/1',
+                name: 'manual',
+                enabled: true,
+                manual: true,
+              },
+            },
             savedSearches: {},
             savedSearchOrder: [],
             shopPolicies: {},

@@ -20,6 +20,8 @@ pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 1
 pub(in crate::proxy) const METAFIELDS_SET_INPUT_LIMIT: usize = 25;
 pub(in crate::proxy) const API_CLIENT_ID_HEADER: &str = "x-shopify-draft-proxy-api-client-id";
 pub(in crate::proxy) const ACCESS_SCOPES_HEADER: &str = "x-shopify-draft-proxy-access-scopes";
+const DEFAULT_MANUAL_PAYMENT_GATEWAY_ID: &str = "gid://shopify/PaymentGateway/1";
+const DEFAULT_MANUAL_PAYMENT_GATEWAY_NAME: &str = "manual";
 const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -273,6 +275,7 @@ struct BaseState {
     delivery_profiles: OrderedRecords<Value>,
     gift_cards: BTreeMap<String, Value>,
     gift_card_configuration: Option<Value>,
+    payment_gateways: BTreeMap<String, Value>,
     shop: Value,
     publication_ids: BTreeSet<String>,
     publication_count: Option<usize>,
@@ -953,9 +956,62 @@ fn domain_host_from_url(url: &str) -> Option<String> {
         .map(str::to_string)
 }
 
+fn default_payment_gateways() -> BTreeMap<String, Value> {
+    BTreeMap::from([(
+        DEFAULT_MANUAL_PAYMENT_GATEWAY_ID.to_string(),
+        json!({
+            "id": DEFAULT_MANUAL_PAYMENT_GATEWAY_ID,
+            "name": DEFAULT_MANUAL_PAYMENT_GATEWAY_NAME,
+            "enabled": true,
+            "manual": true
+        }),
+    )])
+}
+
+fn payment_gateway_enabled(gateway: &Value) -> bool {
+    if gateway.get("disabled").and_then(Value::as_bool) == Some(true) {
+        return false;
+    }
+    if let Some(enabled) = gateway.get("enabled").and_then(Value::as_bool) {
+        return enabled;
+    }
+    !matches!(
+        gateway.get("status").and_then(Value::as_str),
+        Some("DISABLED" | "INACTIVE")
+    )
+}
+
+fn payment_gateway_manual(gateway: &Value) -> bool {
+    gateway
+        .get("manual")
+        .and_then(Value::as_bool)
+        .or_else(|| gateway.get("manualPaymentGateway").and_then(Value::as_bool))
+        .unwrap_or_else(|| {
+            matches!(
+                gateway.get("kind").and_then(Value::as_str),
+                Some("MANUAL" | "manual")
+            ) || matches!(
+                gateway.get("type").and_then(Value::as_str),
+                Some("MANUAL" | "manual")
+            ) || gateway.get("name").and_then(Value::as_str)
+                == Some(DEFAULT_MANUAL_PAYMENT_GATEWAY_NAME)
+        })
+}
+
+fn payment_gateway_name(gateway: &Value) -> String {
+    gateway
+        .get("name")
+        .and_then(Value::as_str)
+        .or_else(|| gateway.get("gateway").and_then(Value::as_str))
+        .filter(|name| !name.is_empty())
+        .unwrap_or(DEFAULT_MANUAL_PAYMENT_GATEWAY_NAME)
+        .to_string()
+}
+
 impl Store {
     fn with_default_baseline() -> Self {
         let mut store = Self::default();
+        store.base.payment_gateways = default_payment_gateways();
         store.base.available_locales = default_available_locales();
         store.base.shop_locales.insert(
             "en".to_string(),
@@ -1135,6 +1191,15 @@ impl Store {
             .shop
             .get("dutiesIncluded")
             .and_then(Value::as_bool)
+    }
+
+    fn enabled_manual_payment_gateway_name(&self, id: &str) -> Option<String> {
+        self.base
+            .payment_gateways
+            .get(id)
+            .filter(|gateway| payment_gateway_enabled(gateway))
+            .filter(|gateway| payment_gateway_manual(gateway))
+            .map(payment_gateway_name)
     }
 
     fn shop_money_format(&self) -> Option<String> {

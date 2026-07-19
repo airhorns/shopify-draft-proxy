@@ -1030,6 +1030,21 @@ pub(in crate::proxy) fn order_create_payment_fields(
     } else {
         (total - received).max(0.0)
     };
+    let capturable = if capturable.abs() < 0.000_001 {
+        0.0
+    } else {
+        capturable
+    };
+    let outstanding = if outstanding.abs() < 0.000_001 {
+        0.0
+    } else {
+        outstanding
+    };
+    let received = if received.abs() < 0.000_001 {
+        0.0
+    } else {
+        received
+    };
     order["capturable"] = json!(capturable > 0.0);
     order["totalCapturable"] = json!(format_money_amount(capturable));
     order["totalCapturableSet"] =

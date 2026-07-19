@@ -2226,17 +2226,24 @@ impl DraftProxy {
             );
         }
         let payment_gateway_id = resolved_string_field(&field.arguments, "paymentGatewayId");
-        if payment_gateway_id.is_some() {
-            return draft_order_complete_payload(
-                draft_order,
-                vec![user_error_omit_code(
-                    Value::Null,
-                    "Invalid payment gateway",
-                    None,
-                )],
-                &field.selection,
-            );
-        }
+        let payment_gateway_name = match payment_gateway_id.as_deref() {
+            Some(id) => match self.store.enabled_manual_payment_gateway_name(id) {
+                Some(gateway_name) => Some(gateway_name),
+                None => {
+                    return draft_order_complete_payload(
+                        draft_order,
+                        vec![user_error_omit_code(
+                            Value::Null,
+                            "Invalid payment gateway",
+                            None,
+                        )],
+                        &field.selection,
+                    );
+                }
+            },
+            None => None,
+        };
+        let has_payment_gateway = payment_gateway_name.is_some();
         let order_id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
         let shop_currency_code = self.store.shop_currency_code();
@@ -2274,28 +2281,37 @@ impl DraftProxy {
             })
             .collect::<Vec<_>>();
         // The completed order inherits the draft's merchant-facing note and tags.
-        // It is settled through the manual payment gateway unless the caller
-        // explicitly marks it pending or payment terms implicitly leave payment
-        // outstanding.
+        // It is settled through an enabled manual payment gateway when provided,
+        // or the default manual no-gateway path when omitted.
         let order_note = draft_order["note"].clone();
         let order_tags = draft_order["tags"].as_array().cloned().unwrap_or_default();
         let source_name = draft_order["sourceName"]
             .as_str()
             .map(str::to_string)
             .unwrap_or_else(|| request_api_client_id(request));
-        let payment_gateway_names = vec![json!("manual")];
-        // Shopify records both settled and pending draft-order completions as a
-        // manual SALE transaction. The transaction status, not its presence,
-        // distinguishes captured payment from outstanding invoice payment.
-        let transaction_status = if payment_pending {
+        let transaction_gateway = payment_gateway_name.unwrap_or_else(|| "manual".to_string());
+        let payment_gateway_names = vec![json!(transaction_gateway.clone())];
+        let transaction_kind = if has_payment_gateway && payment_pending {
+            "AUTHORIZATION"
+        } else {
+            "SALE"
+        };
+        let transaction_status = if has_payment_gateway || !payment_pending {
+            "SUCCESS"
+        } else {
+            "PENDING"
+        };
+        let display_financial_status = if has_payment_gateway && payment_pending {
+            "AUTHORIZED"
+        } else if payment_pending {
             "PENDING"
         } else {
-            "SUCCESS"
+            "PAID"
         };
         let order_transactions = vec![json!({
-                "kind": "SALE",
+                "kind": transaction_kind,
                 "status": transaction_status,
-                "gateway": "manual",
+                "gateway": transaction_gateway,
                 "amountSet": money_bag(total_amount, &currency_code)
         })];
         let order_name = self.next_order_name();
@@ -2310,7 +2326,7 @@ impl DraftProxy {
             "presentmentCurrencyCode": currency_code,
             "paymentGatewayNames": payment_gateway_names,
             "transactions": order_transactions,
-            "displayFinancialStatus": if payment_pending { "PENDING" } else { "PAID" },
+            "displayFinancialStatus": display_financial_status,
             "displayFulfillmentStatus": "UNFULFILLED",
             "subtotalPriceSet": money_bag(subtotal_amount, &currency_code),
             "currentSubtotalPriceSet": money_bag(subtotal_amount, &currency_code),

@@ -215,6 +215,7 @@ impl DraftProxy {
                 "deliveryProfileOrder": self.store.base.delivery_profiles.order,
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
+                "paymentGateways": self.store.base.payment_gateways.clone(),
                 "shop": self.store.base.shop.clone(),
                 "publicationIds": self.store.base.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publicationCount": self.store.base.publication_count,
@@ -1015,6 +1016,11 @@ impl DraftProxy {
             .get("giftCardConfiguration")
             .filter(|configuration| configuration.is_object())
             .cloned();
+        self.store.base.payment_gateways = if state["baseState"].get("paymentGateways").is_some() {
+            value_map_from_json(state["baseState"].get("paymentGateways"))
+        } else {
+            default_payment_gateways()
+        };
         let base_shop = state["baseState"]
             .get("shop")
             .filter(|shop| shop.is_object() || shop.is_null())

@@ -11600,6 +11600,189 @@ fn draft_order_complete_replays_resulting_order_and_gateway_paths() {
 }
 
 #[test]
+fn draft_order_complete_accepts_enabled_manual_payment_gateway_id() {
+    let mut proxy = snapshot_proxy();
+    let manual_gateway_id = "gid://shopify/PaymentGateway/1";
+
+    for (payment_pending, expected_financial_status, expected_transaction_kind) in [
+        (false, "PAID", "SALE"),
+        (true, "AUTHORIZED", "AUTHORIZATION"),
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            include_str!(
+                "../../config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-create.graphql"
+            ),
+            json!({}),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(
+            create.body["data"]["draftOrderCreate"]["userErrors"],
+            json!([])
+        );
+        let draft_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+        let complete = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CompleteDraftWithEnabledGateway(
+              $id: ID!
+              $paymentGatewayId: ID
+              $paymentPending: Boolean
+            ) {
+              draftOrderComplete(
+                id: $id
+                paymentGatewayId: $paymentGatewayId
+                paymentPending: $paymentPending
+              ) {
+                draftOrder {
+                  id
+                  status
+                  order {
+                    id
+                    displayFinancialStatus
+                    paymentGatewayNames
+                    totalCapturableSet { shopMoney { amount currencyCode } }
+                    totalOutstandingSet { shopMoney { amount currencyCode } }
+                    totalReceivedSet { shopMoney { amount currencyCode } }
+                    transactions {
+                      kind
+                      status
+                      gateway
+                      amountSet { shopMoney { amount currencyCode } }
+                    }
+                  }
+                }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "id": draft_id,
+                "paymentGatewayId": manual_gateway_id,
+                "paymentPending": payment_pending
+            }),
+        ));
+        assert_eq!(complete.status, 200);
+        let payload = &complete.body["data"]["draftOrderComplete"];
+        assert_eq!(payload["userErrors"], json!([]));
+        assert_eq!(payload["draftOrder"]["status"], json!("COMPLETED"));
+        let order = &payload["draftOrder"]["order"];
+        assert_eq!(
+            order["displayFinancialStatus"],
+            json!(expected_financial_status)
+        );
+        assert_eq!(order["paymentGatewayNames"], json!(["manual"]));
+        assert_eq!(
+            order["transactions"],
+            json!([{
+                "kind": expected_transaction_kind,
+                "status": "SUCCESS",
+                "gateway": "manual",
+                "amountSet": {
+                    "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "USD"
+                    }
+                }
+            }])
+        );
+
+        if payment_pending {
+            assert_eq!(
+                order["totalCapturableSet"]["shopMoney"],
+                json!({ "amount": "10.0", "currencyCode": "USD" })
+            );
+            assert_eq!(
+                order["totalReceivedSet"]["shopMoney"],
+                json!({ "amount": "0.0", "currencyCode": "USD" })
+            );
+        } else {
+            assert_eq!(
+                order["totalCapturableSet"]["shopMoney"],
+                json!({ "amount": "0.0", "currencyCode": "USD" })
+            );
+            assert_eq!(
+                order["totalReceivedSet"]["shopMoney"],
+                json!({ "amount": "10.0", "currencyCode": "USD" })
+            );
+        }
+        assert_eq!(
+            order["totalOutstandingSet"]["shopMoney"],
+            json!({ "amount": "0.0", "currencyCode": "USD" })
+        );
+
+        let read = proxy.process_request(json_graphql_request(
+            r#"
+            query ReadGatewayCompletedDraftOrder($id: ID!) {
+              order(id: $id) {
+                id
+                displayFinancialStatus
+                paymentGatewayNames
+                transactions {
+                  kind
+                  status
+                  gateway
+                }
+              }
+            }
+            "#,
+            json!({ "id": order["id"].clone() }),
+        ));
+        assert_eq!(read.status, 200);
+        assert_eq!(
+            read.body["data"]["order"]["displayFinancialStatus"],
+            json!(expected_financial_status)
+        );
+        assert_eq!(
+            read.body["data"]["order"]["transactions"][0]["kind"],
+            json!(expected_transaction_kind)
+        );
+    }
+
+    let mut disabled_proxy = snapshot_proxy();
+    let disabled_gateway_id = "gid://shopify/PaymentGateway/2";
+    restore_state_with(&mut disabled_proxy, |state| {
+        state["baseState"]["paymentGateways"][disabled_gateway_id] = json!({
+            "id": disabled_gateway_id,
+            "name": "manual",
+            "enabled": false,
+            "manual": true
+        });
+    });
+
+    let create = disabled_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-create.graphql"
+        ),
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    let draft_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+    let complete = disabled_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-complete.graphql"
+        ),
+        json!({
+            "id": draft_id,
+            "paymentGatewayId": disabled_gateway_id,
+            "paymentPending": false
+        }),
+    ));
+    assert_eq!(complete.status, 200);
+    assert_eq!(
+        complete.body["data"]["draftOrderComplete"]["draftOrder"]["status"],
+        json!("OPEN")
+    );
+    assert_eq!(
+        complete.body["data"]["draftOrderComplete"]["draftOrder"]["order"],
+        Value::Null
+    );
+    assert_eq!(
+        complete.body["data"]["draftOrderComplete"]["userErrors"],
+        json!([{ "field": null, "message": "Invalid payment gateway" }])
+    );
+}
+
+#[test]
 fn draft_order_complete_rejects_user_error_code_selection() {
     let mut proxy = snapshot_proxy();
 
