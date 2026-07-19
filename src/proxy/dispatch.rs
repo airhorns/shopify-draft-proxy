@@ -2164,8 +2164,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query =>
             {
                 let fields = try_root_fields!(&query, &variables);
-                if self.config.read_mode != ReadMode::Snapshot
-                    && !self.has_local_metaobject_entry_state()
+                if self.config.read_mode != ReadMode::Snapshot && !self.has_local_metaobject_state()
                 {
                     self.metaobject_live_hybrid_read(request, &fields)
                 } else {
@@ -2176,13 +2175,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation =>
             {
                 let fields = try_root_fields!(&query, &variables);
-                if self.metaobject_mutation_is_local(&fields) {
-                    self.metaobject_mutation(&fields, request, &query, &variables)
-                } else {
-                    // Target lives upstream (seeded/live-captured): forward so the
-                    // real backend response is replayed instead of a synthetic one.
-                    (self.upstream_transport)(request.clone())
-                }
+                self.metaobject_mutation(&fields, request, &query, &variables)
             }
             (CapabilityDomain::BulkOperations, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
