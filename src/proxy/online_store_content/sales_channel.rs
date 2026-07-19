@@ -28,8 +28,6 @@ impl DraftProxy {
                 match field.name.as_str() {
                     "mobilePlatformApplication"
                     | "scriptTag"
-                    | "webPixel"
-                    | "serverPixel"
                     | "urlRedirect"
                     | "theme" => {
                         if field.name == "urlRedirect" {
@@ -48,6 +46,14 @@ impl DraftProxy {
                                 .unwrap_or(Value::Null)
                         }
                     }
+                    "webPixel" => self.staged_singular_sales_channel_record(
+                        field,
+                        is_web_pixel_record,
+                    ),
+                    "serverPixel" => self.staged_singular_sales_channel_record(
+                        field,
+                        is_server_pixel_record,
+                    ),
                     "urlRedirects" | "urlRedirectsCount" => self
                         .url_redirect_query_data(std::slice::from_ref(field))
                         .get(&field.response_key)
@@ -269,6 +275,30 @@ impl DraftProxy {
                 .is_some_and(predicate),
             _ => !self.any_sales_channel_record(predicate),
         }
+    }
+
+    fn staged_singular_sales_channel_record(
+        &self,
+        field: &RootFieldSelection,
+        predicate: fn(&Value) -> bool,
+    ) -> Value {
+        let record = match resolved_string_field(&field.arguments, "id") {
+            Some(id) if !id.is_empty() => self
+                .store
+                .staged
+                .online_store_integrations
+                .get(&id)
+                .filter(|record| predicate(record)),
+            _ => self
+                .store
+                .staged
+                .online_store_integrations
+                .values()
+                .find(|record| predicate(record)),
+        };
+        record
+            .map(|record| selected_json(record, &field.selection))
+            .unwrap_or(Value::Null)
     }
 
     fn any_sales_channel_record(&self, predicate: fn(&Value) -> bool) -> bool {

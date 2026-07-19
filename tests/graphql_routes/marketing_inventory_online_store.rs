@@ -7470,6 +7470,139 @@ fn online_store_pixel_endpoint_edges_covers_current_behavior() {
 }
 
 #[test]
+fn online_store_pixel_singleton_reads_return_staged_records_without_id_arguments() {
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |_request| {
+            *upstream_calls.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "webPixel": null,
+                        "serverPixel": null
+                    }
+                }),
+            }
+        }
+    });
+
+    let empty = proxy.process_request(json_graphql_request(
+        r#"
+        query PixelSingletonEmptyRead {
+          webPixel { id status settings webhookEndpointAddress }
+          serverPixel { id status webhookEndpointAddress }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        empty.body["data"],
+        json!({"webPixel": null, "serverPixel": null})
+    );
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "empty singleton reads should still route upstream"
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PixelSingletonStaging {
+          webPixelCreate(webPixel: { settings: "{\"accountID\":\"initial\"}" }) {
+            webPixel { id status settings webhookEndpointAddress }
+            userErrors { __typename code field message }
+          }
+          serverPixelCreate {
+            serverPixel { id status webhookEndpointAddress }
+            userErrors { __typename code field message }
+          }
+          eventBridgeServerPixelUpdate(arn: "arn:aws:events:us-east-1:123456789012:event-bus/local") {
+            serverPixel { id status webhookEndpointAddress }
+            userErrors { __typename code field message }
+          }
+          pubSubServerPixelUpdate(pubSubProject: "project", pubSubTopic: "topic") {
+            serverPixel { id status webhookEndpointAddress }
+            userErrors { __typename code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["webPixelCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["serverPixelCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["eventBridgeServerPixelUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["pubSubServerPixelUpdate"]["userErrors"],
+        json!([])
+    );
+    let web_pixel_id = create.body["data"]["webPixelCreate"]["webPixel"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let server_pixel_id = create.body["data"]["serverPixelCreate"]["serverPixel"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PixelSingletonWebUpdate($id: ID!) {
+          webPixelUpdate(id: $id, webPixel: { settings: "{\"accountID\":\"updated\"}" }) {
+            webPixel { id status settings webhookEndpointAddress }
+            userErrors { __typename code field message }
+          }
+        }
+        "#,
+        json!({"id": web_pixel_id}),
+    ));
+    assert_eq!(update.body["data"]["webPixelUpdate"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query PixelSingletonReadAfterWrite {
+          webPixel { id status settings webhookEndpointAddress }
+          serverPixel { id status webhookEndpointAddress }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "staged singleton reads should be served locally"
+    );
+    assert_eq!(
+        read.body["data"]["webPixel"],
+        json!({
+            "id": web_pixel_id,
+            "status": "CONNECTED",
+            "settings": {"accountID": "updated"},
+            "webhookEndpointAddress": null
+        })
+    );
+    assert_eq!(
+        read.body["data"]["serverPixel"],
+        json!({
+            "id": server_pixel_id,
+            "status": "CONNECTED",
+            "webhookEndpointAddress": "project/topic"
+        })
+    );
+}
+
+#[test]
 fn webhook_eventbridge_arn_validation_uses_shopify_partner_shape_and_fields() {
     let mut proxy = snapshot_proxy();
     let create_mutation = r#"
