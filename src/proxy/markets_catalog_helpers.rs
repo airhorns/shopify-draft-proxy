@@ -556,6 +556,15 @@ fn quantity_rule_nodes(price_list: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+pub(in crate::proxy) fn price_list_quantity_rule_for_variant(
+    price_list: &Value,
+    variant_id: &str,
+) -> Option<Value> {
+    quantity_rule_nodes(price_list)
+        .into_iter()
+        .find(|node| quantity_rule_node_variant_id(node).as_deref() == Some(variant_id))
+}
+
 fn quantity_rule_connection_from_nodes(nodes: Vec<Value>) -> Value {
     let cursors = nodes
         .iter()
@@ -911,6 +920,22 @@ fn quantity_price_break_nodes(edge: &Value) -> Vec<Value> {
         .as_array()
         .cloned()
         .unwrap_or_default()
+}
+
+pub(in crate::proxy) fn price_list_quantity_price_breaks_for_variant(
+    price_list: &Value,
+    variant_id: &str,
+) -> Vec<Value> {
+    price_edges(price_list)
+        .into_iter()
+        .filter(|edge| fixed_price_edge_variant_id(edge).as_deref() == Some(variant_id))
+        .flat_map(|edge| quantity_price_break_nodes(&edge))
+        .filter(|node| {
+            quantity_price_break_node_variant_id(node)
+                .as_deref()
+                .is_none_or(|id| id == variant_id)
+        })
+        .collect()
 }
 
 fn quantity_price_break_node_id(node: &Value) -> Option<String> {

@@ -421,12 +421,17 @@ impl DraftProxy {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        if let Some((_, variables, _)) = prepared.as_ref() {
-            let context = storefront_request_context(
+        let storefront_context = prepared.as_ref().map(|(_, variables, _)| {
+            storefront_request_context(
                 selected_query.as_deref().unwrap_or(&graphql_request.query),
                 variables,
-            );
-            if context.invalid_buyer_token(self) {
+            )
+        });
+        if let Some(context) = storefront_context.as_ref() {
+            if context.invalid_proxy_buyer_token(self)
+                || (self.config.read_mode == ReadMode::Snapshot
+                    && context.has_authoritative_buyer_token())
+            {
                 return ok_json(json!({
                     "errors": [{ "message": "The token provided is not valid" }]
                 }));
@@ -540,6 +545,29 @@ impl DraftProxy {
             }
             _ => StorefrontExecutionMode::Passthrough,
         };
+
+        if mode == StorefrontExecutionMode::LocalRead
+            && self.config.read_mode == ReadMode::LiveHybrid
+            && storefront_context
+                .as_ref()
+                .is_some_and(|context| context.uses_enrichment_context)
+        {
+            let response = self.hydrate_storefront_context_for_request(
+                request,
+                storefront_context
+                    .as_ref()
+                    .expect("enrichment context was checked above"),
+            );
+            if response.status >= 400
+                || response
+                    .body
+                    .get("errors")
+                    .and_then(Value::as_array)
+                    .is_some_and(|errors| !errors.is_empty())
+            {
+                return response;
+            }
+        }
 
         let engine_query = storefront_engine_query(&graphql_request.query, schema);
         let engine_variables = resolved_variables_json(&graphql_request.variables);

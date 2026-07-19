@@ -168,15 +168,50 @@ impl StorefrontRequestContext {
         self.country.is_some() || self.language.is_some()
     }
 
-    pub(in crate::proxy) fn invalid_buyer_token(&self, proxy: &DraftProxy) -> bool {
+    pub(in crate::proxy) fn has_authoritative_buyer_token(&self) -> bool {
         self.buyer_customer_access_token
             .as_deref()
-            .is_some_and(|token| {
-                proxy
-                    .storefront_customer_id_for_access_token(token)
-                    .is_none()
-            })
+            .is_some_and(|token| !storefront_buyer_token_is_proxy_synthetic(token))
     }
+
+    pub(in crate::proxy) fn invalid_proxy_buyer_token(&self, proxy: &DraftProxy) -> bool {
+        self.buyer_customer_access_token
+            .as_deref()
+            .is_some_and(storefront_buyer_token_is_proxy_synthetic)
+            && self
+                .buyer_customer_access_token
+                .as_deref()
+                .and_then(|token| proxy.storefront_customer_id_for_access_token(token))
+                .is_none()
+    }
+
+    fn preferred_location_for_upstream(&self) -> Option<&str> {
+        self.preferred_location_id
+            .as_deref()
+            .filter(|id| !is_synthetic_gid(id))
+    }
+
+    fn buyer_for_upstream(&self) -> Value {
+        let customer_access_token = self
+            .buyer_customer_access_token
+            .as_deref()
+            .filter(|token| !storefront_buyer_token_is_proxy_synthetic(token));
+        let company_location_id = self
+            .buyer_company_location_id
+            .as_deref()
+            .filter(|id| !is_synthetic_gid(id));
+        if customer_access_token.is_none() && company_location_id.is_none() {
+            return Value::Null;
+        }
+        json!({
+            "customerAccessToken": customer_access_token,
+            "companyLocationId": company_location_id,
+        })
+    }
+}
+
+fn storefront_buyer_token_is_proxy_synthetic(token: &str) -> bool {
+    token.starts_with("sdp_ca_")
 }
 
 struct StorefrontCustomerAuthOutcome {
@@ -963,11 +998,14 @@ fn storefront_collection_products_field(
     };
     let arguments = resolved_arguments_from_json(&invocation.arguments);
     let filters = resolved_object_list_field(&arguments, "filters");
+    let context = storefront_request_context_from_request(request);
     let mut products = proxy
         .collection_product_entries(&collection)
         .into_iter()
         .filter(|entry| proxy.storefront_product_is_visible(&entry.product))
-        .filter(|entry| storefront_collection_product_matches_filters(entry, &filters))
+        .filter(|entry| {
+            storefront_collection_product_matches_filters(proxy, entry, &filters, &context)
+        })
         .collect::<Vec<_>>();
     let requested_sort_key = resolved_string_field(&arguments, "sortKey");
     let sort_key = if matches!(
@@ -985,7 +1023,6 @@ fn storefront_collection_products_field(
     let reverse = resolved_bool_field(&arguments, "reverse").unwrap_or(false);
     sort_collection_product_entries(&collection, &mut products, sort_key, reverse);
     let (products, page_info) = connection_window(&products, &arguments, collection_product_cursor);
-    let context = storefront_request_context_from_request(request);
     Ok(typed_connection_value(
         &products,
         |entry| storefront_product_value(proxy, &entry.product, &entry.variants, &context),
@@ -1392,7 +1429,7 @@ fn storefront_product_selected_variant_field(
         .or_else(|| {
             variants
                 .iter()
-                .find(|variant| storefront_variant_available_for_sale(variant))
+                .find(|variant| proxy.storefront_variant_available_for_sale(variant, &context))
         })
         .or_else(|| variants.first());
     Ok(selected
@@ -2918,10 +2955,7 @@ impl DraftProxy {
         let value = match root_name {
             "shop" => self.storefront_shop_value(),
             "localization" => self
-                .store
-                .base
-                .storefront_localizations
-                .get(&context.key())
+                .storefront_context_localization(&context)
                 .cloned()
                 .unwrap_or(Value::Null),
             "locations" => self.storefront_locations_connection_value(&arguments),
@@ -3259,6 +3293,10 @@ impl DraftProxy {
         request: &Request,
         context: &StorefrontRequestContext,
     ) {
+        if context.uses_enrichment_context {
+            self.hydrate_storefront_context_for_request(request, context);
+            return;
+        }
         let (query, variables) = storefront_first_slice_hydrate_body(context);
         let response = self.storefront_upstream_post(
             request,
@@ -3270,6 +3308,33 @@ impl DraftProxy {
         if (200..300).contains(&response.status) {
             self.hydrate_storefront_first_slice_from_data(&response.body["data"], context);
         }
+    }
+
+    pub(in crate::proxy) fn hydrate_storefront_context_for_request(
+        &mut self,
+        request: &Request,
+        context: &StorefrontRequestContext,
+    ) -> Response {
+        let (query, variables) = storefront_first_slice_hydrate_body(context);
+        let response = self.storefront_upstream_post(
+            request,
+            json!({
+                "query": query,
+                "variables": variables
+            }),
+        );
+        let has_errors = response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_some_and(|errors| !errors.is_empty());
+        if (200..300).contains(&response.status) && !has_errors {
+            self.execution_session.storefront_context_hydration_data =
+                response.body.get("data").cloned();
+            self.execution_session
+                .storefront_authoritative_buyer_validated = context.has_authoritative_buyer_token();
+        }
+        response
     }
 
     fn hydrate_storefront_taxonomy(
@@ -3554,8 +3619,8 @@ impl DraftProxy {
         context: &StorefrontRequestContext,
     ) -> Value {
         let arguments = resolved_arguments_from_json(arguments);
-        let mut items = self.storefront_search_items(&arguments);
-        storefront_sort_search_items(self, &mut items, &arguments);
+        let mut items = self.storefront_search_items(&arguments, context);
+        storefront_sort_search_items(self, &mut items, &arguments, context);
         let total_count = items.len();
         let filter_items = items.clone();
         let (items, page_info) =
@@ -3580,13 +3645,14 @@ impl DraftProxy {
             ),
             "pageInfo": page_info,
             "totalCount": total_count,
-            "productFilters": storefront_search_product_filters(self, &filter_items),
+            "productFilters": storefront_search_product_filters(self, &filter_items, context),
         })
     }
 
     fn storefront_search_items(
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
+        context: &StorefrontRequestContext,
     ) -> Vec<StorefrontSearchItem> {
         let requested_types = list_string_field(arguments, "types");
         let includes = |name: &str| {
@@ -3615,10 +3681,16 @@ impl DraftProxy {
                         )
                     })
                     .filter(|product| {
-                        storefront_product_matches_search_filters(self, product, &product_filters)
+                        storefront_product_matches_search_filters(
+                            self,
+                            product,
+                            &product_filters,
+                            context,
+                        )
                     })
                     .filter(|product| {
-                        unavailable != "HIDE" || storefront_search_product_available(self, product)
+                        unavailable != "HIDE"
+                            || storefront_search_product_available(self, product, context)
                     })
                     .map(|product| StorefrontSearchItem::Product(Box::new(product))),
             );
@@ -3646,7 +3718,7 @@ impl DraftProxy {
         if unavailable == "LAST" {
             items.sort_by_key(|item| match item {
                 StorefrontSearchItem::Product(product) => {
-                    !storefront_search_product_available(self, product)
+                    !storefront_search_product_available(self, product, context)
                 }
                 _ => false,
             });
@@ -3723,7 +3795,8 @@ impl DraftProxy {
                     )
                 })
                 .filter(|product| {
-                    unavailable != "HIDE" || storefront_search_product_available(self, product)
+                    unavailable != "HIDE"
+                        || storefront_search_product_available(self, product, context)
                 })
                 .collect::<Vec<_>>()
         } else {
@@ -3736,7 +3809,9 @@ impl DraftProxy {
                 .then_with(|| left.id.cmp(&right.id))
         });
         if unavailable == "LAST" {
-            products.sort_by_key(|product| !storefront_search_product_available(self, product));
+            products.sort_by_key(|product| {
+                !storefront_search_product_available(self, product, context)
+            });
         }
         let mut collections = if includes("COLLECTION") {
             self.store
@@ -4249,6 +4324,17 @@ impl DraftProxy {
         &self,
         context: &StorefrontRequestContext,
     ) -> Option<&Value> {
+        if context.uses_enrichment_context {
+            if let Some(localization) = self
+                .execution_session
+                .storefront_context_hydration_data
+                .as_ref()
+                .and_then(|data| data.get("localization"))
+                .filter(|localization| localization.is_object())
+            {
+                return Some(localization);
+            }
+        }
         self.store
             .base
             .storefront_localizations
@@ -4276,6 +4362,38 @@ impl DraftProxy {
     }
 
     fn storefront_context_price_list(&self, context: &StorefrontRequestContext) -> Option<&Value> {
+        if let Some(company_location_id) = context.buyer_company_location_id.as_deref() {
+            let buyer_has_access = match context.buyer_customer_access_token.as_deref() {
+                Some(token) if storefront_buyer_token_is_proxy_synthetic(token) => self
+                    .storefront_customer_id_for_access_token(token)
+                    .is_some_and(|customer_id| {
+                        self.b2b_customer_has_location_access(&customer_id, company_location_id)
+                    }),
+                Some(_) => {
+                    self.execution_session
+                        .storefront_authoritative_buyer_validated
+                }
+                None => false,
+            };
+            if buyer_has_access {
+                if let Some(price_list) = self
+                    .store
+                    .staged
+                    .catalogs
+                    .values()
+                    .find(|catalog| {
+                        catalog.get("status").and_then(Value::as_str) == Some("ACTIVE")
+                            && catalog_company_location_ids(catalog)
+                                .iter()
+                                .any(|id| id == company_location_id)
+                    })
+                    .and_then(|catalog| catalog_relation_id(catalog, "priceListId", "priceList"))
+                    .and_then(|price_list_id| self.store.staged.price_lists.get(&price_list_id))
+                {
+                    return Some(price_list);
+                }
+            }
+        }
         let localization = self.storefront_context_localization(context)?;
         let observed_market_id = localization.pointer("/market/id").and_then(Value::as_str);
         let observed_market_handle = localization
@@ -4326,7 +4444,7 @@ impl DraftProxy {
                     .and_then(Value::as_str)
                     .map(str::to_string)
             })
-            .unwrap_or_default();
+            .unwrap_or_else(|| self.storefront_currency_code());
         StorefrontVariantPricing {
             price: fixed_price
                 .as_ref()
@@ -4342,6 +4460,134 @@ impl DraftProxy {
                 .or_else(|| variant.compare_at_price.clone()),
             currency_code,
         }
+    }
+
+    fn storefront_variant_quantity_available(
+        &self,
+        variant: &ProductVariantRecord,
+        context: &StorefrontRequestContext,
+    ) -> i64 {
+        context
+            .preferred_location_id
+            .as_ref()
+            .and_then(|location_id| {
+                self.store
+                    .staged
+                    .inventory_levels
+                    .get(&(variant.inventory_item.id.clone(), location_id.clone()))
+            })
+            .and_then(|quantities| {
+                quantities
+                    .get("available")
+                    .or_else(|| quantities.get("on_hand"))
+                    .copied()
+            })
+            .unwrap_or(variant.inventory_quantity)
+    }
+
+    fn storefront_variant_available_for_sale(
+        &self,
+        variant: &ProductVariantRecord,
+        context: &StorefrontRequestContext,
+    ) -> bool {
+        !variant.inventory_item.tracked
+            || self.storefront_variant_quantity_available(variant, context) > 0
+            || variant.inventory_policy == "CONTINUE"
+    }
+
+    fn storefront_product_available_for_sale(
+        &self,
+        product: &ProductRecord,
+        variants: &[ProductVariantRecord],
+        context: &StorefrontRequestContext,
+    ) -> bool {
+        if !variants.is_empty() {
+            return variants
+                .iter()
+                .any(|variant| self.storefront_variant_available_for_sale(variant, context));
+        }
+        if !product.variants.is_empty() {
+            return product
+                .variants
+                .iter()
+                .any(storefront_raw_variant_available);
+        }
+        if let Some(observed) = product
+            .extra_fields
+            .get("availableForSale")
+            .and_then(Value::as_bool)
+        {
+            return observed;
+        }
+        !product.tracks_inventory || product.total_inventory > 0
+    }
+
+    fn storefront_product_total_inventory(
+        &self,
+        product: &ProductRecord,
+        variants: &[ProductVariantRecord],
+        context: &StorefrontRequestContext,
+    ) -> i64 {
+        if variants.is_empty() {
+            return product.total_inventory;
+        }
+        variants
+            .iter()
+            .filter(|variant| variant.inventory_item.tracked)
+            .map(|variant| self.storefront_variant_quantity_available(variant, context))
+            .sum()
+    }
+
+    fn storefront_variant_quantity_rule(
+        &self,
+        variant: &ProductVariantRecord,
+        context: &StorefrontRequestContext,
+    ) -> Value {
+        self.storefront_context_price_list(context)
+            .and_then(|price_list| price_list_quantity_rule_for_variant(price_list, &variant.id))
+            .map(|rule| {
+                json!({
+                    "minimum": rule.get("minimum").cloned().unwrap_or_else(|| json!(1)),
+                    "maximum": rule.get("maximum").cloned().unwrap_or(Value::Null),
+                    "increment": rule.get("increment").cloned().unwrap_or_else(|| json!(1)),
+                })
+            })
+            .unwrap_or_else(|| json!({ "increment": 1, "maximum": Value::Null, "minimum": 1 }))
+    }
+
+    fn storefront_variant_quantity_price_breaks(
+        &self,
+        variant: &ProductVariantRecord,
+        context: &StorefrontRequestContext,
+    ) -> Value {
+        let currency_code = self
+            .storefront_variant_pricing(variant, context)
+            .currency_code;
+        let nodes = self
+            .storefront_context_price_list(context)
+            .map(|price_list| price_list_quantity_price_breaks_for_variant(price_list, &variant.id))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|price_break| {
+                json!({
+                    "minimumQuantity": price_break
+                        .get("minimumQuantity")
+                        .cloned()
+                        .unwrap_or_else(|| json!(1)),
+                    "price": {
+                        "amount": price_break
+                            .pointer("/price/amount")
+                            .cloned()
+                            .unwrap_or_else(|| json!("0.0")),
+                        "currencyCode": price_break
+                            .pointer("/price/currencyCode")
+                            .cloned()
+                            .unwrap_or_else(|| json!(currency_code)),
+                    }
+                })
+            })
+            .collect();
+        connection_json(nodes)
     }
 
     fn storefront_visible_products(&self) -> Vec<ProductRecord> {
@@ -4502,6 +4748,16 @@ impl DraftProxy {
     }
 
     fn storefront_localization_is_observed(&self, context: &StorefrontRequestContext) -> bool {
+        if context.uses_enrichment_context
+            && self
+                .execution_session
+                .storefront_context_hydration_data
+                .as_ref()
+                .and_then(|data| data.get("localization"))
+                .is_some_and(Value::is_object)
+        {
+            return true;
+        }
         self.store
             .base
             .storefront_localizations
@@ -5100,13 +5356,14 @@ fn storefront_sort_search_items(
     proxy: &DraftProxy,
     items: &mut [StorefrontSearchItem],
     arguments: &BTreeMap<String, ResolvedValue>,
+    context: &StorefrontRequestContext,
 ) {
     let sort_key =
         resolved_string_field(arguments, "sortKey").unwrap_or_else(|| "RELEVANCE".to_string());
     items.sort_by(|left, right| {
         let ordering = if sort_key == "PRICE" {
-            storefront_search_item_price(left)
-                .total_cmp(&storefront_search_item_price(right))
+            storefront_search_item_price(proxy, left, context)
+                .total_cmp(&storefront_search_item_price(proxy, right, context))
                 .then_with(|| {
                     storefront_search_item_type_rank(left)
                         .cmp(&storefront_search_item_type_rank(right))
@@ -5128,27 +5385,48 @@ fn storefront_sort_search_items(
     if resolved_string_field(arguments, "unavailableProducts").as_deref() == Some("LAST") {
         items.sort_by_key(|item| match item {
             StorefrontSearchItem::Product(product) => {
-                !storefront_search_product_available(proxy, product)
+                !storefront_search_product_available(proxy, product, context)
             }
             _ => false,
         });
     }
 }
 
-fn storefront_search_item_price(item: &StorefrontSearchItem) -> f64 {
+fn storefront_search_item_price(
+    proxy: &DraftProxy,
+    item: &StorefrontSearchItem,
+    context: &StorefrontRequestContext,
+) -> f64 {
     match item {
-        StorefrontSearchItem::Product(product) => product
-            .variants
-            .iter()
-            .filter_map(|variant| {
-                variant
-                    .get("price")
-                    .and_then(Value::as_str)?
-                    .parse::<f64>()
-                    .ok()
-            })
-            .min_by(f64::total_cmp)
-            .unwrap_or(0.0),
+        StorefrontSearchItem::Product(product) => {
+            let variants = proxy.store.product_variants_for_product(&product.id);
+            if variants.is_empty() {
+                product
+                    .variants
+                    .iter()
+                    .filter_map(|variant| {
+                        variant
+                            .get("price")
+                            .and_then(Value::as_str)?
+                            .parse::<f64>()
+                            .ok()
+                    })
+                    .min_by(f64::total_cmp)
+                    .unwrap_or(0.0)
+            } else {
+                variants
+                    .iter()
+                    .filter_map(|variant| {
+                        proxy
+                            .storefront_variant_pricing(variant, context)
+                            .price
+                            .parse::<f64>()
+                            .ok()
+                    })
+                    .min_by(f64::total_cmp)
+                    .unwrap_or(0.0)
+            }
+        }
         _ => f64::INFINITY,
     }
 }
@@ -5296,19 +5574,24 @@ fn storefront_value_matches_discovery_query(
     storefront_discovery_text_matches(&texts, query, prefix, false)
 }
 
-fn storefront_search_product_available(proxy: &DraftProxy, product: &ProductRecord) -> bool {
+fn storefront_search_product_available(
+    proxy: &DraftProxy,
+    product: &ProductRecord,
+    context: &StorefrontRequestContext,
+) -> bool {
     let variants = proxy.store.product_variants_for_product(&product.id);
-    storefront_product_available_for_sale(product, &variants)
+    proxy.storefront_product_available_for_sale(product, &variants, context)
 }
 
 fn storefront_product_matches_search_filters(
     proxy: &DraftProxy,
     product: &ProductRecord,
     filters: &[BTreeMap<String, ResolvedValue>],
+    context: &StorefrontRequestContext,
 ) -> bool {
     filters.iter().all(|filter| {
         if let Some(available) = resolved_bool_field(filter, "available") {
-            if storefront_search_product_available(proxy, product) != available {
+            if storefront_search_product_available(proxy, product, context) != available {
                 return false;
             }
         }
@@ -5351,7 +5634,8 @@ fn storefront_product_matches_search_filters(
                 .unwrap_or(0.0);
             let max = price.get("max").and_then(resolved_value_number);
             if !variants.iter().any(|variant| {
-                variant
+                proxy
+                    .storefront_variant_pricing(variant, context)
                     .price
                     .parse::<f64>()
                     .ok()
@@ -5367,6 +5651,7 @@ fn storefront_product_matches_search_filters(
 fn storefront_search_product_filters(
     proxy: &DraftProxy,
     items: &[StorefrontSearchItem],
+    context: &StorefrontRequestContext,
 ) -> Vec<Value> {
     let products = items
         .iter()
@@ -5383,7 +5668,7 @@ fn storefront_search_product_filters(
     }
     let available_count = products
         .iter()
-        .filter(|product| storefront_search_product_available(proxy, product))
+        .filter(|product| storefront_search_product_available(proxy, product, context))
         .count();
     vec![json!({
         "id": "filter.v.availability", "label": "Availability", "presentation": "TEXT", "type": "LIST",
@@ -5633,15 +5918,18 @@ fn storefront_collection_seo(collection: &Value) -> Value {
 }
 
 fn storefront_collection_product_matches_filters(
+    proxy: &DraftProxy,
     entry: &CollectionProductEntry,
     filters: &[BTreeMap<String, ResolvedValue>],
+    context: &StorefrontRequestContext,
 ) -> bool {
     if filters.is_empty() {
         return true;
     }
     filters.iter().any(|filter| {
         resolved_bool_field(filter, "available").is_none_or(|available| {
-            storefront_product_available_for_sale(&entry.product, &entry.variants) == available
+            proxy.storefront_product_available_for_sale(&entry.product, &entry.variants, context)
+                == available
         }) && resolved_string_field(filter, "productType").is_none_or(|product_type| {
             entry
                 .product
@@ -5880,7 +6168,7 @@ fn storefront_product_value(
         .unwrap_or(Value::Null);
     json!({
         "__typename": "Product",
-        "availableForSale": storefront_product_available_for_sale(product, variants),
+        "availableForSale": proxy.storefront_product_available_for_sale(product, variants, context),
         "compareAtPriceRange": storefront_product_price_range_value(
             proxy,
             product,
@@ -5926,7 +6214,7 @@ fn storefront_product_value(
         },
         "tags": product.tags,
         "title": product.title,
-        "totalInventory": storefront_product_total_inventory(product, variants),
+        "totalInventory": proxy.storefront_product_total_inventory(product, variants, context),
         "updatedAt": product.updated_at,
         "variantsCount": count_object(storefront_product_variant_count(product, variants)),
         "vendor": product.vendor,
@@ -6237,13 +6525,13 @@ pub(in crate::proxy) fn storefront_product_variant_value(
     json!({
         "__typename": "ProductVariant",
         "_productId": variant.product_id,
-        "availableForSale": storefront_variant_available_for_sale(variant),
+        "availableForSale": proxy.storefront_variant_available_for_sale(variant, context),
         "barcode": variant.barcode,
         "compareAtPrice": pricing.compare_at_price.as_deref().map(|price| storefront_money_value(price, &pricing.currency_code)),
         "compareAtPriceV2": pricing.compare_at_price.as_deref().map(|price| storefront_money_value(price, &pricing.currency_code)),
         "components": empty_connection(),
         "currentlyNotInStock": variant.inventory_item.tracked
-            && variant.inventory_quantity <= 0
+            && proxy.storefront_variant_quantity_available(variant, context) <= 0
             && variant.inventory_policy == "CONTINUE",
         "groupedBy": empty_connection(),
         "id": variant.id,
@@ -6251,12 +6539,12 @@ pub(in crate::proxy) fn storefront_product_variant_value(
         "price": storefront_money_value(&pricing.price, &pricing.currency_code),
         "priceV2": storefront_money_value(&pricing.price, &pricing.currency_code),
         "quantityAvailable": if variant.inventory_item.tracked {
-            json!(variant.inventory_quantity.max(0))
+            json!(proxy.storefront_variant_quantity_available(variant, context).max(0))
         } else {
             Value::Null
         },
-        "quantityPriceBreaks": empty_connection(),
-        "quantityRule": { "increment": 1, "maximum": Value::Null, "minimum": 1 },
+        "quantityPriceBreaks": proxy.storefront_variant_quantity_price_breaks(variant, context),
+        "quantityRule": proxy.storefront_variant_quantity_rule(variant, context),
         "requiresComponents": false,
         "requiresShipping": variant.inventory_item.requires_shipping,
         "selectedOptions": variant.selected_options.iter().map(|option| json!({
@@ -6521,49 +6809,6 @@ fn strip_html_tags(value: &str) -> String {
         }
     }
     text
-}
-
-fn storefront_product_available_for_sale(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-) -> bool {
-    if !variants.is_empty() {
-        return variants.iter().any(storefront_variant_available_for_sale);
-    }
-    if !product.variants.is_empty() {
-        return product
-            .variants
-            .iter()
-            .any(storefront_raw_variant_available);
-    }
-    if let Some(observed) = product
-        .extra_fields
-        .get("availableForSale")
-        .and_then(Value::as_bool)
-    {
-        return observed;
-    }
-    !product.tracks_inventory || product.total_inventory > 0
-}
-
-fn storefront_product_total_inventory(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-) -> i64 {
-    if variants.is_empty() {
-        return product.total_inventory;
-    }
-    variants
-        .iter()
-        .filter(|variant| variant.inventory_item.tracked)
-        .map(|variant| variant.inventory_quantity)
-        .sum()
-}
-
-fn storefront_variant_available_for_sale(variant: &ProductVariantRecord) -> bool {
-    !variant.inventory_item.tracked
-        || variant.inventory_quantity > 0
-        || variant.inventory_policy == "CONTINUE"
 }
 
 fn storefront_raw_variant_available(variant: &Value) -> bool {
@@ -6939,11 +7184,8 @@ fn storefront_first_slice_hydrate_body(
             json!({
                 "country": context.country,
                 "language": context.language,
-                // A locally allocated Admin Location id cannot be sent to Shopify's
-                // Storefront API. Captured behavior shows it does not alter the
-                // country/language localization or this scenario's empty availability.
-                "preferredLocationId": Value::Null,
-                "buyer": Value::Null
+                "preferredLocationId": context.preferred_location_for_upstream(),
+                "buyer": context.buyer_for_upstream()
             }),
         );
     }

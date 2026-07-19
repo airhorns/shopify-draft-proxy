@@ -134,7 +134,7 @@ fn stage_storefront_cart_variant(
                 nodes { id inventoryItem { id } }
               }
             }
-            userErrors { field message }
+            userErrors { field message code }
           }
         }
         "#,
@@ -171,7 +171,7 @@ fn stage_storefront_cart_variant(
         mutation UpdateCartMerchandise($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
           productVariantsBulkUpdate(productId: $productId, variants: $variants) {
             productVariants { id price compareAtPrice inventoryItem { id tracked requiresShipping } }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1116,11 +1116,28 @@ fn storefront_catalog_enrichment_hydrates_taxonomy_and_isolates_extended_context
             };
         }
         if query.contains("StorefrontEnrichmentContextHydrate") {
+            if body["variables"]["buyer"]["customerAccessToken"]
+                == json!("invalid-authoritative-token")
+            {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "errors": [{ "message": "The token provided is not valid" }]
+                    }),
+                };
+            }
             let country = body["variables"]["country"].as_str().unwrap_or("AE");
-            let (currency, market_id, handle) = if country == "DK" {
-                ("DKK", "gid://shopify/Market/denmark", "denmark")
-            } else {
-                ("CAD", "gid://shopify/Market/international", "international")
+            let company_location_id = body["variables"]["buyer"]["companyLocationId"].as_str();
+            let (currency, market_id, handle) = match company_location_id {
+                Some("gid://shopify/CompanyLocation/1") => {
+                    ("GBP", "gid://shopify/Market/company-one", "company-one")
+                }
+                Some("gid://shopify/CompanyLocation/2") => {
+                    ("EUR", "gid://shopify/Market/company-two", "company-two")
+                }
+                _ if country == "DK" => ("DKK", "gid://shopify/Market/denmark", "denmark"),
+                _ => ("CAD", "gid://shopify/Market/international", "international"),
             };
             return Response {
                 status: 200,
@@ -1203,12 +1220,23 @@ fn storefront_catalog_enrichment_hydrates_taxonomy_and_isolates_extended_context
             "buyer": null
         }),
     ));
-    let preferred_context = proxy.process_request(storefront_graphql_request(
+    let authoritative_location_id = "gid://shopify/Location/42";
+    let authoritative_preferred_context = proxy.process_request(storefront_graphql_request(
         context_query,
         json!({
             "country": "DK",
             "language": "EN",
-            "preferredLocationId": "gid://shopify/Location/local-synthetic",
+            "preferredLocationId": authoritative_location_id,
+            "buyer": null
+        }),
+    ));
+    let synthetic_location_id = "gid://shopify/Location/43?shopify-draft-proxy=synthetic";
+    let synthetic_preferred_context = proxy.process_request(storefront_graphql_request(
+        context_query,
+        json!({
+            "country": "DK",
+            "language": "EN",
+            "preferredLocationId": synthetic_location_id,
             "buyer": null
         }),
     ));
@@ -1220,7 +1248,49 @@ fn storefront_catalog_enrichment_hydrates_taxonomy_and_isolates_extended_context
         denmark_context.body["data"]["localization"]["country"]["currency"]["isoCode"],
         json!("DKK")
     );
-    assert_eq!(preferred_context.body["data"], denmark_context.body["data"]);
+    assert_eq!(
+        authoritative_preferred_context.body["data"],
+        denmark_context.body["data"]
+    );
+    assert_eq!(
+        synthetic_preferred_context.body["data"],
+        denmark_context.body["data"]
+    );
+
+    let buyer_one_token = "authoritative-buyer-token-one";
+    let buyer_one = proxy.process_request(storefront_graphql_request(
+        context_query,
+        json!({
+            "country": "DK",
+            "language": "EN",
+            "preferredLocationId": authoritative_location_id,
+            "buyer": {
+                "customerAccessToken": buyer_one_token,
+                "companyLocationId": "gid://shopify/CompanyLocation/1"
+            }
+        }),
+    ));
+    let buyer_two_token = "authoritative-buyer-token-two";
+    let buyer_two = proxy.process_request(storefront_graphql_request(
+        context_query,
+        json!({
+            "country": "DK",
+            "language": "EN",
+            "preferredLocationId": authoritative_location_id,
+            "buyer": {
+                "customerAccessToken": buyer_two_token,
+                "companyLocationId": "gid://shopify/CompanyLocation/2"
+            }
+        }),
+    ));
+    assert_eq!(
+        buyer_one.body["data"]["localization"]["country"]["currency"]["isoCode"],
+        json!("GBP")
+    );
+    assert_eq!(
+        buyer_two.body["data"]["localization"]["country"]["currency"]["isoCode"],
+        json!("EUR")
+    );
 
     let invalid_buyer = proxy.process_request(storefront_graphql_request(
         context_query,
@@ -1229,7 +1299,7 @@ fn storefront_catalog_enrichment_hydrates_taxonomy_and_isolates_extended_context
             "language": "EN",
             "preferredLocationId": null,
             "buyer": {
-                "customerAccessToken": "invalid-token",
+                "customerAccessToken": "invalid-authoritative-token",
                 "companyLocationId": "gid://shopify/CompanyLocation/1"
             }
         }),
@@ -1240,7 +1310,7 @@ fn storefront_catalog_enrichment_hydrates_taxonomy_and_isolates_extended_context
     );
 
     let observed = observed.lock().unwrap();
-    assert_eq!(observed.len(), 3);
+    assert_eq!(observed.len(), 8);
     assert!(observed[0]["query"]
         .as_str()
         .unwrap()
@@ -1248,6 +1318,525 @@ fn storefront_catalog_enrichment_hydrates_taxonomy_and_isolates_extended_context
     assert_eq!(observed[1]["variables"]["preferredLocationId"], Value::Null);
     assert_eq!(observed[2]["variables"]["country"], json!("DK"));
     assert_eq!(observed[2]["variables"]["preferredLocationId"], Value::Null);
+    assert_eq!(
+        observed[3]["variables"]["preferredLocationId"],
+        json!(authoritative_location_id)
+    );
+    assert_eq!(observed[4]["variables"]["preferredLocationId"], Value::Null);
+    assert_eq!(
+        observed[5]["variables"]["buyer"],
+        json!({
+            "customerAccessToken": buyer_one_token,
+            "companyLocationId": "gid://shopify/CompanyLocation/1"
+        })
+    );
+    assert_eq!(
+        observed[6]["variables"]["buyer"],
+        json!({
+            "customerAccessToken": buyer_two_token,
+            "companyLocationId": "gid://shopify/CompanyLocation/2"
+        })
+    );
+    assert_eq!(
+        observed[7]["variables"]["buyer"]["customerAccessToken"],
+        json!("invalid-authoritative-token")
+    );
+    drop(observed);
+
+    let state = state_snapshot(&proxy).to_string();
+    let log = log_snapshot(&proxy).to_string();
+    for token in [
+        buyer_one_token,
+        buyer_two_token,
+        "invalid-authoritative-token",
+    ] {
+        assert!(!state.contains(token));
+        assert!(!log.contains(token));
+    }
+}
+
+#[test]
+fn storefront_in_context_uses_location_inventory_and_authorized_company_catalog() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("snapshot Storefront context must stay local"));
+
+    let create_product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ContextProductCreate($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              handle
+              variants(first: 1) { nodes { id inventoryItem { id } } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Contextual B2B Product",
+                "handle": "contextual-b2b-product",
+                "status": "ACTIVE",
+                "productOptions": [{ "name": "Title", "values": [{ "name": "Default" }] }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create_product.body["data"]["productCreate"]["userErrors"],
+        json!([]),
+        "{}",
+        create_product.body
+    );
+    let product = &create_product.body["data"]["productCreate"]["product"];
+    let product_id = product["id"].as_str().expect("product id").to_string();
+    let variant_id = product["variants"]["nodes"][0]["id"]
+        .as_str()
+        .expect("variant id")
+        .to_string();
+    let inventory_item_id = product["variants"]["nodes"][0]["inventoryItem"]["id"]
+        .as_str()
+        .expect("inventory item id")
+        .to_string();
+
+    let update_variant = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ContextVariantUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants { id price inventoryPolicy inventoryItem { id tracked } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [{
+                "id": variant_id,
+                "price": "12.50",
+                "inventoryPolicy": "DENY",
+                "inventoryItem": { "tracked": true }
+            }]
+        }),
+    ));
+    assert_eq!(
+        update_variant.body["data"]["productVariantsBulkUpdate"]["userErrors"],
+        json!([]),
+        "{}",
+        update_variant.body
+    );
+
+    let publication = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ContextPublicationCreate($input: PublicationCreateInput!) {
+          publicationCreate(input: $input) {
+            publication { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {} }),
+    ));
+    assert_eq!(
+        publication.body["data"]["publicationCreate"]["userErrors"],
+        json!([])
+    );
+    let publication_id = publication.body["data"]["publicationCreate"]["publication"]["id"]
+        .as_str()
+        .expect("publication id")
+        .to_string();
+    let publish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ContextPublicationUpdate($id: ID!, $input: PublicationUpdateInput!) {
+          publicationUpdate(id: $id, input: $input) {
+            publication { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": publication_id,
+            "input": { "publishablesToAdd": [product_id] }
+        }),
+    ));
+    assert_eq!(
+        publish.body["data"]["publicationUpdate"]["userErrors"],
+        json!([]),
+        "{}",
+        publish.body
+    );
+
+    let stocked_location_id = add_storefront_inventory_location(&mut proxy);
+    let empty_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ContextEmptyLocationAdd($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Empty Storefront inventory",
+                "address": { "countryCode": "US" }
+            }
+        }),
+    ));
+    assert_eq!(
+        empty_location.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    let empty_location_id = empty_location.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .expect("empty location id")
+        .to_string();
+    let inventory = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ContextInventorySet($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "quantities": [
+                    {
+                        "inventoryItemId": inventory_item_id,
+                        "locationId": stocked_location_id,
+                        "quantity": 9,
+                        "changeFromQuantity": null
+                    },
+                    {
+                        "inventoryItemId": inventory_item_id,
+                        "locationId": empty_location_id,
+                        "quantity": 0,
+                        "changeFromQuantity": null
+                    }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        inventory.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([]),
+        "{}",
+        inventory.body
+    );
+
+    let (customer_id, buyer_token) = create_storefront_customer_token(
+        &mut proxy,
+        "context-buyer@example.test",
+        "Context",
+        "Buyer",
+    );
+    let company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ContextCompanyCreate($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company {
+              id
+              contactRoles(first: 1) { nodes { id } }
+              locations(first: 1) { nodes { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "company": { "name": "Context Buyer Company" } } }),
+    ));
+    assert_eq!(
+        company.body["data"]["companyCreate"]["userErrors"],
+        json!([]),
+        "{}",
+        company.body
+    );
+    let company_id = company.body["data"]["companyCreate"]["company"]["id"]
+        .as_str()
+        .expect("company id")
+        .to_string();
+    let role_id = company.body["data"]["companyCreate"]["company"]["contactRoles"]["nodes"][0]
+        ["id"]
+        .as_str()
+        .expect("company contact role id")
+        .to_string();
+    let authorized_company_location_id = company.body["data"]["companyCreate"]["company"]
+        ["locations"]["nodes"][0]["id"]
+        .as_str()
+        .expect("company location id")
+        .to_string();
+    let restricted_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ContextCompanyLocationCreate($companyId: ID!) {
+          companyLocationCreate(companyId: $companyId, input: { name: "Restricted location" }) {
+            companyLocation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id }),
+    ));
+    assert_eq!(
+        restricted_location.body["data"]["companyLocationCreate"]["userErrors"],
+        json!([])
+    );
+    let restricted_company_location_id = restricted_location.body["data"]["companyLocationCreate"]
+        ["companyLocation"]["id"]
+        .as_str()
+        .expect("restricted company location id")
+        .to_string();
+    let assign_customer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ContextCompanyAssignCustomer($companyId: ID!, $customerId: ID!) {
+          companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {
+            companyContact { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id, "customerId": customer_id }),
+    ));
+    assert_eq!(
+        assign_customer.body["data"]["companyAssignCustomerAsContact"]["userErrors"],
+        json!([]),
+        "{}",
+        assign_customer.body
+    );
+    let contact_id = assign_customer.body["data"]["companyAssignCustomerAsContact"]
+        ["companyContact"]["id"]
+        .as_str()
+        .expect("company contact id")
+        .to_string();
+    let assign_role = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ContextCompanyAssignRole(
+          $companyContactId: ID!
+          $companyContactRoleId: ID!
+          $companyLocationId: ID!
+        ) {
+          companyContactAssignRole(
+            companyContactId: $companyContactId
+            companyContactRoleId: $companyContactRoleId
+            companyLocationId: $companyLocationId
+          ) {
+            companyContactRoleAssignment { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyContactId": contact_id,
+            "companyContactRoleId": role_id,
+            "companyLocationId": authorized_company_location_id
+        }),
+    ));
+    assert_eq!(
+        assign_role.body["data"]["companyContactAssignRole"]["userErrors"],
+        json!([]),
+        "{}",
+        assign_role.body
+    );
+
+    let stage_company_catalog = |proxy: &mut DraftProxy, company_location_id: &str, price: &str| {
+        let price_list = proxy.process_request(json_graphql_request(
+            r#"
+                mutation ContextPriceListCreate($input: PriceListCreateInput!) {
+                  priceListCreate(input: $input) {
+                    priceList { id }
+                    userErrors { field message code }
+                  }
+                }
+                "#,
+            json!({
+                "input": {
+                    "name": format!("{} context price list", price),
+                    "currency": "USD",
+                    "parent": {
+                        "adjustment": { "type": "PERCENTAGE_DECREASE", "value": 0 }
+                    }
+                }
+            }),
+        ));
+        assert_eq!(
+            price_list.body["data"]["priceListCreate"]["userErrors"],
+            json!([]),
+            "{}",
+            price_list.body
+        );
+        let price_list_id = price_list.body["data"]["priceListCreate"]["priceList"]["id"]
+            .as_str()
+            .expect("price list id")
+            .to_string();
+        let catalog = proxy.process_request(json_graphql_request(
+            r#"
+                mutation ContextCatalogCreate($input: CatalogCreateInput!) {
+                  catalogCreate(input: $input) {
+                    catalog { id }
+                    userErrors { field message code }
+                  }
+                }
+                "#,
+            json!({
+                "input": {
+                    "title": format!("{} context catalog", price),
+                    "status": "ACTIVE",
+                    "context": { "companyLocationIds": [company_location_id] },
+                    "priceListId": price_list_id
+                }
+            }),
+        ));
+        assert_eq!(
+            catalog.body["data"]["catalogCreate"]["userErrors"],
+            json!([]),
+            "{}",
+            catalog.body
+        );
+        let pricing = proxy.process_request(json_graphql_request(
+            r#"
+                mutation ContextQuantityPricing(
+                  $priceListId: ID!
+                  $input: QuantityPricingByVariantUpdateInput!
+                ) {
+                  quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+                    productVariants { id }
+                    userErrors { field message code }
+                  }
+                }
+                "#,
+            json!({
+                "priceListId": price_list_id,
+                "input": {
+                    "pricesToAdd": [{
+                        "variantId": variant_id,
+                        "price": { "amount": price, "currencyCode": "USD" }
+                    }],
+                    "pricesToDeleteByVariantId": [],
+                    "quantityRulesToAdd": [{
+                        "variantId": variant_id,
+                        "minimum": 4,
+                        "maximum": 20,
+                        "increment": 2
+                    }],
+                    "quantityRulesToDeleteByVariantId": [],
+                    "quantityPriceBreaksToAdd": [{
+                        "variantId": variant_id,
+                        "minimumQuantity": 8,
+                        "price": { "amount": "7.00", "currencyCode": "USD" }
+                    }],
+                    "quantityPriceBreaksToDelete": [],
+                    "quantityPriceBreaksToDeleteByVariantId": []
+                }
+            }),
+        ));
+        assert_eq!(
+            pricing.body["data"]["quantityPricingByVariantUpdate"]["userErrors"],
+            json!([]),
+            "{}",
+            pricing.body
+        );
+    };
+    stage_company_catalog(&mut proxy, &authorized_company_location_id, "8.00");
+    stage_company_catalog(&mut proxy, &restricted_company_location_id, "3.00");
+
+    let query = r#"
+        query ContextualStorefrontProduct(
+          $handle: String!
+          $preferredLocationId: ID
+          $buyer: BuyerInput
+        ) @inContext(preferredLocationId: $preferredLocationId, buyer: $buyer) {
+          productByHandle(handle: $handle) {
+            availableForSale
+            totalInventory
+            variants(first: 1) {
+              nodes {
+                availableForSale
+                currentlyNotInStock
+                quantityAvailable
+                price { amount currencyCode }
+                quantityRule { minimum maximum increment }
+                quantityPriceBreaks(first: 10) {
+                  nodes { minimumQuantity price { amount currencyCode } }
+                }
+              }
+            }
+          }
+        }
+    "#;
+    let authorized = proxy.process_request(storefront_graphql_request(
+        query,
+        json!({
+            "handle": "contextual-b2b-product",
+            "preferredLocationId": stocked_location_id,
+            "buyer": {
+                "customerAccessToken": buyer_token,
+                "companyLocationId": authorized_company_location_id
+            }
+        }),
+    ));
+    assert_eq!(authorized.status, 200, "{}", authorized.body);
+    assert_eq!(
+        authorized.body["data"]["productByHandle"],
+        json!({
+            "availableForSale": true,
+            "totalInventory": 9,
+            "variants": {
+                "nodes": [{
+                    "availableForSale": true,
+                    "currentlyNotInStock": false,
+                    "quantityAvailable": 9,
+                    "price": { "amount": "8.0", "currencyCode": "USD" },
+                    "quantityRule": { "minimum": 4, "maximum": 20, "increment": 2 },
+                    "quantityPriceBreaks": {
+                        "nodes": [{
+                            "minimumQuantity": 8,
+                            "price": { "amount": "7.0", "currencyCode": "USD" }
+                        }]
+                    }
+                }]
+            }
+        }),
+        "{}",
+        authorized.body
+    );
+
+    let restricted = proxy.process_request(storefront_graphql_request(
+        query,
+        json!({
+            "handle": "contextual-b2b-product",
+            "preferredLocationId": empty_location_id,
+            "buyer": {
+                "customerAccessToken": buyer_token,
+                "companyLocationId": restricted_company_location_id
+            }
+        }),
+    ));
+    assert_eq!(restricted.status, 200, "{}", restricted.body);
+    assert_eq!(
+        restricted.body["data"]["productByHandle"],
+        json!({
+            "availableForSale": false,
+            "totalInventory": 0,
+            "variants": {
+                "nodes": [{
+                    "availableForSale": false,
+                    "currentlyNotInStock": false,
+                    "quantityAvailable": 0,
+                    "price": { "amount": "12.5", "currencyCode": "USD" },
+                    "quantityRule": { "minimum": 1, "maximum": null, "increment": 1 },
+                    "quantityPriceBreaks": { "nodes": [] }
+                }]
+            }
+        }),
+        "{}",
+        restricted.body
+    );
+
+    let state = state_snapshot(&proxy).to_string();
+    let log = log_snapshot(&proxy).to_string();
+    assert!(!state.contains(&buyer_token));
+    assert!(!log.contains(&buyer_token));
 }
 
 #[test]

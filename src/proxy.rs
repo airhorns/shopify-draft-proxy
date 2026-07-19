@@ -2499,6 +2499,12 @@ struct ExecutionSession {
     upstream_query_selections: BTreeMap<String, Vec<SelectedField>>,
     localization_context_preflighted: bool,
     markets_query_preflighted: bool,
+    /// Successful `@inContext` hydration data for the active Storefront request.
+    /// This deliberately lives on the execution session rather than in `BaseState`:
+    /// buyer-token and company-location responses can be access-specific and must
+    /// never leak into a later request or a dump/log payload.
+    storefront_context_hydration_data: Option<Value>,
+    storefront_authoritative_buyer_validated: bool,
     node_hydration: Option<RequestNodeHydration>,
     owner_metafield_read_ids: BTreeSet<String>,
     owner_metafield_missing_ids: BTreeSet<String>,

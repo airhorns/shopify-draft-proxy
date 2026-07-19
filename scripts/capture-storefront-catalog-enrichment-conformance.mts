@@ -81,12 +81,30 @@ const storefrontRedactedHeaders = Object.fromEntries(
     '<redacted:storefront-access-token>',
   ]),
 );
+const sensitiveRedaction = '<redacted:storefront-buyer-context>';
+
+function redactSensitive(value: unknown, key?: string): unknown {
+  if (
+    typeof value === 'string' &&
+    key !== undefined &&
+    ['accessToken', 'customerAccessToken', 'deletedAccessToken', 'password', 'token'].includes(key)
+  ) {
+    return sensitiveRedaction;
+  }
+  if (Array.isArray(value)) return value.map((entry) => redactSensitive(entry));
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([childKey, child]) => [childKey, redactSensitive(child, childKey)]),
+    );
+  }
+  return value;
+}
 
 const documents = {
   productCreate: 'config/parity-requests/storefront/storefront-enrichment-product-create-admin.graphql',
   variantUpdate: 'config/parity-requests/storefront/storefront-catalog-variant-update-admin.graphql',
   locationAdd: 'config/parity-requests/storefront/storefront-catalog-location-add-admin.graphql',
-  inventorySet: 'config/parity-requests/storefront/storefront-catalog-inventory-set-admin.graphql',
+  inventoryActivate: 'config/parity-requests/products/inventory-item-levels-activate.graphql',
   publicationHydrate: 'config/parity-requests/storefront/storefront-catalog-publications-hydrate-admin.graphql',
   publish: 'config/parity-requests/storefront/storefront-catalog-publish-admin.graphql',
   productDelete: 'config/parity-requests/storefront/storefront-catalog-product-delete-admin.graphql',
@@ -101,6 +119,13 @@ const documents = {
   merchandisingRead: 'config/parity-requests/storefront/storefront-enrichment-merchandising-read.graphql',
   contextHydrate: 'config/parity-requests/storefront/storefront-enrichment-context-hydrate.graphql',
   contextRead: 'config/parity-requests/storefront/storefront-enrichment-context-read.graphql',
+  customerCreate: 'config/parity-requests/storefront/storefront-customer-auth-create.graphql',
+  customerTokenCreate: 'config/parity-requests/storefront/storefront-customer-auth-token-create.graphql',
+  customerDelete: 'config/parity-requests/storefront/storefront-customer-auth-admin-delete.graphql',
+  companyCreate: 'config/parity-requests/b2b/b2b-contact-business-rules-company-create.graphql',
+  companyAssignCustomer: 'config/parity-requests/b2b/assign-customer-as-contact-error-branch-assign.graphql',
+  companyAssignRole: 'config/parity-requests/b2b/b2b-contact-business-rules-assign-role.graphql',
+  companyDelete: 'config/parity-requests/b2b/company-delete-check-company-delete.graphql',
 } as const;
 
 const documentText = Object.fromEntries(
@@ -205,6 +230,32 @@ async function captureStorefront(
   };
 }
 
+async function captureSensitiveStorefront(
+  name: string,
+  operationName: string,
+  query: string,
+  variables: JsonRecord,
+): Promise<{ capture: GraphqlUpstreamCapture; rawBody: unknown }> {
+  const result = await runStorefrontGraphqlRequest(storefrontOptions, query, variables);
+  return {
+    capture: {
+      name,
+      method: 'POST',
+      apiSurface: 'storefront',
+      apiVersion,
+      path: storefrontPath,
+      endpoint: storefrontEndpoint,
+      authMode: 'storefront-access-token',
+      headers: storefrontRedactedHeaders,
+      operationName,
+      query,
+      variables: redactSensitive(variables) as JsonRecord,
+      response: { status: result.status, body: redactSensitive(result.payload) },
+    },
+    rawBody: result.payload,
+  };
+}
+
 async function bestEffortAdminCleanup(name: string, query: string, variables: JsonRecord): Promise<Capture> {
   return captureAdmin(name, query, variables);
 }
@@ -282,6 +333,61 @@ async function waitForContext(
   }
   throw new Error(
     `${name} did not converge on ${expectedCurrency}: ${JSON.stringify(lastCapture?.response.body, null, 2)}`,
+  );
+}
+
+function buyerContextReady(body: unknown, expectedPrice: string, expectedQuantity: number): boolean {
+  return (
+    readPath(body, ['data', 'product', 'variants', 'nodes', '0', 'price', 'amount']) === expectedPrice &&
+    readPath(body, ['data', 'product', 'variants', 'nodes', '0', 'quantityAvailable']) === expectedQuantity &&
+    readPath(body, ['data', 'product', 'variants', 'nodes', '0', 'quantityRule', 'minimum']) === 4 &&
+    readPath(body, [
+      'data',
+      'product',
+      'variants',
+      'nodes',
+      '0',
+      'quantityPriceBreaks',
+      'nodes',
+      '0',
+      'minimumQuantity',
+    ]) === 8
+  );
+}
+
+async function waitForBuyerContext(
+  variables: JsonRecord,
+  expectedPrice: string,
+  expectedQuantity: number,
+): Promise<GraphqlUpstreamCapture> {
+  let lastCapture: GraphqlUpstreamCapture | null = null;
+  let lastRawBody: unknown;
+  for (let attempt = 1; attempt <= 60; attempt += 1) {
+    const result = await captureSensitiveStorefront(
+      'storefront-enrichment-authorized-buyer-context-read',
+      'StorefrontEnrichmentContext',
+      documentText.contextRead,
+      variables,
+    );
+    lastCapture = result.capture;
+    lastRawBody = result.rawBody;
+    const errors = readPath(lastRawBody, ['errors']);
+    if (!Array.isArray(errors) || errors.length === 0) {
+      if (buyerContextReady(lastRawBody, expectedPrice, expectedQuantity)) return lastCapture;
+    } else if (
+      errors.some(
+        (error) =>
+          typeof error !== 'object' ||
+          error === null ||
+          readPath(error, ['message']) !== 'The token provided is not valid',
+      )
+    ) {
+      assertNoTopLevelErrors(lastRawBody, `authorized buyer context attempt ${attempt}`);
+    }
+    await delay(2000);
+  }
+  throw new Error(
+    `authorized buyer context did not converge: ${JSON.stringify(redactSensitive(lastRawBody), null, 2)}`,
   );
 }
 
@@ -375,10 +481,15 @@ let primaryProductId: string | null = null;
 let primaryVariantId: string | null = null;
 let primaryInventoryItemId: string | null = null;
 let locationId: string | null = null;
+let emptyLocationId: string | null = null;
 let sellingPlanGroupId: string | null = null;
 let marketId: string | null = null;
 let priceListId: string | null = null;
 let catalogId: string | null = null;
+let buyerCustomerId: string | null = null;
+let buyerCompanyId: string | null = null;
+let buyerPriceListId: string | null = null;
+let buyerCatalogId: string | null = null;
 
 try {
   const taxonomyBaseline = await captureStorefront(
@@ -487,25 +598,57 @@ try {
   captures['locationAdd'] = locationAdd;
   locationId = requireString(locationAdd.response, ['data', 'locationAdd', 'location', 'id'], 'location id');
 
-  const inventorySet = await captureAdmin('admin-inventory-set', documentText.inventorySet, {
+  const emptyLocationAdd = await captureAdmin('admin-empty-location-add', documentText.locationAdd, {
     input: {
-      name: 'available',
-      reason: 'correction',
-      referenceDocumentUri: `logistics://storefront-enrichment/${suffix}`,
-      quantities: [
-        {
-          inventoryItemId: primaryInventoryItemId,
-          locationId,
-          quantity: 37,
-          changeFromQuantity: 0,
-        },
-      ],
+      name: `Storefront Enrichment Empty ${suffix}`,
+      fulfillsOnlineOrders: true,
+      address: { countryCode: 'DK', city: 'Copenhagen', address1: '2 Enrichment Way' },
     },
-    idempotencyKey: `storefront-enrichment-inventory-${suffix}`,
   });
-  assertNoTopLevelErrors(inventorySet.response, 'inventory set');
-  assertNoUserErrors(inventorySet.response, ['data', 'inventorySetQuantities', 'userErrors'], 'inventory set');
-  captures['inventorySet'] = inventorySet;
+  assertNoTopLevelErrors(emptyLocationAdd.response, 'empty location add');
+  assertNoUserErrors(emptyLocationAdd.response, ['data', 'locationAdd', 'userErrors'], 'empty location add');
+  captures['emptyLocationAdd'] = emptyLocationAdd;
+  emptyLocationId = requireString(
+    emptyLocationAdd.response,
+    ['data', 'locationAdd', 'location', 'id'],
+    'empty location id',
+  );
+
+  const stockedInventoryActivate = await captureAdmin(
+    'admin-stocked-location-inventory-activate',
+    documentText.inventoryActivate,
+    {
+      inventoryItemId: primaryInventoryItemId,
+      locationId,
+      available: 37,
+      idempotencyKey: `storefront-enrichment-inventory-stocked-${suffix}`,
+    },
+  );
+  assertNoTopLevelErrors(stockedInventoryActivate.response, 'stocked inventory activate');
+  assertNoUserErrors(
+    stockedInventoryActivate.response,
+    ['data', 'inventoryActivate', 'userErrors'],
+    'stocked inventory activate',
+  );
+  captures['stockedInventoryActivate'] = stockedInventoryActivate;
+
+  const emptyInventoryActivate = await captureAdmin(
+    'admin-empty-location-inventory-activate',
+    documentText.inventoryActivate,
+    {
+      inventoryItemId: primaryInventoryItemId,
+      locationId: emptyLocationId,
+      available: 0,
+      idempotencyKey: `storefront-enrichment-inventory-empty-${suffix}`,
+    },
+  );
+  assertNoTopLevelErrors(emptyInventoryActivate.response, 'empty inventory activate');
+  assertNoUserErrors(
+    emptyInventoryActivate.response,
+    ['data', 'inventoryActivate', 'userErrors'],
+    'empty inventory activate',
+  );
+  captures['emptyInventoryActivate'] = emptyInventoryActivate;
 
   const publicationHydrate = await captureAdminUpstream(
     'admin-storefront-publications-hydrate',
@@ -754,6 +897,185 @@ try {
   );
   captures['quantityPricing'] = quantityPricing;
 
+  const buyerEmail = `storefront-enrichment-buyer-${suffix}@example.com`;
+  const buyerPassword = 'CodexPass123!';
+  const buyerCustomerCreate = await captureSensitiveStorefront(
+    'storefront-enrichment-buyer-customer-create',
+    'StorefrontCustomerAuthCreate',
+    documentText.customerCreate,
+    {
+      input: {
+        email: buyerEmail,
+        password: buyerPassword,
+        firstName: 'Storefront',
+        lastName: 'Enrichment Buyer',
+      },
+    },
+  );
+  assertNoTopLevelErrors(buyerCustomerCreate.rawBody, 'buyer customer create');
+  assertNoUserErrors(
+    buyerCustomerCreate.rawBody,
+    ['data', 'customerCreate', 'customerUserErrors'],
+    'buyer customer create',
+  );
+  captures['buyerCustomerCreate'] = buyerCustomerCreate.capture;
+  buyerCustomerId = requireString(
+    buyerCustomerCreate.rawBody,
+    ['data', 'customerCreate', 'customer', 'id'],
+    'buyer customer id',
+  );
+
+  const buyerCompanyCreate = await captureAdmin('admin-buyer-company-create', documentText.companyCreate, {
+    input: {
+      company: { name: `Storefront Enrichment Buyer ${suffix}` },
+      companyLocation: {
+        name: `Storefront Enrichment Buyer HQ ${suffix}`,
+        billingAddress: {
+          address1: '3 Enrichment Way',
+          city: 'Toronto',
+          countryCode: 'CA',
+        },
+      },
+    },
+  });
+  assertNoTopLevelErrors(buyerCompanyCreate.response, 'buyer company create');
+  assertNoUserErrors(buyerCompanyCreate.response, ['data', 'companyCreate', 'userErrors'], 'buyer company create');
+  captures['buyerCompanyCreate'] = buyerCompanyCreate;
+  buyerCompanyId = requireString(
+    buyerCompanyCreate.response,
+    ['data', 'companyCreate', 'company', 'id'],
+    'buyer company id',
+  );
+  const buyerCompanyLocationId = requireString(
+    buyerCompanyCreate.response,
+    ['data', 'companyCreate', 'company', 'locations', 'nodes', '0', 'id'],
+    'buyer company location id',
+  );
+  const buyerCompanyRoleId = requireString(
+    buyerCompanyCreate.response,
+    ['data', 'companyCreate', 'company', 'contactRoles', 'nodes', '0', 'id'],
+    'buyer company role id',
+  );
+
+  const buyerCompanyAssignCustomer = await captureAdmin(
+    'admin-buyer-company-assign-customer',
+    documentText.companyAssignCustomer,
+    { companyId: buyerCompanyId, customerId: buyerCustomerId },
+  );
+  assertNoTopLevelErrors(buyerCompanyAssignCustomer.response, 'buyer company assign customer');
+  assertNoUserErrors(
+    buyerCompanyAssignCustomer.response,
+    ['data', 'companyAssignCustomerAsContact', 'userErrors'],
+    'buyer company assign customer',
+  );
+  captures['buyerCompanyAssignCustomer'] = buyerCompanyAssignCustomer;
+  const buyerCompanyContactId = requireString(
+    buyerCompanyAssignCustomer.response,
+    ['data', 'companyAssignCustomerAsContact', 'companyContact', 'id'],
+    'buyer company contact id',
+  );
+
+  const buyerCompanyAssignRole = await captureAdmin('admin-buyer-company-assign-role', documentText.companyAssignRole, {
+    companyContactId: buyerCompanyContactId,
+    companyContactRoleId: buyerCompanyRoleId,
+    companyLocationId: buyerCompanyLocationId,
+  });
+  assertNoTopLevelErrors(buyerCompanyAssignRole.response, 'buyer company assign role');
+  assertNoUserErrors(
+    buyerCompanyAssignRole.response,
+    ['data', 'companyContactAssignRole', 'userErrors'],
+    'buyer company assign role',
+  );
+  captures['buyerCompanyAssignRole'] = buyerCompanyAssignRole;
+
+  const buyerTokenCreate = await captureSensitiveStorefront(
+    'storefront-enrichment-buyer-token-create',
+    'StorefrontCustomerAuthTokenCreate',
+    documentText.customerTokenCreate,
+    { input: { email: buyerEmail, password: buyerPassword } },
+  );
+  assertNoTopLevelErrors(buyerTokenCreate.rawBody, 'buyer token create');
+  assertNoUserErrors(
+    buyerTokenCreate.rawBody,
+    ['data', 'customerAccessTokenCreate', 'customerUserErrors'],
+    'buyer token create',
+  );
+  captures['buyerTokenCreate'] = buyerTokenCreate.capture;
+  const buyerCustomerAccessToken = requireString(
+    buyerTokenCreate.rawBody,
+    ['data', 'customerAccessTokenCreate', 'customerAccessToken', 'accessToken'],
+    'buyer customer access token',
+  );
+
+  const buyerPriceListCreate = await captureAdmin('admin-buyer-price-list-create', documentText.priceListCreate, {
+    input: {
+      name: `Storefront Enrichment Buyer CAD ${suffix}`,
+      currency: 'CAD',
+      parent: { adjustment: { type: 'PERCENTAGE_DECREASE', value: 0 } },
+    },
+  });
+  assertNoTopLevelErrors(buyerPriceListCreate.response, 'buyer price list create');
+  assertNoUserErrors(
+    buyerPriceListCreate.response,
+    ['data', 'priceListCreate', 'userErrors'],
+    'buyer price list create',
+  );
+  captures['buyerPriceListCreate'] = buyerPriceListCreate;
+  buyerPriceListId = requireString(
+    buyerPriceListCreate.response,
+    ['data', 'priceListCreate', 'priceList', 'id'],
+    'buyer price list id',
+  );
+
+  const buyerCatalogCreate = await captureAdmin('admin-buyer-catalog-create', documentText.catalogCreate, {
+    input: {
+      title: `Storefront Enrichment Buyer Catalog ${suffix}`,
+      status: 'ACTIVE',
+      context: { companyLocationIds: [buyerCompanyLocationId] },
+      priceListId: buyerPriceListId,
+    },
+  });
+  assertNoTopLevelErrors(buyerCatalogCreate.response, 'buyer catalog create');
+  assertNoUserErrors(buyerCatalogCreate.response, ['data', 'catalogCreate', 'userErrors'], 'buyer catalog create');
+  captures['buyerCatalogCreate'] = buyerCatalogCreate;
+  buyerCatalogId = requireString(
+    buyerCatalogCreate.response,
+    ['data', 'catalogCreate', 'catalog', 'id'],
+    'buyer catalog id',
+  );
+
+  const buyerQuantityPricing = await captureAdmin('admin-buyer-quantity-pricing', documentText.quantityPricing, {
+    priceListId: buyerPriceListId,
+    input: {
+      pricesToAdd: [
+        {
+          variantId: primaryVariantId,
+          price: { amount: '89.00', currencyCode: 'CAD' },
+          compareAtPrice: { amount: '99.00', currencyCode: 'CAD' },
+        },
+      ],
+      pricesToDeleteByVariantId: [],
+      quantityRulesToAdd: [{ variantId: primaryVariantId, minimum: 4, maximum: 20, increment: 2 }],
+      quantityRulesToDeleteByVariantId: [],
+      quantityPriceBreaksToAdd: [
+        {
+          variantId: primaryVariantId,
+          minimumQuantity: 8,
+          price: { amount: '79.00', currencyCode: 'CAD' },
+        },
+      ],
+      quantityPriceBreaksToDelete: [],
+      quantityPriceBreaksToDeleteByVariantId: [],
+    },
+  });
+  assertNoTopLevelErrors(buyerQuantityPricing.response, 'buyer quantity pricing');
+  assertNoUserErrors(
+    buyerQuantityPricing.response,
+    ['data', 'quantityPricingByVariantUpdate', 'userErrors'],
+    'buyer quantity pricing',
+  );
+  captures['buyerQuantityPricing'] = buyerQuantityPricing;
+
   const taxonomyHydrate = await captureStorefront(
     'storefront-enrichment-taxonomy-hydrate',
     'StorefrontEnrichmentTaxonomyHydrate',
@@ -869,6 +1191,45 @@ try {
     marketCurrency,
   );
 
+  const emptyPreferredContextVariables = {
+    id: primaryProductId,
+    country: marketCountry,
+    language: defaultLanguage,
+    preferredLocationId: emptyLocationId,
+    buyer: null,
+  };
+  const emptyPreferredContextHydrate = await captureStorefront(
+    'storefront-enrichment-empty-preferred-location-context-hydrate',
+    'StorefrontEnrichmentContextHydrate',
+    documentText.contextHydrate,
+    {
+      country: marketCountry,
+      language: defaultLanguage,
+      preferredLocationId: emptyLocationId,
+      buyer: null,
+    },
+  );
+  assertNoTopLevelErrors(emptyPreferredContextHydrate.response.body, 'empty preferred location context hydrate');
+  upstreamCalls.push(emptyPreferredContextHydrate);
+  captures['emptyPreferredContextHydrate'] = emptyPreferredContextHydrate;
+  captures['emptyPreferredContextRead'] = await waitForContext(
+    'storefront-enrichment-empty-preferred-location-context-read',
+    emptyPreferredContextVariables,
+    marketCurrency,
+  );
+
+  const authorizedBuyerContextVariables = {
+    id: primaryProductId,
+    country: null,
+    language: null,
+    preferredLocationId: locationId,
+    buyer: {
+      customerAccessToken: buyerCustomerAccessToken,
+      companyLocationId: buyerCompanyLocationId,
+    },
+  };
+  captures['authorizedBuyerContextRead'] = await waitForBuyerContext(authorizedBuyerContextVariables, '89.0', 37);
+
   const invalidBuyerVariables = {
     id: primaryProductId,
     country: marketCountry,
@@ -879,14 +1240,46 @@ try {
       companyLocationId: 'gid://shopify/CompanyLocation/0',
     },
   };
-  const invalidBuyerRead = await captureStorefront(
-    'storefront-enrichment-invalid-buyer-context-read',
-    'StorefrontEnrichmentContext',
-    documentText.contextRead,
-    invalidBuyerVariables,
+  const invalidBuyerHydrate = await captureStorefront(
+    'storefront-enrichment-invalid-buyer-context-hydrate',
+    'StorefrontEnrichmentContextHydrate',
+    documentText.contextHydrate,
+    {
+      country: invalidBuyerVariables.country,
+      language: invalidBuyerVariables.language,
+      preferredLocationId: invalidBuyerVariables.preferredLocationId,
+      buyer: invalidBuyerVariables.buyer,
+    },
   );
-  captures['invalidBuyerRead'] = invalidBuyerRead;
+  const invalidBuyerErrors = readPath(invalidBuyerHydrate.response.body, ['errors']);
+  if (!Array.isArray(invalidBuyerErrors) || invalidBuyerErrors.length === 0) {
+    throw new Error(
+      `invalid buyer context hydrate did not return a top-level error: ${JSON.stringify(invalidBuyerHydrate.response.body, null, 2)}`,
+    );
+  }
+  upstreamCalls.push(invalidBuyerHydrate);
+  captures['invalidBuyerHydrate'] = invalidBuyerHydrate;
 } finally {
+  if (buyerCatalogId) {
+    cleanup.push(await bestEffortAdminCleanup('cleanup-buyer-catalog', catalogDeleteMutation, { id: buyerCatalogId }));
+  }
+  if (buyerPriceListId) {
+    cleanup.push(
+      await bestEffortAdminCleanup('cleanup-buyer-price-list', priceListDeleteMutation, { id: buyerPriceListId }),
+    );
+  }
+  if (buyerCompanyId) {
+    cleanup.push(
+      await bestEffortAdminCleanup('cleanup-buyer-company', documentText.companyDelete, { id: buyerCompanyId }),
+    );
+  }
+  if (buyerCustomerId) {
+    cleanup.push(
+      await bestEffortAdminCleanup('cleanup-buyer-customer', documentText.customerDelete, {
+        input: { id: buyerCustomerId },
+      }),
+    );
+  }
   if (sellingPlanGroupId) {
     cleanup.push(
       await bestEffortAdminCleanup('cleanup-selling-plan-group', sellingPlanDeleteMutation, {
@@ -917,16 +1310,20 @@ try {
   if (marketId) {
     cleanup.push(await bestEffortAdminCleanup('cleanup-market', marketDeleteMutation, { id: marketId }));
   }
-  if (locationId) {
+  for (const [name, cleanupLocationId] of [
+    ['stocked', locationId],
+    ['empty', emptyLocationId],
+  ] as const) {
+    if (!cleanupLocationId) continue;
     cleanup.push(
-      await bestEffortAdminCleanup('cleanup-location-deactivate', locationDeactivateMutation, {
-        locationId,
-        idempotencyKey: `storefront-enrichment-location-deactivate-${suffix}`,
+      await bestEffortAdminCleanup(`cleanup-${name}-location-deactivate`, locationDeactivateMutation, {
+        locationId: cleanupLocationId,
+        idempotencyKey: `storefront-enrichment-${name}-location-deactivate-${suffix}`,
       }),
     );
     cleanup.push(
-      await bestEffortAdminCleanup('cleanup-location-delete', locationDeleteMutation, {
-        locationId,
+      await bestEffortAdminCleanup(`cleanup-${name}-location-delete`, locationDeleteMutation, {
+        locationId: cleanupLocationId,
       }),
     );
   }

@@ -3886,6 +3886,47 @@ impl DraftProxy {
             .or_else(|| self.store.base.b2b_role_assignments.get(id).cloned())
     }
 
+    pub(in crate::proxy) fn b2b_customer_has_location_access(
+        &self,
+        customer_id: &str,
+        company_location_id: &str,
+    ) -> bool {
+        let contact_ids = self
+            .store
+            .base
+            .b2b_contacts
+            .ordered_values()
+            .into_iter()
+            .chain(self.store.staged.b2b_contacts.values())
+            .filter(|contact| {
+                contact.get("customerId").and_then(Value::as_str) == Some(customer_id)
+            })
+            .filter_map(|contact| {
+                contact
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .collect::<BTreeSet<_>>();
+        if contact_ids.is_empty() {
+            return false;
+        }
+        self.store
+            .base
+            .b2b_role_assignments
+            .ordered_values()
+            .into_iter()
+            .chain(self.store.staged.b2b_role_assignments.values())
+            .any(|assignment| {
+                assignment
+                    .get("companyContactId")
+                    .and_then(Value::as_str)
+                    .is_some_and(|id| contact_ids.contains(id))
+                    && assignment.get("companyLocationId").and_then(Value::as_str)
+                        == Some(company_location_id)
+            })
+    }
+
     fn b2b_effective_staff_assignment(&self, id: &str) -> Option<Value> {
         if self
             .store
