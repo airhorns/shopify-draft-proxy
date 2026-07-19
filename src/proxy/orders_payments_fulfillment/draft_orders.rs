@@ -1,7 +1,66 @@
 use super::*;
+use base64::Engine as _;
+use sha2::{Digest, Sha256};
 
 mod helpers;
 pub(in crate::proxy) use self::helpers::*;
+
+// Must byte-match the recorded `OrdersDraftOrderDeliveryProfilesHydrate`
+// upstream call in the draftOrderCalculate shipping-rate capture. This query
+// hydrates only delivery-profile configuration; it never invokes carrier
+// participants or sends the caller's supported mutation upstream.
+const DRAFT_ORDER_DELIVERY_PROFILES_HYDRATE_QUERY: &str = r#"query OrdersDraftOrderDeliveryProfilesHydrate {
+  deliveryProfiles(first: 10) {
+    nodes {
+      id
+      name
+      default
+      profileItems(first: 10) {
+        nodes {
+          variants(first: 10) { nodes { id } }
+        }
+      }
+      profileLocationGroups {
+        locationGroup {
+          id
+          locations(first: 10) { nodes { id } }
+        }
+        locationGroupZones(first: 10) {
+          nodes {
+            zone {
+              id
+              countries {
+                code { countryCode restOfWorld }
+                provinces { code }
+              }
+            }
+            methodDefinitions(first: 10) {
+              nodes {
+                id
+                name
+                active
+                rateProvider {
+                  ... on DeliveryRateDefinition { id price { amount currencyCode } }
+                  ... on DeliveryParticipant { id fixedFee { amount currencyCode } percentageOfRateFee }
+                }
+                methodConditions {
+                  id
+                  field
+                  operator
+                  conditionCriteria {
+                    __typename
+                    ... on MoneyV2 { amount currencyCode }
+                    ... on Weight { unit value }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}"#;
 
 fn merge_draft_order_string_field(
     draft_order: &mut Value,
@@ -76,6 +135,7 @@ pub(in crate::proxy) fn draft_order_base_record(
     input: &BTreeMap<String, ResolvedValue>,
     customer: Option<Value>,
     variant_hydrations: &BTreeMap<String, Value>,
+    configured_shipping_rate: Option<&Value>,
     shop_currency_code: &str,
 ) -> Value {
     let presentment_currency = draft_order_input_currency(input, shop_currency_code);
@@ -110,7 +170,8 @@ pub(in crate::proxy) fn draft_order_base_record(
     record["billingAddress"] = order_create_address(resolved_object_field(input, "billingAddress"));
     record["shippingAddress"] =
         order_create_address(resolved_object_field(input, "shippingAddress"));
-    record["shippingLine"] = draft_order_shipping_line(input, shop_currency_code);
+    record["shippingLine"] =
+        draft_order_shipping_line(input, shop_currency_code, configured_shipping_rate);
     record
 }
 
@@ -118,6 +179,8 @@ pub(in crate::proxy) fn draft_order_calculated_record(
     input: &BTreeMap<String, ResolvedValue>,
     variant_hydrations: &BTreeMap<String, Value>,
     shop_currency_code: &str,
+    available_shipping_rates: Vec<Value>,
+    configured_shipping_rate: Option<&Value>,
 ) -> Value {
     let currency = draft_order_input_currency(input, shop_currency_code);
     let line_items = resolved_object_list_field(input, "lineItems");
@@ -125,7 +188,8 @@ pub(in crate::proxy) fn draft_order_calculated_record(
         draft_order_line_items(&line_items, "calculated", &currency, variant_hydrations);
     let original_subtotal = sum_money_set(&line_item_nodes, "originalTotalSet");
     let line_discount_total = draft_order_line_discount_total(&line_item_nodes);
-    let shipping_line = draft_order_shipping_line(input, shop_currency_code);
+    let shipping_line =
+        draft_order_shipping_line(input, shop_currency_code, configured_shipping_rate);
     let shipping_total = money_set_amount(&shipping_line["originalPriceSet"]).unwrap_or(0.0);
     let applied_discount =
         draft_order_applied_discount(input, shop_currency_code, original_subtotal);
@@ -143,7 +207,7 @@ pub(in crate::proxy) fn draft_order_calculated_record(
         "totalShippingPriceSet": money_bag(shipping_total, &currency),
         "totalPriceSet": money_bag(total, &currency),
         "lineItems": line_item_nodes,
-        "availableShippingRates": []
+        "availableShippingRates": available_shipping_rates
     })
 }
 
@@ -330,13 +394,266 @@ pub(in crate::proxy) fn draft_order_clear_line_discounts(
     }
 }
 
+fn draft_order_shipping_address_context(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<(String, Option<String>)> {
+    let address = resolved_object_field(input, "shippingAddress")?;
+    for field in ["address1", "city", "zip"] {
+        if resolved_string_field(&address, field).is_none_or(|value| value.trim().is_empty()) {
+            return None;
+        }
+    }
+    let country_code = resolved_string_field(&address, "countryCode")
+        .or_else(|| resolved_string_field(&address, "countryCodeV2"))?
+        .trim()
+        .to_ascii_uppercase();
+    if country_code.is_empty() {
+        return None;
+    }
+    let province_code = resolved_string_field(&address, "provinceCode")
+        .map(|value| value.trim().to_ascii_uppercase())
+        .filter(|value| !value.is_empty());
+    Some((country_code, province_code))
+}
+
+fn draft_order_shippable_variant_ids(
+    input: &BTreeMap<String, ResolvedValue>,
+    variant_hydrations: &BTreeMap<String, Value>,
+) -> BTreeSet<String> {
+    resolved_object_list_field(input, "lineItems")
+        .into_iter()
+        .filter_map(|line_item| {
+            let variant_id = resolved_string_field(&line_item, "variantId")?;
+            let requires_shipping = variant_hydrations
+                .get(&variant_id)
+                .and_then(|variant| variant.pointer("/inventoryItem/requiresShipping"))
+                .and_then(Value::as_bool)
+                .unwrap_or(true);
+            requires_shipping.then_some(variant_id)
+        })
+        .collect()
+}
+
+fn draft_order_delivery_profile_contains_variants(
+    profile: &Value,
+    variant_ids: &BTreeSet<String>,
+) -> bool {
+    let profile_variant_ids = stored_delivery_profile_nodes(&profile["profileItems"])
+        .into_iter()
+        .flat_map(|item| stored_delivery_profile_nodes(&item["variants"]))
+        .filter_map(|variant| {
+            variant
+                .get("id")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .collect::<BTreeSet<_>>();
+    !variant_ids.is_empty() && variant_ids.is_subset(&profile_variant_ids)
+}
+
+fn draft_order_delivery_country_matches(
+    country: &Value,
+    country_code: &str,
+    province_code: Option<&str>,
+) -> bool {
+    if country
+        .pointer("/code/restOfWorld")
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        return true;
+    }
+    if country
+        .pointer("/code/countryCode")
+        .and_then(Value::as_str)
+        .is_none_or(|candidate| !candidate.eq_ignore_ascii_case(country_code))
+    {
+        return false;
+    }
+    let provinces = stored_delivery_profile_nodes(&country["provinces"]);
+    provinces.is_empty()
+        || province_code.is_some_and(|province_code| {
+            provinces.iter().any(|province| {
+                province
+                    .get("code")
+                    .and_then(Value::as_str)
+                    .is_some_and(|candidate| candidate.eq_ignore_ascii_case(province_code))
+            })
+        })
+}
+
+fn draft_order_delivery_conditions_match(
+    method: &Value,
+    subtotal: f64,
+    shop_currency_code: &str,
+) -> bool {
+    stored_delivery_profile_nodes(&method["methodConditions"])
+        .into_iter()
+        .all(|condition| {
+            if condition.get("field").and_then(Value::as_str) != Some("TOTAL_PRICE") {
+                return false;
+            }
+            let criteria_currency = condition
+                .pointer("/conditionCriteria/currencyCode")
+                .and_then(Value::as_str);
+            if criteria_currency.is_some_and(|currency| currency != shop_currency_code) {
+                return false;
+            }
+            let Some(criteria) = condition
+                .pointer("/conditionCriteria/amount")
+                .and_then(Value::as_str)
+                .and_then(|amount| amount.parse::<f64>().ok())
+            else {
+                return false;
+            };
+            match condition.get("operator").and_then(Value::as_str) {
+                Some("GREATER_THAN") => subtotal > criteria,
+                Some("GREATER_THAN_OR_EQUAL_TO") => subtotal >= criteria,
+                Some("LESS_THAN") => subtotal < criteria,
+                Some("LESS_THAN_OR_EQUAL_TO") => subtotal <= criteria,
+                Some("EQUAL_TO") => (subtotal - criteria).abs() < f64::EPSILON,
+                _ => false,
+            }
+        })
+}
+
+fn draft_order_shipping_rate_handle(
+    profile_id: &str,
+    method_id: &str,
+    title: &str,
+    amount: f64,
+    currency_code: &str,
+) -> String {
+    let amount = format_money_amount(amount);
+    let payload = json!({
+        "title": title,
+        "code": title,
+        "source": "shopify",
+        "price": amount,
+        "currency": currency_code,
+        "price_presentment": amount,
+        "currency_presentment": currency_code,
+        "estimated_delivery_time_range": Value::Null,
+        "group_id": Value::Null
+    });
+    let header = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(br#"{"alg":"HS256"}"#);
+    let payload = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload.to_string());
+    let signature = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(Sha256::digest(
+        format!("shopify-draft-proxy:{profile_id}:{method_id}:{payload}").as_bytes(),
+    ));
+    format!("{header}.{payload}.{signature}")
+}
+
+fn draft_order_shipping_rate_from_method(
+    profile_id: &str,
+    method: &Value,
+    subtotal: f64,
+    shop_currency_code: &str,
+) -> Option<Value> {
+    if method.get("active").and_then(Value::as_bool) == Some(false)
+        || !draft_order_delivery_conditions_match(method, subtotal, shop_currency_code)
+    {
+        return None;
+    }
+    let title = method.get("name").and_then(Value::as_str)?;
+    let amount = method
+        .pointer("/rateProvider/price/amount")
+        .and_then(Value::as_str)
+        .and_then(|amount| amount.parse::<f64>().ok())?;
+    let currency_code = method
+        .pointer("/rateProvider/price/currencyCode")
+        .and_then(Value::as_str)?;
+    if currency_code != shop_currency_code {
+        return None;
+    }
+    let method_id = method.get("id").and_then(Value::as_str).unwrap_or_default();
+    Some(json!({
+        "handle": draft_order_shipping_rate_handle(
+            profile_id,
+            method_id,
+            title,
+            amount,
+            currency_code,
+        ),
+        "title": title,
+        "price": {
+            "amount": format_money_amount(amount),
+            "currencyCode": currency_code
+        }
+    }))
+}
+
+fn draft_order_decoded_shipping_rate_handle(handle: &str) -> Option<Value> {
+    let mut segments = handle.split('.');
+    segments.next()?;
+    let payload = segments.next()?;
+    segments.next()?;
+    if segments.next().is_some() {
+        return None;
+    }
+    let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(payload)
+        .ok()?;
+    serde_json::from_slice(&decoded).ok()
+}
+
+fn draft_order_shipping_rate_matches_handle(rate: &Value, handle: &str) -> bool {
+    if rate.get("handle").and_then(Value::as_str) == Some(handle) {
+        return true;
+    }
+    let Some(payload) = draft_order_decoded_shipping_rate_handle(handle) else {
+        return false;
+    };
+    let amount_matches = payload
+        .get("price")
+        .and_then(Value::as_str)
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .zip(
+            rate.pointer("/price/amount")
+                .and_then(Value::as_str)
+                .and_then(|amount| amount.parse::<f64>().ok()),
+        )
+        .is_some_and(|(left, right)| (left - right).abs() < f64::EPSILON);
+    payload.get("title") == rate.get("title")
+        && payload.get("code") == rate.get("title")
+        && payload.get("source").and_then(Value::as_str) == Some("shopify")
+        && payload.get("currency").and_then(Value::as_str)
+            == rate.pointer("/price/currencyCode").and_then(Value::as_str)
+        && amount_matches
+}
+
 pub(in crate::proxy) fn draft_order_shipping_line(
     input: &BTreeMap<String, ResolvedValue>,
     shop_currency_code: &str,
+    configured_rate: Option<&Value>,
 ) -> Value {
     let Some(shipping_line) = resolved_object_field(input, "shippingLine") else {
         return Value::Null;
     };
+    if let Some(configured_rate) = configured_rate {
+        let amount = configured_rate
+            .pointer("/price/amount")
+            .and_then(Value::as_str)
+            .and_then(|amount| amount.parse::<f64>().ok())
+            .unwrap_or(0.0);
+        let currency = configured_rate
+            .pointer("/price/currencyCode")
+            .and_then(Value::as_str)
+            .unwrap_or(shop_currency_code);
+        let title = configured_rate
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        return json!({
+            "title": title,
+            "code": title,
+            "custom": false,
+            "source": "shopify",
+            "shippingRateHandle": resolved_string_field(&shipping_line, "shippingRateHandle"),
+            "originalPriceSet": money_bag(amount, currency),
+            "discountedPriceSet": money_bag(amount, currency)
+        });
+    }
     let price_input = resolved_object_field(&shipping_line, "priceWithCurrency")
         .or_else(|| resolved_object_field(&shipping_line, "priceSet"))
         .or_else(|| resolved_object_field(&shipping_line, "originalPriceSet"))
@@ -348,6 +665,8 @@ pub(in crate::proxy) fn draft_order_shipping_line(
         "title": resolved_string_field(&shipping_line, "title").unwrap_or_default(),
         "code": resolved_string_field(&shipping_line, "code").unwrap_or_else(|| "custom".to_string()),
         "custom": true,
+        "source": "custom",
+        "shippingRateHandle": resolved_string_field(&shipping_line, "shippingRateHandle"),
         "originalPriceSet": money_bag(amount, &currency),
         "discountedPriceSet": money_bag(amount, &currency)
     })
@@ -1539,6 +1858,126 @@ impl DraftProxy {
         Some(ResolverOutcome::value(value))
     }
 
+    fn hydrate_draft_order_delivery_profiles_if_missing(&mut self, request: &Request) {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || !self.store.base.delivery_profiles.order.is_empty()
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": DRAFT_ORDER_DELIVERY_PROFILES_HYDRATE_QUERY,
+                "operationName": "OrdersDraftOrderDeliveryProfilesHydrate",
+                "variables": {}
+            }),
+        );
+        if (200..300).contains(&response.status) {
+            self.observe_delivery_profiles_data(&response.body["data"]);
+        }
+    }
+
+    fn draft_order_configured_shipping_rates(
+        &self,
+        subtotal: f64,
+        shop_currency_code: &str,
+    ) -> Vec<Value> {
+        let mut rates = Vec::new();
+        for profile in self.effective_delivery_profiles() {
+            let profile_id = profile
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            for group in stored_delivery_profile_nodes(&profile["profileLocationGroups"]) {
+                for zone in stored_delivery_profile_nodes(&group["locationGroupZones"]) {
+                    for method in stored_delivery_profile_nodes(&zone["methodDefinitions"]) {
+                        if let Some(rate) = draft_order_shipping_rate_from_method(
+                            profile_id,
+                            &method,
+                            subtotal,
+                            shop_currency_code,
+                        ) {
+                            rates.push(rate);
+                        }
+                    }
+                }
+            }
+        }
+        rates
+    }
+
+    fn draft_order_available_shipping_rates(
+        &self,
+        input: &BTreeMap<String, ResolvedValue>,
+        variant_hydrations: &BTreeMap<String, Value>,
+        shop_currency_code: &str,
+    ) -> Vec<Value> {
+        let Some((country_code, province_code)) = draft_order_shipping_address_context(input)
+        else {
+            return Vec::new();
+        };
+        let variant_ids = draft_order_shippable_variant_ids(input, variant_hydrations);
+        if variant_ids.is_empty() {
+            return Vec::new();
+        }
+        let line_items = draft_order_line_items(
+            &resolved_object_list_field(input, "lineItems"),
+            "calculated-shipping-rates",
+            shop_currency_code,
+            variant_hydrations,
+        );
+        let subtotal = sum_money_set(&line_items, "originalTotalSet");
+        let mut rates = Vec::new();
+        for profile in self.effective_delivery_profiles() {
+            if !draft_order_delivery_profile_contains_variants(&profile, &variant_ids) {
+                continue;
+            }
+            let profile_id = profile
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            for group in stored_delivery_profile_nodes(&profile["profileLocationGroups"]) {
+                for zone in stored_delivery_profile_nodes(&group["locationGroupZones"]) {
+                    let country_matches = stored_delivery_profile_nodes(&zone["zone"]["countries"])
+                        .iter()
+                        .any(|country| {
+                            draft_order_delivery_country_matches(
+                                country,
+                                &country_code,
+                                province_code.as_deref(),
+                            )
+                        });
+                    if !country_matches {
+                        continue;
+                    }
+                    for method in stored_delivery_profile_nodes(&zone["methodDefinitions"]) {
+                        if let Some(rate) = draft_order_shipping_rate_from_method(
+                            profile_id,
+                            &method,
+                            subtotal,
+                            shop_currency_code,
+                        ) {
+                            rates.push(rate);
+                        }
+                    }
+                }
+            }
+        }
+        rates
+    }
+
+    fn draft_order_shipping_rate_for_handle(
+        &self,
+        handle: Option<&str>,
+        subtotal: f64,
+        shop_currency_code: &str,
+    ) -> Option<Value> {
+        let handle = handle?;
+        self.draft_order_configured_shipping_rates(subtotal, shop_currency_code)
+            .into_iter()
+            .find(|rate| draft_order_shipping_rate_matches_handle(rate, handle))
+    }
+
     pub(super) fn stage_draft_order_create(
         &mut self,
         request: &Request,
@@ -1563,12 +2002,35 @@ impl DraftProxy {
         // LiveHybrid proxy therefore needs the shop pricing slice before it can
         // build a valid draft-order money graph.
         self.hydrate_shop_pricing_state_if_missing(request, true, false);
+        let shop_currency_code = self.store.shop_currency_code();
+        let shipping_rate_handle = resolved_object_field(&input, "shippingLine")
+            .and_then(|shipping_line| resolved_string_field(&shipping_line, "shippingRateHandle"));
+        if shipping_rate_handle.is_some() {
+            self.hydrate_draft_order_delivery_profiles_if_missing(request);
+        }
+        let line_items = draft_order_line_items(
+            &resolved_object_list_field(&input, "lineItems"),
+            "draft-order-create-shipping-rate",
+            &shop_currency_code,
+            &variant_hydrations,
+        );
+        let shipping_rate = self.draft_order_shipping_rate_for_handle(
+            shipping_rate_handle.as_deref(),
+            sum_money_set(&line_items, "originalTotalSet"),
+            &shop_currency_code,
+        );
         let id = self.next_draft_order_id();
         let name = self.draft_order_name_for_id(&id);
         let customer = draft_order_customer_id(&input)
             .and_then(|customer_id| self.hydrate_draft_order_customer(request, &customer_id));
-        let mut draft_order =
-            self.build_draft_order_record(&id, &name, &input, customer, &variant_hydrations);
+        let mut draft_order = self.build_draft_order_record(
+            &id,
+            &name,
+            &input,
+            customer,
+            &variant_hydrations,
+            shipping_rate.as_ref(),
+        );
         let timestamp = self.next_product_timestamp();
         draft_order["createdAt"] = json!(timestamp.clone());
         draft_order["updatedAt"] = json!(timestamp);
@@ -1620,7 +2082,36 @@ impl DraftProxy {
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string();
-        let mut updated = self.merge_draft_order_input(existing, &input, &variant_hydrations);
+        let shipping_rate_handle = resolved_object_field(&input, "shippingLine")
+            .and_then(|shipping_line| resolved_string_field(&shipping_line, "shippingRateHandle"));
+        if shipping_rate_handle.is_some() {
+            self.hydrate_draft_order_delivery_profiles_if_missing(request);
+        }
+        let shop_currency_code = draft_order_currency(&existing, &self.store.shop_currency_code());
+        let line_items = if input.contains_key("lineItems") {
+            draft_order_line_items(
+                &resolved_object_list_field(&input, "lineItems"),
+                existing
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                &shop_currency_code,
+                &variant_hydrations,
+            )
+        } else {
+            connection_nodes(&existing["lineItems"])
+        };
+        let shipping_rate = self.draft_order_shipping_rate_for_handle(
+            shipping_rate_handle.as_deref(),
+            sum_money_set(&line_items, "originalTotalSet"),
+            &shop_currency_code,
+        );
+        let mut updated = self.merge_draft_order_input(
+            existing,
+            &input,
+            &variant_hydrations,
+            shipping_rate.as_ref(),
+        );
         updated["updatedAt"] = json!(self.next_product_updated_at(&current_updated_at));
         self.store
             .staged
@@ -1658,10 +2149,34 @@ impl DraftProxy {
             return json!({ "calculatedDraftOrder": Value::Null, "userErrors": user_errors });
         }
         self.hydrate_shop_pricing_state_if_missing(request, true, false);
+        if draft_order_shipping_address_context(&input).is_some() {
+            self.hydrate_draft_order_delivery_profiles_if_missing(request);
+        }
+        let shop_currency_code = self.b2b_order_input_currency_default(&input);
+        let available_shipping_rates = self.draft_order_available_shipping_rates(
+            &input,
+            &variant_hydrations,
+            &shop_currency_code,
+        );
+        let shipping_rate_handle = resolved_object_field(&input, "shippingLine")
+            .and_then(|shipping_line| resolved_string_field(&shipping_line, "shippingRateHandle"));
+        let line_items = draft_order_line_items(
+            &resolved_object_list_field(&input, "lineItems"),
+            "draft-order-calculate-shipping-rate",
+            &shop_currency_code,
+            &variant_hydrations,
+        );
+        let configured_shipping_rate = self.draft_order_shipping_rate_for_handle(
+            shipping_rate_handle.as_deref(),
+            sum_money_set(&line_items, "originalTotalSet"),
+            &shop_currency_code,
+        );
         let calculated = draft_order_calculated_record(
             &input,
             &variant_hydrations,
-            &self.b2b_order_input_currency_default(&input),
+            &shop_currency_code,
+            available_shipping_rates,
+            configured_shipping_rate.as_ref(),
         );
         json!({ "calculatedDraftOrder": calculated, "userErrors": [] })
     }
@@ -2008,6 +2523,7 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
         customer: Option<Value>,
         variant_hydrations: &BTreeMap<String, Value>,
+        configured_shipping_rate: Option<&Value>,
     ) -> Value {
         let mut draft_order = draft_order_base_record(
             id,
@@ -2015,6 +2531,7 @@ impl DraftProxy {
             input,
             customer,
             variant_hydrations,
+            configured_shipping_rate,
             &self.b2b_order_input_currency_default(input),
         );
         self.recalculate_draft_order_totals(&mut draft_order);
@@ -2255,6 +2772,7 @@ impl DraftProxy {
         mut draft_order: Value,
         input: &BTreeMap<String, ResolvedValue>,
         variant_hydrations: &BTreeMap<String, Value>,
+        configured_shipping_rate: Option<&Value>,
     ) -> Value {
         for field in ["email", "note", "sourceName"] {
             merge_draft_order_string_field(&mut draft_order, input, field);
@@ -2266,8 +2784,11 @@ impl DraftProxy {
             draft_order["customAttributes"] = json!(draft_order_input_custom_attributes(input));
         }
         if input.contains_key("shippingLine") {
-            draft_order["shippingLine"] =
-                draft_order_shipping_line(input, &self.store.shop_currency_code());
+            draft_order["shippingLine"] = draft_order_shipping_line(
+                input,
+                &self.store.shop_currency_code(),
+                configured_shipping_rate,
+            );
         }
         if input.contains_key("billingAddress") {
             draft_order["billingAddress"] =

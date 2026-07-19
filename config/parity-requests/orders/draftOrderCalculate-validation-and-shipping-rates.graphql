@@ -2,6 +2,8 @@ mutation DraftOrderCalculateValidationAndShippingRates(
   $emptyLineItems: DraftOrderInput!
   $invalidEmail: DraftOrderInput!
   $availableShippingRatesEmpty: DraftOrderInput!
+  $availableShippingRatesNoMatch: DraftOrderInput!
+  $availableShippingRatesMatching: DraftOrderInput!
   $paymentTermsTemplateId: DraftOrderInput!
 ) {
   emptyLineItems: draftOrderCalculate(input: $emptyLineItems) {
@@ -23,6 +25,38 @@ mutation DraftOrderCalculateValidationAndShippingRates(
     }
   }
   availableShippingRatesEmpty: draftOrderCalculate(input: $availableShippingRatesEmpty) {
+    calculatedDraftOrder {
+      availableShippingRates {
+        handle
+        title
+        price {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  availableShippingRatesNoMatch: draftOrderCalculate(input: $availableShippingRatesNoMatch) {
+    calculatedDraftOrder {
+      availableShippingRates {
+        handle
+        title
+        price {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  availableShippingRatesMatching: draftOrderCalculate(input: $availableShippingRatesMatching) {
     calculatedDraftOrder {
       availableShippingRates {
         handle
