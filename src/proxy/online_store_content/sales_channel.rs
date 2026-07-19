@@ -244,7 +244,7 @@ impl DraftProxy {
                     &field.selection,
                     None,
                     vec![presence_user_error(
-                        ["mobilePlatformApplication", "android", "applicationId"],
+                        ["input", "android", "applicationId"],
                         if application_id.is_empty() {
                             "Application"
                         } else {
@@ -296,7 +296,7 @@ impl DraftProxy {
                 &field.selection,
                 None,
                 vec![presence_user_error(
-                    ["mobilePlatformApplication", "apple", "appId"],
+                    ["input", "apple", "appId"],
                     if app_id.trim().is_empty() && app_id.len() > 1 {
                         "App"
                     } else {
@@ -397,7 +397,7 @@ impl DraftProxy {
                         &field.selection,
                         None,
                         vec![presence_user_error(
-                            ["mobilePlatformApplication", "android", "applicationId"],
+                            ["input", "android", "applicationId"],
                             "Application ID",
                         )],
                     );
@@ -440,7 +440,7 @@ impl DraftProxy {
                         &field.selection,
                         None,
                         vec![presence_user_error(
-                            ["mobilePlatformApplication", "apple", "appId"],
+                            ["input", "apple", "appId"],
                             "App ID",
                         )],
                     );

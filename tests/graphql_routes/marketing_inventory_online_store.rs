@@ -4958,6 +4958,10 @@ fn online_store_mobile_platform_application_create_model_validations_do_not_stag
     let validation = proxy.process_request(json_graphql_request(
         r#"
         mutation MobilePlatformApplicationCreateModelValidation($longApplicationId: String!, $longAppClipApplicationId: String!) {
+          blankAndroid: mobilePlatformApplicationCreate(input: { android: { applicationId: "", appLinksEnabled: true, sha256CertFingerprints: ["AA:BB"] } }) {
+            mobilePlatformApplication { __typename }
+            userErrors { code field message }
+          }
           longAndroid: mobilePlatformApplicationCreate(input: { android: { applicationId: $longApplicationId, appLinksEnabled: true, sha256CertFingerprints: ["AA:BB"] } }) {
             mobilePlatformApplication { __typename }
             userErrors { code field message }
@@ -4971,6 +4975,10 @@ fn online_store_mobile_platform_application_create_model_validations_do_not_stag
             userErrors { code field message }
           }
           longApple: mobilePlatformApplicationCreate(input: { apple: { appId: $longApplicationId, universalLinksEnabled: false, sharedWebCredentialsEnabled: false, appClipsEnabled: false } }) {
+            mobilePlatformApplication { __typename }
+            userErrors { code field message }
+          }
+          blankApple: mobilePlatformApplicationCreate(input: { apple: { appId: "   ", universalLinksEnabled: false, sharedWebCredentialsEnabled: false, appClipsEnabled: false } }) {
             mobilePlatformApplication { __typename }
             userErrors { code field message }
           }
@@ -4993,10 +5001,12 @@ fn online_store_mobile_platform_application_create_model_validations_do_not_stag
     assert_eq!(
         validation.body["data"],
         json!({
+            "blankAndroid": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "android", "applicationId"], "message": "Application can't be blank"}]},
             "longAndroid": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "android", "applicationId"], "message": "Application ID is too long (maximum is 100 characters)"}]},
             "missingAndroidFingerprints": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "android", "sha256CertFingerprints"], "message": "Sha256 cert fingerprints can't be blank"}]},
             "emptyAndroidFingerprints": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "android", "sha256CertFingerprints"], "message": "Sha256 cert fingerprints can't be blank"}]},
             "longApple": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "apple", "appId"], "message": "Application ID is too long (maximum is 100 characters)"}]},
+            "blankApple": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "apple", "appId"], "message": "App can't be blank"}]},
             "missingAppClip": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "apple", "appClipApplicationId"], "message": "App clip application can't be blank"}]},
             "longAppClip": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "apple", "appClipApplicationId"], "message": "App clip application is too long (maximum is 255 characters)"}]}
         })
@@ -5037,6 +5047,10 @@ fn online_store_mobile_platform_application_update_model_validations_do_not_muta
     let validation = proxy.process_request(json_graphql_request(
         r#"
         mutation MobilePlatformApplicationUpdateModelValidation($appleId: ID!, $androidId: ID!, $longApplicationId: String!, $longAppClipApplicationId: String!) {
+          blankAndroid: mobilePlatformApplicationUpdate(id: $androidId, input: { android: { applicationId: "", appLinksEnabled: true, sha256CertFingerprints: ["AA:BB"] } }) {
+            mobilePlatformApplication { __typename }
+            userErrors { code field message }
+          }
           longAndroid: mobilePlatformApplicationUpdate(id: $androidId, input: { android: { applicationId: $longApplicationId, appLinksEnabled: true, sha256CertFingerprints: ["AA:BB"] } }) {
             mobilePlatformApplication { __typename }
             userErrors { code field message }
@@ -5050,6 +5064,10 @@ fn online_store_mobile_platform_application_update_model_validations_do_not_muta
             userErrors { code field message }
           }
           longApple: mobilePlatformApplicationUpdate(id: $appleId, input: { apple: { appId: $longApplicationId, universalLinksEnabled: true, sharedWebCredentialsEnabled: false, appClipsEnabled: false } }) {
+            mobilePlatformApplication { __typename }
+            userErrors { code field message }
+          }
+          blankApple: mobilePlatformApplicationUpdate(id: $appleId, input: { apple: { appId: "  ", universalLinksEnabled: true, sharedWebCredentialsEnabled: false, appClipsEnabled: false } }) {
             mobilePlatformApplication { __typename }
             userErrors { code field message }
           }
@@ -5074,10 +5092,12 @@ fn online_store_mobile_platform_application_update_model_validations_do_not_muta
     assert_eq!(
         validation.body["data"],
         json!({
+            "blankAndroid": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "android", "applicationId"], "message": "Application ID can't be blank"}]},
             "longAndroid": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "android", "applicationId"], "message": "Application ID is too long (maximum is 100 characters)"}]},
             "missingAndroidFingerprints": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "android", "sha256CertFingerprints"], "message": "Sha256 cert fingerprints can't be blank"}]},
             "emptyAndroidFingerprints": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "android", "sha256CertFingerprints"], "message": "Sha256 cert fingerprints can't be blank"}]},
             "longApple": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "apple", "appId"], "message": "Application ID is too long (maximum is 100 characters)"}]},
+            "blankApple": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "apple", "appId"], "message": "App ID can't be blank"}]},
             "missingAppClip": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "apple", "appClipApplicationId"], "message": "App clip application can't be blank"}]},
             "longAppClip": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "apple", "appClipApplicationId"], "message": "App clip application is too long (maximum is 255 characters)"}]}
         })
