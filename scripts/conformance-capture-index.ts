@@ -2783,6 +2783,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
+    captureId: 'inventory-live-hybrid-cold-authoritative-reads',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-live-hybrid-cold-reads-conformance.ts',
+    purpose:
+      'Cold LiveHybrid inventoryItem, inventoryItems, and inventoryLevel authoritative reads in one complete caller document.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_inventory'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-live-hybrid-cold-authoritative-reads.json`,
+      'config/parity-specs/products/inventory-live-hybrid-cold-authoritative-reads.json',
+      'config/parity-requests/products/inventory-live-hybrid-cold-authoritative-reads.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, records its product-backed inventory item and level through a combined read-only document, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
     captureId: 'inventory-item-mutations',
     scriptPath: 'scripts/capture-inventory-item-mutation-conformance.mts',
     purpose: 'inventoryItemUpdate and product-backed inventory item mutation behavior.',
@@ -7467,6 +7484,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/storefront/storefront-customer-address-update.graphql',
       'config/parity-requests/storefront/storefront-customer-admin-address-create.graphql',
       'config/parity-requests/storefront/storefront-customer-admin-order-create.graphql',
+      'config/parity-requests/storefront/storefront-customer-admin-order-update.graphql',
       'config/parity-requests/storefront/storefront-customer-admin-read.graphql',
       'config/parity-requests/storefront/storefront-customer-default-address-update.graphql',
       'config/parity-requests/storefront/storefront-customer-profile-address-order-read.graphql',

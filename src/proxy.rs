@@ -439,6 +439,14 @@ struct BaseState {
     bulk_operations: OrderedRecords<Value>,
     bulk_operations_observed: bool,
     locations: OrderedRecords<Value>,
+    inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
+    inventory_level_order: Vec<(String, String)>,
+    inventory_level_ids: BTreeMap<(String, String), String>,
+    inventory_level_cursors: BTreeMap<String, String>,
+    inventory_item_cursors: BTreeMap<String, String>,
+    inventory_items_catalog_hydrated: bool,
+    inactive_inventory_levels: BTreeSet<(String, String)>,
+    inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     gift_cards: BTreeMap<String, Value>,
     gift_card_configuration: Option<Value>,
     gift_card_complete_queries: BTreeSet<String>,
@@ -623,6 +631,7 @@ struct StagedState {
     // replayed when the inventory-level connection renderer projects edges/pageInfo.
     inventory_level_cursors: BTreeMap<String, String>,
     inactive_inventory_levels: BTreeSet<(String, String)>,
+    active_inventory_levels: BTreeSet<(String, String)>,
     inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     next_inventory_quantity_timestamp: u64,
     inventory_adjustment_groups: BTreeMap<String, Value>,
@@ -1883,6 +1892,20 @@ impl Store {
         self.stage_product(merged);
     }
 
+    fn observe_base_product(&mut self, product: ProductRecord) {
+        if self.product_is_tombstoned(&product.id) {
+            return;
+        }
+        let merged = self
+            .products
+            .base
+            .get(&product.id)
+            .cloned()
+            .map(|existing| merge_observed_product(existing, product.clone()))
+            .unwrap_or(product);
+        self.products.base.insert(merged.id.clone(), merged);
+    }
+
     fn stage_observed_product_json(&mut self, value: &Value) {
         if let Some(product) = product_state_from_json(value) {
             self.stage_observed_product(product);
@@ -2188,6 +2211,15 @@ impl Store {
         self.product_variants
             .staged
             .stage(variant.id.clone(), variant);
+    }
+
+    fn observe_base_product_variant(&mut self, variant: ProductVariantRecord) {
+        if self.product_variants.staged.is_tombstoned(&variant.id) {
+            return;
+        }
+        self.product_variants
+            .base
+            .insert(variant.id.clone(), variant);
     }
 
     fn compact_product_variant_positions(&mut self, product_id: &str) {

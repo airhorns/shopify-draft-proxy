@@ -4719,6 +4719,606 @@ fn location_inventory_levels_preserves_hydrated_untouched_levels() {
 }
 
 #[test]
+fn inventory_live_hybrid_cold_roots_forward_one_complete_request() {
+    let inventory_item_id = "gid://shopify/InventoryItem/910001";
+    let inventory_level_id = "gid://shopify/InventoryLevel/920001?inventory_item_id=910001";
+    let location_id = "gid://shopify/Location/930001";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body)
+                .expect("cold inventory upstream body should parse");
+            captured_requests.lock().unwrap().push(body.clone());
+            assert!(
+                body["query"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("ColdInventoryRoots"),
+                "cold inventory reads should forward the caller's complete document: {body}"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "item": {
+                            "id": inventory_item_id,
+                            "tracked": true
+                        },
+                        "items": {
+                            "edges": [{
+                                "cursor": "opaque-inventory-item-cursor-1",
+                                "node": {
+                                    "id": inventory_item_id,
+                                    "tracked": true
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": false,
+                                "startCursor": "opaque-inventory-item-cursor-1",
+                                "endCursor": "opaque-inventory-item-cursor-1"
+                            }
+                        },
+                        "level": {
+                            "id": inventory_level_id,
+                            "isActive": true,
+                            "location": {
+                                "id": location_id,
+                                "name": "Cold stockroom"
+                            },
+                            "quantities": [{
+                                "name": "available",
+                                "quantity": 7
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdInventoryRoots($inventoryItemId: ID!, $inventoryLevelId: ID!) {
+          item: inventoryItem(id: $inventoryItemId) {
+            id
+            tracked
+          }
+          items: inventoryItems(first: 1, query: "tracked:true") {
+            edges { cursor node { id tracked } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          level: inventoryLevel(id: $inventoryLevelId) {
+            id
+            isActive
+            location { id name }
+            quantities(names: ["available"]) { name quantity }
+          }
+        }
+        "#,
+        json!({
+            "inventoryItemId": inventory_item_id,
+            "inventoryLevelId": inventory_level_id
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "item": {
+                "id": inventory_item_id,
+                "tracked": true
+            },
+            "items": {
+                "edges": [{
+                    "cursor": "opaque-inventory-item-cursor-1",
+                    "node": {
+                        "id": inventory_item_id,
+                        "tracked": true
+                    }
+                }],
+                "pageInfo": {
+                    "hasNextPage": true,
+                    "hasPreviousPage": false,
+                    "startCursor": "opaque-inventory-item-cursor-1",
+                    "endCursor": "opaque-inventory-item-cursor-1"
+                }
+            },
+            "level": {
+                "id": inventory_level_id,
+                "isActive": true,
+                "location": {
+                    "id": location_id,
+                    "name": "Cold stockroom"
+                },
+                "quantities": [{
+                    "name": "available",
+                    "quantity": 7
+                }]
+            }
+        })
+    );
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "all cold local inventory roots should share the request-scoped upstream call"
+    );
+}
+
+#[test]
+fn inventory_activate_hydrates_unobserved_targets_and_overlays_immediate_read() {
+    let inventory_item_id = "gid://shopify/InventoryItem/940001";
+    let variant_id = "gid://shopify/ProductVariant/940002";
+    let product_id = "gid://shopify/Product/940003";
+    let existing_location_id = "gid://shopify/Location/950001";
+    let target_location_id = "gid://shopify/Location/950002";
+    let existing_level_id = "gid://shopify/InventoryLevel/960001?inventory_item_id=940001";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let authoritative_item = json!({
+        "__typename": "InventoryItem",
+        "id": inventory_item_id,
+        "tracked": true,
+        "requiresShipping": true,
+        "variant": {
+            "id": variant_id,
+            "title": "Default Title",
+            "sku": "COLD-ACTIVATION",
+            "inventoryQuantity": 4,
+            "selectedOptions": [{ "name": "Title", "value": "Default Title" }],
+            "product": {
+                "id": product_id,
+                "title": "Cold activation product",
+                "handle": "cold-activation-product",
+                "status": "ACTIVE",
+                "totalInventory": 4,
+                "tracksInventory": true
+            }
+        },
+        "inventoryLevels": {
+            "nodes": [{
+                "id": existing_level_id,
+                "isActive": true,
+                "location": {
+                    "id": existing_location_id,
+                    "name": "Existing stockroom"
+                },
+                "quantities": [
+                    { "name": "available", "quantity": 4 },
+                    { "name": "on_hand", "quantity": 4 },
+                    { "name": "incoming", "quantity": 0 }
+                ]
+            }]
+        }
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let authoritative_item = authoritative_item.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body)
+                .expect("inventory activation upstream body should parse");
+            captured_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                !query.trim_start().starts_with("mutation"),
+                "supported inventory activation must never forward the caller mutation: {body}"
+            );
+            if query.contains("ProductsHydrateNodes") {
+                let nodes = if query.contains("includeInactive") {
+                    json!([authoritative_item.clone()])
+                } else {
+                    json!([{
+                        "__typename": "Location",
+                        "id": target_location_id,
+                        "name": "Target stockroom",
+                        "isActive": true
+                    }])
+                };
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "nodes": nodes } }),
+                };
+            }
+            if query.contains("InventoryBeforeColdActivation") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "inventoryItem": {
+                                "id": inventory_item_id,
+                                "tracked": true,
+                                "variant": {
+                                    "id": variant_id,
+                                    "product": { "id": product_id }
+                                }
+                            }
+                        }
+                    }),
+                };
+            }
+            assert!(
+                query.contains("InventoryAfterColdActivation"),
+                "unexpected upstream inventory request: {body}"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "inventoryItem": authoritative_item.clone() } }),
+            }
+        }
+    });
+
+    let partial_read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryBeforeColdActivation($inventoryItemId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            id
+            tracked
+            variant { id product { id } }
+          }
+        }
+        "#,
+        json!({ "inventoryItemId": inventory_item_id }),
+    ));
+    assert_eq!(
+        partial_read.body["data"]["inventoryItem"]["id"],
+        json!(inventory_item_id)
+    );
+
+    let activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ActivateUnobservedInventory($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId) {
+            inventoryLevel {
+              id
+              isActive
+              location { id name }
+              quantities(names: ["available", "on_hand", "incoming"]) { name quantity }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "inventoryItemId": inventory_item_id,
+            "locationId": target_location_id
+        }),
+    ));
+    assert_eq!(
+        activate.body["data"]["inventoryActivate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        activate.body["data"]["inventoryActivate"]["inventoryLevel"]["location"],
+        json!({ "id": target_location_id, "name": "Target stockroom" })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryAfterColdActivation($inventoryItemId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            id
+            inventoryLevels(first: 10) {
+              nodes {
+                isActive
+                location { id name }
+                quantities(names: ["available", "on_hand", "incoming"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "inventoryItemId": inventory_item_id }),
+    ));
+    let nodes = read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"]
+        .as_array()
+        .unwrap_or_else(|| panic!("unexpected immediate inventory read: {}", read.body));
+    assert_eq!(
+        nodes.len(),
+        2,
+        "unexpected immediate inventory read: {}",
+        read.body
+    );
+    assert!(nodes.iter().any(|node| {
+        node["location"] == json!({ "id": existing_location_id, "name": "Existing stockroom" })
+            && node["isActive"] == json!(true)
+            && node["quantities"]
+                == json!([
+                    { "name": "available", "quantity": 4 },
+                    { "name": "on_hand", "quantity": 4 },
+                    { "name": "incoming", "quantity": 0 }
+                ])
+    }));
+    assert!(nodes.iter().any(|node| {
+        node["location"] == json!({ "id": target_location_id, "name": "Target stockroom" })
+            && node["isActive"] == json!(true)
+            && node["quantities"]
+                == json!([
+                    { "name": "available", "quantity": 0 },
+                    { "name": "on_hand", "quantity": 0 },
+                    { "name": "incoming", "quantity": 0 }
+                ])
+    }));
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 3);
+    assert!(requests.iter().any(|body| body["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("ProductsHydrateNodes")));
+    assert_eq!(
+        requests[1]["variables"],
+        json!({ "ids": [inventory_item_id] })
+    );
+    assert_eq!(
+        requests[2]["variables"],
+        json!({ "ids": [target_location_id] })
+    );
+    assert!(
+        requests.iter().all(|body| !body["query"]
+            .as_str()
+            .unwrap_or_default()
+            .trim_start()
+            .starts_with("mutation")),
+        "only query hydration/read documents may reach upstream"
+    );
+}
+
+#[test]
+fn inventory_live_hybrid_catalog_hydrates_all_pages_before_overlay_windowing() {
+    let tombstoned_product_id = "gid://shopify/Product/1001";
+    let local_product_id = "gid://shopify/Product/1002";
+    let mut tombstoned_product = inventory_activation_base_product();
+    tombstoned_product.id = tombstoned_product_id.to_string();
+    let mut local_product = inventory_activation_base_product();
+    local_product.id = local_product_id.to_string();
+    local_product.handle = "local-inventory-overlay".to_string();
+
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![tombstoned_product, local_product]);
+    let local_variant =
+        create_legacy_variant(&mut proxy, local_product_id, "LOCAL-STAGED", "10.00");
+    let local_item_id = local_variant["inventoryItem"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let local_location_id = add_inventory_test_location(&mut proxy, "Local overlay stockroom");
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedLocalCatalogOverlay($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) { userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "quantities": [{
+                    "inventoryItemId": local_item_id,
+                    "locationId": local_location_id,
+                    "quantity": 9,
+                    "changeFromQuantity": null
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TombstoneAuthoritativeCatalogItem($input: ProductDeleteInput!) {
+          productDelete(input: $input) { deletedProductId }
+        }
+        "#,
+        json!({ "input": { "id": tombstoned_product_id } }),
+    ));
+    assert_eq!(
+        delete.body["data"]["productDelete"]["deletedProductId"],
+        json!(tombstoned_product_id)
+    );
+
+    let tombstoned_item = json!({
+        "id": "gid://shopify/InventoryItem/100",
+        "tracked": true,
+        "requiresShipping": true,
+        "variant": {
+            "id": "gid://shopify/ProductVariant/101",
+            "title": "Default Title",
+            "sku": "DROP-ME",
+            "inventoryQuantity": 1,
+            "selectedOptions": [{ "name": "Title", "value": "Default Title" }],
+            "product": {
+                "id": tombstoned_product_id,
+                "title": "Deleted authoritative product",
+                "handle": "deleted-authoritative-product",
+                "status": "ACTIVE",
+                "totalInventory": 1,
+                "tracksInventory": true
+            }
+        },
+        "inventoryLevels": { "nodes": [] }
+    });
+    let first_kept_item = json!({
+        "id": "gid://shopify/InventoryItem/200",
+        "tracked": true,
+        "requiresShipping": true,
+        "variant": {
+            "id": "gid://shopify/ProductVariant/201",
+            "title": "Default Title",
+            "sku": "KEEP-ONE",
+            "inventoryQuantity": 2,
+            "selectedOptions": [{ "name": "Title", "value": "Default Title" }],
+            "product": {
+                "id": "gid://shopify/Product/2001",
+                "title": "First authoritative product",
+                "handle": "first-authoritative-product",
+                "status": "ACTIVE",
+                "totalInventory": 2,
+                "tracksInventory": true
+            }
+        },
+        "inventoryLevels": { "nodes": [] }
+    });
+    let second_kept_item = json!({
+        "id": "gid://shopify/InventoryItem/300",
+        "tracked": true,
+        "requiresShipping": true,
+        "variant": {
+            "id": "gid://shopify/ProductVariant/301",
+            "title": "Default Title",
+            "sku": "KEEP-TWO",
+            "inventoryQuantity": 3,
+            "selectedOptions": [{ "name": "Title", "value": "Default Title" }],
+            "product": {
+                "id": "gid://shopify/Product/3001",
+                "title": "Second authoritative product",
+                "handle": "second-authoritative-product",
+                "status": "ACTIVE",
+                "totalInventory": 3,
+                "tracksInventory": true
+            }
+        },
+        "inventoryLevels": { "nodes": [] }
+    });
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    proxy = proxy.with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("inventory catalog upstream body should parse");
+        captured_requests.lock().unwrap().push(body.clone());
+        let query = body["query"].as_str().unwrap_or_default();
+        if query.contains("InventoryItemsCatalogHydrate") {
+            let after = body.pointer("/variables/after");
+            let connection = if after.is_none_or(Value::is_null) {
+                json!({
+                    "edges": [
+                        { "cursor": "auth-a", "node": tombstoned_item.clone() },
+                        { "cursor": "auth-b", "node": first_kept_item.clone() }
+                    ],
+                    "pageInfo": { "hasNextPage": true, "endCursor": "page-1" }
+                })
+            } else {
+                assert_eq!(after, Some(&json!("page-1")));
+                json!({
+                    "edges": [{ "cursor": "auth-c", "node": second_kept_item.clone() }],
+                    "pageInfo": { "hasNextPage": false, "endCursor": "auth-c" }
+                })
+            };
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "inventoryItems": connection } }),
+            };
+        }
+        if query.contains("CatalogWindowAfterOverlay") {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "inventoryItems": {
+                            "edges": [{ "cursor": "auth-c", "node": second_kept_item.clone() }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": true,
+                                "startCursor": "auth-c",
+                                "endCursor": "auth-c"
+                            }
+                        }
+                    }
+                }),
+            };
+        }
+        assert!(query.contains("StagedInventoryCatalogFilter"));
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "inventoryItems": {
+                        "edges": [],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }
+                }
+            }),
+        }
+    });
+
+    let windowed = proxy.process_request(json_graphql_request(
+        r#"
+        query CatalogWindowAfterOverlay($after: String!) {
+          inventoryItems(first: 2, after: $after, query: "tracked:true") {
+            edges { cursor node { id sku } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": "auth-b" }),
+    ));
+    assert_eq!(
+        windowed.body["data"]["inventoryItems"],
+        json!({
+            "edges": [{
+                "cursor": "auth-c",
+                "node": { "id": "gid://shopify/InventoryItem/300", "sku": "KEEP-TWO" }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "auth-c",
+                "endCursor": "auth-c"
+            }
+        })
+    );
+
+    let staged = proxy.process_request(json_graphql_request(
+        r#"
+        query StagedInventoryCatalogFilter {
+          inventoryItems(first: 5, query: "sku:LOCAL-STAGED") {
+            nodes {
+              id
+              sku
+              inventoryLevels(first: 5) {
+                nodes {
+                  location { id }
+                  quantities(names: ["available"]) { name quantity }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        staged.body["data"]["inventoryItems"]["nodes"],
+        json!([{
+            "id": local_item_id,
+            "sku": "LOCAL-STAGED",
+            "inventoryLevels": {
+                "nodes": [{
+                    "location": { "id": local_location_id },
+                    "quantities": [{ "name": "available", "quantity": 9 }]
+                }]
+            }
+        }])
+    );
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        4,
+        "one complete request per read plus both authoritative catalog pages"
+    );
+}
+
+#[test]
 fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field() {
     let mut proxy = inventory_seed_proxy();
     let (_variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "ADJUST-ROOT");
