@@ -200,6 +200,35 @@ fn product_money_ranges_hydrate_shop_currency_in_live_hybrid() {
 }
 
 #[test]
+fn product_hydration_planning_ignores_response_alias_names() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| {
+        panic!("an alias must not be mistaken for a selected price range")
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductAliasDoesNotRequestPricing {
+          productCreate(product: { title: "Alias-safe product" }) {
+            product { priceRange: title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productCreate"]["product"]["priceRange"],
+        json!("Alias-safe product")
+    );
+    assert_eq!(
+        response.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
 fn product_variant_count_and_compare_at_range_follow_effective_variants() {
     let mut proxy = snapshot_proxy();
     restore_shop_currency(&mut proxy, "USD");
@@ -8578,7 +8607,14 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
         r#"
         mutation PublishablePayloadShopHydrate($id: ID!, $input: [PublicationInput!]!) {
           publishablePublish(id: $id, input: $input) {
-            publishable { ... on Product { id } }
+            publishable {
+              ... on Product {
+                id
+                publishedOnCurrentPublication
+                availablePublicationsCount { count precision }
+                resourcePublicationsCount { count precision }
+              }
+            }
             shop { id name myshopifyDomain currencyCode publicationCount }
             userErrors { field message }
           }
@@ -8591,6 +8627,15 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
     ));
 
     assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["publishablePublish"]["publishable"],
+        json!({
+            "id": "gid://shopify/Product/10172067414322",
+            "publishedOnCurrentPublication": false,
+            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+        })
+    );
     assert_eq!(
         response.body["data"]["publishablePublish"]["shop"],
         json!({
@@ -11520,7 +11565,9 @@ fn staged_segment_reads_preserve_upstream_catalog_roots() {
                 "query": "number_of_orders >= 2"
             },
             created_segment
-        ])
+        ]),
+        "{}",
+        read.body,
     );
     assert_eq!(
         read.body["data"]["realSegment"],
@@ -14780,38 +14827,36 @@ fn product_change_status_rejects_invalid_status_without_staging() {
 
 #[test]
 fn admin_graphql_capability_classification_uses_implemented_registry_entries() {
-    // Implemented synthetic roots are now classified from the registry, but they still fail
-    // closed when no domain dispatcher match arm handles the concrete root. Unimplemented roots
-    // keep the passthrough fallback; in snapshot mode that surfaces as a 400 no-dispatcher error
-    // because there is no upstream transport.
-    let mut proxy = snapshot_proxy().with_registry(vec![
-        registry_entry("productVariants", OperationType::Query, true),
-        registry_entry("urlRedirectCreate", OperationType::Mutation, true),
-        registry_entry("urlRedirect", OperationType::Query, false),
-    ]);
+    // Implemented roots bind only to their directly declared executable owner.
+    // A custom registry can narrow support, but it cannot relabel a root into a
+    // different domain and recover the old domain-dispatch switch behavior.
+    let mismatched_owner = std::panic::catch_unwind(|| {
+        snapshot_proxy().with_registry(vec![registry_entry(
+            "urlRedirectCreate",
+            OperationType::Mutation,
+            true,
+        )])
+    });
+    assert!(mismatched_owner.is_err());
 
-    let known_query = proxy.process_request(graphql_request(
-        "POST",
-        r#"{"query":"query { productVariants(first: 1) { nodes { id } } }"}"#,
-    ));
-    assert_eq!(known_query.status, 501);
-    assert_engine_resolver_failure(
-        &known_query,
-        "productVariants",
-        "No Rust overlay-read dispatcher implemented for root field: productVariants",
-    );
+    // Metadata cannot promote an unimplemented root without a real direct
+    // binding. Fail registry construction instead of reviving a domain fallback.
+    let promoted_without_binding = std::panic::catch_unwind(|| {
+        snapshot_proxy().with_registry(vec![registry_entry(
+            "productVariants",
+            OperationType::Query,
+            true,
+        )])
+    });
+    assert!(promoted_without_binding.is_err());
 
-    let known_mutation = proxy.process_request(graphql_request(
-        "POST",
-        r#"{"query":"mutation { urlRedirectCreate(urlRedirect: { path: \"/old\", target: \"/new\" }) { urlRedirect { id } userErrors { message } } }"}"#,
-    ));
-    assert_eq!(known_mutation.status, 501);
-    assert_engine_resolver_failure(
-        &known_mutation,
-        "urlRedirectCreate",
-        "No Rust stage-locally dispatcher implemented for root field: urlRedirectCreate",
-    );
-
+    // Unimplemented roots keep the passthrough fallback; in snapshot mode that
+    // surfaces as a 400 no-dispatcher error because there is no upstream transport.
+    let mut proxy = snapshot_proxy().with_registry(vec![registry_entry(
+        "urlRedirect",
+        OperationType::Query,
+        false,
+    )]);
     let unimplemented = proxy.process_request(graphql_request(
         "POST",
         r#"{"query":"query { urlRedirect(id: \"gid://shopify/UrlRedirect/1\") { id } }"}"#,
@@ -14845,28 +14890,19 @@ fn registry_classification_without_matching_root_field_fails_closed() {
 }
 
 #[test]
-fn implemented_registry_entry_without_dispatch_match_arm_fails_closed() {
-    let mut proxy = snapshot_proxy().with_registry(vec![OperationRegistryEntry {
-        api_surface: ApiSurface::Admin,
-        name: "productVariants".to_string(),
-        operation_type: OperationType::Query,
-        domain: CapabilityDomain::Products,
-        implemented: true,
-        match_names: vec!["productVariants".to_string()],
-        runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
-    }]);
+fn implemented_registry_entry_without_direct_binding_fails_construction() {
+    let result = std::panic::catch_unwind(|| {
+        snapshot_proxy().with_registry(vec![OperationRegistryEntry {
+            api_surface: ApiSurface::Admin,
+            name: "productVariants".to_string(),
+            operation_type: OperationType::Query,
+            domain: CapabilityDomain::Products,
+            implemented: true,
+            runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
+        }])
+    });
 
-    let response = proxy.process_request(graphql_request(
-        "POST",
-        r#"{"query":"query { productVariants(first: 1) { nodes { id } } }"}"#,
-    ));
-
-    assert_eq!(response.status, 501);
-    assert_engine_resolver_failure(
-        &response,
-        "productVariants",
-        "No Rust overlay-read dispatcher implemented for root field: productVariants",
-    );
+    assert!(result.is_err());
 }
 
 #[test]
@@ -15858,12 +15894,14 @@ fn collection_delete_payload_hydrates_selected_shop_identity_in_live_hybrid() {
     );
     let calls = upstream_calls.lock().unwrap();
     assert_eq!(calls.len(), 2);
+    // The root resolver hydrates the collection before the engine enters the
+    // selected payload `shop` field resolver.
     assert!(calls[0]["query"]
         .as_str()
-        .is_some_and(|query| query.contains("query ProductPayloadShopHydrate")));
+        .is_some_and(|query| query.contains("query ProductsHydrateNodes")));
     assert!(calls[1]["query"]
         .as_str()
-        .is_some_and(|query| query.contains("query ProductsHydrateNodes")));
+        .is_some_and(|query| query.contains("query ProductPayloadShopHydrate")));
 }
 
 #[test]

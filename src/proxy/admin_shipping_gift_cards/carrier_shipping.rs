@@ -86,58 +86,64 @@ fn merge_shipping_package_input(package: &mut Value, input: &BTreeMap<String, Re
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn shipping_settings_read_response(
+    pub(crate) fn shipping_settings_query_root(
         &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-    ) -> Response {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
         if self.config.read_mode != ReadMode::Snapshot
             && self.store.staged.observed_shipping_locations.is_empty()
             && self.store.staged.carrier_services.is_empty()
         {
-            let response = (self.upstream_transport)(request.clone());
-            self.observe_shipping_settings_response(&response);
-            return response;
-        }
-        ok_json(json!({ "data": self.shipping_settings_read_data(fields) }))
-    }
-
-    fn shipping_settings_read_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = self.delivery_profile_locations_read_data(fields);
-        if let Value::Object(data) = &mut data {
-            for field in fields {
-                if field.name == "availableCarrierServices" {
-                    data.insert(
-                        field.response_key.clone(),
-                        self.available_carrier_services_json(&field.selection),
-                    );
-                }
+            let result = self.cached_or_forward_upstream_graphql_result(
+                invocation.request,
+                invocation.response_key,
+            );
+            if result.transport_succeeded {
+                self.observe_shipping_settings_data(&result.data);
             }
+            return result.outcome;
         }
-        data
+        ResolverOutcome::value(self.available_carrier_services_value())
     }
 
-    fn available_carrier_services_json(&self, selection: &[SelectedField]) -> Value {
+    pub(crate) fn carrier_service_query_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        ResolverOutcome::value(match invocation.root_name {
+            "carrierService" => self.carrier_service_detail_value(&arguments),
+            "carrierServices" => self.carrier_services_connection_value(&arguments),
+            _ => Value::Null,
+        })
+    }
+
+    pub(crate) fn fulfillment_service_query_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let id = invocation
+            .arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        ResolverOutcome::value(self.fulfillment_service_read_value(id))
+    }
+
+    fn available_carrier_services_value(&self) -> Value {
         Value::Array(
             self.store
                 .staged
                 .carrier_services
                 .values()
-                .map(|carrier| {
-                    selected_json(
-                        &json!({
-                            "carrierService": carrier
-                        }),
-                        selection,
-                    )
-                })
+                .map(|carrier| json!({ "carrierService": carrier }))
                 .collect(),
         )
     }
 
-    fn observe_shipping_settings_response(&mut self, response: &Response) {
-        self.observe_delivery_profile_locations_response(response);
-        if let Some(services) = response.body["data"]["availableCarrierServices"].as_array() {
+    fn observe_shipping_settings_data(&mut self, data: &Value) {
+        self.observe_delivery_profile_locations_data(data);
+        if let Some(services) = data["availableCarrierServices"].as_array() {
             for service_entry in services {
                 if let Some(carrier) = service_entry.get("carrierService") {
                     self.stage_observed_carrier_service(carrier.clone());
@@ -314,51 +320,16 @@ impl DraftProxy {
         Some(service)
     }
 
-    pub(in crate::proxy) fn fulfillment_service_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Option<Value> {
-        let mut handled = false;
-        let data = root_payload_json(fields, |field| match field.name.as_str() {
-            "fulfillmentService" => {
-                handled = true;
-                let value = field
-                    .arguments
-                    .get("id")
-                    .and_then(resolved_value_string)
-                    .and_then(|id| {
-                        if self.store.staged.fulfillment_services.is_tombstoned(&id) {
-                            None
-                        } else {
-                            self.store.staged.fulfillment_services.get(&id).cloned()
-                        }
-                    })
-                    .map(|service| selected_json(&service, &field.selection))
-                    .unwrap_or(Value::Null);
-                Some(value)
-            }
-            "location" => {
-                let id = field.arguments.get("id").and_then(resolved_value_string)?;
-                if self
-                    .store
-                    .staged
-                    .fulfillment_service_locations
-                    .is_tombstoned(&id)
-                {
-                    handled = true;
-                    Some(Value::Null)
-                } else if let Some(location) =
-                    self.store.staged.fulfillment_service_locations.get(&id)
-                {
-                    handled = true;
-                    Some(selected_json(location, &field.selection))
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        });
-        handled.then_some(data)
+    fn fulfillment_service_read_value(&self, id: &str) -> Value {
+        if self.store.staged.fulfillment_services.is_tombstoned(id) {
+            return Value::Null;
+        }
+        self.store
+            .staged
+            .fulfillment_services
+            .get(id)
+            .cloned()
+            .unwrap_or(Value::Null)
     }
 
     pub(in crate::proxy) fn fulfillment_service_name_or_handle_exists(
@@ -463,60 +434,55 @@ impl DraftProxy {
         user_errors
     }
 
-    pub(in crate::proxy) fn fulfillment_service_mutation(
+    pub(crate) fn fulfillment_service_mutation_root(
         &mut self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Invalid fulfillment service mutation");
-        };
-        let data = root_payload_json(&fields, |field| {
-            let (payload, ids) = match field.name.as_str() {
-                "fulfillmentServiceCreate" => {
-                    self.fulfillment_service_create_payload(field, request)
-                }
-                "fulfillmentServiceUpdate" => {
-                    self.fulfillment_service_update_payload(field, request)
-                }
-                "fulfillmentServiceDelete" => {
-                    self.fulfillment_service_delete_payload(field, request)
-                }
-                _ => return None,
-            };
-            if !ids.is_empty() {
-                self.record_mutation_log_entry(request, query, variables, &field.name, ids);
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            root_name,
+            arguments,
+            request,
+            ..
+        } = invocation;
+        let arguments = resolved_arguments_from_json(&arguments);
+        let (payload, staged_ids) = match root_name {
+            "fulfillmentServiceCreate" => {
+                self.fulfillment_service_create_payload(&arguments, request)
             }
-            Some(payload)
-        });
-        if data.as_object().is_none_or(serde_json::Map::is_empty) {
-            json_error(
-                501,
-                &format!("Unsupported fulfillment service mutation {root_field}"),
-            )
-        } else {
-            ok_json(json!({ "data": data }))
+            "fulfillmentServiceUpdate" => {
+                self.fulfillment_service_update_payload(&arguments, request)
+            }
+            "fulfillmentServiceDelete" => {
+                self.fulfillment_service_delete_payload(&arguments, request)
+            }
+            _ => {
+                return resolver_http_error_outcome(
+                    501,
+                    format!("Unsupported fulfillment service mutation {root_name}"),
+                );
+            }
+        };
+        let mut outcome = ResolverOutcome::value(payload);
+        if !staged_ids.is_empty() {
+            outcome = outcome.with_log_draft(LogDraft::staged(
+                root_name,
+                "shipping-fulfillments",
+                staged_ids,
+            ));
         }
+        outcome
     }
 
-    pub(in crate::proxy) fn fulfillment_service_create_payload(
+    fn fulfillment_service_create_payload(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> (Value, Vec<String>) {
-        let service_selection =
-            selected_child_selection(&field.selection, "fulfillmentService").unwrap_or_default();
-        let name = field
-            .arguments
+        let name = arguments
             .get("name")
             .and_then(resolved_value_string)
             .unwrap_or_default();
-        let callback_url = field
-            .arguments
-            .get("callbackUrl")
-            .and_then(resolved_value_string);
+        let callback_url = arguments.get("callbackUrl").and_then(resolved_value_string);
         let user_errors = self.fulfillment_service_validation_errors(
             &name,
             callback_url.as_deref(),
@@ -526,20 +492,15 @@ impl DraftProxy {
         );
         if !user_errors.is_empty() {
             return (
-                fulfillment_service_payload_json(
-                    Value::Null,
-                    &field.selection,
-                    &service_selection,
-                    user_errors,
-                ),
+                fulfillment_service_payload_json(Value::Null, user_errors),
                 vec![],
             );
         }
 
         let service_id = self.next_proxy_synthetic_gid("FulfillmentService");
         let location_id = self.next_proxy_synthetic_gid("Location");
-        let requires_shipping_method = if field.arguments.contains_key("requiresShippingMethod") {
-            resolved_bool_field(&field.arguments, "requiresShippingMethod").unwrap_or(false)
+        let requires_shipping_method = if arguments.contains_key("requiresShippingMethod") {
+            resolved_bool_field(arguments, "requiresShippingMethod").unwrap_or(false)
         } else {
             true
         };
@@ -548,8 +509,8 @@ impl DraftProxy {
             &location_id,
             &name,
             callback_url,
-            resolved_bool_field(&field.arguments, "trackingSupport").unwrap_or(false),
-            resolved_bool_field(&field.arguments, "inventoryManagement").unwrap_or(false),
+            resolved_bool_field(arguments, "trackingSupport").unwrap_or(false),
+            resolved_bool_field(arguments, "inventoryManagement").unwrap_or(false),
             requires_shipping_method,
         );
         let location = service["location"].clone();
@@ -572,41 +533,29 @@ impl DraftProxy {
             .tombstones
             .remove(&location_id);
         (
-            fulfillment_service_payload_json(service, &field.selection, &service_selection, vec![]),
+            fulfillment_service_payload_json(service, vec![]),
             vec![service_id],
         )
     }
 
-    pub(in crate::proxy) fn fulfillment_service_update_payload(
+    fn fulfillment_service_update_payload(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> (Value, Vec<String>) {
-        let service_selection =
-            selected_child_selection(&field.selection, "fulfillmentService").unwrap_or_default();
-        let Some(id) = field.arguments.get("id").and_then(resolved_value_string) else {
-            return (
-                fulfillment_service_not_found_payload(&field.selection),
-                vec![],
-            );
+        let Some(id) = arguments.get("id").and_then(resolved_value_string) else {
+            return (fulfillment_service_not_found_payload(), vec![]);
         };
         let Some(existing) = self.fulfillment_service_for_mutation(&id, request) else {
-            return (
-                fulfillment_service_not_found_payload(&field.selection),
-                vec![],
-            );
+            return (fulfillment_service_not_found_payload(), vec![]);
         };
-        let name = field
-            .arguments
+        let name = arguments
             .get("name")
             .and_then(resolved_value_string)
             .or_else(|| existing["serviceName"].as_str().map(str::to_string))
             .unwrap_or_default();
-        let callback_url = if field.arguments.contains_key("callbackUrl") {
-            field
-                .arguments
-                .get("callbackUrl")
-                .and_then(resolved_value_string)
+        let callback_url = if arguments.contains_key("callbackUrl") {
+            arguments.get("callbackUrl").and_then(resolved_value_string)
         } else {
             existing
                 .get("callbackUrl")
@@ -617,17 +566,12 @@ impl DraftProxy {
             &name,
             callback_url.as_deref(),
             Some(&id),
-            field.arguments.contains_key("name"),
-            field.arguments.contains_key("name").then_some(request),
+            arguments.contains_key("name"),
+            arguments.contains_key("name").then_some(request),
         );
         if !user_errors.is_empty() {
             return (
-                fulfillment_service_payload_json(
-                    Value::Null,
-                    &field.selection,
-                    &service_selection,
-                    user_errors,
-                ),
+                fulfillment_service_payload_json(Value::Null, user_errors),
                 vec![],
             );
         }
@@ -635,8 +579,8 @@ impl DraftProxy {
             .as_str()
             .unwrap_or_default()
             .to_string();
-        let requires_shipping_method = if field.arguments.contains_key("requiresShippingMethod") {
-            resolved_bool_field(&field.arguments, "requiresShippingMethod").unwrap_or_else(|| {
+        let requires_shipping_method = if arguments.contains_key("requiresShippingMethod") {
+            resolved_bool_field(arguments, "requiresShippingMethod").unwrap_or_else(|| {
                 existing["requiresShippingMethod"]
                     .as_bool()
                     .unwrap_or(false)
@@ -649,9 +593,9 @@ impl DraftProxy {
             &location_id,
             &name,
             callback_url,
-            resolved_bool_field(&field.arguments, "trackingSupport")
+            resolved_bool_field(arguments, "trackingSupport")
                 .unwrap_or_else(|| existing["trackingSupport"].as_bool().unwrap_or(false)),
-            resolved_bool_field(&field.arguments, "inventoryManagement")
+            resolved_bool_field(arguments, "inventoryManagement")
                 .unwrap_or_else(|| existing["inventoryManagement"].as_bool().unwrap_or(false)),
             requires_shipping_method,
         );
@@ -666,28 +610,22 @@ impl DraftProxy {
             .staged
             .fulfillment_service_locations
             .insert(location_id, service["location"].clone());
-        (
-            fulfillment_service_payload_json(service, &field.selection, &service_selection, vec![]),
-            vec![id],
-        )
+        (fulfillment_service_payload_json(service, vec![]), vec![id])
     }
 
-    pub(in crate::proxy) fn fulfillment_service_delete_payload(
+    fn fulfillment_service_delete_payload(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> (Value, Vec<String>) {
-        let id = field
-            .arguments
+        let id = arguments
             .get("id")
             .and_then(resolved_value_string)
             .unwrap_or_default();
-        let inventory_action = field
-            .arguments
+        let inventory_action = arguments
             .get("inventoryAction")
             .and_then(resolved_value_string);
-        let destination_location_id = field
-            .arguments
+        let destination_location_id = arguments
             .get("destinationLocationId")
             .and_then(resolved_value_string)
             .filter(|value| !value.trim().is_empty());
@@ -698,7 +636,6 @@ impl DraftProxy {
             return (
                 fulfillment_service_delete_payload(
                     Value::Null,
-                    &field.selection,
                     vec![user_error_omit_code(
                         ["id"],
                         "Fulfillment service could not be found.",
@@ -714,7 +651,6 @@ impl DraftProxy {
                 return (
                     fulfillment_service_delete_payload(
                         Value::Null,
-                        &field.selection,
                         vec![user_error_omit_code(["inventoryAction"], "Inventory action Destination location id should not be present when deleting/keeping the inventory of the fulfillment service.", None)],
                     ),
                     vec![],
@@ -726,7 +662,6 @@ impl DraftProxy {
                         return (
                             fulfillment_service_delete_payload(
                                 Value::Null,
-                                &field.selection,
                                 vec![user_error_omit_code(
                                     Value::Null,
                                     "Invalid destination location.",
@@ -760,33 +695,13 @@ impl DraftProxy {
             .fulfillment_service_locations
             .tombstone(location_id);
         (
-            fulfillment_service_delete_payload(
-                json!(id.replace("?id=true", "")),
-                &field.selection,
-                vec![],
-            ),
+            fulfillment_service_delete_payload(json!(id.replace("?id=true", "")), vec![]),
             vec![id],
         )
     }
 
-    pub(in crate::proxy) fn carrier_service_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "carrierService" => self.carrier_service_detail_field(field),
-                "carrierServices" => self.carrier_services_connection_field(field),
-                _ => return None,
-            })
-        })
-    }
-
-    pub(in crate::proxy) fn carrier_service_detail_field(
-        &self,
-        field: &RootFieldSelection,
-    ) -> Value {
-        let Some(id) = field.arguments.get("id").and_then(resolved_value_string) else {
+    fn carrier_service_detail_value(&self, arguments: &BTreeMap<String, ResolvedValue>) -> Value {
+        let Some(id) = arguments.get("id").and_then(resolved_value_string) else {
             return Value::Null;
         };
         if self.store.staged.carrier_services.is_tombstoned(&id) {
@@ -796,13 +711,13 @@ impl DraftProxy {
             .staged
             .carrier_services
             .get(&id)
-            .map(|carrier| selected_json(carrier, &field.selection))
+            .cloned()
             .unwrap_or(Value::Null)
     }
 
-    pub(in crate::proxy) fn carrier_services_connection_field(
+    fn carrier_services_connection_value(
         &self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let services: Vec<Value> = self
             .store
@@ -814,63 +729,66 @@ impl DraftProxy {
             .collect();
         let result = staged_connection_query(
             services,
-            &field.arguments,
+            arguments,
             carrier_service_search_decision,
             carrier_service_sort_key,
             carrier_service_cursor,
         );
-        selected_typed_connection_with_page_info(
+        typed_connection_value(
             &result.records,
-            &field.selection,
-            selected_json,
+            Value::clone,
             carrier_service_cursor,
             result.page_info,
         )
     }
 
-    pub(in crate::proxy) fn carrier_service_mutations(
+    pub(crate) fn carrier_service_mutation_root(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let fields = self
-            .execution_root_fields(query, variables)
-            .unwrap_or_default();
-        let data = root_payload_json(&fields, |field| {
-            let payload = match field.name.as_str() {
-                "carrierServiceCreate" => {
-                    self.carrier_service_create_field(field, query, variables, request)
-                }
-                "carrierServiceUpdate" => {
-                    self.carrier_service_update_field(field, query, variables, request)
-                }
-                "carrierServiceDelete" => {
-                    self.carrier_service_delete_field(field, query, variables, request)
-                }
-                _ => return None,
-            };
-            Some(payload)
-        });
-        ok_json(json!({ "data": data }))
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            root_name,
+            arguments,
+            request,
+            ..
+        } = invocation;
+        let arguments = resolved_arguments_from_json(&arguments);
+        let mut staged_ids = Vec::new();
+        let payload = match root_name {
+            "carrierServiceCreate" => {
+                self.carrier_service_create_field(&arguments, request, &mut staged_ids)
+            }
+            "carrierServiceUpdate" => {
+                self.carrier_service_update_field(&arguments, request, &mut staged_ids)
+            }
+            "carrierServiceDelete" => {
+                self.carrier_service_delete_field(&arguments, request, &mut staged_ids)
+            }
+            _ => Value::Null,
+        };
+        let mut outcome = ResolverOutcome::value(payload);
+        if !staged_ids.is_empty() {
+            outcome = outcome.with_log_draft(LogDraft::staged(
+                root_name,
+                "shipping-fulfillments",
+                staged_ids,
+            ));
+        }
+        outcome
     }
 
-    pub(in crate::proxy) fn carrier_service_create_field(
+    fn carrier_service_create_field(
         &mut self,
-        field: &RootFieldSelection,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
+        staged_ids: &mut Vec<String>,
     ) -> Value {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let carrier_selection = nested_selected_fields(&field.selection, &["carrierService"]);
+        let input = resolved_object_field(arguments, "input").unwrap_or_default();
         let Some(name) =
             resolved_string_field(&input, "name").filter(|name| !name.trim().is_empty())
         else {
             return carrier_service_payload_json(
                 Value::Null,
-                &field.selection,
-                &carrier_selection,
                 vec![user_error(
                     Value::Null,
                     "Shipping rate provider name can't be blank",
@@ -881,12 +799,7 @@ impl DraftProxy {
         if let Some(error) = resolved_string_field(&input, "callbackUrl").and_then(|callback_url| {
             carrier_service_callback_url_error(&callback_url, "CARRIER_SERVICE_CREATE_FAILED")
         }) {
-            return carrier_service_payload_json(
-                Value::Null,
-                &field.selection,
-                &carrier_selection,
-                vec![error],
-            );
+            return carrier_service_payload_json(Value::Null, vec![error]);
         }
         // A carrier service name is unique per app/shop: a second create with the same
         // (trimmed) name returns a base CARRIER_SERVICE_CREATE_FAILED userError naming the
@@ -905,8 +818,6 @@ impl DraftProxy {
         {
             return carrier_service_payload_json(
                 Value::Null,
-                &field.selection,
-                &carrier_selection,
                 vec![user_error(
                     Value::Null,
                     &format!("{trimmed_name} is already configured"),
@@ -929,30 +840,22 @@ impl DraftProxy {
             .staged
             .carrier_services
             .insert(id.clone(), carrier.clone());
-        self.record_mutation_log_entry(request, query, variables, "carrierServiceCreate", vec![id]);
-        carrier_service_payload_json(carrier, &field.selection, &carrier_selection, vec![])
+        staged_ids.push(id);
+        carrier_service_payload_json(carrier, vec![])
     }
 
-    pub(in crate::proxy) fn carrier_service_update_field(
+    fn carrier_service_update_field(
         &mut self,
-        field: &RootFieldSelection,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
+        staged_ids: &mut Vec<String>,
     ) -> Value {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let carrier_selection = nested_selected_fields(&field.selection, &["carrierService"]);
+        let input = resolved_object_field(arguments, "input").unwrap_or_default();
         let Some(id) = resolved_string_field(&input, "id") else {
-            return carrier_service_not_found_payload(
-                &field.selection,
-                "CARRIER_SERVICE_UPDATE_FAILED",
-            );
+            return carrier_service_not_found_payload("CARRIER_SERVICE_UPDATE_FAILED");
         };
         let Some(existing) = self.carrier_service_for_mutation(&id, request) else {
-            return carrier_service_not_found_payload(
-                &field.selection,
-                "CARRIER_SERVICE_UPDATE_FAILED",
-            );
+            return carrier_service_not_found_payload("CARRIER_SERVICE_UPDATE_FAILED");
         };
         if matches!(
             resolved_string_field(&input, "name").as_deref(),
@@ -960,8 +863,6 @@ impl DraftProxy {
         ) {
             return carrier_service_payload_json(
                 Value::Null,
-                &field.selection,
-                &carrier_selection,
                 vec![user_error(
                     Value::Null,
                     "Shipping rate provider name can't be blank",
@@ -978,12 +879,7 @@ impl DraftProxy {
             if let Some(error) = input_callback_url.as_ref().and_then(|callback_url| {
                 carrier_service_callback_url_error(callback_url, "CARRIER_SERVICE_UPDATE_FAILED")
             }) {
-                return carrier_service_payload_json(
-                    Value::Null,
-                    &field.selection,
-                    &carrier_selection,
-                    vec![error],
-                );
+                return carrier_service_payload_json(Value::Null, vec![error]);
             }
         }
         let name = resolved_string_field(&input, "name")
@@ -1024,26 +920,23 @@ impl DraftProxy {
             .staged
             .carrier_services
             .insert(id.clone(), carrier.clone());
-        self.record_mutation_log_entry(request, query, variables, "carrierServiceUpdate", vec![id]);
-        carrier_service_payload_json(carrier, &field.selection, &carrier_selection, vec![])
+        staged_ids.push(id);
+        carrier_service_payload_json(carrier, vec![])
     }
 
-    pub(in crate::proxy) fn carrier_service_delete_field(
+    fn carrier_service_delete_field(
         &mut self,
-        field: &RootFieldSelection,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
+        staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = field
-            .arguments
+        let id = arguments
             .get("id")
             .and_then(resolved_value_string)
             .unwrap_or_default();
         if self.carrier_service_for_mutation(&id, request).is_none() {
             return carrier_service_delete_payload(
                 Value::Null,
-                &field.selection,
                 vec![user_error(
                     json!(["id"]),
                     "The carrier or app could not be found.",
@@ -1053,48 +946,41 @@ impl DraftProxy {
         }
         self.store.staged.carrier_services.remove(&id);
         self.store.staged.carrier_services.tombstone(id.clone());
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "carrierServiceDelete",
-            vec![id.clone()],
-        );
-        carrier_service_delete_payload(json!(id), &field.selection, vec![])
+        staged_ids.push(id.clone());
+        carrier_service_delete_payload(json!(id), vec![])
     }
 
-    pub(in crate::proxy) fn shipping_package_mutation(
+    pub(crate) fn shipping_package_mutation_root(
         &mut self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, _, arguments) =
-            self.execution_primary_root_response_parts(query, variables, || root_field.to_string());
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            root_name: root_field,
+            arguments,
+            request,
+            response_key,
+            ..
+        } = invocation;
+        let arguments = resolved_arguments_from_json(&arguments);
         let Some(ResolvedValue::String(id)) = arguments.get("id") else {
-            return ok_json(
-                json!({ "data": { response_key: { "userErrors": [user_error_omit_code(["id"], "ID is required", None)] } } }),
-            );
+            return ResolverOutcome::value(json!({
+                "userErrors": [user_error_omit_code(["id"], "ID is required", None)]
+            }));
         };
         let id = id.clone();
         let payload = match root_field {
             "shippingPackageUpdate" => {
                 let Some(ResolvedValue::Object(input)) = arguments.get("shippingPackage") else {
-                    return ok_json(
-                        json!({ "data": { response_key: { "userErrors": [user_error_omit_code(["shippingPackage"], "Shipping package input is required", None)] } } }),
-                    );
+                    return ResolverOutcome::value(json!({
+                        "userErrors": [user_error_omit_code(["shippingPackage"], "Shipping package input is required", None)]
+                    }));
                 };
                 let Some(mut package) = self.shipping_package_for_mutation(&id, request) else {
-                    return shipping_package_not_found_response(root_field, &response_key, &id);
+                    return shipping_package_not_found_outcome(root_field, response_key, &id);
                 };
                 if package.get("boxType") == Some(&json!("FLAT_RATE")) {
-                    return ok_json(json!({
-                        "data": {
-                            response_key: {
-                                "userErrors": [user_error(["shippingPackage"], "Custom shipping box is not updatable", Some("CUSTOM_SHIPPING_BOX_NOT_UPDATABLE"))]
-                            }
-                        }
+                    return ResolverOutcome::value(json!({
+                        "userErrors": [user_error(["shippingPackage"], "Custom shipping box is not updatable", Some("CUSTOM_SHIPPING_BOX_NOT_UPDATABLE"))]
                     }));
                 }
                 let was_default = package.get("default") == Some(&json!(true));
@@ -1111,7 +997,7 @@ impl DraftProxy {
             }
             "shippingPackageMakeDefault" => {
                 let Some(mut package) = self.shipping_package_for_mutation(&id, request) else {
-                    return shipping_package_not_found_response(root_field, &response_key, &id);
+                    return shipping_package_not_found_outcome(root_field, response_key, &id);
                 };
                 self.clear_default_shipping_packages_except(&id);
                 package["default"] = json!(true);
@@ -1124,7 +1010,7 @@ impl DraftProxy {
             }
             "shippingPackageDelete" => {
                 if self.shipping_package_for_mutation(&id, request).is_none() {
-                    return shipping_package_not_found_response(root_field, &response_key, &id);
+                    return shipping_package_not_found_outcome(root_field, response_key, &id);
                 }
                 self.store.staged.shipping_packages.remove(&id);
                 self.store.staged.shipping_packages.tombstone(id.clone());
@@ -1133,8 +1019,10 @@ impl DraftProxy {
             _ => unreachable!("shipping package dispatcher only receives supported roots"),
         };
 
-        self.record_shipping_package_log_entry(request, query, variables, root_field, vec![id]);
-        ok_json(json!({ "data": { response_key: payload } }))
+        ResolverOutcome::value(payload).with_log_draft(
+            LogDraft::staged(root_field, "shipping-fulfillments", vec![id])
+                .with_operation_name(root_field),
+        )
     }
 
     pub(in crate::proxy) fn shipping_package_for_mutation(
@@ -1222,43 +1110,19 @@ impl DraftProxy {
             staged_shipping_mutations * 2 + 1
         )
     }
-
-    pub(in crate::proxy) fn record_shipping_package_log_entry(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_field: &str,
-        staged_resource_ids: Vec<String>,
-    ) {
-        let id = format!("log-{}", self.log_entries.len() + 1);
-        self.log_entries.push(json!({
-            "id": id,
-            "operationName": root_field,
-            "path": request.path,
-            "query": query,
-            "variables": resolved_variables_json(variables),
-            "rawBody": request.body,
-            "stagedResourceIds": staged_resource_ids,
-            "status": "staged",
-            "interpreted": {
-                "operationType": "mutation",
-                "rootFields": [root_field],
-                "primaryRootField": root_field
-            }
-        }));
-    }
 }
 
-fn shipping_package_not_found_response(root_field: &str, response_key: &str, id: &str) -> Response {
-    ok_json(json!({
-        "errors": [{
-            "message": format!("Invalid id: {id}"),
-            "extensions": { "code": "RESOURCE_NOT_FOUND" },
-            "path": [root_field]
-        }],
-        "data": { response_key: null }
-    }))
+fn shipping_package_not_found_outcome(
+    _root_field: &str,
+    _response_key: &str,
+    id: &str,
+) -> ResolverOutcome<Value> {
+    ResolverOutcome::value(Value::Null).with_errors(vec![crate::admin_graphql::RootFieldError {
+        message: format!("Invalid id: {id}"),
+        extensions: BTreeMap::from([("code".to_string(), json!("RESOURCE_NOT_FOUND"))]),
+        path: Some(Vec::new()),
+        locations: Vec::new(),
+    }])
 }
 
 fn normalize_hydrated_shipping_package(package: &Value, expected_id: &str) -> Option<Value> {

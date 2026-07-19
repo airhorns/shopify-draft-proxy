@@ -575,17 +575,17 @@ fn storefront_graphql_snapshot_mode_returns_schema_shaped_empty_connections_and_
         path: "/api/2026-04/graphql.json".to_string(),
         headers: Default::default(),
         body: json!({
-            "query": "query StorefrontSnapshot { products(first: 1) { nodes { id } pageInfo { hasNextPage hasPreviousPage } } }",
-            "variables": {}
+            "query": "query StorefrontSnapshot($includeNodes: Boolean!) { products(first: 1) { items: nodes @include(if: $includeNodes) { id } ...EmptyPage } } fragment EmptyPage on ProductConnection { nodes: pageInfo { next: hasNextPage previous: hasPreviousPage } }",
+            "variables": { "includeNodes": true }
         })
         .to_string(),
     });
 
     assert_eq!(response.status, 200);
-    assert_eq!(response.body["data"]["products"]["nodes"], json!([]));
+    assert_eq!(response.body["data"]["products"]["items"], json!([]));
     assert_eq!(
-        response.body["data"]["products"]["pageInfo"],
-        json!({ "hasNextPage": false, "hasPreviousPage": false })
+        response.body["data"]["products"]["nodes"],
+        json!({ "next": false, "previous": false })
     );
 
     let missing_shop = proxy.process_request(Request {
@@ -1873,8 +1873,18 @@ fn storefront_cart_lifecycle_stages_locally_with_aliases_fragments_and_state_rou
         }),
     ));
     assert_eq!(create.status, 200, "{}", create.body);
-    assert_eq!(create.body["data"]["created"]["userErrors"], json!([]));
-    assert_eq!(create.body["data"]["created"]["warnings"], json!([]));
+    assert_eq!(
+        create.body["data"]["created"]["userErrors"],
+        json!([]),
+        "{}",
+        create.body,
+    );
+    assert_eq!(
+        create.body["data"]["created"]["warnings"],
+        json!([]),
+        "{}",
+        create.body,
+    );
     let cart = &create.body["data"]["created"]["cart"];
     let cart_id = cart["id"].as_str().expect("cart id").to_string();
     assert!(cart_id.starts_with("gid://shopify/Cart/"));

@@ -2765,6 +2765,93 @@ fn live_hybrid_nodes_batch_merges_staged_and_tombstoned_records_over_one_upstrea
 }
 
 #[test]
+fn live_hybrid_multi_root_nodes_hydrate_entities_once_without_overwriting_local_roots() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("multi-root node request body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let local_id = body["variables"]["localId"].as_str().unwrap_or_default();
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "local": {
+                            "__typename": "Product",
+                            "id": local_id,
+                            "title": "stale upstream product"
+                        },
+                        "cold": {
+                            "__typename": "Order",
+                            "id": "gid://shopify/Order/cold-multi-root",
+                            "name": "#COLD"
+                        }
+                    }
+                }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalProductForMultiRootNode {
+          productCreate(product: { title: "Canonical local product" }) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let local_id = required_string(
+        &create.body["data"]["productCreate"]["product"]["id"],
+        "local product id",
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query MultiRootEntityHydration($localId: ID!, $coldId: ID!) {
+          local: node(id: $localId) {
+            __typename
+            ... on Product { id title }
+          }
+          cold: node(id: $coldId) {
+            __typename
+            ... on Order { id name }
+          }
+        }
+        "#,
+        json!({
+            "localId": local_id,
+            "coldId": "gid://shopify/Order/cold-multi-root"
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "local": {
+                "__typename": "Product",
+                "id": local_id,
+                "title": "Canonical local product"
+            },
+            "cold": {
+                "__typename": "Order",
+                "id": "gid://shopify/Order/cold-multi-root",
+                "name": "#COLD"
+            }
+        })
+    );
+    let upstream_requests = upstream_requests.lock().unwrap();
+    assert_eq!(upstream_requests.len(), 1);
+    assert!(upstream_requests[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("query MultiRootEntityHydration")));
+}
+
+#[test]
 fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_records() {
     let mut proxy = snapshot_proxy();
 

@@ -11,6 +11,7 @@ use shopify_draft_proxy::upstream::HttpUpstreamClient;
 
 fn main() -> std::io::Result<()> {
     let config = config_from_env();
+    let fixed_now = fixed_now_from_env()?;
     let upstream_origin = config.shopify_admin_origin.clone();
     let bind_addr = format!("127.0.0.1:{}", config.port);
     let listener = TcpListener::bind(&bind_addr)?;
@@ -27,7 +28,11 @@ fn main() -> std::io::Result<()> {
 
     let upstream_client = HttpUpstreamClient::new(upstream_origin);
     let commit_client = upstream_client.clone();
-    let mut proxy = DraftProxy::new(config)
+    let mut proxy = DraftProxy::new(config);
+    if let Some(fixed_now) = fixed_now {
+        proxy = proxy.with_clock(move || fixed_now);
+    }
+    let mut proxy = proxy
         .with_upstream_transport(move |request| upstream_client.send(request))
         .with_commit_transport(move |request| commit_client.send(request));
     for stream in listener.incoming() {
@@ -60,6 +65,22 @@ fn main() -> std::io::Result<()> {
 
 fn env_value(names: &[&str]) -> Option<String> {
     names.iter().find_map(|name| env::var(name).ok())
+}
+
+fn fixed_now_from_env() -> std::io::Result<Option<time::OffsetDateTime>> {
+    // Test/parity-only seam for deterministic lifecycle replay. Production
+    // callers leave this unset and use DraftProxy's ordinary wall clock.
+    env_value(&["SHOPIFY_DRAFT_PROXY_FIXED_NOW"])
+        .map(|value| {
+            time::OffsetDateTime::parse(&value, &time::format_description::well_known::Rfc3339)
+                .map_err(|error| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        format!("invalid SHOPIFY_DRAFT_PROXY_FIXED_NOW `{value}`: {error}"),
+                    )
+                })
+        })
+        .transpose()
 }
 
 fn config_from_env() -> Config {

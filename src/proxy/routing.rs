@@ -1,7 +1,6 @@
 use super::*;
 use crate::admin_graphql::AdminApiVersion;
-
-const SUPPORTED_STOREFRONT_GRAPHQL_VERSIONS: &[&str] = &["2025-01", "2026-04"];
+use crate::graphql_catalog::storefront_route_version_is_accepted;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::proxy) enum Route {
@@ -64,15 +63,6 @@ pub(in crate::proxy) fn only_method(expected: &str, actual: &str, route: Route) 
     }
 }
 
-/// Preserve the existing wire error for a registered local root whose domain
-/// entry point does not implement the selected request shape yet.
-pub(in crate::proxy) fn unimplemented_root_response(domain: &str, root_field: &str) -> Response {
-    json_error(
-        501,
-        &format!("No Rust {domain} dispatcher implemented for root field: {root_field}"),
-    )
-}
-
 pub(in crate::proxy) fn admin_graphql_version(path: &str) -> Option<&str> {
     let version = admin_graphql_path_version(path)?;
     supported_admin_graphql_version(version).then_some(version)
@@ -119,7 +109,7 @@ pub(in crate::proxy) fn supported_admin_graphql_version(version: &str) -> bool {
 }
 
 pub(in crate::proxy) fn supported_storefront_graphql_version(version: &str) -> bool {
-    SUPPORTED_STOREFRONT_GRAPHQL_VERSIONS.contains(&version)
+    storefront_route_version_is_accepted(version)
 }
 
 pub(in crate::proxy) fn latest_supported_admin_graphql_version() -> Option<&'static str> {

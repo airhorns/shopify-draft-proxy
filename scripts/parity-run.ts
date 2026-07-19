@@ -174,6 +174,36 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
   return JSON.parse(await readFile(filePath, 'utf8')) as T;
 }
 
+export function scenarioClockFromCapture(capture: Record<string, unknown>): string | undefined {
+  const runIds = new Set<number>();
+  let hasLifecycleTimestamp = false;
+  const pending: unknown[] = [capture];
+  while (pending.length > 0) {
+    const candidate = pending.pop();
+    if (Array.isArray(candidate)) {
+      pending.push(...candidate);
+      continue;
+    }
+    if (!isPlainObject(candidate)) continue;
+    for (const [key, value] of Object.entries(candidate)) {
+      if (key === 'runId' && (typeof value === 'string' || typeof value === 'number')) {
+        const raw = String(value);
+        if (/^\d{13}$/u.test(raw)) {
+          const epochMilliseconds = Number(raw);
+          const year = new Date(epochMilliseconds).getUTCFullYear();
+          if (year >= 2020 && year <= 2100) runIds.add(epochMilliseconds);
+        }
+      }
+      if ((key === 'startsAt' || key === 'endsAt') && isIsoTimestamp(value)) {
+        hasLifecycleTimestamp = true;
+      }
+      pending.push(value);
+    }
+  }
+  if (!hasLifecycleTimestamp || runIds.size !== 1) return undefined;
+  return new Date([...runIds][0] as number).toISOString();
+}
+
 async function findSpecForScenario(scenarioId: string): Promise<string> {
   for (const specPath of await findAllSpecPaths()) {
     try {
@@ -1166,13 +1196,23 @@ async function runSpec(
   return failures;
 }
 
-function createProxyContext(readMode: ReadMode, shopifyAdminOrigin: string): ProxyContext {
-  const proxy = createDraftProxy({
-    readMode,
-    unsupportedMutationMode: 'passthrough',
-    shopifyAdminOrigin,
-    port: 0,
-  });
+function createProxyContext(readMode: ReadMode, shopifyAdminOrigin: string, fixedNow?: string): ProxyContext {
+  const envName = 'SHOPIFY_DRAFT_PROXY_FIXED_NOW';
+  const previousFixedNow = process.env[envName];
+  if (fixedNow === undefined) delete process.env[envName];
+  else process.env[envName] = fixedNow;
+  let proxy: DraftProxy;
+  try {
+    proxy = createDraftProxy({
+      readMode,
+      unsupportedMutationMode: 'passthrough',
+      shopifyAdminOrigin,
+      port: 0,
+    });
+  } finally {
+    if (previousFixedNow === undefined) delete process.env[envName];
+    else process.env[envName] = previousFixedNow;
+  }
   return { proxy, cleanState: proxy.dumpState('1970-01-01T00:00:00.000Z') };
 }
 
@@ -1216,8 +1256,21 @@ async function main(): Promise<void> {
     for (const specPath of specPaths) {
       const spec = await readJsonFile<ParitySpec>(specPath);
       const readMode = spec.proxyConfig?.readMode ?? defaultReadMode;
-      const { proxy, cleanState } = proxyContextFor(readMode);
-      const errors = await runSpec(specPath, args.debug, proxy, cassette, cleanState);
+      const capturePath = spec.liveCaptureFiles?.[0];
+      const capture =
+        capturePath === undefined
+          ? undefined
+          : await readJsonFile<Record<string, unknown>>(path.resolve(repoRoot, capturePath));
+      const fixedNow = capture === undefined ? undefined : scenarioClockFromCapture(capture);
+      const temporaryContext =
+        fixedNow === undefined ? undefined : createProxyContext(readMode, cassette.origin, fixedNow);
+      const { proxy, cleanState } = temporaryContext ?? proxyContextFor(readMode);
+      let errors: string[];
+      try {
+        errors = await runSpec(specPath, args.debug, proxy, cassette, cleanState);
+      } finally {
+        temporaryContext?.proxy.dispose();
+      }
       const relativeSpecPath = path.relative(repoRoot, specPath);
       if (errors.length > 0) {
         failedSpecs.push({ specPath: relativeSpecPath, errors });

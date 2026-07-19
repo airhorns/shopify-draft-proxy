@@ -1,12 +1,13 @@
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn inventory_shipment_create(
+    pub(crate) fn inventory_shipment_create(
         &mut self,
-        field: &RootFieldSelection,
-        in_transit: bool,
-    ) -> MutationFieldOutcome {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let input = resolved_object_field(&arguments, "input").unwrap_or_default();
+        let in_transit = invocation.root_name == "inventoryShipmentCreateInTransit";
         let transfer_id = resolved_string_field(&input, "inventoryTransferId")
             .or_else(|| resolved_string_field(&input, "transferId"));
         let movement_id = resolved_string_field(&input, "movementId");
@@ -19,11 +20,9 @@ impl DraftProxy {
             transfer_id.as_deref(),
             &line_inputs,
         ) {
-            return MutationFieldOutcome::unlogged(self.inventory_shipment_payload_with_errors(
-                field,
-                "inventoryShipment",
-                errors,
-            ));
+            return ResolverOutcome::value(
+                self.inventory_shipment_payload_with_errors("inventoryShipment", errors),
+            );
         }
 
         let id = self.next_proxy_synthetic_gid("InventoryShipment");
@@ -62,44 +61,39 @@ impl DraftProxy {
         if in_transit {
             self.apply_shipment_incoming_delta(&record, record.unreceived_quantity());
         }
-        let payload =
-            self.inventory_shipment_payload_json(&record, &field.selection, "inventoryShipment");
+        let payload = self.inventory_shipment_payload_value(&record, "inventoryShipment");
         self.store
             .staged
             .inventory_shipments
             .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged(field.name.clone(), "products", vec![id]),
-        )
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            invocation.root_name,
+            "products",
+            vec![id],
+        ))
     }
 
-    pub(in crate::proxy) fn inventory_shipment_add_items(
+    pub(crate) fn inventory_shipment_add_items(
         &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_shipment_missing_mutation_payload(
-                    field,
-                    "inventoryShipment",
-                    &[("addedItems", json!([]))],
-                ),
-            );
+            return ResolverOutcome::value(self.inventory_shipment_missing_mutation_payload(
+                "inventoryShipment",
+                &[("addedItems", json!([]))],
+            ));
         };
-        let line_inputs = resolved_object_list_field(&field.arguments, "lineItems");
+        let line_inputs = resolved_object_list_field(&arguments, "lineItems");
         if let Some(errors) =
             self.inventory_shipment_line_validation_errors(&record, &line_inputs, "lineItems")
         {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_shipment_payload_with_errors_and_extra(
-                    field,
-                    "inventoryShipment",
-                    errors,
-                    &[("addedItems", json!([]))],
-                ),
-            );
+            return ResolverOutcome::value(self.inventory_shipment_payload_with_errors_and_extra(
+                "inventoryShipment",
+                errors,
+                &[("addedItems", json!([]))],
+            ));
         }
         let was_in_transit = inventory_shipment_has_incoming(&record);
         let destination_location_id = self.shipment_destination_location_id(&record);
@@ -130,39 +124,35 @@ impl DraftProxy {
             added_items.push(self.inventory_shipment_line_item_full_json(&line_item));
             record.line_items.push(line_item);
         }
-        let payload = selected_json(
-            &json!({
-                "inventoryShipment": self.inventory_shipment_full_json(&record),
-                "addedItems": added_items,
-                "userErrors": []
-            }),
-            &field.selection,
-        );
+        let payload = json!({
+            "inventoryShipment": self.inventory_shipment_full_json(&record),
+            "addedItems": added_items,
+            "userErrors": []
+        });
         self.store
             .staged
             .inventory_shipments
             .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged("inventoryShipmentAddItems", "products", vec![id]),
-        )
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "inventoryShipmentAddItems",
+            "products",
+            vec![id],
+        ))
     }
 
-    pub(in crate::proxy) fn inventory_shipment_remove_items(
+    pub(crate) fn inventory_shipment_remove_items(
         &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_shipment_missing_mutation_payload(
-                    field,
-                    "inventoryShipment",
-                    &[("removedLineItemIds", json!([]))],
-                ),
-            );
+            return ResolverOutcome::value(self.inventory_shipment_missing_mutation_payload(
+                "inventoryShipment",
+                &[("removedLineItemIds", json!([]))],
+            ));
         };
-        let remove_ids = resolved_string_list_arg(&field.arguments, "shipmentLineItemIds");
+        let remove_ids = resolved_string_list_arg(&arguments, "shipmentLineItemIds");
         let was_in_transit = inventory_shipment_has_incoming(&record);
         let destination_location_id = self.shipment_destination_location_id(&record);
         let mut kept = Vec::new();
@@ -188,39 +178,35 @@ impl DraftProxy {
             }
         }
         record.line_items = kept;
-        let payload = selected_json(
-            &json!({
-                "inventoryShipment": self.inventory_shipment_full_json(&record),
-                "removedLineItemIds": removed_ids,
-                "userErrors": []
-            }),
-            &field.selection,
-        );
+        let payload = json!({
+            "inventoryShipment": self.inventory_shipment_full_json(&record),
+            "removedLineItemIds": removed_ids,
+            "userErrors": []
+        });
         self.store
             .staged
             .inventory_shipments
             .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged("inventoryShipmentRemoveItems", "products", vec![id]),
-        )
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "inventoryShipmentRemoveItems",
+            "products",
+            vec![id],
+        ))
     }
 
-    pub(in crate::proxy) fn inventory_shipment_update_item_quantities(
+    pub(crate) fn inventory_shipment_update_item_quantities(
         &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_shipment_missing_mutation_payload(
-                    field,
-                    "shipment",
-                    &[("updatedLineItems", json!([]))],
-                ),
-            );
+            return ResolverOutcome::value(self.inventory_shipment_missing_mutation_payload(
+                "shipment",
+                &[("updatedLineItems", json!([]))],
+            ));
         };
-        let items = resolved_object_list_field(&field.arguments, "items");
+        let items = resolved_object_list_field(&arguments, "items");
         let mut proposed_quantities_by_line_id = BTreeMap::new();
         for (index, item) in items.iter().enumerate() {
             let line_item_id =
@@ -230,9 +216,8 @@ impl DraftProxy {
                 .iter()
                 .find(|line_item| line_item.id == line_item_id)
             else {
-                return MutationFieldOutcome::unlogged(
+                return ResolverOutcome::value(
                     self.inventory_shipment_payload_with_errors_and_extra(
-                        field,
                         "shipment",
                         vec![inventory_shipment_user_error(
                             vec!["items", &index.to_string(), "shipmentLineItemId"],
@@ -272,9 +257,8 @@ impl DraftProxy {
                         Some(&record.id),
                     )
                 {
-                    return MutationFieldOutcome::unlogged(
+                    return ResolverOutcome::value(
                         self.inventory_shipment_payload_with_errors_and_extra(
-                            field,
                             "shipment",
                             vec![inventory_shipment_user_error(
                                 vec!["items", &index.to_string(), "quantity"],
@@ -316,75 +300,68 @@ impl DraftProxy {
                 updated.push(self.inventory_shipment_line_item_full_json(line_item));
             }
         }
-        let payload = selected_json(
-            &json!({
-                "shipment": self.inventory_shipment_full_json(&record),
-                "updatedLineItems": updated,
-                "userErrors": []
-            }),
-            &field.selection,
-        );
+        let payload = json!({
+            "shipment": self.inventory_shipment_full_json(&record),
+            "updatedLineItems": updated,
+            "userErrors": []
+        });
         self.store
             .staged
             .inventory_shipments
             .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged(
-                "inventoryShipmentUpdateItemQuantities",
-                "products",
-                vec![id],
-            ),
-        )
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "inventoryShipmentUpdateItemQuantities",
+            "products",
+            vec![id],
+        ))
     }
 
-    pub(in crate::proxy) fn inventory_shipment_set_tracking(
+    pub(crate) fn inventory_shipment_set_tracking(
         &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_shipment_missing_mutation_payload(field, "inventoryShipment", &[]),
+            return ResolverOutcome::value(
+                self.inventory_shipment_missing_mutation_payload("inventoryShipment", &[]),
             );
         };
-        let input = resolved_object_field(&field.arguments, "trackingInput")
-            .or_else(|| resolved_object_field(&field.arguments, "tracking"))
+        let input = resolved_object_field(&arguments, "trackingInput")
+            .or_else(|| resolved_object_field(&arguments, "tracking"))
             .unwrap_or_default();
         let errors = inventory_shipment_tracking_errors(&input);
         if !errors.is_empty() {
-            return MutationFieldOutcome::unlogged(self.inventory_shipment_payload_with_errors(
-                field,
-                "inventoryShipment",
-                errors,
-            ));
+            return ResolverOutcome::value(
+                self.inventory_shipment_payload_with_errors("inventoryShipment", errors),
+            );
         }
         record.tracking = inventory_shipment_tracking_from_input(&input);
-        let payload =
-            self.inventory_shipment_payload_json(&record, &field.selection, "inventoryShipment");
+        let payload = self.inventory_shipment_payload_value(&record, "inventoryShipment");
         self.store
             .staged
             .inventory_shipments
             .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged("inventoryShipmentSetTracking", "products", vec![id]),
-        )
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "inventoryShipmentSetTracking",
+            "products",
+            vec![id],
+        ))
     }
 
-    pub(in crate::proxy) fn inventory_shipment_mark_in_transit(
+    pub(crate) fn inventory_shipment_mark_in_transit(
         &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_shipment_missing_mutation_payload(field, "inventoryShipment", &[]),
+            return ResolverOutcome::value(
+                self.inventory_shipment_missing_mutation_payload("inventoryShipment", &[]),
             );
         };
         if record.status != "DRAFT" {
-            return MutationFieldOutcome::unlogged(self.inventory_shipment_payload_with_errors(
-                field,
+            return ResolverOutcome::value(self.inventory_shipment_payload_with_errors(
                 "inventoryShipment",
                 vec![inventory_shipment_user_error(
                     vec!["id"],
@@ -395,31 +372,31 @@ impl DraftProxy {
         }
         record.status = "IN_TRANSIT".to_string();
         self.apply_shipment_incoming_delta(&record, record.unreceived_quantity());
-        let payload =
-            self.inventory_shipment_payload_json(&record, &field.selection, "inventoryShipment");
+        let payload = self.inventory_shipment_payload_value(&record, "inventoryShipment");
         self.store
             .staged
             .inventory_shipments
             .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged("inventoryShipmentMarkInTransit", "products", vec![id]),
-        )
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "inventoryShipmentMarkInTransit",
+            "products",
+            vec![id],
+        ))
     }
 
-    pub(in crate::proxy) fn inventory_shipment_receive(
+    pub(crate) fn inventory_shipment_receive(
         &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let Some(mut record) = self.store.staged.inventory_shipments.get(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_shipment_missing_mutation_payload(field, "inventoryShipment", &[]),
+            return ResolverOutcome::value(
+                self.inventory_shipment_missing_mutation_payload("inventoryShipment", &[]),
             );
         };
         if !matches!(record.status.as_str(), "IN_TRANSIT" | "PARTIALLY_RECEIVED") {
-            return MutationFieldOutcome::unlogged(self.inventory_shipment_payload_with_errors(
-                field,
+            return ResolverOutcome::value(self.inventory_shipment_payload_with_errors(
                 "inventoryShipment",
                 vec![inventory_shipment_user_error(
                     vec!["id"],
@@ -428,7 +405,7 @@ impl DraftProxy {
                 )],
             ));
         }
-        let receive_items = resolved_object_list_field(&field.arguments, "lineItems");
+        let receive_items = resolved_object_list_field(&arguments, "lineItems");
         let destination_location_id = self.shipment_destination_location_id(&record);
         for receive_item in receive_items {
             let line_item_id =
@@ -479,50 +456,47 @@ impl DraftProxy {
         } else {
             "PARTIALLY_RECEIVED".to_string()
         };
-        let payload =
-            self.inventory_shipment_payload_json(&record, &field.selection, "inventoryShipment");
+        let payload = self.inventory_shipment_payload_value(&record, "inventoryShipment");
         self.store
             .staged
             .inventory_shipments
             .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged("inventoryShipmentReceive", "products", vec![id]),
-        )
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "inventoryShipmentReceive",
+            "products",
+            vec![id],
+        ))
     }
 
-    pub(in crate::proxy) fn inventory_shipment_delete(
+    pub(crate) fn inventory_shipment_delete(
         &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let Some(record) = self.store.staged.inventory_shipments.remove(&id) else {
-            return MutationFieldOutcome::unlogged(selected_json(
-                &json!({
-                    "id": Value::Null,
-                    "userErrors": [inventory_shipment_user_error(
-                        vec!["id"],
-                        "The specified inventory shipment could not be found.",
-                        "NOT_FOUND",
-                    )]
-                }),
-                &field.selection,
-            ));
+            return ResolverOutcome::value(json!({
+                "id": Value::Null,
+                "userErrors": [inventory_shipment_user_error(
+                    vec!["id"],
+                    "The specified inventory shipment could not be found.",
+                    "NOT_FOUND",
+                )]
+            }));
         };
         if inventory_shipment_has_incoming(&record) {
             self.apply_shipment_incoming_delta(&record, -record.unreceived_quantity());
         }
         let deleted_id = record.id.clone();
-        MutationFieldOutcome::staged(
-            selected_json(
-                &json!({
-                    "id": id,
-                    "userErrors": []
-                }),
-                &field.selection,
-            ),
-            LogDraft::staged("inventoryShipmentDelete", "products", vec![deleted_id]),
-        )
+        ResolverOutcome::value(json!({
+            "id": id,
+            "userErrors": []
+        }))
+        .with_log_draft(LogDraft::staged(
+            "inventoryShipmentDelete",
+            "products",
+            vec![deleted_id],
+        ))
     }
 
     fn inventory_shipment_create_validation_errors(
@@ -766,33 +740,27 @@ impl DraftProxy {
         shipped + picked
     }
 
-    fn inventory_shipment_payload_json(
+    fn inventory_shipment_payload_value(
         &self,
         record: &InventoryShipmentRecord,
-        selection: &[SelectedField],
         shipment_field: &str,
     ) -> Value {
-        selected_json(
-            &json!({
-                shipment_field: self.inventory_shipment_full_json(record),
-                "userErrors": []
-            }),
-            selection,
-        )
+        json!({
+            shipment_field: self.inventory_shipment_full_json(record),
+            "userErrors": []
+        })
     }
 
     fn inventory_shipment_payload_with_errors(
         &self,
-        field: &RootFieldSelection,
         shipment_field: &str,
         errors: Vec<Value>,
     ) -> Value {
-        self.inventory_shipment_payload_with_errors_and_extra(field, shipment_field, errors, &[])
+        self.inventory_shipment_payload_with_errors_and_extra(shipment_field, errors, &[])
     }
 
     fn inventory_shipment_payload_with_errors_and_extra(
         &self,
-        field: &RootFieldSelection,
         shipment_field: &str,
         errors: Vec<Value>,
         extra: &[(&str, Value)],
@@ -804,17 +772,15 @@ impl DraftProxy {
         for (name, value) in extra {
             payload.insert((*name).to_string(), value.clone());
         }
-        selected_json(&Value::Object(payload), &field.selection)
+        Value::Object(payload)
     }
 
     fn inventory_shipment_missing_mutation_payload(
         &self,
-        field: &RootFieldSelection,
         shipment_field: &str,
         extra: &[(&str, Value)],
     ) -> Value {
         self.inventory_shipment_payload_with_errors_and_extra(
-            field,
             shipment_field,
             vec![inventory_shipment_user_error(
                 vec!["id"],
@@ -825,24 +791,16 @@ impl DraftProxy {
         )
     }
 
-    pub(super) fn inventory_shipment_by_id_selected_json(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Value {
+    pub(super) fn inventory_shipment_value_by_id(&self, id: &str) -> Value {
         self.store
             .staged
             .inventory_shipments
             .get(id)
-            .map(|record| selected_json(&self.inventory_shipment_full_json(record), selection))
+            .map(|record| self.inventory_shipment_full_json(record))
             .unwrap_or(Value::Null)
     }
 
-    pub(super) fn inventory_shipment_line_item_by_id_selected_json(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Value {
+    pub(super) fn inventory_shipment_line_item_value_by_id(&self, id: &str) -> Value {
         self.store
             .staged
             .inventory_shipments
@@ -852,12 +810,7 @@ impl DraftProxy {
                     .line_items
                     .iter()
                     .find(|line_item| line_item.id == id)
-                    .map(|line_item| {
-                        selected_json(
-                            &self.inventory_shipment_line_item_full_json(line_item),
-                            selection,
-                        )
-                    })
+                    .map(|line_item| self.inventory_shipment_line_item_full_json(line_item))
             })
             .unwrap_or(Value::Null)
     }
@@ -874,6 +827,7 @@ impl DraftProxy {
             "name": record.name,
             "movementId": record.movement_id,
             "status": record.status,
+            "lineItemsCount": count_object(record.line_items.len()),
             "lineItemTotalQuantity": record.line_item_total_quantity(),
             "totalAcceptedQuantity": record.total_accepted_quantity(),
             "totalReceivedQuantity": record.total_received_quantity(),
@@ -884,10 +838,7 @@ impl DraftProxy {
                 "trackingUrl": tracking.tracking_url,
                 "arrivesAt": tracking.arrives_at
             })),
-            "lineItems": {
-                "nodes": line_items,
-                "pageInfo": empty_page_info()
-            }
+            "lineItems": connection_json(line_items)
         })
     }
 

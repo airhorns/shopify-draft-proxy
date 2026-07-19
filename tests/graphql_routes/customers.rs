@@ -2380,6 +2380,73 @@ fn live_hybrid_customer_overlay_preserves_upstream_catalog_after_staged_create()
 }
 
 #[test]
+fn live_hybrid_customer_overlay_keeps_staged_results_when_optional_hydration_fails() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+            if body["operationName"] == "CustomerDuplicateHydrate" {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "customers": { "nodes": [] } } }),
+                };
+            }
+            Response {
+                status: 503,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "upstream unavailable" }] }),
+            }
+        });
+    let staged_id = create_customer(
+        &mut proxy,
+        "staged-offline@example.test",
+        "Staged",
+        "Offline",
+        Vec::new(),
+        None,
+    );
+
+    let staged_read = proxy.process_request(json_graphql_request(
+        r#"
+        query StagedCustomerWhileOffline($id: ID!) {
+          customer(id: $id) { id email displayName }
+          customers(first: 5, query: "email:no-match@example.test") {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({ "id": staged_id }),
+    ));
+    assert_eq!(staged_read.status, 200);
+    assert!(staged_read.body.get("errors").is_none());
+    assert_eq!(
+        staged_read.body["data"]["customer"],
+        json!({
+            "id": staged_id,
+            "email": "staged-offline@example.test",
+            "displayName": "Staged Offline"
+        })
+    );
+    assert_eq!(staged_read.body["data"]["customers"]["nodes"], json!([]));
+
+    let mut cold_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| Response {
+            status: 503,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "upstream unavailable" }] }),
+        });
+    let cold_read = cold_proxy.process_request(json_graphql_request(
+        "query ColdCustomerWhileOffline { customer(id: \"gid://shopify/Customer/404\") { id } }",
+        json!({}),
+    ));
+    assert_eq!(cold_read.status, 503);
+    assert_eq!(
+        cold_read.body["errors"][0]["message"],
+        "upstream unavailable"
+    );
+}
+
+#[test]
 fn live_hybrid_customer_overlay_merges_partial_aliases_without_losing_hydrated_fields() {
     let real_customer_id = "gid://shopify/Customer/9101";
     let live_staged_customer_id = "gid://shopify/Customer/9102";

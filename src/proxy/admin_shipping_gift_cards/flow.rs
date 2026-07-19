@@ -1,76 +1,70 @@
 use super::*;
 
+struct FlowRootInput {
+    name: String,
+    response_key: String,
+    location: SourceLocation,
+    operation_path: String,
+    raw_arguments: BTreeMap<String, RawArgumentValue>,
+    arguments: BTreeMap<String, ResolvedValue>,
+}
+
 impl DraftProxy {
-    pub(in crate::proxy) fn flow_utility_mutation(
+    pub(crate) fn flow_utility_mutation_root(
         &mut self,
-        root_field: &str,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
+            root_name,
+            root_location,
+            operation_path,
+            raw_arguments,
+            arguments,
+            ..
+        } = invocation;
+        let field = FlowRootInput {
+            name: root_name.to_string(),
+            response_key: response_key.to_string(),
+            location: root_location,
+            operation_path: operation_path.to_string(),
+            raw_arguments,
+            arguments: resolved_arguments_from_json(&arguments),
         };
-        let mut log_root: Option<String> = None;
-        let mut top_level_error = None;
-        let data = root_payload_json(&fields, |field| {
-            if top_level_error.is_some() {
-                return None;
+        let result = match field.name.as_str() {
+            "flowGenerateSignature" => self.flow_generate_signature_field(&field),
+            "flowTriggerReceive" => {
+                let (value, staged) = self.flow_trigger_receive_field(&field);
+                FlowFieldResult::Payload { value, staged }
             }
-            match field.name.as_str() {
-                "flowGenerateSignature" => {
-                    match self.flow_generate_signature_field(field, query, variables) {
-                        FlowFieldResult::Payload { value, staged } => {
-                            if staged {
-                                log_root.get_or_insert_with(|| field.name.clone());
-                            }
-                            Some(value)
-                        }
-                        FlowFieldResult::TopLevelError(error) => {
-                            top_level_error = Some(ok_json(error));
-                            None
-                        }
-                    }
-                }
-                "flowTriggerReceive" => {
-                    let (value, staged) = self.flow_trigger_receive_field(field);
-                    if staged {
-                        log_root.get_or_insert_with(|| field.name.clone());
-                    }
-                    Some(value)
-                }
-                _ => None,
+            root => {
+                return ResolverOutcome::error(format!("Unknown Flow mutation root `{root}`"));
             }
-        });
-        if let Some(response) = top_level_error {
-            return response;
-        }
-        if let Some(log_root) = log_root {
-            self.record_mutation_log_entry(request, query, variables, &log_root, Vec::new());
-        }
-        if data.as_object().is_none_or(serde_json::Map::is_empty) {
-            json_error(
-                501,
-                &format!(
-                    "No Rust stage-locally dispatcher implemented for root field: {root_field}"
-                ),
-            )
-        } else {
-            ok_json(json!({ "data": data }))
+        };
+        match result {
+            FlowFieldResult::TopLevelError(error) => ResolverOutcome::value(Value::Null)
+                .with_errors(root_field_errors_from_json(&[error], response_key)),
+            FlowFieldResult::Payload { value, staged } => {
+                if staged {
+                    ResolverOutcome::value(value).with_log_draft(LogDraft::staged(
+                        field.name,
+                        "admin-platform",
+                        Vec::new(),
+                    ))
+                } else {
+                    ResolverOutcome::value(value)
+                }
+            }
         }
     }
 
-    fn flow_generate_signature_field(
-        &mut self,
-        field: &RootFieldSelection,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> FlowFieldResult {
-        let operation_path = parsed_operation_path(query, variables);
-        if let Some(error) = flow_generate_signature_required_arg_error(field, &operation_path) {
+    fn flow_generate_signature_field(&mut self, field: &FlowRootInput) -> FlowFieldResult {
+        if let Some(error) =
+            flow_generate_signature_required_arg_error(field, &field.operation_path)
+        {
             return FlowFieldResult::TopLevelError(error);
         }
-        if let Some(error) = flow_generate_signature_null_arg_error(field, &operation_path) {
+        if let Some(error) = flow_generate_signature_null_arg_error(field, &field.operation_path) {
             return FlowFieldResult::TopLevelError(error);
         }
 
@@ -81,14 +75,11 @@ impl DraftProxy {
 
         let payload = resolved_string_field(&field.arguments, "payload").unwrap_or_default();
         let Ok(payload_json) = serde_json::from_str::<Value>(&payload) else {
-            let value = selected_json(
-                &json!({
-                    "signature": Value::Null,
-                    "payload": Value::Null,
-                    "userErrors": [user_error_omit_code(["payload"], "Payload must be valid JSON", None)]
-                }),
-                &field.selection,
-            );
+            let value = json!({
+                "signature": Value::Null,
+                "payload": Value::Null,
+                "userErrors": [user_error_omit_code(["payload"], "Payload must be valid JSON", None)]
+            });
             return FlowFieldResult::Payload {
                 value,
                 staged: false,
@@ -105,19 +96,16 @@ impl DraftProxy {
         }));
 
         FlowFieldResult::Payload {
-            value: selected_json(
-                &json!({
-                    "signature": signature,
-                    "payload": canonical_payload,
-                    "userErrors": []
-                }),
-                &field.selection,
-            ),
+            value: json!({
+                "signature": signature,
+                "payload": canonical_payload,
+                "userErrors": []
+            }),
             staged: true,
         }
     }
 
-    fn flow_trigger_receive_field(&mut self, field: &RootFieldSelection) -> (Value, bool) {
+    fn flow_trigger_receive_field(&mut self, field: &FlowRootInput) -> (Value, bool) {
         let has_body = resolved_string_field(&field.arguments, "body")
             .map(|body| !body.is_empty())
             .unwrap_or(false);
@@ -132,7 +120,6 @@ impl DraftProxy {
         if has_body && (field.arguments.contains_key("handle") || has_payload) {
             return (
                 flow_trigger_payload(
-                    field,
                     "body",
                     "Cannot use `handle` and `payload` arguments with `body` argument",
                 ),
@@ -142,24 +129,20 @@ impl DraftProxy {
         if has_body {
             let body = resolved_string_field(&field.arguments, "body").unwrap_or_default();
             return match flow_trigger_body_validation_message(&body) {
-                Some(message) => (flow_trigger_payload(field, "body", &message), false),
+                Some(message) => (flow_trigger_payload("body", &message), false),
                 None => {
                     self.store.staged.flow_trigger_receipts.push(json!({
                         "source": "body",
                         "bodyHash": stable_hash_hex(&body),
                         "bodyByteSize": body.len()
                     }));
-                    (flow_trigger_success_payload(field), true)
+                    (flow_trigger_success_payload(), true)
                 }
             };
         }
         if !has_handle || !has_payload {
             return (
-                flow_trigger_payload(
-                    field,
-                    "handle",
-                    "`handle` and `payload` arguments are required",
-                ),
+                flow_trigger_payload("handle", "`handle` and `payload` arguments are required"),
                 false,
             );
         }
@@ -167,11 +150,7 @@ impl DraftProxy {
         let handle = resolved_string_field(&field.arguments, "handle").unwrap_or_default();
         let Some(payload) = field.arguments.get("payload") else {
             return (
-                flow_trigger_payload(
-                    field,
-                    "handle",
-                    "`handle` and `payload` arguments are required",
-                ),
+                flow_trigger_payload("handle", "`handle` and `payload` arguments are required"),
                 false,
             );
         };
@@ -180,7 +159,6 @@ impl DraftProxy {
         if canonical_payload.len() > 50_000 {
             return (
                 flow_trigger_payload(
-                    field,
                     "body",
                     "Errors validating schema:\n  Properties size exceeds the limit of 50000 bytes.\n",
                 ),
@@ -190,7 +168,6 @@ impl DraftProxy {
         if !is_local_flow_handle(&handle) {
             return (
                 flow_trigger_payload(
-                    field,
                     "body",
                     &format!("Errors validating schema:\n  Invalid handle '{handle}'.\n"),
                 ),
@@ -204,7 +181,7 @@ impl DraftProxy {
             "payloadHash": stable_hash_hex(&canonical_payload),
             "payloadByteSize": canonical_payload.len()
         }));
-        (flow_trigger_success_payload(field), true)
+        (flow_trigger_success_payload(), true)
     }
 }
 
@@ -213,14 +190,8 @@ enum FlowFieldResult {
     TopLevelError(Value),
 }
 
-fn parsed_operation_path(query: &str, variables: &BTreeMap<String, ResolvedValue>) -> String {
-    crate::graphql::parsed_document(query, variables)
-        .map(|document| document.operation_path)
-        .unwrap_or_else(|| "mutation".to_string())
-}
-
 fn flow_generate_signature_required_arg_error(
-    field: &RootFieldSelection,
+    field: &FlowRootInput,
     operation_path: &str,
 ) -> Option<Value> {
     let mut missing = Vec::new();
@@ -234,18 +205,16 @@ fn flow_generate_signature_required_arg_error(
         return None;
     }
     let arguments = missing.join(", ");
-    Some(json!({
-        "errors": [missing_required_arguments_error(
-            "flowGenerateSignature",
-            &arguments,
-            field.location,
-            vec![json!(operation_path), json!("flowGenerateSignature")],
-        )]
-    }))
+    Some(missing_required_arguments_error(
+        "flowGenerateSignature",
+        &arguments,
+        field.location,
+        vec![json!(operation_path), json!("flowGenerateSignature")],
+    ))
 }
 
 fn flow_generate_signature_null_arg_error(
-    field: &RootFieldSelection,
+    field: &FlowRootInput,
     operation_path: &str,
 ) -> Option<Value> {
     for (name, expected_type) in [("id", "ID!"), ("payload", "String!")] {
@@ -255,42 +224,38 @@ fn flow_generate_signature_null_arg_error(
         if !raw.is_literal_null() && !raw.is_unbound_variable() {
             continue;
         }
-        return Some(json!({
-            "errors": [required_argument_null_error(
-                "flowGenerateSignature",
-                name,
-                expected_type,
-                field.location,
-                vec![json!(operation_path), json!("flowGenerateSignature"), json!(name)],
-            )]
-        }));
+        return Some(required_argument_null_error(
+            "flowGenerateSignature",
+            name,
+            expected_type,
+            field.location,
+            vec![
+                json!(operation_path),
+                json!("flowGenerateSignature"),
+                json!(name),
+            ],
+        ));
     }
     None
 }
 
-fn flow_resource_not_found_error(field: &RootFieldSelection, id: &str) -> Value {
+fn flow_resource_not_found_error(field: &FlowRootInput, id: &str) -> Value {
     json!({
-        "errors": [{
-            "message": format!("Invalid id: {id}"),
-            "locations": [{ "line": field.location.line, "column": field.location.column }],
-            "extensions": { "code": "RESOURCE_NOT_FOUND" },
-            "path": [field.response_key.clone()]
-        }],
-        "data": { field.response_key.clone(): Value::Null }
+        "message": format!("Invalid id: {id}"),
+        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "extensions": { "code": "RESOURCE_NOT_FOUND" },
+        "path": [field.response_key.clone()]
     })
 }
 
-fn flow_trigger_payload(field: &RootFieldSelection, field_name: &str, message: &str) -> Value {
-    selected_json(
-        &json!({
-            "userErrors": [user_error_omit_code(json!([field_name]), message, None)]
-        }),
-        &field.selection,
-    )
+fn flow_trigger_payload(field_name: &str, message: &str) -> Value {
+    json!({
+        "userErrors": [user_error_omit_code(json!([field_name]), message, None)]
+    })
 }
 
-fn flow_trigger_success_payload(field: &RootFieldSelection) -> Value {
-    selected_json(&json!({ "userErrors": [] }), &field.selection)
+fn flow_trigger_success_payload() -> Value {
+    json!({ "userErrors": [] })
 }
 
 fn flow_trigger_body_validation_message(body: &str) -> Option<String> {

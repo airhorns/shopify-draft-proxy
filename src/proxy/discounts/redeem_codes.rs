@@ -1,10 +1,10 @@
 use super::*;
 
-pub(super) fn discount_bulk_selector_count(field: &RootFieldSelection) -> usize {
-    let ids_present = field.arguments.contains_key("ids");
-    let search_present = field.arguments.contains_key("search");
-    let saved_search_present = field.arguments.contains_key("savedSearchId")
-        || field.arguments.contains_key("saved_search_id");
+pub(super) fn discount_bulk_selector_count(arguments: &BTreeMap<String, ResolvedValue>) -> usize {
+    let ids_present = arguments.contains_key("ids");
+    let search_present = arguments.contains_key("search");
+    let saved_search_present =
+        arguments.contains_key("savedSearchId") || arguments.contains_key("saved_search_id");
     ids_present as usize + search_present as usize + saved_search_present as usize
 }
 
@@ -69,8 +69,8 @@ pub(super) fn discount_redeem_code_bulk_creation_node(
 /// `[String!]` list (the legacy local-runtime shape) rather than the schema
 /// `[DiscountRedeemCodeInput!]` object list. String submissions complete
 /// synchronously; object submissions follow Shopify's async creation shape.
-pub(super) fn redeem_codes_are_string_inputs(field: &RootFieldSelection) -> bool {
-    match field.arguments.get("codes") {
+pub(super) fn redeem_codes_are_string_inputs(arguments: &BTreeMap<String, ResolvedValue>) -> bool {
+    match arguments.get("codes") {
         Some(ResolvedValue::List(items)) => {
             !items.is_empty()
                 && items
@@ -81,8 +81,8 @@ pub(super) fn redeem_codes_are_string_inputs(field: &RootFieldSelection) -> bool
     }
 }
 
-pub(super) fn resolved_redeem_codes(field: &RootFieldSelection) -> Vec<String> {
-    match field.arguments.get("codes") {
+pub(super) fn resolved_redeem_codes(arguments: &BTreeMap<String, ResolvedValue>) -> Vec<String> {
+    match arguments.get("codes") {
         Some(ResolvedValue::List(items)) => items
             .iter()
             .filter_map(|item| match item {

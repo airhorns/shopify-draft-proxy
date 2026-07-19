@@ -44,186 +44,186 @@ const PUBLISHABLE_PUBLICATION_CATALOG_HYDRATE_QUERY: &str = r#"#graphql
 // fabricating a synthetic record.
 
 impl DraftProxy {
-    pub(in crate::proxy) fn product_publishable_mutation(
+    pub(crate) fn product_publishable_mutation(
         &mut self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
         // When a scenario has seeded publications, the publish/unpublish target
         // mutates that local publication-membership engine (so subsequent
         // publication/product/collection reads reflect the change) instead of the
         // standalone shop-publication-count path below.
         if self.publication_engine_active() {
-            return self
-                .publishable_publish_with_publications(root_field, query, variables, request);
+            return self.publishable_publish_with_publications(&invocation, &arguments);
         }
-        let Some(document) = parsed_document(query, variables) else {
-            return json_error(400, "Unable to parse publishable mutation");
+        let RootInvocation {
+            response_key,
+            root_name: root_field,
+            query,
+            request,
+            root_location,
+            operation_path,
+            variable_definitions,
+            raw_arguments,
+            arguments: _,
+            requested_field_paths,
+            ..
+        } = invocation;
+        let Some(resource_id) = resolved_string_field(&arguments, "id") else {
+            return ResolverOutcome::value(Value::Null);
         };
-        let operation_path = document.operation_path.clone();
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Operation has no root field");
+        if let Some(error) = publishable_empty_string_publication_error(
+            query,
+            operation_path,
+            response_key,
+            root_location,
+            variable_definitions,
+            &raw_arguments,
+            &arguments,
+        ) {
+            return graphql_error_outcome(vec![error], response_key);
+        }
+
+        let requests_shop = requested_field_paths
+            .iter()
+            .any(|path| path.first().is_some_and(|field| field == "shop"));
+        let requests_publishable_details = requested_field_paths.iter().any(|path| {
+            matches!(
+                path.as_slice(),
+                [parent, field, ..]
+                    if parent == "publishable" && matches!(field.as_str(), "title" | "handle")
+            )
+        });
+        let to_current = root_field == "publishablePublishToCurrentChannel"
+            || root_field == "publishableUnpublishToCurrentChannel";
+        let publish = root_field == "publishablePublish"
+            || root_field == "publishablePublishToCurrentChannel";
+        let mut hydrated_publishable = None;
+
+        if requests_shop
+            && (self.store.base.publication_count.is_none() || !self.shop_has_observed_identity())
+        {
+            hydrated_publishable = self.hydrate_publishable_payload_shop(&resource_id, request);
+        }
+        if requests_publishable_details
+            && is_shopify_gid_of_type(&resource_id, "Collection")
+            && self.store.collection_by_id(&resource_id).is_none()
+        {
+            hydrated_publishable = self
+                .hydrate_publishable_payload_shop(&resource_id, request)
+                .or(hydrated_publishable);
+            if self.store.collection_by_id(&resource_id).is_none() {
+                self.hydrate_publishable_resource(&resource_id, request);
+            }
+        }
+
+        let mut user_errors = Vec::new();
+        let resource_exists = self.publishable_resource_exists(&resource_id, request);
+        if !resource_exists {
+            user_errors.push(user_error_omit_code(
+                ["id"],
+                "Resource does not exist",
+                Some("RESOURCE_DOES_NOT_EXIST"),
+            ));
+        }
+        if resource_exists
+            && is_shopify_gid_of_type(&resource_id, "Product")
+            && publishable_input_needs_publication_catalog_hydration(
+                arguments.get("input"),
+                to_current,
+                self.store.has_known_publication_ids(),
+            )
+        {
+            if admin_graphql_version(&request.path)
+                .is_some_and(|version| version_at_least(version, 2026, 4))
+            {
+                self.hydrate_publishable_publication_catalog(request);
+            } else {
+                hydrated_publishable = self
+                    .hydrate_publishable_payload_shop(&resource_id, request)
+                    .or(hydrated_publishable);
+            }
+        }
+        user_errors
+            .extend(self.publishable_publication_input_errors(arguments.get("input"), to_current));
+
+        let current_channel_id = if resource_exists && to_current {
+            self.resolve_current_channel_publication_id(request)
+        } else {
+            None
         };
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            if field.name != root_field {
-                continue;
-            }
-            let Some(resource_id) = resolved_string_field(&field.arguments, "id") else {
-                continue;
-            };
-            if let Some(response) =
-                publishable_empty_string_publication_error(query, &operation_path, &field)
-            {
-                return response;
-            }
+        if resource_exists && to_current && current_channel_id.is_none() {
+            user_errors.push(user_error_omit_code(
+                ["id"],
+                "Channel does not exist",
+                Some("CHANNEL_DOES_NOT_EXIST"),
+            ));
+        }
 
-            let payload_selection = field.selection.clone();
-            let publishable_selection =
-                selected_child_selection(&payload_selection, "publishable").unwrap_or_default();
-            let to_current = root_field == "publishablePublishToCurrentChannel"
-                || root_field == "publishableUnpublishToCurrentChannel";
-            let publish = root_field == "publishablePublish"
-                || root_field == "publishablePublishToCurrentChannel";
-
-            if selected_child_selection(&payload_selection, "shop")
-                .as_deref()
-                .is_some_and(|selection| self.publishable_payload_shop_needs_hydration(selection))
-            {
-                self.hydrate_publishable_payload_shop(&resource_id, request);
-            }
-            if self
-                .publishable_payload_resource_needs_hydration(&resource_id, &publishable_selection)
-            {
-                self.hydrate_publishable_payload_shop(&resource_id, request);
-                if self.publishable_payload_resource_needs_hydration(
-                    &resource_id,
-                    &publishable_selection,
-                ) {
-                    self.hydrate_publishable_resource(&resource_id, request);
-                }
-            }
-
-            let mut user_errors = Vec::new();
-            let resource_exists = self.publishable_resource_exists(&resource_id, request);
-            if !resource_exists {
-                user_errors.push(user_error_omit_code(
-                    ["id"],
-                    "Resource does not exist",
-                    Some("RESOURCE_DOES_NOT_EXIST"),
-                ));
-            }
-            if resource_exists
-                && is_shopify_gid_of_type(&resource_id, "Product")
-                && publishable_input_needs_publication_catalog_hydration(
-                    field.arguments.get("input"),
-                    to_current,
-                    self.store.has_known_publication_ids(),
-                )
-            {
-                if admin_graphql_version(&request.path)
-                    .is_some_and(|version| version_at_least(version, 2026, 4))
-                {
-                    self.hydrate_publishable_publication_catalog(request);
-                } else {
-                    self.hydrate_publishable_payload_shop(&resource_id, request);
-                }
-            }
-            user_errors.extend(
-                self.publishable_publication_input_errors(field.arguments.get("input"), to_current),
-            );
-
-            let current_channel_id = if resource_exists && to_current {
-                self.resolve_current_channel_publication_id(request)
+        if user_errors.is_empty() {
+            let publication_ids = if to_current {
+                current_channel_id.into_iter().collect::<Vec<_>>()
             } else {
-                None
+                publishable_input_publication_ids(&arguments)
             };
-            if resource_exists && to_current && current_channel_id.is_none() {
-                user_errors.push(user_error_omit_code(
-                    ["id"],
-                    "Channel does not exist",
-                    Some("CHANNEL_DOES_NOT_EXIST"),
-                ));
-            }
-
-            if user_errors.is_empty() {
-                let publication_ids = if to_current {
-                    current_channel_id.into_iter().collect::<Vec<_>>()
+            let published_at = self.next_product_timestamp();
+            let set = self
+                .store
+                .staged
+                .resource_publications
+                .entry(resource_id.clone())
+                .or_default();
+            for publication_id in &publication_ids {
+                if publish {
+                    set.insert(publication_id.clone());
                 } else {
-                    publishable_input_publication_ids(&field.arguments)
-                };
-                let published_at = self.next_product_timestamp();
-                let set = self
-                    .store
-                    .staged
-                    .resource_publications
-                    .entry(resource_id.clone())
-                    .or_default();
-                for publication_id in &publication_ids {
-                    if publish {
-                        set.insert(publication_id.clone());
-                    } else {
-                        set.remove(publication_id);
-                    }
+                    set.remove(publication_id);
                 }
-                self.sync_product_publication_entries(
-                    &resource_id,
-                    &publication_ids,
-                    publish,
-                    &published_at,
-                );
-                self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
             }
-
-            let publishable = if user_errors.iter().any(|error| {
-                error
-                    .get("code")
-                    .and_then(Value::as_str)
-                    .is_some_and(|code| code == "RESOURCE_DOES_NOT_EXIST")
-            }) {
-                Value::Null
-            } else {
-                self.publishable_resource_value(&resource_id, &publishable_selection)
-            };
-            let shop = self.store.effective_shop();
-            data.insert(
-                field.response_key,
-                selected_payload_json(&payload_selection, |selection| {
-                    match selection.name.as_str() {
-                        "publishable" => Some(publishable.clone()),
-                        "shop" => Some(selected_json(&shop, &selection.selection)),
-                        "userErrors" => {
-                            selected_user_errors_field(user_errors.as_slice(), selection)
-                        }
-                        _ => None,
-                    }
-                }),
+            self.sync_product_publication_entries(
+                &resource_id,
+                &publication_ids,
+                publish,
+                &published_at,
             );
         }
-        ok_json(json!({ "data": Value::Object(data) }))
-    }
 
-    pub(in crate::proxy) fn publishable_payload_shop_needs_hydration(
-        &self,
-        selection: &[SelectedField],
-    ) -> bool {
-        self.config.read_mode != ReadMode::Snapshot
-            && (self.store.base.publication_count.is_none()
-                || selection.iter().any(|field| {
-                    field.name != "publicationCount"
-                        && self.store.base.shop.get(&field.name).is_none()
-                }))
+        let publishable = if user_errors.iter().any(|error| {
+            error
+                .get("code")
+                .and_then(Value::as_str)
+                .is_some_and(|code| code == "RESOURCE_DOES_NOT_EXIST")
+        }) {
+            Value::Null
+        } else {
+            let canonical = self.publishable_resource_canonical_value(&resource_id);
+            if canonical.is_null() {
+                hydrated_publishable.unwrap_or(Value::Null)
+            } else {
+                canonical
+            }
+        };
+        let success = user_errors.is_empty();
+        let payload = json!({
+            "publishable": publishable,
+            "shop": self.store.effective_shop(),
+            "userErrors": user_errors,
+        });
+        let outcome = ResolverOutcome::value(payload);
+        if success {
+            outcome.with_log_draft(LogDraft::staged(root_field, "store_properties", Vec::new()))
+        } else {
+            outcome
+        }
     }
 
     pub(in crate::proxy) fn hydrate_publishable_payload_shop(
         &mut self,
         publishable_id: &str,
         request: &Request,
-    ) {
+    ) -> Option<Value> {
         if self.config.read_mode == ReadMode::Snapshot {
-            return;
+            return None;
         }
         let response = self.upstream_post(
             request,
@@ -233,11 +233,12 @@ impl DraftProxy {
             }),
         );
         if !(200..300).contains(&response.status) {
-            return;
+            return None;
         }
-        if let Some(id) = response
-            .body
-            .pointer("/data/publishable/id")
+        let publishable = response.body.pointer("/data/publishable").cloned();
+        if let Some(id) = publishable
+            .as_ref()
+            .and_then(|value| value.get("id"))
             .and_then(Value::as_str)
         {
             self.store
@@ -247,6 +248,7 @@ impl DraftProxy {
                 .or_default();
         }
         self.hydrate_shop_state_from_response_data(&response.body["data"]);
+        publishable
     }
 
     fn hydrate_publishable_publication_catalog(&mut self, request: &Request) {
@@ -310,8 +312,8 @@ impl DraftProxy {
             let (policies, order) = shop_policy_state_from_shop(shop);
             if !policies.is_empty() {
                 self.store
-                    .base
                     .shop_policies
+                    .base
                     .replace_with_order(policies, order);
             }
             self.store.base.shop =
@@ -337,38 +339,6 @@ impl DraftProxy {
             }
         }
     }
-
-    pub(in crate::proxy) fn publishable_payload_resource_needs_hydration(
-        &self,
-        publishable_id: &str,
-        selection: &[SelectedField],
-    ) -> bool {
-        if self.config.read_mode == ReadMode::Snapshot {
-            return false;
-        }
-        let resource_type = shopify_gid_resource_type(publishable_id).unwrap_or_default();
-        if resource_type != "Collection" {
-            return false;
-        }
-        let Some(collection) = self.store.collection_by_id(publishable_id) else {
-            return selection.iter().any(|field| {
-                publishable_selection_field_applies(field, resource_type)
-                    && matches!(field.name.as_str(), "title" | "handle")
-            });
-        };
-        selection.iter().any(|field| {
-            publishable_selection_field_applies(field, resource_type)
-                && matches!(field.name.as_str(), "title" | "handle")
-                && collection.get(&field.name).is_none()
-        })
-    }
-}
-
-fn publishable_selection_field_applies(field: &SelectedField, resource_type: &str) -> bool {
-    field
-        .type_condition
-        .as_deref()
-        .is_none_or(|condition| condition == resource_type || condition == "Node")
 }
 
 pub(in crate::proxy) fn publishable_input_needs_publication_catalog_hydration(
@@ -492,9 +462,13 @@ fn publishable_publish_date_is_before_1970(value: &str) -> bool {
 pub(in crate::proxy) fn publishable_empty_string_publication_error(
     query: &str,
     operation_path: &str,
-    field: &RootFieldSelection,
-) -> Option<Response> {
-    let input = field.arguments.get("input")?;
+    response_key: &str,
+    root_location: SourceLocation,
+    variable_definitions: &BTreeMap<String, crate::graphql::VariableDefinitionInfo>,
+    raw_arguments: &BTreeMap<String, RawArgumentValue>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let input = arguments.get("input")?;
     let ResolvedValue::List(publications) = input else {
         return None;
     };
@@ -505,8 +479,8 @@ pub(in crate::proxy) fn publishable_empty_string_publication_error(
         resolved_string_field(publication, "publicationId").as_deref() == Some("")
     })?;
 
-    if let Some(RawArgumentValue::Variable { name, value }) = field.raw_arguments.get("input") {
-        let variable_definition = variable_definition_info(query, name)?;
+    if let Some(RawArgumentValue::Variable { name, value }) = raw_arguments.get("input") {
+        let variable_definition = variable_definitions.get(name)?;
         let variable_value = value.as_ref().unwrap_or(input);
         let explanation = "Invalid global id ''";
         let path_display = format!("{index}.publicationId");
@@ -519,27 +493,24 @@ pub(in crate::proxy) fn publishable_empty_string_publication_error(
             "Variable ${name} of type {} was provided invalid value for {path_display} ({explanation})",
             variable_definition.type_display
         );
-        return Some(ok_json(json!({
-            "errors": [invalid_variable_error_envelope(
-                message,
-                variable_definition.location,
-                resolved_values::resolved_value_json(variable_value),
-                json!([problem]),
-            )]
-        })));
+        return Some(invalid_variable_error_envelope(
+            message,
+            variable_definition.location,
+            resolved_values::resolved_value_json(variable_value),
+            json!([problem]),
+        ));
     }
 
-    let location = inline_argument_list_item_object_location(query, field, "input", index)
-        .unwrap_or(field.location);
-    Some(ok_json(json!({
-        "errors": [{
-            "message": "Invalid global id ''",
-            "locations": [{ "line": location.line, "column": location.column }],
-            "path": [operation_path, field.response_key, "input", index, "publicationId"],
-            "extensions": {
-                "code": "argumentLiteralsIncompatible",
-                "typeName": "CoercionError"
-            }
-        }]
-    })))
+    let location =
+        inline_argument_list_item_object_location_after(query, root_location, "input", index)
+            .unwrap_or(root_location);
+    Some(json!({
+        "message": "Invalid global id ''",
+        "locations": [{ "line": location.line, "column": location.column }],
+        "path": [operation_path, response_key, "input", index, "publicationId"],
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "CoercionError"
+        }
+    }))
 }

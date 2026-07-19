@@ -13,21 +13,34 @@ Use the executable-schema registry before adding another schema parser or checke
 - `build_schema_from_sdl(...)` is the shared dynamic type/resolver builder. New GraphQL surfaces should keep their own version inventory and immutable capture source while reusing this construction path.
 - `root_field_arguments(...)`, `input_field_at_path(...)`, `input_owner_at_path(...)`, `input_object_fields(...)`, and `enum_values(...)` expose metadata from the same executable registry that validates requests.
 - `output_field_named_type(...)` supports nested output planning without a second output-schema model.
-- `output_type_condition_applies(...)` lets transitional JSON projectors use captured interface/union relationships instead of maintaining handwritten implementor lists; the executable engine remains the final projection authority.
+- `output_type_condition_applies(...)` exposes captured interface/union relationships to the bulk-operation GraphQL-as-data boundary; ordinary API output remains entirely engine-projected.
 - Custom scalar codecs live beside schema construction. Extend that explicit codec table when a captured schema adds a scalar; do not make unknown scalars permissive. `invalid_url_scalar_message(...)` is shared with the Shopify error adapter so engine validation and wire-envelope text cannot drift.
 
-Full Admin schema captures live at `config/admin-graphql/<version>/schema.graphql`, the executable/default version inventory lives in `config/admin-graphql/manifest.json`, and captures are produced by `scripts/capture-admin-graphql-schema.mts`. The complete Storefront 2026-04 introspection capture lives at `config/storefront-graphql/2026-04/schema.json`; `src/storefront_graphql.rs` renders it to SDL once and keeps its version/cache separate from Admin. Do not introduce another partial mutation/input/output schema source or a second TypeScript version list.
+Full Admin schema captures live at `config/admin-graphql/<version>/schema.graphql`, the executable/default version inventory lives in `config/admin-graphql/manifest.json`, and captures are produced by `scripts/capture-admin-graphql-schema.mts`. The complete Storefront 2026-04 introspection capture lives at `config/storefront-graphql/2026-04/schema.json`; Storefront runtime route/version configuration lives separately at `config/storefront-graphql-manifest.json` so it is not misrepresented as captured evidence. `src/storefront_graphql.rs` renders the capture to SDL once and keeps its version/cache separate from Admin. Do not introduce another partial mutation/input/output schema source or a second TypeScript version list.
+
+`build.rs` generates the surface version enums and route/source catalogs from those manifests. Run `cargo run --quiet --bin graphql-root-catalog-json` for the complete captured root inventory with surface/version presence and any attached capability registration. An absent registration is an explicit coverage gap, not permission to add a second handwritten root list.
 
 ## `src/graphql.rs`
 
-Use the compatibility document helpers here before adding resource-local argument readers. `async-graphql`, through `src/admin_graphql.rs`, is the executable parser, validator, projector, and null-propagation engine; these helpers provide the normalized domain-handler view and Shopify-specific error locations.
+`async-graphql`, through `src/admin_graphql.rs`, is the executable parser,
+validator, projector, and null-propagation engine. Native root callbacks should
+read `RootInvocation::arguments` and `raw_arguments`; do not call these
+compatibility parsers to rediscover the root or rebuild an argument-only
+`RootFieldSelection`.
+
+Use the document helpers here only at boundaries that genuinely need the
+caller's GraphQL syntax: upstream single-root serialization/batching, isolated
+Shopify error-location compatibility, or GraphQL documents supplied as data
+(for example a bulk-operation query).
 
 - `parse_operation(...)` identifies operation type and top-level roots without depending on operation names.
 - `root_fields(...)` preserves aliases, response keys, selections, and resolved arguments for each root field.
 - `root_field_arguments(...)` resolves literals, enums, lists, objects, variables, and missing variables into `ResolvedValue`.
-- Selection data is exposed on `RootFieldSelection` and `SelectedField`; use the projection helpers in `src/proxy/selection.rs` for selected/nested field serializers.
+- Selection data is exposed on `RootFieldSelection` and `SelectedField` only for those compatibility paths. Native roots return canonical values and let the executable engine project them.
 
-Route behavior by actual root fields and resolved arguments from these helpers, not by raw query string checks, unless a narrowly documented fixture compatibility branch already exists.
+Runtime routing uses the validated root inventory. Inside a native callback,
+route by `RootInvocation::root_name` and coerced arguments, never an operation
+name, alias, query substring, or reparsed selection.
 
 ## Root And Node Resolver Registries
 
@@ -37,7 +50,19 @@ Use `src/operation_registry.rs` and `src/resolver_registry.rs` before adding cap
 - `implemented_entries(...)` filters only locally modeled roots.
 - `operation_capability(...)` returns passthrough for unknown or unimplemented roots, even when metadata exists.
 - `ResolverRegistry::new(...)` derives the instance-owned local root inventory from those implemented entries.
+- `default_graphql_root_catalog()` / `graphql-root-catalog-json` derive all captured roots across both surfaces and every executable version, including roots absent from the capability registry.
 - `ApiSurface::resolver_name(...)` keeps Admin resolver names unchanged and maps Storefront roots to a `storefront*` internal name (`shop` becomes `storefrontShop`). `resolve_for_surface(...)` and `registration_for_surface(...)` perform this translation and verify the API surface, operation type, and public root before returning a callback. Use them for non-Admin execution; the shorter lookup methods intentionally default to Admin for existing callers.
+
+`RootInvocation` carries engine-coerced arguments for the active root, raw
+argument-source metadata,
+the response key/root location, operation path, and variable-definition
+locations needed by Shopify-compatible errors. `operation_roots` carries only
+the selected operation's root names, response keys, and resolved arguments so a
+domain can hydrate sibling roots from one cached upstream response without
+receiving a nested selection tree. It also exposes
+`requests_field_path(...)`, backed by `async-graphql`'s selected field tree. Use
+that only to plan hydration breadth or batching; do not use it to shape JSON
+output or recreate selection projectors.
 
 For generic IDs, update `src/node_resolver_inventory.rs` and its matching loader in `src/proxy/node_registry.rs` rather than adding another `node`/`nodes` switch. The inventory is exported for coverage audits; the executable loader reads the owning domain's effective store state.
 
@@ -59,15 +84,16 @@ Do not use these helpers for top-level GraphQL `errors`/`extensions` envelopes; 
 
 Top-level parse, validation, variable/scalar coercion, location, path, and extension-code compatibility belongs in `src/proxy/graphql_error_compat.rs`. Keep resolver/business validation in domain modules and payload `userErrors`; do not add Shopify engine-envelope rewriting to `graphql_runtime.rs` or a resource handler.
 
-## Selection, Connection, And Count Helpers
+## Connection And Count Helpers
 
 Several generic serializers live under `src/proxy/` and should be reused before adding local copies.
 
-- `src/proxy/selection.rs` owns alias-aware selected-field projection helpers such as `selected_json(...)`, `nullable_selected_json(...)`, `nested_selected_fields(...)`, `selected_child_selection(...)`, and `selected_fields_named(...)`.
-- `src/proxy/connection.rs` owns generic Shopify connection envelope helpers such as `connection_json(...)`, `connection_json_with_cursor(...)`, `selected_connection_json(...)`, `selected_empty_connection_json(...)`, `selected_typed_connection(...)`, `connection_window(...)`, `connection_page_info(...)`, and `empty_page_info(...)`.
+- There is no shared runtime selection projector. Native resolvers return canonical, alias-free values and the executable schema projects aliases, fragments, interfaces/unions, directives, and null propagation.
+- `src/proxy/connection.rs` owns generic Shopify connection envelope helpers such as `connection_json(...)`, `connection_json_with_cursor(...)`, `connection_value_with_args(...)`, `typed_connection_value(...)`, `staged_connection_value_with_args(...)`, `connection_window(...)`, `connection_page_info(...)`, and `empty_page_info(...)`.
+- Bulk-operation JSONL keeps its projector private to `bulk_operations.rs` because the inner GraphQL document is input data and is not executed by the outer schema. Do not reuse that projector for API responses.
 - `src/proxy/connection.rs` also owns `count_object(...)` and `count_object_with_precision(...)` for Shopify `Count` objects. Do not rebuild `{ count, precision }` envelopes inline.
-- `src/proxy/connection.rs` owns the staged-resource query path `staged_connection_query(...)` / `selected_staged_connection_with_args(...)`. Use it for staged reads that need resource-specific search decisions, sort-key mapping, `reverse`, cursor windowing, and filtered counts to stay in one order of operations.
-- `src/proxy/product_helpers.rs` owns product/saved-search JSON builders and product-specific serializers; generic connection and Count envelopes belong in `connection.rs`.
+- `src/proxy/connection.rs` owns the staged-resource query path `staged_connection_query(...)` / `staged_connection_value_with_args(...)`. Use it for staged reads that need resource-specific search decisions, sort-key mapping, `reverse`, cursor windowing, and filtered counts to stay in one order of operations.
+- `src/proxy/product_helpers.rs` owns canonical product/saved-search values and product-specific serializers; generic connection and Count envelopes belong in `connection.rs`.
 
 Prefer passing domain-specific sort/filter/cursor decisions into these helpers rather than duplicating connection envelope construction.
 

@@ -10,59 +10,54 @@ impl DraftProxy {
     /// HEAD stores customer addresses *inline* on the staged customer record at
     /// `addressesV2.nodes` / `defaultAddress`; these handlers operate directly on
     /// that inline model so reads (`customer`, `customerByIdentifier`) reflect
-    /// every mutation via the same `selected_json` path. Address ids are minted
+    /// every mutation through the same canonical address path. Address ids are minted
     /// from the shared synthetic counter (`next_proxy_synthetic_gid`) so they are
     /// globally unique across customers — this is what lets cross-owner address
     /// references resolve to "Address does not exist" rather than colliding with a
     /// different customer's per-customer index. The parity comparison matches
     /// these synthetic ids and cursors with `any-string`, so only their
     /// uniqueness and read-after-write consistency matter, never their values.
-    pub(in crate::proxy) fn customer_address_mutation(
+    pub(crate) fn customer_address_mutation_root(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
-        };
-        let mut top_errors = Vec::new();
-        let data = root_payload_json(&fields, |field| {
-            let (payload, staged_ids, field_top_errors) = match field.name.as_str() {
-                "customerAddressCreate" => self.customer_address_create(field),
-                "customerAddressUpdate" => self.customer_address_update(field),
-                "customerAddressDelete" => self.customer_address_delete(field),
-                "customerUpdateDefaultAddress" => self.customer_update_default_address(field),
-                _ => (Value::Null, Vec::new(), Vec::new()),
-            };
-            top_errors.extend(field_top_errors);
-            if !staged_ids.is_empty() {
-                self.record_mutation_log_entry(request, query, variables, &field.name, staged_ids);
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let (payload, staged_ids, top_errors) = match invocation.root_name {
+            "customerAddressCreate" => self.customer_address_create(&arguments),
+            "customerAddressUpdate" => {
+                self.customer_address_update(&arguments, invocation.response_key)
             }
-            // A null payload signals a top-level RESOURCE_NOT_FOUND (the data
-            // field itself is null); a non-null payload renders through the
-            // selection set like every other mutation result.
-            let rendered = if payload.is_null() {
-                Value::Null
-            } else {
-                selected_json(&payload, &field.selection)
-            };
-            Some(rendered)
-        });
-        let mut body = json!({ "data": data });
-        if !top_errors.is_empty() {
-            body["errors"] = Value::Array(top_errors);
+            "customerAddressDelete" => {
+                self.customer_address_delete(&arguments, invocation.response_key)
+            }
+            "customerUpdateDefaultAddress" => {
+                self.customer_update_default_address(&arguments, invocation.response_key)
+            }
+            _ => {
+                return resolver_http_error_outcome(400, "Unsupported customer address mutation");
+            }
+        };
+        let mut outcome = ResolverOutcome::value(payload).with_errors(root_field_errors_from_json(
+            &top_errors,
+            invocation.response_key,
+        ));
+        if !staged_ids.is_empty() {
+            outcome.log_drafts.push(LogDraft::staged(
+                invocation.root_name,
+                "customers",
+                staged_ids,
+            ));
         }
-        ok_json(body)
+        outcome
     }
 
     fn customer_address_create(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Vec<String>, Vec<Value>) {
-        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
-        let address_input = resolved_object_field(&field.arguments, "address").unwrap_or_default();
-        let set_as_default = resolved_bool_field(&field.arguments, "setAsDefault");
+        let customer_id = resolved_string_field(arguments, "customerId").unwrap_or_default();
+        let address_input = resolved_object_field(arguments, "address").unwrap_or_default();
+        let set_as_default = resolved_bool_field(arguments, "setAsDefault");
         let Some((customer_first, customer_last, existing_nodes, current_default)) =
             self.customer_address_context(&customer_id)
         else {
@@ -133,12 +128,13 @@ impl DraftProxy {
 
     fn customer_address_update(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
     ) -> (Value, Vec<String>, Vec<Value>) {
-        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
-        let address_id = resolved_string_field(&field.arguments, "addressId").unwrap_or_default();
-        let address_input = resolved_object_field(&field.arguments, "address").unwrap_or_default();
-        let set_as_default = resolved_bool_field(&field.arguments, "setAsDefault");
+        let customer_id = resolved_string_field(arguments, "customerId").unwrap_or_default();
+        let address_id = resolved_string_field(arguments, "addressId").unwrap_or_default();
+        let address_input = resolved_object_field(arguments, "address").unwrap_or_default();
+        let set_as_default = resolved_bool_field(arguments, "setAsDefault");
         // A nested `address.id` that is present must equal the top-level
         // `addressId`. An explicit null (key present, value null) counts as a
         // mismatch, matching Shopify; an omitted key skips the check.
@@ -163,17 +159,15 @@ impl DraftProxy {
         else {
             return self.customer_address_missing_customer_result(
                 &address_id,
-                &field.response_key,
+                response_key,
                 |errors| customer_address_payload(Value::Null, errors),
             );
         };
         let index = customer_address_node_index(&existing_nodes, &address_id);
         let Some(index) = index else {
-            return self.customer_address_missing_result(
-                &address_id,
-                &field.response_key,
-                |errors| customer_address_payload(Value::Null, errors),
-            );
+            return self.customer_address_missing_result(&address_id, response_key, |errors| {
+                customer_address_payload(Value::Null, errors)
+            });
         };
         let (node, errors) = customer_address_input_node(
             &address_input,
@@ -209,16 +203,17 @@ impl DraftProxy {
 
     fn customer_address_delete(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
     ) -> (Value, Vec<String>, Vec<Value>) {
-        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
-        let address_id = resolved_string_field(&field.arguments, "addressId").unwrap_or_default();
+        let customer_id = resolved_string_field(arguments, "customerId").unwrap_or_default();
+        let address_id = resolved_string_field(arguments, "addressId").unwrap_or_default();
         let Some((_, _, existing_nodes, current_default)) =
             self.customer_address_context(&customer_id)
         else {
             return self.customer_address_missing_customer_result(
                 &address_id,
-                &field.response_key,
+                response_key,
                 |errors| json!({ "deletedAddressId": Value::Null, "userErrors": errors }),
             );
         };
@@ -226,7 +221,7 @@ impl DraftProxy {
         let Some(index) = index else {
             return self.customer_address_missing_result(
                 &address_id,
-                &field.response_key,
+                response_key,
                 |errors| json!({ "deletedAddressId": Value::Null, "userErrors": errors }),
             );
         };
@@ -256,12 +251,13 @@ impl DraftProxy {
 
     fn customer_update_default_address(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
     ) -> (Value, Vec<String>, Vec<Value>) {
-        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
-        let address_id = resolved_string_field(&field.arguments, "addressId").unwrap_or_default();
+        let customer_id = resolved_string_field(arguments, "customerId").unwrap_or_default();
+        let address_id = resolved_string_field(arguments, "addressId").unwrap_or_default();
         // Return the full staged customer record; the field's `customer`
-        // sub-selection is applied by `selected_json` at the call site.
+        // sub-selection is applied by the GraphQL executor at the call site.
         let render_customer = |me: &Self| {
             me.store
                 .staged
@@ -285,15 +281,13 @@ impl DraftProxy {
             (
                 Value::Null,
                 Vec::new(),
-                vec![customer_address_resource_not_found_error(
-                    &field.response_key,
-                )],
+                vec![customer_address_resource_not_found_error(response_key)],
             )
         };
         let Some((_, _, existing_nodes, _)) = self.customer_address_context(&customer_id) else {
             return self.customer_address_missing_customer_result(
                 &address_id,
-                &field.response_key,
+                response_key,
                 |errors| json!({ "customer": Value::Null, "userErrors": errors }),
             );
         };
@@ -409,18 +403,6 @@ pub(in crate::proxy) fn customer_address_cursor(address: &Value) -> Option<Strin
         .get("id")
         .and_then(Value::as_str)
         .map(|id| format!("cursor:{id}"))
-}
-
-pub(super) fn selected_customer_addresses_connection(
-    customer: &Value,
-    field: &SelectedField,
-) -> Value {
-    selected_connection_json_with_args(
-        connection_nodes(&customer["addressesV2"]),
-        &field.arguments,
-        &field.selection,
-        |address| customer_address_cursor(address).unwrap_or_default(),
-    )
 }
 
 pub(super) fn customer_mailing_addresses(

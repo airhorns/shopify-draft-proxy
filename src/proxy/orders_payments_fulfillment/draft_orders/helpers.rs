@@ -4,10 +4,6 @@ pub(in crate::proxy) fn normalize_draft_order_tag(tag: &str) -> String {
     tag.trim().to_ascii_lowercase()
 }
 
-pub(in crate::proxy) fn is_valid_draft_order_invoice_template(template: &str) -> bool {
-    matches!(template, "DRAFT_ORDER_INVOICE")
-}
-
 pub(in crate::proxy) fn draft_order_invoice_recipient(
     args: &BTreeMap<String, ResolvedValue>,
     draft_order: &Value,

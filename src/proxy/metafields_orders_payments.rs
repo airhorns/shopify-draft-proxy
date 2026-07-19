@@ -13,167 +13,41 @@ mod quantity_pricing;
 mod quantity_rules;
 mod returns;
 
-pub(in crate::proxy) use self::delivery_settings::*;
+pub(in crate::proxy) use self::events::{
+    event_field_resolver_registrations, event_field_resolver_type_policies,
+};
 pub(in crate::proxy) use self::payment_customizations::*;
 pub(in crate::proxy) use self::payment_terms::*;
 pub(in crate::proxy) use self::quantity_rules::*;
+pub(in crate::proxy) use self::returns::return_field_resolver_registrations;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_payments_graphql(
+    pub(crate) fn finance_no_data_root(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
-            request,
-            query,
-            variables,
-            operation,
-            root_name,
-            mode,
-        } = context;
-        let fields = match self.root_fields_or_error(query, variables) {
-            Ok(fields) => fields,
-            Err(response) => return response,
-        };
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                if root_name == "customerPaymentMethod" {
-                    if let Some(data) =
-                        self.customer_payment_method_local_data(request, query, variables)
-                    {
-                        ok_json(data)
-                    } else {
-                        ok_json(json!({ "data": finance_risk_no_data_read_data(&fields) }))
-                    }
-                } else if operation.root_fields.iter().all(|field| {
-                    matches!(
-                        field.as_str(),
-                        "paymentCustomization" | "paymentCustomizations"
-                    )
-                }) {
-                    ok_json(json!({
-                        "data": self.payment_customization_query_data(request, &fields)
-                    }))
-                } else if root_name == "paymentTermsTemplates" {
-                    ok_json(json!({ "data": payment_terms_templates_query_data(&fields) }))
-                } else {
-                    ok_json(json!({ "data": finance_risk_no_data_read_data(&fields) }))
-                }
-            }
-            LocalResolverMode::StageLocally => {
-                if matches!(
-                    root_name,
-                    "customerPaymentMethodCreditCardCreate"
-                        | "customerPaymentMethodCreditCardUpdate"
-                        | "customerPaymentMethodCreateFromDuplicationData"
-                        | "customerPaymentMethodGetDuplicationData"
-                        | "customerPaymentMethodGetUpdateUrl"
-                        | "customerPaymentMethodPaypalBillingAgreementCreate"
-                        | "customerPaymentMethodPaypalBillingAgreementUpdate"
-                        | "customerPaymentMethodRemoteCreate"
-                        | "customerPaymentMethodRevoke"
-                        | "paymentReminderSend"
-                ) {
-                    let payment_reminder = fields
-                        .iter()
-                        .any(|field| field.name == "paymentReminderSend")
-                        .then(|| self.payment_reminder_local_data(request, query, variables))
-                        .flatten();
-                    if root_name == "paymentReminderSend" {
-                        if let Some(data) = payment_reminder {
-                            return ok_json(data);
-                        }
-                    }
-                    if let Some(reminder) = &payment_reminder {
-                        if reminder.get("errors").is_some() {
-                            return ok_json(reminder.clone());
-                        }
-                    }
-                    if let Some(data) =
-                        self.customer_payment_method_local_data(request, query, variables)
-                    {
-                        let mut data = data;
-                        if let Some(reminder) = payment_reminder {
-                            if let (Some(data), Some(reminder)) = (
-                                data.get_mut("data").and_then(Value::as_object_mut),
-                                reminder.get("data").and_then(Value::as_object),
-                            ) {
-                                data.extend(reminder.clone());
-                            }
-                        }
-                        return ok_json(data);
-                    }
-                    return Self::unimplemented_resolver_response(mode, root_name);
-                }
-                if matches!(
-                    root_name,
-                    "paymentTermsCreate" | "paymentTermsUpdate" | "paymentTermsDelete"
-                ) {
-                    if let Some(data) = self.payment_terms_local_data(request, query, variables) {
-                        return ok_json(data);
-                    }
-                    return Self::unimplemented_resolver_response(mode, root_name);
-                }
-                if matches!(
-                    root_name,
-                    "orderCapture" | "transactionVoid" | "orderCreateMandatePayment"
-                ) {
-                    if let Some(data) = self
-                        .order_payment_transaction_local_data(request, root_name, query, variables)
-                    {
-                        return ok_json(data);
-                    }
-                    return Self::unimplemented_resolver_response(mode, root_name);
-                }
-                if operation.root_fields.iter().all(|field| {
-                    matches!(
-                        field.as_str(),
-                        "paymentCustomizationActivation"
-                            | "paymentCustomizationCreate"
-                            | "paymentCustomizationDelete"
-                            | "paymentCustomizationUpdate"
-                    )
-                }) {
-                    let data = self.payment_customization_mutation_data(request, &fields);
-                    let staged_ids = fields
-                        .iter()
-                        .filter_map(|field| {
-                            data[field.response_key.as_str()]["paymentCustomization"]["id"]
-                                .as_str()
-                                .map(ToString::to_string)
-                                .or_else(|| {
-                                    data[field.response_key.as_str()]["deletedId"]
-                                        .as_str()
-                                        .map(ToString::to_string)
-                                })
-                        })
-                        .collect();
-                    self.record_mutation_log_entry(
-                        request, query, variables, root_name, staged_ids,
-                    );
-                    ok_json(json!({ "data": data }))
-                } else {
-                    Self::unimplemented_resolver_response(mode, root_name)
-                }
-            }
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        if invocation.mode != LocalResolverMode::OverlayRead {
+            return ResolverOutcome::error(format!(
+                "Finance no-data root `{}` cannot execute in {} mode",
+                invocation.root_name,
+                invocation.mode.registry_name(),
+            ));
         }
-    }
-}
-
-fn finance_risk_no_data_read_data(fields: &[RootFieldSelection]) -> Value {
-    root_payload_json(fields, |field| {
-        Some(match field.name.as_str() {
+        ResolverOutcome::value(match invocation.root_name {
+            "cashTrackingSessions" | "disputes" | "shopPayPaymentRequestReceipts" => {
+                connection_json(Vec::new())
+            }
             "cashTrackingSession"
             | "pointOfSaleDevice"
             | "dispute"
             | "disputeEvidence"
-            | "shopPayPaymentRequestReceipt" => Value::Null,
-            "cashTrackingSessions" | "disputes" | "shopPayPaymentRequestReceipts" => {
-                selected_empty_connection_json(&field.selection)
+            | "shopPayPaymentRequestReceipt"
+            | "shopifyPaymentsAccount" => Value::Null,
+            root => {
+                return ResolverOutcome::error(format!("Unknown Finance no-data root `{root}`"));
             }
-            _ => Value::Null,
         })
-    })
+    }
 }
 
 pub(in crate::proxy) fn metafield_compare_digest(value: &str) -> String {
@@ -903,92 +777,6 @@ pub(in crate::proxy) fn canonical_app_metafield_namespace(
             .map(|api_client_id| format!("app--{api_client_id}"))
             .unwrap_or_default(),
     }
-}
-
-/// Shopify rejects `metafieldsSet` at *variable coercion* time — before the mutation
-/// resolver runs — when a non-null `MetafieldsSetInput` field (`key`, `ownerId`, `value`)
-/// is omitted or explicitly null. The response is a top-level `INVALID_VARIABLE` GraphQL
-/// error (no `data`), anchored at the variable definition, echoing the provided value and
-/// listing the offending `[index, field]` paths under `problems`.
-pub(in crate::proxy) fn metafields_set_coercion_error(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-    arguments: &BTreeMap<String, ResolvedValue>,
-) -> Option<Response> {
-    let inputs = metafields_mutation_inputs(arguments, variables);
-    let mut problems: Vec<(usize, &'static str)> = Vec::new();
-    for (index, input) in inputs.iter().enumerate() {
-        for field in ["key", "ownerId", "value"] {
-            let present =
-                matches!(input.get(field), Some(value) if !matches!(value, ResolvedValue::Null));
-            if !present {
-                problems.push((index, field));
-            }
-        }
-    }
-    let (first_index, first_field) = *problems.first()?;
-    // Echo the provided variable value verbatim (present fields only). Object key order is
-    // normalized away by the strict differ, so reconstructing from the parsed input is exact.
-    let value: Vec<Value> = inputs
-        .iter()
-        .map(|input| {
-            Value::Object(
-                input
-                    .iter()
-                    .map(|(name, resolved)| (name.clone(), resolved_value_json(resolved)))
-                    .collect(),
-            )
-        })
-        .collect();
-    let problems_json: Vec<Value> = problems
-        .iter()
-        .map(|(index, field)| {
-            json!({
-                "path": [index, field],
-                "explanation": "Expected value to not be null",
-            })
-        })
-        .collect();
-    let variable_name =
-        metafields_set_variable_name(query).unwrap_or_else(|| "metafields".to_string());
-    let message = format!(
-        "Variable ${variable_name} of type [MetafieldsSetInput!]! was provided invalid value for {first_index}.{first_field} (Expected value to not be null)"
-    );
-    let location = graphql_variable_definition_location(query, &variable_name)
-        .map(|(line, column)| SourceLocation { line, column })
-        .unwrap_or(SourceLocation { line: 1, column: 1 });
-    Some(ok_json(json!({
-        "errors": [invalid_variable_error_envelope(
-            message,
-            location,
-            Value::Array(value),
-            Value::Array(problems_json),
-        )]
-    })))
-}
-
-/// Resolves the variable name bound to the `metafields:` argument of a `metafieldsSet`
-/// mutation (e.g. `metafieldsSet(metafields: $metafields)` -> `metafields`).
-fn metafields_set_variable_name(query: &str) -> Option<String> {
-    let mut search = 0;
-    while let Some(relative) = query[search..].find("metafields") {
-        let start = search + relative;
-        let after = start + "metafields".len();
-        let rest = query[after..].trim_start();
-        if let Some(rest) = rest.strip_prefix(':') {
-            if let Some(rest) = rest.trim_start().strip_prefix('$') {
-                let name: String = rest
-                    .chars()
-                    .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
-                    .collect();
-                if !name.is_empty() {
-                    return Some(name);
-                }
-            }
-        }
-        search = after;
-    }
-    None
 }
 
 fn metafields_set_input_shape_error(
@@ -2427,52 +2215,4 @@ fn line_items_price_set_values(
         format_money_amount(presentment_total),
         presentment_currency,
     ]
-}
-
-fn selected_field_contains_only_any(
-    selection: &SelectedField,
-    names: &[&str],
-    allowed_context: &[&str],
-) -> bool {
-    if names.contains(&selection.name.as_str()) {
-        return true;
-    }
-    if !allowed_context.contains(&selection.name.as_str()) {
-        return false;
-    }
-    selection.selection.is_empty()
-        || selection
-            .selection
-            .iter()
-            .all(|child| selected_field_contains_only_any(child, names, allowed_context))
-}
-
-fn selection_contains_only_any(
-    selections: &[SelectedField],
-    names: &[&str],
-    allowed_context: &[&str],
-) -> bool {
-    selections
-        .iter()
-        .all(|selection| selected_field_contains_only_any(selection, names, allowed_context))
-}
-
-impl DraftProxy {
-    pub(in crate::proxy) fn staged_order_input_and_first_line(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> (
-        String,
-        BTreeMap<String, ResolvedValue>,
-        BTreeMap<String, ResolvedValue>,
-    ) {
-        let order_input = resolved_object_field(&field.arguments, "order").unwrap_or_default();
-        let id = shopify_gid("Order", self.store.staged.next_order_id);
-        self.store.staged.next_order_id += 1;
-        let first_line = resolved_object_list_field(&order_input, "lineItems")
-            .first()
-            .cloned()
-            .unwrap_or_default();
-        (id, order_input, first_line)
-    }
 }

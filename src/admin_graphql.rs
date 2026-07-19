@@ -17,7 +17,8 @@ use async_graphql::{
         Enum, EnumItem, Field, FieldFuture, FieldValue, InputObject, InputValue, Interface,
         InterfaceField, Object, Scalar, Schema, SchemaError, TypeRef, Union,
     },
-    Error, ErrorExtensionValues, Name, PathSegment, Pos, ServerError, Value as GraphqlValue,
+    Error, ErrorExtensionValues, Name, PathSegment, Pos, SelectionField, ServerError,
+    Value as GraphqlValue,
 };
 use async_graphql_parser::{
     parse_schema,
@@ -28,82 +29,9 @@ use async_graphql_parser::{
 };
 use serde_json::Value;
 
-use crate::graphql::OperationType;
+use crate::{graphql::OperationType, operation_registry::ApiSurface};
 
-/// Admin API versions for which this repository carries a complete captured
-/// schema.  Routes outside this set are rejected before execution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum AdminApiVersion {
-    V2025_01,
-    V2025_10,
-    V2026_01,
-    V2026_04,
-    V2026_07,
-}
-
-impl AdminApiVersion {
-    pub const ALL: [Self; 5] = [
-        Self::V2025_01,
-        Self::V2025_10,
-        Self::V2026_01,
-        Self::V2026_04,
-        Self::V2026_07,
-    ];
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::V2025_01 => "2025-01",
-            Self::V2025_10 => "2025-10",
-            Self::V2026_01 => "2026-01",
-            Self::V2026_04 => "2026-04",
-            Self::V2026_07 => "2026-07",
-        }
-    }
-
-    pub fn from_route(path: &str) -> Option<Self> {
-        let version = path
-            .strip_prefix("/admin/api/")?
-            .strip_suffix("/graphql.json")?;
-        Self::parse(version)
-    }
-
-    pub fn parse(version: &str) -> Option<Self> {
-        match version {
-            "2025-01" => Some(Self::V2025_01),
-            "2025-10" => Some(Self::V2025_10),
-            "2026-01" => Some(Self::V2026_01),
-            "2026-04" => Some(Self::V2026_04),
-            "2026-07" => Some(Self::V2026_07),
-            _ => None,
-        }
-    }
-
-    pub fn schema_sdl(self) -> &'static str {
-        match self {
-            Self::V2025_01 => {
-                include_str!("../config/admin-graphql/2025-01/schema.graphql")
-            }
-            Self::V2025_10 => {
-                include_str!("../config/admin-graphql/2025-10/schema.graphql")
-            }
-            Self::V2026_01 => {
-                include_str!("../config/admin-graphql/2026-01/schema.graphql")
-            }
-            Self::V2026_04 => {
-                include_str!("../config/admin-graphql/2026-04/schema.graphql")
-            }
-            Self::V2026_07 => {
-                include_str!("../config/admin-graphql/2026-07/schema.graphql")
-            }
-        }
-    }
-}
-
-impl fmt::Display for AdminApiVersion {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.as_str())
-    }
-}
+pub use crate::graphql_catalog::AdminApiVersion;
 
 /// A root resolver result before `async-graphql` applies the caller's output
 /// selection.  Domain resolvers may report GraphQL execution errors alongside
@@ -112,6 +40,14 @@ impl fmt::Display for AdminApiVersion {
 pub struct RootFieldResult {
     pub value: Value,
     pub errors: Vec<RootFieldError>,
+    pub value_source: ResolverValueSource,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ResolverValueSource {
+    #[default]
+    Local,
+    Upstream,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -130,12 +66,22 @@ pub struct RootFieldInvocation {
     pub response_key: String,
     pub root_name: String,
     pub arguments: BTreeMap<String, Value>,
+    /// Schema-selected output field paths below this root. This is execution
+    /// planning metadata from async-graphql, not a domain projection request.
+    pub requested_field_paths: BTreeSet<Vec<String>>,
 }
 
 /// Request-scoped bridge between schema resolvers and the instance-owned
 /// proxy/store. Implementations are expected to serialize mutation roots.
 pub trait RootFieldExecutor: Send + Sync {
     fn execute_root(&self, invocation: RootFieldInvocation) -> Result<RootFieldResult, String>;
+
+    fn execute_field(
+        &self,
+        _invocation: FieldResolverInvocation<'_>,
+    ) -> Result<FieldResolverResult, String> {
+        Ok(FieldResolverResult::PropertyBacked)
+    }
 }
 
 /// Put this value in `async_graphql::Request::data` when executing a proxy
@@ -144,6 +90,49 @@ pub trait RootFieldExecutor: Send + Sync {
 #[derive(Clone)]
 pub struct RootExecutionContext {
     pub executor: Arc<dyn RootFieldExecutor>,
+    pub null_list_item_paths: Arc<std::sync::Mutex<Vec<Vec<String>>>>,
+}
+
+impl RootExecutionContext {
+    pub fn new(executor: Arc<dyn RootFieldExecutor>) -> Self {
+        Self {
+            executor,
+            null_list_item_paths: Arc::new(std::sync::Mutex::new(Vec::new())),
+        }
+    }
+
+    pub fn with_null_list_item_paths(
+        executor: Arc<dyn RootFieldExecutor>,
+        null_list_item_paths: Arc<std::sync::Mutex<Vec<Vec<String>>>>,
+    ) -> Self {
+        Self {
+            executor,
+            null_list_item_paths,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FieldResolverInvocation<'a> {
+    pub api_surface: ApiSurface,
+    pub api_version: &'static str,
+    pub parent_type: String,
+    pub field_name: String,
+    /// Response-key path to this field. List indices are decimal strings.
+    /// The execution bridges use it only for request-scoped engine workarounds;
+    /// domain handlers should not route behavior by this path.
+    pub path: Vec<String>,
+    /// Canonical, alias-free local parent value. Response aliases are owned by
+    /// the GraphQL engine and are intentionally unavailable to field callbacks.
+    pub parent: &'a Value,
+    pub arguments: BTreeMap<String, Value>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum FieldResolverResult {
+    PropertyBacked,
+    Resolved(Value),
+    DeliberatelyUnsupported(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -231,6 +220,7 @@ fn scalar_codec(name: &str) -> Option<ScalarCodec> {
 #[derive(Debug, Default)]
 struct SchemaMetadata {
     output_kinds: BTreeMap<String, OutputKind>,
+    enum_values: BTreeMap<String, Vec<String>>,
     possible_types: BTreeMap<String, BTreeSet<String>>,
     object_fields: BTreeMap<String, BTreeSet<String>>,
     input_fields: BTreeMap<String, BTreeMap<String, InputCoercionField>>,
@@ -242,33 +232,21 @@ struct InputCoercionField {
 }
 
 #[derive(Debug)]
-struct JsonObject(Value);
+struct JsonObject {
+    value: Value,
+    source: ResolverValueSource,
+}
 
-static SCHEMA_2025_01: OnceLock<Schema> = OnceLock::new();
-static SCHEMA_2025_10: OnceLock<Schema> = OnceLock::new();
-static SCHEMA_2026_01: OnceLock<Schema> = OnceLock::new();
-static SCHEMA_2026_04: OnceLock<Schema> = OnceLock::new();
-static SCHEMA_2026_07: OnceLock<Schema> = OnceLock::new();
-static INPUT_OBJECT_FIELDS_2025_01: OnceLock<BTreeMap<String, Vec<InputFieldMetadata>>> =
-    OnceLock::new();
-static INPUT_OBJECT_FIELDS_2025_10: OnceLock<BTreeMap<String, Vec<InputFieldMetadata>>> =
-    OnceLock::new();
-static INPUT_OBJECT_FIELDS_2026_01: OnceLock<BTreeMap<String, Vec<InputFieldMetadata>>> =
-    OnceLock::new();
-static INPUT_OBJECT_FIELDS_2026_04: OnceLock<BTreeMap<String, Vec<InputFieldMetadata>>> =
-    OnceLock::new();
-static INPUT_OBJECT_FIELDS_2026_07: OnceLock<BTreeMap<String, Vec<InputFieldMetadata>>> =
-    OnceLock::new();
+const NULL_LIST_ITEM_MARKER: &str = "__draftProxyNullListItem";
+
+static SCHEMAS: [OnceLock<Schema>; AdminApiVersion::COUNT] =
+    [const { OnceLock::new() }; AdminApiVersion::COUNT];
+static INPUT_OBJECT_FIELDS: [OnceLock<BTreeMap<String, Vec<InputFieldMetadata>>>;
+    AdminApiVersion::COUNT] = [const { OnceLock::new() }; AdminApiVersion::COUNT];
 
 /// Return the lazily-built executable schema for a Shopify API version.
 pub fn schema(version: AdminApiVersion) -> Result<&'static Schema, SchemaBuildError> {
-    let slot = match version {
-        AdminApiVersion::V2025_01 => &SCHEMA_2025_01,
-        AdminApiVersion::V2025_10 => &SCHEMA_2025_10,
-        AdminApiVersion::V2026_01 => &SCHEMA_2026_01,
-        AdminApiVersion::V2026_04 => &SCHEMA_2026_04,
-        AdminApiVersion::V2026_07 => &SCHEMA_2026_07,
-    };
+    let slot = &SCHEMAS[version.index()];
     if let Some(schema) = slot.get() {
         return Ok(schema);
     }
@@ -281,32 +259,38 @@ pub fn schema(version: AdminApiVersion) -> Result<&'static Schema, SchemaBuildEr
         .expect("versioned Admin GraphQL schema should be initialized"))
 }
 
+pub(crate) fn root_field_names(
+    version: AdminApiVersion,
+    operation_type: OperationType,
+) -> Vec<String> {
+    let Ok(schema) = schema(version) else {
+        return Vec::new();
+    };
+    let root_name = match operation_type {
+        OperationType::Query => Some(schema.registry().query_type.as_str()),
+        OperationType::Mutation => schema.registry().mutation_type.as_deref(),
+        OperationType::Subscription => schema.registry().subscription_type.as_deref(),
+    };
+    root_name
+        .and_then(|root_name| schema.registry().types.get(root_name))
+        .and_then(async_graphql::registry::MetaType::fields)
+        .map(|fields| fields.keys().cloned().collect())
+        .unwrap_or_default()
+}
+
 /// Test whether a concrete output type satisfies an interface or union type
-/// condition in an executable Admin schema. Legacy JSON projection helpers use
-/// this only while domain handlers are being migrated to return unprojected
-/// resolver values; the GraphQL engine remains the final authority.
-pub(crate) fn output_type_condition_applies(concrete_type: &str, type_condition: &str) -> bool {
+/// condition in the requested executable Admin schema. Bulk-operation JSONL
+/// projection uses this because its inner query is GraphQL-as-data rather than
+/// an ordinary response projected by the outer GraphQL engine.
+pub(crate) fn output_type_condition_applies(
+    version: AdminApiVersion,
+    concrete_type: &str,
+    type_condition: &str,
+) -> bool {
     if concrete_type == type_condition {
         return true;
     }
-    let initialized = [
-        SCHEMA_2025_01.get(),
-        SCHEMA_2025_10.get(),
-        SCHEMA_2026_01.get(),
-        SCHEMA_2026_04.get(),
-        SCHEMA_2026_07.get(),
-    ];
-    let mut saw_initialized_schema = false;
-    for schema in initialized.into_iter().flatten() {
-        saw_initialized_schema = true;
-        if schema_type_condition_applies(schema, concrete_type, type_condition) {
-            return true;
-        }
-    }
-    if saw_initialized_schema {
-        return false;
-    }
-    schema(AdminApiVersion::V2026_07)
+    schema(version)
         .ok()
         .is_some_and(|schema| schema_type_condition_applies(schema, concrete_type, type_condition))
 }
@@ -409,13 +393,7 @@ pub fn input_object_fields(
 fn captured_input_object_fields(
     version: AdminApiVersion,
 ) -> &'static BTreeMap<String, Vec<InputFieldMetadata>> {
-    let slot = match version {
-        AdminApiVersion::V2025_01 => &INPUT_OBJECT_FIELDS_2025_01,
-        AdminApiVersion::V2025_10 => &INPUT_OBJECT_FIELDS_2025_10,
-        AdminApiVersion::V2026_01 => &INPUT_OBJECT_FIELDS_2026_01,
-        AdminApiVersion::V2026_04 => &INPUT_OBJECT_FIELDS_2026_04,
-        AdminApiVersion::V2026_07 => &INPUT_OBJECT_FIELDS_2026_07,
-    };
+    let slot = &INPUT_OBJECT_FIELDS[version.index()];
     slot.get_or_init(|| {
         let Ok(document) = parse_schema(version.schema_sdl()) else {
             return BTreeMap::new();
@@ -587,7 +565,7 @@ impl From<SchemaError> for SchemaBuildError {
 }
 
 fn build_schema(version: AdminApiVersion) -> Result<Schema, SchemaBuildError> {
-    build_schema_from_sdl(version.schema_sdl(), "Admin")
+    build_schema_from_sdl(version.schema_sdl(), ApiSurface::Admin, version.as_str())
 }
 
 /// Build one executable Shopify GraphQL schema from captured SDL. Admin and
@@ -596,7 +574,8 @@ fn build_schema(version: AdminApiVersion) -> Result<Schema, SchemaBuildError> {
 /// the GraphQL machinery.
 pub(crate) fn build_schema_from_sdl(
     schema_sdl: &str,
-    api_surface: &'static str,
+    api_surface: ApiSurface,
+    api_version: &'static str,
 ) -> Result<Schema, SchemaBuildError> {
     let document =
         parse_schema(schema_sdl).map_err(|error| SchemaBuildError::Parse(error.to_string()))?;
@@ -707,7 +686,13 @@ pub(crate) fn build_schema_from_sdl(
                     object = object.field(if is_root {
                         dynamic_root_field(&field.node, Arc::clone(&metadata), api_surface)
                     } else {
-                        dynamic_object_field(&name, &field.node, Arc::clone(&metadata))
+                        dynamic_object_field(
+                            &name,
+                            &field.node,
+                            Arc::clone(&metadata),
+                            api_surface,
+                            api_version,
+                        )
                     });
                 }
                 builder = builder.register(object);
@@ -781,8 +766,16 @@ fn schema_metadata(definitions: &[TypeSystemDefinition]) -> SchemaMetadata {
             TypeKind::Scalar => {
                 metadata.output_kinds.insert(name, OutputKind::Scalar);
             }
-            TypeKind::Enum(_) => {
-                metadata.output_kinds.insert(name, OutputKind::Enum);
+            TypeKind::Enum(enum_type) => {
+                metadata.output_kinds.insert(name.clone(), OutputKind::Enum);
+                metadata.enum_values.insert(
+                    name,
+                    enum_type
+                        .values
+                        .iter()
+                        .map(|value| value.node.value.node.to_string())
+                        .collect(),
+                );
             }
             TypeKind::Object(object) => {
                 metadata
@@ -855,7 +848,7 @@ fn schema_metadata(definitions: &[TypeSystemDefinition]) -> SchemaMetadata {
 fn dynamic_root_field(
     field: &FieldDefinition,
     metadata: Arc<SchemaMetadata>,
-    api_surface: &'static str,
+    api_surface: ApiSurface,
 ) -> Field {
     let root_name = field.name.node.to_string();
     let output_type = dynamic_type_ref(&field.ty.node);
@@ -878,8 +871,12 @@ fn dynamic_root_field(
         let metadata = Arc::clone(&metadata);
         FieldFuture::new(async move {
             let execution = context.data::<RootExecutionContext>().map_err(|_| {
+                let surface_name = match api_surface {
+                    ApiSurface::Admin => "Admin",
+                    ApiSurface::Storefront => "Storefront",
+                };
                 Error::new(format!(
-                    "{api_surface} GraphQL root `{root_name}` has no request-scoped resolver"
+                    "{surface_name} GraphQL root `{root_name}` has no request-scoped resolver"
                 ))
             })?;
             let response_key = context.field().alias().unwrap_or(&root_name).to_string();
@@ -908,10 +905,16 @@ fn dynamic_root_field(
                         })
                 })
                 .collect::<Result<BTreeMap<_, _>, _>>()?;
+            let response_path = context
+                .path_node
+                .map(async_graphql::QueryPathNode::to_string_vec)
+                .unwrap_or_else(|| vec![response_key.clone()]);
+            let requested_field_paths = requested_field_paths(context.field());
             let result = match execution.executor.execute_root(RootFieldInvocation {
-                response_key,
+                response_key: response_key.clone(),
                 root_name: root_name.clone(),
                 arguments,
+                requested_field_paths,
             }) {
                 Ok(result) => result,
                 Err(message) => {
@@ -938,11 +941,37 @@ fn dynamic_root_field(
                 };
                 context.add_error(server_error);
             }
-            json_field_value(result.value, &value_type, &metadata)
+            json_field_value(
+                result.value,
+                &value_type,
+                &metadata,
+                result.value_source,
+                Some(&execution.null_list_item_paths),
+                &response_path,
+            )
         })
     });
     dynamic_field = decorate_field(dynamic_field, field);
     dynamic_field
+}
+
+fn requested_field_paths(root: SelectionField<'_>) -> BTreeSet<Vec<String>> {
+    fn collect(
+        field: SelectionField<'_>,
+        path: &mut Vec<String>,
+        paths: &mut BTreeSet<Vec<String>>,
+    ) {
+        for selected in field.selection_set() {
+            path.push(selected.name().to_string());
+            paths.insert(path.clone());
+            collect(selected, path, paths);
+            path.pop();
+        }
+    }
+
+    let mut paths = BTreeSet::new();
+    collect(root, &mut Vec::new(), &mut paths);
+    paths
 }
 
 fn coerce_dynamic_input_value(
@@ -994,11 +1023,23 @@ fn dynamic_object_field(
     parent_type: &str,
     field: &FieldDefinition,
     metadata: Arc<SchemaMetadata>,
+    api_surface: ApiSurface,
+    api_version: &'static str,
 ) -> Field {
     let parent_type = parent_type.to_string();
     let field_name = field.name.node.to_string();
     let resolver_field_name = field_name.clone();
     let value_type = field.ty.node.clone();
+    let argument_types = field
+        .arguments
+        .iter()
+        .map(|argument| {
+            (
+                argument.node.name.node.to_string(),
+                argument.node.ty.node.clone(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
     let mut dynamic_field = Field::new(
         field_name,
         dynamic_type_ref(&field.ty.node),
@@ -1011,20 +1052,137 @@ fn dynamic_object_field(
                     );
                 }
             };
+            if parent
+                .value
+                .get(NULL_LIST_ITEM_MARKER)
+                .and_then(Value::as_bool)
+                == Some(true)
+            {
+                let placeholder = match null_list_item_field_placeholder(&value_type, &metadata) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        return FieldFuture::new(
+                            async move { Err::<Option<FieldValue<'_>>, _>(error) },
+                        );
+                    }
+                };
+                let resolved = json_field_value(
+                    placeholder,
+                    &value_type,
+                    &metadata,
+                    parent.source,
+                    None,
+                    &[],
+                );
+                return FieldFuture::new(async move { resolved });
+            }
             let response_key = context
                 .field()
                 .alias()
                 .unwrap_or(&resolver_field_name)
                 .to_string();
-            let value = parent
-                .0
-                .as_object()
-                .and_then(|object| {
-                    object
-                        .get(&response_key)
-                        .or_else(|| object.get(&resolver_field_name))
+            if parent.source == ResolverValueSource::Upstream {
+                let value = parent
+                    .value
+                    .as_object()
+                    .and_then(|object| {
+                        object
+                            .get(&response_key)
+                            .filter(|_| response_key != resolver_field_name)
+                            .or_else(|| object.get(&resolver_field_name))
+                    })
+                    .cloned();
+                let Some(value) = value else {
+                    context.add_error(context.set_error_path(ServerError::new(
+                        format!(
+                            "Local resolver did not implement `{parent_type}.{resolver_field_name}`"
+                        ),
+                        None,
+                    )));
+                    return FieldFuture::Value(None);
+                };
+                let resolved =
+                    json_field_value(value, &value_type, &metadata, parent.source, None, &[]);
+                return FieldFuture::new(async move { resolved });
+            }
+            let execution = match context.data::<RootExecutionContext>() {
+                Ok(execution) => execution,
+                Err(error) => {
+                    return FieldFuture::new(
+                        async move { Err::<Option<FieldValue<'_>>, _>(error) },
+                    );
+                }
+            };
+            let arguments = context
+                .args
+                .iter()
+                .map(|(name, value)| {
+                    argument_types
+                        .get(name.as_str())
+                        .map_or_else(
+                            || value.as_value().clone(),
+                            |value_type| {
+                                coerce_dynamic_input_value(
+                                    value.as_value().clone(),
+                                    value_type,
+                                    &metadata,
+                                )
+                            },
+                        )
+                        .into_json()
+                        .map(|value| (name.to_string(), value))
+                        .map_err(|error| {
+                            Error::new(format!(
+                                "could not serialize coerced argument `{name}` for `{parent_type}.{resolver_field_name}`: {error}"
+                            ))
+                        })
                 })
-                .cloned();
+                .collect::<Result<BTreeMap<_, _>, _>>();
+            let arguments = match arguments {
+                Ok(arguments) => arguments,
+                Err(error) => {
+                    return FieldFuture::new(
+                        async move { Err::<Option<FieldValue<'_>>, _>(error) },
+                    );
+                }
+            };
+            let field_path = context
+                .path_node
+                .map(async_graphql::QueryPathNode::to_string_vec)
+                .unwrap_or_else(|| vec![response_key.clone()]);
+            let resolution = execution.executor.execute_field(FieldResolverInvocation {
+                api_surface,
+                api_version,
+                parent_type: parent_type.clone(),
+                field_name: resolver_field_name.clone(),
+                path: field_path.clone(),
+                parent: &parent.value,
+                arguments,
+            });
+            let resolution = match resolution {
+                Ok(resolution) => resolution,
+                Err(message) => {
+                    context.add_error(context.set_error_path(ServerError::new(message, None)));
+                    return FieldFuture::Value(None);
+                }
+            };
+            let value = match resolution {
+                FieldResolverResult::Resolved(value) => Some(value),
+                FieldResolverResult::PropertyBacked => parent
+                    .value
+                    .as_object()
+                    .and_then(|object| object.get(&resolver_field_name))
+                    .cloned(),
+                FieldResolverResult::DeliberatelyUnsupported(reason) => {
+                    context.add_error(context.set_error_path(ServerError::new(
+                        format!(
+                            "Local resolver deliberately does not implement `{parent_type}.{resolver_field_name}`: {reason}"
+                        ),
+                        None,
+                    )));
+                    return FieldFuture::Value(None);
+                }
+            };
             let Some(value) = value else {
                 context.add_error(context.set_error_path(ServerError::new(
                     format!(
@@ -1034,7 +1192,14 @@ fn dynamic_object_field(
                 )));
                 return FieldFuture::Value(None);
             };
-            let resolved = json_field_value(value, &value_type, &metadata);
+            let resolved = json_field_value(
+                value,
+                &value_type,
+                &metadata,
+                parent.source,
+                Some(&execution.null_list_item_paths),
+                &field_path,
+            );
             FieldFuture::new(async move { resolved })
         },
     );
@@ -1088,6 +1253,9 @@ fn json_field_value<'a>(
     value: Value,
     value_type: &AstType,
     metadata: &SchemaMetadata,
+    source: ResolverValueSource,
+    null_list_item_paths: Option<&Arc<std::sync::Mutex<Vec<Vec<String>>>>>,
+    path: &[String],
 ) -> async_graphql::Result<Option<FieldValue<'a>>> {
     if value.is_null() {
         return Ok(FieldValue::NONE);
@@ -1100,16 +1268,54 @@ fn json_field_value<'a>(
                 ))
             })?;
             let mut items = Vec::with_capacity(values.len());
-            for value in values {
+            for (index, value) in values.iter().enumerate() {
+                let mut item_path = path.to_vec();
+                item_path.push(index.to_string());
+                if value.is_null() && item_type.nullable {
+                    if let BaseType::Named(name) = &item_type.base {
+                        match metadata.output_kinds.get(name.as_str()) {
+                            Some(OutputKind::Object) => {
+                                record_null_list_item_path(null_list_item_paths, &item_path)?;
+                                items.push(FieldValue::owned_any(JsonObject {
+                                    value: null_list_item_object(name.as_str()),
+                                    source,
+                                }));
+                                continue;
+                            }
+                            Some(OutputKind::Interface | OutputKind::Union) => {
+                                record_null_list_item_path(null_list_item_paths, &item_path)?;
+                                let concrete_type = concrete_type_for_abstract(name, metadata)?;
+                                items.push(
+                                    FieldValue::owned_any(JsonObject {
+                                        value: null_list_item_object(concrete_type),
+                                        source,
+                                    })
+                                    .with_type(concrete_type.to_string()),
+                                );
+                                continue;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
                 items.push(
-                    json_field_value(value.clone(), item_type, metadata)?
-                        .unwrap_or(FieldValue::NULL),
+                    json_field_value(
+                        value.clone(),
+                        item_type,
+                        metadata,
+                        source,
+                        null_list_item_paths,
+                        &item_path,
+                    )?
+                    .unwrap_or(FieldValue::NULL),
                 );
             }
             Ok(Some(FieldValue::list(items)))
         }
         BaseType::Named(name) => match metadata.output_kinds.get(name.as_str()) {
-            Some(OutputKind::Object) => Ok(Some(FieldValue::owned_any(JsonObject(value)))),
+            Some(OutputKind::Object) => {
+                Ok(Some(FieldValue::owned_any(JsonObject { value, source })))
+            }
             Some(OutputKind::Interface | OutputKind::Union) => {
                 let runtime_type =
                     infer_runtime_type(&value, name.as_str(), metadata).ok_or_else(|| {
@@ -1118,7 +1324,7 @@ fn json_field_value<'a>(
                         ))
                     })?;
                 Ok(Some(
-                    FieldValue::owned_any(JsonObject(value)).with_type(runtime_type),
+                    FieldValue::owned_any(JsonObject { value, source }).with_type(runtime_type),
                 ))
             }
             Some(OutputKind::Enum) => {
@@ -1139,6 +1345,99 @@ fn json_field_value<'a>(
                 })?;
                 Ok(Some(FieldValue::value(value)))
             }
+        },
+    }
+}
+
+fn record_null_list_item_path(
+    paths: Option<&Arc<std::sync::Mutex<Vec<Vec<String>>>>>,
+    path: &[String],
+) -> async_graphql::Result<()> {
+    let Some(paths) = paths else {
+        return Ok(());
+    };
+    paths
+        .lock()
+        .map_err(|_| Error::new("GraphQL null-list-item path lock was poisoned"))?
+        .push(path.to_vec());
+    Ok(())
+}
+
+pub(crate) fn apply_null_list_item_paths(body: &mut Value, paths: &[Vec<String>]) {
+    let Some(data) = body.get_mut("data") else {
+        return;
+    };
+    for path in paths {
+        if let Some(value) = graphql_response_path_mut(data, path) {
+            *value = Value::Null;
+        }
+    }
+}
+
+fn graphql_response_path_mut<'a>(
+    mut value: &'a mut Value,
+    path: &[String],
+) -> Option<&'a mut Value> {
+    for segment in path {
+        value = match value {
+            Value::Object(object) => object.get_mut(segment)?,
+            Value::Array(values) => values.get_mut(segment.parse::<usize>().ok()?)?,
+            _ => return None,
+        };
+    }
+    Some(value)
+}
+
+fn concrete_type_for_abstract<'a>(
+    name: &str,
+    metadata: &'a SchemaMetadata,
+) -> async_graphql::Result<&'a str> {
+    metadata
+        .possible_types
+        .get(name)
+        .and_then(|types| types.first())
+        .map(String::as_str)
+        .ok_or_else(|| {
+            Error::new(format!(
+                "abstract type `{name}` has no possible concrete type for null list resolution"
+            ))
+        })
+}
+
+fn null_list_item_object(type_name: &str) -> Value {
+    serde_json::json!({
+        NULL_LIST_ITEM_MARKER: true,
+        "__typename": type_name,
+    })
+}
+
+fn null_list_item_field_placeholder(
+    value_type: &AstType,
+    metadata: &SchemaMetadata,
+) -> async_graphql::Result<Value> {
+    if value_type.nullable {
+        return Ok(Value::Null);
+    }
+    match &value_type.base {
+        BaseType::List(_) => Ok(Value::Array(Vec::new())),
+        BaseType::Named(name) => match metadata.output_kinds.get(name.as_str()) {
+            Some(OutputKind::Object) => Ok(null_list_item_object(name.as_str())),
+            Some(OutputKind::Interface | OutputKind::Union) => Ok(null_list_item_object(
+                concrete_type_for_abstract(name, metadata)?,
+            )),
+            Some(OutputKind::Enum) => metadata
+                .enum_values
+                .get(name.as_str())
+                .and_then(|values| values.first())
+                .cloned()
+                .map(Value::String)
+                .ok_or_else(|| Error::new(format!("enum `{name}` has no values"))),
+            Some(OutputKind::Scalar) | None => Ok(match name.as_str() {
+                "Boolean" => Value::Bool(false),
+                "Int" => serde_json::json!(0),
+                "Float" => serde_json::json!(0.0),
+                _ => Value::String(String::new()),
+            }),
         },
     }
 }
@@ -1236,6 +1535,7 @@ mod tests {
     use futures_executor::block_on;
 
     struct StaticExecutor;
+    struct UpstreamStaticExecutor;
 
     #[derive(Clone)]
     struct RecordingExecutor(Arc<std::sync::Mutex<Option<RootFieldInvocation>>>);
@@ -1249,6 +1549,7 @@ mod tests {
                         "name": "Schema Shop"
                     }),
                     errors: Vec::new(),
+                    value_source: ResolverValueSource::Local,
                 }),
                 _ => Err(format!(
                     "root `{}` is not implemented locally",
@@ -1267,8 +1568,43 @@ mod tests {
             Ok(RootFieldResult {
                 value: serde_json::json!([]),
                 errors: Vec::new(),
+                value_source: ResolverValueSource::Local,
             })
         }
+    }
+
+    impl RootFieldExecutor for UpstreamStaticExecutor {
+        fn execute_root(&self, invocation: RootFieldInvocation) -> Result<RootFieldResult, String> {
+            assert_eq!(invocation.root_name, "shop");
+            Ok(RootFieldResult {
+                value: serde_json::json!({ "name": "Upstream Shop" }),
+                errors: Vec::new(),
+                value_source: ResolverValueSource::Upstream,
+            })
+        }
+
+        fn execute_field(
+            &self,
+            invocation: FieldResolverInvocation<'_>,
+        ) -> Result<FieldResolverResult, String> {
+            panic!(
+                "upstream field {}.{} must not enter the local field registry",
+                invocation.parent_type, invocation.field_name,
+            );
+        }
+    }
+
+    #[test]
+    fn upstream_objects_bypass_local_field_ownership_resolution() {
+        let executor: Arc<dyn RootFieldExecutor> = Arc::new(UpstreamStaticExecutor);
+        let request = Request::new("{ shop { name } }").data(RootExecutionContext::new(executor));
+
+        let response = block_on(schema(AdminApiVersion::V2026_04).unwrap().execute(request));
+        assert!(response.errors.is_empty(), "{:?}", response.errors);
+        assert_eq!(
+            response.data.into_json().unwrap(),
+            serde_json::json!({ "shop": { "name": "Upstream Shop" } })
+        );
     }
 
     #[test]
@@ -1280,7 +1616,7 @@ mod tests {
             .variables(Variables::from_json(serde_json::json!({
                 "ids": "gid://shopify/Product/1"
             })))
-            .data(RootExecutionContext { executor });
+            .data(RootExecutionContext::new(executor));
 
         let response = block_on(schema(AdminApiVersion::V2026_04).unwrap().execute(request));
         assert!(response.errors.is_empty(), "{:?}", response.errors);
@@ -1293,6 +1629,36 @@ mod tests {
             invocation.arguments.get("ids"),
             Some(&serde_json::json!(["gid://shopify/Product/1"]))
         );
+    }
+
+    #[test]
+    fn root_executor_receives_explicit_connection_arguments() {
+        let recorded = Arc::new(std::sync::Mutex::new(None));
+        let executor: Arc<dyn RootFieldExecutor> =
+            Arc::new(RecordingExecutor(Arc::clone(&recorded)));
+        let request = Request::new("{ validations(first: 2, reverse: true) { nodes { id } } }")
+            .data(RootExecutionContext::new(executor));
+
+        let _response = block_on(schema(AdminApiVersion::V2026_04).unwrap().execute(request));
+        let invocation = recorded
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+            .expect("validations resolver should run");
+        assert_eq!(
+            invocation.arguments.get("first"),
+            Some(&serde_json::json!(2))
+        );
+        assert_eq!(
+            invocation.arguments.get("reverse"),
+            Some(&serde_json::json!(true))
+        );
+        assert!(invocation
+            .requested_field_paths
+            .contains(&vec!["nodes".to_string()]));
+        assert!(invocation
+            .requested_field_paths
+            .contains(&vec!["nodes".to_string(), "id".to_string(),]));
     }
 
     #[test]
@@ -1403,9 +1769,7 @@ mod tests {
         .variables(Variables::from_json(
             serde_json::json!({ "includeName": true }),
         ))
-        .data(RootExecutionContext {
-            executor: Arc::new(StaticExecutor),
-        });
+        .data(RootExecutionContext::new(Arc::new(StaticExecutor)));
         let response = block_on(schema(AdminApiVersion::V2026_04).unwrap().execute(request));
         assert!(response.errors.is_empty(), "{:?}", response.errors);
         assert_eq!(
@@ -1420,12 +1784,61 @@ mod tests {
     }
 
     #[test]
-    fn missing_root_resolvers_are_explicit_execution_errors() {
-        let request = Request::new("{ product(id: \"gid://shopify/Product/1\") { id } }").data(
-            RootExecutionContext {
-                executor: Arc::new(StaticExecutor),
-            },
+    fn local_property_resolution_uses_the_canonical_field_when_an_alias_collides() {
+        let request = Request::new("{ shop { id: name } }")
+            .data(RootExecutionContext::new(Arc::new(StaticExecutor)));
+        let response = block_on(schema(AdminApiVersion::V2026_04).unwrap().execute(request));
+        assert!(response.errors.is_empty(), "{:?}", response.errors);
+        assert_eq!(
+            response.data.into_json().unwrap(),
+            serde_json::json!({ "shop": { "id": "Schema Shop" } })
         );
+    }
+
+    #[test]
+    fn output_type_conditions_use_the_requested_schema_version() {
+        assert!(!output_type_condition_applies(
+            AdminApiVersion::V2025_01,
+            "Image",
+            "HasPublishedTranslations",
+        ));
+        assert!(output_type_condition_applies(
+            AdminApiVersion::V2026_04,
+            "Image",
+            "HasPublishedTranslations",
+        ));
+    }
+
+    #[test]
+    fn non_null_object_list_items_still_use_engine_null_propagation() {
+        struct NullListExecutor;
+
+        impl RootFieldExecutor for NullListExecutor {
+            fn execute_root(
+                &self,
+                invocation: RootFieldInvocation,
+            ) -> Result<RootFieldResult, String> {
+                assert_eq!(invocation.root_name, "publicApiVersions");
+                Ok(RootFieldResult {
+                    value: serde_json::json!([null]),
+                    errors: Vec::new(),
+                    value_source: ResolverValueSource::Local,
+                })
+            }
+        }
+
+        let request = Request::new("{ publicApiVersions { handle } }")
+            .data(RootExecutionContext::new(Arc::new(NullListExecutor)));
+        let response = block_on(schema(AdminApiVersion::V2026_04).unwrap().execute(request));
+
+        assert_eq!(response.data, async_graphql::Value::Null);
+        assert_eq!(response.errors.len(), 1);
+    }
+
+    #[test]
+    fn missing_root_resolvers_are_explicit_execution_errors() {
+        let request = Request::new("{ product(id: \"gid://shopify/Product/1\") { id } }")
+            .data(RootExecutionContext::new(Arc::new(StaticExecutor)));
         let response = block_on(schema(AdminApiVersion::V2026_04).unwrap().execute(request));
         assert_eq!(
             response.errors.len(),
@@ -1442,9 +1855,8 @@ mod tests {
 
     #[test]
     fn missing_object_fields_are_explicit_execution_errors() {
-        let request = Request::new("{ shop { myshopifyDomain } }").data(RootExecutionContext {
-            executor: Arc::new(StaticExecutor),
-        });
+        let request = Request::new("{ shop { myshopifyDomain } }")
+            .data(RootExecutionContext::new(Arc::new(StaticExecutor)));
         let response = block_on(schema(AdminApiVersion::V2026_04).unwrap().execute(request));
         assert!(response.errors.iter().any(|error| error
             .message

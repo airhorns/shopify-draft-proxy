@@ -688,10 +688,9 @@ fn price_edge_matches_args(edge: &Value, arguments: &BTreeMap<String, ResolvedVa
     price_edge_matches_query(edge, resolved_string_field(arguments, "query").as_deref())
 }
 
-pub(in crate::proxy) fn selected_price_list_prices(
+pub(in crate::proxy) fn price_list_prices_value(
     price_list: &Value,
     arguments: &BTreeMap<String, ResolvedValue>,
-    selection: &[SelectedField],
 ) -> Value {
     let matched = price_edges(price_list)
         .into_iter()
@@ -702,20 +701,16 @@ pub(in crate::proxy) fn selected_price_list_prices(
         .iter()
         .filter_map(|edge| edge.get("node").cloned())
         .collect::<Vec<_>>();
-    selected_json(
-        &json!({
-            "edges": edges,
-            "nodes": nodes,
-            "pageInfo": page_info
-        }),
-        selection,
-    )
+    json!({
+        "edges": edges,
+        "nodes": nodes,
+        "pageInfo": page_info
+    })
 }
 
-pub(in crate::proxy) fn selected_price_list_quantity_rules(
+pub(in crate::proxy) fn price_list_quantity_rules_value(
     price_list: &Value,
     arguments: &BTreeMap<String, ResolvedValue>,
-    selection: &[SelectedField],
 ) -> Value {
     let matched = quantity_rule_edges(price_list);
     let (edges, page_info) = connection_window(&matched, arguments, quantity_rule_edge_cursor);
@@ -723,14 +718,11 @@ pub(in crate::proxy) fn selected_price_list_quantity_rules(
         .iter()
         .filter_map(|edge| edge.get("node").cloned())
         .collect::<Vec<_>>();
-    selected_json(
-        &json!({
-            "edges": edges,
-            "nodes": nodes,
-            "pageInfo": page_info
-        }),
-        selection,
-    )
+    json!({
+        "edges": edges,
+        "nodes": nodes,
+        "pageInfo": page_info
+    })
 }
 
 pub(in crate::proxy) fn fixed_price_variant_ids(price_list: &Value) -> Vec<String> {
@@ -1289,32 +1281,26 @@ pub(in crate::proxy) fn read_fixed_price_update_inputs(
 /// pulled from resolved root arguments plus the de-duplicated product ids
 /// referenced by `pricesToAdd` and `pricesToDeleteByProductIds`.
 pub(in crate::proxy) fn product_fixed_prices_preflight_variables(
-    fields: &[RootFieldSelection],
+    root_name: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
-    let mut price_list_id: Option<String> = None;
+    let mut price_list_id = None;
     let mut price_query = Value::Null;
     let mut product_ids: Vec<String> = Vec::new();
 
-    for field in fields {
-        if field.name != "priceListFixedPricesByProductUpdate" {
-            continue;
+    if root_name == "priceListFixedPricesByProductUpdate" {
+        price_list_id = read_price_list_id(arguments);
+        if let Some(value) = arguments.get("priceQuery") {
+            price_query = resolved_value_json(value);
         }
-        if price_list_id.is_none() {
-            price_list_id = read_price_list_id(&field.arguments);
-        }
-        if price_query.is_null() {
-            if let Some(value) = field.arguments.get("priceQuery") {
-                price_query = resolved_value_json(value);
-            }
-        }
-        for item in resolved_object_list(&field.arguments, "pricesToAdd") {
+        for item in resolved_object_list(arguments, "pricesToAdd") {
             if let Some(id) = resolved_nonempty_string(&item, "productId") {
                 push_unique_string(&mut product_ids, id);
             }
         }
         extend_unique_strings(
             &mut product_ids,
-            resolved_string_list_arg(&field.arguments, "pricesToDeleteByProductIds"),
+            resolved_string_list_arg(arguments, "pricesToDeleteByProductIds"),
         );
     }
 
@@ -1326,46 +1312,42 @@ pub(in crate::proxy) fn product_fixed_prices_preflight_variables(
 }
 
 pub(in crate::proxy) fn variant_fixed_prices_preflight_variables(
-    fields: &[RootFieldSelection],
+    root_name: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
-    let mut price_list_id: Option<String> = None;
+    let mut price_list_id = None;
     let mut variant_ids: Vec<String> = Vec::new();
     let mut output = serde_json::Map::new();
 
-    for field in fields {
-        if !matches!(
-            field.name.as_str(),
-            "priceListFixedPricesAdd" | "priceListFixedPricesUpdate" | "priceListFixedPricesDelete"
-        ) {
-            continue;
-        }
-        if price_list_id.is_none() {
-            price_list_id = read_price_list_id(&field.arguments);
-        }
+    if matches!(
+        root_name,
+        "priceListFixedPricesAdd" | "priceListFixedPricesUpdate" | "priceListFixedPricesDelete"
+    ) {
+        price_list_id = read_price_list_id(arguments);
         for argument_name in ["prices", "pricesToAdd", "variantIdsToDelete", "variantIds"] {
-            if let Some(value) = field.arguments.get(argument_name) {
+            if let Some(value) = arguments.get(argument_name) {
                 output.insert(argument_name.to_string(), resolved_value_json(value));
             }
         }
-        match field.name.as_str() {
+        match root_name {
             "priceListFixedPricesAdd" => {
                 extend_unique_strings(
                     &mut variant_ids,
-                    mutation_variant_ids(&resolved_object_list(&field.arguments, "prices")),
+                    mutation_variant_ids(&resolved_object_list(arguments, "prices")),
                 );
             }
             "priceListFixedPricesUpdate" => {
-                let (price_inputs, _) = read_fixed_price_update_inputs(&field.arguments);
+                let (price_inputs, _) = read_fixed_price_update_inputs(arguments);
                 extend_unique_strings(&mut variant_ids, mutation_variant_ids(&price_inputs));
                 extend_unique_strings(
                     &mut variant_ids,
-                    resolved_string_list_arg(&field.arguments, "variantIdsToDelete"),
+                    resolved_string_list_arg(arguments, "variantIdsToDelete"),
                 );
             }
             "priceListFixedPricesDelete" => {
                 extend_unique_strings(
                     &mut variant_ids,
-                    resolved_string_list_arg(&field.arguments, "variantIds"),
+                    resolved_string_list_arg(arguments, "variantIds"),
                 );
             }
             _ => {}

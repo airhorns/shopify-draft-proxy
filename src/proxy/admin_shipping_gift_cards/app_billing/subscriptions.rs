@@ -3,18 +3,11 @@ use super::*;
 const APP_BILLING_VALIDATION_NOW_TIMESTAMP: &str = "2026-04-28T02:10:00.000Z";
 
 impl DraftProxy {
-    pub(in crate::proxy) fn app_subscription_create(
+    pub(crate) fn app_subscription_create(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || {
-                "appSubscriptionCreate".to_string()
-            });
-        let subscription_selection =
-            selected_child_selection(&payload_selection, "appSubscription").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
         let id = self.next_proxy_synthetic_gid("AppSubscription");
         let name =
             resolved_string_field(&arguments, "name").unwrap_or_else(|| "Local plan".to_string());
@@ -57,15 +50,10 @@ impl DraftProxy {
             ));
         }
         if !user_errors.is_empty() {
-            return ok_json(json!({
-                "data": {
-                    response_key: app_subscription_payload_json(
-                        Value::Null,
-                        &payload_selection,
-                        &subscription_selection,
-                        user_errors,
-                    )
-                }
+            return ResolverOutcome::value(json!({
+                "appSubscription": Value::Null,
+                "confirmationUrl": Value::Null,
+                "userErrors": user_errors,
             }));
         }
         let line_item_ids = line_items
@@ -89,37 +77,25 @@ impl DraftProxy {
             .app_subscriptions
             .insert(id.clone(), subscription.clone());
         self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
+            invocation.request,
+            invocation.query,
+            invocation.variables,
             "appSubscriptionCreate",
             vec![id],
         );
 
-        ok_json(json!({
-            "data": {
-                response_key: app_subscription_create_payload_json(
-                    &subscription,
-                    &payload_selection,
-                    &subscription_selection,
-                    json!(confirmation_url),
-                )
-            }
+        ResolverOutcome::value(json!({
+            "appSubscription": subscription,
+            "confirmationUrl": confirmation_url,
+            "userErrors": [],
         }))
     }
 
-    pub(in crate::proxy) fn app_subscription_cancel(
+    pub(crate) fn app_subscription_cancel(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || {
-                "appSubscriptionCancel".to_string()
-            });
-        let subscription_selection =
-            selected_child_selection(&payload_selection, "appSubscription").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
 
         let (subscription, user_errors) = match self.store.staged.app_subscriptions.get_mut(&id) {
@@ -137,9 +113,9 @@ impl DraftProxy {
                 }
                 let updated = record.clone();
                 self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
+                    invocation.request,
+                    invocation.query,
+                    invocation.variables,
                     "appSubscriptionCancel",
                     vec![id],
                 );
@@ -155,30 +131,17 @@ impl DraftProxy {
             ),
         };
 
-        ok_json(json!({
-            "data": {
-                response_key: app_subscription_payload_json(
-                    subscription,
-                    &payload_selection,
-                    &subscription_selection,
-                    user_errors,
-                )
-            }
+        ResolverOutcome::value(json!({
+            "appSubscription": subscription,
+            "userErrors": user_errors,
         }))
     }
 
-    pub(in crate::proxy) fn app_subscription_trial_extend(
+    pub(crate) fn app_subscription_trial_extend(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || {
-                "appSubscriptionTrialExtend".to_string()
-            });
-        let subscription_selection =
-            selected_child_selection(&payload_selection, "appSubscription").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let days = resolved_int_field(&arguments, "days").unwrap_or(0);
 
@@ -234,9 +197,9 @@ impl DraftProxy {
                     }
                     let updated = record.clone();
                     self.record_mutation_log_entry(
-                        request,
-                        query,
-                        variables,
+                        invocation.request,
+                        invocation.query,
+                        invocation.variables,
                         "appSubscriptionTrialExtend",
                         vec![id],
                     );
@@ -245,182 +208,153 @@ impl DraftProxy {
             }
         };
 
-        ok_json(json!({
-            "data": {
-                response_key: app_subscription_payload_json(
-                    subscription,
-                    &payload_selection,
-                    &subscription_selection,
-                    user_errors,
-                )
-            }
+        ResolverOutcome::value(json!({
+            "appSubscription": subscription,
+            "userErrors": user_errors,
         }))
     }
 
-    pub(in crate::proxy) fn app_subscription_line_item_update(
+    pub(crate) fn app_subscription_line_item_update(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let mut data = serde_json::Map::new();
-        for root in self
-            .execution_root_fields(query, variables)
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|root| root.name == "appSubscriptionLineItemUpdate")
-        {
-            let subscription_selection =
-                selected_child_selection(&root.selection, "appSubscription").unwrap_or_default();
-            let id = resolved_string_field(&root.arguments, "id").unwrap_or_default();
-            let capped = match root.arguments.get("cappedAmount") {
-                Some(ResolvedValue::Object(value)) => value,
-                _ => {
-                    data.insert(
-                        root.response_key,
-                        app_subscription_payload_json(
-                            Value::Null,
-                            &root.selection,
-                            &subscription_selection,
-                            vec![user_error_omit_code(
-                                ["cappedAmount"],
-                                "Capped amount is required",
-                                None,
-                            )],
-                        ),
-                    );
-                    continue;
-                }
-            };
-            let requested_amount = money_amount_string_from_resolved(capped.get("amount"));
-            let requested_currency = match capped.get("currencyCode") {
-                Some(ResolvedValue::String(value)) => value.clone(),
-                _ => "USD".to_string(),
-            };
-            let require_approval = match root.arguments.get("requireApproval") {
-                Some(ResolvedValue::Bool(value)) => *value,
-                _ => true,
-            };
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+        let capped = match arguments.get("cappedAmount") {
+            Some(ResolvedValue::Object(value)) => value,
+            _ => {
+                return ResolverOutcome::value(json!({
+                    "appSubscription": Value::Null,
+                    "confirmationUrl": Value::Null,
+                    "userErrors": [user_error_omit_code(
+                        ["cappedAmount"],
+                        "Capped amount is required",
+                        None,
+                    )],
+                }));
+            }
+        };
+        let requested_amount = money_amount_string_from_resolved(capped.get("amount"));
+        let requested_currency = match capped.get("currencyCode") {
+            Some(ResolvedValue::String(value)) => value.clone(),
+            _ => "USD".to_string(),
+        };
+        let require_approval = match arguments.get("requireApproval") {
+            Some(ResolvedValue::Bool(value)) => *value,
+            _ => true,
+        };
 
-            let mut matched_subscription_id = None;
-            let mut matched_line_item = None;
-            let mut matched_line_item_index = None;
-            for (subscription_id, subscription) in &self.store.staged.app_subscriptions {
-                if let Some(line_items) = subscription["lineItems"].as_array() {
-                    if let Some((index, line_item)) = line_items
-                        .iter()
-                        .enumerate()
-                        .find(|(_, line_item)| line_item["id"] == id)
-                    {
-                        matched_subscription_id = Some(subscription_id.clone());
-                        matched_line_item = Some(line_item.clone());
-                        matched_line_item_index = Some(index);
-                        break;
-                    }
+        let mut matched_subscription_id = None;
+        let mut matched_line_item = None;
+        let mut matched_line_item_index = None;
+        for (subscription_id, subscription) in &self.store.staged.app_subscriptions {
+            if let Some(line_items) = subscription["lineItems"].as_array() {
+                if let Some((index, line_item)) = line_items
+                    .iter()
+                    .enumerate()
+                    .find(|(_, line_item)| line_item["id"] == id)
+                {
+                    matched_subscription_id = Some(subscription_id.clone());
+                    matched_line_item = Some(line_item.clone());
+                    matched_line_item_index = Some(index);
+                    break;
                 }
             }
+        }
 
-            let (subscription, user_errors) = match (
-                matched_subscription_id,
-                matched_line_item,
-                matched_line_item_index,
-            ) {
-                (Some(subscription_id), Some(line_item), Some(line_item_index)) => {
-                    let pricing = &line_item["plan"]["pricingDetails"];
-                    if pricing["__typename"] != "AppUsagePricing" {
+        let (subscription, user_errors) = match (
+            matched_subscription_id,
+            matched_line_item,
+            matched_line_item_index,
+        ) {
+            (Some(subscription_id), Some(line_item), Some(line_item_index)) => {
+                let pricing = &line_item["plan"]["pricingDetails"];
+                if pricing["__typename"] != "AppUsagePricing" {
+                    (
+                        Value::Null,
+                        vec![user_error_omit_code(
+                            Value::Null,
+                            "Only variable subscriptions can be updated.",
+                            None,
+                        )],
+                    )
+                } else {
+                    let existing_currency = pricing["cappedAmount"]["currencyCode"]
+                        .as_str()
+                        .unwrap_or("USD");
+                    let existing_amount = pricing["cappedAmount"]["amount"]
+                        .as_str()
+                        .and_then(|amount| amount.parse::<f64>().ok())
+                        .unwrap_or(0.0);
+                    let requested_amount_number = requested_amount.parse::<f64>().unwrap_or(0.0);
+                    if requested_currency != existing_currency {
                         (
                             Value::Null,
                             vec![user_error_omit_code(
                                 Value::Null,
-                                "Only variable subscriptions can be updated.",
+                                &format!("Currency code must be {existing_currency}"),
                                 None,
                             )],
                         )
+                    } else if requested_amount_number <= existing_amount {
+                        (
+                            Value::Null,
+                            vec![user_error_omit_code(["cappedAmount"], "Spending limit can only be increased. Please contact the app developer to decrease spending limit.", None)],
+                        )
                     } else {
-                        let existing_currency = pricing["cappedAmount"]["currencyCode"]
-                            .as_str()
-                            .unwrap_or("USD");
-                        let existing_amount = pricing["cappedAmount"]["amount"]
-                            .as_str()
-                            .and_then(|amount| amount.parse::<f64>().ok())
-                            .unwrap_or(0.0);
-                        let requested_amount_number =
-                            requested_amount.parse::<f64>().unwrap_or(0.0);
-                        if requested_currency != existing_currency {
-                            (
-                                Value::Null,
-                                vec![user_error_omit_code(
-                                    Value::Null,
-                                    &format!("Currency code must be {existing_currency}"),
-                                    None,
-                                )],
-                            )
-                        } else if requested_amount_number <= existing_amount {
-                            (
-                                Value::Null,
-                                vec![user_error_omit_code(["cappedAmount"], "Spending limit can only be increased. Please contact the app developer to decrease spending limit.", None)],
-                            )
+                        let subscription = if require_approval {
+                            self.store
+                                .staged
+                                .app_subscriptions
+                                .get(&subscription_id)
+                                .cloned()
+                                .unwrap_or(Value::Null)
                         } else {
-                            let subscription = if require_approval {
-                                self.store
-                                    .staged
-                                    .app_subscriptions
-                                    .get(&subscription_id)
-                                    .cloned()
-                                    .unwrap_or(Value::Null)
-                            } else {
-                                let subscription = self
-                                    .store
-                                    .staged
-                                    .app_subscriptions
-                                    .get_mut(&subscription_id)
-                                    .expect("located subscription must still exist");
-                                if let Some(line_item) = subscription["lineItems"]
-                                    .as_array_mut()
-                                    .and_then(|line_items| line_items.get_mut(line_item_index))
-                                {
-                                    line_item["plan"]["pricingDetails"]["cappedAmount"] = json!({
-                                        "amount": requested_amount,
-                                        "currencyCode": requested_currency
-                                    });
-                                }
-                                subscription.clone()
-                            };
-                            self.record_mutation_log_entry(
-                                request,
-                                query,
-                                variables,
-                                "appSubscriptionLineItemUpdate",
-                                vec![subscription_id],
-                            );
-                            (subscription, vec![])
-                        }
+                            let subscription = self
+                                .store
+                                .staged
+                                .app_subscriptions
+                                .get_mut(&subscription_id)
+                                .expect("located subscription must still exist");
+                            if let Some(line_item) = subscription["lineItems"]
+                                .as_array_mut()
+                                .and_then(|line_items| line_items.get_mut(line_item_index))
+                            {
+                                line_item["plan"]["pricingDetails"]["cappedAmount"] = json!({
+                                    "amount": requested_amount,
+                                    "currencyCode": requested_currency
+                                });
+                            }
+                            subscription.clone()
+                        };
+                        self.record_mutation_log_entry(
+                            invocation.request,
+                            invocation.query,
+                            invocation.variables,
+                            "appSubscriptionLineItemUpdate",
+                            vec![subscription_id],
+                        );
+                        (subscription, vec![])
                     }
                 }
-                _ => (
-                    Value::Null,
-                    vec![user_error_omit_code(["id"], "Invalid id", None)],
-                ),
-            };
+            }
+            _ => (
+                Value::Null,
+                vec![user_error_omit_code(["id"], "Invalid id", None)],
+            ),
+        };
 
-            data.insert(
-                root.response_key,
-                app_subscription_payload_json_with_confirmation_url(
-                    subscription,
-                    &root.selection,
-                    &subscription_selection,
-                    user_errors,
-                    require_approval.then(|| {
-                        json!(app_domain_confirmation_url_for_request(
-                            request,
-                            &self.config.shopify_admin_origin,
-                        ))
-                    }),
-                ),
-            );
-        }
-
-        ok_json(json!({ "data": data }))
+        let confirmation_url = (user_errors.is_empty() && require_approval).then(|| {
+            app_domain_confirmation_url_for_request(
+                invocation.request,
+                &self.config.shopify_admin_origin,
+            )
+        });
+        ResolverOutcome::value(json!({
+            "appSubscription": subscription,
+            "confirmationUrl": confirmation_url,
+            "userErrors": user_errors,
+        }))
     }
 
     pub(super) fn find_staged_app_subscription_line_item(
@@ -442,18 +376,11 @@ impl DraftProxy {
                     .map(|index| (subscription_id.clone(), index))
             })
     }
-    pub(in crate::proxy) fn app_usage_record_create(
+    pub(crate) fn app_usage_record_create(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || {
-                "appUsageRecordCreate".to_string()
-            });
-        let usage_record_selection =
-            selected_child_selection(&payload_selection, "appUsageRecord").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
         let line_item_id =
             resolved_string_field(&arguments, "subscriptionLineItemId").unwrap_or_default();
         let idempotency_key =
@@ -461,13 +388,9 @@ impl DraftProxy {
         let price = match arguments.get("price") {
             Some(ResolvedValue::Object(price)) => price,
             _ => {
-                return ok_json(json!({
-                    "data": { response_key: app_usage_record_payload_json(
-                        Value::Null,
-                        &payload_selection,
-                        &usage_record_selection,
-                        vec![user_error(["price"], "Price is required", None)],
-                    ) }
+                return ResolverOutcome::value(json!({
+                    "appUsageRecord": Value::Null,
+                    "userErrors": [user_error(["price"], "Price is required", None)],
                 }));
             }
         };
@@ -531,7 +454,8 @@ impl DraftProxy {
                         .iter()
                         .find(|record| {
                             record["idempotencyKey"] == idempotency_key
-                                && record["apiClientId"] == request_api_client_id(request)
+                                && record["apiClientId"]
+                                    == request_api_client_id(invocation.request)
                         })
                         .cloned()
                 });
@@ -561,7 +485,7 @@ impl DraftProxy {
                     "description": description,
                     "price": money_value(&amount, &currency),
                     "idempotencyKey": idempotency_key,
-                    "apiClientId": request_api_client_id(request),
+                    "apiClientId": request_api_client_id(invocation.request),
                     "subscriptionLineItem": subscription_line_item
                 });
                 if !line_item["usageRecords"].is_object() {
@@ -579,23 +503,17 @@ impl DraftProxy {
 
         if should_record_success {
             self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
+                invocation.request,
+                invocation.query,
+                invocation.variables,
                 "appUsageRecordCreate",
                 vec![created_usage_record_id.unwrap_or(line_item_id)],
             );
         }
 
-        ok_json(json!({
-            "data": {
-                response_key: app_usage_record_payload_json(
-                    usage_record,
-                    &payload_selection,
-                    &usage_record_selection,
-                    user_errors,
-                )
-            }
+        ResolverOutcome::value(json!({
+            "appUsageRecord": usage_record,
+            "userErrors": user_errors,
         }))
     }
 }

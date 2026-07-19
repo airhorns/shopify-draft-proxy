@@ -45,6 +45,20 @@ pub(in crate::proxy) fn resolved_variables_json(
     )
 }
 
+/// Convert the engine-coerced JSON argument map exposed by a native resolver
+/// into the compatibility value representation still consumed by domain input
+/// helpers. This is an input-model bridge, not a GraphQL parser: aliases,
+/// variables, defaults, lists, and input objects have already been validated
+/// and coerced by the selected executable schema.
+pub(in crate::proxy) fn resolved_arguments_from_json(
+    arguments: &BTreeMap<String, Value>,
+) -> BTreeMap<String, ResolvedValue> {
+    arguments
+        .iter()
+        .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+        .collect()
+}
+
 pub(in crate::proxy) fn resolved_list_arg(
     arguments: &BTreeMap<String, ResolvedValue>,
     name: &str,
@@ -160,13 +174,6 @@ pub(in crate::proxy) fn resolved_nullable_string_field(
     field: &str,
 ) -> Value {
     resolved_string_field(input, field).map_or(Value::Null, |value| json!(value))
-}
-
-pub(in crate::proxy) fn resolved_as_usize(value: &ResolvedValue) -> Option<usize> {
-    match value {
-        ResolvedValue::Int(value) if *value >= 0 => Some(*value as usize),
-        _ => None,
-    }
 }
 
 pub(in crate::proxy) fn resolved_object_field(

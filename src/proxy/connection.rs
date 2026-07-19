@@ -22,13 +22,6 @@ pub(in crate::proxy) fn count_object(count: impl serde::Serialize) -> Value {
     count_object_with_precision(count, "EXACT")
 }
 
-pub(in crate::proxy) fn selected_count_json(
-    count: impl serde::Serialize,
-    selections: &[SelectedField],
-) -> Value {
-    selected_json(&count_object(count), selections)
-}
-
 pub(in crate::proxy) fn count_object_with_precision(
     count: impl serde::Serialize,
     precision: &str,
@@ -91,10 +84,10 @@ where
 /// `first` argument when the seed carries more than was asked for. The seed already
 /// reflects the recorded page (cursors + pageInfo), so its `pageInfo` is preserved
 /// verbatim — this is for catalog roots whose cursors cannot be re-derived locally.
-pub(in crate::proxy) fn project_seeded_connection(
+/// first-page cap is applied before the GraphQL engine projects the result.
+pub(in crate::proxy) fn seeded_connection_value(
     connection: &Value,
     arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
 ) -> Value {
     let mut connection = connection.clone();
     if let Some(ResolvedValue::Int(first)) = arguments.get("first") {
@@ -109,7 +102,7 @@ pub(in crate::proxy) fn project_seeded_connection(
             }
         }
     }
-    selected_json(&connection, selections)
+    connection
 }
 
 pub(in crate::proxy) fn value_id_cursor(record: &Value) -> String {
@@ -187,17 +180,36 @@ pub(in crate::proxy) fn connection_json(nodes: Vec<Value>) -> Value {
     )
 }
 
-pub(in crate::proxy) fn selected_connection_json(
-    nodes: Vec<Value>,
-    selections: &[SelectedField],
-) -> Value {
-    selected_json(&connection_json(nodes), selections)
+/// Build a complete, selection-independent connection from typed records. The
+/// GraphQL engine projects `nodes`, `edges`, and `pageInfo`; domain code only
+/// supplies canonical node values and stable cursors.
+pub(in crate::proxy) fn typed_connection_value<T, NodeValue, Cursor>(
+    records: &[T],
+    node_value: NodeValue,
+    cursor: Cursor,
+    page_info: Value,
+) -> Value
+where
+    NodeValue: Fn(&T) -> Value,
+    Cursor: Fn(&T) -> String,
+{
+    let nodes = records.iter().map(&node_value).collect::<Vec<_>>();
+    let edges = records
+        .iter()
+        .zip(nodes.iter())
+        .map(|(record, node)| {
+            json!({
+                "cursor": cursor(record),
+                "node": node,
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({ "nodes": nodes, "edges": edges, "pageInfo": page_info })
 }
 
-pub(in crate::proxy) fn selected_connection_json_with_args<F>(
+pub(in crate::proxy) fn connection_value_with_args<F>(
     mut nodes: Vec<Value>,
     arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
     mut cursor_for: F,
 ) -> Value
 where
@@ -207,91 +219,7 @@ where
         nodes.reverse();
     }
     let (nodes, page_info) = connection_window(&nodes, arguments, &mut cursor_for);
-    selected_json(
-        &connection_json_with_cursor(nodes, |_, node| cursor_for(node), page_info),
-        selections,
-    )
-}
-
-pub(in crate::proxy) fn selected_empty_connection_json(selections: &[SelectedField]) -> Value {
-    selected_connection_json(Vec::new(), selections)
-}
-
-pub(in crate::proxy) fn selected_typed_connection<T, NodeJson, Cursor, PageInfo>(
-    records: &[T],
-    root_selection: &[SelectedField],
-    node_json: NodeJson,
-    cursor: Cursor,
-    page_info: PageInfo,
-) -> Value
-where
-    NodeJson: Fn(&T, &[SelectedField]) -> Value,
-    Cursor: Fn(&T) -> String,
-    PageInfo: Fn(&[SelectedField]) -> Value,
-{
-    let node_selection = nested_selected_fields(root_selection, &["nodes"]);
-    let edge_node_selection = nested_selected_fields(root_selection, &["edges", "node"]);
-    let page_info_selection = nested_selected_fields(root_selection, &["pageInfo"]);
-    let mut connection = serde_json::Map::new();
-    for selection in root_selection {
-        let value = match selection.name.as_str() {
-            "nodes" => Some(Value::Array(
-                records
-                    .iter()
-                    .map(|record| node_json(record, &node_selection))
-                    .collect(),
-            )),
-            "edges" => Some(Value::Array(
-                records
-                    .iter()
-                    .map(|record| {
-                        json!({
-                            "cursor": cursor(record),
-                            "node": node_json(record, &edge_node_selection)
-                        })
-                    })
-                    .collect(),
-            )),
-            "pageInfo" => Some(page_info(&page_info_selection)),
-            _ => None,
-        };
-        if let Some(value) = value {
-            connection.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(connection)
-}
-
-pub(in crate::proxy) fn selected_typed_connection_with_page_info<T, NodeJson, Cursor>(
-    records: &[T],
-    root_selection: &[SelectedField],
-    node_json: NodeJson,
-    cursor: Cursor,
-    page_info: Value,
-) -> Value
-where
-    NodeJson: Fn(&T, &[SelectedField]) -> Value,
-    Cursor: Fn(&T) -> String,
-{
-    selected_typed_connection(records, root_selection, node_json, cursor, |selections| {
-        selected_json(&page_info, selections)
-    })
-}
-
-pub(in crate::proxy) fn selected_typed_connection_with_args<T, NodeJson, Cursor>(
-    records: &[T],
-    arguments: &BTreeMap<String, ResolvedValue>,
-    root_selection: &[SelectedField],
-    node_json: NodeJson,
-    cursor: Cursor,
-) -> Value
-where
-    T: Clone,
-    NodeJson: Fn(&T, &[SelectedField]) -> Value,
-    Cursor: Fn(&T) -> String,
-{
-    let (records, page_info) = connection_window(records, arguments, |record| cursor(record));
-    selected_typed_connection_with_page_info(&records, root_selection, node_json, cursor, page_info)
+    connection_json_with_cursor(nodes, |_, node| cursor_for(node), page_info)
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -390,82 +318,73 @@ where
     }
 }
 
-pub(in crate::proxy) fn selected_staged_connection_with_args<
+/// Filtering, sorting, reversing, and cursor windowing are shared, while output
+/// projection is left entirely to the GraphQL executor.
+pub(in crate::proxy) fn staged_connection_value_with_args<
     T,
     Predicate,
     SortKey,
-    NodeJson,
+    NodeValue,
     Cursor,
 >(
     records: Vec<T>,
     arguments: &BTreeMap<String, ResolvedValue>,
-    root_selection: &[SelectedField],
     predicate: Predicate,
     sort_key: SortKey,
-    node_json: NodeJson,
+    node_value: NodeValue,
     cursor: Cursor,
 ) -> Value
 where
     T: Clone,
     Predicate: Fn(&T, Option<&str>) -> StagedSearchDecision,
     SortKey: Fn(&T, Option<&str>) -> StagedSortKey,
-    NodeJson: Fn(&T, &[SelectedField]) -> Value,
+    NodeValue: Fn(&T) -> Value,
     Cursor: Fn(&T) -> String + Copy,
 {
     let result = staged_connection_query(records, arguments, predicate, sort_key, cursor);
-    selected_typed_connection_with_page_info(
-        &result.records,
-        root_selection,
-        node_json,
-        cursor,
-        result.page_info,
-    )
+    typed_connection_value(&result.records, node_value, cursor, result.page_info)
 }
 
-pub(in crate::proxy) fn upstream_count_total(
-    field: &RootFieldSelection,
-    upstream_data: Option<&Value>,
-) -> Option<usize> {
-    upstream_data?
-        .get(field.response_key.as_str())?
-        .get("count")?
-        .as_u64()
-        .and_then(|count| usize::try_from(count).ok())
-}
-
-fn upstream_count_precision<'a>(
-    field: &RootFieldSelection,
-    upstream_data: Option<&'a Value>,
-) -> Option<&'a str> {
-    upstream_data?
-        .get(field.response_key.as_str())?
-        .get("precision")
-        .and_then(Value::as_str)
-}
-
-pub(in crate::proxy) fn upstream_count_with_staged_delta(
-    field: &RootFieldSelection,
-    upstream_data: Option<&Value>,
+/// Canonical root-resolver counterpart to `upstream_count_with_staged_delta`.
+/// The caller supplies the upstream Count value directly, so domain code does
+/// not need a legacy root selection merely to find its response key.
+pub(in crate::proxy) fn upstream_count_value_with_staged_delta(
+    upstream_count: Option<&Value>,
     staged_delta: isize,
     arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Value> {
-    let base_count = upstream_count_total(field, upstream_data)?;
+    let upstream_count = upstream_count?;
+    let base_count = upstream_count
+        .get("count")?
+        .as_u64()
+        .and_then(|count| usize::try_from(count).ok())?;
     let effective_total = if staged_delta.is_negative() {
         base_count.saturating_sub(staged_delta.unsigned_abs())
     } else {
         base_count.saturating_add(staged_delta as usize)
     };
-    upstream_count_with_effective_total(field, upstream_data, effective_total, arguments)
+    let upstream_precision = upstream_count
+        .get("precision")
+        .and_then(Value::as_str)
+        .unwrap_or("EXACT");
+    Some(count_with_limit_precision_from_upstream(
+        effective_total,
+        upstream_precision,
+        arguments,
+    ))
 }
 
-pub(in crate::proxy) fn upstream_count_with_effective_total(
-    field: &RootFieldSelection,
-    upstream_data: Option<&Value>,
+pub(in crate::proxy) fn upstream_count_value_with_effective_total(
+    upstream_count: Option<&Value>,
     effective_total: usize,
     arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Value> {
-    upstream_count_total(field, upstream_data)?;
-    let upstream_precision = upstream_count_precision(field, upstream_data).unwrap_or("EXACT");
+    let upstream_count = upstream_count?;
+    upstream_count.get("count")?.as_u64()?;
+    let upstream_precision = upstream_count
+        .get("precision")
+        .and_then(Value::as_str)
+        .unwrap_or("EXACT");
     Some(count_with_limit_precision_from_upstream(
         effective_total,
         upstream_precision,

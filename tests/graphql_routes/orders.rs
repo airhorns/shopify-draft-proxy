@@ -5036,7 +5036,11 @@ fn live_hybrid_draft_orders_observe_upstream_catalog_after_first_staged_create()
         mixed.body["data"]["total"],
         json!({ "count": 2, "precision": "EXACT" })
     );
-    assert_eq!(upstream_calls.load(Ordering::SeqCst), 3);
+    assert_eq!(
+        upstream_calls.load(Ordering::SeqCst),
+        2,
+        "the mixed draft-order read should share one request-scoped upstream observation"
+    );
 
     let saved_search = proxy.process_request(json_graphql_request(
         r#"

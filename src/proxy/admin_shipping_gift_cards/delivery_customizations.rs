@@ -2,9 +2,42 @@ use super::*;
 
 const DELIVERY_CUSTOMIZATION_MAX_ENABLED: usize = 25;
 
-pub(in crate::proxy) struct DeliveryCustomizationMutationResult {
-    pub(in crate::proxy) data: Value,
-    pub(in crate::proxy) staged_ids: Vec<String>,
+pub(in crate::proxy) fn delivery_customization_field_resolver_registrations(
+) -> Vec<FieldResolverRegistration> {
+    vec![
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "DeliveryCustomization",
+            "metafieldDefinitions",
+            delivery_customization_metafield_definitions_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "DeliveryCustomization",
+            "errorHistory",
+            delivery_customization_error_history_field,
+        ),
+    ]
+}
+
+fn delivery_customization_metafield_definitions_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(connection_value_with_args(
+        Vec::new(),
+        &resolved_arguments_from_json(&invocation.arguments),
+        value_id_cursor,
+    ))
+}
+
+fn delivery_customization_error_history_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    _invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(Value::Null)
 }
 
 pub(in crate::proxy) fn delivery_customization_function_key(value: &str) -> String {
@@ -92,97 +125,6 @@ fn record_string(record: &Value, field: &str) -> String {
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string()
-}
-
-pub(in crate::proxy) fn selected_delivery_customization_json(
-    record: &Value,
-    selections: &[SelectedField],
-    api_client_id: Option<&str>,
-) -> Value {
-    let mut fields = serde_json::Map::new();
-    for selection in selections {
-        if !delivery_customization_type_condition_matches(record, selection) {
-            continue;
-        }
-        let value = match selection.name.as_str() {
-            "metafield" => Some(selected_delivery_customization_metafield(
-                record,
-                selection,
-                api_client_id,
-            )),
-            "metafields" => Some(selected_delivery_customization_metafields_connection(
-                record,
-                selection,
-                api_client_id,
-            )),
-            "metafieldDefinitions" => Some(selected_empty_connection_json(&selection.selection)),
-            "errorHistory" => Some(Value::Null),
-            _ => selected_json(record, std::slice::from_ref(selection))
-                .get(&selection.response_key)
-                .cloned(),
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(fields)
-}
-
-fn delivery_customization_type_condition_matches(
-    _record: &Value,
-    selection: &SelectedField,
-) -> bool {
-    selected_field_applies_to_type("DeliveryCustomization", selection)
-}
-
-fn selected_delivery_customization_metafield(
-    record: &Value,
-    selection: &SelectedField,
-    api_client_id: Option<&str>,
-) -> Value {
-    let namespace = canonical_app_metafield_namespace(
-        resolved_string_field(&selection.arguments, "namespace").as_deref(),
-        api_client_id,
-    );
-    let Some(key) = resolved_string_field(&selection.arguments, "key") else {
-        return Value::Null;
-    };
-    delivery_customization_metafield_nodes(record, Some(&namespace))
-        .into_iter()
-        .find(|metafield| metafield.get("key").and_then(Value::as_str) == Some(key.as_str()))
-        .map(|metafield| selected_json(&metafield, &selection.selection))
-        .unwrap_or(Value::Null)
-}
-
-fn selected_delivery_customization_metafields_connection(
-    record: &Value,
-    selection: &SelectedField,
-    api_client_id: Option<&str>,
-) -> Value {
-    let namespace = resolved_string_field(&selection.arguments, "namespace")
-        .map(|namespace| canonical_app_metafield_namespace(Some(&namespace), api_client_id));
-    let mut records = delivery_customization_metafield_nodes(record, namespace.as_deref());
-    if resolved_bool_field(&selection.arguments, "reverse").unwrap_or(false) {
-        records.reverse();
-    }
-    selected_typed_connection_with_args(
-        &records,
-        &selection.arguments,
-        &selection.selection,
-        selected_json,
-        value_id_cursor,
-    )
-}
-
-fn delivery_customization_metafield_nodes(record: &Value, namespace: Option<&str>) -> Vec<Value> {
-    connection_nodes(&record["metafields"])
-        .into_iter()
-        .filter(|metafield| {
-            namespace.is_none_or(|namespace| {
-                metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
-            })
-        })
-        .collect()
 }
 
 pub(in crate::proxy) fn delivery_customization_record(
@@ -321,50 +263,24 @@ pub(in crate::proxy) fn delivery_customization_set_metafields(
 
 pub(in crate::proxy) fn delivery_customization_payload(
     customization: Option<&Value>,
-    selections: &[SelectedField],
     user_errors: Vec<Value>,
     ids: Option<Vec<String>>,
     deleted_id: Option<Value>,
-    api_client_id: Option<&str>,
 ) -> Value {
-    let customization = customization
-        .map(|customization| {
-            selected_delivery_customization_json(
-                customization,
-                &selected_child_selection(selections, "deliveryCustomization").unwrap_or_default(),
-                api_client_id,
-            )
-        })
-        .unwrap_or(Value::Null);
-    let payload = json!({
-        "deliveryCustomization": customization,
+    json!({
+        "deliveryCustomization": customization.cloned().unwrap_or(Value::Null),
         "ids": ids.unwrap_or_default(),
         "deletedId": deleted_id.unwrap_or(Value::Null),
         "userErrors": user_errors
-    });
-    selected_json(&payload, selections)
+    })
 }
 
-pub(in crate::proxy) fn delivery_customization_error_payload(
-    selections: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    delivery_customization_payload(None, selections, user_errors, None, None, None)
+pub(in crate::proxy) fn delivery_customization_error_payload(user_errors: Vec<Value>) -> Value {
+    delivery_customization_payload(None, user_errors, None, None)
 }
 
-pub(in crate::proxy) fn delivery_customization_record_payload(
-    customization: &Value,
-    selections: &[SelectedField],
-    api_client_id: Option<&str>,
-) -> Value {
-    delivery_customization_payload(
-        Some(customization),
-        selections,
-        Vec::new(),
-        None,
-        None,
-        api_client_id,
-    )
+pub(in crate::proxy) fn delivery_customization_record_payload(customization: &Value) -> Value {
+    delivery_customization_payload(Some(customization), Vec::new(), None, None)
 }
 
 pub(in crate::proxy) fn delivery_customization_user_error(
@@ -502,95 +418,102 @@ pub(in crate::proxy) fn delivery_customization_limit_error() -> Value {
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn delivery_customization_query_data(
+    pub(crate) fn delivery_customization_query_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        ResolverOutcome::value(
+            self.delivery_customization_query_value(invocation.root_name, &arguments),
+        )
+    }
+
+    fn delivery_customization_query_value(
         &self,
-        fields: &[RootFieldSelection],
-        request: Option<&Request>,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let api_client_id = request.and_then(request_app_namespace_api_client_id);
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "deliveryCustomization" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    match self.store.staged.delivery_customizations.get(&id) {
-                        Some(record) => selected_delivery_customization_json(
-                            record,
-                            &field.selection,
-                            api_client_id.as_deref(),
-                        ),
-                        None => Value::Null,
-                    }
-                }
-                "deliveryCustomizations" => {
-                    let records = self
-                        .store
-                        .staged
-                        .delivery_customizations
-                        .order
-                        .iter()
-                        .filter_map(|id| self.store.staged.delivery_customizations.get(id))
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    selected_staged_connection_with_args(
-                        records,
-                        &field.arguments,
-                        &field.selection,
-                        delivery_customization_query_matches,
-                        delivery_customization_sort_key,
-                        |record, selections| {
-                            selected_delivery_customization_json(
-                                record,
-                                selections,
-                                api_client_id.as_deref(),
-                            )
-                        },
-                        value_id_cursor,
-                    )
-                }
-                _ => return None,
-            })
-        })
+        match root_name {
+            "deliveryCustomization" => {
+                let id = resolved_string_field(arguments, "id").unwrap_or_default();
+                self.store
+                    .staged
+                    .delivery_customizations
+                    .get(&id)
+                    .cloned()
+                    .unwrap_or(Value::Null)
+            }
+            "deliveryCustomizations" => staged_connection_value_with_args(
+                self.store
+                    .staged
+                    .delivery_customizations
+                    .order
+                    .iter()
+                    .filter_map(|id| self.store.staged.delivery_customizations.get(id))
+                    .cloned()
+                    .collect(),
+                arguments,
+                delivery_customization_query_matches,
+                delivery_customization_sort_key,
+                Value::clone,
+                value_id_cursor,
+            ),
+            _ => Value::Null,
+        }
     }
 
-    pub(in crate::proxy) fn delivery_customization_mutation_data(
+    pub(crate) fn delivery_customization_mutation_root(
         &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-    ) -> DeliveryCustomizationMutationResult {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            root_name,
+            arguments,
+            request,
+            ..
+        } = invocation;
+        let arguments = resolved_arguments_from_json(&arguments);
         let api_client_id = request_app_namespace_api_client_id(request);
-        let mut staged_ids = Vec::new();
-        let data = root_payload_json(fields, |field| {
-            let (payload, ids) = match field.name.as_str() {
-                "deliveryCustomizationCreate" => self.delivery_customization_create_payload(
-                    request,
-                    field,
-                    api_client_id.as_deref(),
-                ),
-                "deliveryCustomizationUpdate" => self.delivery_customization_update_payload(
-                    request,
-                    field,
-                    api_client_id.as_deref(),
-                ),
-                "deliveryCustomizationActivation" => {
-                    self.delivery_customization_activation_payload(field)
-                }
-                "deliveryCustomizationDelete" => self.delivery_customization_delete_payload(field),
-                _ => return None,
-            };
-            staged_ids.extend(ids);
-            Some(payload)
-        });
-        DeliveryCustomizationMutationResult { data, staged_ids }
+        let (payload, staged_ids) = match root_name {
+            "deliveryCustomizationCreate" => self.delivery_customization_create_payload(
+                request,
+                &arguments,
+                api_client_id.as_deref(),
+            ),
+            "deliveryCustomizationUpdate" => self.delivery_customization_update_payload(
+                request,
+                &arguments,
+                api_client_id.as_deref(),
+            ),
+            "deliveryCustomizationActivation" => {
+                self.delivery_customization_activation_payload(&arguments)
+            }
+            "deliveryCustomizationDelete" => self.delivery_customization_delete_payload(&arguments),
+            _ => {
+                return resolver_http_error_outcome(
+                    501,
+                    format!("Unsupported delivery customization mutation {root_name}"),
+                );
+            }
+        };
+        let mut outcome = ResolverOutcome::value(payload);
+        if !staged_ids.is_empty() {
+            outcome = outcome.with_log_draft(LogDraft::staged(
+                root_name,
+                "shipping-fulfillments",
+                staged_ids,
+            ));
+        }
+        outcome
     }
 
-    pub(in crate::proxy) fn delivery_customization_create_payload(
+    fn delivery_customization_create_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
         api_client_id: Option<&str>,
     ) -> (Value, Vec<String>) {
-        let input =
-            resolved_object_field(&field.arguments, "deliveryCustomization").unwrap_or_default();
+        let input = resolved_object_field(arguments, "deliveryCustomization").unwrap_or_default();
         let function_id = resolved_string_field(&input, "functionId");
         let function_handle = resolved_string_field(&input, "functionHandle");
         let mut required_errors = Vec::new();
@@ -605,33 +528,27 @@ impl DraftProxy {
         }
         if !required_errors.is_empty() {
             return (
-                delivery_customization_error_payload(&field.selection, required_errors),
+                delivery_customization_error_payload(required_errors),
                 Vec::new(),
             );
         }
         if function_id.is_some() && function_handle.is_some() {
             return (
-                delivery_customization_error_payload(
-                    &field.selection,
-                    vec![delivery_customization_user_error(
-                        vec!["deliveryCustomization"],
-                        "MULTIPLE_FUNCTION_IDENTIFIERS",
-                        "Only one of function_id or function_handle can be provided, not both.",
-                    )],
-                ),
+                delivery_customization_error_payload(vec![delivery_customization_user_error(
+                    vec!["deliveryCustomization"],
+                    "MULTIPLE_FUNCTION_IDENTIFIERS",
+                    "Only one of function_id or function_handle can be provided, not both.",
+                )]),
                 Vec::new(),
             );
         }
         if function_id.is_none() && function_handle.is_none() {
             return (
-                delivery_customization_error_payload(
-                    &field.selection,
-                    vec![delivery_customization_user_error(
-                        vec!["deliveryCustomization", "functionHandle"],
-                        "MISSING_FUNCTION_IDENTIFIER",
-                        "Either function_id or function_handle must be provided.",
-                    )],
-                ),
+                delivery_customization_error_payload(vec![delivery_customization_user_error(
+                    vec!["deliveryCustomization", "functionHandle"],
+                    "MISSING_FUNCTION_IDENTIFIER",
+                    "Either function_id or function_handle must be provided.",
+                )]),
                 Vec::new(),
             );
         }
@@ -640,13 +557,12 @@ impl DraftProxy {
                 self.resolve_delivery_customization_function(request, None, Some(handle))
             else {
                 return (
-                    delivery_customization_error_payload(
-                        &field.selection,
-                        vec![delivery_customization_function_not_found_error(
+                    delivery_customization_error_payload(vec![
+                        delivery_customization_function_not_found_error(
                             handle,
                             &request_api_client_id(request),
-                        )],
-                    ),
+                        ),
+                    ]),
                     Vec::new(),
                 );
             };
@@ -657,7 +573,7 @@ impl DraftProxy {
         let metafield_errors = delivery_customization_metafield_validation_errors(&input);
         if !metafield_errors.is_empty() {
             return (
-                delivery_customization_error_payload(&field.selection, metafield_errors),
+                delivery_customization_error_payload(metafield_errors),
                 Vec::new(),
             );
         }
@@ -665,10 +581,7 @@ impl DraftProxy {
             && self.delivery_customization_enabled_count(None) >= DELIVERY_CUSTOMIZATION_MAX_ENABLED
         {
             return (
-                delivery_customization_error_payload(
-                    &field.selection,
-                    vec![delivery_customization_limit_error()],
-                ),
+                delivery_customization_error_payload(vec![delivery_customization_limit_error()]),
                 Vec::new(),
             );
         }
@@ -687,37 +600,31 @@ impl DraftProxy {
             .staged
             .delivery_customizations
             .insert(id.clone(), record.clone());
-        (
-            delivery_customization_record_payload(&record, &field.selection, api_client_id),
-            vec![id],
-        )
+        (delivery_customization_record_payload(&record), vec![id])
     }
 
-    pub(in crate::proxy) fn delivery_customization_update_payload(
+    fn delivery_customization_update_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
         api_client_id: Option<&str>,
     ) -> (Value, Vec<String>) {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let input =
-            resolved_object_field(&field.arguments, "deliveryCustomization").unwrap_or_default();
+        let id = resolved_string_field(arguments, "id").unwrap_or_default();
+        let input = resolved_object_field(arguments, "deliveryCustomization").unwrap_or_default();
         let Some(existing) = self.store.staged.delivery_customizations.get(&id).cloned() else {
             return (
-                delivery_customization_error_payload(
-                    &field.selection,
-                    vec![delivery_customization_not_found_error(&id)],
-                ),
+                delivery_customization_error_payload(vec![delivery_customization_not_found_error(
+                    &id,
+                )]),
                 Vec::new(),
             );
         };
 
         if resolved_string_field(&input, "title").is_some_and(|title| title.trim().is_empty()) {
             return (
-                delivery_customization_error_payload(
-                    &field.selection,
-                    vec![delivery_customization_required_input_field_error("title")],
-                ),
+                delivery_customization_error_payload(vec![
+                    delivery_customization_required_input_field_error("title"),
+                ]),
                 Vec::new(),
             );
         }
@@ -726,13 +633,12 @@ impl DraftProxy {
                 self.resolve_delivery_customization_function(request, None, Some(&handle))
             else {
                 return (
-                    delivery_customization_error_payload(
-                        &field.selection,
-                        vec![delivery_customization_function_not_found_error(
+                    delivery_customization_error_payload(vec![
+                        delivery_customization_function_not_found_error(
                             &handle,
                             &request_api_client_id(request),
-                        )],
-                    ),
+                        ),
+                    ]),
                     Vec::new(),
                 );
             };
@@ -742,13 +648,12 @@ impl DraftProxy {
                 .map(delivery_customization_function_key)
             else {
                 return (
-                    delivery_customization_error_payload(
-                        &field.selection,
-                        vec![delivery_customization_function_not_found_error(
+                    delivery_customization_error_payload(vec![
+                        delivery_customization_function_not_found_error(
                             &handle,
                             &request_api_client_id(request),
-                        )],
-                    ),
+                        ),
+                    ]),
                     Vec::new(),
                 );
             };
@@ -758,12 +663,9 @@ impl DraftProxy {
                 &function_key,
             ) {
                 return (
-                    delivery_customization_error_payload(
-                        &field.selection,
-                        vec![delivery_customization_immutable_function_error(
-                            "functionHandle",
-                        )],
-                    ),
+                    delivery_customization_error_payload(vec![
+                        delivery_customization_immutable_function_error("functionHandle"),
+                    ]),
                     Vec::new(),
                 );
             }
@@ -776,12 +678,9 @@ impl DraftProxy {
                 &function_key,
             ) {
                 return (
-                    delivery_customization_error_payload(
-                        &field.selection,
-                        vec![delivery_customization_immutable_function_error(
-                            "functionId",
-                        )],
-                    ),
+                    delivery_customization_error_payload(vec![
+                        delivery_customization_immutable_function_error("functionId"),
+                    ]),
                     Vec::new(),
                 );
             }
@@ -789,7 +688,7 @@ impl DraftProxy {
         let metafield_errors = delivery_customization_metafield_validation_errors(&input);
         if !metafield_errors.is_empty() {
             return (
-                delivery_customization_error_payload(&field.selection, metafield_errors),
+                delivery_customization_error_payload(metafield_errors),
                 Vec::new(),
             );
         }
@@ -810,7 +709,6 @@ impl DraftProxy {
             {
                 return (
                     delivery_customization_error_payload(
-                        &field.selection,
                         vec![delivery_customization_limit_error()],
                     ),
                     Vec::new(),
@@ -841,18 +739,15 @@ impl DraftProxy {
             .staged
             .delivery_customizations
             .insert(id.clone(), updated.clone());
-        (
-            delivery_customization_record_payload(&updated, &field.selection, api_client_id),
-            vec![id],
-        )
+        (delivery_customization_record_payload(&updated), vec![id])
     }
 
-    pub(in crate::proxy) fn delivery_customization_activation_payload(
+    fn delivery_customization_activation_payload(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Vec<String>) {
-        let ids = resolved_string_list_arg(&field.arguments, "ids");
-        let enabled = match field.arguments.get("enabled") {
+        let ids = resolved_string_list_arg(arguments, "ids");
+        let enabled = match arguments.get("enabled") {
             Some(ResolvedValue::Bool(value)) => *value,
             _ => false,
         };
@@ -901,23 +796,16 @@ impl DraftProxy {
             errors
         };
         (
-            delivery_customization_payload(
-                None,
-                &field.selection,
-                errors,
-                Some(valid_ids.clone()),
-                None,
-                None,
-            ),
+            delivery_customization_payload(None, errors, Some(valid_ids.clone()), None),
             valid_ids,
         )
     }
 
-    pub(in crate::proxy) fn delivery_customization_delete_payload(
+    fn delivery_customization_delete_payload(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Vec<String>) {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(arguments, "id").unwrap_or_default();
         if self
             .store
             .staged
@@ -930,25 +818,16 @@ impl DraftProxy {
                 .delivery_customizations
                 .tombstone(id.clone());
             (
-                delivery_customization_payload(
-                    None,
-                    &field.selection,
-                    Vec::new(),
-                    None,
-                    Some(json!(id.clone())),
-                    None,
-                ),
+                delivery_customization_payload(None, Vec::new(), None, Some(json!(id.clone()))),
                 vec![id],
             )
         } else {
             (
                 delivery_customization_payload(
                     None,
-                    &field.selection,
                     vec![delivery_customization_not_found_error(&id)],
                     None,
                     Some(Value::Null),
-                    None,
                 ),
                 Vec::new(),
             )

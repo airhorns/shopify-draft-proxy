@@ -2,24 +2,18 @@ use super::*;
 
 const ABANDONMENT_DELIVERY_STATUSES_KEY: &str = "__draftProxyDeliveryStatuses";
 
-fn abandonment_unknown_payload(selection: &[SelectedField]) -> Value {
-    selected_json(
-        &json!({
-            "abandonment": Value::Null,
-            "userErrors": [user_error_omit_code(["abandonmentId"], "abandonment_not_found", None)]
-        }),
-        selection,
-    )
+fn abandonment_unknown_payload() -> Value {
+    json!({
+        "abandonment": Value::Null,
+        "userErrors": [user_error_omit_code(["abandonmentId"], "abandonment_not_found", None)]
+    })
 }
 
-fn abandonment_invalid_id_payload(selection: &[SelectedField]) -> Value {
-    selected_json(
-        &json!({
-            "abandonment": Value::Null,
-            "userErrors": [user_error(["abandonmentId"], "invalid", Some("INVALID"))]
-        }),
-        selection,
-    )
+fn abandonment_invalid_id_payload() -> Value {
+    json!({
+        "abandonment": Value::Null,
+        "userErrors": [user_error(["abandonmentId"], "invalid", Some("INVALID"))]
+    })
 }
 
 fn abandonment_marketing_activity_known(record: &Value, marketing_activity_id: &str) -> bool {
@@ -81,166 +75,110 @@ fn set_abandonment_delivery_status(
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn abandonment_delivery_status_local_data(
+    pub(crate) fn abandonment_query_root(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        let fields = self.execution_root_fields(query, variables)?;
-        if !fields.iter().all(|field| {
-            matches!(
-                field.name.as_str(),
-                "abandonmentUpdateActivitiesDeliveryStatuses" | "abandonment" | "node"
-            )
-        }) {
-            return None;
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let id = invocation
+            .arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        ResolverOutcome::value(
+            self.store
+                .staged
+                .abandonments
+                .get(id)
+                .cloned()
+                .unwrap_or(Value::Null),
+        )
+    }
+
+    pub(crate) fn abandonment_delivery_status_mutation_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let abandonment_id = resolved_string_field(&arguments, "abandonmentId").unwrap_or_default();
+        if !is_shopify_gid_of_type(&abandonment_id, "Abandonment") {
+            return ResolverOutcome::value(abandonment_invalid_id_payload());
         }
-        let owns_operation = fields.iter().any(|field| {
-            matches!(
-                field.name.as_str(),
-                "abandonmentUpdateActivitiesDeliveryStatuses" | "abandonment"
-            ) || (field.name == "node"
-                && resolved_string_field(&field.arguments, "id").is_some_and(|id| {
-                    is_shopify_gid_of_type(&id, "Abandonment")
-                        || self.store.staged.abandonments.contains_key(&id)
-                }))
-        });
-        if !owns_operation {
-            return None;
+        let marketing_activity_id =
+            resolved_string_field(&arguments, "marketingActivityId").unwrap_or_default();
+        if !is_shopify_gid_of_type(&marketing_activity_id, "MarketingActivity") {
+            let existing = self
+                .store
+                .staged
+                .abandonments
+                .get(&abandonment_id)
+                .cloned()
+                .unwrap_or(Value::Null);
+            return ResolverOutcome::value(json!({
+                "abandonment": existing,
+                "userErrors": [user_error(
+                    ["deliveryStatuses", "0", "marketingActivityId"],
+                    "invalid",
+                    Some("INVALID"),
+                )]
+            }));
         }
-        let mut staged_ids = Vec::new();
-        let data = root_payload_json(&fields, |field| {
-            let value = match field.name.as_str() {
-                "abandonmentUpdateActivitiesDeliveryStatuses" => {
-                    let abandonment_id = resolved_string_field(&field.arguments, "abandonmentId")
-                        .unwrap_or_default();
-                    if !is_shopify_gid_of_type(&abandonment_id, "Abandonment") {
-                        return Some(abandonment_invalid_id_payload(&field.selection));
-                    }
-                    let marketing_activity_id =
-                        resolved_string_field(&field.arguments, "marketingActivityId")
-                            .unwrap_or_default();
-                    if !is_shopify_gid_of_type(&marketing_activity_id, "MarketingActivity") {
-                        let existing = self
-                            .store
-                            .staged
-                            .abandonments
-                            .get(&abandonment_id)
-                            .cloned()
-                            .unwrap_or(Value::Null);
-                        return Some(selected_json(
-                            &json!({
-                                "abandonment": existing,
-                                "userErrors": [user_error(
-                                    ["deliveryStatuses", "0", "marketingActivityId"],
-                                    "invalid",
-                                    Some("INVALID"),
-                                )]
-                            }),
-                            &field.selection,
-                        ));
-                    }
-                    let status = resolved_string_field(&field.arguments, "deliveryStatus")
-                        .unwrap_or_else(|| "NOT_SENT".to_string());
-                    let delivered_at = resolved_string_field(&field.arguments, "deliveredAt");
-                    let Some(record) = self.store.staged.abandonments.get_mut(&abandonment_id)
-                    else {
-                        return Some(abandonment_unknown_payload(&field.selection));
-                    };
-                    let mut user_errors = Vec::new();
-                    if !abandonment_marketing_activity_known(record, &marketing_activity_id) {
-                        user_errors.push(user_error(
-                            ["deliveryStatuses", "0", "marketingActivityId"],
-                            "invalid",
-                            Some("NOT_FOUND"),
-                        ));
-                        return Some(selected_json(
-                            &json!({ "abandonment": record.clone(), "userErrors": user_errors }),
-                            &field.selection,
-                        ));
-                    }
-                    if delivered_at
-                        .as_deref()
-                        .is_some_and(|value| !is_shopify_date_time(value))
-                    {
-                        user_errors.push(user_error(
-                            ["deliveryStatuses", "0", "deliveredAt"],
-                            "invalid",
-                            Some("INVALID"),
-                        ));
-                        return Some(selected_json(
-                            &json!({ "abandonment": record.clone(), "userErrors": user_errors }),
-                            &field.selection,
-                        ));
-                    }
-                    if delivered_at
-                        .as_deref()
-                        .is_some_and(abandonment_delivered_at_is_future)
-                    {
-                        user_errors.push(user_error(
-                            ["deliveryStatuses", "0", "deliveredAt"],
-                            "invalid",
-                            Some("INVALID"),
-                        ));
-                        return Some(selected_json(
-                            &json!({ "abandonment": record.clone(), "userErrors": user_errors }),
-                            &field.selection,
-                        ));
-                    }
-                    let current_status = abandonment_delivery_status(record);
-                    if current_status == "SENT" && status == "NOT_SENT" {
-                        user_errors.push(user_error(
-                            ["deliveryStatuses", "0", "deliveryStatus"],
-                            "invalid_transition",
-                            Some("INVALID"),
-                        ));
-                        return Some(selected_json(
-                            &json!({ "abandonment": record.clone(), "userErrors": user_errors }),
-                            &field.selection,
-                        ));
-                    }
-                    if current_status != status {
-                        let email_sent_at = if status == "SENT" {
-                            Value::String(delivered_at.unwrap_or_else(abandonment_timestamp))
-                        } else {
-                            Value::Null
-                        };
-                        set_abandonment_delivery_status(
-                            record,
-                            &marketing_activity_id,
-                            &status,
-                            email_sent_at,
-                        );
-                        staged_ids.push(abandonment_id);
-                    }
-                    selected_json(
-                        &json!({ "abandonment": record.clone(), "userErrors": user_errors }),
-                        &field.selection,
-                    )
-                }
-                "abandonment" | "node" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .staged
-                        .abandonments
-                        .get(&id)
-                        .map(|record| selected_json(record, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                _ => return None,
-            };
-            Some(value)
-        });
-        if !staged_ids.is_empty() {
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                "abandonmentUpdateActivitiesDeliveryStatuses",
-                staged_ids,
+        let status = resolved_string_field(&arguments, "deliveryStatus")
+            .unwrap_or_else(|| "NOT_SENT".to_string());
+        let delivered_at = resolved_string_field(&arguments, "deliveredAt");
+        let Some(record) = self.store.staged.abandonments.get_mut(&abandonment_id) else {
+            return ResolverOutcome::value(abandonment_unknown_payload());
+        };
+        let user_errors = if !abandonment_marketing_activity_known(record, &marketing_activity_id) {
+            vec![user_error(
+                ["deliveryStatuses", "0", "marketingActivityId"],
+                "invalid",
+                Some("NOT_FOUND"),
+            )]
+        } else if delivered_at
+            .as_deref()
+            .is_some_and(|value| !is_shopify_date_time(value))
+            || delivered_at
+                .as_deref()
+                .is_some_and(abandonment_delivered_at_is_future)
+        {
+            vec![user_error(
+                ["deliveryStatuses", "0", "deliveredAt"],
+                "invalid",
+                Some("INVALID"),
+            )]
+        } else if abandonment_delivery_status(record) == "SENT" && status == "NOT_SENT" {
+            vec![user_error(
+                ["deliveryStatuses", "0", "deliveryStatus"],
+                "invalid_transition",
+                Some("INVALID"),
+            )]
+        } else {
+            Vec::new()
+        };
+        if !user_errors.is_empty() {
+            return ResolverOutcome::value(
+                json!({ "abandonment": record.clone(), "userErrors": user_errors }),
             );
         }
-        Some(json!({ "data": data }))
+        let changed = abandonment_delivery_status(record) != status;
+        if changed {
+            let email_sent_at = if status == "SENT" {
+                Value::String(delivered_at.unwrap_or_else(abandonment_timestamp))
+            } else {
+                Value::Null
+            };
+            set_abandonment_delivery_status(record, &marketing_activity_id, &status, email_sent_at);
+        }
+        let outcome =
+            ResolverOutcome::value(json!({ "abandonment": record.clone(), "userErrors": [] }));
+        if changed {
+            outcome.with_log_draft(LogDraft::staged(
+                "abandonmentUpdateActivitiesDeliveryStatuses",
+                "orders",
+                vec![abandonment_id],
+            ))
+        } else {
+            outcome
+        }
     }
 }

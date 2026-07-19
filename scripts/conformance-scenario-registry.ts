@@ -206,7 +206,6 @@ function runRustJsonExporter(repoRoot: string, binName: string): string {
 function cloneRegistryEntries(registryEntries: OperationRegistryEntry[]): OperationRegistryEntry[] {
   return registryEntries.map((entry) => ({
     ...entry,
-    matchNames: [...entry.matchNames],
     runtimeTests: [...entry.runtimeTests],
   }));
 }

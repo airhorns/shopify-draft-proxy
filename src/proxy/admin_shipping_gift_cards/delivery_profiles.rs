@@ -32,11 +32,15 @@ impl DeliveryProfileMutationOutcome {
         Self::staged(payload, Vec::new())
     }
 
-    fn resource_not_found(field: &RootFieldSelection, id: &str) -> Self {
+    fn resource_not_found(location: SourceLocation, response_key: &str, id: &str) -> Self {
         Self {
             payload: Value::Null,
             staged_ids: Vec::new(),
-            errors: vec![delivery_profile_resource_not_found_error(field, id)],
+            errors: vec![delivery_profile_resource_not_found_error(
+                location,
+                response_key,
+                id,
+            )],
         }
     }
 }
@@ -46,43 +50,72 @@ enum DeliveryProfileAssociationError {
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn delivery_profile_read_response(
+    pub(crate) fn delivery_profile_locations_query_root(
         &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-    ) -> Response {
-        // Cold-read passthrough: the merchant's pre-existing delivery profiles
-        // (the default profile, the full catalog) are never staged locally — only
-        // profiles this proxy created/updated/removed live in `staged`. When a read
-        // targets a profile/catalog with no local overlay, forward upstream so the
-        // real Shopify projection replays (the byte-exact recorded query matches the
-        // cassette). Once a profile has been staged or tombstoned locally we serve it
-        // from state so read-after-write reflects the mutation.
-        if self.config.read_mode == ReadMode::LiveHybrid
-            && self.delivery_profile_read_needs_upstream(fields)
-        {
-            let response = (self.upstream_transport)(request.clone());
-            let observed_profiles = self.observe_delivery_profiles_response(&response);
-            if !self.has_local_delivery_profile_overlay() {
-                return response;
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let mut arguments = resolved_arguments_from_json(&invocation.arguments);
+        if self.config.read_mode != ReadMode::Snapshot {
+            if self.store.staged.locations.is_empty() {
+                let result = self.cached_or_forward_upstream_graphql_result(
+                    invocation.request,
+                    invocation.response_key,
+                );
+                if result.transport_succeeded {
+                    self.observe_delivery_profile_locations_data(&result.data);
+                }
+                return result.outcome;
             }
-            if !observed_profiles && self.store.base.delivery_profiles.order.is_empty() {
-                return response;
+            if self.store.staged.observed_shipping_locations.is_empty() {
+                self.hydrate_delivery_profile_locations_baseline(invocation.request);
             }
         }
-        ok_json(json!({ "data": self.delivery_profile_read_data(fields) }))
+        arguments
+            .entry("sortKey".to_string())
+            .or_insert_with(|| ResolvedValue::String("ID".to_string()));
+        ResolverOutcome::value(location_connection_value(
+            self.effective_shipping_locations(),
+            &arguments,
+        ))
     }
 
-    fn delivery_profile_read_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
-        fields.iter().any(|field| match field.name.as_str() {
+    pub(crate) fn delivery_profile_query_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && self.delivery_profile_root_needs_upstream(invocation.root_name, &arguments)
+        {
+            let result = self.cached_or_forward_upstream_graphql_result(
+                invocation.request,
+                invocation.response_key,
+            );
+            let observed_profiles =
+                result.transport_succeeded && self.observe_delivery_profiles_data(&result.data);
+            if !self.has_local_delivery_profile_overlay()
+                || (!observed_profiles && self.store.base.delivery_profiles.order.is_empty())
+            {
+                return result.outcome;
+            }
+        }
+        ResolverOutcome::value(self.delivery_profile_read_value(invocation.root_name, &arguments))
+    }
+
+    fn delivery_profile_root_needs_upstream(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        match root_name {
             "deliveryProfile" => {
-                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                let id = resolved_string_field(arguments, "id").unwrap_or_default();
                 !self.has_local_delivery_profile_overlay()
                     || !self.delivery_profile_is_known_locally(&id)
             }
             "deliveryProfiles" => true,
             _ => false,
-        })
+        }
     }
 
     fn delivery_profile_is_known_locally(&self, id: &str) -> bool {
@@ -103,12 +136,9 @@ impl DraftProxy {
             || !self.store.staged.delivery_profiles.tombstones.is_empty()
     }
 
-    fn observe_delivery_profiles_response(&mut self, response: &Response) -> bool {
-        if !(200..300).contains(&response.status) {
-            return false;
-        }
+    fn observe_delivery_profiles_data(&mut self, data: &Value) -> bool {
         let mut profiles = Vec::new();
-        collect_delivery_profile_response_values(&response.body["data"], &mut profiles);
+        collect_delivery_profile_response_values(data, &mut profiles);
         let mut observed = false;
         for profile in profiles {
             observed |= self.observe_base_delivery_profile(profile);
@@ -131,76 +161,79 @@ impl DraftProxy {
         true
     }
 
-    pub(in crate::proxy) fn delivery_profile_read_data(
+    fn delivery_profile_read_value(
         &self,
-        fields: &[RootFieldSelection],
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "deliveryProfile" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.delivery_profile_for_read(&id)
-                        .map(|profile| delivery_profile_selected_json(&profile, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "deliveryProfiles" => {
-                    self.delivery_profiles_connection_json(&field.arguments, &field.selection)
-                }
-                _ => return None,
-            })
-        })
+        match root_name {
+            "deliveryProfile" => {
+                let id = resolved_string_field(arguments, "id").unwrap_or_default();
+                self.delivery_profile_for_read(&id)
+                    .map(|profile| canonical_delivery_profile_value(&profile))
+                    .unwrap_or(Value::Null)
+            }
+            "deliveryProfiles" => self.delivery_profiles_connection_json(arguments),
+            _ => Value::Null,
+        }
     }
 
-    pub(in crate::proxy) fn delivery_profile_mutation(
+    pub(crate) fn delivery_profile_mutation_root(
         &mut self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Invalid delivery profile mutation");
-        };
-        let mut errors = Vec::new();
-        let data = root_payload_json(&fields, |field| {
-            let outcome = match field.name.as_str() {
-                "deliveryProfileCreate" => self.delivery_profile_create_payload(field, request),
-                "deliveryProfileUpdate" => self.delivery_profile_update_payload(field, request),
-                "deliveryProfileRemove" => self.delivery_profile_remove_payload(field, request),
-                _ => return None,
-            };
-            if !outcome.staged_ids.is_empty() {
-                self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
-                    &field.name,
-                    outcome.staged_ids,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            root_name,
+            response_key,
+            root_location,
+            arguments,
+            request,
+            ..
+        } = invocation;
+        let arguments = resolved_arguments_from_json(&arguments);
+        let domain_outcome = match root_name {
+            "deliveryProfileCreate" => self.delivery_profile_create_payload(
+                &arguments,
+                request,
+                root_location,
+                response_key,
+            ),
+            "deliveryProfileUpdate" => self.delivery_profile_update_payload(
+                &arguments,
+                request,
+                root_location,
+                response_key,
+            ),
+            "deliveryProfileRemove" => self.delivery_profile_remove_payload(&arguments, request),
+            _ => {
+                return resolver_http_error_outcome(
+                    501,
+                    format!("Unsupported delivery profile mutation {root_name}"),
                 );
             }
-            errors.extend(outcome.errors);
-            Some(outcome.payload)
-        });
-        if data.as_object().is_none_or(serde_json::Map::is_empty) {
-            json_error(
-                501,
-                &format!("Unsupported delivery profile mutation {root_field}"),
-            )
-        } else {
-            let mut body = json!({ "data": data });
-            if !errors.is_empty() {
-                body["errors"] = Value::Array(errors);
-            }
-            ok_json(body)
+        };
+        let mut outcome = ResolverOutcome::value(domain_outcome.payload);
+        if !domain_outcome.errors.is_empty() {
+            outcome.errors = root_field_errors_from_json(&domain_outcome.errors, response_key);
         }
+        if !domain_outcome.staged_ids.is_empty() {
+            outcome = outcome.with_log_draft(LogDraft::staged(
+                root_name,
+                "shipping-fulfillments",
+                domain_outcome.staged_ids,
+            ));
+        }
+        outcome
     }
 
     fn delivery_profile_create_payload(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
+        root_location: SourceLocation,
+        response_key: &str,
     ) -> DeliveryProfileMutationOutcome {
-        let profile_input = resolved_object_field(&field.arguments, "profile").unwrap_or_default();
+        let profile_input = resolved_object_field(arguments, "profile").unwrap_or_default();
         let location_ids = delivery_profile_location_ids_from_input(&profile_input);
         self.hydrate_delivery_profile_locations(&location_ids, request);
         let mut location_exists =
@@ -209,7 +242,6 @@ impl DraftProxy {
         if !user_errors.is_empty() {
             return DeliveryProfileMutationOutcome::unstaged(delivery_profile_payload_json(
                 Value::Null,
-                &field.selection,
                 user_errors,
             ));
         }
@@ -221,30 +253,35 @@ impl DraftProxy {
         {
             return match error {
                 DeliveryProfileAssociationError::ResourceNotFound(id) => {
-                    DeliveryProfileMutationOutcome::resource_not_found(field, &id)
+                    DeliveryProfileMutationOutcome::resource_not_found(
+                        root_location,
+                        response_key,
+                        &id,
+                    )
                 }
             };
         }
         self.stage_delivery_profile(profile.clone());
         DeliveryProfileMutationOutcome::staged(
-            delivery_profile_payload_json(profile, &field.selection, Vec::new()),
+            delivery_profile_payload_json(profile, Vec::new()),
             vec![id],
         )
     }
 
     fn delivery_profile_update_payload(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
+        root_location: SourceLocation,
+        response_key: &str,
     ) -> DeliveryProfileMutationOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(arguments, "id").unwrap_or_default();
         let Some(mut profile) = self
             .delivery_profile_for_read(&id)
             .or_else(|| self.delivery_profile_hydrate_for_update(&id, request))
         else {
             return DeliveryProfileMutationOutcome::unstaged(delivery_profile_payload_json(
                 Value::Null,
-                &field.selection,
                 vec![user_error_omit_code(
                     Value::Null,
                     "Profile could not be updated.",
@@ -253,7 +290,7 @@ impl DraftProxy {
             ));
         };
 
-        let profile_input = resolved_object_field(&field.arguments, "profile").unwrap_or_default();
+        let profile_input = resolved_object_field(arguments, "profile").unwrap_or_default();
         let location_ids = delivery_profile_location_ids_from_input(&profile_input);
         self.hydrate_delivery_profile_locations(&location_ids, request);
         let mut location_exists =
@@ -262,7 +299,6 @@ impl DraftProxy {
         if !user_errors.is_empty() {
             return DeliveryProfileMutationOutcome::unstaged(delivery_profile_payload_json(
                 Value::Null,
-                &field.selection,
                 user_errors,
             ));
         }
@@ -280,23 +316,27 @@ impl DraftProxy {
         {
             return match error {
                 DeliveryProfileAssociationError::ResourceNotFound(id) => {
-                    DeliveryProfileMutationOutcome::resource_not_found(field, &id)
+                    DeliveryProfileMutationOutcome::resource_not_found(
+                        root_location,
+                        response_key,
+                        &id,
+                    )
                 }
             };
         }
         self.stage_delivery_profile(profile.clone());
         DeliveryProfileMutationOutcome::staged(
-            delivery_profile_payload_json(profile, &field.selection, Vec::new()),
+            delivery_profile_payload_json(profile, Vec::new()),
             vec![id],
         )
     }
 
     fn delivery_profile_remove_payload(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> DeliveryProfileMutationOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(arguments, "id").unwrap_or_default();
         let profile = self.delivery_profile_for_read(&id);
         if profile
             .as_ref()
@@ -304,17 +344,16 @@ impl DraftProxy {
             .and_then(Value::as_bool)
             == Some(true)
         {
-            let (payload, ids) = delivery_profile_remove_default_payload(&field.selection);
+            let (payload, ids) = delivery_profile_remove_default_payload();
             return DeliveryProfileMutationOutcome::staged(payload, ids);
         }
         if profile.is_none() {
             if self.delivery_profile_hydrates_as_default(&id, request) {
-                let (payload, ids) = delivery_profile_remove_default_payload(&field.selection);
+                let (payload, ids) = delivery_profile_remove_default_payload();
                 return DeliveryProfileMutationOutcome::staged(payload, ids);
             }
             return DeliveryProfileMutationOutcome::unstaged(delivery_profile_remove_payload_json(
                 Value::Null,
-                &field.selection,
                 vec![user_error_omit_code(
                     Value::Null,
                     "The Delivery Profile cannot be found for the shop.",
@@ -330,7 +369,7 @@ impl DraftProxy {
             "done": false
         });
         DeliveryProfileMutationOutcome::staged(
-            delivery_profile_remove_payload_json(job, &field.selection, Vec::new()),
+            delivery_profile_remove_payload_json(job, Vec::new()),
             vec![id],
         )
     }
@@ -991,41 +1030,17 @@ impl DraftProxy {
     fn delivery_profiles_connection_json(
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
-        selections: &[SelectedField],
     ) -> Value {
-        let mut profiles = self.effective_delivery_profiles();
+        let mut profiles = self
+            .effective_delivery_profiles()
+            .iter()
+            .map(canonical_delivery_profile_value)
+            .collect::<Vec<_>>();
         if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
             profiles.reverse();
         }
         let (profiles, page_info) = connection_window(&profiles, arguments, value_id_cursor);
-        selected_json(
-            &connection_json_with_cursor(
-                profiles,
-                |_, profile| value_id_cursor(profile),
-                page_info,
-            ),
-            selections,
-        )
-    }
-
-    pub(in crate::proxy) fn delivery_profile_locations_read_response(
-        &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-    ) -> Response {
-        if self.config.read_mode != ReadMode::Snapshot
-            && self.store.staged.observed_shipping_locations.is_empty()
-        {
-            if self.store.staged.locations.is_empty() {
-                let response = (self.upstream_transport)(request.clone());
-                self.observe_delivery_profile_locations_response(&response);
-                return response;
-            }
-            self.hydrate_delivery_profile_locations_baseline(request);
-        }
-        ok_json(json!({
-            "data": self.delivery_profile_locations_read_data(fields)
-        }))
+        connection_json_with_cursor(profiles, |_, profile| value_id_cursor(profile), page_info)
     }
 
     pub(in crate::proxy) fn hydrate_delivery_profile_locations_baseline(
@@ -1048,35 +1063,6 @@ impl DraftProxy {
         if (200..300).contains(&response.status) {
             self.observe_delivery_profile_locations_response(&response);
         }
-    }
-
-    pub(in crate::proxy) fn delivery_profile_locations_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            if field.name != "locationsAvailableForDeliveryProfilesConnection" {
-                continue;
-            }
-            data.insert(
-                field.response_key.clone(),
-                self.delivery_profile_locations_connection_json(&field.arguments, &field.selection),
-            );
-        }
-        Value::Object(data)
-    }
-
-    fn delivery_profile_locations_connection_json(
-        &self,
-        arguments: &BTreeMap<String, ResolvedValue>,
-        selections: &[SelectedField],
-    ) -> Value {
-        let mut arguments = arguments.clone();
-        arguments
-            .entry("sortKey".to_string())
-            .or_insert_with(|| ResolvedValue::String("ID".to_string()));
-        location_connection_json(self.effective_shipping_locations(), &arguments, selections)
     }
 
     fn effective_shipping_locations(&self) -> Vec<Value> {
@@ -1113,9 +1099,14 @@ impl DraftProxy {
         &mut self,
         response: &Response,
     ) {
-        let Some(nodes) = response.body["data"]["locationsAvailableForDeliveryProfilesConnection"]
-            ["nodes"]
-            .as_array()
+        if (200..300).contains(&response.status) {
+            self.observe_delivery_profile_locations_data(&response.body["data"]);
+        }
+    }
+
+    pub(in crate::proxy) fn observe_delivery_profile_locations_data(&mut self, data: &Value) {
+        let Some(nodes) =
+            data["locationsAvailableForDeliveryProfilesConnection"]["nodes"].as_array()
         else {
             return;
         };
@@ -1279,11 +1270,10 @@ fn ensure_delivery_profile_collection_defaults(profile: &mut Value) {
     }
 }
 
-fn delivery_profile_remove_default_payload(selections: &[SelectedField]) -> (Value, Vec<String>) {
+fn delivery_profile_remove_default_payload() -> (Value, Vec<String>) {
     (
         delivery_profile_remove_payload_json(
             Value::Null,
-            selections,
             vec![user_error_omit_code(
                 Value::Null,
                 DELIVERY_PROFILE_DEFAULT_REMOVE_MESSAGE,
@@ -1294,12 +1284,16 @@ fn delivery_profile_remove_default_payload(selections: &[SelectedField]) -> (Val
     )
 }
 
-fn delivery_profile_resource_not_found_error(field: &RootFieldSelection, id: &str) -> Value {
+fn delivery_profile_resource_not_found_error(
+    location: SourceLocation,
+    response_key: &str,
+    id: &str,
+) -> Value {
     json!({
         "message": format!("Invalid id: {id}"),
-        "locations": graphql_locations(field.location),
+        "locations": graphql_locations(location),
         "extensions": { "code": "RESOURCE_NOT_FOUND" },
-        "path": [field.response_key.clone()]
+        "path": [response_key]
     })
 }
 

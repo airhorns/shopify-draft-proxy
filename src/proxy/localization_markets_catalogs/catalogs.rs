@@ -3,38 +3,34 @@ use super::*;
 impl DraftProxy {
     pub(in crate::proxy) fn catalog_mutation_data(
         &mut self,
-        fields: &[RootFieldSelection],
+        field: &MarketsRootInput,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let mut touched_ids = Vec::new();
-        let data = root_payload_json(fields, |field| {
-            let value = match field.name.as_str() {
-                "catalogCreate" => self.catalog_create_response(field, request),
-                "catalogUpdate" => self.catalog_update_response(field, request),
-                "catalogDelete" => self.catalog_delete_response(field),
-                "catalogContextUpdate" => self.catalog_context_update_response(field),
-                _ => Value::Null,
-            };
-            if let Some(id) = value["catalog"]["id"]
-                .as_str()
-                .or_else(|| value["deletedId"].as_str())
-            {
-                touched_ids.push(id.to_string());
-            }
-            Some(value)
-        });
+        let value = match field.name.as_str() {
+            "catalogCreate" => self.catalog_create_response(field, request),
+            "catalogUpdate" => self.catalog_update_response(field, request),
+            "catalogDelete" => self.catalog_delete_response(field),
+            "catalogContextUpdate" => self.catalog_context_update_response(field),
+            _ => Value::Null,
+        };
+        let touched_ids = value["catalog"]["id"]
+            .as_str()
+            .or_else(|| value["deletedId"].as_str())
+            .map(str::to_string)
+            .into_iter()
+            .collect::<Vec<_>>();
         if !touched_ids.is_empty() {
             self.mark_markets_family_dirty("catalogs");
             self.record_mutation_log_entry(request, query, variables, "catalog", touched_ids);
         }
-        data
+        value
     }
 
     pub(in crate::proxy) fn catalog_create_response(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketsRootInput,
         request: &Request,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
@@ -217,7 +213,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn catalog_update_response(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketsRootInput,
         request: &Request,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -309,7 +305,7 @@ impl DraftProxy {
 
     fn apply_catalog_update_context_input(
         &self,
-        field: &RootFieldSelection,
+        field: &MarketsRootInput,
         catalog: &mut Value,
         context: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
@@ -376,12 +372,9 @@ impl DraftProxy {
         None
     }
 
-    pub(in crate::proxy) fn catalog_delete_response(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> Value {
+    pub(in crate::proxy) fn catalog_delete_response(&mut self, field: &MarketsRootInput) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let payload = if let Some(catalog) = self.store.staged.catalogs.remove(&id) {
+        if let Some(catalog) = self.store.staged.catalogs.remove(&id) {
             self.store.staged.created_catalog_ids.remove(&id);
             self.detach_existing_catalog_price_list(&catalog);
             json!({"deletedId": id, "userErrors": []})
@@ -390,13 +383,12 @@ impl DraftProxy {
                 "deletedId",
                 catalog_user_error(vec!["id"], "Catalog does not exist", "CATALOG_NOT_FOUND"),
             )
-        };
-        selected_json(&payload, &field.selection)
+        }
     }
 
     pub(in crate::proxy) fn catalog_context_update_response(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketsRootInput,
     ) -> Value {
         let catalog_id = resolved_string_field(&field.arguments, "catalogId").unwrap_or_default();
         let Some(existing_catalog) = self.store.staged.catalogs.get(&catalog_id).cloned() else {
@@ -529,90 +521,65 @@ impl DraftProxy {
             .collect()
     }
 
-    pub(in crate::proxy) fn price_list_mutation_data(
+    pub(in crate::proxy) fn price_list_mutation_outcome(
         &mut self,
-        fields: &[RootFieldSelection],
+        field: &MarketsRootInput,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        self.fixed_price_mutation_preflight(fields, request, variables);
-        if fields.iter().any(|field| {
-            matches!(
-                field.name.as_str(),
-                "webPresenceCreate" | "webPresenceUpdate" | "webPresenceDelete"
-            )
-        }) {
-            self.web_presence_mutation_preflight(variables, request);
+    ) -> ResolverOutcome<Value> {
+        self.fixed_price_mutation_preflight(field, request);
+        let outcome = match field.name.as_str() {
+            "priceListCreate" => self.price_list_create_response(field),
+            "priceListUpdate" => self.price_list_update_response(field),
+            "priceListDelete" => {
+                PriceListFieldOutcome::payload(self.price_list_delete_response(field))
+            }
+            "priceListFixedPricesByProductUpdate" => PriceListFieldOutcome::payload(
+                self.price_list_fixed_prices_by_product_update_response(field),
+            ),
+            "priceListFixedPricesAdd" => {
+                PriceListFieldOutcome::payload(self.price_list_fixed_prices_add_response(field))
+            }
+            "priceListFixedPricesUpdate" => {
+                PriceListFieldOutcome::payload(self.price_list_fixed_prices_update_response(field))
+            }
+            "priceListFixedPricesDelete" => {
+                PriceListFieldOutcome::payload(self.price_list_fixed_prices_delete_response(field))
+            }
+            "quantityRulesDelete" => PriceListFieldOutcome::payload(
+                self.quantity_rules_delete_price_list_response(field),
+            ),
+            _ => PriceListFieldOutcome::payload(Value::Null),
+        };
+        let mut touched_ids = outcome.value["priceList"]["id"]
+            .as_str()
+            .or_else(|| outcome.value["webPresence"]["id"].as_str())
+            .or_else(|| outcome.value["deletedId"].as_str())
+            .map(str::to_string)
+            .into_iter()
+            .collect::<Vec<_>>();
+        for id in outcome.value["deletedQuantityRulesVariantIds"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+        {
+            push_unique_string(&mut touched_ids, id);
         }
-        let mut errors = Vec::new();
-        let mut touched_ids = Vec::new();
-        let data = root_payload_json(fields, |field| {
-            let outcome = match field.name.as_str() {
-                "priceListCreate" => self.price_list_create_response(field),
-                "priceListUpdate" => self.price_list_update_response(field),
-                "priceListDelete" => {
-                    PriceListFieldOutcome::payload(self.price_list_delete_response(field))
-                }
-                "priceListFixedPricesByProductUpdate" => PriceListFieldOutcome::payload(
-                    self.price_list_fixed_prices_by_product_update_response(field),
-                ),
-                "priceListFixedPricesAdd" => {
-                    PriceListFieldOutcome::payload(self.price_list_fixed_prices_add_response(field))
-                }
-                "priceListFixedPricesUpdate" => PriceListFieldOutcome::payload(
-                    self.price_list_fixed_prices_update_response(field),
-                ),
-                "priceListFixedPricesDelete" => PriceListFieldOutcome::payload(
-                    self.price_list_fixed_prices_delete_response(field),
-                ),
-                "quantityRulesDelete" => PriceListFieldOutcome::payload(
-                    self.quantity_rules_delete_price_list_response(field),
-                ),
-                "webPresenceCreate" => PriceListFieldOutcome::payload(
-                    self.web_presence_create_price_list_response(field, request, query, variables),
-                ),
-                "webPresenceUpdate" => PriceListFieldOutcome::payload(
-                    self.web_presence_update_price_list_response(field, request, query, variables),
-                ),
-                "webPresenceDelete" => PriceListFieldOutcome::payload(
-                    self.web_presence_delete_price_list_response(field),
-                ),
-                _ => PriceListFieldOutcome::payload(Value::Null),
-            };
-            if let Some(id) = outcome.value["priceList"]["id"]
-                .as_str()
-                .or_else(|| outcome.value["webPresence"]["id"].as_str())
-                .or_else(|| outcome.value["deletedId"].as_str())
-            {
-                touched_ids.push(id.to_string());
-            }
-            for id in outcome.value["deletedQuantityRulesVariantIds"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(Value::as_str)
-            {
-                push_unique_string(&mut touched_ids, id);
-            }
-            errors.extend(outcome.errors);
-            Some(outcome.value)
-        });
         if !touched_ids.is_empty() {
             self.mark_markets_family_dirty("priceLists");
             self.record_mutation_log_entry(request, query, variables, "priceList", touched_ids);
         }
-        let mut body = serde_json::Map::new();
-        body.insert("data".to_string(), data);
-        if !errors.is_empty() {
-            body.insert("errors".to_string(), Value::Array(errors));
-        }
-        Value::Object(body)
+        ResolverOutcome::value(outcome.value).with_errors(root_field_errors_from_json(
+            &outcome.errors,
+            &field.response_key,
+        ))
     }
 
     pub(in crate::proxy) fn price_list_create_response(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketsRootInput,
     ) -> PriceListFieldOutcome {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let catalog_id = resolved_string_field(&input, "catalogId");
@@ -667,7 +634,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn price_list_update_response(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketsRootInput,
     ) -> PriceListFieldOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing) = self.store.staged.price_lists.get(&id).cloned() else {
@@ -753,10 +720,10 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn price_list_delete_response(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketsRootInput,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let payload = if self.store.staged.price_lists.remove(&id).is_some() {
+        if self.store.staged.price_lists.remove(&id).is_some() {
             self.detach_price_list_from_catalogs(&id);
             json!({"deletedId": id, "userErrors": []})
         } else {
@@ -766,8 +733,7 @@ impl DraftProxy {
                 "Price list does not exist.",
                 "PRICE_LIST_NOT_FOUND",
             )
-        };
-        selected_json(&payload, &field.selection)
+        }
     }
 
     /// Hydrate the staged store from a cassette-backed preflight before applying a
@@ -810,26 +776,20 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn fixed_price_mutation_preflight(
         &mut self,
-        fields: &[RootFieldSelection],
+        field: &MarketsRootInput,
         request: &Request,
-        _variables: &BTreeMap<String, ResolvedValue>,
     ) {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
-        let by_product = fields
-            .iter()
-            .any(|field| field.name == "priceListFixedPricesByProductUpdate");
-        let variant_level = fields.iter().any(|field| {
-            matches!(
-                field.name.as_str(),
-                "priceListFixedPricesAdd"
-                    | "priceListFixedPricesUpdate"
-                    | "priceListFixedPricesDelete"
-            )
-        });
+        let by_product = field.name == "priceListFixedPricesByProductUpdate";
+        let variant_level = matches!(
+            field.name.as_str(),
+            "priceListFixedPricesAdd" | "priceListFixedPricesUpdate" | "priceListFixedPricesDelete"
+        );
         let body = if by_product {
-            let preflight_variables = product_fixed_prices_preflight_variables(fields);
+            let preflight_variables =
+                product_fixed_prices_preflight_variables(&field.name, &field.arguments);
             if !self.product_fixed_prices_preflight_needed(&preflight_variables) {
                 return;
             }
@@ -839,7 +799,8 @@ impl DraftProxy {
                 "operationName": "MarketsMutationPreflightHydrate",
             })
         } else if variant_level {
-            let preflight_variables = variant_fixed_prices_preflight_variables(fields);
+            let preflight_variables =
+                variant_fixed_prices_preflight_variables(&field.name, &field.arguments);
             if !self.variant_fixed_prices_preflight_needed(&preflight_variables) {
                 return;
             }
@@ -966,7 +927,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn price_list_fixed_prices_by_product_update_response(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketsRootInput,
     ) -> Value {
         let price_list_id = read_price_list_id(&field.arguments);
         let price_list = price_list_id
@@ -1032,33 +993,27 @@ impl DraftProxy {
                 if let Some(id) = price_list_id {
                     self.store.staged.price_lists.insert(id, updated.clone());
                 }
-                selected_json(
-                    &json!({
-                        "priceList": updated,
-                        "pricesToAddProducts": prices_to_add_products,
-                        "pricesToDeleteProducts": prices_to_delete_products,
-                        "fixedPriceVariantIds": [],
-                        "deletedFixedPriceVariantIds": [],
-                        "userErrors": []
-                    }),
-                    &field.selection,
-                )
+                json!({
+                    "priceList": updated,
+                    "pricesToAddProducts": prices_to_add_products,
+                    "pricesToDeleteProducts": prices_to_delete_products,
+                    "fixedPriceVariantIds": [],
+                    "deletedFixedPriceVariantIds": [],
+                    "userErrors": []
+                })
             }
-            (_, _) => selected_json(
-                &json!({
-                    "priceList": null,
-                    "pricesToAddProducts": null,
-                    "pricesToDeleteProducts": null,
-                    "userErrors": errors
-                }),
-                &field.selection,
-            ),
+            (_, _) => json!({
+                "priceList": null,
+                "pricesToAddProducts": null,
+                "pricesToDeleteProducts": null,
+                "userErrors": errors
+            }),
         }
     }
 
     pub(in crate::proxy) fn price_list_fixed_prices_add_response(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketsRootInput,
     ) -> Value {
         let price_list_id = read_price_list_id(&field.arguments);
         let price_list = price_list_id
@@ -1087,10 +1042,7 @@ impl DraftProxy {
                 if let Some(id) = price_list_id {
                     self.store.staged.price_lists.insert(id, updated);
                 }
-                selected_json(
-                    &json!({"prices": prices, "userErrors": []}),
-                    &field.selection,
-                )
+                json!({"prices": prices, "userErrors": []})
             }
             (price_list, _) => {
                 let prices = if price_list.is_some() {
@@ -1098,17 +1050,14 @@ impl DraftProxy {
                 } else {
                     Value::Null
                 };
-                selected_json(
-                    &json!({"prices": prices, "userErrors": errors}),
-                    &field.selection,
-                )
+                json!({"prices": prices, "userErrors": errors})
             }
         }
     }
 
     pub(in crate::proxy) fn price_list_fixed_prices_update_response(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketsRootInput,
     ) -> Value {
         let price_list_id = read_price_list_id(&field.arguments);
         let price_list = price_list_id
@@ -1145,15 +1094,12 @@ impl DraftProxy {
                 if let Some(id) = price_list_id {
                     self.store.staged.price_lists.insert(id, updated.clone());
                 }
-                selected_json(
-                    &json!({
-                        "priceList": updated,
-                        "pricesAdded": prices_added,
-                        "deletedFixedPriceVariantIds": deleted,
-                        "userErrors": []
-                    }),
-                    &field.selection,
-                )
+                json!({
+                    "priceList": updated,
+                    "pricesAdded": prices_added,
+                    "deletedFixedPriceVariantIds": deleted,
+                    "userErrors": []
+                })
             }
             (price_list, _) => {
                 let empty_or_null = if price_list.is_some() {
@@ -1161,22 +1107,19 @@ impl DraftProxy {
                 } else {
                     Value::Null
                 };
-                selected_json(
-                    &json!({
-                        "priceList": price_list.unwrap_or(Value::Null),
-                        "pricesAdded": empty_or_null.clone(),
-                        "deletedFixedPriceVariantIds": empty_or_null,
-                        "userErrors": errors
-                    }),
-                    &field.selection,
-                )
+                json!({
+                    "priceList": price_list.unwrap_or(Value::Null),
+                    "pricesAdded": empty_or_null.clone(),
+                    "deletedFixedPriceVariantIds": empty_or_null,
+                    "userErrors": errors
+                })
             }
         }
     }
 
     pub(in crate::proxy) fn price_list_fixed_prices_delete_response(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketsRootInput,
     ) -> Value {
         let price_list_id = read_price_list_id(&field.arguments);
         let price_list = price_list_id
@@ -1207,10 +1150,7 @@ impl DraftProxy {
                 if let Some(id) = price_list_id {
                     self.store.staged.price_lists.insert(id, updated);
                 }
-                selected_json(
-                    &json!({"deletedFixedPriceVariantIds": deleted, "userErrors": []}),
-                    &field.selection,
-                )
+                json!({"deletedFixedPriceVariantIds": deleted, "userErrors": []})
             }
             (price_list, _) => {
                 let deleted = if price_list.is_some() {
@@ -1218,17 +1158,14 @@ impl DraftProxy {
                 } else {
                     Value::Null
                 };
-                selected_json(
-                    &json!({"deletedFixedPriceVariantIds": deleted, "userErrors": errors}),
-                    &field.selection,
-                )
+                json!({"deletedFixedPriceVariantIds": deleted, "userErrors": errors})
             }
         }
     }
 
     pub(in crate::proxy) fn quantity_rules_delete_price_list_response(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketsRootInput,
     ) -> Value {
         let price_list_id =
             resolved_string_field(&field.arguments, "priceListId").unwrap_or_default();
@@ -1251,7 +1188,7 @@ impl DraftProxy {
                 json!({"deletedQuantityRulesVariantIds": [], "userErrors": variant_errors})
             }
         };
-        selected_json(&payload, &field.selection)
+        payload
     }
 
     pub(in crate::proxy) fn next_price_list_id(&self) -> String {

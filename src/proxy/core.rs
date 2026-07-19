@@ -77,9 +77,7 @@ impl DraftProxy {
             shop_sells_subscriptions: None,
             clock: Arc::new(default_runtime_clock),
             last_mutation_timestamp: None,
-            engine_mutation_log_start: None,
-            engine_discount_refs_preflighted: false,
-            engine_root_fields: None,
+            execution_session: ExecutionSession::default(),
             commit_transport: Arc::new(default_commit_transport),
             upstream_transport: guarded_upstream_transport_from_arc(Arc::clone(
                 &upstream_transport,
@@ -134,7 +132,8 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn mutation_log_ordinal(&self) -> usize {
-        self.engine_mutation_log_start
+        self.execution_session
+            .mutation_log_start
             .unwrap_or(self.log_entries.len())
     }
 
@@ -203,6 +202,7 @@ impl DraftProxy {
                 self.next_synthetic_id = 1;
                 self.shop_sells_subscriptions = None;
                 self.last_mutation_timestamp = None;
+                self.execution_session = ExecutionSession::default();
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
             Route::MetaDump => self.dump_state(&request),
@@ -341,7 +341,7 @@ impl DraftProxy {
             })
             .unwrap_or_default();
         if named_type.ends_with("Connection") {
-            selected_empty_connection_json(&field.selection)
+            connection_json(Vec::new())
         } else if matches!(field.name.as_str(), "nodes" | "publicApiVersions")
             || (field.name.ends_with('s') && field.name != "shop")
         {
@@ -459,14 +459,14 @@ impl DraftProxy {
             json!(base_metafield_definition_namespaces);
         let deleted_metafield_definitions_value = json!(deleted_metafield_definitions);
         let base_state = json!({
-                "products": product_state_map_json(&self.store.base.products.records),
-                "productOrder": self.store.base.products.order,
-                "productVariants": product_variant_state_map_json(&self.store.base.product_variants.records),
-                "productVariantOrder": self.store.base.product_variants.order,
-                "savedSearches": saved_search_state_map_json(&self.store.base.saved_searches.records),
-                "savedSearchOrder": self.store.base.saved_searches.order,
-                "shopPolicies": shop_policy_state_map_json(&self.store.base.shop_policies.records),
-                "shopPolicyOrder": self.store.base.shop_policies.order,
+                "products": product_state_map_json(&self.store.products.base.records),
+                "productOrder": self.store.products.base.order,
+                "productVariants": product_variant_state_map_json(&self.store.product_variants.base.records),
+                "productVariantOrder": self.store.product_variants.base.order,
+                "savedSearches": saved_search_state_map_json(&self.store.saved_searches.base.records),
+                "savedSearchOrder": self.store.saved_searches.base.order,
+                "shopPolicies": shop_policy_state_map_json(&self.store.shop_policies.base.records),
+                "shopPolicyOrder": self.store.shop_policies.base.order,
                 "deliveryProfiles": self.store.base.delivery_profiles.records.clone(),
                 "deliveryProfileOrder": self.store.base.delivery_profiles.order,
                 "deliveryPromiseProviders": self.store.base.delivery_promise_providers.records.clone(),
@@ -508,12 +508,12 @@ impl DraftProxy {
                 "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>()
         });
         let staged_state = json!({
-                "products": product_state_map_json(&self.store.staged.products.records),
-                "productOrder": self.store.staged.products.order,
-                "deletedProductIds": self.store.staged.products.tombstones.iter().cloned().collect::<Vec<_>>(),
-                "productVariants": product_variant_state_map_json(&self.store.staged.product_variants.records),
-                "productVariantOrder": self.store.staged.product_variants.order,
-                "deletedProductVariantIds": self.store.staged.product_variants.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "products": product_state_map_json(&self.store.products.staged.records),
+                "productOrder": self.store.products.staged.order,
+                "deletedProductIds": self.store.products.staged.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "productVariants": product_variant_state_map_json(&self.store.product_variants.staged.records),
+                "productVariantOrder": self.store.product_variants.staged.order,
+                "deletedProductVariantIds": self.store.product_variants.staged.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "productFeeds": self.store.staged.product_feeds.records.clone(),
                 "productFeedOrder": self.store.staged.product_feeds.order,
                 "deletedProductFeedIds": self.store.staged.product_feeds.tombstones.iter().cloned().collect::<Vec<_>>(),
@@ -521,12 +521,12 @@ impl DraftProxy {
                 "deletedCollectionIds": self.store.staged.collections.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "deletedCollectionHandles": self.store.staged.deleted_collection_handles.iter().cloned().collect::<Vec<_>>(),
                 "collectionJobs": self.store.staged.collection_jobs.clone(),
-                "savedSearches": saved_search_state_map_json(&self.store.staged.saved_searches.records),
-                "savedSearchOrder": self.store.staged.saved_searches.order,
-                "deletedSavedSearchIds": self.store.staged.saved_searches.tombstones.iter().cloned().collect::<Vec<_>>(),
-                "shopPolicies": shop_policy_state_map_json(&self.store.staged.shop_policies.records),
-                "shopPolicyOrder": self.store.staged.shop_policies.order,
-                "deletedShopPolicyIds": self.store.staged.shop_policies.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "savedSearches": saved_search_state_map_json(&self.store.saved_searches.staged.records),
+                "savedSearchOrder": self.store.saved_searches.staged.order,
+                "deletedSavedSearchIds": self.store.saved_searches.staged.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "shopPolicies": shop_policy_state_map_json(&self.store.shop_policies.staged.records),
+                "shopPolicyOrder": self.store.shop_policies.staged.order,
+                "deletedShopPolicyIds": self.store.shop_policies.staged.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "shippingPackages": self.store.staged.shipping_packages.records.clone(),
                 "deletedShippingPackageIds": deleted_shipping_package_ids,
                 "installedApps": self.store.staged.installed_apps.clone(),
@@ -1469,11 +1469,11 @@ impl DraftProxy {
             return json_error(400, "Invalid Rust synthetic identity");
         }
 
-        self.store.base.products.replace_with_order(
+        self.store.products.base.replace_with_order(
             product_state_map_from_json(&state["baseState"]["products"]),
             string_array_from_json(&state["baseState"]["productOrder"]),
         );
-        self.store.base.product_variants.replace_with_order(
+        self.store.product_variants.base.replace_with_order(
             product_variant_state_map_from_json(&state["baseState"]["productVariants"]),
             string_array_from_json(&state["baseState"]["productVariantOrder"]),
         );
@@ -1518,20 +1518,20 @@ impl DraftProxy {
             .get("bulkOperationsObserved")
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        self.store.staged.products.replace_with_order(
+        self.store.products.staged.replace_with_order(
             product_state_map_from_json(&state["stagedState"]["products"]),
             string_array_from_json(&state["stagedState"]["productOrder"]),
         );
-        self.store.staged.product_variants.replace_with_order(
+        self.store.product_variants.staged.replace_with_order(
             product_variant_state_map_from_json(&state["stagedState"]["productVariants"]),
             string_array_from_json(&state["stagedState"]["productVariantOrder"]),
         );
-        self.store.staged.products.replace_tombstones(
+        self.store.products.staged.replace_tombstones(
             string_array_from_json(&state["stagedState"]["deletedProductIds"])
                 .into_iter()
                 .collect(),
         );
-        self.store.staged.product_variants.replace_tombstones(
+        self.store.product_variants.staged.replace_tombstones(
             string_array_from_json(&state["stagedState"]["deletedProductVariantIds"])
                 .into_iter()
                 .collect(),
@@ -1682,7 +1682,7 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.base.saved_searches.replace_with_order(
+        self.store.saved_searches.base.replace_with_order(
             saved_search_state_map_from_json(&state["baseState"]["savedSearches"]),
             string_array_from_json(&state["baseState"]["savedSearchOrder"]),
         );
@@ -1724,8 +1724,8 @@ impl DraftProxy {
             (base_shop_policies, base_shop_policy_order) = shop_policy_state_from_shop(&base_shop);
         }
         self.store
-            .base
             .shop_policies
+            .base
             .replace_with_order(base_shop_policies, base_shop_policy_order);
         self.store.base.storefront_shop = state["baseState"]
             .get("storefrontShop")
@@ -2032,11 +2032,11 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.staged.saved_searches.replace_with_order(
+        self.store.saved_searches.staged.replace_with_order(
             saved_search_state_map_from_json(&state["stagedState"]["savedSearches"]),
             string_array_from_json(&state["stagedState"]["savedSearchOrder"]),
         );
-        self.store.staged.saved_searches.replace_tombstones(
+        self.store.saved_searches.staged.replace_tombstones(
             string_array_from_json(&state["stagedState"]["deletedSavedSearchIds"])
                 .into_iter()
                 .collect(),
@@ -2047,11 +2047,11 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
-        self.store.staged.shop_policies.replace_with_order(
+        self.store.shop_policies.staged.replace_with_order(
             shop_policy_state_map_from_json(&state["stagedState"]["shopPolicies"]),
             string_array_from_json(&state["stagedState"]["shopPolicyOrder"]),
         );
-        self.store.staged.shop_policies.replace_tombstones(
+        self.store.shop_policies.staged.replace_tombstones(
             string_array_from_json(&state["stagedState"]["deletedShopPolicyIds"])
                 .into_iter()
                 .collect(),

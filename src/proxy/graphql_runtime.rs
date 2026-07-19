@@ -7,25 +7,126 @@ use super::graphql_error_compat::{
 };
 use super::*;
 use crate::admin_graphql::{
-    self, AdminApiVersion, RootExecutionContext, RootFieldError, RootFieldExecutor,
-    RootFieldInvocation, RootFieldResult,
+    self, apply_null_list_item_paths, AdminApiVersion, FieldResolverInvocation,
+    FieldResolverResult, ResolverValueSource, RootExecutionContext, RootFieldError,
+    RootFieldExecutor, RootFieldInvocation, RootFieldResult,
 };
-use crate::graphql::{DirectiveSelection, ParsedDocument, VariableDefinitionInfo};
-use crate::resolver_registry::{LocalResolverMode, ResolverHandler, RootResolverContext};
+use crate::graphql::{DirectiveSelection, VariableDefinitionInfo};
+use crate::resolver_registry::{
+    FieldResolverImplementation, GraphqlApiVersion, LocalResolverMode, ResolverOutcome,
+};
+
+/// Normalize a resolver value back to schema field names. Aliases belong to
+/// the caller-facing GraphQL response; domain values, request caches, and
+/// stores own canonical entity values.
+fn canonicalize_resolver_value(value: &Value, selections: &[SelectedField]) -> Value {
+    if value.is_null() || selections.is_empty() {
+        return value.clone();
+    }
+    if let Some(values) = value.as_array() {
+        return Value::Array(
+            values
+                .iter()
+                .map(|value| canonicalize_resolver_value(value, selections))
+                .collect(),
+        );
+    }
+    let Some(object) = value.as_object() else {
+        return value.clone();
+    };
+    let canonical_field_names = selections
+        .iter()
+        .map(|selection| selection.name.as_str())
+        .collect::<BTreeSet<_>>();
+    // Preserve extra canonical fields supplied by internal/test transports.
+    // Shopify itself only returns selected fields, but a hydration transport
+    // may deliberately provide a richer record for the store to observe.
+    let mut canonical = object.clone();
+    for selection in selections {
+        let Some(selected) = object
+            .get(&selection.name)
+            .or_else(|| object.get(&selection.response_key))
+        else {
+            continue;
+        };
+        let selected = if selection.selection.is_empty() || selected.is_null() {
+            selected.clone()
+        } else if let Some(values) = selected.as_array() {
+            Value::Array(
+                values
+                    .iter()
+                    .map(|value| canonicalize_resolver_value(value, &selection.selection))
+                    .collect(),
+            )
+        } else {
+            canonicalize_resolver_value(selected, &selection.selection)
+        };
+        if selection.response_key != selection.name
+            && !canonical_field_names.contains(selection.response_key.as_str())
+        {
+            canonical.remove(&selection.response_key);
+        }
+        canonical.insert(selection.name.clone(), selected);
+    }
+    Value::Object(canonical)
+}
+
+/// Keep transport values alias-shaped so repeated fields with different
+/// arguments remain distinct. Only locally produced domain values cross the
+/// canonicalization boundary before the GraphQL engine projects them.
+pub(in crate::proxy) fn resolver_value_for_engine(
+    value: &Value,
+    selections: &[SelectedField],
+    source: ResolverValueSource,
+) -> Value {
+    match source {
+        ResolverValueSource::Local => canonicalize_resolver_value(value, selections),
+        ResolverValueSource::Upstream => value.clone(),
+    }
+}
+
+/// Keep caller-facing root response keys so upstream outcomes can still be
+/// matched to the engine invocation, but canonicalize every nested value once
+/// before any domain observes or stores it.
+fn canonicalize_upstream_data(
+    data: &Value,
+    selections: &BTreeMap<String, Vec<SelectedField>>,
+) -> Value {
+    let Some(data) = data.as_object() else {
+        return data.clone();
+    };
+    Value::Object(
+        data.iter()
+            .map(|(response_key, value)| {
+                let value = selections.get(response_key).map_or_else(
+                    || value.clone(),
+                    |selections| canonicalize_resolver_value(value, selections),
+                );
+                (response_key.clone(), value)
+            })
+            .collect(),
+    )
+}
+
+const INTERNAL_HTTP_STATUS_EXTENSION: &str = "__draftProxyHttpStatus";
 
 struct ProxyRootExecutor {
     proxy: Arc<std::sync::Mutex<DraftProxy>>,
+    original_request: Request,
+    version: AdminApiVersion,
     root_calls: BTreeMap<String, PreparedRootCall>,
     root_locations: BTreeMap<String, SourceLocation>,
     discount_preflight: Option<(Request, Vec<RootFieldSelection>)>,
     discount_preflight_done: std::sync::Mutex<bool>,
-    grouped_local_request: Option<Request>,
-    grouped_local_fields: Option<Vec<RootFieldSelection>>,
-    grouped_local_response: std::sync::Mutex<Option<Response>>,
+    delivery_promise_mutation: Option<PreparedAtomicMutation>,
+    delivery_promise_outcomes: std::sync::Mutex<Option<BTreeMap<String, ResolverOutcome<Value>>>>,
     full_passthrough_request: Option<Request>,
+    full_passthrough_direct: bool,
+    observe_direct_shop_passthrough: bool,
     full_passthrough_response: Arc<std::sync::Mutex<Option<Response>>>,
     reject_mixed_mutation: bool,
     resolved_responses: Arc<std::sync::Mutex<BTreeMap<String, Response>>>,
+    resolved_extensions: Arc<std::sync::Mutex<BTreeMap<String, Value>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -34,41 +135,103 @@ struct PreparedRootCall {
     query: String,
     variables: BTreeMap<String, ResolvedValue>,
     operation: crate::graphql::ParsedOperation,
+    operation_root_names: Vec<String>,
+    operation_roots: Vec<crate::resolver_registry::OperationRootInvocation>,
+    operation_path: String,
+    variable_definitions: BTreeMap<String, VariableDefinitionInfo>,
     field: RootFieldSelection,
 }
 
-pub(crate) fn resolver_handler_for_domain(domain: CapabilityDomain) -> ResolverHandler {
-    match domain {
-        CapabilityDomain::Products => DraftProxy::resolve_products_graphql,
-        CapabilityDomain::Orders => DraftProxy::resolve_orders_graphql,
-        CapabilityDomain::ShippingFulfillments => DraftProxy::resolve_shipping_fulfillments_graphql,
-        CapabilityDomain::Customers => DraftProxy::resolve_customers_graphql,
-        CapabilityDomain::B2b => DraftProxy::resolve_b2b_graphql,
-        CapabilityDomain::SavedSearches => DraftProxy::resolve_saved_searches_graphql,
-        CapabilityDomain::OnlineStore => DraftProxy::resolve_online_store_graphql,
-        CapabilityDomain::Metaobjects => DraftProxy::resolve_metaobjects_graphql,
-        CapabilityDomain::BulkOperations => DraftProxy::resolve_bulk_operations_graphql,
-        CapabilityDomain::Discounts => DraftProxy::resolve_discounts_graphql,
-        CapabilityDomain::GiftCards => DraftProxy::resolve_gift_cards_graphql,
-        CapabilityDomain::AdminPlatform => DraftProxy::resolve_admin_platform_graphql,
-        CapabilityDomain::Apps => DraftProxy::resolve_apps_graphql,
-        CapabilityDomain::Media => DraftProxy::resolve_media_graphql,
-        CapabilityDomain::StoreProperties => DraftProxy::resolve_store_properties_graphql,
-        CapabilityDomain::Events => DraftProxy::resolve_events_graphql,
-        CapabilityDomain::Functions => DraftProxy::resolve_functions_graphql,
-        CapabilityDomain::Payments => DraftProxy::resolve_payments_graphql,
-        CapabilityDomain::Marketing => DraftProxy::resolve_marketing_graphql,
-        CapabilityDomain::Privacy => DraftProxy::resolve_privacy_graphql,
-        CapabilityDomain::Segments => DraftProxy::resolve_segments_graphql,
-        CapabilityDomain::Webhooks => DraftProxy::resolve_webhooks_graphql,
-        CapabilityDomain::Localization => DraftProxy::resolve_localization_graphql,
-        CapabilityDomain::Markets => DraftProxy::resolve_markets_graphql,
-        CapabilityDomain::Metafields => DraftProxy::resolve_metafields_graphql,
-        CapabilityDomain::Storefront => DraftProxy::resolve_storefront_graphql,
-        CapabilityDomain::Unknown => {
-            panic!("unknown GraphQL capabilities cannot register local resolvers")
-        }
-    }
+#[derive(Debug, Clone)]
+struct PreparedAtomicMutation {
+    request: Request,
+    query: String,
+    variables: BTreeMap<String, ResolvedValue>,
+}
+
+pub(crate) fn field_resolver_registrations() -> Vec<FieldResolverRegistration> {
+    let mut registrations = saved_search_field_resolver_registrations();
+    registrations.extend([
+        FieldResolverRegistration::property(ApiSurface::Admin, "Job", "done"),
+        FieldResolverRegistration::property(ApiSurface::Admin, "Job", "id"),
+        FieldResolverRegistration::explicit_terminal(
+            ApiSurface::Admin,
+            "Job",
+            "query",
+            job_query_field,
+        ),
+    ]);
+    registrations.extend(product_field_resolver_registrations());
+    registrations.extend(super::selling_plans::selling_plan_field_resolver_registrations());
+    registrations.extend(inventory_field_resolver_registrations());
+    registrations.extend(super::privacy::privacy_field_resolver_registrations());
+    registrations.extend(super::discounts::discount_field_resolver_registrations());
+    registrations.extend(event_field_resolver_registrations());
+    registrations.extend(return_field_resolver_registrations());
+    registrations.extend(media_field_resolver_registrations());
+    registrations.extend(payment_terms_field_resolver_registrations());
+    registrations.extend(orders_field_resolver_registrations());
+    registrations.extend(store_property_field_resolver_registrations());
+    registrations.extend(localization_field_resolver_registrations());
+    registrations.extend(owner_metafield_field_resolver_registrations());
+    registrations.extend(metafield_definition_field_resolver_registrations());
+    registrations
+        .extend(super::admin_shipping_gift_cards::app_billing_field_resolver_registrations());
+    registrations
+        .extend(super::admin_shipping_gift_cards::gift_card_field_resolver_registrations());
+    registrations.extend(
+        super::admin_shipping_gift_cards::delivery_customization_field_resolver_registrations(),
+    );
+    registrations.extend(delivery_profile_field_resolver_registrations());
+    registrations.extend(super::online_store_content::online_store_field_resolver_registrations());
+    registrations.extend(super::b2b_customers::customer_field_resolver_registrations());
+    registrations.extend(super::b2b_customers::b2b_company_field_resolver_registrations());
+    registrations.extend(super::metaobjects::metaobject_field_resolver_registrations());
+    registrations
+        .extend(super::localization_markets_catalogs::markets_field_resolver_registrations());
+    registrations
+        .extend(super::admin_shipping_gift_cards::delivery_promise_field_resolver_registrations());
+    registrations.extend(super::storefront::storefront_field_resolver_registrations());
+    registrations
+}
+
+fn job_query_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(invocation
+        .parent
+        .get("query")
+        .cloned()
+        .unwrap_or(Value::Null))
+}
+
+pub(crate) fn field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
+    let mut policies = product_field_resolver_type_policies();
+    policies.extend(super::selling_plans::selling_plan_field_resolver_type_policies());
+    policies.extend(inventory_field_resolver_type_policies());
+    policies.extend(orders_field_resolver_type_policies());
+    policies.extend(store_property_field_resolver_type_policies());
+    policies.extend(customer_field_resolver_type_policies());
+    policies.extend(b2b_company_field_resolver_type_policies());
+    policies.extend(app_billing_field_resolver_type_policies());
+    policies.extend(super::discounts::discount_field_resolver_type_policies());
+    policies.extend(markets_field_resolver_type_policies());
+    policies.extend(event_field_resolver_type_policies());
+    policies.extend(bulk_operation_field_resolver_type_policies());
+    policies.extend(function_field_resolver_type_policies());
+    policies.extend(shipping_field_resolver_type_policies());
+    policies.extend(segment_field_resolver_type_policies());
+    policies.extend(marketing_field_resolver_type_policies());
+    policies.extend(media_field_resolver_type_policies());
+    policies.extend(super::online_store_content::online_store_field_resolver_type_policies());
+    policies.extend(super::url_redirects::url_redirect_field_resolver_type_policies());
+    policies.extend(super::metaobjects::metaobject_field_resolver_type_policies());
+    policies.extend(metafield_definition_field_resolver_type_policies());
+    policies.extend(gift_card_field_resolver_type_policies());
+    policies.extend(super::storefront::storefront_field_resolver_type_policies());
+    policies
 }
 
 /// Temporarily make this proxy available to `'static` GraphQL resolver data
@@ -97,9 +260,8 @@ pub(in crate::proxy) fn with_request_owned_proxy<T>(
             Err(poisoned) => poisoned.into_inner().clone(),
         },
     };
-    restored_proxy.engine_mutation_log_start = None;
-    restored_proxy.engine_discount_refs_preflighted = false;
-    restored_proxy.engine_root_fields = None;
+    restored_proxy.execution_session.mutation_log_start = None;
+    restored_proxy.execution_session.discount_refs_preflighted = false;
     *proxy = restored_proxy;
 
     match outcome {
@@ -120,12 +282,80 @@ impl RootFieldExecutor for ProxyRootExecutor {
             response_key,
             root_name,
             arguments,
+            requested_field_paths,
         } = invocation;
         if self.reject_mixed_mutation {
             return Err(
                 "A mutation operation cannot mix locally staged and passthrough root fields."
                     .to_string(),
             );
+        }
+        if matches!(
+            root_name.as_str(),
+            "deliveryPromiseProviderUpsert" | "deliveryPromiseParticipantsUpdate"
+        ) {
+            if let Some(prepared) = &self.delivery_promise_mutation {
+                let mut cached = self.delivery_promise_outcomes.lock().map_err(|_| {
+                    "Delivery-promise mutation outcome lock was poisoned".to_string()
+                })?;
+                if cached.is_none() {
+                    let mut proxy = self
+                        .proxy
+                        .lock()
+                        .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
+                    let mut outcomes = proxy.delivery_promise_mutation(
+                        &prepared.query,
+                        &prepared.variables,
+                        &prepared.request,
+                        &response_key,
+                    );
+                    for outcome in outcomes.values_mut() {
+                        for draft in outcome.log_drafts.drain(..) {
+                            proxy.record_mutation_log_draft(
+                                &prepared.request,
+                                &prepared.query,
+                                &prepared.variables,
+                                draft,
+                            );
+                        }
+                    }
+                    *cached = Some(outcomes);
+                }
+                let mut outcome = cached
+                    .as_ref()
+                    .expect("delivery-promise outcomes should be cached")
+                    .get(&response_key)
+                    .cloned()
+                    .unwrap_or_else(|| ResolverOutcome::value(Value::Null));
+                if let Some(call) = self.root_calls.get(&response_key) {
+                    outcome.value = resolver_value_for_engine(
+                        &outcome.value,
+                        &call.field.selection,
+                        outcome.value_source,
+                    );
+                }
+                self.resolved_responses
+                    .lock()
+                    .map_err(|_| "Admin GraphQL resolved response lock was poisoned".to_string())?
+                    .insert(
+                        response_key.clone(),
+                        resolver_outcome_wire_response(
+                            &response_key,
+                            &outcome.value,
+                            &outcome.errors,
+                            &outcome.extensions,
+                        ),
+                    );
+                self.resolved_extensions
+                    .lock()
+                    .map_err(|_| "Admin GraphQL resolver extensions lock was poisoned".to_string())?
+                    .extend(outcome.extensions);
+                return Ok(RootFieldResult {
+                    value: outcome.value,
+                    errors: outcome.errors,
+                    value_source: outcome.value_source,
+                });
+            }
         }
         if let Some((request, fields)) = &self.discount_preflight {
             let mut done = self
@@ -139,7 +369,7 @@ impl RootFieldExecutor for ProxyRootExecutor {
                     .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
                 proxy.hydrate_discount_item_refs(request, fields);
                 proxy.hydrate_discount_context_refs(request, fields);
-                proxy.engine_discount_refs_preflighted = true;
+                proxy.execution_session.discount_refs_preflighted = true;
                 *done = true;
             }
         }
@@ -153,29 +383,20 @@ impl RootFieldExecutor for ProxyRootExecutor {
                     .proxy
                     .lock()
                     .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
-                *cached = Some(proxy.execute_passthrough_graphql(request));
+                let response = if self.full_passthrough_direct {
+                    (proxy.upstream_transport)(request.clone())
+                } else {
+                    proxy.execute_passthrough_graphql(request)
+                };
+                if self.observe_direct_shop_passthrough && (200..300).contains(&response.status) {
+                    proxy.hydrate_shop_state_from_response_data(&response.body["data"]);
+                    proxy.observe_nodes_response(&response);
+                }
+                *cached = Some(response);
             }
             cached
                 .as_ref()
                 .expect("passthrough response should be cached")
-                .clone()
-        } else if let Some(request) = &self.grouped_local_request {
-            let mut cached = self
-                .grouped_local_response
-                .lock()
-                .map_err(|_| "Admin GraphQL grouped response lock was poisoned".to_string())?;
-            if cached.is_none() {
-                let mut proxy = self
-                    .proxy
-                    .lock()
-                    .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
-                proxy.engine_root_fields = self.grouped_local_fields.clone();
-                *cached = Some(proxy.resolve_prevalidated_graphql_root(request));
-                proxy.engine_root_fields = None;
-            }
-            cached
-                .as_ref()
-                .expect("grouped local response should be cached")
                 .clone()
         } else {
             let mut call = self.root_calls.get(&response_key).cloned().ok_or_else(|| {
@@ -187,14 +408,136 @@ impl RootFieldExecutor for ProxyRootExecutor {
                 .iter()
                 .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
                 .collect();
+            let registration = self
+                .proxy
+                .lock()
+                .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?
+                .registry
+                .registration(call.operation.operation_type, &call.field.name)
+                .cloned();
+            if let Some(registration) = registration {
+                let handler = registration.handler;
+                let mut proxy = self
+                    .proxy
+                    .lock()
+                    .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
+                let upstream_value = proxy
+                    .execution_session
+                    .upstream_query_data
+                    .as_ref()
+                    .and_then(|data| data.get(&response_key))
+                    .cloned();
+                let outcome = handler(
+                    &mut proxy,
+                    crate::resolver_registry::RootInvocation {
+                        api_surface: ApiSurface::Admin,
+                        api_version: GraphqlApiVersion::Admin(self.version),
+                        response_key: &response_key,
+                        root_name: &root_name,
+                        root_location: call.field.location,
+                        directives: call.field.directives.clone(),
+                        operation_path: &call.operation_path,
+                        operation_root_names: call.operation_root_names.clone(),
+                        operation_roots: call.operation_roots.clone(),
+                        variable_definitions: &call.variable_definitions,
+                        raw_arguments: call.field.raw_arguments.clone(),
+                        arguments,
+                        requested_field_paths,
+                        upstream_value,
+                        // Native resolvers receive the caller's complete request.
+                        // A domain that needs upstream evidence therefore warms the
+                        // request cache with the original multi-root read, while the
+                        // isolated call request remains confined to the unsupported
+                        // transport fallback below.
+                        request: &self.original_request,
+                        query: &call.query,
+                        variables: &call.variables,
+                        operation: &call.operation,
+                        mode: LocalResolverMode::from_execution(registration.execution),
+                    },
+                );
+                let ResolverOutcome {
+                    value: raw_value,
+                    mut errors,
+                    extensions,
+                    log_drafts,
+                    value_source,
+                } = outcome;
+                let value =
+                    resolver_value_for_engine(&raw_value, &call.field.selection, value_source);
+                if let Some(location) = self.root_locations.get(&response_key) {
+                    for error in &mut errors {
+                        if error
+                            .extensions
+                            .get("code")
+                            .and_then(Value::as_str)
+                            .is_some_and(|code| {
+                                matches!(code, "BAD_REQUEST" | "MAX_INPUT_SIZE_EXCEEDED")
+                            })
+                        {
+                            error.locations = vec![async_graphql::Pos {
+                                line: location.line,
+                                column: location.column,
+                            }];
+                        }
+                    }
+                }
+                for draft in log_drafts {
+                    proxy.record_mutation_log_draft(
+                        &self.original_request,
+                        &call.query,
+                        &call.variables,
+                        draft,
+                    );
+                }
+                let resolved_response = if value_source == ResolverValueSource::Upstream {
+                    proxy
+                        .execution_session
+                        .upstream_query_response
+                        .clone()
+                        .unwrap_or_else(|| {
+                            resolver_outcome_wire_response(
+                                &response_key,
+                                &value,
+                                &errors,
+                                &extensions,
+                            )
+                        })
+                } else {
+                    resolver_outcome_wire_response(&response_key, &value, &errors, &extensions)
+                };
+                drop(proxy);
+                self.resolved_responses
+                    .lock()
+                    .map_err(|_| "Admin GraphQL resolved response lock was poisoned".to_string())?
+                    .entry(response_key.clone())
+                    .or_insert(resolved_response);
+                self.resolved_extensions
+                    .lock()
+                    .map_err(|_| "Admin GraphQL resolver extensions lock was poisoned".to_string())?
+                    .extend(extensions);
+                return Ok(RootFieldResult {
+                    value,
+                    errors,
+                    value_source,
+                });
+            }
             let mut proxy = self
                 .proxy
                 .lock()
                 .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
-            proxy.engine_root_fields = Some(vec![call.field.clone()]);
-            let response = proxy.resolve_prevalidated_graphql_root_call(&call);
-            proxy.engine_root_fields = None;
-            response
+            if call.operation.operation_type == OperationType::Query
+                && proxy.config.read_mode != ReadMode::Snapshot
+            {
+                // A mixed query may combine locally registered overlays with
+                // unsupported Shopify roots. Execute the caller's complete
+                // document once and let every root consume its slice from the
+                // request cache; isolated fallback documents lose sibling
+                // aliases, shared errors, and exact cassette identity.
+                proxy.cached_or_forward_upstream_response(&self.original_request)
+            } else {
+                proxy.resolve_prevalidated_graphql_root_call(&call)
+            }
         };
         self.resolved_responses
             .lock()
@@ -298,7 +641,37 @@ impl RootFieldExecutor for ProxyRootExecutor {
                 locations: Vec::new(),
             });
         }
-        Ok(RootFieldResult { value, errors })
+        Ok(RootFieldResult {
+            value,
+            errors,
+            value_source: ResolverValueSource::Upstream,
+        })
+    }
+
+    fn execute_field(
+        &self,
+        invocation: FieldResolverInvocation<'_>,
+    ) -> Result<FieldResolverResult, String> {
+        let mut proxy = self
+            .proxy
+            .lock()
+            .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
+        let implementation = proxy.registry.field_implementation(
+            invocation.api_surface,
+            invocation.api_version,
+            &invocation.parent_type,
+            &invocation.field_name,
+        );
+        match implementation {
+            FieldResolverImplementation::PropertyBacked => Ok(FieldResolverResult::PropertyBacked),
+            FieldResolverImplementation::Explicit(handler) => {
+                handler(&mut proxy, &self.original_request, &invocation)
+                    .map(FieldResolverResult::Resolved)
+            }
+            FieldResolverImplementation::DeliberatelyUnsupported(reason) => Ok(
+                FieldResolverResult::DeliberatelyUnsupported(reason.to_string()),
+            ),
+        }
     }
 }
 
@@ -317,81 +690,6 @@ pub(in crate::proxy) fn operation_selection_error_response(
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn execution_root_fields(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Vec<RootFieldSelection>> {
-        self.engine_root_fields
-            .clone()
-            .or_else(|| root_fields(query, variables))
-    }
-
-    pub(in crate::proxy) fn execution_root_field(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_name: &str,
-    ) -> Option<RootFieldSelection> {
-        self.execution_root_fields(query, variables)?
-            .into_iter()
-            .find(|field| field.name == root_name)
-    }
-
-    pub(in crate::proxy) fn execution_primary_root_field(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<RootFieldSelection> {
-        self.execution_root_fields(query, variables)?
-            .into_iter()
-            .next()
-    }
-
-    pub(in crate::proxy) fn execution_primary_root_response_parts(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        default_response_key: impl FnOnce() -> String,
-    ) -> (String, Vec<SelectedField>, BTreeMap<String, ResolvedValue>) {
-        self.execution_primary_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection, field.arguments))
-            .unwrap_or_else(|| (default_response_key(), Vec::new(), BTreeMap::new()))
-    }
-
-    pub(in crate::proxy) fn execution_primary_root_response_selection(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        default_response_key: impl FnOnce() -> String,
-    ) -> (String, Vec<SelectedField>) {
-        self.execution_primary_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection))
-            .unwrap_or_else(|| (default_response_key(), Vec::new()))
-    }
-
-    pub(in crate::proxy) fn finalize_mutation_outcome(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        outcome: MutationOutcome,
-    ) -> Response {
-        for draft in outcome.log_drafts {
-            self.record_mutation_log_draft(request, query, variables, draft);
-        }
-        outcome.response
-    }
-
-    pub(in crate::proxy) fn root_fields_or_error(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Result<Vec<RootFieldSelection>, Response> {
-        self.execution_root_fields(query, variables)
-            .ok_or_else(|| json_error(400, "Could not parse GraphQL operation"))
-    }
-
     pub(in crate::proxy) fn record_mutation_log_draft(
         &mut self,
         request: &Request,
@@ -400,6 +698,10 @@ impl DraftProxy {
         draft: LogDraft,
     ) {
         let root_field = draft.root_field;
+        let operation_name = draft
+            .operation_name
+            .map(Value::String)
+            .unwrap_or(Value::Null);
         let staged_resource_ids = draft.staged_resource_ids;
         let status = draft.status;
         let capability_domain = draft.capability_domain;
@@ -410,7 +712,7 @@ impl DraftProxy {
             .unwrap_or_else(|| vec![root_field.clone()]);
         self.log_entries.push(json!({
             "id": format!("log-{}", self.log_entries.len() + 1),
-            "operationName": null,
+            "operationName": operation_name,
             "path": request.path,
             "query": query,
             "variables": resolved_variables_json(variables),
@@ -432,23 +734,18 @@ impl DraftProxy {
         }));
     }
 
-    pub(in crate::proxy) fn unimplemented_resolver_response(
-        mode: LocalResolverMode,
-        root_field: &str,
-    ) -> Response {
-        unimplemented_root_response(mode.registry_name(), root_field)
-    }
-
     /// Execute an Admin GraphQL request through the captured versioned schema.
     /// Domain code is reached only through root field resolvers; the GraphQL
     /// engine owns the executable language and response projection.
     pub(in crate::proxy) fn execute_graphql(&mut self, request: &Request) -> Response {
+        self.execution_session = ExecutionSession::default();
         let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
             return json_error(400, "Expected JSON body with a string `query`");
         };
         let Some(version) = AdminApiVersion::from_route(&request.path) else {
             return json_error(404, "No captured Admin GraphQL schema for this route");
         };
+        self.execution_session = ExecutionSession::admin(version);
         let schema = match admin_graphql::schema(version) {
             Ok(schema) => schema,
             Err(error) => {
@@ -490,7 +787,7 @@ impl DraftProxy {
                             path: request.path.clone(),
                             headers: request.headers.clone(),
                             body: json!({
-                                "query": field_query,
+                                "query": field_query.clone(),
                                 "variables": resolved_variables_json(&variables)
                             })
                             .to_string(),
@@ -500,15 +797,37 @@ impl DraftProxy {
                         field.response_key.clone(),
                         PreparedRootCall {
                             request: field_request,
-                            // Domain execution receives the caller's selected operation for
-                            // diagnostics and mutation logging. Only `request` carries the
-                            // isolated transport document used when this root must go upstream.
-                            query: query.to_string(),
+                            // Transitional selection-aware domains receive the isolated
+                            // one-root document. The engine normalizes multi-root mutation
+                            // logging back to the caller's original document after execution.
+                            query: field_query,
                             variables: variables.clone(),
                             operation: crate::graphql::ParsedOperation {
                                 operation_type: document.operation_type,
                                 root_fields: vec![field.name.clone()],
                             },
+                            operation_root_names: document
+                                .root_fields
+                                .iter()
+                                .map(|root| root.name.clone())
+                                .collect(),
+                            operation_roots: document
+                                .root_fields
+                                .iter()
+                                .map(|root| crate::resolver_registry::OperationRootInvocation {
+                                    name: root.name.clone(),
+                                    response_key: root.response_key.clone(),
+                                    arguments: root
+                                        .arguments
+                                        .iter()
+                                        .map(|(name, value)| {
+                                            (name.clone(), resolved_value_json(value))
+                                        })
+                                        .collect(),
+                                })
+                                .collect(),
+                            operation_path: document.operation_path.clone(),
+                            variable_definitions: document.variable_definitions.clone(),
                             field: field.clone(),
                         },
                     )
@@ -531,6 +850,10 @@ impl DraftProxy {
                 )
             })
             .unwrap_or((None, Vec::new(), BTreeMap::new()));
+        self.execution_session.upstream_query_selections = root_calls
+            .iter()
+            .map(|(response_key, call)| (response_key.clone(), call.field.selection.clone()))
+            .collect();
         let capabilities = operation_type.map_or_else(Vec::new, |operation_type| {
             root_names
                 .iter()
@@ -558,6 +881,59 @@ impl DraftProxy {
             && has_passthrough_root;
 
         let all_passthrough = !root_names.is_empty() && !has_local_root && has_passthrough_root;
+        let product_original_query_passthrough =
+            prepared.as_ref().is_some_and(|(document, variables, _)| {
+                document.operation_type == OperationType::Query
+                    && capabilities
+                        .iter()
+                        .any(|capability| capability.domain == CapabilityDomain::Products)
+                    && capabilities.iter().all(|capability| {
+                        matches!(
+                            capability.domain,
+                            CapabilityDomain::Products | CapabilityDomain::Unknown
+                        )
+                    })
+                    && !self.should_route_owner_metafields_read(&document.root_fields, variables)
+                    && self.product_read_needs_upstream(&document.root_fields)
+            });
+        let shop_original_query_passthrough =
+            prepared.as_ref().is_some_and(|(document, variables, _)| {
+                document.operation_type == OperationType::Query
+                    && !document.root_fields.is_empty()
+                    && document
+                        .root_fields
+                        .iter()
+                        .all(|field| field.name == "shop")
+                    && !self.should_handle_shop_policy_query_locally()
+                    && !self.should_route_owner_metafields_read(&document.root_fields, variables)
+            });
+        let direct_full_query_passthrough = product_original_query_passthrough
+            || (self.config.read_mode == ReadMode::LiveHybrid && shop_original_query_passthrough)
+            || (self.config.read_mode == ReadMode::LiveHybrid
+                && operation_type == Some(OperationType::Query)
+                && ((!capabilities.is_empty()
+                    && capabilities
+                        .iter()
+                        .all(|capability| capability.domain == CapabilityDomain::Events))
+                    || (!root_names.is_empty()
+                        && root_names.iter().all(|root| {
+                            matches!(
+                                root.as_str(),
+                                "deliverySettings" | "deliveryPromiseSettings"
+                            )
+                        }))
+                    || (capabilities
+                        .iter()
+                        .any(|capability| capability.domain == CapabilityDomain::AdminPlatform)
+                        && capabilities
+                            .iter()
+                            .any(|capability| capability.domain == CapabilityDomain::Unknown)
+                        && capabilities.iter().all(|capability| {
+                            matches!(
+                                capability.domain,
+                                CapabilityDomain::AdminPlatform | CapabilityDomain::Unknown
+                            )
+                        }))));
         if let Some((document, _, _)) = prepared.as_ref() {
             if let Some(error) = required_variable_error(document, &graphql_request.variables) {
                 return ok_json(json!({ "errors": [error] }));
@@ -582,85 +958,6 @@ impl DraftProxy {
                 return ok_json(json!({ "errors": id_errors }));
             }
         }
-        let grouped_local_request = prepared.as_ref().and_then(|(document, variables, _)| {
-            selected_query.as_deref().and_then(|query| {
-                let owner_metafields = document.operation_type == OperationType::Query
-                    && self.should_route_owner_metafields_read(query, variables);
-                let grouped_domain_read = document.operation_type == OperationType::Query
-                    && document.root_fields.len() > 1
-                    && capabilities.first().is_some_and(|first| {
-                        first.domain != CapabilityDomain::Unknown
-                            && first.execution == CapabilityExecution::OverlayRead
-                            && capabilities.iter().all(|capability| capability == first)
-                    });
-                let grouped_media_saved_search_read =
-                    document.operation_type == OperationType::Query
-                        && document.root_fields.len() > 1
-                        && document.root_fields.iter().all(|field| {
-                            matches!(field.name.as_str(), "files" | "fileSavedSearches")
-                        });
-                let grouped_localization_markets_read = document.operation_type
-                    == OperationType::Query
-                    && document.root_fields.len() > 1
-                    && capabilities.first().is_some_and(|capability| {
-                        capability.domain == CapabilityDomain::Localization
-                            && capability.execution == CapabilityExecution::OverlayRead
-                    })
-                    && document
-                        .root_fields
-                        .iter()
-                        .any(|field| field.name == "markets")
-                    && capabilities.iter().all(|capability| {
-                        capability.execution == CapabilityExecution::OverlayRead
-                            && matches!(
-                                capability.domain,
-                                CapabilityDomain::Localization | CapabilityDomain::Markets
-                            )
-                    });
-                let grouped_admin_platform_read = document.operation_type == OperationType::Query
-                    && document.root_fields.len() > 1
-                    && capabilities
-                        .iter()
-                        .any(|capability| capability.domain == CapabilityDomain::AdminPlatform)
-                    && capabilities.iter().all(|capability| {
-                        matches!(
-                            capability.domain,
-                            CapabilityDomain::AdminPlatform | CapabilityDomain::Unknown
-                        )
-                    });
-                let grouped_product_helper_read = document.operation_type == OperationType::Query
-                    && document.root_fields.len() > 1
-                    && capabilities
-                        .iter()
-                        .any(|capability| capability.domain == CapabilityDomain::Products)
-                    && capabilities.iter().all(|capability| {
-                        matches!(
-                            capability.domain,
-                            CapabilityDomain::Products
-                                | CapabilityDomain::SavedSearches
-                                | CapabilityDomain::Unknown
-                        )
-                    });
-                let live_events = self.config.read_mode == ReadMode::LiveHybrid
-                    && !capabilities.is_empty()
-                    && capabilities
-                        .iter()
-                        .all(|capability| capability.domain == CapabilityDomain::Events);
-                (owner_metafields
-                    || grouped_domain_read
-                    || grouped_media_saved_search_read
-                    || grouped_localization_markets_read
-                    || grouped_admin_platform_read
-                    || grouped_product_helper_read
-                    || live_events)
-                    .then(|| request.clone())
-            })
-        });
-        let grouped_local_fields = grouped_local_request.as_ref().and_then(|_| {
-            prepared
-                .as_ref()
-                .map(|(document, _, _)| document.root_fields.clone())
-        });
         let root_locations = prepared
             .as_ref()
             .map(|(document, _, _)| {
@@ -678,6 +975,87 @@ impl DraftProxy {
                     .any(|capability| capability.domain == CapabilityDomain::Discounts))
             .then(|| (request.clone(), document.root_fields.clone()))
         });
+        let owner_metafield_preflight = prepared.as_ref().and_then(|(document, variables, _)| {
+            (document.operation_type == OperationType::Query
+                && has_local_root
+                && !product_original_query_passthrough
+                && self.should_route_owner_metafields_read(&document.root_fields, variables))
+            .then(|| {
+                (
+                    request.clone(),
+                    document.root_fields.clone(),
+                    variables.clone(),
+                )
+            })
+        });
+        let localization_context_preflight =
+            prepared.as_ref().and_then(|(document, variables, _)| {
+                let mixed_surface = capabilities
+                    .iter()
+                    .any(|capability| capability.domain == CapabilityDomain::Localization)
+                    && capabilities
+                        .iter()
+                        .any(|capability| capability.domain == CapabilityDomain::Markets)
+                    && capabilities.iter().all(|capability| {
+                        matches!(
+                            capability.domain,
+                            CapabilityDomain::Localization | CapabilityDomain::Markets
+                        )
+                    });
+                let has_local_localization_root = document.root_fields.iter().any(|field| {
+                    matches!(
+                        field.name.as_str(),
+                        "translatableResource"
+                            | "translatableResources"
+                            | "translatableResourcesByIds"
+                    ) && !self.localization_should_fetch_upstream(&field.name)
+                });
+                let has_locale_catalog = document
+                    .root_fields
+                    .iter()
+                    .any(|field| matches!(field.name.as_str(), "shopLocales" | "availableLocales"));
+                (self.config.read_mode == ReadMode::LiveHybrid
+                    && document.operation_type == OperationType::Query
+                    && mixed_surface
+                    && has_local_localization_root
+                    && self.markets_should_fetch_upstream(&document.root_fields, variables))
+                .then(|| {
+                    (
+                        request.clone(),
+                        document.root_fields.clone(),
+                        has_locale_catalog,
+                    )
+                })
+            });
+        let node_query_preflight = prepared.as_ref().and_then(|(document, _, _)| {
+            (document.operation_type == OperationType::Query
+                && document.root_fields.len() > 1
+                && document
+                    .root_fields
+                    .iter()
+                    .all(|field| matches!(field.name.as_str(), "node" | "nodes")))
+            .then(|| (request.clone(), document.root_fields.clone()))
+        });
+        let delivery_promise_mutation = prepared.as_ref().and_then(|(document, variables, _)| {
+            let query = selected_query.as_ref()?;
+            let promise_root_count = document
+                .root_fields
+                .iter()
+                .filter(|field| {
+                    matches!(
+                        field.name.as_str(),
+                        "deliveryPromiseProviderUpsert" | "deliveryPromiseParticipantsUpdate"
+                    )
+                })
+                .count();
+            (document.operation_type == OperationType::Mutation && promise_root_count > 1).then(
+                || PreparedAtomicMutation {
+                    request: request.clone(),
+                    query: query.clone(),
+                    variables: variables.clone(),
+                },
+            )
+        });
         // `async-graphql`'s dynamic builder cannot register custom directive
         // definitions. Preserve Shopify's executable `@idempotent` contract in
         // the domain request, while removing only that directive from the copy
@@ -688,59 +1066,93 @@ impl DraftProxy {
         );
         let engine_variables = resolved_variables_json(&graphql_request.variables);
         let engine_operation_name = graphql_request.operation_name;
-        let (engine_response, resolved_responses, full_passthrough_response, log_start) =
-            with_request_owned_proxy(self, move |shared_proxy| {
-                let log_start = {
-                    let mut proxy = shared_proxy
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner);
-                    let log_start = proxy.log_entries.len();
-                    if operation_type == Some(OperationType::Mutation) && has_local_root {
-                        proxy.engine_mutation_log_start = Some(log_start);
-                    }
-                    log_start
-                };
-                let resolved_responses = Arc::new(std::sync::Mutex::new(BTreeMap::new()));
-                let full_passthrough_response = Arc::new(std::sync::Mutex::new(None));
-                let root_executor: Arc<dyn RootFieldExecutor> = Arc::new(ProxyRootExecutor {
-                    proxy: Arc::clone(&shared_proxy),
-                    root_calls,
-                    root_locations,
-                    discount_preflight,
-                    discount_preflight_done: std::sync::Mutex::new(false),
-                    grouped_local_request,
-                    grouped_local_fields,
-                    grouped_local_response: std::sync::Mutex::new(None),
-                    full_passthrough_request: all_passthrough.then(|| request.clone()),
-                    full_passthrough_response: Arc::clone(&full_passthrough_response),
-                    reject_mixed_mutation,
-                    resolved_responses: Arc::clone(&resolved_responses),
-                });
-                let mut engine_request = async_graphql::Request::new(engine_query)
-                    .variables(async_graphql::Variables::from_json(engine_variables))
-                    .data(RootExecutionContext {
-                        executor: Arc::clone(&root_executor),
-                    });
-                if let Some(operation_name) = engine_operation_name {
-                    engine_request = engine_request.operation_name(operation_name);
+        let null_list_item_paths = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let null_list_item_paths_for_engine = Arc::clone(&null_list_item_paths);
+        let (
+            engine_response,
+            resolved_responses,
+            resolved_extensions,
+            full_passthrough_response,
+            log_start,
+        ) = with_request_owned_proxy(self, move |shared_proxy| {
+            let resolved_responses = Arc::new(std::sync::Mutex::new(BTreeMap::new()));
+            let resolved_extensions = Arc::new(std::sync::Mutex::new(BTreeMap::new()));
+            let full_passthrough_response = Arc::new(std::sync::Mutex::new(None));
+            let log_start = {
+                let mut proxy = shared_proxy
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                if let Some((request, fields, variables)) = &owner_metafield_preflight {
+                    proxy.hydrate_owner_metafield_read_fields(request, fields, variables);
                 }
-                let engine_response = futures_executor::block_on(schema.execute(engine_request));
-                drop(root_executor);
-                let resolved_responses = resolved_responses
-                    .lock()
-                    .map(|responses| responses.clone())
-                    .unwrap_or_default();
-                let full_passthrough_response = full_passthrough_response
-                    .lock()
-                    .ok()
-                    .and_then(|response| response.clone());
-                (
-                    engine_response,
-                    resolved_responses,
-                    full_passthrough_response,
-                    log_start,
-                )
+                if let Some((request, fields, use_original_request)) =
+                    &localization_context_preflight
+                {
+                    proxy.preflight_localization_markets_context(
+                        request,
+                        fields,
+                        *use_original_request,
+                    );
+                }
+                if let Some((request, fields)) = &node_query_preflight {
+                    proxy.preflight_node_query_entities(request, fields);
+                }
+                let log_start = proxy.log_entries.len();
+                if operation_type == Some(OperationType::Mutation) && has_local_root {
+                    proxy.execution_session.mutation_log_start = Some(log_start);
+                }
+                log_start
+            };
+            let root_executor: Arc<dyn RootFieldExecutor> = Arc::new(ProxyRootExecutor {
+                proxy: Arc::clone(&shared_proxy),
+                original_request: request.clone(),
+                version,
+                root_calls,
+                root_locations,
+                discount_preflight,
+                discount_preflight_done: std::sync::Mutex::new(false),
+                delivery_promise_mutation,
+                delivery_promise_outcomes: std::sync::Mutex::new(None),
+                full_passthrough_request: (all_passthrough || direct_full_query_passthrough)
+                    .then(|| request.clone()),
+                full_passthrough_direct: direct_full_query_passthrough,
+                observe_direct_shop_passthrough: shop_original_query_passthrough,
+                full_passthrough_response: Arc::clone(&full_passthrough_response),
+                reject_mixed_mutation,
+                resolved_responses: Arc::clone(&resolved_responses),
+                resolved_extensions: Arc::clone(&resolved_extensions),
             });
+            let mut engine_request = async_graphql::Request::new(engine_query)
+                .variables(async_graphql::Variables::from_json(engine_variables))
+                .data(RootExecutionContext::with_null_list_item_paths(
+                    Arc::clone(&root_executor),
+                    null_list_item_paths_for_engine,
+                ));
+            if let Some(operation_name) = engine_operation_name {
+                engine_request = engine_request.operation_name(operation_name);
+            }
+            let engine_response = futures_executor::block_on(schema.execute(engine_request));
+            drop(root_executor);
+            let resolved_responses = resolved_responses
+                .lock()
+                .map(|responses| responses.clone())
+                .unwrap_or_default();
+            let resolved_extensions = resolved_extensions
+                .lock()
+                .map(|extensions| extensions.clone())
+                .unwrap_or_default();
+            let full_passthrough_response = full_passthrough_response
+                .lock()
+                .ok()
+                .and_then(|response| response.clone());
+            (
+                engine_response,
+                resolved_responses,
+                resolved_extensions,
+                full_passthrough_response,
+                log_start,
+            )
+        });
 
         if operation_type == Some(OperationType::Mutation) && has_local_root {
             let variables = prepared
@@ -794,25 +1206,6 @@ impl DraftProxy {
             authoritative_upstream_response
                 .map(|response| response.body.clone())
                 .unwrap_or_else(|| json!({ "data": Value::Null }))
-        } else if engine_response.errors.iter().any(|error| {
-            (error.message.contains("expected \"FieldValue::WithType\"")
-                && (error.message.contains("invalid value for interface")
-                    || error.message.contains("invalid value for union")))
-                || error
-                    .message
-                    .contains("\"null\" is not of the expected type")
-        }) {
-            // async-graphql's dynamic API cannot represent a null list element
-            // whose item type is an interface/union: `FieldValue::NULL` is
-            // rejected because abstract values normally require `with_type`.
-            // The request has already passed full engine validation. Preserve
-            // the correctly projected resolver payload for this narrow library
-            // limitation so `nodes(ids:)` can retain null placeholders.
-            let mut body = merge_resolved_root_responses(&resolved_responses);
-            if let Some((document, _, _)) = prepared.as_ref() {
-                strip_unselected_typenames_from_response(&mut body, document);
-            }
-            body
         } else {
             shopify_engine_response(
                 engine_response,
@@ -827,7 +1220,16 @@ impl DraftProxy {
             )
         };
         let mut body = body;
+        restore_resolved_null_list_items(&mut body, &resolved_responses);
+        if let Ok(paths) = null_list_item_paths.lock() {
+            apply_null_list_item_paths(&mut body, &paths);
+        }
+        let resolver_http_status = resolved_extensions
+            .get(INTERNAL_HTTP_STATUS_EXTENSION)
+            .and_then(Value::as_u64)
+            .and_then(|status| u16::try_from(status).ok());
         strip_cloud_webhook_callback_urls(&mut body);
+        merge_native_resolver_extensions(&mut body, &resolved_extensions);
         merge_resolved_extensions(&mut body, &resolved_responses);
         if let Some(response) = shared_root_response(&resolved_responses) {
             if let (Some(projected), Some(resolved)) =
@@ -842,12 +1244,16 @@ impl DraftProxy {
                 }
             }
             return Response {
-                status: response.status,
+                status: resolver_http_status.unwrap_or(response.status),
                 headers: response.headers.clone(),
                 body,
             };
         }
-        ok_json(body)
+        Response {
+            status: resolver_http_status.unwrap_or(200),
+            headers: BTreeMap::new(),
+            body,
+        }
     }
 
     fn normalize_engine_mutation_log(
@@ -913,42 +1319,45 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn execute_passthrough_graphql(&mut self, request: &Request) -> Response {
-        self.resolve_registered_graphql(request, None)
-    }
-
-    pub(in crate::proxy) fn resolve_prevalidated_graphql_root(
-        &mut self,
-        request: &Request,
-    ) -> Response {
-        self.resolve_registered_graphql(request, None)
+        self.resolve_registered_graphql(request, None, None)
     }
 
     pub(in crate::proxy) fn resolve_nested_graphql_request(
         &mut self,
         request: &Request,
     ) -> Response {
-        let outer_fields = self.engine_root_fields.take();
-        let response = self.resolve_registered_graphql(request, None);
-        self.engine_root_fields = outer_fields;
-        response
+        self.resolve_registered_graphql(request, None, None)
     }
 
     fn resolve_prevalidated_graphql_root_call(&mut self, call: &PreparedRootCall) -> Response {
-        self.resolve_registered_graphql(&call.request, Some(call))
+        self.resolve_registered_graphql(&call.request, Some(call), None)
     }
 
     fn resolve_registered_graphql(
         &mut self,
         request: &Request,
         prepared: Option<&PreparedRootCall>,
+        preferred_root: Option<&str>,
     ) -> Response {
-        let (request, query, variables, operation, root_field_name) = if let Some(call) = prepared {
+        let (
+            request,
+            query,
+            variables,
+            operation,
+            root_field_name,
+            root_selections,
+            operation_path,
+            variable_definitions,
+        ) = if let Some(call) = prepared {
             (
                 &call.request,
                 call.query.clone(),
                 call.variables.clone(),
                 call.operation.clone(),
                 call.field.name.clone(),
+                vec![call.field.clone()],
+                call.operation_path.clone(),
+                call.variable_definitions.clone(),
             )
         } else {
             let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
@@ -975,30 +1384,40 @@ impl DraftProxy {
                     Err(error) => return operation_selection_error_response(error),
                 };
 
-            let Some(operation) = parse_operation_with_variables(&query, &variables) else {
+            let Some(document) = parsed_document(&query, &variables) else {
                 return json_error(400, "Could not parse GraphQL operation");
             };
-            let Some(root_field) = operation.primary_root_field().map(str::to_string) else {
+            let operation = crate::graphql::ParsedOperation {
+                operation_type: document.operation_type,
+                root_fields: document
+                    .root_fields
+                    .iter()
+                    .map(|field| field.name.clone())
+                    .collect(),
+            };
+            let Some(root_field) = preferred_root
+                .map(str::to_string)
+                .or_else(|| operation.primary_root_field().map(str::to_string))
+            else {
                 return ok_json(json!({ "data": {} }));
             };
-            (request, query, variables, operation, root_field)
+            (
+                request,
+                query,
+                variables,
+                operation,
+                root_field,
+                document.root_fields,
+                document.operation_path,
+                document.variable_definitions,
+            )
         };
         let root_field = root_field_name.as_str();
-
-        if operation.root_fields.len() > 1
-            && operation.operation_type == OperationType::Query
-            && self.should_route_owner_metafields_read(&query, &variables)
-        {
-            return self.owner_metafields_read(request, &query, &variables);
-        }
 
         let capability = self.registry.resolve(operation.operation_type, root_field);
         if capability.domain == CapabilityDomain::Products
             && operation.operation_type == OperationType::Mutation
-            && self
-                .execution_root_fields(&query, &variables)
-                .as_deref()
-                .is_some_and(product_root_fields_select_shop_currency_money)
+            && product_root_fields_select_shop_currency_money(&root_selections)
         {
             self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
@@ -1007,27 +1426,470 @@ impl DraftProxy {
             .registry
             .registration(operation.operation_type, root_field)
         else {
-            return self.dispatch_unknown_passthrough_or_legacy_error(
+            return self.dispatch_unsupported_operation(UnsupportedOperationDispatch {
                 request,
-                &query,
-                &variables,
-                operation.operation_type,
-                &operation.root_fields,
+                query: &query,
+                variables: &variables,
+                operation_type: operation.operation_type,
+                root_fields: &operation.root_fields,
                 root_field,
-            );
+            });
         };
-        (registration.handler)(
+        let handler = registration.handler;
+        let Some(version) = AdminApiVersion::from_route(&request.path) else {
+            return json_error(404, "No captured Admin GraphQL schema for this route");
+        };
+        let compatibility_root_field = root_selections
+            .iter()
+            .find(|field| field.name == root_field);
+        let response_key = prepared
+            .map(|call| call.field.response_key.as_str())
+            .or_else(|| compatibility_root_field.map(|field| field.response_key.as_str()))
+            .unwrap_or(root_field);
+        let arguments = prepared
+            .map(|call| {
+                call.field
+                    .arguments
+                    .iter()
+                    .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+                    .collect()
+            })
+            .or_else(|| {
+                compatibility_root_field.map(|field| {
+                    field
+                        .arguments
+                        .iter()
+                        .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+                        .collect()
+                })
+            })
+            .unwrap_or_default();
+        let raw_arguments = prepared
+            .map(|call| call.field.raw_arguments.clone())
+            .or_else(|| compatibility_root_field.map(|field| field.raw_arguments.clone()))
+            .unwrap_or_default();
+        let root_metadata = prepared
+            .map(|call| (call.field.directives.clone(), call.field.location))
+            .or_else(|| {
+                compatibility_root_field.map(|field| (field.directives.clone(), field.location))
+            });
+        let (directives, root_location) =
+            root_metadata.unwrap_or_else(|| (Vec::new(), SourceLocation { line: 1, column: 1 }));
+        let outcome = handler(
             self,
-            RootResolverContext {
+            crate::resolver_registry::RootInvocation {
+                api_surface: ApiSurface::Admin,
+                api_version: GraphqlApiVersion::Admin(version),
+                response_key,
+                root_name: root_field,
+                root_location,
+                directives,
+                operation_path: &operation_path,
+                operation_root_names: operation.root_fields.clone(),
+                operation_roots: root_selections
+                    .iter()
+                    .map(|root| crate::resolver_registry::OperationRootInvocation {
+                        name: root.name.clone(),
+                        response_key: root.response_key.clone(),
+                        arguments: root
+                            .arguments
+                            .iter()
+                            .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+                            .collect(),
+                    })
+                    .collect(),
+                variable_definitions: &variable_definitions,
+                raw_arguments,
+                arguments,
+                requested_field_paths: BTreeSet::new(),
+                upstream_value: None,
                 request,
                 query: &query,
                 variables: &variables,
                 operation: &operation,
-                root_name: root_field,
                 mode: LocalResolverMode::from_execution(registration.execution),
             },
-        )
+        );
+        resolver_outcome_compat_response(self, request, &query, &variables, response_key, outcome)
     }
+
+    fn dispatch_unsupported_operation(
+        &mut self,
+        dispatch: UnsupportedOperationDispatch<'_>,
+    ) -> Response {
+        let UnsupportedOperationDispatch {
+            request,
+            query,
+            variables,
+            operation_type,
+            root_fields,
+            root_field,
+        } = dispatch;
+        match operation_type {
+            OperationType::Mutation
+                if self.config.unsupported_mutation_mode
+                    == Some(UnsupportedMutationMode::Reject) =>
+            {
+                json_error(
+                    400,
+                    &format!("Unsupported mutation rejected by configuration: {root_field}"),
+                )
+            }
+            OperationType::Query if self.config.read_mode == ReadMode::Snapshot => json_error(
+                400,
+                &format!("No domain dispatcher implemented for root field: {root_field}"),
+            ),
+            OperationType::Mutation if self.config.read_mode == ReadMode::Snapshot => json_error(
+                400,
+                &format!("No mutation dispatcher implemented for root field: {root_field}"),
+            ),
+            OperationType::Subscription if self.config.read_mode == ReadMode::Snapshot => {
+                json_error(
+                    400,
+                    &format!("No domain dispatcher implemented for root field: {root_field}"),
+                )
+            }
+            _ => {
+                if operation_type == OperationType::Mutation {
+                    self.record_passthrough_log_entry(
+                        request,
+                        query,
+                        variables,
+                        root_fields,
+                        root_field,
+                    );
+                }
+                let response = (self.upstream_transport)(request.clone());
+                if operation_type == OperationType::Mutation && root_field == "customerMerge" {
+                    self.observe_customer_merge_passthrough_response(query, variables, &response);
+                }
+                if operation_type == OperationType::Query
+                    && root_fields
+                        .iter()
+                        .all(|field| matches!(field.as_str(), "node" | "nodes"))
+                {
+                    self.observe_collection_passthrough_response(&response);
+                }
+                if operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "collectionAddProducts" | "collectionCreate" | "collectionReorderProducts"
+                    )
+                {
+                    self.observe_collection_passthrough_response(&response);
+                    let hydrate_ids =
+                        collection_passthrough_hydration_ids(root_field, &response, variables);
+                    self.hydrate_product_nodes_for_observation(hydrate_ids);
+                }
+                response
+            }
+        }
+    }
+}
+
+fn resolver_outcome_compat_response(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    response_key: &str,
+    outcome: ResolverOutcome<Value>,
+) -> Response {
+    let ResolverOutcome {
+        value,
+        errors,
+        extensions,
+        log_drafts,
+        ..
+    } = outcome;
+    for draft in log_drafts {
+        proxy.record_mutation_log_draft(request, query, variables, draft);
+    }
+    let mut body = json!({ "data": { response_key: value } });
+    if !errors.is_empty() {
+        body["errors"] = Value::Array(
+            errors
+                .into_iter()
+                .map(|error| {
+                    let mut value = json!({ "message": error.message });
+                    if !error.extensions.is_empty() {
+                        value["extensions"] = Value::Object(error.extensions.into_iter().collect());
+                    }
+                    value
+                })
+                .collect(),
+        );
+    }
+    if !extensions.is_empty() {
+        body["extensions"] = Value::Object(extensions.into_iter().collect());
+    }
+    ok_json(body)
+}
+
+pub(in crate::proxy) fn resolver_outcome_from_upstream_response(
+    response: Response,
+    response_key: &str,
+) -> ResolverOutcome<Value> {
+    resolver_outcome_from_response_with_source(
+        response,
+        response_key,
+        ResolverValueSource::Upstream,
+    )
+}
+
+fn resolver_outcome_from_response_with_source(
+    response: Response,
+    response_key: &str,
+    value_source: ResolverValueSource,
+) -> ResolverOutcome<Value> {
+    let status = response.status;
+    let body = response.body;
+    let value = body
+        .get("data")
+        .and_then(Value::as_object)
+        .and_then(|data| data.get(response_key))
+        .cloned()
+        .unwrap_or(Value::Null);
+    let errors = root_field_errors_from_json_with_default_path(
+        body.get("errors")
+            .and_then(Value::as_array)
+            .map(Vec::as_slice)
+            .unwrap_or_default(),
+        response_key,
+        false,
+    );
+    let extensions = body
+        .get("extensions")
+        .and_then(Value::as_object)
+        .map(|extensions| {
+            extensions
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut outcome = ResolverOutcome {
+        value,
+        errors,
+        extensions,
+        log_drafts: Vec::new(),
+        value_source,
+    };
+    if outcome.errors.is_empty() && status >= 400 {
+        outcome.errors.push(RootFieldError {
+            message: format!("GraphQL root failed with status {status}"),
+            extensions: BTreeMap::new(),
+            path: Some(Vec::new()),
+            locations: Vec::new(),
+        });
+    }
+    if status != 200 {
+        outcome
+            .extensions
+            .insert(INTERNAL_HTTP_STATUS_EXTENSION.to_string(), json!(status));
+    }
+    outcome
+}
+
+/// GraphQL-level result of one upstream transport call. Domain hydration may
+/// inspect `data`, but HTTP status/headers remain confined to this boundary.
+pub(in crate::proxy) struct UpstreamGraphqlResult {
+    pub outcome: ResolverOutcome<Value>,
+    pub data: Value,
+    pub transport_succeeded: bool,
+}
+
+fn upstream_graphql_result(
+    response: Response,
+    response_key: &str,
+    data: Value,
+) -> UpstreamGraphqlResult {
+    let transport_succeeded = (200..300).contains(&response.status);
+    UpstreamGraphqlResult {
+        outcome: resolver_outcome_from_upstream_response(response, response_key),
+        data,
+        transport_succeeded,
+    }
+}
+
+/// Translate Shopify-compatible JSON error objects into the engine's typed
+/// resolver errors. This is deliberately part of the error-compatibility
+/// boundary; domain values and transport responses do not cross it.
+pub(in crate::proxy) fn root_field_errors_from_json(
+    errors: &[Value],
+    response_key: &str,
+) -> Vec<RootFieldError> {
+    root_field_errors_from_json_with_default_path(errors, response_key, false)
+}
+
+pub(in crate::proxy) fn graphql_error_outcome(
+    errors: Vec<Value>,
+    response_key: &str,
+) -> ResolverOutcome<Value> {
+    ResolverOutcome::value(Value::Null)
+        .with_errors(root_field_errors_from_json(&errors, response_key))
+}
+
+pub(in crate::proxy) fn resolver_http_error_outcome(
+    status: u16,
+    message: impl Into<String>,
+) -> ResolverOutcome<Value> {
+    let mut outcome = ResolverOutcome::error(message);
+    outcome
+        .extensions
+        .insert(INTERNAL_HTTP_STATUS_EXTENSION.to_string(), json!(status));
+    outcome
+}
+
+fn root_field_errors_from_json_with_default_path(
+    errors: &[Value],
+    response_key: &str,
+    default_root_path: bool,
+) -> Vec<RootFieldError> {
+    errors
+        .iter()
+        .filter_map(|error| {
+            let error_path = error.get("path").and_then(Value::as_array);
+            let root_path_index = error_path.and_then(|path| {
+                path.iter()
+                    .position(|segment| segment.as_str() == Some(response_key))
+            });
+            if error_path.is_some() && root_path_index.is_none() {
+                return None;
+            }
+            Some(RootFieldError {
+                message: error
+                    .get("message")
+                    .and_then(Value::as_str)
+                    .unwrap_or("GraphQL root resolver failed")
+                    .to_string(),
+                extensions: error
+                    .get("extensions")
+                    .and_then(Value::as_object)
+                    .map(|extensions| {
+                        extensions
+                            .iter()
+                            .map(|(key, value)| (key.clone(), value.clone()))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                path: error_path
+                    .map(|path| {
+                        path.iter()
+                            .skip(root_path_index.unwrap_or(0) + 1)
+                            .filter_map(|segment| match segment {
+                                Value::String(field) => {
+                                    Some(async_graphql::PathSegment::Field(field.clone()))
+                                }
+                                Value::Number(index) => index
+                                    .as_u64()
+                                    .map(|index| async_graphql::PathSegment::Index(index as usize)),
+                                _ => None,
+                            })
+                            .collect()
+                    })
+                    // Legacy HTTP/dispatcher failures historically gained the
+                    // active root path at the engine boundary. Preserve that
+                    // behavior until those fail-closed roots become native
+                    // GraphQL outcomes.
+                    .or_else(|| default_root_path.then(Vec::new)),
+                locations: error
+                    .get("locations")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|location| {
+                        Some(async_graphql::Pos {
+                            line: location.get("line")?.as_u64()? as usize,
+                            column: location.get("column")?.as_u64()? as usize,
+                        })
+                    })
+                    .collect(),
+            })
+        })
+        .collect()
+}
+
+impl DraftProxy {
+    /// Reuse the request-scoped upstream response when the executor already
+    /// fetched the complete operation; otherwise perform the cold read once.
+    pub(in crate::proxy) fn cached_or_forward_upstream_root_outcome(
+        &mut self,
+        request: &Request,
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
+        let response = self.cached_or_forward_upstream_response(request);
+        resolver_outcome_from_upstream_response(response, response_key)
+    }
+
+    /// Decode a request-scoped upstream response once while also exposing its
+    /// GraphQL `data` object to store hydration code.
+    pub(in crate::proxy) fn cached_or_forward_upstream_graphql_result(
+        &mut self,
+        request: &Request,
+        response_key: &str,
+    ) -> UpstreamGraphqlResult {
+        let response = self.cached_or_forward_upstream_response(request);
+        let data = self
+            .execution_session
+            .upstream_query_data
+            .clone()
+            .unwrap_or_else(|| response.body.get("data").cloned().unwrap_or(Value::Null));
+        upstream_graphql_result(response, response_key, data)
+    }
+
+    /// Fetch the caller's complete read operation at most once. Domain-owned
+    /// roots decide whether they need upstream evidence; the request session
+    /// owns transport coalescing so those decisions never require a central
+    /// domain predicate matrix or per-root query reconstruction.
+    pub(in crate::proxy) fn cached_or_forward_upstream_response(
+        &mut self,
+        request: &Request,
+    ) -> Response {
+        if let Some(response) = &self.execution_session.upstream_query_response {
+            return response.clone();
+        }
+        let response = (self.upstream_transport)(request.clone());
+        self.execution_session.upstream_query_data = Some(canonicalize_upstream_data(
+            response.body.get("data").unwrap_or(&Value::Null),
+            &self.execution_session.upstream_query_selections,
+        ));
+        self.execution_session.upstream_query_response = Some(response.clone());
+        response
+    }
+}
+
+fn resolver_outcome_wire_response(
+    response_key: &str,
+    value: &Value,
+    errors: &[RootFieldError],
+    extensions: &BTreeMap<String, Value>,
+) -> Response {
+    let mut body = json!({ "data": { response_key: value.clone() } });
+    if !errors.is_empty() {
+        body["errors"] = Value::Array(
+            errors
+                .iter()
+                .map(|error| {
+                    let mut value = json!({ "message": error.message });
+                    if !error.extensions.is_empty() {
+                        value["extensions"] =
+                            Value::Object(error.extensions.clone().into_iter().collect());
+                    }
+                    value
+                })
+                .collect(),
+        );
+    }
+    let public_extensions = extensions
+        .iter()
+        .filter(|(name, _)| name.as_str() != INTERNAL_HTTP_STATUS_EXTENSION)
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect::<serde_json::Map<_, _>>();
+    if !public_extensions.is_empty() {
+        body["extensions"] = Value::Object(public_extensions);
+    }
+    ok_json(body)
 }
 
 fn merge_resolved_extensions(body: &mut Value, responses: &BTreeMap<String, Response>) {
@@ -1057,6 +1919,25 @@ fn merge_resolved_extensions(body: &mut Value, responses: &BTreeMap<String, Resp
                 }
             }
         }
+    }
+}
+
+fn merge_native_resolver_extensions(body: &mut Value, extensions: &BTreeMap<String, Value>) {
+    if extensions.is_empty() {
+        return;
+    }
+    let Some(body) = body.as_object_mut() else {
+        return;
+    };
+    let target = body.entry("extensions").or_insert_with(|| json!({}));
+    let Some(target) = target.as_object_mut() else {
+        return;
+    };
+    for (name, value) in extensions {
+        if name == INTERNAL_HTTP_STATUS_EXTENSION {
+            continue;
+        }
+        target.entry(name.clone()).or_insert_with(|| value.clone());
     }
 }
 
@@ -1091,56 +1972,51 @@ fn strip_cloud_webhook_callback_urls(value: &mut Value) {
     }
 }
 
-fn merge_resolved_root_responses(responses: &BTreeMap<String, Response>) -> Value {
-    let mut data = serde_json::Map::new();
-    let mut errors = Vec::new();
-    for response in responses.values() {
-        if let Some(response_data) = response.body.get("data").and_then(Value::as_object) {
-            data.extend(response_data.clone());
-        }
-        if let Some(response_errors) = response.body.get("errors").and_then(Value::as_array) {
-            errors.extend(response_errors.iter().cloned());
-        }
-    }
-    let mut body = serde_json::Map::new();
-    body.insert("data".to_string(), Value::Object(data));
-    if !errors.is_empty() {
-        body.insert("errors".to_string(), Value::Array(errors));
-    }
-    Value::Object(body)
-}
-
-fn strip_unselected_typenames_from_response(body: &mut Value, document: &ParsedDocument) {
-    let Some(data) = body.get_mut("data").and_then(Value::as_object_mut) else {
+fn restore_resolved_null_list_items(
+    projected_body: &mut Value,
+    resolved_responses: &BTreeMap<String, Response>,
+) {
+    let Some(projected_data) = projected_body
+        .get_mut("data")
+        .and_then(Value::as_object_mut)
+    else {
         return;
     };
-    for field in &document.root_fields {
-        if let Some(value) = data.get_mut(&field.response_key) {
-            strip_unselected_typenames(value, &field.selection);
-        }
-    }
-}
-
-fn strip_unselected_typenames(value: &mut Value, selection: &[SelectedField]) {
-    if let Some(values) = value.as_array_mut() {
-        for value in values {
-            strip_unselected_typenames(value, selection);
-        }
-        return;
-    }
-    let Some(object) = value.as_object_mut() else {
-        return;
-    };
-    if !selection.iter().any(|field| field.name == "__typename") {
-        object.remove("__typename");
-    }
-    for field in selection {
-        if field.selection.is_empty() {
+    for (response_key, response) in resolved_responses {
+        let Some(projected) = projected_data.get_mut(response_key) else {
             continue;
+        };
+        let Some(resolved) = response
+            .body
+            .get("data")
+            .and_then(Value::as_object)
+            .and_then(|data| data.get(response_key))
+        else {
+            continue;
+        };
+        restore_null_list_items(projected, resolved);
+    }
+}
+
+fn restore_null_list_items(projected: &mut Value, resolved: &Value) {
+    match (projected, resolved) {
+        (Value::Array(projected), Value::Array(resolved)) => {
+            for (projected, resolved) in projected.iter_mut().zip(resolved) {
+                if resolved.is_null() {
+                    *projected = Value::Null;
+                } else {
+                    restore_null_list_items(projected, resolved);
+                }
+            }
         }
-        if let Some(value) = object.get_mut(&field.response_key) {
-            strip_unselected_typenames(value, &field.selection);
+        (Value::Object(projected), Value::Object(resolved)) => {
+            for (field_name, resolved) in resolved {
+                if let Some(projected) = projected.get_mut(field_name) {
+                    restore_null_list_items(projected, resolved);
+                }
+            }
         }
+        _ => {}
     }
 }
 
@@ -1574,38 +2450,91 @@ fn quote_graphql_string(value: &str) -> String {
 #[cfg(test)]
 mod graphql_runtime_tests {
     use super::{
-        expand_bare_store_credit_origin_selections, resolver_handler_for_domain,
+        expand_bare_store_credit_origin_selections, resolver_value_for_engine,
         with_request_owned_proxy,
     };
-    use crate::operation_registry::{default_registry, CapabilityDomain};
+    use crate::admin_graphql::ResolverValueSource;
+    use crate::graphql::{SelectedField, SourceLocation};
+    use crate::operation_registry::{default_executable_registry, default_registry};
     use crate::proxy::{Config, DraftProxy};
-    use crate::resolver_registry::{ResolverHandler, ResolverRegistry};
+    use crate::resolver_registry::ResolverRegistry;
+    use serde_json::json;
+
+    fn selected_field(name: &str, response_key: &str) -> SelectedField {
+        SelectedField {
+            name: name.to_string(),
+            response_key: response_key.to_string(),
+            location: SourceLocation { line: 1, column: 1 },
+            arguments: Default::default(),
+            selection: Vec::new(),
+            type_condition: None,
+        }
+    }
 
     #[test]
-    fn every_registered_domain_uses_one_distinct_callback() {
-        let registry = ResolverRegistry::new(default_registry());
-        let mut domain_handlers: Vec<(CapabilityDomain, ResolverHandler)> = Vec::new();
+    fn canonicalizes_only_local_resolver_values() {
+        let selection = [selected_field("title", "aliasedTitle")];
+        let local = json!({ "title": "canonical", "aliasedTitle": "transport" });
+        assert_eq!(
+            resolver_value_for_engine(&local, &selection, ResolverValueSource::Local),
+            json!({ "title": "canonical" })
+        );
 
+        let upstream = json!({ "first": [1], "second": [1, 2] });
+        let repeated_selection = [
+            selected_field("items", "first"),
+            selected_field("items", "second"),
+        ];
+        assert_eq!(
+            resolver_value_for_engine(
+                &upstream,
+                &repeated_selection,
+                ResolverValueSource::Upstream,
+            ),
+            upstream,
+            "upstream aliases can represent distinct argument sets and must remain transport-shaped"
+        );
+    }
+
+    #[test]
+    fn canonicalization_preserves_fields_that_collide_with_sibling_aliases() {
+        let mut aliased_page_info = selected_field("pageInfo", "nodes");
+        aliased_page_info.selection = vec![selected_field("hasNextPage", "next")];
+        let mut connection = selected_field("products", "products");
+        connection.selection = vec![selected_field("nodes", "items"), aliased_page_info];
+
+        let value = json!({
+            "products": {
+                "nodes": [],
+                "pageInfo": { "hasNextPage": false }
+            }
+        });
+        assert_eq!(
+            resolver_value_for_engine(&value, &[connection], ResolverValueSource::Local,),
+            value,
+            "an alias must not remove a canonical field selected by its sibling"
+        );
+    }
+
+    #[test]
+    fn registered_roots_use_their_direct_callbacks() {
+        let registry = ResolverRegistry::new(default_registry());
+        let executable = default_executable_registry();
         for registration in registry.local_resolvers() {
-            assert!(std::ptr::fn_addr_eq(
-                registration.handler,
-                resolver_handler_for_domain(registration.domain),
-            ));
-            if let Some((_, handler)) = domain_handlers
+            let declared = executable
                 .iter()
-                .find(|(domain, _)| *domain == registration.domain)
-            {
-                assert!(std::ptr::fn_addr_eq(*handler, registration.handler));
-                continue;
-            }
-            for (other_domain, other_handler) in &domain_handlers {
-                assert!(
-                    !std::ptr::fn_addr_eq(*other_handler, registration.handler),
-                    "{other_domain:?} and {:?} unexpectedly share a resolver callback",
-                    registration.domain
-                );
-            }
-            domain_handlers.push((registration.domain, registration.handler));
+                .find(|declared| {
+                    declared.entry.api_surface == registration.api_surface
+                        && declared.entry.operation_type == registration.operation_type
+                        && declared.entry.name == registration.graphql_root_name
+                })
+                .expect("local root should have a direct executable declaration");
+            assert!(std::ptr::fn_addr_eq(
+                declared
+                    .handler
+                    .expect("implemented root should carry its direct callback"),
+                registration.handler
+            ));
         }
     }
 

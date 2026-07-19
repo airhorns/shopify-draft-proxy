@@ -360,6 +360,30 @@ fn store_clear_staged_resets_overlays_and_tombstones_without_dropping_base() {
     ));
     assert_eq!(delete.status, 200);
 
+    let saved_search = proxy.process_request(graphql_request(
+        r#"
+        mutation ResetSavedSearch($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id name }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Reset me",
+                "query": "tag:temporary",
+                "resourceType": "PRODUCT"
+            }
+        }),
+    ));
+    assert_eq!(saved_search.status, 200, "{}", saved_search.body);
+    assert!(
+        saved_search.body["data"]["savedSearchCreate"]["savedSearch"]
+            .get("id")
+            .is_some()
+    );
+
     let reset = proxy.process_request(request("POST", "/__meta/reset", ""));
     assert_eq!(reset.status, 200);
 
@@ -383,6 +407,24 @@ fn store_clear_staged_resets_overlays_and_tombstones_without_dropping_base() {
     assert_eq!(state.status, 200);
     assert_eq!(state.body["stagedState"]["products"], json!({}));
     assert_eq!(state.body["stagedState"]["deletedProductIds"], json!([]));
+    assert_eq!(state.body["stagedState"]["savedSearches"], json!({}));
+    assert_eq!(
+        state.body["stagedState"]["deletedSavedSearchIds"],
+        json!([])
+    );
+
+    let saved_searches = proxy.process_request(graphql_request(
+        r#"
+        query ResetSavedSearchRead {
+          productSavedSearches(first: 10) { nodes { id name } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        saved_searches.body["data"]["productSavedSearches"]["nodes"],
+        json!([])
+    );
 }
 
 #[test]

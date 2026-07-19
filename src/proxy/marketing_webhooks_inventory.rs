@@ -1,5 +1,5 @@
 use super::*;
-use crate::graphql::{parsed_document, ParsedDocument, RawArgumentValue};
+use crate::graphql::RawArgumentValue;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod inventory_helpers;
@@ -8,43 +8,74 @@ mod webhook_helpers;
 
 pub(in crate::proxy) use self::inventory_helpers::*;
 
+struct MarketingRootInput {
+    name: String,
+    response_key: String,
+    arguments: BTreeMap<String, ResolvedValue>,
+}
+
+pub(in crate::proxy) fn marketing_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
+    [
+        "MarketingActivity",
+        "MarketingEngagement",
+        "MarketingEvent",
+        "WebhookEventBridgeEndpoint",
+        "WebhookHttpEndpoint",
+        "WebhookPubSubEndpoint",
+        "WebhookSubscription",
+    ]
+    .into_iter()
+    .map(|parent_type| {
+        FieldResolverTypePolicy::property_backed_ordinary_fields(
+            ApiSurface::Admin,
+            parent_type,
+            "argument-bearing marketing or webhook field has no explicit canonical resolver",
+        )
+    })
+    .collect()
+}
+
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_marketing_graphql(
+    pub(crate) fn marketing_query_root(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
+            arguments,
             request,
-            query,
-            variables,
             root_name,
-            mode,
             ..
-        } = context;
-        let fields = match self.root_fields_or_error(query, variables) {
-            Ok(fields) => fields,
-            Err(response) => return response,
+        } = invocation;
+        let field = MarketingRootInput {
+            name: root_name.to_string(),
+            response_key: response_key.to_string(),
+            arguments: resolved_arguments_from_json(&arguments),
         };
-        match mode {
-            LocalResolverMode::OverlayRead => self.marketing_query_response(request, &fields),
-            LocalResolverMode::StageLocally => {
-                let response = self.marketing_mutation(&fields, request);
-                let staged_ids: Vec<String> = fields
-                    .iter()
-                    .filter_map(|field| {
-                        response.body["data"][field.response_key.as_str()]["marketingActivity"]
-                            ["id"]
-                            .as_str()
-                            .map(ToString::to_string)
-                    })
-                    .collect();
-                if !staged_ids.is_empty() {
-                    self.record_mutation_log_entry(
-                        request, query, variables, root_name, staged_ids,
-                    );
-                }
-                response
-            }
+        self.marketing_query_outcome(request, &field)
+    }
+
+    pub(crate) fn marketing_mutation_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
+            arguments,
+            request,
+            root_name,
+            ..
+        } = invocation;
+        let field = MarketingRootInput {
+            name: root_name.to_string(),
+            response_key: response_key.to_string(),
+            arguments: resolved_arguments_from_json(&arguments),
+        };
+        let (outcome, staged_ids) = self.marketing_mutation_outcome(&field, request);
+        if staged_ids.is_empty() {
+            outcome
+        } else {
+            outcome.with_log_draft(LogDraft::staged(root_name, "marketing", staged_ids))
         }
     }
 }

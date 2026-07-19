@@ -1,7 +1,7 @@
 //! Storefront request bridge for the independent executable Storefront schema.
 
 use super::graphql_error_compat::shopify_storefront_engine_response;
-use super::graphql_runtime::with_request_owned_proxy;
+use super::graphql_runtime::{resolver_value_for_engine, with_request_owned_proxy};
 use super::storefront::{
     storefront_discovery_argument_error, storefront_request_context,
     StorefrontCustomerAuthLogDetails, STOREFRONT_CART_MUTATION_ROOTS,
@@ -9,9 +9,12 @@ use super::storefront::{
 };
 use super::*;
 use crate::admin_graphql::{
+    apply_null_list_item_paths, FieldResolverInvocation, FieldResolverResult, ResolverValueSource,
     RootExecutionContext, RootFieldError, RootFieldExecutor, RootFieldInvocation, RootFieldResult,
 };
-use crate::graphql::ParsedOperation;
+use crate::graphql::{ParsedOperation, VariableDefinitionInfo};
+use crate::resolver_registry::FieldResolverImplementation;
+use crate::resolver_registry::GraphqlApiVersion;
 use crate::storefront_graphql::{self, StorefrontApiVersion};
 use graphql_parser::query::{parse_query, Definition, OperationDefinition};
 use graphql_parser::Style;
@@ -22,14 +25,16 @@ struct PreparedStorefrontRootCall {
     query: String,
     variables: BTreeMap<String, ResolvedValue>,
     operation: ParsedOperation,
+    operation_path: String,
+    variable_definitions: BTreeMap<String, VariableDefinitionInfo>,
     field: RootFieldSelection,
 }
 
 #[derive(Debug, Clone)]
 struct StorefrontCustomerAuthLogContext {
-    query: String,
     variables: BTreeMap<String, ResolvedValue>,
-    fields: Vec<RootFieldSelection>,
+    operation_type: OperationType,
+    root_fields: Vec<String>,
     execution: &'static str,
 }
 
@@ -69,19 +74,19 @@ impl StorefrontRootExecutor {
         if !self.calls.values().any(is_customer_auth_call) {
             return None;
         }
-        let fields = self
+        let root_fields = self
             .calls
             .values()
-            .map(|call| call.field.clone())
+            .map(|call| call.field.name.clone())
             .collect::<Vec<_>>();
         let execution = match first.operation.operation_type {
             OperationType::Mutation => "stage-locally",
             _ => "overlay-read",
         };
         Some(StorefrontCustomerAuthLogContext {
-            query: first.query.clone(),
             variables: first.variables.clone(),
-            fields,
+            operation_type: first.operation.operation_type,
+            root_fields,
             execution,
         })
     }
@@ -100,9 +105,9 @@ impl StorefrontRootExecutor {
                 .map_err(|_| "Storefront GraphQL proxy state lock was poisoned".to_string())?
                 .record_storefront_customer_auth_log_entry(
                     &self.original_request,
-                    &context.query,
                     &context.variables,
-                    &context.fields,
+                    context.operation_type,
+                    &context.root_fields,
                     StorefrontCustomerAuthLogDetails {
                         status: "handled",
                         execution: context.execution,
@@ -147,6 +152,7 @@ impl StorefrontRootExecutor {
         response_key: &str,
         root_name: &str,
         arguments: BTreeMap<String, Value>,
+        requested_field_paths: BTreeSet<Vec<String>>,
     ) -> Result<RootFieldResult, String> {
         let mut call = self.calls.get(response_key).cloned().ok_or_else(|| {
             format!("No request-scoped Storefront resolver input was prepared for `{root_name}`")
@@ -168,20 +174,61 @@ impl StorefrontRootExecutor {
             )
             .cloned()
             .ok_or_else(|| format!("Storefront root `{root_name}` has no local registration"))?;
-        proxy.engine_root_fields = Some(vec![call.field.clone()]);
-        let response = (registration.handler)(
+        let handler = registration.handler;
+        let operation_roots = self
+            .calls
+            .values()
+            .map(
+                |prepared| crate::resolver_registry::OperationRootInvocation {
+                    name: prepared.field.name.clone(),
+                    response_key: prepared.field.response_key.clone(),
+                    arguments: if prepared.field.response_key == response_key {
+                        arguments.clone()
+                    } else {
+                        prepared
+                            .field
+                            .arguments
+                            .iter()
+                            .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+                            .collect()
+                    },
+                },
+            )
+            .collect();
+        let mut outcome = handler(
             &mut proxy,
-            RootResolverContext {
+            RootInvocation {
+                api_surface: ApiSurface::Storefront,
+                api_version: GraphqlApiVersion::Storefront(self.version),
+                response_key,
+                root_name,
+                root_location: call.field.location,
+                directives: call.field.directives.clone(),
+                operation_path: &call.operation_path,
+                operation_root_names: call.operation.root_fields.clone(),
+                operation_roots,
+                variable_definitions: &call.variable_definitions,
+                raw_arguments: call.field.raw_arguments.clone(),
+                arguments,
+                requested_field_paths,
+                upstream_value: None,
                 request: &call.request,
                 query: &call.query,
                 variables: &call.variables,
                 operation: &call.operation,
-                root_name,
                 mode: LocalResolverMode::from_execution(registration.execution),
             },
         );
-        proxy.engine_root_fields = None;
-        Ok(storefront_root_result(response, response_key, root_name))
+        outcome.value =
+            resolver_value_for_engine(&outcome.value, &call.field.selection, outcome.value_source);
+        for draft in outcome.log_drafts {
+            proxy.record_mutation_log_draft(&call.request, &call.query, &call.variables, draft);
+        }
+        Ok(RootFieldResult {
+            value: outcome.value,
+            errors: outcome.errors,
+            value_source: outcome.value_source,
+        })
     }
 
     fn execute_passthrough_root(
@@ -217,6 +264,7 @@ impl StorefrontRootExecutor {
         response_key: &str,
         root_name: &str,
         arguments: BTreeMap<String, Value>,
+        requested_field_paths: BTreeSet<Vec<String>>,
     ) -> Result<RootFieldResult, String> {
         let has_local_registration = self
             .proxy
@@ -226,7 +274,12 @@ impl StorefrontRootExecutor {
             .registration_for_surface(ApiSurface::Storefront, OperationType::Query, root_name)
             .is_some();
         if has_local_registration {
-            return self.execute_local_root(response_key, root_name, arguments);
+            return self.execute_local_root(
+                response_key,
+                root_name,
+                arguments,
+                requested_field_paths,
+            );
         }
         let call = self.calls.get(response_key).ok_or_else(|| {
             format!("No Storefront snapshot selection was prepared for `{root_name}`")
@@ -239,6 +292,7 @@ impl StorefrontRootExecutor {
         Ok(RootFieldResult {
             value,
             errors: Vec::new(),
+            value_source: ResolverValueSource::Local,
         })
     }
 }
@@ -246,34 +300,66 @@ impl StorefrontRootExecutor {
 impl RootFieldExecutor for StorefrontRootExecutor {
     fn execute_root(&self, invocation: RootFieldInvocation) -> Result<RootFieldResult, String> {
         self.record_execution_once()?;
+        let RootFieldInvocation {
+            response_key,
+            root_name,
+            arguments,
+            requested_field_paths,
+        } = invocation;
         match self.mode {
-            StorefrontExecutionMode::LocalRead | StorefrontExecutionMode::LocalStage => self
-                .execute_local_root(
-                    &invocation.response_key,
-                    &invocation.root_name,
-                    invocation.arguments,
-                ),
+            StorefrontExecutionMode::LocalRead | StorefrontExecutionMode::LocalStage => {
+                self.execute_local_root(&response_key, &root_name, arguments, requested_field_paths)
+            }
             StorefrontExecutionMode::Passthrough => {
-                self.execute_passthrough_root(&invocation.response_key, &invocation.root_name)
+                self.execute_passthrough_root(&response_key, &root_name)
             }
             StorefrontExecutionMode::SnapshotQuery => self.execute_snapshot_root(
-                &invocation.response_key,
-                &invocation.root_name,
-                invocation.arguments,
+                &response_key,
+                &root_name,
+                arguments,
+                requested_field_paths,
             ),
             StorefrontExecutionMode::SnapshotMutation => Ok(RootFieldResult::default()),
+        }
+    }
+
+    fn execute_field(
+        &self,
+        invocation: FieldResolverInvocation<'_>,
+    ) -> Result<FieldResolverResult, String> {
+        let mut proxy = self
+            .proxy
+            .lock()
+            .map_err(|_| "Storefront GraphQL proxy state lock was poisoned".to_string())?;
+        let implementation = proxy.registry.field_implementation(
+            invocation.api_surface,
+            invocation.api_version,
+            &invocation.parent_type,
+            &invocation.field_name,
+        );
+        match implementation {
+            FieldResolverImplementation::PropertyBacked => Ok(FieldResolverResult::PropertyBacked),
+            FieldResolverImplementation::Explicit(handler) => {
+                let value = handler(&mut proxy, &self.original_request, &invocation)?;
+                Ok(FieldResolverResult::Resolved(value))
+            }
+            FieldResolverImplementation::DeliberatelyUnsupported(reason) => Ok(
+                FieldResolverResult::DeliberatelyUnsupported(reason.to_string()),
+            ),
         }
     }
 }
 
 impl DraftProxy {
     pub(in crate::proxy) fn execute_storefront_graphql(&mut self, request: &Request) -> Response {
+        self.execution_session = ExecutionSession::default();
         let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
             return json_error(400, "Expected JSON body with a string `query`");
         };
         let Some(version) = StorefrontApiVersion::from_route(&request.path) else {
             return self.execute_legacy_storefront_graphql(request, &graphql_request);
         };
+        self.execution_session = ExecutionSession::storefront(version);
         let schema = match storefront_graphql::schema(version) {
             Ok(schema) => schema,
             Err(error) => {
@@ -307,6 +393,8 @@ impl DraftProxy {
                                 operation_type: document.operation_type,
                                 root_fields: vec![field.name.clone()],
                             },
+                            operation_path: document.operation_path.clone(),
+                            variable_definitions: document.variable_definitions.clone(),
                             field: field.clone(),
                         },
                     )
@@ -378,10 +466,13 @@ impl DraftProxy {
             && prepared
                 .as_ref()
                 .is_some_and(|(document, _, _)| match document.operation_type {
-                    OperationType::Query => self.storefront_fields_are_local(&document.root_fields),
-                    OperationType::Mutation => {
-                        self.storefront_mutation_fields_are_local(&document.root_fields)
-                    }
+                    OperationType::Query => document.root_fields.iter().all(|field| {
+                        self.storefront_query_root_is_local(&field.name, &field.arguments)
+                    }),
+                    OperationType::Mutation => document
+                        .root_fields
+                        .iter()
+                        .all(|field| self.storefront_mutation_root_is_local(&field.name)),
                     OperationType::Subscription => false,
                 });
         let has_customer_auth_mutation = prepared.as_ref().is_some_and(|(document, _, _)| {
@@ -404,9 +495,13 @@ impl DraftProxy {
             if has_customer_auth_mutation {
                 self.record_storefront_customer_auth_log_entry(
                     request,
-                    selected_query.as_deref().unwrap_or(&graphql_request.query),
                     variables,
-                    &document.root_fields,
+                    document.operation_type,
+                    &document
+                        .root_fields
+                        .iter()
+                        .map(|field| field.name.clone())
+                        .collect::<Vec<_>>(),
                     StorefrontCustomerAuthLogDetails {
                         status: "rejected",
                         execution: "stage-locally",
@@ -446,7 +541,7 @@ impl DraftProxy {
             _ => StorefrontExecutionMode::Passthrough,
         };
 
-        let engine_query = storefront_engine_query(&graphql_request.query);
+        let engine_query = storefront_engine_query(&graphql_request.query, schema);
         let engine_variables = resolved_variables_json(&graphql_request.variables);
         let engine_operation_name = graphql_request.operation_name;
         let calls = prepared
@@ -455,6 +550,8 @@ impl DraftProxy {
             .unwrap_or_default();
         let passthrough_response = Arc::new(std::sync::Mutex::new(None));
         let passthrough_for_executor = Arc::clone(&passthrough_response);
+        let null_list_item_paths = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let null_list_item_paths_for_engine = Arc::clone(&null_list_item_paths);
         let engine_response = with_request_owned_proxy(self, move |shared_proxy| {
             let executor: Arc<dyn RootFieldExecutor> = Arc::new(StorefrontRootExecutor {
                 proxy: shared_proxy,
@@ -467,7 +564,10 @@ impl DraftProxy {
             });
             let mut engine_request = async_graphql::Request::new(engine_query)
                 .variables(async_graphql::Variables::from_json(engine_variables))
-                .data(RootExecutionContext { executor });
+                .data(RootExecutionContext::with_null_list_item_paths(
+                    executor,
+                    null_list_item_paths_for_engine,
+                ));
             if let Some(operation_name) = engine_operation_name {
                 engine_request = engine_request.operation_name(operation_name);
             }
@@ -503,19 +603,8 @@ impl DraftProxy {
             prepared.as_ref().map(|(document, _, _)| document),
             selected_query.as_deref().unwrap_or(&graphql_request.query),
         );
-        if mode == StorefrontExecutionMode::LocalRead {
-            if let Some((document, variables, _)) = prepared.as_ref() {
-                let context = storefront_request_context(
-                    selected_query.as_deref().unwrap_or(&graphql_request.query),
-                    variables,
-                );
-                let local_body = json!({
-                    "data": self.storefront_local_query_data(&document.root_fields, &context)
-                });
-                if storefront_errors_only_expand_null_local_values(&body, &local_body) {
-                    body = local_body;
-                }
-            }
+        if let Ok(paths) = null_list_item_paths.lock() {
+            apply_null_list_item_paths(&mut body, &paths);
         }
         ok_json(body)
     }
@@ -541,98 +630,6 @@ impl DraftProxy {
         )
         .unwrap_or_else(|_| graphql_request.variables.clone());
         self.storefront_snapshot_graphql_response(&graphql_request.query, &variables, None)
-    }
-}
-
-fn storefront_errors_only_expand_null_local_values(
-    engine_body: &Value,
-    local_body: &Value,
-) -> bool {
-    let Some(errors) = engine_body.get("errors").and_then(Value::as_array) else {
-        return false;
-    };
-    !errors.is_empty()
-        && errors.iter().all(|error| {
-            if let Some(path) = error.get("path").and_then(Value::as_array) {
-                let message = error.get("message").and_then(Value::as_str);
-                if message.is_some_and(|message| {
-                    message.starts_with("Storefront snapshot has no value for non-null root")
-                        || message.starts_with("Local resolver did not implement")
-                }) && storefront_path_value(local_body.pointer("/data"), path)
-                    .is_some_and(|value| !value.is_null())
-                {
-                    return true;
-                }
-                return message.is_some_and(|message| {
-                    message.contains("invalid value for interface")
-                        || message.contains("\"null\" is not of the expected type")
-                }) && storefront_path_descends_through_local_null(
-                    local_body.pointer("/data"),
-                    path,
-                );
-            }
-            error
-                .get("message")
-                .and_then(Value::as_str)
-                .is_some_and(|message| message.contains("\"null\" is not of the expected type"))
-                && storefront_local_data_contains_null_list_item(local_body.pointer("/data"))
-        })
-}
-
-fn storefront_path_value<'a>(root: Option<&'a Value>, path: &[Value]) -> Option<&'a Value> {
-    let mut value = root?;
-    for segment in path {
-        value = match value {
-            Value::Object(fields) => fields.get(segment.as_str()?)?,
-            Value::Array(items) => items.get(segment.as_u64()? as usize)?,
-            _ => return None,
-        };
-    }
-    Some(value)
-}
-
-fn storefront_path_descends_through_local_null(root: Option<&Value>, path: &[Value]) -> bool {
-    let Some(mut value) = root else {
-        return false;
-    };
-    for (index, segment) in path.iter().enumerate() {
-        if value.is_null() {
-            return index < path.len();
-        }
-        match value {
-            Value::Object(fields) => {
-                let Some(field) = segment.as_str() else {
-                    return false;
-                };
-                let Some(next) = fields.get(field) else {
-                    return false;
-                };
-                value = next;
-            }
-            Value::Array(items) => {
-                let Some(index) = segment.as_u64().map(|index| index as usize) else {
-                    return false;
-                };
-                let Some(next) = items.get(index) else {
-                    return false;
-                };
-                value = next;
-            }
-            _ => return false,
-        }
-    }
-    value.is_null()
-}
-
-fn storefront_local_data_contains_null_list_item(root: Option<&Value>) -> bool {
-    match root {
-        Some(Value::Array(items)) => items.iter().any(|item| {
-            item.is_null() || storefront_local_data_contains_null_list_item(Some(item))
-        }),
-        Some(Value::Object(fields)) => fields
-            .values()
-            .any(|value| storefront_local_data_contains_null_list_item(Some(value))),
-        _ => false,
     }
 }
 
@@ -719,7 +716,11 @@ fn storefront_root_result(
             locations: Vec::new(),
         });
     }
-    RootFieldResult { value, errors }
+    RootFieldResult {
+        value,
+        errors,
+        value_source: ResolverValueSource::Upstream,
+    }
 }
 
 /// `async-graphql` dynamic schemas cannot register executable custom directive
@@ -727,7 +728,7 @@ fn storefront_root_result(
 /// resolver from the original document, so remove that one directive from the
 /// engine-only copy and remove variables that were used only by it. Every
 /// other directive remains under normal engine validation.
-fn storefront_engine_query(query: &str) -> String {
+fn storefront_engine_query(query: &str, schema: &async_graphql::dynamic::Schema) -> String {
     let Ok(mut document) = parse_query::<String>(query) else {
         return query.to_string();
     };
@@ -764,7 +765,10 @@ fn storefront_engine_query(query: &str) -> String {
         definitions
             .retain(|definition| variable_occurrences(&without_context, &definition.name) > 1);
     }
-    document.format(&Style::default())
+    storefront_graphql::expand_dynamic_union_fragment_spreads(
+        schema,
+        &document.format(&Style::default()),
+    )
 }
 
 fn variable_occurrences(query: &str, variable_name: &str) -> usize {
@@ -783,6 +787,7 @@ fn variable_occurrences(query: &str, variable_name: &str) -> usize {
 #[cfg(test)]
 mod tests {
     use super::storefront_engine_query;
+    use crate::storefront_graphql::{schema, StorefrontApiVersion};
 
     #[test]
     fn engine_copy_removes_in_context_and_its_exclusive_variables() {
@@ -792,7 +797,8 @@ mod tests {
               shop { name @include(if: $include) }
             }
         "#;
-        let engine_query = storefront_engine_query(query);
+        let engine_query =
+            storefront_engine_query(query, schema(StorefrontApiVersion::V2026_04).unwrap());
         assert!(!engine_query.contains("@inContext"));
         assert!(!engine_query.contains("$country"));
         assert!(!engine_query.contains("$language"));

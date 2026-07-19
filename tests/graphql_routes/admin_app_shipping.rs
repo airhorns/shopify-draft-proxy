@@ -2117,6 +2117,16 @@ fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
         read.body["data"]["bulkOperation"]["fileSize"],
         json!(artifact.body.as_str().unwrap().len().to_string())
     );
+    let artifact_row: Value =
+        serde_json::from_str(artifact.body.as_str().unwrap().lines().next().unwrap()).unwrap();
+    let artifact_product = artifact_row["data"]["productCreate"]["product"]
+        .as_object()
+        .unwrap();
+    assert_eq!(
+        artifact_product.keys().cloned().collect::<Vec<_>>(),
+        vec!["id".to_string(), "title".to_string()],
+        "bulk result rows must contain only fields selected by the inner mutation"
+    );
 }
 
 #[test]

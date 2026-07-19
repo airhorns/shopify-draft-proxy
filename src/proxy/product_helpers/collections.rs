@@ -84,7 +84,6 @@ pub(in crate::proxy) struct CollectionProductEntry {
     pub(in crate::proxy) position: usize,
     pub(in crate::proxy) product: ProductRecord,
     pub(in crate::proxy) variants: Vec<ProductVariantRecord>,
-    pub(in crate::proxy) published_on_current_publication: Option<bool>,
 }
 
 #[derive(Clone, Copy)]
@@ -103,78 +102,6 @@ enum CollectionProductSortKey {
 struct CollectionProductSortPlan {
     key: CollectionProductSortKey,
     descending: bool,
-}
-
-fn collection_json(
-    collection: &Value,
-    products: Vec<CollectionProductEntry>,
-    selections: &[SelectedField],
-    shop_currency_code: &str,
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "products" => Some(collection_products_connection_json(
-            collection,
-            products.clone(),
-            selection,
-            shop_currency_code,
-        )),
-        "hasProduct" => {
-            let product_id = resolved_string_field(&selection.arguments, "id").unwrap_or_default();
-            let has_product = products.iter().any(|entry| entry.product.id == product_id);
-            Some(json!(has_product))
-        }
-        "productsCount" => Some(if collection_is_smart(collection) {
-            selected_count_json(products.len(), &selection.selection)
-        } else {
-            collection
-                .get("productsCount")
-                .map(|count| selected_json(count, &selection.selection))
-                .unwrap_or_else(|| {
-                    let count = collection
-                        .get("products")
-                        .and_then(|connection| connection.get("nodes"))
-                        .and_then(Value::as_array)
-                        .map(Vec::len)
-                        .unwrap_or(0);
-                    selected_count_json(count, &selection.selection)
-                })
-        }),
-        "ruleSet" => Some(collection.get("ruleSet").cloned().unwrap_or(Value::Null)),
-        "sortOrder" => Some(
-            collection
-                .get("sortOrder")
-                .cloned()
-                .unwrap_or_else(|| json!("BEST_SELLING")),
-        ),
-        _ => collection.get(&selection.name).cloned(),
-    })
-}
-
-fn collection_products_connection_json(
-    collection: &Value,
-    mut products: Vec<CollectionProductEntry>,
-    selection: &SelectedField,
-    shop_currency_code: &str,
-) -> Value {
-    let sort_key = resolved_string_field(&selection.arguments, "sortKey");
-    let reverse = resolved_bool_field(&selection.arguments, "reverse").unwrap_or(false);
-    sort_collection_product_entries(collection, &mut products, sort_key.as_deref(), reverse);
-
-    selected_typed_connection_with_args(
-        &products,
-        &selection.arguments,
-        &selection.selection,
-        |entry, selections| {
-            product_json_with_variants_and_currency_and_publication_context(
-                &entry.product,
-                &entry.variants,
-                selections,
-                shop_currency_code,
-                entry.published_on_current_publication,
-            )
-        },
-        collection_product_cursor,
-    )
 }
 
 pub(in crate::proxy) fn sort_collection_product_entries(
@@ -199,26 +126,15 @@ pub(in crate::proxy) fn sort_collection_product_entries(
     }
 }
 
-fn publication_products_connection_json(
-    products: Vec<CollectionProductEntry>,
-    selection: &SelectedField,
-    shop_currency_code: &str,
-) -> Value {
-    selected_typed_connection_with_args(
-        &products,
-        &selection.arguments,
-        &selection.selection,
-        |entry, selections| {
-            product_json_with_variants_and_currency_and_publication_context(
-                &entry.product,
-                &entry.variants,
-                selections,
-                shop_currency_code,
-                entry.published_on_current_publication,
-            )
-        },
-        collection_product_cursor,
-    )
+fn sorted_collection_product_entries(
+    collection: &Value,
+    mut products: Vec<CollectionProductEntry>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Vec<CollectionProductEntry> {
+    let sort_key = resolved_string_field(arguments, "sortKey");
+    let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
+    sort_collection_product_entries(collection, &mut products, sort_key.as_deref(), reverse);
+    products
 }
 
 fn collection_product_sort_plan(
@@ -352,6 +268,310 @@ pub(in crate::proxy) fn collection_product_cursor(entry: &CollectionProductEntry
     entry.product.id.clone()
 }
 
+pub(in crate::proxy) fn collection_products_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    let (collection, entries) = collection_field_product_entries(proxy, invocation);
+    if collection
+        .get(OBSERVED_COLLECTION_BASELINE_FIELD)
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        if let Some(connection) = collection.get("products") {
+            return Ok(observed_collection_products_connection(
+                proxy, connection, &arguments,
+            ));
+        }
+    }
+    let products = sorted_collection_product_entries(&collection, entries, &arguments);
+    let (products, page_info) = connection_window(&products, &arguments, collection_product_cursor);
+    Ok(typed_connection_value(
+        &products,
+        |entry| proxy.product_canonical_value(&entry.product),
+        collection_product_cursor,
+        page_info,
+    ))
+}
+
+pub(in crate::proxy) fn collection_has_product_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let product_id = invocation
+        .arguments
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let (_, entries) = collection_field_product_entries(proxy, invocation);
+    Ok(json!(entries
+        .iter()
+        .any(|entry| entry.product.id == product_id)))
+}
+
+pub(in crate::proxy) fn collection_products_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let (collection, entries) = collection_field_product_entries(proxy, invocation);
+    if collection
+        .get(OBSERVED_COLLECTION_BASELINE_FIELD)
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        if let Some(count) = collection.get("productsCount") {
+            return Ok(count.clone());
+        }
+    }
+    if collection_is_smart(&collection) {
+        return Ok(count_object(entries.len()));
+    }
+    Ok(invocation
+        .parent
+        .get("productsCount")
+        .cloned()
+        .unwrap_or_else(|| {
+            count_object(
+                invocation
+                    .parent
+                    .get("products")
+                    .and_then(|connection| connection.get("nodes"))
+                    .and_then(Value::as_array)
+                    .map(Vec::len)
+                    .unwrap_or(0),
+            )
+        }))
+}
+
+fn observed_collection_products_connection(
+    proxy: &DraftProxy,
+    connection: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let mut connection = seeded_connection_value(connection, arguments);
+    if let Some(nodes) = connection.get_mut("nodes").and_then(Value::as_array_mut) {
+        for node in nodes {
+            replace_observed_collection_product_node(proxy, node);
+        }
+    }
+    if let Some(edges) = connection.get_mut("edges").and_then(Value::as_array_mut) {
+        for edge in edges {
+            if let Some(node) = edge.get_mut("node") {
+                replace_observed_collection_product_node(proxy, node);
+            }
+        }
+    }
+    connection
+}
+
+fn replace_observed_collection_product_node(proxy: &DraftProxy, node: &mut Value) {
+    let Some(product) = node
+        .get("id")
+        .and_then(Value::as_str)
+        .and_then(|id| proxy.store.product_by_id(id))
+    else {
+        return;
+    };
+    *node = proxy.product_canonical_value(product);
+}
+
+fn collection_parent_id(invocation: &crate::admin_graphql::FieldResolverInvocation<'_>) -> String {
+    invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+pub(in crate::proxy) fn collection_published_on_publication_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let publication_id = invocation
+        .arguments
+        .get("publicationId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(json!(proxy
+        .resource_publication_set(&collection_parent_id(invocation))
+        .contains(publication_id)))
+}
+
+pub(in crate::proxy) fn collection_published_on_current_publication_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(json!(proxy
+        .store
+        .resource_is_published_on_current_publication(
+            &collection_parent_id(invocation)
+        )))
+}
+
+pub(in crate::proxy) fn collection_publications_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let id = collection_parent_id(invocation);
+    let publications = proxy.resource_publication_set(&id);
+    Ok(count_object(
+        proxy.publishable_live_publication_count(&id, &publications),
+    ))
+}
+
+pub(in crate::proxy) fn collection_publication_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(json!(proxy
+        .resource_publication_set(&collection_parent_id(invocation))
+        .len()))
+}
+
+pub(in crate::proxy) fn publication_products_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let publication_id = invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    let products = proxy.publication_product_entries(publication_id);
+    let (products, page_info) = connection_window(&products, &arguments, collection_product_cursor);
+    Ok(typed_connection_value(
+        &products,
+        |entry| proxy.product_canonical_value(&entry.product),
+        collection_product_cursor,
+        page_info,
+    ))
+}
+
+pub(in crate::proxy) fn publication_product_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let publication_id = invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(count_object(proxy.publication_resource_count(
+        Some(publication_id),
+        "Product",
+    )))
+}
+
+pub(in crate::proxy) fn publication_collections_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let publication_id = invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(count_object(proxy.publication_resource_count(
+        Some(publication_id),
+        "Collection",
+    )))
+}
+
+pub(in crate::proxy) fn publication_channels_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let channel = invocation
+        .parent
+        .get("channel")
+        .cloned()
+        .filter(Value::is_object)
+        .map(|channel| proxy.channel_canonical_value(channel));
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    Ok(connection_value_with_args(
+        channel.into_iter().collect(),
+        &arguments,
+        value_id_cursor,
+    ))
+}
+
+pub(in crate::proxy) fn publication_channel_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(invocation
+        .parent
+        .get("channel")
+        .cloned()
+        .filter(Value::is_object)
+        .map(|channel| proxy.channel_canonical_value(channel))
+        .unwrap_or(Value::Null))
+}
+
+pub(in crate::proxy) fn channel_products_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let channel_id = invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let count = proxy
+        .publication_by_channel_id(channel_id)
+        .map(|(publication_id, _)| {
+            proxy.publication_resource_count(Some(&publication_id), "Product")
+        })
+        .unwrap_or(0);
+    Ok(count_object(count))
+}
+
+fn collection_field_value(
+    proxy: &DraftProxy,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Value {
+    if invocation.parent.get("products").is_some() {
+        return invocation.parent.clone();
+    }
+    invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .and_then(|id| proxy.store.collection_by_id(id))
+        .cloned()
+        .unwrap_or_else(|| invocation.parent.clone())
+}
+
+fn collection_field_product_entries(
+    proxy: &DraftProxy,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> (Value, Vec<CollectionProductEntry>) {
+    let has_payload_membership = invocation.parent.get("products").is_some();
+    let collection = collection_field_value(proxy, invocation);
+    let entries = if has_payload_membership {
+        proxy.explicit_collection_product_entries(&collection)
+    } else {
+        proxy.collection_product_entries(&collection)
+    };
+    (collection, entries)
+}
+
 pub(in crate::proxy) fn collection_passthrough_hydration_ids(
     root_field: &str,
     response: &Response,
@@ -421,112 +641,221 @@ fn merge_observed_collection_into_local(local: &Value, observed: &Value) -> Valu
 }
 
 impl DraftProxy {
-    /// In live-hybrid mode a `collection(id:)` read for a collection that was
-    /// never staged locally must read through to upstream (the recorded
-    /// cassette) rather than fabricate a `null`. Mirrors the location overlay
-    /// read-through guard. Returns true only when there is a by-id collection
-    /// field whose target is absent from local overlay state.
-    pub(in crate::proxy) fn collection_read_needs_upstream(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> bool {
-        if self.config.read_mode != ReadMode::LiveHybrid {
-            return false;
-        }
-        fields.iter().any(|field| {
-            field.name == "collection"
-                && resolved_string_field(&field.arguments, "id")
-                    .map(|id| {
-                        !id.is_empty()
-                            && self.store.collection_by_id(&id).is_none()
-                            // A locally-deleted (tombstoned) collection is served from
-                            // local state for read-after-delete; only a genuinely
-                            // unknown collection forwards to hydrate from upstream.
-                            && !self.store.collection_is_deleted(&id)
-                    })
-                    .unwrap_or(false)
-        })
+    pub(crate) fn collection_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let id = invocation
+            .arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        let identifier = BTreeMap::from([("id".to_string(), ResolvedValue::String(id.clone()))]);
+        self.hydrate_collection_identifier_if_needed(&invocation, &identifier, None);
+        let value = self.collection_canonical_value_by_id(&id);
+        ResolverOutcome::value(
+            if value.is_null() && self.owner_has_metafield_local_effects(&id) {
+                json!({ "__typename": "Collection", "id": id })
+            } else {
+                value
+            },
+        )
     }
 
-    pub(in crate::proxy) fn collection_identifier_read_needs_upstream(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> bool {
-        if self.config.read_mode != ReadMode::LiveHybrid {
-            return false;
+    pub(crate) fn collections_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        if self.config.read_mode == ReadMode::Live
+            || (self.config.read_mode != ReadMode::Snapshot && !self.store.has_collection_state())
+        {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
         }
-        fields.iter().any(|field| match field.name.as_str() {
-            "collectionByIdentifier" => {
-                let Some(identifier) = resolved_object_field(&field.arguments, "identifier") else {
-                    return false;
-                };
-                if let Some(id) = resolved_string_field(&identifier, "id")
-                    .map(|id| id.trim().to_string())
-                    .filter(|id| !id.is_empty())
-                {
-                    return self.store.collection_by_id(&id).is_none()
-                        && !self.store.collection_is_deleted(&id);
-                }
-                if let Some(handle) = resolved_string_field(&identifier, "handle")
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        if self.config.read_mode == ReadMode::LiveHybrid {
+            self.hydrate_collections_for_read(invocation.request, Some(&arguments));
+        }
+        let result = self.matching_collections_query(&arguments);
+        ResolverOutcome::value(typed_connection_value(
+            &result.records,
+            |collection| self.collection_canonical_value(collection),
+            value_id_cursor,
+            result.page_info,
+        ))
+    }
+
+    pub(crate) fn collections_count_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        if self.config.read_mode == ReadMode::Live
+            || (self.config.read_mode != ReadMode::Snapshot && !self.store.has_collection_state())
+        {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        if self.config.read_mode == ReadMode::LiveHybrid {
+            let upstream_data = self.hydrate_collections_for_read(invocation.request, None);
+            if let Some((base_count, precision)) =
+                upstream_count_value(invocation.response_key, upstream_data.as_ref())
+            {
+                let count = self.adjusted_collections_count_from_upstream(
+                    base_count,
+                    &arguments,
+                    upstream_data.as_ref(),
+                );
+                return ResolverOutcome::value(count_with_limit_precision_from_upstream(
+                    count, &precision, &arguments,
+                ));
+            }
+        }
+        ResolverOutcome::value(snapshot_count_with_limit_precision(
+            self.matching_collections_query(&arguments).total_count,
+            &arguments,
+        ))
+    }
+
+    pub(crate) fn collection_by_identifier_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let identifier = resolved_object_field(&arguments, "identifier").unwrap_or_default();
+        self.hydrate_collection_identifier_if_needed(&invocation, &identifier, None);
+        let value = if let Some(id) = resolved_string_field(&identifier, "id") {
+            self.collection_canonical_value_by_id(&id)
+        } else if let Some(handle) = resolved_string_field(&identifier, "handle") {
+            self.collection_canonical_value_by_handle(&handle)
+        } else {
+            Value::Null
+        };
+        ResolverOutcome::value(value)
+    }
+
+    pub(crate) fn collection_by_handle_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let handle = invocation
+            .arguments
+            .get("handle")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        self.hydrate_collection_identifier_if_needed(&invocation, &BTreeMap::new(), Some(&handle));
+        ResolverOutcome::value(self.collection_canonical_value_by_handle(&handle))
+    }
+
+    fn hydrate_collection_identifier_if_needed(
+        &mut self,
+        invocation: &RootInvocation<'_>,
+        identifier: &BTreeMap<String, ResolvedValue>,
+        direct_handle: Option<&str>,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let id = resolved_string_field(identifier, "id")
+            .map(|id| id.trim().to_string())
+            .filter(|id| !id.is_empty());
+        let handle = direct_handle
+            .map(str::trim)
+            .filter(|handle| !handle.is_empty())
+            .map(str::to_string)
+            .or_else(|| {
+                resolved_string_field(identifier, "handle")
                     .map(|handle| handle.trim().to_string())
                     .filter(|handle| !handle.is_empty())
-                {
-                    return self.store.collection_by_handle(&handle).is_none()
-                        && !self.store.collection_handle_is_deleted(&handle);
-                }
-                false
-            }
-            "collectionByHandle" => resolved_string_field(&field.arguments, "handle")
-                .map(|handle| handle.trim().to_string())
-                .filter(|handle| !handle.is_empty())
-                .map(|handle| {
-                    self.store.collection_by_handle(&handle).is_none()
-                        && !self.store.collection_handle_is_deleted(&handle)
-                })
-                .unwrap_or(false),
-            _ => false,
-        })
+            });
+        let needs_upstream = id.as_deref().is_some_and(|id| {
+            self.store.collection_by_id(id).is_none()
+                && !self.store.collection_is_deleted(id)
+                && !self
+                    .execution_session
+                    .owner_metafield_hydrated_ids
+                    .contains(id)
+        }) || handle.as_deref().is_some_and(|handle| {
+            self.store.collection_by_handle(handle).is_none()
+                && !self.store.collection_handle_is_deleted(handle)
+        });
+        if !needs_upstream {
+            return;
+        }
+        let response = (self.upstream_transport)(invocation.request.clone());
+        if response.status < 400 {
+            self.observe_collections_read_response(&response);
+        }
     }
 
-    pub(in crate::proxy) fn collection_membership_downstream_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        self.collection_membership_downstream_read_data_with_upstream(fields, None)
+    pub(in crate::proxy) fn collection_canonical_value_by_id(&self, id: &str) -> Value {
+        let id = id.trim();
+        if id.is_empty() || self.store.collection_is_deleted(id) {
+            return Value::Null;
+        }
+        self.store
+            .collection_by_id(id)
+            .map(|collection| self.collection_canonical_value(collection))
+            .unwrap_or(Value::Null)
     }
 
-    pub(in crate::proxy) fn collection_membership_downstream_read_data_with_upstream(
-        &self,
-        fields: &[RootFieldSelection],
-        upstream_data: Option<&Value>,
-    ) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "collection" => self.collection_membership_value(field),
-                "collectionByIdentifier" => self.collection_by_identifier_value(field),
-                "collectionByHandle" => self.collection_by_handle_value(field),
-                "collections" => self.collections_connection_field(field),
-                "collectionsCount" => {
-                    self.collections_count_field_with_upstream(field, upstream_data)
-                }
-                "product" => self.product_by_id_field(field),
-                "job" => self.collection_job_read(field),
-                _ => return None,
-            })
-        })
+    fn collection_canonical_value_by_handle(&self, handle: &str) -> Value {
+        let handle = handle.trim();
+        if handle.is_empty() {
+            return Value::Null;
+        }
+        self.store
+            .collection_by_handle(handle)
+            .map(|collection| self.collection_canonical_value(collection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn collection_canonical_value(&self, collection: &Value) -> Value {
+        let mut value = collection.clone();
+        if let Some(object) = value.as_object_mut() {
+            object.insert("__typename".to_string(), json!("Collection"));
+            object.remove("products");
+            object.remove("defaultProducts");
+            object.remove("manualProducts");
+            object.entry("ruleSet".to_string()).or_insert(Value::Null);
+            object
+                .entry("sortOrder".to_string())
+                .or_insert_with(|| json!("BEST_SELLING"));
+        }
+        value
     }
 
     pub(in crate::proxy) fn hydrate_collections_for_read(
         &mut self,
         request: &Request,
-        fields: &[RootFieldSelection],
+        identity_arguments: Option<&BTreeMap<String, ResolvedValue>>,
     ) -> Option<Value> {
         let response = (self.upstream_transport)(request.clone());
         if response.status < 400 {
             self.observe_collections_read_response(&response);
         }
         let upstream_data = response.body.get("data").cloned();
-        self.hydrate_collection_identities_for_read(request, fields);
+        if let Some(arguments) = identity_arguments {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": COLLECTIONS_IDENTITY_HYDRATE_QUERY,
+                    "operationName": "CollectionsIdentityHydrate",
+                    "variables": collection_identity_hydrate_variables(arguments),
+                }),
+            );
+            if response.status < 400 {
+                self.observe_collections_read_response(&response);
+            }
+        }
         upstream_data
     }
 
@@ -580,63 +909,14 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn collections_connection_field(
-        &self,
-        field: &RootFieldSelection,
-    ) -> Value {
-        let result = self.matching_collections_query(&field.arguments);
-        let shop_currency_code = self.store.shop_currency_code();
-        selected_typed_connection_with_page_info(
-            &result.records,
-            &field.selection,
-            |collection, selections| {
-                collection_json(
-                    collection,
-                    self.collection_product_entries(collection),
-                    selections,
-                    &shop_currency_code,
-                )
-            },
-            value_id_cursor,
-            result.page_info,
-        )
-    }
-
-    pub(in crate::proxy) fn collections_count_field(&self, field: &RootFieldSelection) -> Value {
-        self.collections_count_field_with_upstream(field, None)
-    }
-
-    fn collections_count_field_with_upstream(
-        &self,
-        field: &RootFieldSelection,
-        upstream_data: Option<&Value>,
-    ) -> Value {
-        if let Some((base_count, precision)) = upstream_count_field(field, upstream_data) {
-            let count =
-                self.adjusted_collections_count_from_upstream(base_count, field, upstream_data);
-            return selected_json(
-                &count_with_limit_precision_from_upstream(count, &precision, &field.arguments),
-                &field.selection,
-            );
-        }
-        selected_json(
-            &snapshot_count_with_limit_precision(
-                self.matching_collections_query(&field.arguments)
-                    .total_count,
-                &field.arguments,
-            ),
-            &field.selection,
-        )
-    }
-
     fn adjusted_collections_count_from_upstream(
         &self,
         base_count: u64,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
         upstream_data: Option<&Value>,
     ) -> usize {
         let mut count = usize::try_from(base_count).unwrap_or(usize::MAX);
-        let query = resolved_string_field(&field.arguments, "query");
+        let query = resolved_string_field(arguments, "query");
         let query = query.as_deref();
         let upstream_identities = upstream_collection_identities(upstream_data);
         if query.map(str::trim).is_none_or(str::is_empty) {
@@ -656,29 +936,6 @@ impl DraftProxy {
             }
         }
         count
-    }
-
-    fn hydrate_collection_identities_for_read(
-        &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-    ) {
-        for field in fields
-            .iter()
-            .filter(|field| collection_field_needs_identity_hydration(field))
-        {
-            let response = self.upstream_post(
-                request,
-                json!({
-                    "query": COLLECTIONS_IDENTITY_HYDRATE_QUERY,
-                    "operationName": "CollectionsIdentityHydrate",
-                    "variables": collection_identity_hydrate_variables(&field.arguments),
-                }),
-            );
-            if response.status < 400 {
-                self.observe_collections_read_response(&response);
-            }
-        }
     }
 
     pub(in crate::proxy) fn collection_search_decision(
@@ -719,6 +976,141 @@ impl DraftProxy {
     /// `publishedProductsCount` roots from upstream passthrough to local replay.
     pub(in crate::proxy) fn publication_engine_active(&self) -> bool {
         !self.store.staged.publications.is_empty()
+    }
+
+    pub(crate) fn publication_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        if !self.publication_engine_active() {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        let id = invocation
+            .arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        ResolverOutcome::value(
+            self.store
+                .staged
+                .publications
+                .get(id)
+                .map(|record| self.publication_canonical_value(record))
+                .unwrap_or(Value::Null),
+        )
+    }
+
+    pub(crate) fn channel_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        if !self.publication_engine_active() {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        let id = invocation
+            .arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        ResolverOutcome::value(
+            self.publication_by_channel_id(id)
+                .and_then(|(_, record)| record.get("channel").cloned())
+                .map(|channel| self.channel_canonical_value(channel))
+                .unwrap_or(Value::Null),
+        )
+    }
+
+    pub(crate) fn channels_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        if !self.publication_engine_active() {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let mut channels = self
+            .store
+            .staged
+            .publications
+            .values()
+            .filter_map(|record| record.get("channel").cloned())
+            .map(|channel| self.channel_canonical_value(channel))
+            .collect::<Vec<_>>();
+        channels.sort_by_key(|channel| {
+            channel
+                .get("id")
+                .and_then(Value::as_str)
+                .map(resource_id_path_tail)
+                .and_then(|suffix| suffix.parse::<u64>().ok())
+                .unwrap_or(u64::MAX)
+        });
+        ResolverOutcome::value(connection_value_with_args(
+            channels,
+            &arguments,
+            value_id_cursor,
+        ))
+    }
+
+    pub(crate) fn publications_count_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        if !self.publication_engine_active() {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        ResolverOutcome::value(snapshot_count_with_limit_precision(
+            self.store.staged.publications.len(),
+            &arguments,
+        ))
+    }
+
+    pub(crate) fn published_products_count_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        if !self.publication_engine_active() {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let publication_id = resolved_string_field(&arguments, "publicationId");
+        ResolverOutcome::value(snapshot_count_with_limit_precision(
+            self.publication_resource_count(publication_id.as_deref(), "Product"),
+            &arguments,
+        ))
+    }
+
+    fn publication_canonical_value(&self, record: &Value) -> Value {
+        let mut value = record.clone();
+        if let Some(object) = value.as_object_mut() {
+            object.insert("__typename".to_string(), json!("Publication"));
+            if let Some(channel) = object.get("channel").cloned() {
+                object.insert("channel".to_string(), self.channel_canonical_value(channel));
+            }
+        }
+        value
+    }
+
+    fn channel_canonical_value(&self, mut channel: Value) -> Value {
+        if let Some(object) = channel.as_object_mut() {
+            object.insert("__typename".to_string(), json!("Channel"));
+        }
+        channel
     }
 
     /// Discover a publishable resource's pre-existing publication membership by
@@ -790,32 +1182,6 @@ impl DraftProxy {
                 }
             }
         }
-    }
-
-    /// Render a multi-root publication read operation
-    /// (`publication`/`channel`/`channels`/`publicationsCount`/
-    /// `publishedProductsCount` plus any `product`/`collection` publication
-    /// fields) entirely from local publication state.
-    pub(in crate::proxy) fn publication_roots_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "publication" => self.publication_root_value(field),
-                "channel" => self.channel_root_value(field),
-                "channels" => self.channels_root_value(field),
-                "publicationsCount" => count_object(self.store.staged.publications.len()),
-                "publishedProductsCount" => {
-                    let publication_id = resolved_string_field(&field.arguments, "publicationId");
-                    count_object(
-                        self.publication_resource_count(publication_id.as_deref(), "Product"),
-                    )
-                }
-                "product" | "collection" => self.publishable_resource_root_value(field),
-                _ => return None,
-            })
-        })
     }
 
     /// The set of publication gids a resource (product/collection) is published on.
@@ -973,44 +1339,6 @@ impl DraftProxy {
             })
     }
 
-    fn publication_root_value(&self, field: &RootFieldSelection) -> Value {
-        let Some(id) = resolved_string_field(&field.arguments, "id") else {
-            return Value::Null;
-        };
-        let Some(record) = self.store.staged.publications.get(&id) else {
-            return Value::Null;
-        };
-        let product_entries = self.publication_product_entries(&id);
-        let product_count = product_entries.len();
-        let collection_count = self.publication_resource_count(Some(&id), "Collection");
-        let shop_currency_code = self.store.shop_currency_code();
-        selected_payload_json(&field.selection, |selection| {
-            match selection.name.as_str() {
-                "products" => Some(publication_products_connection_json(
-                    product_entries.clone(),
-                    selection,
-                    &shop_currency_code,
-                )),
-                "includedProductsCount" | "publishedProductsCount" => {
-                    Some(selected_count_json(product_count, &selection.selection))
-                }
-                "collectionsCount" => {
-                    Some(selected_count_json(collection_count, &selection.selection))
-                }
-                "channel" => {
-                    let mut channel = record.get("channel").cloned().unwrap_or(Value::Null);
-                    if channel.is_object() {
-                        channel["productsCount"] = count_object(product_count);
-                    }
-                    Some(nullable_selected_json(&channel, &selection.selection))
-                }
-                _ => record
-                    .get(&selection.name)
-                    .map(|value| nullable_selected_json(value, &selection.selection)),
-            }
-        })
-    }
-
     fn publication_product_entries(&self, publication_id: &str) -> Vec<CollectionProductEntry> {
         self.publication_resource_ids(Some(publication_id), "Product")
             .into_iter()
@@ -1018,176 +1346,27 @@ impl DraftProxy {
             .filter_map(|(position, resource_id)| {
                 let product = self.product_record_by_id(&resource_id)?.clone();
                 let variants = self.store.product_variants_for_product(&product.id);
-                let published_on_current_publication = Some(
-                    self.store
-                        .product_is_published_on_current_publication(&product),
-                );
                 Some(CollectionProductEntry {
                     position,
                     product,
                     variants,
-                    published_on_current_publication,
                 })
             })
             .collect()
     }
 
-    fn channel_root_value(&self, field: &RootFieldSelection) -> Value {
-        let Some(channel_id) = resolved_string_field(&field.arguments, "id") else {
-            return Value::Null;
-        };
-        let Some((publication_id, record)) = self.publication_by_channel_id(&channel_id) else {
-            return Value::Null;
-        };
-        let mut channel = record.get("channel").cloned().unwrap_or(Value::Null);
-        if channel.is_object() {
-            let product_count = self.publication_resource_count(Some(&publication_id), "Product");
-            channel["productsCount"] = count_object(product_count);
-        }
-        selected_json(&channel, &field.selection)
-    }
-
-    fn channels_root_value(&self, field: &RootFieldSelection) -> Value {
-        // Order channels by their publication's numeric id suffix so cursors and
-        // node order are deterministic regardless of map key string ordering.
-        let mut channels: Vec<Value> = self
-            .store
-            .staged
-            .publications
-            .values()
-            .filter_map(|record| record.get("channel").cloned())
-            .collect();
-        channels.sort_by_key(|channel| {
-            channel
-                .get("id")
-                .and_then(Value::as_str)
-                .map(resource_id_path_tail)
-                .and_then(|suffix| suffix.parse::<u64>().ok())
-                .unwrap_or(u64::MAX)
-        });
-        let cursors: Vec<String> = channels
-            .iter()
-            .filter_map(|channel| channel.get("id").and_then(Value::as_str))
-            .map(|id| format!("cursor:{id}"))
-            .collect();
-        let connection = json!({
-            "nodes": channels,
-            "pageInfo": connection_page_info(
-                false,
-                false,
-                cursors.first().cloned(),
-                cursors.last().cloned()
-            )
-        });
-        selected_json(&connection, &field.selection)
-    }
-
-    fn publishable_resource_root_value(&self, field: &RootFieldSelection) -> Value {
-        let Some(resource_id) = resolved_string_field(&field.arguments, "id") else {
-            return Value::Null;
-        };
-        // The resource is unknown to the publication engine (never seeded or
-        // published) -> null, mirroring Shopify's null for a missing node.
-        if !self
-            .store
-            .staged
-            .resource_publications
-            .contains_key(&resource_id)
-            && self.product_record_by_id(&resource_id).is_none()
-        {
-            return Value::Null;
-        }
-        self.publishable_resource_value(&resource_id, &field.selection)
-    }
-
-    /// Resolve the publication-membership fields requested on a publishable
-    /// resource (product/collection): `publishedOnPublication(publicationId:)`,
-    /// `resourcePublicationsCount`/`publicationCount`, `id`, `__typename`. Honors
-    /// per-field arguments and inline-fragment type conditions, so it serves both
-    /// the top-level `product`/`collection` reads and the `publishablePublish`
-    /// payload's `publishable` selection.
-    pub(in crate::proxy) fn publishable_resource_value(
+    pub(in crate::proxy) fn publishable_resource_canonical_value(
         &self,
         resource_id: &str,
-        selection: &[SelectedField],
     ) -> Value {
-        let resource_type = shopify_gid_resource_type(resource_id).unwrap_or("");
-        let pubs = self.resource_publication_set(resource_id);
-        let live_pubs = if is_shopify_gid_of_type(resource_id, "Product")
-            && self
+        match shopify_gid_resource_type(resource_id) {
+            Some("Product") => self
                 .product_record_by_id(resource_id)
-                .map(|product| product.status != "ACTIVE")
-                .unwrap_or(true)
-        {
-            BTreeSet::new()
-        } else {
-            pubs.clone()
-        };
-        let mut out = serde_json::Map::new();
-        for sel in selection {
-            if !selected_field_applies_to_type(resource_type, sel) {
-                continue;
-            }
-            let value = match sel.name.as_str() {
-                "id" => json!(resource_id),
-                "__typename" => json!(resource_type),
-                "title" => match resource_type {
-                    "Product" => self
-                        .product_record_by_id(resource_id)
-                        .map(|product| json!(product.title))
-                        .unwrap_or(Value::Null),
-                    "Collection" => self
-                        .store
-                        .collection_by_id(resource_id)
-                        .and_then(|collection| collection.get("title").cloned())
-                        .unwrap_or(Value::Null),
-                    _ => Value::Null,
-                },
-                "handle" => match resource_type {
-                    "Product" => self
-                        .product_record_by_id(resource_id)
-                        .map(|product| json!(product.handle))
-                        .unwrap_or(Value::Null),
-                    "Collection" => self
-                        .store
-                        .collection_by_id(resource_id)
-                        .and_then(|collection| collection.get("handle").cloned())
-                        .unwrap_or(Value::Null),
-                    _ => Value::Null,
-                },
-                "publishedOnPublication" => {
-                    let publication_id = resolved_string_field(&sel.arguments, "publicationId");
-                    json!(publication_id.map(|id| pubs.contains(&id)).unwrap_or(false))
-                }
-                "publishedOnCurrentPublication" => {
-                    let current_publication_ids = self.store.current_publication_ids();
-                    let published = current_publication_ids
-                        .iter()
-                        .any(|publication_id| live_pubs.contains(*publication_id));
-                    json!(published)
-                }
-                "resourcePublicationsCount" | "publicationCount" | "availablePublicationsCount" => {
-                    count_object(self.publishable_live_publication_count(resource_id, &pubs))
-                }
-                "resourcePublications" => staged_resource_publication_connection_json(
-                    resource_id,
-                    resource_type,
-                    &live_pubs,
-                    "ResourcePublication",
-                    &sel.selection,
-                ),
-                "resourcePublicationsV2" => staged_resource_publication_connection_json(
-                    resource_id,
-                    resource_type,
-                    &live_pubs,
-                    "ResourcePublicationV2",
-                    &sel.selection,
-                ),
-                _ => continue,
-            };
-            out.insert(sel.response_key.clone(), value);
+                .map(|product| self.product_canonical_value(product))
+                .unwrap_or(Value::Null),
+            Some("Collection") => self.collection_canonical_value_by_id(resource_id),
+            _ => Value::Null,
         }
-        Value::Object(out)
     }
 
     /// The publication count Shopify reports for a publishable resource's
@@ -1220,157 +1399,146 @@ impl DraftProxy {
     /// resource's membership and render the payload from local state.
     pub(in crate::proxy) fn publishable_publish_with_publications(
         &mut self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let Some(document) = parsed_document(query, variables) else {
-            return json_error(400, "Unable to parse publishable mutation");
-        };
-        let operation_path = document.operation_path.clone();
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Operation has no root field");
-        };
+        invocation: &RootInvocation<'_>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> ResolverOutcome<Value> {
         let publish = matches!(
-            root_field,
+            invocation.root_name,
             "publishablePublish" | "publishablePublishToCurrentChannel"
         );
         let to_current = matches!(
-            root_field,
+            invocation.root_name,
             "publishablePublishToCurrentChannel" | "publishableUnpublishToCurrentChannel"
         );
-        let mut early_response = None;
-        let data = root_payload_json(&fields, |field| {
-            if early_response.is_some() {
-                return None;
-            }
-            if field.name != root_field {
-                return None;
-            }
-            if let Some(response) =
-                publishable_empty_string_publication_error(query, &operation_path, field)
-            {
-                early_response = Some(response);
-                return None;
-            }
-            let resource_id = resolved_string_field(&field.arguments, "id")?;
-            let publishable_selection =
-                selected_child_selection(&field.selection, "publishable").unwrap_or_default();
-            if self
-                .publishable_payload_resource_needs_hydration(&resource_id, &publishable_selection)
-            {
-                self.hydrate_publishable_payload_shop(&resource_id, request);
-            }
-            let mut user_errors = Vec::new();
-            let resource_exists = self.publishable_resource_exists(&resource_id, request);
-            if !resource_exists {
-                user_errors.push(user_error_omit_code(
-                    ["id"],
-                    "Resource does not exist",
-                    Some("RESOURCE_DOES_NOT_EXIST"),
-                ));
-            }
-            if resource_exists
-                && is_shopify_gid_of_type(&resource_id, "Product")
-                && publishable_input_needs_publication_catalog_hydration(
-                    field.arguments.get("input"),
-                    to_current,
-                    self.store.has_known_publication_ids(),
-                )
-            {
-                self.hydrate_publishable_payload_shop(&resource_id, request);
-            }
-            user_errors.extend(
-                self.publishable_publication_input_errors(field.arguments.get("input"), to_current),
-            );
-            let current_channel_id = if resource_exists && to_current {
-                self.resolve_current_channel_publication_id(request)
-            } else {
-                None
-            };
-            if resource_exists && to_current && current_channel_id.is_none() {
-                user_errors.push(user_error_omit_code(
-                    ["id"],
-                    "Channel does not exist",
-                    Some("CHANNEL_DOES_NOT_EXIST"),
-                ));
-            }
-            if user_errors.is_empty() {
-                if self.publishable_payload_resource_needs_hydration(
-                    &resource_id,
-                    &publishable_selection,
-                ) {
-                    self.hydrate_publishable_resource(&resource_id, request);
-                }
-                // Discover the resource's pre-existing publication membership
-                // (e.g. the default Online Store) by reading upstream before
-                // applying this publish, so counts reflect the real baseline.
-                self.hydrate_publishable_resource(&resource_id, request);
-                let publication_ids = if to_current {
-                    current_channel_id.into_iter().collect::<Vec<_>>()
-                } else {
-                    publishable_input_publication_ids(&field.arguments)
-                };
-                let published_at = self.next_product_timestamp();
-                let set = self
-                    .store
-                    .staged
-                    .resource_publications
-                    .entry(resource_id.clone())
-                    .or_default();
-                for publication_id in &publication_ids {
-                    if publish {
-                        set.insert(publication_id.clone());
-                    } else {
-                        set.remove(publication_id);
-                    }
-                }
-                self.sync_product_publication_entries(
-                    &resource_id,
-                    &publication_ids,
-                    publish,
-                    &published_at,
-                );
-                self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
-            }
-            // When the payload selects `shop { publicationCount }` and the shop
-            // baseline is not present in store state (the publication engine seeds
-            // only `publications`, never the shop), hydrate it from the captured
-            // upstream hydrate call — same as the non-engine publishable path.
-            if selected_child_selection(&field.selection, "shop")
-                .as_deref()
-                .is_some_and(|selection| self.publishable_payload_shop_needs_hydration(selection))
-            {
-                self.hydrate_publishable_payload_shop(&resource_id, request);
-            }
-            let publishable_selection =
-                selected_child_selection(&field.selection, "publishable").unwrap_or_default();
-            let publishable = if user_errors.iter().any(|error| {
-                error
-                    .get("code")
-                    .and_then(Value::as_str)
-                    .is_some_and(|code| code == "RESOURCE_DOES_NOT_EXIST")
-            }) {
-                Value::Null
-            } else {
-                self.publishable_resource_value(&resource_id, &publishable_selection)
-            };
-            let shop = self.store.effective_shop();
-            let payload = selected_payload_json(&field.selection, |selection| {
-                match selection.name.as_str() {
-                    "publishable" => Some(publishable.clone()),
-                    "shop" => Some(selected_json(&shop, &selection.selection)),
-                    "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-                    _ => None,
-                }
-            });
-            Some(payload)
-        });
-        if let Some(response) = early_response {
-            return response;
+        if let Some(error) = publishable_empty_string_publication_error(
+            invocation.query,
+            invocation.operation_path,
+            invocation.response_key,
+            invocation.root_location,
+            invocation.variable_definitions,
+            &invocation.raw_arguments,
+            arguments,
+        ) {
+            return graphql_error_outcome(vec![error], invocation.response_key);
         }
-        ok_json(json!({ "data": data }))
+        let Some(resource_id) = resolved_string_field(arguments, "id") else {
+            return ResolverOutcome::value(Value::Null);
+        };
+        let requests_publishable_details = invocation.requested_field_paths.iter().any(|path| {
+            matches!(
+                path.as_slice(),
+                [parent, field, ..]
+                    if parent == "publishable" && matches!(field.as_str(), "title" | "handle")
+            )
+        });
+        if requests_publishable_details
+            && is_shopify_gid_of_type(&resource_id, "Collection")
+            && self.store.collection_by_id(&resource_id).is_none()
+        {
+            let _ = self.hydrate_publishable_payload_shop(&resource_id, invocation.request);
+        }
+        let mut user_errors = Vec::new();
+        let resource_exists = self.publishable_resource_exists(&resource_id, invocation.request);
+        if !resource_exists {
+            user_errors.push(user_error_omit_code(
+                ["id"],
+                "Resource does not exist",
+                Some("RESOURCE_DOES_NOT_EXIST"),
+            ));
+        }
+        if resource_exists
+            && is_shopify_gid_of_type(&resource_id, "Product")
+            && publishable_input_needs_publication_catalog_hydration(
+                arguments.get("input"),
+                to_current,
+                self.store.has_known_publication_ids(),
+            )
+        {
+            let _ = self.hydrate_publishable_payload_shop(&resource_id, invocation.request);
+        }
+        user_errors
+            .extend(self.publishable_publication_input_errors(arguments.get("input"), to_current));
+        let current_channel_id = if resource_exists && to_current {
+            self.resolve_current_channel_publication_id(invocation.request)
+        } else {
+            None
+        };
+        if resource_exists && to_current && current_channel_id.is_none() {
+            user_errors.push(user_error_omit_code(
+                ["id"],
+                "Channel does not exist",
+                Some("CHANNEL_DOES_NOT_EXIST"),
+            ));
+        }
+        if user_errors.is_empty() {
+            if requests_publishable_details
+                && is_shopify_gid_of_type(&resource_id, "Collection")
+                && self.store.collection_by_id(&resource_id).is_none()
+            {
+                self.hydrate_publishable_resource(&resource_id, invocation.request);
+            }
+            // Discover the resource's pre-existing publication membership
+            // before applying this publish, so counts reflect the real baseline.
+            self.hydrate_publishable_resource(&resource_id, invocation.request);
+            let publication_ids = if to_current {
+                current_channel_id.into_iter().collect::<Vec<_>>()
+            } else {
+                publishable_input_publication_ids(arguments)
+            };
+            let published_at = self.next_product_timestamp();
+            let set = self
+                .store
+                .staged
+                .resource_publications
+                .entry(resource_id.clone())
+                .or_default();
+            for publication_id in &publication_ids {
+                if publish {
+                    set.insert(publication_id.clone());
+                } else {
+                    set.remove(publication_id);
+                }
+            }
+            self.sync_product_publication_entries(
+                &resource_id,
+                &publication_ids,
+                publish,
+                &published_at,
+            );
+        }
+        let requests_shop = invocation
+            .requested_field_paths
+            .iter()
+            .any(|path| path.first().is_some_and(|field| field == "shop"));
+        if requests_shop && self.store.base.publication_count.is_none() {
+            let _ = self.hydrate_publishable_payload_shop(&resource_id, invocation.request);
+        }
+        let publishable = if user_errors.iter().any(|error| {
+            error
+                .get("code")
+                .and_then(Value::as_str)
+                .is_some_and(|code| code == "RESOURCE_DOES_NOT_EXIST")
+        }) {
+            Value::Null
+        } else {
+            self.publishable_resource_canonical_value(&resource_id)
+        };
+        let success = user_errors.is_empty();
+        let payload = json!({
+            "publishable": publishable,
+            "shop": self.store.effective_shop(),
+            "userErrors": user_errors,
+        });
+        let outcome = ResolverOutcome::value(payload);
+        if success {
+            outcome.with_log_draft(LogDraft::staged(
+                invocation.root_name,
+                "store_properties",
+                Vec::new(),
+            ))
+        } else {
+            outcome
+        }
     }
 
     pub(in crate::proxy) fn observe_collection_passthrough_response(
@@ -1506,143 +1674,6 @@ impl DraftProxy {
         self.observe_nodes_response(&response);
     }
 
-    pub(in crate::proxy) fn collection_membership_value(
-        &self,
-        field: &RootFieldSelection,
-    ) -> Value {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        self.store
-            .collection_by_id(&id)
-            .map(|collection| {
-                self.collection_json_with_publication_fields(collection, &field.selection)
-            })
-            .unwrap_or(Value::Null)
-    }
-
-    pub(in crate::proxy) fn collection_by_identifier_value(
-        &self,
-        field: &RootFieldSelection,
-    ) -> Value {
-        let Some(identifier) = resolved_object_field(&field.arguments, "identifier") else {
-            return Value::Null;
-        };
-        if let Some(id) = resolved_string_field(&identifier, "id") {
-            return self.collection_by_id_value(&id, &field.selection);
-        }
-        if let Some(handle) = resolved_string_field(&identifier, "handle") {
-            return self.collection_by_handle_selection_value(&handle, &field.selection);
-        }
-        Value::Null
-    }
-
-    pub(in crate::proxy) fn collection_by_handle_value(&self, field: &RootFieldSelection) -> Value {
-        resolved_string_field(&field.arguments, "handle")
-            .map(|handle| self.collection_by_handle_selection_value(&handle, &field.selection))
-            .unwrap_or(Value::Null)
-    }
-
-    fn collection_by_id_value(&self, id: &str, selection: &[SelectedField]) -> Value {
-        if id.trim().is_empty() || self.store.collection_is_deleted(id) {
-            return Value::Null;
-        }
-        self.store
-            .collection_by_id(id)
-            .map(|collection| self.collection_json_with_publication_fields(collection, selection))
-            .unwrap_or(Value::Null)
-    }
-
-    fn collection_by_handle_selection_value(
-        &self,
-        handle: &str,
-        selection: &[SelectedField],
-    ) -> Value {
-        let handle = handle.trim();
-        if handle.is_empty() {
-            return Value::Null;
-        }
-        self.store
-            .collection_by_handle(handle)
-            .map(|collection| self.collection_json_with_publication_fields(collection, selection))
-            .unwrap_or(Value::Null)
-    }
-
-    pub(in crate::proxy) fn collection_json_with_publication_fields(
-        &self,
-        collection: &Value,
-        selections: &[SelectedField],
-    ) -> Value {
-        self.collection_json_with_publication_fields_and_products(
-            collection,
-            selections,
-            self.collection_product_entries(collection),
-        )
-    }
-
-    fn collection_payload_json_with_publication_fields(
-        &self,
-        collection: &Value,
-        selections: &[SelectedField],
-    ) -> Value {
-        self.collection_json_with_publication_fields_and_products(
-            collection,
-            selections,
-            self.explicit_collection_product_entries(collection),
-        )
-    }
-
-    fn collection_json_with_publication_fields_and_products(
-        &self,
-        collection: &Value,
-        selections: &[SelectedField],
-        products: Vec<CollectionProductEntry>,
-    ) -> Value {
-        let shop_currency_code = self.store.shop_currency_code();
-        let mut value = collection_json(collection, products, selections, &shop_currency_code);
-        let Some(fields) = value.as_object_mut() else {
-            return value;
-        };
-        let collection_id = collection
-            .get("id")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        let publications = self.resource_publication_set(collection_id);
-        for selection in selections {
-            let computed = match selection.name.as_str() {
-                "publishedOnPublication" => {
-                    let publication_id =
-                        resolved_string_field(&selection.arguments, "publicationId");
-                    Some(json!(publication_id
-                        .map(|id| publications.contains(&id))
-                        .unwrap_or(false)))
-                }
-                "publishedOnCurrentPublication" => Some(json!(self
-                    .store
-                    .resource_is_published_on_current_publication(collection_id))),
-                "resourcePublicationsCount" | "publicationCount" | "availablePublicationsCount" => {
-                    Some(selected_count_json(
-                        self.publishable_live_publication_count(collection_id, &publications),
-                        &selection.selection,
-                    ))
-                }
-                _ => None,
-            };
-            if let Some(computed) = computed {
-                fields.insert(selection.response_key.clone(), computed);
-            }
-        }
-        value
-    }
-
-    fn collection_job_read(&self, field: &RootFieldSelection) -> Value {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        self.store
-            .staged
-            .collection_jobs
-            .get(&id)
-            .map(|job| selected_json(job, &field.selection))
-            .unwrap_or(Value::Null)
-    }
-
     pub(in crate::proxy) fn stage_collection_from_observed_json(&mut self, collection: &Value) {
         if collection
             .get("id")
@@ -1658,7 +1689,16 @@ impl DraftProxy {
         {
             return;
         }
-        let collection = self.observed_collection_for_staging(collection);
+        let mut collection = self.observed_collection_for_staging(collection);
+        if !collection
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(is_synthetic_gid)
+        {
+            if let Some(object) = collection.as_object_mut() {
+                object.insert(OBSERVED_COLLECTION_BASELINE_FIELD.to_string(), json!(true));
+            }
+        }
         let products = collection
             .get("products")
             .map(connection_nodes)
@@ -1695,47 +1735,41 @@ impl DraftProxy {
         merge_observed_collection_into_local(local_collection, collection)
     }
 
-    pub(in crate::proxy) fn collection_mutation(
+    pub(crate) fn collection_outcome(
         &mut self,
-        request: &Request,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        match root_field {
-            "collectionCreate" => self.collection_create(query, variables),
-            "collectionUpdate" => self.collection_update(query, variables),
-            "collectionDelete" => self.collection_delete(request, query, variables),
-            "collectionAddProducts" => self.collection_add_products(root_field, query, variables),
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        match invocation.root_name {
+            "collectionCreate" => self.collection_create(&invocation, &arguments),
+            "collectionUpdate" => self.collection_update(&invocation, &arguments),
+            "collectionDelete" => self.collection_delete(&arguments),
+            "collectionAddProducts" => {
+                self.collection_add_products(invocation.root_name, &arguments)
+            }
             "collectionAddProductsV2" => {
-                self.collection_async_membership(root_field, query, variables, true)
+                self.collection_async_membership(&invocation, &arguments, true)
             }
             "collectionRemoveProducts" => {
-                self.collection_async_membership(root_field, query, variables, false)
+                self.collection_async_membership(&invocation, &arguments, false)
             }
-            "collectionReorderProducts" => self.collection_reorder_products(query, variables),
-            _ => MutationOutcome::response(json_error(
-                400,
-                "No mutation dispatcher implemented for collection root",
+            "collectionReorderProducts" => {
+                self.collection_reorder_products(&invocation, &arguments)
+            }
+            root => ResolverOutcome::error(format!(
+                "No mutation dispatcher implemented for collection root `{root}`"
             )),
         }
     }
 
     fn collection_create(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let arguments = self
-            .execution_root_field(query, variables, "collectionCreate")
-            .map(|field| field.arguments)
-            .unwrap_or_default();
-        let input = collection_input(&arguments).unwrap_or_default();
+        invocation: &RootInvocation<'_>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> ResolverOutcome<Value> {
+        let input = collection_input(arguments).unwrap_or_default();
         if input.contains_key("id") {
-            return MutationOutcome::response(self.collection_payload_response(
-                query,
-                variables,
-                "collectionCreate",
+            return ResolverOutcome::value(self.collection_payload_value(
                 None,
                 None,
                 vec![collection_user_error(
@@ -1744,21 +1778,21 @@ impl DraftProxy {
                 )],
             ));
         }
-        if let Some(response) = self.collection_input_validation_response(
-            query,
-            variables,
-            "collectionCreate",
-            &input,
-            true,
-        ) {
-            return MutationOutcome::response(response);
+        let validation_errors =
+            match self.collection_input_validation(invocation.query, &input, true) {
+                Ok(errors) => errors,
+                Err(errors) => return graphql_error_outcome(errors, invocation.response_key),
+            };
+        if !validation_errors.is_empty() {
+            return ResolverOutcome::value(self.collection_payload_value(
+                None,
+                None,
+                validation_errors,
+            ));
         }
 
         if input.contains_key("ruleSet") && collection_rule_set_rules_missing(&input) {
-            return MutationOutcome::response(self.collection_payload_response(
-                query,
-                variables,
-                "collectionCreate",
+            return ResolverOutcome::value(self.collection_payload_value(
                 None,
                 None,
                 vec![collection_user_error(
@@ -1773,10 +1807,7 @@ impl DraftProxy {
         let product_errors =
             collection_initial_product_user_errors(&self.store, &initial_product_ids);
         if !product_errors.is_empty() {
-            return MutationOutcome::response(self.collection_payload_response(
-                query,
-                variables,
-                "collectionCreate",
+            return ResolverOutcome::value(self.collection_payload_value(
                 None,
                 None,
                 product_errors,
@@ -1804,41 +1835,33 @@ impl DraftProxy {
         self.stage_owner_metafields_from_input(&id, &input);
         self.sync_collection_products(&id, products);
 
-        MutationOutcome::staged(
-            self.collection_payload_response(
-                query,
-                variables,
-                "collectionCreate",
-                Some(&payload_collection),
-                None,
-                Vec::new(),
-            ),
-            LogDraft::staged("collectionCreate", "products", vec![id]),
-        )
+        ResolverOutcome::value(self.collection_payload_value(
+            Some(&payload_collection),
+            None,
+            Vec::new(),
+        ))
+        .with_log_draft(LogDraft::staged("collectionCreate", "products", vec![id]))
     }
 
     fn collection_update(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let field = self.execution_root_field(query, variables, "collectionUpdate");
-        let input = field
-            .as_ref()
-            .and_then(|field| collection_input(&field.arguments))
-            .unwrap_or_default();
+        invocation: &RootInvocation<'_>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> ResolverOutcome<Value> {
+        let input = collection_input(arguments).unwrap_or_default();
         let Some(id) = resolved_string_field(&input, "id").filter(|id| !id.trim().is_empty())
         else {
-            return MutationOutcome::response(collection_update_missing_id_response(
-                field.as_ref(),
-            ));
+            return graphql_error_outcome(
+                vec![collection_update_missing_id_error(
+                    invocation.response_key,
+                    invocation.root_location,
+                )],
+                invocation.response_key,
+            );
         };
         self.hydrate_missing_collection_baseline(&id, &[]);
         let Some(existing) = self.store.collection_by_id(&id).cloned() else {
-            return MutationOutcome::response(self.collection_payload_response(
-                query,
-                variables,
-                "collectionUpdate",
+            return ResolverOutcome::value(self.collection_payload_value(
                 None,
                 None,
                 vec![collection_user_error_null_field(
@@ -1846,21 +1869,21 @@ impl DraftProxy {
                 )],
             ));
         };
-        if let Some(response) = self.collection_input_validation_response(
-            query,
-            variables,
-            "collectionUpdate",
-            &input,
-            false,
-        ) {
-            return MutationOutcome::response(response);
+        let validation_errors =
+            match self.collection_input_validation(invocation.query, &input, false) {
+                Ok(errors) => errors,
+                Err(errors) => return graphql_error_outcome(errors, invocation.response_key),
+            };
+        if !validation_errors.is_empty() {
+            return ResolverOutcome::value(self.collection_payload_value(
+                None,
+                None,
+                validation_errors,
+            ));
         }
         if input.contains_key("ruleSet") {
             if collection_rule_set_rules_empty(&input) {
-                return MutationOutcome::response(self.collection_payload_response(
-                    query,
-                    variables,
-                    "collectionUpdate",
+                return ResolverOutcome::value(self.collection_payload_value(
                     None,
                     None,
                     vec![collection_user_error(
@@ -1870,10 +1893,7 @@ impl DraftProxy {
                 ));
             }
             if !collection_is_smart(&existing) {
-                return MutationOutcome::response(self.collection_payload_response(
-                    query,
-                    variables,
-                    "collectionUpdate",
+                return ResolverOutcome::value(self.collection_payload_value(
                     None,
                     None,
                     vec![collection_user_error(
@@ -1927,6 +1947,7 @@ impl DraftProxy {
             }
             if let Some(sort_order) = resolved_string_field(&input, "sortOrder") {
                 object.insert("sortOrder".to_string(), json!(sort_order));
+                object.remove(OBSERVED_COLLECTION_BASELINE_FIELD);
             }
             if input.contains_key("ruleSet") {
                 object.insert(
@@ -1935,6 +1956,7 @@ impl DraftProxy {
                         .map(collection_rule_set_json)
                         .unwrap_or(Value::Null),
                 );
+                object.remove(OBSERVED_COLLECTION_BASELINE_FIELD);
             }
             if let Some(description) = resolved_string_field(&input, "descriptionHtml") {
                 object.insert("descriptionHtml".to_string(), json!(description));
@@ -1977,41 +1999,27 @@ impl DraftProxy {
             .map(|(_, job_id)| vec![id.clone(), job_id.clone()])
             .unwrap_or_else(|| vec![id.clone()]);
 
-        MutationOutcome::staged(
-            self.collection_payload_response(
-                query,
-                variables,
-                "collectionUpdate",
-                Some(&updated),
-                job.as_ref().map(|(payload_job, _)| payload_job),
-                Vec::new(),
-            ),
-            LogDraft::staged("collectionUpdate", "products", resource_ids),
-        )
+        ResolverOutcome::value(self.collection_payload_value(
+            Some(&updated),
+            job.as_ref().map(|(payload_job, _)| payload_job),
+            Vec::new(),
+        ))
+        .with_log_draft(LogDraft::staged(
+            "collectionUpdate",
+            "products",
+            resource_ids,
+        ))
     }
 
     fn collection_delete(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let arguments = self
-            .execution_root_field(query, variables, "collectionDelete")
-            .map(|field| field.arguments)
-            .unwrap_or_default();
-        let input = collection_input(&arguments).unwrap_or_default();
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> ResolverOutcome<Value> {
+        let input = collection_input(arguments).unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let (_, payload_selection) =
-            self.execution_primary_root_response_selection(query, variables, || {
-                "collectionDelete".to_string()
-            });
-        self.hydrate_payload_shop_identity_if_selected(request, &payload_selection);
         self.hydrate_missing_collection_baseline(&id, &[]);
         let deleted = self.store.delete_collection(&id);
-        let response = self.collection_delete_response(
-            query,
-            variables,
+        let payload = self.collection_delete_payload_value(
             deleted.then_some(id.as_str()),
             if deleted {
                 Vec::new()
@@ -2020,36 +2028,26 @@ impl DraftProxy {
             },
         );
         if deleted {
-            MutationOutcome::staged(
-                response,
-                LogDraft::staged("collectionDelete", "products", vec![id]),
-            )
+            ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+                "collectionDelete",
+                "products",
+                vec![id],
+            ))
         } else {
-            MutationOutcome::response(response)
+            ResolverOutcome::value(payload)
         }
     }
 
     fn collection_add_products(
         &mut self,
         root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let arguments = self
-            .execution_root_field(query, variables, root_field)
-            .map(|field| field.arguments)
-            .unwrap_or_default();
-        let collection_id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let requested_product_ids = list_string_field(&arguments, "productIds");
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> ResolverOutcome<Value> {
+        let collection_id = resolved_string_field(arguments, "id").unwrap_or_default();
+        let requested_product_ids = list_string_field(arguments, "productIds");
         self.hydrate_missing_collection_baseline(&collection_id, &requested_product_ids);
-        if let Some(response) = self.collection_membership_guard_response(
-            query,
-            variables,
-            root_field,
-            &collection_id,
-            false,
-        ) {
-            return MutationOutcome::response(response);
+        if let Some(errors) = self.collection_membership_guard_errors(root_field, &collection_id) {
+            return ResolverOutcome::value(self.collection_payload_value(None, None, errors));
         }
         let mut products = self.collection_products(&collection_id);
         let mut product_ids = products
@@ -2066,47 +2064,35 @@ impl DraftProxy {
             }
         }
         let collection = self.replace_collection_products(&collection_id, products);
-        MutationOutcome::staged(
-            self.collection_payload_response(
-                query,
-                variables,
+        ResolverOutcome::value(self.collection_payload_value(collection.as_ref(), None, Vec::new()))
+            .with_log_draft(LogDraft::staged(
                 root_field,
-                collection.as_ref(),
-                None,
-                Vec::new(),
-            ),
-            LogDraft::staged(root_field, "products", vec![collection_id]),
-        )
+                "products",
+                vec![collection_id],
+            ))
     }
 
     fn collection_async_membership(
         &mut self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        invocation: &RootInvocation<'_>,
+        arguments: &BTreeMap<String, ResolvedValue>,
         add: bool,
-    ) -> MutationOutcome {
-        let arguments = self
-            .execution_root_field(query, variables, root_field)
-            .map(|field| field.arguments)
-            .unwrap_or_default();
-        let collection_id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let product_ids = list_string_field(&arguments, "productIds");
+    ) -> ResolverOutcome<Value> {
+        let root_field = invocation.root_name;
+        let collection_id = resolved_string_field(arguments, "id").unwrap_or_default();
+        let product_ids = list_string_field(arguments, "productIds");
         if product_ids.len() > COLLECTION_PRODUCT_IDS_LIMIT {
-            return MutationOutcome::response(collection_product_ids_too_long_response(
-                root_field,
-                product_ids.len(),
-            ));
+            return graphql_error_outcome(
+                vec![collection_product_ids_too_long_error(
+                    root_field,
+                    product_ids.len(),
+                )],
+                invocation.response_key,
+            );
         }
         self.hydrate_missing_collection_baseline(&collection_id, &product_ids);
-        if let Some(response) = self.collection_membership_guard_response(
-            query,
-            variables,
-            root_field,
-            &collection_id,
-            true,
-        ) {
-            return MutationOutcome::response(response);
+        if let Some(errors) = self.collection_membership_guard_errors(root_field, &collection_id) {
+            return ResolverOutcome::value(self.collection_payload_value(None, None, errors));
         }
         let mut products = self.collection_products(&collection_id);
         if add {
@@ -2129,30 +2115,22 @@ impl DraftProxy {
             .unwrap_or_default()
             .to_string();
         let payload_job = collection_inline_job(&job);
-        MutationOutcome::staged(
-            self.collection_payload_response(
-                query,
-                variables,
+        ResolverOutcome::value(self.collection_payload_value(None, Some(&payload_job), Vec::new()))
+            .with_log_draft(LogDraft::staged(
                 root_field,
-                None,
-                Some(&payload_job),
-                Vec::new(),
-            ),
-            LogDraft::staged(root_field, "products", vec![collection_id, job_id]),
-        )
+                "products",
+                vec![collection_id, job_id],
+            ))
     }
 
     fn collection_reorder_products(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let arguments = self
-            .execution_root_field(query, variables, "collectionReorderProducts")
-            .map(|field| field.arguments)
-            .unwrap_or_default();
-        let collection_id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let moves = resolved_object_list_field(&arguments, "moves");
+        invocation: &RootInvocation<'_>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> ResolverOutcome<Value> {
+        let root_field = invocation.root_name;
+        let collection_id = resolved_string_field(arguments, "id").unwrap_or_default();
+        let moves = resolved_object_list_field(arguments, "moves");
         let move_product_ids = moves
             .iter()
             .filter_map(|move_input| {
@@ -2161,14 +2139,8 @@ impl DraftProxy {
             })
             .collect::<Vec<_>>();
         self.hydrate_missing_collection_baseline(&collection_id, &move_product_ids);
-        if let Some(response) = self.collection_membership_guard_response(
-            query,
-            variables,
-            "collectionReorderProducts",
-            &collection_id,
-            true,
-        ) {
-            return MutationOutcome::response(response);
+        if let Some(errors) = self.collection_membership_guard_errors(root_field, &collection_id) {
+            return ResolverOutcome::value(self.collection_payload_value(None, None, errors));
         }
         self.hydrate_collection_reorder_sort_order(&collection_id);
         let manually_sorted =
@@ -2179,10 +2151,7 @@ impl DraftProxy {
                         && collection.get("sortOrder").and_then(Value::as_str) == Some("MANUAL")
                 });
         if !manually_sorted {
-            return MutationOutcome::response(self.collection_payload_response(
-                query,
-                variables,
-                "collectionReorderProducts",
+            return ResolverOutcome::value(self.collection_payload_value(
                 None,
                 None,
                 vec![collection_user_error(
@@ -2216,21 +2185,12 @@ impl DraftProxy {
             .unwrap_or_default()
             .to_string();
         let payload_job = collection_inline_job(&job);
-        MutationOutcome::staged(
-            self.collection_payload_response(
-                query,
-                variables,
-                "collectionReorderProducts",
-                None,
-                Some(&payload_job),
-                Vec::new(),
-            ),
-            LogDraft::staged(
-                "collectionReorderProducts",
+        ResolverOutcome::value(self.collection_payload_value(None, Some(&payload_job), Vec::new()))
+            .with_log_draft(LogDraft::staged(
+                root_field,
                 "products",
                 vec![collection_id, job_id],
-            ),
-        )
+            ))
     }
 }
 
@@ -2247,14 +2207,12 @@ const COLLECTION_SORT_ORDERS: &[&str] = &[
 ];
 
 impl DraftProxy {
-    fn collection_input_validation_response(
+    fn collection_input_validation(
         &self,
         query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_field: &str,
         input: &BTreeMap<String, ResolvedValue>,
         title_required: bool,
-    ) -> Option<Response> {
+    ) -> Result<Vec<Value>, Vec<Value>> {
         let mut errors = Vec::new();
         match resolved_string_field(input, "title") {
             Some(title) if title.chars().count() > 255 => errors.push(user_error_omit_code(
@@ -2283,118 +2241,86 @@ impl DraftProxy {
         }
         if let Some(sort_order) = resolved_string_field(input, "sortOrder") {
             if !COLLECTION_SORT_ORDERS.contains(&sort_order.as_str()) {
-                return Some(collection_invalid_sort_order_response(
+                return Err(vec![collection_invalid_sort_order_error(
                     query,
                     input,
                     &sort_order,
-                ));
+                )]);
             }
         }
-        (!errors.is_empty()).then(|| {
-            self.collection_payload_response(query, variables, root_field, None, None, errors)
-        })
+        Ok(errors)
     }
 
-    fn collection_membership_guard_response(
+    fn collection_membership_guard_errors(
         &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
         root_field: &str,
         collection_id: &str,
-        job_payload: bool,
-    ) -> Option<Response> {
+    ) -> Option<Vec<Value>> {
         let Some(collection) = self.store.collection_by_id(collection_id) else {
-            return Some(self.collection_payload_response(
-                query,
-                variables,
-                root_field,
-                None,
-                None,
-                vec![collection_user_error(["id"], "Collection does not exist")],
-            ));
+            return Some(vec![collection_user_error(
+                ["id"],
+                "Collection does not exist",
+            )]);
         };
         if root_field == "collectionAddProductsV2" && collection_is_smart(collection) {
-            return Some(self.collection_payload_response(
-                query,
-                variables,
-                root_field,
-                None,
-                job_payload.then_some(&Value::Null),
-                vec![collection_user_error(
-                    ["id"],
-                    "Can't manually add products to a smart collection",
-                )],
-            ));
+            return Some(vec![collection_user_error(
+                ["id"],
+                "Can't manually add products to a smart collection",
+            )]);
         }
         None
     }
 
-    fn collection_payload_response(
+    fn collection_payload_value(
         &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_field: &str,
         collection: Option<&Value>,
         job: Option<&Value>,
         user_errors: Vec<Value>,
-    ) -> Response {
-        let (response_key, payload_selection) =
-            self.execution_primary_root_response_selection(query, variables, || {
-                root_field.to_string()
-            });
-        let collection_selection =
-            selected_child_selection(&payload_selection, "collection").unwrap_or_default();
-        let job_selection = selected_child_selection(&payload_selection, "job").unwrap_or_default();
-        ok_json(json!({
-            "data": {
-                response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
-                    "collection" => Some(collection.map(|collection| self.collection_payload_json_with_publication_fields(collection, &collection_selection)).unwrap_or(Value::Null)),
-                    "job" => Some(job.map(|job| selected_json(job, &job_selection)).unwrap_or(Value::Null)),
-                    "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-                    _ => None,
-                })
+    ) -> Value {
+        let collection = collection.map(|collection| {
+            let mut collection = collection.clone();
+            if let Some(object) = collection.as_object_mut() {
+                // Preserve the mutation's explicit membership source. The
+                // Collection field resolver still owns arguments, windowing,
+                // and projection, while ordinary reads derive smart membership
+                // from the normalized store.
+                object.remove("defaultProducts");
+                object.remove("manualProducts");
             }
-        }))
+            collection
+        });
+        json!({
+            "collection": collection.unwrap_or(Value::Null),
+            "job": job.cloned().unwrap_or(Value::Null),
+            "userErrors": user_errors,
+        })
     }
 
-    fn collection_delete_response(
+    fn collection_delete_payload_value(
         &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
         deleted_id: Option<&str>,
         user_errors: Vec<Value>,
-    ) -> Response {
-        let (response_key, payload_selection) =
-            self.execution_primary_root_response_selection(query, variables, || {
-                "collectionDelete".to_string()
-            });
-        let shop = self.store.effective_shop();
-        ok_json(json!({
-            "data": {
-                response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
-                    "deletedCollectionId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
-                    "shop" => Some(selected_json(&shop, &selection.selection)),
-                    "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-                    _ => None,
-                })
-            }
-        }))
+    ) -> Value {
+        json!({
+            "deletedCollectionId": deleted_id.map_or(Value::Null, |id| json!(id)),
+            "shop": Value::Null,
+            "userErrors": user_errors,
+        })
     }
 
     fn collection_products(&self, collection_id: &str) -> Vec<ProductRecord> {
         self.store
             .collection_by_id(collection_id)
             .and_then(|collection| collection.get("products"))
-            .and_then(|connection| connection.get("nodes"))
-            .and_then(Value::as_array)
+            .map(connection_nodes)
+            .unwrap_or_default()
             .into_iter()
-            .flatten()
             .filter_map(|product| {
                 product
                     .get("id")
                     .and_then(Value::as_str)
                     .and_then(|id| self.store.product_by_id(id).cloned())
-                    .or_else(|| product_state_from_json(product))
+                    .or_else(|| product_state_from_json(&product))
             })
             .collect()
     }
@@ -2403,7 +2329,11 @@ impl DraftProxy {
         &self,
         collection: &Value,
     ) -> Vec<CollectionProductEntry> {
-        if collection_is_smart(collection) {
+        let has_observed_baseline = collection
+            .get(OBSERVED_COLLECTION_BASELINE_FIELD)
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        if collection_is_smart(collection) && !has_observed_baseline {
             return self.smart_collection_product_entries(collection);
         }
         self.explicit_collection_product_entries(collection)
@@ -2415,10 +2345,9 @@ impl DraftProxy {
     ) -> Vec<CollectionProductEntry> {
         collection
             .get("products")
-            .and_then(|connection| connection.get("nodes"))
-            .and_then(Value::as_array)
+            .map(connection_nodes)
+            .unwrap_or_default()
             .into_iter()
-            .flatten()
             .enumerate()
             .filter_map(|(position, product)| {
                 let id = product.get("id").and_then(Value::as_str)?;
@@ -2429,17 +2358,12 @@ impl DraftProxy {
                     .get("id")
                     .and_then(Value::as_str)
                     .and_then(|id| self.store.product_by_id(id).cloned())
-                    .or_else(|| product_state_from_json(product))?;
+                    .or_else(|| product_state_from_json(&product))?;
                 let variants = self.store.product_variants_for_product(&product.id);
-                let published_on_current_publication = Some(
-                    self.store
-                        .product_is_published_on_current_publication(&product),
-                );
                 Some(CollectionProductEntry {
                     position,
                     product,
                     variants,
-                    published_on_current_publication,
                 })
             })
             .collect()
@@ -2455,16 +2379,11 @@ impl DraftProxy {
             .enumerate()
             .filter_map(|(position, product)| {
                 let variants = self.store.product_variants_for_product(&product.id);
-                let published_on_current_publication = Some(
-                    self.store
-                        .product_is_published_on_current_publication(&product),
-                );
                 collection_product_matches_rule_set(&product, &variants, rule_set).then_some(
                     CollectionProductEntry {
                         position,
                         product,
                         variants,
-                        published_on_current_publication,
                     },
                 )
             })
@@ -2626,31 +2545,25 @@ impl DraftProxy {
     }
 }
 
-fn upstream_count_field(
-    field: &RootFieldSelection,
+fn upstream_count_value(
+    response_key: &str,
     upstream_data: Option<&Value>,
 ) -> Option<(u64, String)> {
-    let value = upstream_data?.get(field.response_key.as_str())?;
-    let count_key = field
-        .selection
-        .iter()
-        .find(|selection| selection.name == "count")
-        .map(|selection| selection.response_key.as_str())
-        .unwrap_or("count");
-    let precision_key = field
-        .selection
-        .iter()
-        .find(|selection| selection.name == "precision")
-        .map(|selection| selection.response_key.as_str())
-        .unwrap_or("precision");
+    let value = upstream_data?.get(response_key)?;
     let count = value
-        .get(count_key)
-        .or_else(|| value.get("count"))
-        .and_then(Value::as_u64)?;
+        .get("count")
+        .and_then(Value::as_u64)
+        .or_else(|| value.as_object()?.values().find_map(Value::as_u64))?;
     let precision = value
-        .get(precision_key)
-        .or_else(|| value.get("precision"))
+        .get("precision")
         .and_then(Value::as_str)
+        .or_else(|| {
+            value.as_object()?.values().find_map(|value| {
+                value
+                    .as_str()
+                    .filter(|value| matches!(*value, "EXACT" | "AT_LEAST"))
+            })
+        })
         .unwrap_or("EXACT")
         .to_string();
     Some((count, precision))
@@ -2717,47 +2630,6 @@ fn collect_upstream_collection_identities(
         }
         _ => {}
     }
-}
-
-fn collection_field_needs_identity_hydration(field: &RootFieldSelection) -> bool {
-    field.name == "collections"
-        && collection_connection_selects_collection_nodes(&field.selection)
-        && !collection_connection_selects_collection_node_id(&field.selection)
-}
-
-fn collection_connection_selects_collection_nodes(selections: &[SelectedField]) -> bool {
-    selections
-        .iter()
-        .any(|selection| match selection.name.as_str() {
-            "nodes" => true,
-            "edges" => selection
-                .selection
-                .iter()
-                .any(|edge_selection| edge_selection.name == "node"),
-            _ => false,
-        })
-}
-
-fn collection_connection_selects_collection_node_id(selections: &[SelectedField]) -> bool {
-    selections
-        .iter()
-        .any(|selection| match selection.name.as_str() {
-            "nodes" => selection
-                .selection
-                .iter()
-                .any(|node_field| node_field.name == "id"),
-            "edges" => selection
-                .selection
-                .iter()
-                .filter(|edge_selection| edge_selection.name == "node")
-                .any(|node_selection| {
-                    node_selection
-                        .selection
-                        .iter()
-                        .any(|node_field| node_field.name == "id")
-                }),
-            _ => false,
-        })
 }
 
 fn collection_identity_hydrate_variables(arguments: &BTreeMap<String, ResolvedValue>) -> Value {
@@ -3046,6 +2918,7 @@ fn apply_collection_products(collection: &mut Value, products: &[ProductRecord])
         .map(product_summary_json)
         .collect::<Vec<_>>();
     if let Some(object) = collection.as_object_mut() {
+        object.remove(OBSERVED_COLLECTION_BASELINE_FIELD);
         object.insert(
             "products".to_string(),
             connection_json(product_nodes.clone()),
@@ -3273,58 +3146,43 @@ fn collection_rule_price_cents(value: &str) -> Option<i64> {
     parse_product_price(value).map(|price| (price * 100.0).round() as i64)
 }
 
-fn collection_product_ids_too_long_response(root_field: &str, len: usize) -> Response {
-    ok_json(json!({
-        "errors": [max_input_size_exceeded_error(
-            vec![root_field.to_string(), "productIds".to_string()],
-            len,
-            250,
-            Some(json!([{ "line": 2, "column": 3 }])),
-        )]
-    }))
+fn collection_product_ids_too_long_error(root_field: &str, len: usize) -> Value {
+    max_input_size_exceeded_error(
+        vec![root_field.to_string(), "productIds".to_string()],
+        len,
+        250,
+        Some(json!([{ "line": 2, "column": 3 }])),
+    )
 }
 
-fn collection_update_missing_id_response(field: Option<&RootFieldSelection>) -> Response {
-    let response_key = field
-        .map(|field| field.response_key.clone())
-        .unwrap_or_else(|| "collectionUpdate".to_string());
-    let location = field
-        .map(|field| field.location)
-        .unwrap_or(SourceLocation { line: 1, column: 1 });
-    ok_json(json!({
-        "errors": [{
-            "message": "id must be specified on collectionUpdate",
-            "locations": [{"line": location.line, "column": location.column}],
-            "extensions": {"code": "BAD_REQUEST"},
-            "path": [response_key.clone()]
-        }],
-        "data": {
-            response_key: Value::Null
-        }
-    }))
+fn collection_update_missing_id_error(response_key: &str, location: SourceLocation) -> Value {
+    json!({
+        "message": "id must be specified on collectionUpdate",
+        "locations": [{"line": location.line, "column": location.column}],
+        "extensions": {"code": "BAD_REQUEST"},
+        "path": [response_key]
+    })
 }
 
-fn collection_invalid_sort_order_response(
+fn collection_invalid_sort_order_error(
     query: &str,
     input: &BTreeMap<String, ResolvedValue>,
     sort_order: &str,
-) -> Response {
+) -> Value {
     let expected_sort_orders = collection_sort_orders_message();
     let location = variable_definition_info(query, "input")
         .map(|definition| definition.location)
         .or_else(|| parsed_document(query, &BTreeMap::new()).map(|document| document.location))
         .unwrap_or(SourceLocation { line: 1, column: 1 });
-    ok_json(json!({
-        "errors": [invalid_variable_error_envelope(
-            format!("Variable $input of type CollectionInput! was provided invalid value for sortOrder (Expected \"{sort_order}\" to be one of: {expected_sort_orders})"),
-            location,
-            resolved_value_json(&ResolvedValue::Object(input.clone())),
-            json!([{
-                "path": ["sortOrder"],
-                "explanation": format!("Expected \"{sort_order}\" to be one of: {expected_sort_orders}")
-            }]),
-        )]
-    }))
+    invalid_variable_error_envelope(
+        format!("Variable $input of type CollectionInput! was provided invalid value for sortOrder (Expected \"{sort_order}\" to be one of: {expected_sort_orders})"),
+        location,
+        resolved_value_json(&ResolvedValue::Object(input.clone())),
+        json!([{
+            "path": ["sortOrder"],
+            "explanation": format!("Expected \"{sort_order}\" to be one of: {expected_sort_orders}")
+        }]),
+    )
 }
 
 fn collection_sort_orders_message() -> String {

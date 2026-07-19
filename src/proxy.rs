@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     collections::{btree_map, BTreeMap, BTreeSet},
     sync::Arc,
 };
@@ -13,18 +14,23 @@ use crate::graphql::{
     variables_with_operation_defaults, OperationSelectionError, OperationType, RawArgumentValue,
     ResolvedValue, RootFieldSelection, SelectedField, SourceLocation,
 };
+use crate::node_resolver_inventory::{EntityRef, NodeLoadState};
 use crate::operation_registry::{
     default_registry, operation_capability_for_surface, ApiSurface, CapabilityDomain,
     CapabilityExecution, OperationRegistryEntry,
 };
 use crate::resolver_registry::ResolverRegistry;
-pub(in crate::proxy) use crate::resolver_registry::{LocalResolverMode, RootResolverContext};
+pub(in crate::proxy) use crate::resolver_registry::{
+    FieldResolverRegistration, FieldResolverTypePolicy, LocalResolverMode,
+    MutationLogDraft as LogDraft, ResolverOutcome, RootInvocation,
+};
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
 pub(in crate::proxy) const METAFIELDS_SET_INPUT_LIMIT: usize = 25;
 pub(in crate::proxy) const API_CLIENT_ID_HEADER: &str = "x-shopify-draft-proxy-api-client-id";
 pub(in crate::proxy) const ACCESS_SCOPES_HEADER: &str = "x-shopify-draft-proxy-access-scopes";
 const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
+const OBSERVED_COLLECTION_BASELINE_FIELD: &str = "__shopifyDraftProxyObservedCollectionBaseline";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReadMode {
@@ -89,6 +95,15 @@ pub struct Request {
     pub path: String,
     pub headers: BTreeMap<String, String>,
     pub body: String,
+}
+
+pub(in crate::proxy) struct UnsupportedOperationDispatch<'a> {
+    pub request: &'a Request,
+    pub query: &'a str,
+    pub variables: &'a BTreeMap<String, ResolvedValue>,
+    pub operation_type: OperationType,
+    pub root_fields: &'a [String],
+    pub root_field: &'a str,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -323,6 +338,51 @@ struct SavedSearchRecord {
     resource_type: String,
 }
 
+#[derive(Clone)]
+struct ResourceStore<T> {
+    base: OrderedRecords<T>,
+    staged: StagedRecords<T>,
+}
+
+impl<T> Default for ResourceStore<T> {
+    fn default() -> Self {
+        Self {
+            base: OrderedRecords::default(),
+            staged: StagedRecords::default(),
+        }
+    }
+}
+
+impl<T> ResourceStore<T> {
+    fn clear_staged(&mut self) {
+        self.staged = StagedRecords::default();
+    }
+
+    fn get(&self, id: &str) -> Option<&T> {
+        effective_get(&self.base, &self.staged, id)
+    }
+
+    fn find(&self, predicate: impl FnMut(&T) -> bool) -> Option<&T> {
+        effective_find(&self.base, &self.staged, predicate)
+    }
+
+    fn count(&self) -> usize {
+        effective_count(&self.base, &self.staged)
+    }
+
+    fn has_state(&self) -> bool {
+        !self.base.records.is_empty()
+            || !self.staged.records.is_empty()
+            || !self.staged.tombstones.is_empty()
+    }
+}
+
+impl<T: Clone> ResourceStore<T> {
+    fn records(&self) -> Vec<T> {
+        effective_records(&self.base, &self.staged)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct ShopPolicyRecord {
     id: String,
@@ -339,14 +399,14 @@ struct ShopPolicyRecord {
 struct Store {
     base: BaseState,
     staged: StagedState,
+    products: ResourceStore<ProductRecord>,
+    product_variants: ResourceStore<ProductVariantRecord>,
+    saved_searches: ResourceStore<SavedSearchRecord>,
+    shop_policies: ResourceStore<ShopPolicyRecord>,
 }
 
 #[derive(Clone, Default)]
 struct BaseState {
-    products: OrderedRecords<ProductRecord>,
-    product_variants: OrderedRecords<ProductVariantRecord>,
-    saved_searches: OrderedRecords<SavedSearchRecord>,
-    shop_policies: OrderedRecords<ShopPolicyRecord>,
     delivery_profiles: OrderedRecords<Value>,
     delivery_promise_providers: OrderedRecords<Value>,
     delivery_promise_participants: OrderedRecords<Value>,
@@ -410,12 +470,8 @@ type MetafieldDefinitionKey = (String, String, String);
 
 #[derive(Clone, Default)]
 struct StagedState {
-    products: StagedRecords<ProductRecord>,
-    product_variants: StagedRecords<ProductVariantRecord>,
     product_feeds: StagedRecords<Value>,
     selling_plan_groups: StagedRecords<SellingPlanGroupRecord>,
-    saved_searches: StagedRecords<SavedSearchRecord>,
-    shop_policies: StagedRecords<ShopPolicyRecord>,
     shipping_packages: StagedRecords<Value>,
     customers: StagedRecords<Value>,
     customer_addresses: BTreeMap<String, Value>,
@@ -490,7 +546,6 @@ struct StagedState {
     created_catalog_ids: BTreeSet<String>,
     price_lists: BTreeMap<String, Value>,
     web_presences: BTreeMap<String, Value>,
-    #[allow(dead_code)]
     markets_hydrated_scopes: BTreeSet<String>,
     markets_upstream_counts: BTreeMap<String, Value>,
     markets_dirty_families: BTreeSet<String>,
@@ -948,6 +1003,10 @@ impl Default for Store {
         Self {
             base: BaseState::default(),
             staged: StagedState::new_session(),
+            products: ResourceStore::default(),
+            product_variants: ResourceStore::default(),
+            saved_searches: ResourceStore::default(),
+            shop_policies: ResourceStore::default(),
         }
     }
 }
@@ -1229,10 +1288,14 @@ impl Store {
 
     fn clear_staged(&mut self) {
         self.staged = StagedState::new_session();
+        self.products.clear_staged();
+        self.product_variants.clear_staged();
+        self.saved_searches.clear_staged();
+        self.shop_policies.clear_staged();
     }
 
     fn replace_base_products(&mut self, products: Vec<ProductRecord>) {
-        self.base.products.replace_ordered(
+        self.products.base.replace_ordered(
             products
                 .into_iter()
                 .map(|product| (product.id.clone(), product)),
@@ -1390,23 +1453,20 @@ impl Store {
     }
 
     fn shop_policy_by_id(&self, id: &str) -> Option<&ShopPolicyRecord> {
-        effective_get(&self.base.shop_policies, &self.staged.shop_policies, id)
+        self.shop_policies.get(id)
     }
 
     fn shop_policy_by_type(&self, policy_type: &str) -> Option<&ShopPolicyRecord> {
-        effective_find(
-            &self.base.shop_policies,
-            &self.staged.shop_policies,
-            |policy| policy.policy_type == policy_type,
-        )
+        self.shop_policies
+            .find(|policy| policy.policy_type == policy_type)
     }
 
     fn shop_policies(&self) -> Vec<ShopPolicyRecord> {
-        effective_records(&self.base.shop_policies, &self.staged.shop_policies)
+        self.shop_policies.records()
     }
 
     fn stage_shop_policy(&mut self, policy: ShopPolicyRecord) {
-        self.staged.shop_policies.stage(policy.id.clone(), policy);
+        self.shop_policies.staged.stage(policy.id.clone(), policy);
     }
 
     fn observed_order_by_id(&self, id: &str) -> Option<&Value> {
@@ -1639,27 +1699,23 @@ impl Store {
     }
 
     fn product_by_id(&self, id: &str) -> Option<&ProductRecord> {
-        effective_get(&self.base.products, &self.staged.products, id)
+        self.products.get(id)
     }
 
     fn product_by_handle(&self, handle: &str) -> Option<&ProductRecord> {
-        effective_find(&self.base.products, &self.staged.products, |product| {
-            product.handle == handle
-        })
+        self.products.find(|product| product.handle == handle)
     }
 
     fn products(&self) -> Vec<ProductRecord> {
-        effective_records(&self.base.products, &self.staged.products)
+        self.products.records()
     }
 
     fn product_count(&self) -> usize {
-        effective_count(&self.base.products, &self.staged.products)
+        self.products.count()
     }
 
     fn has_product_state(&self) -> bool {
-        !self.base.products.records.is_empty()
-            || !self.staged.products.records.is_empty()
-            || !self.staged.products.tombstones.is_empty()
+        self.products.has_state()
     }
 
     fn has_collection_state(&self) -> bool {
@@ -1674,10 +1730,6 @@ impl Store {
 
     fn product_feeds(&self) -> Vec<Value> {
         self.staged.product_feeds.values().cloned().collect()
-    }
-
-    fn has_product_feed_state(&self) -> bool {
-        !self.staged.product_feeds.is_empty()
     }
 
     fn marketing_activity_by_id(&self, id: &str) -> Option<&Value> {
@@ -1782,19 +1834,26 @@ impl Store {
     /// product does not exist upstream. Only an id the proxy itself deleted is
     /// known-missing.
     fn product_is_tombstoned(&self, id: &str) -> bool {
-        self.staged.products.is_tombstoned(id)
+        self.products.staged.is_tombstoned(id)
     }
 
     fn has_localization_product(&self, id: &str) -> bool {
-        !self.staged.products.is_tombstoned(id)
+        !self.products.staged.is_tombstoned(id)
             && (self.has_product(id) || self.base.localization_product_ids.contains(id))
     }
 
     fn stage_product(&mut self, product: ProductRecord) {
-        self.staged.products.stage(product.id.clone(), product);
+        self.products.staged.stage(product.id.clone(), product);
     }
 
     fn stage_observed_product(&mut self, product: ProductRecord) {
+        // Upstream reads describe base state and must never resurrect a local
+        // read-after-delete tombstone. This guard belongs at the observation
+        // boundary so every hydration path preserves staged deletion
+        // precedence, even when a mixed node batch has not cached this ID yet.
+        if self.product_is_tombstoned(&product.id) {
+            return;
+        }
         let merged = match self.product_by_id(&product.id).cloned() {
             Some(existing) => merge_observed_product(existing, product),
             None => product,
@@ -1826,6 +1885,11 @@ impl Store {
             .iter()
             .map(product_summary_json)
             .collect::<Vec<_>>();
+        let preserve_observed_products = collection
+            .get(OBSERVED_COLLECTION_BASELINE_FIELD)
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+            && collection.get("products").is_some();
         let mut collection_record = self
             .staged
             .collections
@@ -1848,7 +1912,9 @@ impl Store {
                 collection_record.insert(key.clone(), value.clone());
             }
         }
-        if !product_nodes.is_empty() || !collection_record.contains_key("products") {
+        if !preserve_observed_products
+            && (!product_nodes.is_empty() || !collection_record.contains_key("products"))
+        {
             collection_record.insert(
                 "products".to_string(),
                 connection_json(product_nodes.clone()),
@@ -1860,10 +1926,12 @@ impl Store {
         collection_record
             .entry("manualProducts".to_string())
             .or_insert_with(|| connection_json(product_nodes));
-        collection_record.insert(
-            "productsCount".to_string(),
-            count_object(normalized_products.len()),
-        );
+        if !preserve_observed_products || !collection_record.contains_key("productsCount") {
+            collection_record.insert(
+                "productsCount".to_string(),
+                count_object(normalized_products.len()),
+            );
+        }
         self.staged
             .collections
             .insert(collection_id, Value::Object(collection_record));
@@ -1948,8 +2016,8 @@ impl Store {
     }
 
     fn delete_product(&mut self, id: &str) {
-        self.staged.products.remove_staged(id);
-        self.staged.products.tombstone(id.to_string());
+        self.products.staged.remove_staged(id);
+        self.products.staged.tombstone(id.to_string());
     }
 
     fn product_staged_or_base(&self, id: &str) -> Option<ProductRecord> {
@@ -1957,11 +2025,7 @@ impl Store {
     }
 
     fn product_variant_by_id(&self, id: &str) -> Option<&ProductVariantRecord> {
-        effective_get(
-            &self.base.product_variants,
-            &self.staged.product_variants,
-            id,
-        )
+        self.product_variants.get(id)
     }
 
     fn has_product_variant_reference(&self, variant_id: &str) -> bool {
@@ -2002,19 +2066,17 @@ impl Store {
         &self,
         inventory_item_id: &str,
     ) -> Option<&ProductVariantRecord> {
-        effective_find(
-            &self.base.product_variants,
-            &self.staged.product_variants,
-            |variant| variant.inventory_item.id == inventory_item_id,
-        )
+        self.product_variants
+            .find(|variant| variant.inventory_item.id == inventory_item_id)
     }
 
     fn product_variants_for_product(&self, product_id: &str) -> Vec<ProductVariantRecord> {
-        let mut variants =
-            effective_records(&self.base.product_variants, &self.staged.product_variants)
-                .into_iter()
-                .filter(|variant| variant.product_id == product_id)
-                .collect::<Vec<_>>();
+        let mut variants = self
+            .product_variants
+            .records()
+            .into_iter()
+            .filter(|variant| variant.product_id == product_id)
+            .collect::<Vec<_>>();
         if variants.len() > 1
             && variants
                 .iter()
@@ -2042,8 +2104,8 @@ impl Store {
     }
 
     fn stage_product_variant(&mut self, variant: ProductVariantRecord) {
-        self.staged
-            .product_variants
+        self.product_variants
+            .staged
             .stage(variant.id.clone(), variant);
     }
 
@@ -2080,7 +2142,7 @@ impl Store {
         let ordered_id_set = ordered_ids.iter().cloned().collect::<BTreeSet<_>>();
         let mut reordered = Vec::new();
         let mut inserted_product_block = false;
-        for id in self.staged.product_variants.order.iter() {
+        for id in self.product_variants.staged.order.iter() {
             if ordered_id_set.contains(id) {
                 if !inserted_product_block {
                     reordered.extend(ordered_ids.iter().cloned());
@@ -2093,8 +2155,8 @@ impl Store {
         if !inserted_product_block {
             reordered.extend(ordered_ids.iter().cloned());
         }
-        self.staged.product_variants.order =
-            normalized_order(self.staged.product_variants.records.keys(), reordered);
+        self.product_variants.staged.order =
+            normalized_order(self.product_variants.staged.records.keys(), reordered);
 
         if let Some(mut product) = self.product_by_id(product_id).cloned() {
             let mut changed = false;
@@ -2144,9 +2206,7 @@ impl Store {
                 self.stage_product(product);
             }
         }
-        for mut variant in
-            effective_records(&self.base.product_variants, &self.staged.product_variants)
-        {
+        for mut variant in self.product_variants.records() {
             if !in_scope(&variant.product_id) {
                 continue;
             }
@@ -2163,9 +2223,9 @@ impl Store {
             .product_variant_by_id(id)
             .map(|variant| variant.product_id.clone());
         let existed = product_id.is_some();
-        self.staged.product_variants.remove_staged(id);
+        self.product_variants.staged.remove_staged(id);
         if existed {
-            self.staged.product_variants.tombstone(id.to_string());
+            self.product_variants.staged.tombstone(id.to_string());
         }
         // Drop the variant from the owning product's embedded observed variants
         // list as well, otherwise the connection fallback would resurrect it:
@@ -2218,12 +2278,12 @@ impl Store {
                 variant
                     .extra_fields
                     .insert("position".to_string(), json!(reordered_variants.len() + 1));
-                self.staged.product_variants.stage(id, variant.clone());
+                self.product_variants.staged.stage(id, variant.clone());
                 reordered_variants.push(variant);
             }
         }
-        self.staged.product_variants.order =
-            normalized_order(self.staged.product_variants.records.keys(), staged_order);
+        self.product_variants.staged.order =
+            normalized_order(self.product_variants.staged.records.keys(), staged_order);
         reordered_variants
     }
 
@@ -2290,7 +2350,7 @@ impl Store {
                 base.insert(record.id.clone(), record);
             }
         }
-        for record in self.base.saved_searches.ordered_values() {
+        for record in self.saved_searches.base.ordered_values() {
             if record.resource_type == resource_type {
                 base.insert(record.id.clone(), record.clone());
             }
@@ -2299,22 +2359,22 @@ impl Store {
     }
 
     fn has_base_saved_searches_for_resource(&self, resource_type: &str) -> bool {
-        self.base
-            .saved_searches
+        self.saved_searches
+            .base
             .ordered_values()
             .iter()
             .any(|record| record.resource_type == resource_type)
     }
 
     fn saved_search_by_id(&self, id: &str) -> Option<SavedSearchRecord> {
-        if self.staged.saved_searches.is_tombstoned(id) {
+        if self.saved_searches.staged.is_tombstoned(id) {
             return None;
         }
-        self.staged
-            .saved_searches
+        self.saved_searches
+            .staged
             .get(id)
             .cloned()
-            .or_else(|| self.base.saved_searches.get(id).cloned())
+            .or_else(|| self.saved_searches.base.get(id).cloned())
             .or_else(|| {
                 let record = default_saved_search_by_id(id)?;
                 (!self.has_base_saved_searches_for_resource(&record.resource_type))
@@ -2324,24 +2384,24 @@ impl Store {
 
     fn saved_searches_for_resource(&self, resource_type: &str) -> Vec<SavedSearchRecord> {
         let base = self.saved_search_base_with_defaults(resource_type);
-        effective_saved_search_records(&base, &self.staged.saved_searches)
+        effective_saved_search_records(&base, &self.saved_searches.staged)
             .into_iter()
             .filter(|record| record.resource_type == resource_type)
             .collect()
     }
 
     fn stage_saved_search(&mut self, record: SavedSearchRecord) {
-        self.staged.saved_searches.stage(record.id.clone(), record);
+        self.saved_searches.staged.stage(record.id.clone(), record);
     }
 
     fn delete_saved_search(&mut self, id: &str) -> bool {
-        let had_staged = self.staged.saved_searches.remove_staged(id).is_some();
+        let had_staged = self.saved_searches.staged.remove_staged(id).is_some();
         let has_default = default_saved_search_by_id(id)
             .map(|record| !self.has_base_saved_searches_for_resource(&record.resource_type))
             .unwrap_or(false);
-        let has_base = self.base.saved_searches.get(id).is_some() || has_default;
+        let has_base = self.saved_searches.base.get(id).is_some() || has_default;
         if has_base {
-            self.staged.saved_searches.tombstone(id.to_string());
+            self.saved_searches.staged.tombstone(id.to_string());
         }
         had_staged || has_base
     }
@@ -2357,46 +2417,9 @@ pub(in crate::proxy) struct OrdersLocalLogOutcome<'a> {
     notes: &'a str,
 }
 
-pub(in crate::proxy) struct MutationOutcome {
-    response: Response,
-    log_drafts: Vec<LogDraft>,
-}
-
 pub(in crate::proxy) struct MutationFieldOutcome {
     value: Value,
     log_draft: Option<LogDraft>,
-}
-
-pub(in crate::proxy) struct LogDraft {
-    root_field: String,
-    staged_resource_ids: Vec<String>,
-    status: String,
-    capability_domain: String,
-    capability_execution: String,
-    notes: String,
-}
-
-impl MutationOutcome {
-    fn response(response: Response) -> Self {
-        Self {
-            response,
-            log_drafts: Vec::new(),
-        }
-    }
-
-    fn staged(response: Response, log_draft: LogDraft) -> Self {
-        Self {
-            response,
-            log_drafts: vec![log_draft],
-        }
-    }
-
-    fn with_log_drafts(response: Response, log_drafts: Vec<LogDraft>) -> Self {
-        Self {
-            response,
-            log_drafts,
-        }
-    }
 }
 
 impl MutationFieldOutcome {
@@ -2415,39 +2438,6 @@ impl MutationFieldOutcome {
     }
 }
 
-impl LogDraft {
-    fn staged(
-        root_field: impl Into<String>,
-        domain: &'static str,
-        staged_resource_ids: Vec<String>,
-    ) -> Self {
-        Self {
-            root_field: root_field.into(),
-            staged_resource_ids,
-            status: "staged".to_string(),
-            capability_domain: domain.to_string(),
-            capability_execution: "stage-locally".to_string(),
-            notes: "Supported mutation staged locally; commit replays the original raw mutation."
-                .to_string(),
-        }
-    }
-
-    fn failed(
-        root_field: impl Into<String>,
-        domain: &'static str,
-        notes: impl Into<String>,
-    ) -> Self {
-        Self {
-            root_field: root_field.into(),
-            staged_resource_ids: Vec::new(),
-            status: "failed".to_string(),
-            capability_domain: domain.to_string(),
-            capability_execution: "stage-locally".to_string(),
-            notes: notes.into(),
-        }
-    }
-}
-
 fn default_commit_transport(_request: Request) -> Response {
     json_error(501, "No Rust commit transport configured")
 }
@@ -2457,6 +2447,92 @@ fn default_upstream_transport(_request: Request) -> Response {
 }
 
 type RuntimeClock = Arc<dyn Fn() -> time::OffsetDateTime + Send + Sync>;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct RequestEntityCacheKey {
+    api_surface: ApiSurface,
+    api_version: String,
+    /// Storefront identity and visibility can vary with `@inContext`; Admin
+    /// entities use `None`. Keeping the context in the key prevents a future
+    /// multi-context execution from reusing the wrong surface projection.
+    context: Option<String>,
+    id: String,
+}
+
+impl RequestEntityCacheKey {
+    fn admin(api_version: &str, id: &str) -> Self {
+        Self {
+            api_surface: ApiSurface::Admin,
+            api_version: api_version.to_string(),
+            context: None,
+            id: id.to_string(),
+        }
+    }
+
+    fn storefront(api_version: &str, id: &str, context: String) -> Self {
+        Self {
+            api_surface: ApiSurface::Storefront,
+            api_version: api_version.to_string(),
+            context: Some(context),
+            id: id.to_string(),
+        }
+    }
+}
+
+type RequestEntityCache = RefCell<BTreeMap<RequestEntityCacheKey, NodeLoadState<EntityRef>>>;
+
+#[derive(Clone)]
+struct RequestNodeHydration {
+    response: Response,
+    upstream_response_keys: BTreeSet<String>,
+}
+
+#[derive(Clone, Default)]
+struct ExecutionSession {
+    api_surface: Option<ApiSurface>,
+    api_version: Option<String>,
+    mutation_log_start: Option<usize>,
+    discount_refs_preflighted: bool,
+    owner_metafield_hydrated_ids: BTreeSet<String>,
+    upstream_query_response: Option<Response>,
+    upstream_query_data: Option<Value>,
+    upstream_query_selections: BTreeMap<String, Vec<SelectedField>>,
+    localization_context_preflighted: bool,
+    markets_query_preflighted: bool,
+    node_hydration: Option<RequestNodeHydration>,
+    owner_metafield_read_ids: BTreeSet<String>,
+    owner_metafield_missing_ids: BTreeSet<String>,
+    entity_cache: RequestEntityCache,
+}
+
+impl ExecutionSession {
+    fn admin(version: crate::admin_graphql::AdminApiVersion) -> Self {
+        Self {
+            api_surface: Some(ApiSurface::Admin),
+            api_version: Some(version.as_str().to_string()),
+            ..Self::default()
+        }
+    }
+
+    fn storefront(version: crate::storefront_graphql::StorefrontApiVersion) -> Self {
+        Self {
+            api_surface: Some(ApiSurface::Storefront),
+            api_version: Some(version.as_str().to_string()),
+            ..Self::default()
+        }
+    }
+
+    fn api_version(&self, api_surface: ApiSurface) -> &str {
+        assert_eq!(
+            self.api_surface,
+            Some(api_surface),
+            "GraphQL entity loading crossed execution surfaces",
+        );
+        self.api_version
+            .as_deref()
+            .expect("GraphQL entity loading requires an active execution session")
+    }
+}
 
 fn default_runtime_clock() -> time::OffsetDateTime {
     time::OffsetDateTime::now_utc()
@@ -2478,11 +2554,10 @@ pub struct DraftProxy {
     shop_sells_subscriptions: Option<bool>,
     clock: RuntimeClock,
     last_mutation_timestamp: Option<time::OffsetDateTime>,
-    engine_mutation_log_start: Option<usize>,
-    engine_discount_refs_preflighted: bool,
-    /// Engine-coerced compatibility view for the root currently being
-    /// resolved. This is request-scoped transient state and is never dumped.
-    engine_root_fields: Option<Vec<RootFieldSelection>>,
+    /// All GraphQL-execution transients live behind one request-lifetime
+    /// boundary. A new value replaces this session before every Admin or
+    /// Storefront schema execution; it is never dumped or restored.
+    execution_session: ExecutionSession,
     commit_transport: CommitTransport,
     upstream_transport: UpstreamTransport,
     storefront_upstream_transport: UpstreamTransport,
@@ -2523,7 +2598,6 @@ mod resource_ids;
 mod routing;
 mod scalar_helpers;
 mod search;
-mod selection;
 mod selling_plans;
 mod store_properties;
 mod storefront;
@@ -2538,7 +2612,13 @@ pub(in crate::proxy) use self::b2b_customers::*;
 pub(in crate::proxy) use self::civil_date::*;
 pub(in crate::proxy) use self::connection::*;
 pub(in crate::proxy) use self::functions::*;
-pub(crate) use self::graphql_runtime::resolver_handler_for_domain;
+pub(crate) use self::graphql_runtime::{
+    field_resolver_registrations, field_resolver_type_policies,
+};
+pub(in crate::proxy) use self::graphql_runtime::{
+    graphql_error_outcome, resolver_http_error_outcome, resolver_outcome_from_upstream_response,
+    root_field_errors_from_json,
+};
 pub(in crate::proxy) use self::json_helpers::*;
 pub(in crate::proxy) use self::localization_markets_catalogs::*;
 pub(in crate::proxy) use self::marketing_webhooks_inventory::*;
@@ -2557,7 +2637,6 @@ pub(in crate::proxy) use self::resolved_values::*;
 pub(in crate::proxy) use self::resource_ids::*;
 pub(in crate::proxy) use self::routing::*;
 pub(in crate::proxy) use self::scalar_helpers::*;
-pub(in crate::proxy) use self::selection::*;
 pub(in crate::proxy) use self::store_properties::*;
 pub(in crate::proxy) use self::validation_helpers::*;
 

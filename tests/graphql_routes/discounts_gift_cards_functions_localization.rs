@@ -3361,6 +3361,95 @@ fn discount_nodes_count_lone_read_uses_upstream_baseline_after_staged_app_create
 }
 
 #[test]
+fn discount_count_does_not_forward_mixed_staged_and_cold_singular_reads() {
+    let upstream_queries = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_queries = Arc::clone(&upstream_queries);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body)
+                .expect("discount mixed-read upstream body should parse");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            captured_queries.lock().unwrap().push(query.clone());
+            if query.contains("DiscountUniquenessCheck") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "codeDiscountNodeByCode": null } }),
+                };
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "errors": [{
+                        "message": format!("unexpected mixed discount upstream request: {body}")
+                    }]
+                }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMixedReadDiscount {
+          discountCodeBasicCreate(basicCodeDiscount: {
+            title: "Mixed read local code"
+            code: "MIXED-READ-LOCAL"
+            startsAt: "2026-07-01T00:00:00Z"
+            context: { all: "ALL" }
+            customerGets: { value: { percentage: 0.2 }, items: { all: true } }
+          }) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let staged_id = json_string(
+        &create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        "mixed-read staged discount id",
+    );
+    assert_eq!(
+        create.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedLocalDiscountRead($stagedId: ID!, $missingId: ID!) {
+          staged: codeDiscountNode(id: $stagedId) {
+            codeDiscount { ... on DiscountCodeBasic { title } }
+          }
+          missing: automaticDiscountNode(id: $missingId) { id }
+          discountNodesCount { count precision }
+        }
+        "#,
+        json!({
+            "stagedId": staged_id,
+            "missingId": "gid://shopify/DiscountAutomaticNode/999999999"
+        }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["staged"]["codeDiscount"]["title"],
+        json!("Mixed read local code")
+    );
+    assert_eq!(read.body["data"]["missing"], Value::Null);
+    assert_eq!(
+        read.body["data"]["discountNodesCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    let queries = upstream_queries.lock().unwrap();
+    assert_eq!(
+        queries.len(),
+        1,
+        "only code uniqueness should read upstream"
+    );
+    assert!(queries[0].contains("DiscountUniquenessCheck"));
+}
+
+#[test]
 fn discount_nodes_count_lone_read_uses_upstream_baseline_after_staged_app_delete() {
     let upstream_id = "gid://shopify/DiscountAutomaticNode/901";
     let mut proxy =
@@ -8966,6 +9055,12 @@ fn localization_source_read_stages_observed_markets_and_shop_locales_for_transla
                         "allShopLocales": [
                             { "locale": "en", "name": "English", "primary": true, "published": true, "marketWebPresences": [] },
                             { "locale": "es", "name": "Spanish", "primary": false, "published": false, "marketWebPresences": [] }
+                        ],
+                        // The same locale may appear through another alias with
+                        // a narrower selection. Observing that sibling must not
+                        // erase fields from the richer locale record above.
+                        "publishedShopLocales": [
+                            { "locale": "en", "name": "English", "primary": true, "published": true }
                         ]
                     }
                 }),
@@ -8982,6 +9077,7 @@ fn localization_source_read_stages_observed_markets_and_shop_locales_for_transla
           }
           markets(first: $marketsFirst) { nodes { id name handle status type } }
           allShopLocales: shopLocales { locale name primary published marketWebPresences { id } }
+          publishedShopLocales: shopLocales(published: true) { locale name primary published }
         }"#,
         json!({ "resourceId": resource_id.as_str(), "marketsFirst": 1 }),
     ));
@@ -8993,6 +9089,10 @@ fn localization_source_read_stages_observed_markets_and_shop_locales_for_transla
     assert_eq!(
         source_read.body["data"]["markets"]["nodes"][0]["id"],
         json!("gid://shopify/Market/97997685042")
+    );
+    assert_eq!(
+        source_read.body["data"]["allShopLocales"][0]["marketWebPresences"],
+        json!([])
     );
     // One verbatim upstream forward serves the whole multi-root source read and
     // hydrates both the markets and shop-locale stores for the translation replay
@@ -11476,24 +11576,38 @@ fn gift_card_live_hybrid_cold_reads_forward_upstream_without_local_overlay() {
                 body: json!({
                     "data": {
                         "card": {
-                            "id": upstream_id,
-                            "note": "real upstream note",
-                            "balance": { "amount": "25.0", "currencyCode": "USD" }
+                            "cardId": upstream_id,
+                            "cardNote": "real upstream note",
+                            "active": true,
+                            "originalValue": {
+                                "initialAmount": "25.0",
+                                "initialCurrency": "USD"
+                            },
+                            "cardBalance": {
+                                "balanceAmount": "25.0",
+                                "balanceCurrency": "USD"
+                            }
                         },
                         "cards": {
-                        "nodes": [{
-                            "id": upstream_id,
-                            "note": "real upstream note"
-                        }],
-                        "pageInfo": {
-                            "hasNextPage": false,
-                            "hasPreviousPage": false
-                        }
+                            "cardNodes": [{
+                                "nodeId": upstream_id,
+                                "nodeNote": "real upstream note"
+                            }],
+                            "connectionPageInfo": {
+                                "next": false,
+                                "previous": false
+                            }
                         },
-                        "count": { "count": 1, "precision": "EXACT" },
+                        "count": { "total": 1, "accuracy": "EXACT" },
                         "configuration": {
-                            "issueLimit": { "amount": "3000.0", "currencyCode": "USD" },
-                            "purchaseLimit": { "amount": "14000.0", "currencyCode": "USD" }
+                            "issue": {
+                                "issueAmount": "3000.0",
+                                "issueCurrency": "USD"
+                            },
+                            "purchase": {
+                                "purchaseAmount": "14000.0",
+                                "purchaseCurrency": "USD"
+                            }
                         }
                     }
                 }),
@@ -11502,10 +11616,34 @@ fn gift_card_live_hybrid_cold_reads_forward_upstream_without_local_overlay() {
 
     let response = proxy.process_request(json_graphql_request(
         r#"query GiftCardColdRead($id: ID!) {
-          card: giftCard(id: $id) { id note balance { amount currencyCode } }
-          cards: giftCards(first: 10) { nodes { id note } pageInfo { hasNextPage hasPreviousPage } }
-          count: giftCardsCount { count precision }
-          configuration: giftCardConfiguration { issueLimit { amount currencyCode } purchaseLimit { amount currencyCode } }
+          card: giftCard(id: $id) {
+            cardId: id
+            cardNote: note
+            active: enabled
+            originalValue: initialValue {
+              initialAmount: amount
+              initialCurrency: currencyCode
+            }
+            cardBalance: balance {
+              balanceAmount: amount
+              balanceCurrency: currencyCode
+            }
+          }
+          cards: giftCards(first: 10) {
+            cardNodes: nodes { nodeId: id nodeNote: note }
+            connectionPageInfo: pageInfo {
+              next: hasNextPage
+              previous: hasPreviousPage
+            }
+          }
+          count: giftCardsCount { total: count accuracy: precision }
+          configuration: giftCardConfiguration {
+            issue: issueLimit { issueAmount: amount issueCurrency: currencyCode }
+            purchase: purchaseLimit {
+              purchaseAmount: amount
+              purchaseCurrency: currencyCode
+            }
+          }
         }"#,
         json!({ "id": upstream_id }),
     ));
@@ -11515,13 +11653,21 @@ fn gift_card_live_hybrid_cold_reads_forward_upstream_without_local_overlay() {
     assert_eq!(
         response.body["data"]["card"],
         json!({
-            "id": upstream_id,
-            "note": "real upstream note",
-            "balance": { "amount": "25.0", "currencyCode": "USD" }
+            "cardId": upstream_id,
+            "cardNote": "real upstream note",
+            "active": true,
+            "originalValue": {
+                "initialAmount": "25.0",
+                "initialCurrency": "USD"
+            },
+            "cardBalance": {
+                "balanceAmount": "25.0",
+                "balanceCurrency": "USD"
+            }
         })
     );
     assert_eq!(
-        response.body["data"]["cards"]["nodes"]
+        response.body["data"]["cards"]["cardNodes"]
             .as_array()
             .unwrap()
             .len(),
@@ -11529,11 +11675,45 @@ fn gift_card_live_hybrid_cold_reads_forward_upstream_without_local_overlay() {
     );
     assert_eq!(
         response.body["data"]["count"],
-        json!({ "count": 1, "precision": "EXACT" })
+        json!({ "total": 1, "accuracy": "EXACT" })
     );
     assert_eq!(
-        response.body["data"]["configuration"]["issueLimit"]["currencyCode"],
+        response.body["data"]["configuration"]["issue"]["issueCurrency"],
         json!("USD")
+    );
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let canonical_read = restored.process_request(json_graphql_request(
+        r#"query GiftCardCanonicalRead($id: ID!) {
+          giftCard(id: $id) {
+            id
+            note
+            enabled
+            initialValue { amount currencyCode }
+            balance { amount currencyCode }
+          }
+        }"#,
+        json!({ "id": upstream_id }),
+    ));
+
+    assert_eq!(canonical_read.status, 200);
+    assert_eq!(*hits.lock().unwrap(), 1);
+    assert_eq!(
+        canonical_read.body["data"]["giftCard"],
+        json!({
+            "id": upstream_id,
+            "note": "real upstream note",
+            "enabled": true,
+            "initialValue": { "amount": "25.0", "currencyCode": "USD" },
+            "balance": { "amount": "25.0", "currencyCode": "USD" }
+        })
     );
 }
 

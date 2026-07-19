@@ -1,6 +1,12 @@
-use crate::graphql::OperationType;
+use crate::{
+    admin_graphql::{self, AdminApiVersion},
+    graphql::OperationType,
+    proxy::DraftProxy,
+    resolver_registry::ExecutableRootRegistration,
+    storefront_graphql::{self, StorefrontApiVersion},
+};
 use serde_json::{json, Map, Value};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -123,8 +129,16 @@ pub struct OperationRegistryEntry {
     pub operation_type: OperationType,
     pub domain: CapabilityDomain,
     pub implemented: bool,
-    pub match_names: Vec<String>,
     pub runtime_tests: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GraphqlRootCatalogEntry {
+    pub api_surface: ApiSurface,
+    pub api_versions: Vec<String>,
+    pub name: String,
+    pub operation_type: OperationType,
+    pub registration: Option<OperationRegistryEntry>,
 }
 
 impl OperationRegistryEntry {
@@ -141,14 +155,105 @@ pub struct OperationCapability {
 }
 
 pub fn default_registry() -> Vec<OperationRegistryEntry> {
-    let mut registry = crate::operation_registry_data::default_registry_entries();
-    registry.extend(storefront_registry_entries());
+    let registry = default_executable_registry()
+        .into_iter()
+        .map(|registration| registration.entry)
+        .collect::<Vec<_>>();
     debug_assert_default_registry_local_routing_contract(&registry);
+    registry
+}
+
+pub(crate) fn default_executable_registry() -> Vec<ExecutableRootRegistration> {
+    let mut registry = crate::operation_registry_data::default_registry_bindings();
+    registry.extend(storefront_registry_bindings());
     registry
 }
 
 pub fn default_registry_json_value() -> Value {
     registry_json_value(&default_registry())
+}
+
+/// Complete captured root inventory across every executable surface/version.
+/// Capability registration is attached when present, but absence remains an
+/// explicit catalog state rather than silently omitting the schema root.
+pub fn default_graphql_root_catalog() -> Vec<GraphqlRootCatalogEntry> {
+    let mut roots = BTreeMap::<(ApiSurface, OperationType, String), BTreeSet<String>>::new();
+    for version in AdminApiVersion::ALL {
+        collect_surface_roots(
+            &mut roots,
+            ApiSurface::Admin,
+            version.as_str(),
+            |operation_type| admin_graphql::root_field_names(version, operation_type),
+        );
+    }
+    for version in StorefrontApiVersion::ALL {
+        collect_surface_roots(
+            &mut roots,
+            ApiSurface::Storefront,
+            version.as_str(),
+            |operation_type| storefront_graphql::root_field_names(version, operation_type),
+        );
+    }
+
+    let registry = default_registry();
+    roots
+        .into_iter()
+        .map(
+            |((api_surface, operation_type, name), api_versions)| GraphqlRootCatalogEntry {
+                registration: registry
+                    .iter()
+                    .find(|entry| {
+                        entry.api_surface == api_surface
+                            && entry.operation_type == operation_type
+                            && entry.name == name
+                    })
+                    .cloned(),
+                api_surface,
+                api_versions: api_versions.into_iter().collect(),
+                name,
+                operation_type,
+            },
+        )
+        .collect()
+}
+
+pub fn default_graphql_root_catalog_json_value() -> Value {
+    Value::Array(
+        default_graphql_root_catalog()
+            .iter()
+            .map(graphql_root_catalog_entry_json_value)
+            .collect(),
+    )
+}
+
+fn collect_surface_roots(
+    roots: &mut BTreeMap<(ApiSurface, OperationType, String), BTreeSet<String>>,
+    api_surface: ApiSurface,
+    api_version: &str,
+    names: impl Fn(OperationType) -> Vec<String>,
+) {
+    for operation_type in [
+        OperationType::Query,
+        OperationType::Mutation,
+        OperationType::Subscription,
+    ] {
+        for name in names(operation_type) {
+            roots
+                .entry((api_surface, operation_type, name))
+                .or_default()
+                .insert(api_version.to_string());
+        }
+    }
+}
+
+fn graphql_root_catalog_entry_json_value(entry: &GraphqlRootCatalogEntry) -> Value {
+    json!({
+        "apiSurface": entry.api_surface.registry_name(),
+        "apiVersions": entry.api_versions,
+        "name": entry.name,
+        "type": entry.operation_type.keyword(),
+        "registration": entry.registration.as_ref().map(registry_entry_json_value),
+    })
 }
 
 pub fn registry_json_value(registry: &[OperationRegistryEntry]) -> Value {
@@ -193,7 +298,6 @@ pub fn operation_capability_for_surface(
             && entry.api_surface == api_surface
             && entry.operation_type == operation_type
             && entry.name == field
-            && entry.match_names.iter().any(|name| name == field)
     });
 
     match local_entry {
@@ -224,7 +328,6 @@ fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
         json!(entry.execution().registry_name()),
     );
     object.insert("implemented".to_string(), json!(entry.implemented));
-    object.insert("matchNames".to_string(), json!(entry.match_names));
     object.insert("runtimeTests".to_string(), json!(entry.runtime_tests));
     Value::Object(object)
 }
@@ -265,155 +368,149 @@ fn debug_assert_default_registry_local_routing_contract(registry: &[OperationReg
     });
 }
 
-fn storefront_registry_entries() -> Vec<OperationRegistryEntry> {
-    let inventory = storefront_root_inventory_json("2026-04");
+fn storefront_registry_bindings() -> Vec<ExecutableRootRegistration> {
     let mut entries = Vec::new();
     let mut seen = BTreeSet::new();
-    entries.extend(storefront_registry_entries_for_roots(
-        inventory
-            .pointer("/roots/query")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten(),
-        OperationType::Query,
-        &mut seen,
-    ));
-    entries.extend(storefront_registry_entries_for_roots(
-        inventory
-            .pointer("/roots/mutation")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten(),
-        OperationType::Mutation,
-        &mut seen,
-    ));
+    for version in StorefrontApiVersion::ALL {
+        for operation_type in [OperationType::Query, OperationType::Mutation] {
+            entries.extend(storefront_registry_bindings_for_roots(
+                storefront_graphql::root_field_names(version, operation_type),
+                operation_type,
+                &mut seen,
+            ));
+        }
+    }
     entries
 }
 
-fn storefront_registry_entries_for_roots<'a>(
-    roots: impl Iterator<Item = &'a Value>,
+fn storefront_registry_bindings_for_roots(
+    roots: impl IntoIterator<Item = String>,
     operation_type: OperationType,
     seen: &mut BTreeSet<(&'static str, String)>,
-) -> Vec<OperationRegistryEntry> {
+) -> Vec<ExecutableRootRegistration> {
     roots
-        .filter_map(|root| root.get("name").and_then(Value::as_str))
-        .filter(|name| seen.insert((operation_type.keyword(), (*name).to_string())))
-        .map(|name| OperationRegistryEntry {
-            api_surface: ApiSurface::Storefront,
-            name: name.to_string(),
-            operation_type,
-            domain: CapabilityDomain::Storefront,
-            implemented: storefront_root_is_implemented(operation_type, name),
-            match_names: default_match_names(name),
-            runtime_tests: storefront_runtime_tests(operation_type, name),
+        .into_iter()
+        .filter(|name| seen.insert((operation_type.keyword(), name.clone())))
+        .map(|name| {
+            let handler = storefront_root_handler(operation_type, &name);
+            ExecutableRootRegistration {
+                entry: OperationRegistryEntry {
+                    api_surface: ApiSurface::Storefront,
+                    name: name.clone(),
+                    operation_type,
+                    domain: CapabilityDomain::Storefront,
+                    implemented: handler.is_some(),
+                    runtime_tests: storefront_runtime_tests(operation_type, &name),
+                },
+                handler,
+            }
         })
         .collect()
 }
 
-fn storefront_root_is_implemented(operation_type: OperationType, name: &str) -> bool {
-    match operation_type {
-        OperationType::Query => matches!(
-            name,
-            "article"
-                | "articles"
-                | "blog"
-                | "blogByHandle"
-                | "blogs"
-                | "cart"
-                | "collection"
-                | "collectionByHandle"
-                | "collections"
-                | "customer"
-                | "menu"
-                | "page"
-                | "pageByHandle"
-                | "pages"
-                | "paymentSettings"
-                | "product"
-                | "productByHandle"
-                | "productRecommendations"
-                | "productTags"
-                | "productTypes"
-                | "products"
-                | "publicApiVersions"
-                | "localization"
-                | "locations"
-                | "shop"
-                | "sitemap"
-                | "urlRedirects"
-                | "metaobject"
-                | "metaobjects"
-                | "node"
-                | "nodes"
-                | "search"
-                | "predictiveSearch"
-        ),
-        OperationType::Mutation => matches!(
-            name,
+fn storefront_root_handler(
+    operation_type: OperationType,
+    name: &str,
+) -> Option<crate::resolver_registry::NativeResolverHandler> {
+    use crate::resolver_registry::NativeResolverHandler;
+
+    let handler = match operation_type {
+        OperationType::Query => match name {
+            "shop" | "localization" | "locations" | "paymentSettings" | "publicApiVersions" => {
+                DraftProxy::storefront_platform_query_resolver
+            }
+            "product"
+            | "productByHandle"
+            | "productRecommendations"
+            | "productTags"
+            | "productTypes"
+            | "products" => DraftProxy::storefront_catalog_query_resolver,
+            "collection" | "collectionByHandle" | "collections" => {
+                DraftProxy::storefront_collection_query_resolver
+            }
+            "article" | "articles" | "blog" | "blogByHandle" | "blogs" | "menu" | "page"
+            | "pageByHandle" | "pages" | "sitemap" | "urlRedirects" => {
+                DraftProxy::storefront_content_query_resolver
+            }
+            "metaobject" | "metaobjects" => DraftProxy::storefront_custom_data_query_resolver,
+            "node" | "nodes" | "search" | "predictiveSearch" => {
+                DraftProxy::storefront_discovery_query_resolver
+            }
+            "cart" => DraftProxy::storefront_cart_query_resolver,
+            "customer" => DraftProxy::storefront_customer_query_resolver,
+            _ => return None,
+        },
+        OperationType::Mutation => match name {
             "cartCreate"
-                | "cartLinesAdd"
-                | "cartLinesUpdate"
-                | "cartLinesRemove"
-                | "cartAttributesUpdate"
-                | "cartNoteUpdate"
-                | "cartBuyerIdentityUpdate"
-                | "cartDiscountCodesUpdate"
-                | "cartGiftCardCodesAdd"
-                | "cartGiftCardCodesRemove"
-                | "cartGiftCardCodesUpdate"
-                | "cartMetafieldsSet"
-                | "cartMetafieldDelete"
-                | "cartDeliveryAddressesAdd"
-                | "cartDeliveryAddressesUpdate"
-                | "cartDeliveryAddressesRemove"
-                | "cartDeliveryAddressesReplace"
-                | "cartSelectedDeliveryOptionsUpdate"
-                | "customerCreate"
-                | "customerAccessTokenCreate"
-                | "customerAccessTokenRenew"
-                | "customerAccessTokenDelete"
-                | "customerActivate"
-                | "customerActivateByUrl"
-                | "customerRecover"
-                | "customerReset"
-                | "customerResetByUrl"
-                | "customerAccessTokenCreateWithMultipass"
-                | "customerUpdate"
-                | "customerAddressCreate"
-                | "customerAddressUpdate"
-                | "customerAddressDelete"
-                | "customerDefaultAddressUpdate"
-        ),
-        OperationType::Subscription => false,
-    }
+            | "cartLinesAdd"
+            | "cartLinesUpdate"
+            | "cartLinesRemove"
+            | "cartAttributesUpdate"
+            | "cartNoteUpdate"
+            | "cartBuyerIdentityUpdate"
+            | "cartDiscountCodesUpdate"
+            | "cartGiftCardCodesAdd"
+            | "cartGiftCardCodesRemove"
+            | "cartGiftCardCodesUpdate"
+            | "cartMetafieldsSet"
+            | "cartMetafieldDelete"
+            | "cartDeliveryAddressesAdd"
+            | "cartDeliveryAddressesUpdate"
+            | "cartDeliveryAddressesRemove"
+            | "cartDeliveryAddressesReplace"
+            | "cartSelectedDeliveryOptionsUpdate" => DraftProxy::storefront_cart_mutation_resolver,
+            "customerCreate"
+            | "customerAccessTokenCreate"
+            | "customerAccessTokenRenew"
+            | "customerAccessTokenDelete"
+            | "customerActivate"
+            | "customerActivateByUrl"
+            | "customerRecover"
+            | "customerReset"
+            | "customerResetByUrl"
+            | "customerAccessTokenCreateWithMultipass"
+            | "customerUpdate"
+            | "customerAddressCreate"
+            | "customerAddressUpdate"
+            | "customerAddressDelete"
+            | "customerDefaultAddressUpdate" => DraftProxy::storefront_customer_mutation_resolver,
+            _ => return None,
+        },
+        OperationType::Subscription => return None,
+    };
+    Some(handler as NativeResolverHandler)
 }
 
 fn storefront_runtime_tests(operation_type: OperationType, name: &str) -> Vec<String> {
-    if storefront_root_is_implemented(operation_type, name) {
+    if storefront_root_handler(operation_type, name).is_some() {
         vec!["tests/graphql_routes/storefront.rs".to_string()]
     } else {
         Vec::new()
     }
 }
 
-fn storefront_root_inventory_json(api_version: &str) -> Value {
-    let raw = match api_version {
-        "2026-04" => {
-            include_str!("../config/storefront-graphql/2026-04/root-inventory.json")
-        }
-        _ => panic!(
-            "unsupported Storefront API version has no captured root inventory: {api_version}"
-        ),
-    };
-    serde_json::from_str(raw).expect("checked-in Storefront root inventory should be valid JSON")
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-fn default_match_names(name: &str) -> Vec<String> {
-    let mut chars = name.chars();
-    let mut capitalized = String::with_capacity(name.len());
-    if let Some(first) = chars.next() {
-        capitalized.extend(first.to_uppercase());
-        capitalized.push_str(chars.as_str());
+    #[test]
+    fn storefront_bindings_cover_known_handlers_in_every_executable_version() {
+        let bindings = storefront_registry_bindings();
+        for version in StorefrontApiVersion::ALL {
+            for operation_type in [OperationType::Query, OperationType::Mutation] {
+                for root_name in storefront_graphql::root_field_names(version, operation_type) {
+                    if storefront_root_handler(operation_type, &root_name).is_none() {
+                        continue;
+                    }
+                    assert!(bindings.iter().any(|binding| {
+                        binding.entry.api_surface == ApiSurface::Storefront
+                            && binding.entry.operation_type == operation_type
+                            && binding.entry.name == root_name
+                            && binding.entry.implemented
+                            && binding.handler.is_some()
+                    }));
+                }
+            }
+        }
     }
-    vec![name.to_string(), capitalized]
 }

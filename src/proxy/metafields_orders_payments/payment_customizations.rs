@@ -1,9 +1,6 @@
 use super::*;
 
-pub(in crate::proxy) fn payment_customization_connection(
-    records: &[Value],
-    selections: &[SelectedField],
-) -> Value {
+pub(in crate::proxy) fn payment_customization_connection(records: &[Value]) -> Value {
     let start_cursor = (!records.is_empty()).then(|| "cursor1".to_string());
     let end_cursor = (!records.is_empty()).then(|| format!("cursor{}", records.len()));
     let connection = connection_json_with_cursor(
@@ -11,7 +8,7 @@ pub(in crate::proxy) fn payment_customization_connection(
         |index, _| format!("cursor{}", index + 1),
         connection_page_info(false, false, start_cursor, end_cursor),
     );
-    selected_json(&connection, selections)
+    connection
 }
 
 pub(in crate::proxy) fn payment_customization_record(
@@ -161,7 +158,6 @@ pub(in crate::proxy) fn payment_customization_set_metafields(
 
 pub(in crate::proxy) fn payment_customization_payload(
     customization: Option<&Value>,
-    selections: &[SelectedField],
     user_errors: Vec<Value>,
     ids: Option<Vec<String>>,
     deleted_id: Option<Value>,
@@ -172,21 +168,15 @@ pub(in crate::proxy) fn payment_customization_payload(
         "deletedId": deleted_id.unwrap_or(Value::Null),
         "userErrors": user_errors
     });
-    selected_json(&payload, selections)
+    payload
 }
 
-pub(in crate::proxy) fn payment_customization_error_payload(
-    selections: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    payment_customization_payload(None, selections, user_errors, None, None)
+pub(in crate::proxy) fn payment_customization_error_payload(user_errors: Vec<Value>) -> Value {
+    payment_customization_payload(None, user_errors, None, None)
 }
 
-pub(in crate::proxy) fn payment_customization_record_payload(
-    customization: &Value,
-    selections: &[SelectedField],
-) -> Value {
-    payment_customization_payload(Some(customization), selections, Vec::new(), None, None)
+pub(in crate::proxy) fn payment_customization_record_payload(customization: &Value) -> Value {
+    payment_customization_payload(Some(customization), Vec::new(), None, None)
 }
 
 pub(in crate::proxy) fn payment_customization_user_error(

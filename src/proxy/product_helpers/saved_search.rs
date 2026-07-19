@@ -2,86 +2,435 @@ use super::*;
 use crate::proxy::search::split_search_query_terms;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_saved_searches_graphql(
+    pub(crate) fn saved_search_query_root(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
-            request,
-            query,
-            variables,
-            root_name: _,
-            mode,
-            ..
-        } = context;
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                self.saved_search_overlay_read_response(request, query, variables)
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        debug_assert_eq!(invocation.api_surface, ApiSurface::Admin);
+        debug_assert_eq!(invocation.api_version.surface(), invocation.api_surface);
+        debug_assert_eq!(invocation.operation.operation_type, OperationType::Query);
+        let api_client_id = saved_search_request_api_client_id(invocation.request);
+        if self.config.read_mode == ReadMode::LiveHybrid {
+            let mut outcome = self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+            if outcome.errors.is_empty() {
+                self.observe_saved_search_connection(
+                    invocation.root_name,
+                    &api_client_id,
+                    &outcome.value,
+                );
+                outcome.value = self.saved_search_connection_value(
+                    invocation.root_name,
+                    &invocation.arguments,
+                    &api_client_id,
+                );
+                outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
             }
-            LocalResolverMode::StageLocally => {
-                if let Some(response) = saved_search_required_input_error(query, variables) {
-                    return response;
-                }
-                let outcome = self.saved_search_mutation_fields(request, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
+            return outcome;
+        }
+        ResolverOutcome::value(self.saved_search_connection_value(
+            invocation.root_name,
+            &invocation.arguments,
+            &api_client_id,
+        ))
+    }
+
+    pub(crate) fn saved_search_mutation_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        debug_assert_eq!(invocation.api_surface, ApiSurface::Admin);
+        debug_assert_eq!(invocation.api_version.surface(), invocation.api_surface);
+        debug_assert_eq!(invocation.operation.operation_type, OperationType::Mutation);
+        let api_client_id = saved_search_request_api_client_id(invocation.request);
+        let input = invocation.arguments.get("input").and_then(Value::as_object);
+        match invocation.root_name {
+            "savedSearchCreate" => self.saved_search_create_outcome(input, &api_client_id),
+            "savedSearchUpdate" => self.saved_search_update_outcome(input, &api_client_id),
+            "savedSearchDelete" => self.saved_search_delete_outcome(input),
+            root_name => {
+                ResolverOutcome::error(format!("Unknown saved-search mutation root `{root_name}`"))
             }
+        }
+    }
+
+    fn observe_saved_search_connection(
+        &mut self,
+        root_name: &str,
+        api_client_id: &str,
+        connection: &Value,
+    ) {
+        let resource_type = saved_search_resource_type(root_name);
+        for node in connection_nodes(connection) {
+            let Some(record) = saved_search_record_from_node(&node, resource_type, api_client_id)
+            else {
+                continue;
+            };
+            if !self.store.saved_searches.staged.is_tombstoned(&record.id) {
+                self.store
+                    .saved_searches
+                    .base
+                    .insert(record.id.clone(), record);
+            }
+        }
+    }
+
+    pub(in crate::proxy) fn saved_search_connection_value(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, Value>,
+        api_client_id: &str,
+    ) -> Value {
+        let resource_type = saved_search_resource_type(root_name);
+        let mut records = self.saved_search_records_for_resource(resource_type);
+        if let Some(query) = arguments.get("query").and_then(Value::as_str) {
+            let needle = query.to_lowercase();
+            records.retain(|record| {
+                record.name.to_lowercase().contains(&needle)
+                    || record.query.to_lowercase().contains(&needle)
+            });
+        }
+        if arguments
+            .get("reverse")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            records.reverse();
+        }
+        let mut has_previous_page = false;
+        if let Some(after) = arguments.get("after").and_then(Value::as_str) {
+            if let Some(index) = records
+                .iter()
+                .position(|record| saved_search_cursor(record) == after)
+            {
+                records = records.into_iter().skip(index + 1).collect();
+                has_previous_page = true;
+            }
+        }
+        let total_after_cursor = records.len();
+        let limit = arguments
+            .get("first")
+            .and_then(Value::as_i64)
+            .filter(|value| *value >= 0)
+            .map(|value| value as usize);
+        let mut has_next_page = false;
+        if let Some(limit) = limit {
+            has_next_page = total_after_cursor > limit;
+            records.truncate(limit);
+        }
+        let page_info = connection_page_info(
+            has_next_page,
+            has_previous_page,
+            records.first().map(saved_search_cursor),
+            records.last().map(saved_search_cursor),
+        );
+        let nodes = records
+            .iter()
+            .map(|record| saved_search_full_value(record, api_client_id))
+            .collect::<Vec<_>>();
+        connection_json_with_cursor(
+            nodes,
+            |_, node| {
+                format!(
+                    "cursor:{}",
+                    node.get("id").and_then(Value::as_str).unwrap_or_default()
+                )
+            },
+            page_info,
+        )
+    }
+
+    fn saved_search_create_outcome(
+        &mut self,
+        input: Option<&serde_json::Map<String, Value>>,
+        api_client_id: &str,
+    ) -> ResolverOutcome<Value> {
+        let Some(input) = input else {
+            return ResolverOutcome::value(saved_search_full_mutation_payload(
+                None,
+                api_client_id,
+                vec![saved_search_input_required_user_error()],
+            ));
+        };
+        let name = input
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let search_query = input
+            .get("query")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let resource_type = input
+            .get("resourceType")
+            .and_then(Value::as_str)
+            .unwrap_or("PRODUCT");
+        let mut user_errors = self.saved_search_field_user_errors(
+            SavedSearchQueryValidationOperation::Create,
+            resource_type,
+            name,
+            None,
+        );
+        user_errors.extend(saved_search_query_user_errors(
+            SavedSearchQueryValidationOperation::Create,
+            resource_type,
+            search_query,
+        ));
+        if !user_errors.is_empty() {
+            return ResolverOutcome::value(saved_search_full_mutation_payload(
+                None,
+                api_client_id,
+                user_errors,
+            ));
+        }
+        let id = self.next_proxy_synthetic_gid("SavedSearch");
+        let record = SavedSearchRecord {
+            id: id.clone(),
+            name: name.to_string(),
+            query: normalize_saved_search_query_for_api_client(search_query, api_client_id),
+            resource_type: resource_type.to_string(),
+        };
+        self.store.stage_saved_search(record.clone());
+        ResolverOutcome::value(saved_search_full_mutation_payload(
+            Some(&record),
+            api_client_id,
+            Vec::new(),
+        ))
+        .with_log_draft(LogDraft::staged(
+            "savedSearchCreate",
+            "saved_searches",
+            vec![id],
+        ))
+    }
+
+    fn saved_search_update_outcome(
+        &mut self,
+        input: Option<&serde_json::Map<String, Value>>,
+        api_client_id: &str,
+    ) -> ResolverOutcome<Value> {
+        let Some(input) = input else {
+            return ResolverOutcome::value(saved_search_full_mutation_payload(
+                None,
+                api_client_id,
+                vec![saved_search_input_required_user_error()],
+            ));
+        };
+        let id = input.get("id").and_then(Value::as_str).unwrap_or_default();
+        let Some(existing) = self.store.saved_search_by_id(id) else {
+            return ResolverOutcome::value(saved_search_full_mutation_payload(
+                None,
+                api_client_id,
+                vec![saved_search_missing_user_error()],
+            ));
+        };
+        let requested_name = input
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or(&existing.name);
+        let requested_query = input
+            .get("query")
+            .and_then(Value::as_str)
+            .unwrap_or(&existing.query);
+        let mut updated = existing.clone();
+        updated.query = normalize_saved_search_query_for_api_client(requested_query, api_client_id);
+        let mut user_errors = self.saved_search_field_user_errors(
+            SavedSearchQueryValidationOperation::Update,
+            &existing.resource_type,
+            requested_name,
+            Some(id),
+        );
+        user_errors.extend(saved_search_query_user_errors(
+            SavedSearchQueryValidationOperation::Update,
+            &existing.resource_type,
+            requested_query,
+        ));
+        if !user_errors.is_empty() {
+            return ResolverOutcome::value(saved_search_full_mutation_payload(
+                Some(&updated),
+                api_client_id,
+                user_errors,
+            ));
+        }
+        updated.name = requested_name.to_string();
+        self.store.stage_saved_search(updated.clone());
+        ResolverOutcome::value(saved_search_full_mutation_payload(
+            Some(&updated),
+            api_client_id,
+            Vec::new(),
+        ))
+        .with_log_draft(LogDraft::staged(
+            "savedSearchUpdate",
+            "saved_searches",
+            vec![updated.id.clone()],
+        ))
+    }
+
+    fn saved_search_delete_outcome(
+        &mut self,
+        input: Option<&serde_json::Map<String, Value>>,
+    ) -> ResolverOutcome<Value> {
+        let id = input
+            .and_then(|input| input.get("id"))
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let deleted = self.store.delete_saved_search(id);
+        let value = json!({
+            "deletedSavedSearchId": deleted.then_some(id),
+            "shop": self.store.effective_shop(),
+            "userErrors": if deleted { Vec::new() } else { vec![saved_search_missing_user_error()] }
+        });
+        let outcome = ResolverOutcome::value(value);
+        if deleted {
+            outcome.with_log_draft(LogDraft::staged(
+                "savedSearchDelete",
+                "saved_searches",
+                vec![id.to_string()],
+            ))
+        } else {
+            outcome
         }
     }
 }
 
-pub(in crate::proxy) fn saved_search_connection_json(
-    records: &[SavedSearchRecord],
-    root_selection: &[SelectedField],
-    api_client_id: &str,
-    has_next_page: bool,
-    has_previous_page: bool,
-) -> Value {
-    selected_typed_connection(
-        records,
-        root_selection,
-        |record, selections| {
-            saved_search_json_with_query(
-                record,
-                selections,
-                &saved_search_read_query_for_api_client(&record.query, api_client_id),
-                api_client_id,
-            )
-        },
-        saved_search_cursor,
-        |page_info_selection| {
-            saved_search_page_info_json(
-                records,
-                page_info_selection,
-                has_next_page,
-                has_previous_page,
-            )
-        },
-    )
+fn saved_search_full_value(record: &SavedSearchRecord, api_client_id: &str) -> Value {
+    let query = saved_search_read_query_for_api_client(&record.query, api_client_id);
+    saved_search_value_with_query(record, query, api_client_id)
 }
 
-pub(in crate::proxy) fn saved_search_json_with_query(
+fn saved_search_mutation_value(record: &SavedSearchRecord, api_client_id: &str) -> Value {
+    saved_search_value_with_query(record, record.query.clone(), api_client_id)
+}
+
+fn saved_search_value_with_query(
     record: &SavedSearchRecord,
-    selections: &[SelectedField],
-    query_display: &str,
+    query: String,
     api_client_id: &str,
 ) -> Value {
-    let filters = saved_search_filters_for_api_client(query_display, api_client_id);
-    let legacy_id = saved_search_legacy_resource_id(&record.id);
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("SavedSearch")),
-        "id" => Some(json!(record.id)),
-        "legacyResourceId" => Some(json!(legacy_id)),
-        "name" => Some(json!(record.name)),
-        "query" => Some(json!(query_display)),
-        "resourceType" => Some(json!(record.resource_type)),
-        "searchTerms" => Some(json!(saved_search_search_terms(query_display))),
-        "filters" => Some(Value::Array(
-            filters
-                .iter()
-                .map(|(key, value)| saved_search_filter_json(key, value, &selection.selection))
-                .collect(),
-        )),
-        _ => None,
+    json!({
+        "id": record.id,
+        "name": record.name,
+        "query": query,
+        "resourceType": record.resource_type,
+        "_apiClientId": api_client_id
+    })
+}
+
+pub(in crate::proxy) fn saved_search_field_resolver_registrations() -> Vec<FieldResolverRegistration>
+{
+    let mut registrations = Vec::new();
+    for field in ["id", "name", "query", "resourceType"] {
+        registrations.push(FieldResolverRegistration::property(
+            ApiSurface::Admin,
+            "SavedSearch",
+            field,
+        ));
+    }
+    registrations.extend([
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "SavedSearch",
+            "legacyResourceId",
+            saved_search_legacy_resource_id_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "SavedSearch",
+            "searchTerms",
+            saved_search_search_terms_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "SavedSearch",
+            "filters",
+            saved_search_filters_field,
+        ),
+    ]);
+    for (parent_type, fields) in [
+        ("SavedSearchConnection", &["edges", "nodes", "pageInfo"][..]),
+        ("SavedSearchEdge", &["cursor", "node"]),
+        ("SearchFilter", &["key", "value"]),
+        (
+            "PageInfo",
+            &["hasNextPage", "hasPreviousPage", "startCursor", "endCursor"],
+        ),
+        ("SavedSearchCreatePayload", &["savedSearch", "userErrors"]),
+        ("SavedSearchUpdatePayload", &["savedSearch", "userErrors"]),
+        (
+            "SavedSearchDeletePayload",
+            &["deletedSavedSearchId", "shop", "userErrors"],
+        ),
+        ("UserError", &["field", "message"]),
+    ] {
+        for field in fields {
+            registrations.push(FieldResolverRegistration::property(
+                ApiSurface::Admin,
+                parent_type,
+                field,
+            ));
+        }
+    }
+    registrations
+}
+
+fn saved_search_parent_string<'a>(
+    invocation: &'a crate::admin_graphql::FieldResolverInvocation,
+    field: &str,
+) -> Result<&'a str, String> {
+    invocation
+        .parent
+        .get(field)
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("SavedSearch field resolver requires canonical `{field}` property"))
+}
+
+fn saved_search_legacy_resource_id_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(json!(saved_search_legacy_resource_id(
+        saved_search_parent_string(invocation, "id")?
+    )))
+}
+
+fn saved_search_search_terms_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(json!(saved_search_search_terms(
+        saved_search_parent_string(invocation, "query")?
+    )))
+}
+
+fn saved_search_filters_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let query = saved_search_parent_string(invocation, "query")?;
+    let api_client_id = invocation
+        .parent
+        .get("_apiClientId")
+        .and_then(Value::as_str)
+        .unwrap_or(DEFAULT_SAVED_SEARCH_API_CLIENT_ID);
+    Ok(Value::Array(
+        saved_search_filters_for_api_client(query, api_client_id)
+            .into_iter()
+            .map(|(key, value)| json!({ "key": key, "value": value }))
+            .collect(),
+    ))
+}
+
+fn saved_search_full_mutation_payload(
+    record: Option<&SavedSearchRecord>,
+    api_client_id: &str,
+    user_errors: Vec<Value>,
+) -> Value {
+    json!({
+        "savedSearch": record.map(|record| saved_search_mutation_value(record, api_client_id)),
+        "userErrors": user_errors
     })
 }
 
@@ -149,196 +498,6 @@ pub(in crate::proxy) fn saved_search_state_json(record: &SavedSearchRecord) -> V
     })
 }
 
-pub(in crate::proxy) fn saved_search_filter_json(
-    key: &str,
-    value: &str,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("SearchFilter")),
-        "key" => Some(json!(key)),
-        "value" => Some(json!(value)),
-        _ => None,
-    })
-}
-
-pub(in crate::proxy) fn saved_search_page_info_json(
-    records: &[SavedSearchRecord],
-    selections: &[SelectedField],
-    has_next_page: bool,
-    has_previous_page: bool,
-) -> Value {
-    selected_json(
-        &connection_page_info(
-            has_next_page,
-            has_previous_page,
-            records.first().map(saved_search_cursor),
-            records.last().map(saved_search_cursor),
-        ),
-        selections,
-    )
-}
-
-pub(in crate::proxy) fn saved_search_mutation_payload_json(
-    record: Option<&SavedSearchRecord>,
-    payload_selections: &[SelectedField],
-    saved_search_selections: &[SelectedField],
-    api_client_id: &str,
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selections, |selection| {
-        match selection.name.as_str() {
-            "savedSearch" => Some(match record {
-                Some(record) => saved_search_json_with_query(
-                    record,
-                    saved_search_selections,
-                    &record.query,
-                    api_client_id,
-                ),
-                None => Value::Null,
-            }),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
-    })
-}
-
-pub(in crate::proxy) fn saved_search_required_input_error(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Option<Response> {
-    let document = parsed_document(query, variables)?;
-    let operation_name = document
-        .operation_name
-        .as_deref()
-        .unwrap_or("AnonymousOperation");
-    let field = document.root_fields.iter().find(|field| {
-        matches!(
-            field.name.as_str(),
-            "savedSearchCreate" | "savedSearchUpdate" | "savedSearchDelete"
-        )
-    })?;
-    let input_type = match field.name.as_str() {
-        "savedSearchCreate" => "SavedSearchCreateInput",
-        "savedSearchUpdate" => "SavedSearchUpdateInput",
-        "savedSearchDelete" => "SavedSearchDeleteInput",
-        _ => return None,
-    };
-    let variable_input = variables.get("input");
-    let input = match field.arguments.get("input") {
-        Some(ResolvedValue::Object(input)) => input,
-        _ => return None,
-    };
-
-    if variable_input.is_some() {
-        let value = variable_input
-            .map(resolved_value_json)
-            .unwrap_or_else(|| json!({}));
-        let mut errors = Vec::new();
-        if field.name == "savedSearchCreate" && !input.contains_key("resourceType") {
-            errors.push(invalid_variable_required_field_error(
-                "resourceType",
-                input_type,
-                value.clone(),
-                55,
-            ));
-        }
-        if field.name == "savedSearchCreate" && !input.contains_key("name") {
-            errors.push(invalid_variable_required_field_error(
-                "name",
-                input_type,
-                value.clone(),
-                47,
-            ));
-        }
-        if field.name == "savedSearchUpdate" && !input.contains_key("id") {
-            errors.push(invalid_variable_required_field_error(
-                "id",
-                input_type,
-                value.clone(),
-                47,
-            ));
-        }
-        if field.name == "savedSearchDelete"
-            && input
-                .get("id")
-                .is_none_or(|value| matches!(value, ResolvedValue::Null))
-        {
-            errors.push(invalid_variable_required_field_error(
-                "id", input_type, value, 45,
-            ));
-        }
-        return (!errors.is_empty()).then(|| ok_json(json!({ "errors": errors })));
-    }
-
-    let required_fields: &[(&str, &str)] = match field.name.as_str() {
-        "savedSearchCreate" => &[
-            ("name", "String!"),
-            ("query", "String!"),
-            ("resourceType", "SearchResultType!"),
-        ],
-        "savedSearchUpdate" => &[("id", "ID!")],
-        "savedSearchDelete" => &[("id", "ID!")],
-        _ => &[],
-    };
-    let errors = required_fields
-        .iter()
-        .filter(|(name, _)| !input.contains_key(*name))
-        .map(|(name, ty)| {
-            missing_required_input_attribute_error(
-                operation_name,
-                &field.name,
-                input_type,
-                name,
-                ty,
-            )
-        })
-        .collect::<Vec<_>>();
-    if !errors.is_empty() {
-        return Some(ok_json(json!({ "errors": errors })));
-    }
-    None
-}
-
-pub(in crate::proxy) fn missing_required_input_attribute_error(
-    operation_name: &str,
-    root_field: &str,
-    input_object_type: &str,
-    argument_name: &str,
-    argument_type: &str,
-) -> Value {
-    json!({
-        "message": format!("Argument '{}' on InputObject '{}' is required. Expected type {}", argument_name, input_object_type, argument_type),
-        "locations": [{ "line": 2, "column": 28 }],
-        "path": [format!("mutation {}", operation_name), root_field, "input", argument_name],
-        "extensions": {
-            "code": "missingRequiredInputObjectAttribute",
-            "argumentName": argument_name,
-            "argumentType": argument_type,
-            "inputObjectType": input_object_type
-        }
-    })
-}
-
-pub(in crate::proxy) fn invalid_variable_required_field_error(
-    field: &str,
-    input_object_type: &str,
-    value: Value,
-    column: u64,
-) -> Value {
-    invalid_variable_error_envelope(
-        format!(
-            "Variable $input of type {input_object_type}! was provided invalid value for {field} (Expected value to not be null)"
-        ),
-        SourceLocation {
-            line: 1,
-            column: column as usize,
-        },
-        value,
-        json!([{ "path": [field], "explanation": "Expected value to not be null" }]),
-    )
-}
-
 pub(in crate::proxy) fn saved_search_name_taken_user_error() -> Value {
     user_error_omit_code(["input", "name"], "Name has already been taken", None)
 }
@@ -369,34 +528,6 @@ fn saved_search_customer_deprecated_user_error() -> Value {
         "Customer saved searches have been deprecated. Use Segmentation API instead.",
         None,
     )
-}
-
-pub(in crate::proxy) fn saved_search_delete_payload_json(
-    deleted_id: Option<&str>,
-    shop: &Value,
-    payload_selections: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selections, |selection| {
-        match selection.name.as_str() {
-            "deletedSavedSearchId" => Some(match deleted_id {
-                Some(id) => json!(id),
-                None => Value::Null,
-            }),
-            "shop" => Some(selected_json(shop, &selection.selection)),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
-            _ => None,
-        }
-    })
-}
-
-pub(in crate::proxy) fn saved_search_input_from_field(
-    field: &RootFieldSelection,
-) -> Option<BTreeMap<String, ResolvedValue>> {
-    match field.arguments.get("input") {
-        Some(ResolvedValue::Object(input)) => Some(input.clone()),
-        _ => None,
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -667,21 +798,6 @@ pub(in crate::proxy) fn is_reserved_saved_search_name(resource_type: &str, name:
         .any(|reserved_name| normalized == *reserved_name)
 }
 
-pub(in crate::proxy) fn is_saved_search_root(root: &str) -> bool {
-    matches!(
-        root,
-        "automaticDiscountSavedSearches"
-            | "codeDiscountSavedSearches"
-            | "collectionSavedSearches"
-            | "customerSavedSearches"
-            | "discountRedeemCodeSavedSearches"
-            | "draftOrderSavedSearches"
-            | "fileSavedSearches"
-            | "orderSavedSearches"
-            | "productSavedSearches"
-    )
-}
-
 pub(in crate::proxy) fn saved_search_resource_type(root: &str) -> &'static str {
     match root {
         "automaticDiscountSavedSearches" => "PRICE_RULE",
@@ -873,134 +989,6 @@ pub(in crate::proxy) fn saved_search_query_tokens(query: &str) -> Vec<String> {
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn saved_search_overlay_read_response(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let fields = self
-            .execution_root_fields(query, variables)
-            .unwrap_or_default();
-        if self.config.read_mode == ReadMode::LiveHybrid
-            && fields.iter().any(|field| is_saved_search_root(&field.name))
-        {
-            let mut response = (self.upstream_transport)(request.clone());
-            if (200..300).contains(&response.status) {
-                self.hydrate_saved_searches_from_response_data(
-                    request,
-                    &fields,
-                    &response.body["data"],
-                );
-                response.body["data"] = self.saved_search_overlay_read_fields(request, &fields);
-            }
-            return response;
-        }
-
-        ok_json(json!({
-            "data": self.saved_search_overlay_read_fields(request, &fields)
-        }))
-    }
-
-    pub(in crate::proxy) fn saved_search_overlay_read_fields(
-        &self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        let api_client_id = saved_search_request_api_client_id(request);
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            if !is_saved_search_root(&field.name) {
-                continue;
-            }
-            data.insert(
-                field.response_key.clone(),
-                self.saved_search_connection_field(field, &api_client_id),
-            );
-        }
-        Value::Object(data)
-    }
-
-    fn hydrate_saved_searches_from_response_data(
-        &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-        data: &Value,
-    ) {
-        let api_client_id = saved_search_request_api_client_id(request);
-        for field in fields {
-            if !is_saved_search_root(&field.name) {
-                continue;
-            }
-            let resource_type = saved_search_resource_type(&field.name);
-            let Some(connection) = data.get(&field.response_key) else {
-                continue;
-            };
-            for node in connection_nodes(connection) {
-                let Some(record) =
-                    saved_search_record_from_node(&node, resource_type, &api_client_id)
-                else {
-                    continue;
-                };
-                if !self.store.staged.saved_searches.is_tombstoned(&record.id) {
-                    self.store
-                        .base
-                        .saved_searches
-                        .insert(record.id.clone(), record);
-                }
-            }
-        }
-    }
-
-    pub(in crate::proxy) fn saved_search_connection_field(
-        &self,
-        field: &RootFieldSelection,
-        api_client_id: &str,
-    ) -> Value {
-        let resource_type = saved_search_resource_type(&field.name);
-        let mut records = self.saved_search_records_for_resource(resource_type);
-        if let Some(ResolvedValue::String(query)) = field.arguments.get("query") {
-            let needle = query.to_lowercase();
-            records.retain(|record| {
-                record.name.to_lowercase().contains(&needle)
-                    || record.query.to_lowercase().contains(&needle)
-            });
-        }
-        if matches!(
-            field.arguments.get("reverse"),
-            Some(ResolvedValue::Bool(true))
-        ) {
-            records.reverse();
-        }
-        let mut has_previous_page = false;
-        if let Some(ResolvedValue::String(after)) = field.arguments.get("after") {
-            if let Some(index) = records
-                .iter()
-                .position(|record| saved_search_cursor(record) == *after)
-            {
-                records = records.into_iter().skip(index + 1).collect();
-                has_previous_page = true;
-            }
-        }
-        let total_after_cursor = records.len();
-        let limit = match field.arguments.get("first") {
-            Some(ResolvedValue::Int(value)) if *value >= 0 => Some(*value as usize),
-            _ => None,
-        };
-        let mut has_next_page = false;
-        if let Some(limit) = limit {
-            has_next_page = total_after_cursor > limit;
-            records.truncate(limit);
-        }
-        saved_search_connection_json(
-            &records,
-            &field.selection,
-            api_client_id,
-            has_next_page,
-            has_previous_page,
-        )
-    }
-
     pub(in crate::proxy) fn saved_search_records_for_resource(
         &self,
         resource_type: &str,
@@ -1059,194 +1047,5 @@ impl DraftProxy {
             errors.push(saved_search_name_too_long_user_error());
         }
         errors
-    }
-
-    pub(in crate::proxy) fn saved_search_mutation_fields(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let api_client_id = saved_search_request_api_client_id(request);
-        let mut log_drafts = Vec::new();
-        let fields = self
-            .execution_root_fields(query, variables)
-            .unwrap_or_default();
-        let data = root_payload_json(&fields, |field| {
-            let outcome = match field.name.as_str() {
-                "savedSearchCreate" => self.saved_search_create_field(field, &api_client_id),
-                "savedSearchUpdate" => self.saved_search_update_field(field, &api_client_id),
-                "savedSearchDelete" => self.saved_search_delete_field(field),
-                _ => return None,
-            };
-            if let Some(log_draft) = outcome.log_draft {
-                log_drafts.push(log_draft);
-            }
-            Some(outcome.value)
-        });
-        MutationOutcome::with_log_drafts(ok_json(json!({ "data": data })), log_drafts)
-    }
-
-    pub(in crate::proxy) fn saved_search_create_field(
-        &mut self,
-        field: &RootFieldSelection,
-        api_client_id: &str,
-    ) -> MutationFieldOutcome {
-        let payload_selection = &field.selection;
-        let saved_search_selection = nested_selected_fields(payload_selection, &["savedSearch"]);
-        let Some(input) = saved_search_input_from_field(field) else {
-            return MutationFieldOutcome::unlogged(saved_search_mutation_payload_json(
-                None,
-                payload_selection,
-                &saved_search_selection,
-                api_client_id,
-                vec![saved_search_input_required_user_error()],
-            ));
-        };
-        let name = resolved_string_field(&input, "name").unwrap_or_default();
-        let search_query = resolved_string_field(&input, "query").unwrap_or_default();
-        let resource_type =
-            resolved_string_field(&input, "resourceType").unwrap_or_else(|| "PRODUCT".to_string());
-        let mut user_errors = self.saved_search_field_user_errors(
-            SavedSearchQueryValidationOperation::Create,
-            &resource_type,
-            &name,
-            None,
-        );
-        user_errors.extend(saved_search_query_user_errors(
-            SavedSearchQueryValidationOperation::Create,
-            &resource_type,
-            &search_query,
-        ));
-        if !user_errors.is_empty() {
-            return MutationFieldOutcome::unlogged(saved_search_mutation_payload_json(
-                None,
-                payload_selection,
-                &saved_search_selection,
-                api_client_id,
-                user_errors,
-            ));
-        }
-        let id = self.next_proxy_synthetic_gid("SavedSearch");
-        let record = SavedSearchRecord {
-            id: id.clone(),
-            name,
-            query: normalize_saved_search_query_for_api_client(&search_query, api_client_id),
-            resource_type,
-        };
-        self.store.stage_saved_search(record.clone());
-        MutationFieldOutcome::staged(
-            saved_search_mutation_payload_json(
-                Some(&record),
-                payload_selection,
-                &saved_search_selection,
-                api_client_id,
-                Vec::new(),
-            ),
-            LogDraft::staged("savedSearchCreate", "saved_searches", vec![id]),
-        )
-    }
-
-    pub(in crate::proxy) fn saved_search_update_field(
-        &mut self,
-        field: &RootFieldSelection,
-        api_client_id: &str,
-    ) -> MutationFieldOutcome {
-        let payload_selection = &field.selection;
-        let saved_search_selection = nested_selected_fields(payload_selection, &["savedSearch"]);
-        let Some(input) = saved_search_input_from_field(field) else {
-            return MutationFieldOutcome::unlogged(saved_search_mutation_payload_json(
-                None,
-                payload_selection,
-                &saved_search_selection,
-                api_client_id,
-                vec![saved_search_input_required_user_error()],
-            ));
-        };
-        let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let existing = self.store.saved_search_by_id(&id);
-        let Some(existing) = existing else {
-            return MutationFieldOutcome::unlogged(saved_search_mutation_payload_json(
-                None,
-                payload_selection,
-                &saved_search_selection,
-                api_client_id,
-                vec![saved_search_missing_user_error()],
-            ));
-        };
-        let requested_name =
-            resolved_string_field(&input, "name").unwrap_or_else(|| existing.name.clone());
-        let requested_query =
-            resolved_string_field(&input, "query").unwrap_or_else(|| existing.query.clone());
-        let mut updated = existing.clone();
-        updated.query =
-            normalize_saved_search_query_for_api_client(&requested_query, api_client_id);
-        let mut user_errors = self.saved_search_field_user_errors(
-            SavedSearchQueryValidationOperation::Update,
-            &existing.resource_type,
-            &requested_name,
-            Some(&id),
-        );
-        user_errors.extend(saved_search_query_user_errors(
-            SavedSearchQueryValidationOperation::Update,
-            &existing.resource_type,
-            &requested_query,
-        ));
-        if !user_errors.is_empty() {
-            return MutationFieldOutcome::unlogged(saved_search_mutation_payload_json(
-                Some(&updated),
-                payload_selection,
-                &saved_search_selection,
-                api_client_id,
-                user_errors,
-            ));
-        }
-        updated.name = requested_name;
-        self.store.stage_saved_search(updated.clone());
-        MutationFieldOutcome::staged(
-            saved_search_mutation_payload_json(
-                Some(&updated),
-                payload_selection,
-                &saved_search_selection,
-                api_client_id,
-                Vec::new(),
-            ),
-            LogDraft::staged(
-                "savedSearchUpdate",
-                "saved_searches",
-                vec![updated.id.clone()],
-            ),
-        )
-    }
-
-    pub(in crate::proxy) fn saved_search_delete_field(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let input = saved_search_input_from_field(field);
-        let id = input
-            .as_ref()
-            .and_then(|input| resolved_string_field(input, "id"))
-            .unwrap_or_default();
-        let deleted = self.store.delete_saved_search(&id);
-        let shop = self.store.effective_shop();
-        let value = saved_search_delete_payload_json(
-            if deleted { Some(&id) } else { None },
-            &shop,
-            &field.selection,
-            if deleted {
-                Vec::new()
-            } else {
-                vec![saved_search_missing_user_error()]
-            },
-        );
-        if deleted {
-            MutationFieldOutcome::staged(
-                value,
-                LogDraft::staged("savedSearchDelete", "saved_searches", vec![id.clone()]),
-            )
-        } else {
-            MutationFieldOutcome::unlogged(value)
-        }
     }
 }

@@ -1,12 +1,56 @@
 use serde_json::{json, Value};
 
-use crate::{
-    graphql::SelectedField,
-    proxy::{DraftProxy, Request},
-};
+use crate::proxy::{DraftProxy, Request};
 
-pub(crate) type NodeLoader =
-    fn(&DraftProxy, &str, &[SelectedField], Option<&Request>) -> Option<Value>;
+pub(crate) type NodeLoader = fn(&DraftProxy, &str, Option<&Request>) -> NodeLoadState<EntityRef>;
+
+/// Concrete Storefront `Node` types backed by the local discovery model. Keep
+/// this beside the Admin loader inventory so schema reachability and runtime
+/// entity loading cannot silently treat every captured Storefront implementor
+/// as locally materializable.
+pub(crate) const STOREFRONT_NODE_TYPE_NAMES: &[&str] = &[
+    "Article",
+    "Blog",
+    "Collection",
+    "Location",
+    "Menu",
+    "Metaobject",
+    "Page",
+    "Product",
+    "ProductVariant",
+];
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct EntityRef {
+    pub type_name: String,
+    pub id: String,
+    pub value: Value,
+}
+
+impl EntityRef {
+    pub(crate) fn new(type_name: impl Into<String>, id: &str, mut value: Value) -> Self {
+        let type_name = type_name.into();
+        if let Some(object) = value.as_object_mut() {
+            object
+                .entry("__typename".to_string())
+                .or_insert_with(|| json!(&type_name));
+            object.entry("id".to_string()).or_insert_with(|| json!(id));
+        }
+        Self {
+            type_name,
+            id: id.to_string(),
+            value,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum NodeLoadState<T = Value> {
+    Found(T),
+    KnownMissing,
+    NeedsHydration,
+    UnsupportedType,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeResolverBehavior {
@@ -31,8 +75,8 @@ pub struct NodeResolverInventoryEntry {
     pub(crate) loader: NodeLoader,
 }
 
-macro_rules! direct_node_entry {
-    ($type_name:expr, $resolver:expr, $behavior:expr, $loader:ident) => {
+macro_rules! node_entry {
+    ($type_name:literal, $resolver:literal, $behavior:expr, $loader:ident $(,)?) => {
         node_entry_with_loader(
             $type_name,
             $resolver,
@@ -42,16 +86,10 @@ macro_rules! direct_node_entry {
     };
 }
 
-macro_rules! node_entry {
-    ($type_name:literal, $resolver:literal, $behavior:expr, $loader:ident $(,)?) => {
-        direct_node_entry!($type_name, $resolver, $behavior, $loader)
-    };
-}
-
 const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     node_entry!(
         "Abandonment",
-        "DraftProxy::abandonment_node_value_by_id",
+        "Store::staged.abandonments",
         NodeResolverBehavior::ProjectLocalRecord,
         load_abandonment,
     ),
@@ -99,19 +137,19 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "CartTransform",
-        "DraftProxy::local_node_value_by_id",
+        "node_registry::load_cart_transform",
         NodeResolverBehavior::ProjectLocalRecord,
         load_cart_transform,
     ),
     node_entry!(
         "CashTrackingSession",
-        "local_node_value::is_safe_no_data_node_gid",
+        "NodeLoadState::KnownMissing",
         NodeResolverBehavior::ReturnKnownNull,
         load_known_null,
     ),
     node_entry!(
         "Collection",
-        "DraftProxy::collection_json_with_publication_fields",
+        "DraftProxy::collection_canonical_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
         load_collection,
     ),
@@ -171,7 +209,7 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "CustomerSegmentMembersQuery",
-        "DraftProxy::local_node_value_by_id",
+        "Store::staged.customer_segment_member_queries",
         NodeResolverBehavior::ProjectLocalRecord,
         load_customer_segment_members_query,
     ),
@@ -207,7 +245,7 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "ExternalVideo",
-        "DraftProxy::local_node_value_by_id",
+        "Store::staged.media_files",
         NodeResolverBehavior::ProjectLocalRecord,
         load_media,
     ),
@@ -219,7 +257,7 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "FulfillmentConstraintRule",
-        "DraftProxy::local_node_value_by_id",
+        "node_registry::load_fulfillment_constraint_rule",
         NodeResolverBehavior::ProjectLocalRecord,
         load_fulfillment_constraint_rule,
     ),
@@ -255,7 +293,7 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "GenericFile",
-        "DraftProxy::local_node_value_by_id",
+        "Store::staged.media_files",
         NodeResolverBehavior::ProjectLocalRecord,
         load_media,
     ),
@@ -285,15 +323,15 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "InventoryItem",
-        "DraftProxy::inventory_node_value_by_id",
+        "DraftProxy::inventory_item_canonical_value",
         NodeResolverBehavior::ProjectLocalRecord,
-        load_inventory,
+        load_inventory_item,
     ),
     node_entry!(
         "InventoryLevel",
-        "DraftProxy::inventory_node_value_by_id",
+        "DraftProxy::inventory_level_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
-        load_inventory,
+        load_inventory_level,
     ),
     node_entry!(
         "InventoryQuantity",
@@ -327,7 +365,7 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "Location",
-        "DraftProxy::local_node_value_by_id",
+        "DraftProxy::location_for_read",
         NodeResolverBehavior::ProjectLocalRecord,
         load_location,
     ),
@@ -339,13 +377,13 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "MarketRegionCountry",
-        "DraftProxy::local_node_value_by_id",
+        "Store::staged.backup_region",
         NodeResolverBehavior::ProjectLocalRecord,
         load_backup_region,
     ),
     node_entry!(
         "MediaImage",
-        "DraftProxy::local_node_value_by_id",
+        "Store::staged.media_files",
         NodeResolverBehavior::ProjectLocalRecord,
         load_media,
     ),
@@ -363,7 +401,7 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "Model3d",
-        "DraftProxy::local_node_value_by_id",
+        "Store::staged.media_files",
         NodeResolverBehavior::ProjectLocalRecord,
         load_media,
     ),
@@ -381,49 +419,49 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "PointOfSaleDevice",
-        "local_node_value::is_safe_no_data_node_gid",
+        "NodeLoadState::KnownMissing",
         NodeResolverBehavior::ReturnKnownNull,
         load_known_null,
     ),
     node_entry!(
         "Product",
-        "DraftProxy::product_json_with_variants_and_currency_context",
+        "DraftProxy::product_canonical_value",
         NodeResolverBehavior::ProjectLocalRecord,
         load_product,
     ),
     node_entry!(
         "ProductBundleOperation",
-        "DraftProxy::product_operation_json",
+        "DraftProxy::product_operation_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
         load_product_operation,
     ),
     node_entry!(
         "ProductDeleteOperation",
-        "DraftProxy::product_delete_operation_value_by_id",
+        "DraftProxy::product_operation_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
-        load_product_delete_operation,
+        load_product_operation,
     ),
     node_entry!(
         "ProductDuplicateOperation",
-        "DraftProxy::product_operation_json",
+        "DraftProxy::product_operation_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
         load_product_operation,
     ),
     node_entry!(
         "ProductFeed",
-        "DraftProxy::product_tail_feed_node_value",
+        "DraftProxy::product_feed_canonical_value",
         NodeResolverBehavior::ProjectLocalRecord,
         load_product_feed,
     ),
     node_entry!(
         "ProductSetOperation",
-        "DraftProxy::product_operation_json",
+        "DraftProxy::product_operation_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
         load_product_operation,
     ),
     node_entry!(
         "ProductVariant",
-        "DraftProxy::product_variant_by_id_value",
+        "DraftProxy::product_variant_canonical_value",
         NodeResolverBehavior::ProjectLocalRecord,
         load_product_variant,
     ),
@@ -471,7 +509,7 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "Segment",
-        "DraftProxy::local_node_value_by_id",
+        "Store::segment_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
         load_segment,
     ),
@@ -489,13 +527,13 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "ShopifyFunction",
-        "DraftProxy::shopify_function_node_value_by_id",
+        "Store::effective.function_metadata",
         NodeResolverBehavior::ProjectLocalRecord,
         load_shopify_function,
     ),
     node_entry!(
         "ShopifyPaymentsDispute",
-        "local_node_value::is_safe_no_data_node_gid",
+        "NodeLoadState::KnownMissing",
         NodeResolverBehavior::ReturnKnownNull,
         load_known_null,
     ),
@@ -531,7 +569,7 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "TaxAppConfiguration",
-        "DraftProxy::local_node_value_by_id",
+        "Store::staged.tax_app_configuration",
         NodeResolverBehavior::ProjectLocalRecord,
         load_tax_app_configuration,
     ),
@@ -543,13 +581,13 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "Validation",
-        "DraftProxy::local_node_value_by_id",
+        "node_registry::load_validation",
         NodeResolverBehavior::ProjectLocalRecord,
         load_validation,
     ),
     node_entry!(
         "Video",
-        "DraftProxy::local_node_value_by_id",
+        "Store::staged.media_files",
         NodeResolverBehavior::ProjectLocalRecord,
         load_media,
     ),

@@ -7,7 +7,6 @@ use crate::graphql::operation_directive_invocations;
 use base64::Engine as _;
 use sha2::{Digest, Sha256};
 
-const STOREFRONT_FIRST_SLICE_VERSION: &str = "2026-04";
 const STOREFRONT_FIRST_SLICE_ROOTS: &[&str] = &[
     "shop",
     "localization",
@@ -182,7 +181,39 @@ impl StorefrontRequestContext {
 
 struct StorefrontCustomerAuthOutcome {
     value: Value,
-    errors: Vec<Value>,
+    errors: Vec<crate::admin_graphql::RootFieldError>,
+}
+
+fn storefront_argument_string(arguments: &BTreeMap<String, Value>, name: &str) -> String {
+    arguments
+        .get(name)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn storefront_argument_object<'a>(
+    arguments: &'a BTreeMap<String, Value>,
+    name: &str,
+) -> Option<&'a serde_json::Map<String, Value>> {
+    arguments.get(name).and_then(Value::as_object)
+}
+
+fn storefront_input_string(input: Option<&serde_json::Map<String, Value>>, name: &str) -> String {
+    input
+        .and_then(|input| input.get(name))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn storefront_input_bool(
+    input: Option<&serde_json::Map<String, Value>>,
+    name: &str,
+) -> Option<bool> {
+    input
+        .and_then(|input| input.get(name))
+        .and_then(Value::as_bool)
 }
 
 pub(in crate::proxy) struct StorefrontCustomerAuthLogDetails<'a> {
@@ -191,24 +222,1518 @@ pub(in crate::proxy) struct StorefrontCustomerAuthLogDetails<'a> {
     pub notes: &'a str,
 }
 
+pub(in crate::proxy) fn storefront_field_resolver_registrations() -> Vec<FieldResolverRegistration>
+{
+    let mut registrations = Vec::new();
+    for (parent_type, fields) in [
+        (
+            "Article",
+            &[
+                "contentHtml",
+                "excerptHtml",
+                "handle",
+                "id",
+                "image",
+                "publishedAt",
+                "tags",
+                "title",
+            ][..],
+        ),
+        ("Blog", &["handle", "id", "title"]),
+        (
+            "Page",
+            &[
+                "body",
+                "bodySummary",
+                "createdAt",
+                "handle",
+                "id",
+                "title",
+                "updatedAt",
+            ],
+        ),
+        (
+            "ArticleAuthor",
+            &["bio", "email", "firstName", "lastName", "name"],
+        ),
+        ("SEO", &["description", "title"]),
+        (
+            "Image",
+            &[
+                "altText",
+                "height",
+                "id",
+                "originalSrc",
+                "src",
+                "thumbhash",
+                "width",
+            ],
+        ),
+        ("SitemapImage", &["alt", "filepath", "updatedAt"]),
+        ("ApiVersion", &["displayName", "handle", "supported"]),
+        (
+            "PaymentSettings",
+            &[
+                "acceptedCardBrands",
+                "cardVaultUrl",
+                "countryCode",
+                "currencyCode",
+                "enabledPresentmentCurrencies",
+                "shopifyPaymentsAccountId",
+                "supportedDigitalWallets",
+            ],
+        ),
+        (
+            "Localization",
+            &[
+                "availableCountries",
+                "availableLanguages",
+                "country",
+                "language",
+                "market",
+            ],
+        ),
+        (
+            "Country",
+            &[
+                "availableLanguages",
+                "currency",
+                "defaultLanguage",
+                "isoCode",
+                "market",
+                "name",
+                "unitSystem",
+            ],
+        ),
+        ("Currency", &["isoCode", "name", "symbol"]),
+        ("Language", &["endonymName", "isoCode", "name"]),
+        ("Market", &["handle", "id"]),
+        ("LocationConnection", &["edges", "nodes", "pageInfo"]),
+        ("LocationEdge", &["cursor", "node"]),
+        ("Location", &["address", "id", "name"]),
+        (
+            "LocationAddress",
+            &[
+                "address1",
+                "address2",
+                "city",
+                "country",
+                "countryCode",
+                "formatted",
+                "latitude",
+                "longitude",
+                "phone",
+                "province",
+                "provinceCode",
+                "zip",
+            ],
+        ),
+        (
+            "Shop",
+            &[
+                "brand",
+                "contactInformation",
+                "customerAccountTranslations",
+                "customerAccountUrl",
+                "description",
+                "id",
+                "legalNotice",
+                "moneyFormat",
+                "name",
+                "paymentSettings",
+                "primaryDomain",
+                "privacyPolicy",
+                "refundPolicy",
+                "shippingPolicy",
+                "shipsToCountries",
+                "shopPayInstallmentsPricing",
+                "socialLoginProviders",
+                "subscriptionPolicy",
+                "termsOfSale",
+                "termsOfService",
+            ],
+        ),
+        (
+            "Brand",
+            &[
+                "colors",
+                "coverImage",
+                "logo",
+                "shortDescription",
+                "slogan",
+                "squareLogo",
+            ],
+        ),
+        ("BrandColors", &["primary", "secondary"]),
+        ("BrandColorGroup", &["background", "foreground"]),
+        ("Domain", &["host", "sslEnabled", "url"]),
+        ("ShopPolicy", &["body", "handle", "id", "title", "url"]),
+        (
+            "ShopPolicyWithDefault",
+            &["body", "handle", "id", "title", "url"],
+        ),
+        ("Translation", &["key", "value"]),
+        ("Menu", &["handle", "id", "items", "itemsCount", "title"]),
+        (
+            "MenuItem",
+            &[
+                "id",
+                "items",
+                "resource",
+                "resourceId",
+                "tags",
+                "title",
+                "type",
+                "url",
+            ],
+        ),
+        ("UrlRedirectConnection", &["edges", "nodes", "pageInfo"]),
+        ("UrlRedirectEdge", &["cursor", "node"]),
+        ("UrlRedirect", &["id", "path", "target"]),
+        ("Count", &["count", "precision"]),
+        ("PaginatedSitemapResources", &["hasNextPage", "items"]),
+        (
+            "SitemapResource",
+            &["handle", "image", "title", "updatedAt"],
+        ),
+        ("ArticleConnection", &["edges", "nodes", "pageInfo"]),
+        ("ArticleEdge", &["cursor", "node"]),
+        ("BlogConnection", &["edges", "nodes", "pageInfo"]),
+        ("BlogEdge", &["cursor", "node"]),
+        ("PageConnection", &["edges", "nodes", "pageInfo"]),
+        ("PageEdge", &["cursor", "node"]),
+        ("CommentConnection", &["edges", "nodes", "pageInfo"]),
+        ("CommentEdge", &["cursor", "node"]),
+        (
+            "PageInfo",
+            &["endCursor", "hasNextPage", "hasPreviousPage", "startCursor"],
+        ),
+        (
+            "Metaobject",
+            &[
+                "fields",
+                "handle",
+                "id",
+                "onlineStoreUrl",
+                "seo",
+                "type",
+                "updatedAt",
+            ],
+        ),
+        ("MetaobjectField", &["key", "type", "value"]),
+        ("MetaobjectSEO", &["description", "title"]),
+        (
+            "Metafield",
+            &[
+                "createdAt",
+                "description",
+                "id",
+                "key",
+                "list",
+                "namespace",
+                "type",
+                "updatedAt",
+                "value",
+            ],
+        ),
+        (
+            "MetafieldReferenceConnection",
+            &["edges", "nodes", "pageInfo"],
+        ),
+        ("MetafieldReferenceEdge", &["cursor", "node"]),
+        (
+            "Customer",
+            &[
+                "acceptsMarketing",
+                "avatarUrl",
+                "createdAt",
+                "defaultAddress",
+                "displayName",
+                "email",
+                "firstName",
+                "id",
+                "lastName",
+                "numberOfOrders",
+                "phone",
+                "socialLoginProvider",
+                "tags",
+                "updatedAt",
+            ],
+        ),
+        (
+            "MailingAddress",
+            &[
+                "address1",
+                "address2",
+                "city",
+                "company",
+                "country",
+                "countryCode",
+                "countryCodeV2",
+                "firstName",
+                "formattedArea",
+                "id",
+                "lastName",
+                "latitude",
+                "longitude",
+                "name",
+                "phone",
+                "province",
+                "provinceCode",
+                "zip",
+            ],
+        ),
+        (
+            "Order",
+            &[
+                "currencyCode",
+                "customerUrl",
+                "email",
+                "financialStatus",
+                "fulfillmentStatus",
+                "id",
+                "name",
+                "orderNumber",
+                "phone",
+                "processedAt",
+                "subtotalPriceV2",
+                "totalPrice",
+                "totalPriceV2",
+            ],
+        ),
+        (
+            "Product",
+            &[
+                "availableForSale",
+                "compareAtPriceRange",
+                "createdAt",
+                "descriptionHtml",
+                "handle",
+                "id",
+                "isGiftCard",
+                "onlineStoreUrl",
+                "priceRange",
+                "productType",
+                "publishedAt",
+                "requiresSellingPlan",
+                "seo",
+                "tags",
+                "title",
+                "totalInventory",
+                "updatedAt",
+                "variantsCount",
+                "vendor",
+            ],
+        ),
+        (
+            "Collection",
+            &[
+                "descriptionHtml",
+                "handle",
+                "id",
+                "image",
+                "onlineStoreUrl",
+                "seo",
+                "title",
+                "trackingParameters",
+                "updatedAt",
+            ],
+        ),
+        (
+            "ProductVariant",
+            &[
+                "availableForSale",
+                "barcode",
+                "compareAtPrice",
+                "compareAtPriceV2",
+                "components",
+                "currentlyNotInStock",
+                "groupedBy",
+                "id",
+                "price",
+                "priceV2",
+                "quantityAvailable",
+                "quantityPriceBreaks",
+                "quantityRule",
+                "requiresComponents",
+                "requiresShipping",
+                "selectedOptions",
+                "shopPayInstallmentsPricing",
+                "sku",
+                "storeAvailability",
+                "taxable",
+                "title",
+                "unitPrice",
+                "unitPriceMeasurement",
+                "weight",
+                "weightUnit",
+            ],
+        ),
+        ("ProductOption", &["id", "name", "optionValues", "values"]),
+        (
+            "ProductOptionValue",
+            &["firstSelectableVariant", "id", "name", "swatch"],
+        ),
+        ("ProductOptionValueSwatch", &["color", "image"]),
+        ("ProductPriceRange", &["maxVariantPrice", "minVariantPrice"]),
+        ("SellingPlanGroup", &["appName", "name", "options"]),
+        (
+            "SellingPlan",
+            &[
+                "billingPolicy",
+                "checkoutCharge",
+                "deliveryPolicy",
+                "description",
+                "id",
+                "name",
+                "options",
+                "priceAdjustments",
+                "recurringDeliveries",
+            ],
+        ),
+        ("MoneyV2", &["amount", "currencyCode"]),
+        ("SelectedOption", &["name", "value"]),
+    ] {
+        for field in fields {
+            registrations.push(FieldResolverRegistration::property(
+                ApiSurface::Storefront,
+                parent_type,
+                field,
+            ));
+        }
+    }
+    for (parent_type, field, handler) in [
+        (
+            "Blog",
+            "articleByHandle",
+            storefront_blog_article_by_handle_field
+                as crate::resolver_registry::FieldResolverHandler,
+        ),
+        ("Blog", "articles", storefront_blog_articles_field),
+        ("Blog", "authors", storefront_blog_authors_field),
+        ("Blog", "metafield", storefront_null_field),
+        ("Blog", "metafields", storefront_metafields_field),
+        ("Blog", "onlineStoreUrl", storefront_null_field),
+        ("Blog", "seo", storefront_seo_field),
+        ("Article", "author", storefront_article_author_field),
+        ("Article", "authorV2", storefront_article_author_field),
+        ("Article", "blog", storefront_article_blog_field),
+        ("Article", "comments", storefront_empty_connection_field),
+        ("Article", "content", storefront_truncated_content_field),
+        ("Article", "excerpt", storefront_truncated_excerpt_field),
+        ("Article", "metafield", storefront_null_field),
+        ("Article", "metafields", storefront_metafields_field),
+        ("Article", "onlineStoreUrl", storefront_null_field),
+        ("Article", "seo", storefront_seo_field),
+        ("Article", "trackingParameters", storefront_null_field),
+        ("Page", "metafield", storefront_null_field),
+        ("Page", "metafields", storefront_metafields_field),
+        ("Page", "onlineStoreUrl", storefront_null_field),
+        ("Page", "seo", storefront_seo_field),
+        ("Page", "trackingParameters", storefront_null_field),
+        ("Location", "metafield", storefront_null_field),
+        ("Location", "metafields", storefront_metafields_field),
+        ("Market", "metafield", storefront_null_field),
+        ("Market", "metafields", storefront_metafields_field),
+        ("Shop", "metafield", storefront_shop_metafield_field),
+        ("Shop", "metafields", storefront_shop_metafields_field),
+        ("Metaobject", "field", storefront_metaobject_field_field),
+        ("MetaobjectField", "reference", storefront_reference_field),
+        ("MetaobjectField", "references", storefront_references_field),
+        (
+            "Metafield",
+            "parentResource",
+            storefront_parent_resource_field,
+        ),
+        ("Metafield", "reference", storefront_reference_field),
+        ("Metafield", "references", storefront_references_field),
+        ("Customer", "addresses", storefront_customer_addresses_field),
+        ("Customer", "orders", storefront_customer_orders_field),
+        ("Customer", "metafield", storefront_owner_metafield_field),
+        ("Customer", "metafields", storefront_owner_metafields_field),
+        (
+            "MailingAddress",
+            "formatted",
+            storefront_mailing_address_formatted_field,
+        ),
+        (
+            "Product",
+            "description",
+            storefront_product_description_field,
+        ),
+        (
+            "Product",
+            "featuredImage",
+            storefront_product_featured_image_field,
+        ),
+        ("Product", "images", storefront_product_images_field),
+        ("Product", "media", storefront_product_media_field),
+        ("Product", "metafield", storefront_owner_metafield_field),
+        ("Product", "metafields", storefront_owner_metafields_field),
+        ("Product", "options", storefront_product_options_field),
+        (
+            "Product",
+            "selectedOrFirstAvailableVariant",
+            storefront_product_selected_variant_field,
+        ),
+        (
+            "Product",
+            "variantBySelectedOptions",
+            storefront_product_variant_by_options_field,
+        ),
+        ("Product", "variants", storefront_product_variants_field),
+        (
+            "Product",
+            "sellingPlanGroups",
+            storefront_product_selling_plan_groups_field,
+        ),
+        ("ProductVariant", "image", storefront_variant_image_field),
+        (
+            "ProductVariant",
+            "metafield",
+            storefront_owner_metafield_field,
+        ),
+        (
+            "ProductVariant",
+            "metafields",
+            storefront_owner_metafields_field,
+        ),
+        (
+            "ProductVariant",
+            "product",
+            storefront_variant_product_field,
+        ),
+        (
+            "ProductVariant",
+            "sellingPlanAllocations",
+            storefront_variant_selling_plan_allocations_field,
+        ),
+        (
+            "SellingPlanGroup",
+            "sellingPlans",
+            storefront_selling_plan_group_selling_plans_field,
+        ),
+        ("SellingPlan", "metafield", storefront_null_field),
+        ("SellingPlan", "metafields", storefront_metafields_field),
+        (
+            "Collection",
+            "description",
+            storefront_collection_description_field,
+        ),
+        ("Collection", "metafield", storefront_owner_metafield_field),
+        (
+            "Collection",
+            "metafields",
+            storefront_owner_metafields_field,
+        ),
+        (
+            "Collection",
+            "products",
+            storefront_collection_products_field,
+        ),
+        ("Image", "transformedSrc", storefront_image_url_field),
+        ("Image", "url", storefront_image_url_field),
+        (
+            "Sitemap",
+            "pagesCount",
+            storefront_sitemap_pages_count_field,
+        ),
+        ("Sitemap", "resources", storefront_sitemap_resources_field),
+    ] {
+        let registration = FieldResolverRegistration::explicit(
+            ApiSurface::Storefront,
+            parent_type,
+            field,
+            handler,
+        );
+        registrations.push(registration);
+    }
+    registrations.extend(super::storefront_cart::storefront_cart_field_resolver_registrations());
+    registrations
+}
+
+pub(in crate::proxy) fn storefront_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
+    let mut policies = [
+        "Shop",
+        "Metaobject",
+        "MetaobjectField",
+        "Metafield",
+        "Customer",
+        "MailingAddress",
+        "Product",
+        "ProductVariant",
+        "Collection",
+        "SellingPlanGroup",
+        "SellingPlan",
+        "ProductOption",
+        "ProductOptionValue",
+        "ProductOptionValueSwatch",
+        "ProductPriceRange",
+    ]
+    .into_iter()
+    .map(|parent_type| {
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Storefront,
+            parent_type,
+            "the local Storefront model does not implement this field",
+        )
+    })
+    .collect::<Vec<_>>();
+    policies.extend(
+        [
+            "BaseCartLine",
+            "Cart",
+            "CartDeliveryAddress",
+            "CartDeliveryGroup",
+            "CartLine",
+            "Comment",
+            "Company",
+            "CompanyLocation",
+            "ComponentizableCartLine",
+            "MediaPresentation",
+        ]
+        .into_iter()
+        .map(|parent_type| {
+            FieldResolverTypePolicy::property_backed_ordinary_fields(
+                ApiSurface::Storefront,
+                parent_type,
+                "argument-bearing Storefront field has no explicit canonical resolver",
+            )
+        }),
+    );
+    policies
+}
+
+fn storefront_parent_string<'a>(
+    invocation: &'a crate::admin_graphql::FieldResolverInvocation,
+    field: &str,
+) -> &'a str {
+    invocation
+        .parent
+        .get(field)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+}
+
+fn storefront_null_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    _invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(Value::Null)
+}
+
+fn storefront_seo_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    _invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(storefront_default_seo())
+}
+
+fn storefront_image_url_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(invocation
+        .parent
+        .get("_url")
+        .or_else(|| invocation.parent.get("url"))
+        .or_else(|| invocation.parent.get("src"))
+        .cloned()
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_collection_record_for_parent(proxy: &DraftProxy, parent: &Value) -> Option<Value> {
+    parent
+        .get("id")
+        .and_then(Value::as_str)
+        .and_then(|id| proxy.store.collection_by_id(id))
+        .cloned()
+        .or_else(|| parent.is_object().then(|| parent.clone()))
+}
+
+fn storefront_collection_description_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(collection) = storefront_collection_record_for_parent(proxy, invocation.parent) else {
+        return Ok(json!(""));
+    };
+    let description = collection
+        .get("description")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| {
+            storefront_strip_html(
+                collection
+                    .get("descriptionHtml")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+            )
+        });
+    let Some(limit) = invocation
+        .arguments
+        .get("truncateAt")
+        .and_then(Value::as_i64)
+        .and_then(|limit| (limit >= 0).then_some(limit as usize))
+    else {
+        return Ok(json!(description));
+    };
+    if description.chars().count() <= limit {
+        return Ok(json!(description));
+    }
+    let prefix_len = limit.saturating_sub(3);
+    Ok(json!(format!(
+        "{}...",
+        description.chars().take(prefix_len).collect::<String>()
+    )))
+}
+
+fn storefront_owner_metafield_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let owner_id = invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let namespace = invocation
+        .arguments
+        .get("namespace")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let key = invocation
+        .arguments
+        .get("key")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(proxy
+        .storefront_owner_metafield(owner_id, namespace, key)
+        .map(storefront_metafield_runtime_value)
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_owner_metafields_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let owner_id = invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(Value::Array(
+        invocation
+            .arguments
+            .get("identifiers")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .map(|identifier| {
+                let namespace = identifier
+                    .get("namespace")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let key = identifier
+                    .get("key")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                proxy
+                    .storefront_owner_metafield(owner_id, namespace, key)
+                    .map(storefront_metafield_runtime_value)
+                    .unwrap_or(Value::Null)
+            })
+            .collect(),
+    ))
+}
+
+fn storefront_collection_products_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(collection) = storefront_collection_record_for_parent(proxy, invocation.parent) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    let filters = resolved_object_list_field(&arguments, "filters");
+    let mut products = proxy
+        .collection_product_entries(&collection)
+        .into_iter()
+        .filter(|entry| proxy.storefront_product_is_visible(&entry.product))
+        .filter(|entry| storefront_collection_product_matches_filters(entry, &filters))
+        .collect::<Vec<_>>();
+    let requested_sort_key = resolved_string_field(&arguments, "sortKey");
+    let sort_key = if matches!(
+        requested_sort_key.as_deref(),
+        None | Some("COLLECTION_DEFAULT")
+    ) && collection
+        .get(STOREFRONT_CAPTURED_COLLECTION_DEFAULT_ORDER_FIELD)
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        Some("MANUAL")
+    } else {
+        requested_sort_key.as_deref()
+    };
+    let reverse = resolved_bool_field(&arguments, "reverse").unwrap_or(false);
+    sort_collection_product_entries(&collection, &mut products, sort_key, reverse);
+    let (products, page_info) = connection_window(&products, &arguments, collection_product_cursor);
+    let context = storefront_request_context_from_request(request);
+    Ok(typed_connection_value(
+        &products,
+        |entry| storefront_product_value(proxy, &entry.product, &entry.variants, &context),
+        collection_product_cursor,
+        page_info,
+    ))
+}
+
+fn storefront_metafields_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let count = invocation
+        .arguments
+        .get("identifiers")
+        .and_then(Value::as_array)
+        .map(Vec::len)
+        .unwrap_or_default();
+    Ok(Value::Array(vec![Value::Null; count]))
+}
+
+fn storefront_shop_metafield_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let Some(owner_id) = proxy.storefront_shop_owner_id() else {
+        return Ok(Value::Null);
+    };
+    let namespace = invocation
+        .arguments
+        .get("namespace")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let key = invocation
+        .arguments
+        .get("key")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(proxy
+        .storefront_owner_metafield(&owner_id, namespace, key)
+        .map(storefront_metafield_runtime_value)
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_shop_metafields_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let Some(owner_id) = proxy.storefront_shop_owner_id() else {
+        return Ok(Value::Array(Vec::new()));
+    };
+    let values = invocation
+        .arguments
+        .get("identifiers")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|identifier| {
+            let namespace = identifier
+                .get("namespace")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let key = identifier
+                .get("key")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            proxy
+                .storefront_owner_metafield(&owner_id, namespace, key)
+                .map(storefront_metafield_runtime_value)
+                .unwrap_or(Value::Null)
+        })
+        .collect();
+    Ok(Value::Array(values))
+}
+
+fn storefront_metafield_runtime_value(mut metafield: Value) -> Value {
+    let list = metafield
+        .get("type")
+        .and_then(Value::as_str)
+        .is_some_and(|field_type| field_type.starts_with("list."));
+    if let Some(object) = metafield.as_object_mut() {
+        object
+            .entry("__typename".to_string())
+            .or_insert_with(|| json!("Metafield"));
+        object.insert("list".to_string(), json!(list));
+        object
+            .entry("description".to_string())
+            .or_insert(Value::Null);
+    }
+    metafield
+}
+
+fn storefront_metaobject_field_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let key = invocation
+        .arguments
+        .get("key")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(invocation
+        .parent
+        .get("fields")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find(|field| field.get("key").and_then(Value::as_str) == Some(key))
+        .cloned()
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_reference_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let Some(id) = scalar_reference_id(invocation.parent) else {
+        return Ok(Value::Null);
+    };
+    Ok(proxy
+        .storefront_reference_node_value(&id)
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_references_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(proxy.storefront_reference_connection_value(invocation.parent, &invocation.arguments))
+}
+
+fn storefront_parent_resource_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    if let Some(parent_resource) = invocation.parent.get("parentResource") {
+        return Ok(parent_resource.clone());
+    }
+    let Some(owner_id) = invocation
+        .parent
+        .pointer("/owner/id")
+        .and_then(Value::as_str)
+    else {
+        return Ok(Value::Null);
+    };
+    Ok(proxy
+        .storefront_reference_node_value(owner_id)
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_customer_record_for_parent(proxy: &DraftProxy, parent: &Value) -> Option<Value> {
+    parent
+        .get("id")
+        .and_then(Value::as_str)
+        .and_then(|id| proxy.storefront_customer_by_id(id))
+        .or_else(|| parent.is_object().then(|| parent.clone()))
+}
+
+fn storefront_customer_addresses_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(customer) = storefront_customer_record_for_parent(proxy, invocation.parent) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    let addresses = customer_address_nodes(&customer);
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    let (addresses, page_info) = connection_window(&addresses, &arguments, |address| {
+        customer_address_cursor(address).unwrap_or_default()
+    });
+    Ok(typed_connection_value(
+        &addresses,
+        storefront_mailing_address_json,
+        |address| customer_address_cursor(address).unwrap_or_default(),
+        page_info,
+    ))
+}
+
+fn storefront_customer_orders_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let customer_id = invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let Some(customer) = storefront_customer_record_for_parent(proxy, invocation.parent) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    let orders = proxy
+        .store
+        .staged
+        .customer_orders
+        .get(customer_id)
+        .cloned()
+        .unwrap_or_else(|| connection_nodes(&customer["orders"]));
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    let (orders, page_info) = connection_window(&orders, &arguments, storefront_order_cursor);
+    Ok(typed_connection_value(
+        &orders,
+        storefront_order_json,
+        storefront_order_cursor,
+        page_info,
+    ))
+}
+
+pub(in crate::proxy) fn storefront_mailing_address_formatted_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let mut lines = invocation
+        .parent
+        .get("formatted")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_else(|| {
+            storefront_formatted_address_lines(invocation.parent)
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+        });
+    if invocation
+        .arguments
+        .get("withName")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        if let Some(name) = invocation.parent.get("name").and_then(Value::as_str) {
+            if !name.is_empty() && lines.first().and_then(Value::as_str) != Some(name) {
+                lines.insert(0, json!(name));
+            }
+        }
+    }
+    if invocation
+        .arguments
+        .get("withCompany")
+        .and_then(Value::as_bool)
+        .unwrap_or(true)
+    {
+        if let Some(company) = invocation.parent.get("company").and_then(Value::as_str) {
+            if !company.is_empty() && !lines.iter().any(|line| line.as_str() == Some(company)) {
+                let index = usize::from(
+                    invocation
+                        .arguments
+                        .get("withName")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
+                );
+                lines.insert(index.min(lines.len()), json!(company));
+            }
+        }
+    }
+    Ok(Value::Array(lines))
+}
+
+fn storefront_product_description_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let description = invocation
+        .parent
+        .get("description")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let limit = invocation
+        .arguments
+        .get("truncateAt")
+        .and_then(Value::as_i64)
+        .filter(|limit| *limit >= 0)
+        .map(|limit| limit as usize);
+    Ok(Value::String(match limit {
+        Some(limit) => description.chars().take(limit).collect(),
+        None => description.to_string(),
+    }))
+}
+
+fn storefront_product_options_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let Some(product) = storefront_product_record_for_parent(proxy, invocation.parent) else {
+        return Ok(Value::Array(Vec::new()));
+    };
+    let variants = proxy.store.product_variants_for_product(&product.id);
+    Ok(storefront_product_options_value(
+        &product,
+        &variants,
+        invocation.arguments.get("first").and_then(Value::as_i64),
+    ))
+}
+
+fn storefront_product_variants_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let Some(product) = storefront_product_record_for_parent(proxy, invocation.parent) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    let variants = proxy.store.product_variants_for_product(&product.id);
+    let context = storefront_request_context_from_request(request);
+    Ok(storefront_product_variants_connection_value(
+        proxy,
+        &product,
+        &variants,
+        &context,
+        &invocation.arguments,
+    ))
+}
+
+fn storefront_product_images_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    proxy.promote_all_product_media_ready_on_read();
+    let Some(product) = storefront_product_record_for_parent(proxy, invocation.parent) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    Ok(storefront_product_images_connection_value(
+        &product,
+        &invocation.arguments,
+    ))
+}
+
+fn storefront_product_featured_image_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    proxy.promote_all_product_media_ready_on_read();
+    Ok(
+        storefront_product_record_for_parent(proxy, invocation.parent)
+            .and_then(|product| {
+                product
+                    .media
+                    .iter()
+                    .find_map(storefront_product_image_value_from_media)
+            })
+            .unwrap_or(Value::Null),
+    )
+}
+
+fn storefront_product_media_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    proxy.promote_all_product_media_ready_on_read();
+    let Some(product) = storefront_product_record_for_parent(proxy, invocation.parent) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    Ok(storefront_product_media_connection_value(
+        &product,
+        &invocation.arguments,
+    ))
+}
+
+fn storefront_variant_image_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    proxy.promote_all_product_media_ready_on_read();
+    let variant_id = invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let Some(variant) = proxy.store.product_variant_by_id(variant_id) else {
+        return Ok(Value::Null);
+    };
+    Ok(proxy
+        .store
+        .product_by_id(&variant.product_id)
+        .map(|product| storefront_variant_image_value(variant, product))
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_product_selected_variant_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let Some(product) = storefront_product_record_for_parent(proxy, invocation.parent) else {
+        return Ok(Value::Null);
+    };
+    let variants = proxy.store.product_variants_for_product(&product.id);
+    let context = storefront_request_context_from_request(request);
+    let selected = storefront_variant_matching_json_options(&variants, &invocation.arguments)
+        .or_else(|| {
+            variants
+                .iter()
+                .find(|variant| storefront_variant_available_for_sale(variant))
+        })
+        .or_else(|| variants.first());
+    Ok(selected
+        .map(|variant| {
+            storefront_product_variant_value(proxy, variant, Some(&product), &context, None)
+        })
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_product_variant_by_options_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let Some(product) = storefront_product_record_for_parent(proxy, invocation.parent) else {
+        return Ok(Value::Null);
+    };
+    let variants = proxy.store.product_variants_for_product(&product.id);
+    let context = storefront_request_context_from_request(request);
+    Ok(
+        storefront_variant_matching_json_options(&variants, &invocation.arguments)
+            .map(|variant| {
+                storefront_product_variant_value(proxy, variant, Some(&product), &context, None)
+            })
+            .unwrap_or(Value::Null),
+    )
+}
+
+fn storefront_variant_product_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let product_id = invocation
+        .parent
+        .get("_productId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let product = proxy.store.product_by_id(product_id).cloned();
+    let context = storefront_request_context_from_request(request);
+    Ok(proxy.storefront_visible_product_value(product.as_ref(), &context))
+}
+
+fn storefront_product_selling_plan_groups_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(product) = storefront_product_record_for_parent(proxy, invocation.parent) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    let variants = proxy.store.product_variants_for_product(&product.id);
+    let variant_ids = variants
+        .iter()
+        .map(|variant| variant.id.as_str())
+        .collect::<BTreeSet<_>>();
+    let groups = proxy
+        .store
+        .selling_plan_groups()
+        .into_iter()
+        .filter(|group| {
+            group.product_ids.iter().any(|id| id == &product.id)
+                || group
+                    .product_variant_ids
+                    .iter()
+                    .any(|id| variant_ids.contains(id.as_str()))
+        })
+        .collect::<Vec<_>>();
+    let context = storefront_request_context_from_request(request);
+    let currency_code = storefront_product_currency_code(proxy, &variants, &context);
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    let (groups, page_info) = connection_window(&groups, &arguments, |group| group.id.clone());
+    Ok(typed_connection_value(
+        &groups,
+        |group| storefront_selling_plan_group_value(group, &currency_code),
+        |group| group.id.clone(),
+        page_info,
+    ))
+}
+
+fn storefront_selling_plan_group_selling_plans_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let group_id = invocation
+        .parent
+        .get("_sellingPlanGroupId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let currency_code = invocation
+        .parent
+        .get("_currencyCode")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let Some(group) = proxy.store.selling_plan_group_by_id(group_id) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    let (plans, page_info) =
+        connection_window(&group.selling_plans, &arguments, |plan| plan.id.clone());
+    Ok(typed_connection_value(
+        &plans,
+        |plan| storefront_selling_plan_value(plan, &group.options, currency_code),
+        |plan| plan.id.clone(),
+        page_info,
+    ))
+}
+
+fn storefront_variant_selling_plan_allocations_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let variant_id = invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let product_id = invocation
+        .parent
+        .get("_productId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let Some(variant) = proxy.store.product_variant_by_id(variant_id).cloned() else {
+        return Ok(connection_json(Vec::new()));
+    };
+    let allocations = proxy
+        .store
+        .selling_plan_groups()
+        .into_iter()
+        .filter(|group| {
+            group.product_ids.iter().any(|id| id == product_id)
+                || group.product_variant_ids.iter().any(|id| id == variant_id)
+        })
+        .flat_map(|group| {
+            group
+                .selling_plans
+                .into_iter()
+                .map(move |plan| (plan, group.options.clone()))
+        })
+        .collect::<Vec<_>>();
+    let context = storefront_request_context_from_request(request);
+    let pricing = proxy.storefront_variant_pricing(&variant, &context);
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    let (allocations, page_info) =
+        connection_window(&allocations, &arguments, |(plan, _)| plan.id.clone());
+    Ok(typed_connection_value(
+        &allocations,
+        |(plan, option_names)| {
+            storefront_selling_plan_allocation_value(plan, option_names, &pricing)
+        },
+        |(plan, _)| plan.id.clone(),
+        page_info,
+    ))
+}
+
+fn storefront_product_record_for_parent(
+    proxy: &DraftProxy,
+    parent: &Value,
+) -> Option<ProductRecord> {
+    let id = parent.get("id").and_then(Value::as_str)?;
+    proxy.store.product_by_id(id).cloned()
+}
+
+fn storefront_empty_connection_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    _invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(connection_json(Vec::new()))
+}
+
+fn storefront_truncated_field(
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+    field: &str,
+) -> Value {
+    let value = invocation.parent.get(field).and_then(Value::as_str);
+    let Some(value) = value else {
+        return Value::Null;
+    };
+    let limit = invocation
+        .arguments
+        .get("truncateAt")
+        .and_then(Value::as_i64)
+        .filter(|limit| *limit >= 0)
+        .map(|limit| limit as usize);
+    Value::String(match limit {
+        Some(limit) => value.chars().take(limit).collect(),
+        None => value.to_string(),
+    })
+}
+
+fn storefront_truncated_content_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(storefront_truncated_field(invocation, "content"))
+}
+
+fn storefront_truncated_excerpt_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(storefront_truncated_field(invocation, "excerpt"))
+}
+
+fn storefront_article_author_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(invocation
+        .parent
+        .get("author")
+        .cloned()
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_article_blog_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(invocation
+        .parent
+        .get("blogId")
+        .and_then(Value::as_str)
+        .and_then(|blog_id| proxy.storefront_content_by_id(StorefrontContentKind::Blog, blog_id))
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_blog_article_by_handle_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let blog_id = storefront_parent_string(invocation, "id");
+    let handle = invocation
+        .arguments
+        .get("handle")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(proxy
+        .storefront_articles_for_blog(blog_id)
+        .into_iter()
+        .find(|article| article.get("handle").and_then(Value::as_str) == Some(handle))
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_blog_articles_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let blog_id = storefront_parent_string(invocation, "id");
+    Ok(proxy.storefront_content_connection_value(
+        StorefrontContentKind::Article,
+        proxy.storefront_articles_for_blog(blog_id),
+        &invocation.arguments,
+    ))
+}
+
+fn storefront_blog_authors_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let mut seen = BTreeSet::new();
+    let authors = proxy
+        .storefront_articles_for_blog(storefront_parent_string(invocation, "id"))
+        .into_iter()
+        .filter_map(|article| article.get("author").cloned())
+        .filter(|author| {
+            let name = author
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            !name.is_empty() && seen.insert(name.to_string())
+        })
+        .collect();
+    Ok(Value::Array(authors))
+}
+
+fn storefront_sitemap_pages_count_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let count = invocation
+        .parent
+        .get("_resources")
+        .and_then(Value::as_array)
+        .map(Vec::len)
+        .unwrap_or_default();
+    Ok(count_object(count))
+}
+
+fn storefront_sitemap_resources_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let resources = invocation
+        .parent
+        .get("_resources")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let page = invocation
+        .arguments
+        .get("page")
+        .and_then(Value::as_i64)
+        .and_then(|page| (page > 0).then_some(page as usize))
+        .unwrap_or(1);
+    let start = (page - 1) * 250;
+    let end = (start + 250).min(resources.len());
+    let items = if start < resources.len() {
+        resources[start..end].to_vec()
+    } else {
+        Vec::new()
+    };
+    Ok(json!({
+        "hasNextPage": end < resources.len(),
+        "items": items,
+    }))
+}
+
 impl DraftProxy {
     fn storefront_customer_query_root(
         &self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
     ) -> StorefrontCustomerAuthOutcome {
-        let token =
-            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
+        let token = storefront_argument_string(arguments, "customerAccessToken");
         let customer = self
             .storefront_customer_id_for_access_token(&token)
             .and_then(|customer_id| {
                 self.storefront_customer_by_id(&customer_id)
-                    .map(|customer| {
-                        self.storefront_customer_selected_json(
-                            &customer_id,
-                            &customer,
-                            &field.selection,
-                        )
-                    })
+                    .map(|customer| storefront_customer_json(&customer))
             });
         StorefrontCustomerAuthOutcome {
             value: customer.unwrap_or(Value::Null),
@@ -218,27 +1743,31 @@ impl DraftProxy {
 
     fn storefront_customer_mutation_root(
         &mut self,
-        field: &RootFieldSelection,
+        root_name: &str,
+        arguments: &BTreeMap<String, Value>,
     ) -> StorefrontCustomerAuthOutcome {
-        match field.name.as_str() {
-            "customerCreate" => self.storefront_customer_create(field),
-            "customerAccessTokenCreate" => self.storefront_customer_access_token_create(field),
-            "customerAccessTokenRenew" => self.storefront_customer_access_token_renew(field),
-            "customerAccessTokenDelete" => self.storefront_customer_access_token_delete(field),
-            "customerActivate" => self.storefront_customer_activate(field),
-            "customerActivateByUrl" => self.storefront_customer_activate_by_url(field),
-            "customerRecover" => self.storefront_customer_recover(field),
-            "customerReset" => self.storefront_customer_reset(field),
-            "customerResetByUrl" => self.storefront_customer_reset_by_url(field),
+        let resolved_arguments = resolved_arguments_from_json(arguments);
+        match root_name {
+            "customerCreate" => self.storefront_customer_create(arguments),
+            "customerAccessTokenCreate" => self.storefront_customer_access_token_create(arguments),
+            "customerAccessTokenRenew" => self.storefront_customer_access_token_renew(arguments),
+            "customerAccessTokenDelete" => self.storefront_customer_access_token_delete(arguments),
+            "customerActivate" => self.storefront_customer_activate(arguments),
+            "customerActivateByUrl" => self.storefront_customer_activate_by_url(arguments),
+            "customerRecover" => self.storefront_customer_recover(arguments),
+            "customerReset" => self.storefront_customer_reset(arguments),
+            "customerResetByUrl" => self.storefront_customer_reset_by_url(arguments),
             "customerAccessTokenCreateWithMultipass" => {
-                self.storefront_customer_access_token_create_with_multipass(field)
+                self.storefront_customer_access_token_create_with_multipass()
             }
-            "customerUpdate" => self.storefront_customer_update(field),
-            "customerAddressCreate" => self.storefront_customer_address_create(field),
-            "customerAddressUpdate" => self.storefront_customer_address_update(field),
-            "customerAddressDelete" => self.storefront_customer_address_delete(field),
+            "customerUpdate" => self.storefront_customer_update(&resolved_arguments),
+            "customerAddressCreate" => {
+                self.storefront_customer_address_create(root_name, &resolved_arguments)
+            }
+            "customerAddressUpdate" => self.storefront_customer_address_update(&resolved_arguments),
+            "customerAddressDelete" => self.storefront_customer_address_delete(&resolved_arguments),
             "customerDefaultAddressUpdate" => {
-                self.storefront_customer_default_address_update(field)
+                self.storefront_customer_default_address_update(&resolved_arguments)
             }
             _ => StorefrontCustomerAuthOutcome {
                 value: Value::Null,
@@ -249,11 +1778,11 @@ impl DraftProxy {
 
     fn storefront_customer_create(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
     ) -> StorefrontCustomerAuthOutcome {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let email = resolved_string_field(&input, "email").unwrap_or_default();
-        let password = resolved_string_field(&input, "password").unwrap_or_default();
+        let input = storefront_argument_object(arguments, "input");
+        let email = storefront_input_string(input, "email");
+        let password = storefront_input_string(input, "password");
         let normalized_email = storefront_customer_email_key(&email);
         let mut errors = Vec::new();
         if password.is_empty() {
@@ -292,9 +1821,8 @@ impl DraftProxy {
                 "CONTAINS_HTML_TAGS",
             ),
         ] {
-            if resolved_string_field(&input, field_name)
-                .is_some_and(|value| storefront_customer_contains_html_tag(&value))
-            {
+            let candidate = storefront_input_string(input, field_name);
+            if storefront_customer_contains_html_tag(&candidate) {
                 errors.push(storefront_customer_user_error(
                     ["input", field_name],
                     message,
@@ -304,21 +1832,20 @@ impl DraftProxy {
         }
         if !errors.is_empty() {
             return StorefrontCustomerAuthOutcome {
-                value: selected_json(
-                    &storefront_customer_payload(Value::Null, Value::Null, errors),
-                    &field.selection,
-                ),
+                value: storefront_customer_payload(Value::Null, Value::Null, errors),
                 errors: Vec::new(),
             };
         }
 
         let id = self.next_synthetic_gid("Customer");
         let timestamp = self.next_product_timestamp();
-        let accepts_marketing = resolved_bool_field(&input, "acceptsMarketing").unwrap_or(false);
-        let first_name =
-            resolved_string_field(&input, "firstName").filter(|value| !value.is_empty());
-        let last_name = resolved_string_field(&input, "lastName").filter(|value| !value.is_empty());
-        let phone = resolved_string_field(&input, "phone").filter(|value| !value.is_empty());
+        let accepts_marketing = storefront_input_bool(input, "acceptsMarketing").unwrap_or(false);
+        let first_name = storefront_input_string(input, "firstName");
+        let first_name = (!first_name.is_empty()).then_some(first_name);
+        let last_name = storefront_input_string(input, "lastName");
+        let last_name = (!last_name.is_empty()).then_some(last_name);
+        let phone = storefront_input_string(input, "phone");
+        let phone = (!phone.is_empty()).then_some(phone);
         let mut customer = storefront_customer_shared_record(
             &id,
             first_name.as_deref(),
@@ -344,13 +1871,10 @@ impl DraftProxy {
             .insert(normalized_email, id);
 
         StorefrontCustomerAuthOutcome {
-            value: selected_json(
-                &storefront_customer_payload(
-                    storefront_customer_json(&customer),
-                    Value::Null,
-                    Vec::new(),
-                ),
-                &field.selection,
+            value: storefront_customer_payload(
+                storefront_customer_json(&customer),
+                Value::Null,
+                Vec::new(),
             ),
             errors: Vec::new(),
         }
@@ -358,11 +1882,11 @@ impl DraftProxy {
 
     fn storefront_customer_access_token_create(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
     ) -> StorefrontCustomerAuthOutcome {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let email = resolved_string_field(&input, "email").unwrap_or_default();
-        let password = resolved_string_field(&input, "password").unwrap_or_default();
+        let input = storefront_argument_object(arguments, "input");
+        let email = storefront_input_string(input, "email");
+        let password = storefront_input_string(input, "password");
         let payload = match self
             .storefront_customer_id_by_email(&storefront_customer_email_key(&email))
             .and_then(|customer_id| self.storefront_customer_by_id(&customer_id))
@@ -394,17 +1918,16 @@ impl DraftProxy {
         };
 
         StorefrontCustomerAuthOutcome {
-            value: selected_json(&payload, &field.selection),
+            value: payload,
             errors: Vec::new(),
         }
     }
 
     fn storefront_customer_access_token_renew(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
     ) -> StorefrontCustomerAuthOutcome {
-        let token =
-            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
+        let token = storefront_argument_string(arguments, "customerAccessToken");
         let token_hash = storefront_token_hash(&token);
         let payload = if self.storefront_access_token_is_active(&token_hash) {
             let expires_at = self.store.staged.storefront_customer_access_tokens[&token_hash]
@@ -427,22 +1950,21 @@ impl DraftProxy {
             })
         };
         StorefrontCustomerAuthOutcome {
-            value: selected_json(&payload, &field.selection),
+            value: payload,
             errors: Vec::new(),
         }
     }
 
     fn storefront_customer_access_token_delete(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
     ) -> StorefrontCustomerAuthOutcome {
-        let token =
-            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
+        let token = storefront_argument_string(arguments, "customerAccessToken");
         let token_hash = storefront_token_hash(&token);
         if !self.storefront_access_token_is_active(&token_hash) {
             return StorefrontCustomerAuthOutcome {
                 value: Value::Null,
-                errors: vec![storefront_access_denied_error(&field.response_key)],
+                errors: vec![storefront_access_denied_error()],
             };
         }
         let token_id =
@@ -461,21 +1983,20 @@ impl DraftProxy {
             "userErrors": []
         });
         StorefrontCustomerAuthOutcome {
-            value: selected_json(&payload, &field.selection),
+            value: payload,
             errors: Vec::new(),
         }
     }
 
     fn storefront_customer_activate(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
     ) -> StorefrontCustomerAuthOutcome {
-        let customer_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let activation_token = resolved_string_field(&input, "activationToken").unwrap_or_default();
-        let password = resolved_string_field(&input, "password").unwrap_or_default();
+        let customer_id = storefront_argument_string(arguments, "id");
+        let input = storefront_argument_object(arguments, "input");
+        let activation_token = storefront_input_string(input, "activationToken");
+        let password = storefront_input_string(input, "password");
         self.storefront_activate_customer_with_token(
-            field,
             &customer_id,
             &activation_token,
             &password,
@@ -485,33 +2006,28 @@ impl DraftProxy {
 
     fn storefront_customer_activate_by_url(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
     ) -> StorefrontCustomerAuthOutcome {
-        let activation_url =
-            resolved_string_field(&field.arguments, "activationUrl").unwrap_or_default();
-        let password = resolved_string_field(&field.arguments, "password").unwrap_or_default();
+        let activation_url = storefront_argument_string(arguments, "activationUrl");
+        let password = storefront_argument_string(arguments, "password");
         let Some((customer_id, token)) =
             self.storefront_customer_activation_url_parts(&activation_url)
         else {
             return StorefrontCustomerAuthOutcome {
-                value: selected_json(
-                    &storefront_customer_activation_payload(
-                        Value::Null,
-                        Value::Null,
-                        vec![storefront_customer_user_error(
-                            ["activationUrl"],
-                            "Invalid activation url",
-                            Some("INVALID"),
-                        )],
-                        false,
-                    ),
-                    &field.selection,
+                value: storefront_customer_activation_payload(
+                    Value::Null,
+                    Value::Null,
+                    vec![storefront_customer_user_error(
+                        ["activationUrl"],
+                        "Invalid activation url",
+                        Some("INVALID"),
+                    )],
+                    false,
                 ),
                 errors: Vec::new(),
             };
         };
         self.storefront_activate_customer_with_token(
-            field,
             &customer_id,
             &token,
             &password,
@@ -521,7 +2037,6 @@ impl DraftProxy {
 
     fn storefront_activate_customer_with_token<const N: usize>(
         &mut self,
-        field: &RootFieldSelection,
         customer_id: &str,
         activation_token: &str,
         password: &str,
@@ -529,36 +2044,30 @@ impl DraftProxy {
     ) -> StorefrontCustomerAuthOutcome {
         let Some(mut customer) = self.storefront_customer_by_id(customer_id) else {
             return StorefrontCustomerAuthOutcome {
-                value: selected_json(
-                    &storefront_customer_activation_payload(
-                        Value::Null,
-                        Value::Null,
-                        vec![storefront_customer_user_error(
-                            invalid_field.to_vec(),
-                            "Invalid activation token",
-                            Some("TOKEN_INVALID"),
-                        )],
-                        true,
-                    ),
-                    &field.selection,
+                value: storefront_customer_activation_payload(
+                    Value::Null,
+                    Value::Null,
+                    vec![storefront_customer_user_error(
+                        invalid_field.to_vec(),
+                        "Invalid activation token",
+                        Some("TOKEN_INVALID"),
+                    )],
+                    true,
                 ),
                 errors: Vec::new(),
             };
         };
         if storefront_customer_state(&customer) == "ENABLED" {
             return StorefrontCustomerAuthOutcome {
-                value: selected_json(
-                    &storefront_customer_activation_payload(
+                value: storefront_customer_activation_payload(
+                    Value::Null,
+                    Value::Null,
+                    vec![storefront_customer_user_error(
                         Value::Null,
-                        Value::Null,
-                        vec![storefront_customer_user_error(
-                            Value::Null,
-                            "Customer already enabled",
-                            Some("ALREADY_ENABLED"),
-                        )],
-                        true,
-                    ),
-                    &field.selection,
+                        "Customer already enabled",
+                        Some("ALREADY_ENABLED"),
+                    )],
+                    true,
                 ),
                 errors: Vec::new(),
             };
@@ -570,18 +2079,15 @@ impl DraftProxy {
                 != Some(activation_token)
         {
             return StorefrontCustomerAuthOutcome {
-                value: selected_json(
-                    &storefront_customer_activation_payload(
-                        Value::Null,
-                        Value::Null,
-                        vec![storefront_customer_user_error(
-                            invalid_field.to_vec(),
-                            "Invalid activation token",
-                            Some("TOKEN_INVALID"),
-                        )],
-                        true,
-                    ),
-                    &field.selection,
+                value: storefront_customer_activation_payload(
+                    Value::Null,
+                    Value::Null,
+                    vec![storefront_customer_user_error(
+                        invalid_field.to_vec(),
+                        "Invalid activation token",
+                        Some("TOKEN_INVALID"),
+                    )],
+                    true,
                 ),
                 errors: Vec::new(),
             };
@@ -603,14 +2109,11 @@ impl DraftProxy {
         }
         let token = self.issue_storefront_customer_access_token(customer_id);
         StorefrontCustomerAuthOutcome {
-            value: selected_json(
-                &storefront_customer_activation_payload(
-                    storefront_customer_json(&customer),
-                    token,
-                    Vec::new(),
-                    true,
-                ),
-                &field.selection,
+            value: storefront_customer_activation_payload(
+                storefront_customer_json(&customer),
+                token,
+                Vec::new(),
+                true,
             ),
             errors: Vec::new(),
         }
@@ -618,9 +2121,9 @@ impl DraftProxy {
 
     fn storefront_customer_recover(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
     ) -> StorefrontCustomerAuthOutcome {
-        let email = resolved_string_field(&field.arguments, "email").unwrap_or_default();
+        let email = storefront_argument_string(arguments, "email");
         let payload = if let Some(customer_id) =
             self.storefront_customer_id_by_email(&storefront_customer_email_key(&email))
         {
@@ -645,47 +2148,40 @@ impl DraftProxy {
             })
         };
         StorefrontCustomerAuthOutcome {
-            value: selected_json(&payload, &field.selection),
+            value: payload,
             errors: Vec::new(),
         }
     }
 
     fn storefront_customer_reset(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
     ) -> StorefrontCustomerAuthOutcome {
-        let customer_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let reset_token = resolved_string_field(&input, "resetToken").unwrap_or_default();
-        let password = resolved_string_field(&input, "password").unwrap_or_default();
-        self.storefront_reset_customer_with_token(
-            field,
-            &customer_id,
-            &reset_token,
-            &password,
-            true,
-        )
+        let customer_id = storefront_argument_string(arguments, "id");
+        let input = storefront_argument_object(arguments, "input");
+        let reset_token = storefront_input_string(input, "resetToken");
+        let password = storefront_input_string(input, "password");
+        self.storefront_reset_customer_with_token(&customer_id, &reset_token, &password, true)
     }
 
     fn storefront_customer_reset_by_url(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
     ) -> StorefrontCustomerAuthOutcome {
-        let reset_url = resolved_string_field(&field.arguments, "resetUrl").unwrap_or_default();
-        let password = resolved_string_field(&field.arguments, "password").unwrap_or_default();
+        let reset_url = storefront_argument_string(arguments, "resetUrl");
+        let password = storefront_argument_string(arguments, "password");
         let Some((customer_id, token)) = self.storefront_customer_reset_url_parts(&reset_url)
         else {
             return StorefrontCustomerAuthOutcome {
                 value: Value::Null,
-                errors: vec![storefront_not_found_error(&field.response_key)],
+                errors: vec![storefront_not_found_error()],
             };
         };
-        self.storefront_reset_customer_with_token(field, &customer_id, &token, &password, true)
+        self.storefront_reset_customer_with_token(&customer_id, &token, &password, true)
     }
 
     fn storefront_reset_customer_with_token(
         &mut self,
-        field: &RootFieldSelection,
         customer_id: &str,
         reset_token: &str,
         password: &str,
@@ -694,7 +2190,7 @@ impl DraftProxy {
         let Some(mut customer) = self.storefront_customer_by_id(customer_id) else {
             return StorefrontCustomerAuthOutcome {
                 value: Value::Null,
-                errors: vec![storefront_not_found_error(&field.response_key)],
+                errors: vec![storefront_not_found_error()],
             };
         };
         let reset_hash = storefront_token_hash(reset_token);
@@ -703,18 +2199,15 @@ impl DraftProxy {
             .and_then(Value::as_str);
         if expected_hash != Some(reset_hash.as_str()) {
             return StorefrontCustomerAuthOutcome {
-                value: selected_json(
-                    &storefront_customer_activation_payload(
-                        Value::Null,
-                        Value::Null,
-                        vec![storefront_customer_user_error(
-                            ["input"],
-                            "Invalid reset token",
-                            Some("TOKEN_INVALID"),
-                        )],
-                        include_user_errors,
-                    ),
-                    &field.selection,
+                value: storefront_customer_activation_payload(
+                    Value::Null,
+                    Value::Null,
+                    vec![storefront_customer_user_error(
+                        ["input"],
+                        "Invalid reset token",
+                        Some("TOKEN_INVALID"),
+                    )],
+                    include_user_errors,
                 ),
                 errors: Vec::new(),
             };
@@ -733,14 +2226,11 @@ impl DraftProxy {
             .stage(customer_id.to_string(), customer.clone());
         let token = self.issue_storefront_customer_access_token(customer_id);
         StorefrontCustomerAuthOutcome {
-            value: selected_json(
-                &storefront_customer_activation_payload(
-                    storefront_customer_json(&customer),
-                    token,
-                    Vec::new(),
-                    include_user_errors,
-                ),
-                &field.selection,
+            value: storefront_customer_activation_payload(
+                storefront_customer_json(&customer),
+                token,
+                Vec::new(),
+                include_user_errors,
             ),
             errors: Vec::new(),
         }
@@ -748,7 +2238,6 @@ impl DraftProxy {
 
     fn storefront_customer_access_token_create_with_multipass(
         &self,
-        field: &RootFieldSelection,
     ) -> StorefrontCustomerAuthOutcome {
         let payload = storefront_customer_token_payload(
             Value::Null,
@@ -759,25 +2248,23 @@ impl DraftProxy {
             )],
         );
         StorefrontCustomerAuthOutcome {
-            value: selected_json(&payload, &field.selection),
+            value: payload,
             errors: Vec::new(),
         }
     }
 
     fn storefront_customer_update(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> StorefrontCustomerAuthOutcome {
-        let token =
-            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
-        let input = resolved_object_field(&field.arguments, "customer").unwrap_or_default();
+        let token = resolved_string_field(arguments, "customerAccessToken").unwrap_or_default();
+        let input = resolved_object_field(arguments, "customer").unwrap_or_default();
         let Some(customer_id) = self.storefront_customer_id_for_access_token(&token) else {
             return StorefrontCustomerAuthOutcome {
                 value: self.storefront_customer_update_payload(
                     None,
                     Value::Null,
                     storefront_invalid_customer_access_token_errors(),
-                    &field.selection,
                 ),
                 errors: Vec::new(),
             };
@@ -788,7 +2275,6 @@ impl DraftProxy {
                     None,
                     Value::Null,
                     storefront_invalid_customer_access_token_errors(),
-                    &field.selection,
                 ),
                 errors: Vec::new(),
             };
@@ -805,7 +2291,6 @@ impl DraftProxy {
                         "CustomerUpdate access denied",
                         Some("INVALID"),
                     )],
-                    &field.selection,
                 ),
                 errors: Vec::new(),
             };
@@ -845,12 +2330,7 @@ impl DraftProxy {
         }
         if !errors.is_empty() {
             return StorefrontCustomerAuthOutcome {
-                value: self.storefront_customer_update_payload(
-                    None,
-                    Value::Null,
-                    errors,
-                    &field.selection,
-                ),
+                value: self.storefront_customer_update_payload(None, Value::Null, errors),
                 errors: Vec::new(),
             };
         }
@@ -926,7 +2406,6 @@ impl DraftProxy {
                 Some((&customer_id, &customer)),
                 new_access_token,
                 Vec::new(),
-                &field.selection,
             ),
             errors: Vec::new(),
         }
@@ -934,24 +2413,23 @@ impl DraftProxy {
 
     fn storefront_customer_address_create(
         &mut self,
-        field: &RootFieldSelection,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> StorefrontCustomerAuthOutcome {
-        let token =
-            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
-        let address_input = resolved_object_field(&field.arguments, "address").unwrap_or_default();
+        let token = resolved_string_field(arguments, "customerAccessToken").unwrap_or_default();
+        let address_input = resolved_object_field(arguments, "address").unwrap_or_default();
         let Some(customer_id) = self.storefront_customer_id_for_access_token(&token) else {
             return StorefrontCustomerAuthOutcome {
                 value: Value::Null,
-                errors: vec![storefront_access_denied_error(&field.response_key)],
+                errors: vec![storefront_access_denied_error_for(root_name)],
             };
         };
         let Some(customer) = self.storefront_customer_by_id(&customer_id) else {
             return StorefrontCustomerAuthOutcome {
-                value: storefront_customer_address_payload_selected(
+                value: storefront_customer_address_payload(
                     "customerAddress",
                     Value::Null,
                     storefront_invalid_customer_access_token_errors(),
-                    &field.selection,
                 ),
                 errors: Vec::new(),
             };
@@ -967,11 +2445,10 @@ impl DraftProxy {
         );
         if !errors.is_empty() {
             return StorefrontCustomerAuthOutcome {
-                value: storefront_customer_address_payload_selected(
+                value: storefront_customer_address_payload(
                     "customerAddress",
                     Value::Null,
                     storefront_customer_user_errors_with_codes(errors),
-                    &field.selection,
                 ),
                 errors: Vec::new(),
             };
@@ -984,7 +2461,7 @@ impl DraftProxy {
             .any(|existing| customer_address_dedup_key(existing) == new_key)
         {
             return StorefrontCustomerAuthOutcome {
-                value: storefront_customer_address_payload_selected(
+                value: storefront_customer_address_payload(
                     "customerAddress",
                     Value::Null,
                     vec![storefront_customer_user_error(
@@ -992,7 +2469,6 @@ impl DraftProxy {
                         "Address already exists",
                         None,
                     )],
-                    &field.selection,
                 ),
                 errors: Vec::new(),
             };
@@ -1011,42 +2487,34 @@ impl DraftProxy {
             customer["updatedAt"] = json!(updated_at);
         }
         StorefrontCustomerAuthOutcome {
-            value: storefront_customer_address_payload_selected(
-                "customerAddress",
-                node,
-                Vec::new(),
-                &field.selection,
-            ),
+            value: storefront_customer_address_payload("customerAddress", node, Vec::new()),
             errors: Vec::new(),
         }
     }
 
     fn storefront_customer_address_update(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> StorefrontCustomerAuthOutcome {
-        let token =
-            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
-        let address_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let address_input = resolved_object_field(&field.arguments, "address").unwrap_or_default();
+        let token = resolved_string_field(arguments, "customerAccessToken").unwrap_or_default();
+        let address_id = resolved_string_field(arguments, "id").unwrap_or_default();
+        let address_input = resolved_object_field(arguments, "address").unwrap_or_default();
         let Some(customer_id) = self.storefront_customer_id_for_access_token(&token) else {
             return StorefrontCustomerAuthOutcome {
-                value: storefront_customer_address_payload_selected(
+                value: storefront_customer_address_payload(
                     "customerAddress",
                     Value::Null,
                     storefront_invalid_customer_access_token_errors(),
-                    &field.selection,
                 ),
                 errors: Vec::new(),
             };
         };
         let Some(customer) = self.storefront_customer_by_id(&customer_id) else {
             return StorefrontCustomerAuthOutcome {
-                value: storefront_customer_address_payload_selected(
+                value: storefront_customer_address_payload(
                     "customerAddress",
                     Value::Null,
                     storefront_invalid_customer_access_token_errors(),
-                    &field.selection,
                 ),
                 errors: Vec::new(),
             };
@@ -1055,7 +2523,7 @@ impl DraftProxy {
         let Some(index) = storefront_customer_address_node_index(&existing_nodes, &address_id)
         else {
             return StorefrontCustomerAuthOutcome {
-                value: storefront_customer_address_payload_selected(
+                value: storefront_customer_address_payload(
                     "customerAddress",
                     Value::Null,
                     vec![storefront_customer_user_error(
@@ -1063,7 +2531,6 @@ impl DraftProxy {
                         "Address does not exist",
                         Some("NOT_FOUND"),
                     )],
-                    &field.selection,
                 ),
                 errors: Vec::new(),
             };
@@ -1077,11 +2544,10 @@ impl DraftProxy {
         );
         if !errors.is_empty() {
             return StorefrontCustomerAuthOutcome {
-                value: storefront_customer_address_payload_selected(
+                value: storefront_customer_address_payload(
                     "customerAddress",
                     Value::Null,
                     storefront_customer_user_errors_with_codes(errors),
-                    &field.selection,
                 ),
                 errors: Vec::new(),
             };
@@ -1097,39 +2563,31 @@ impl DraftProxy {
             customer["updatedAt"] = json!(updated_at);
         }
         StorefrontCustomerAuthOutcome {
-            value: storefront_customer_address_payload_selected(
-                "customerAddress",
-                node,
-                Vec::new(),
-                &field.selection,
-            ),
+            value: storefront_customer_address_payload("customerAddress", node, Vec::new()),
             errors: Vec::new(),
         }
     }
 
     fn storefront_customer_address_delete(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> StorefrontCustomerAuthOutcome {
-        let token =
-            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
-        let address_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let token = resolved_string_field(arguments, "customerAccessToken").unwrap_or_default();
+        let address_id = resolved_string_field(arguments, "id").unwrap_or_default();
         let Some(customer_id) = self.storefront_customer_id_for_access_token(&token) else {
             return StorefrontCustomerAuthOutcome {
-                value: storefront_customer_address_delete_payload_selected(
+                value: storefront_customer_address_delete_payload(
                     Value::Null,
                     storefront_invalid_customer_access_token_errors(),
-                    &field.selection,
                 ),
                 errors: Vec::new(),
             };
         };
         let Some(customer) = self.storefront_customer_by_id(&customer_id) else {
             return StorefrontCustomerAuthOutcome {
-                value: storefront_customer_address_delete_payload_selected(
+                value: storefront_customer_address_delete_payload(
                     Value::Null,
                     storefront_invalid_customer_access_token_errors(),
-                    &field.selection,
                 ),
                 errors: Vec::new(),
             };
@@ -1137,14 +2595,13 @@ impl DraftProxy {
         let mut nodes = customer_address_nodes(&customer);
         let Some(index) = storefront_customer_address_node_index(&nodes, &address_id) else {
             return StorefrontCustomerAuthOutcome {
-                value: storefront_customer_address_delete_payload_selected(
+                value: storefront_customer_address_delete_payload(
                     Value::Null,
                     vec![storefront_customer_user_error(
                         ["id"],
                         "Address does not exist",
                         Some("NOT_FOUND"),
                     )],
-                    &field.selection,
                 ),
                 errors: Vec::new(),
             };
@@ -1167,28 +2624,22 @@ impl DraftProxy {
             customer["updatedAt"] = json!(updated_at);
         }
         StorefrontCustomerAuthOutcome {
-            value: storefront_customer_address_delete_payload_selected(
-                json!(address_id),
-                Vec::new(),
-                &field.selection,
-            ),
+            value: storefront_customer_address_delete_payload(json!(address_id), Vec::new()),
             errors: Vec::new(),
         }
     }
 
     fn storefront_customer_default_address_update(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> StorefrontCustomerAuthOutcome {
-        let token =
-            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
-        let address_id = resolved_string_field(&field.arguments, "addressId").unwrap_or_default();
+        let token = resolved_string_field(arguments, "customerAccessToken").unwrap_or_default();
+        let address_id = resolved_string_field(arguments, "addressId").unwrap_or_default();
         let Some(customer_id) = self.storefront_customer_id_for_access_token(&token) else {
             return StorefrontCustomerAuthOutcome {
                 value: self.storefront_customer_default_address_payload(
                     None,
                     storefront_invalid_customer_access_token_errors(),
-                    &field.selection,
                 ),
                 errors: Vec::new(),
             };
@@ -1198,7 +2649,6 @@ impl DraftProxy {
                 value: self.storefront_customer_default_address_payload(
                     None,
                     storefront_invalid_customer_access_token_errors(),
-                    &field.selection,
                 ),
                 errors: Vec::new(),
             };
@@ -1213,7 +2663,6 @@ impl DraftProxy {
                         "Address does not exist",
                         Some("NOT_FOUND"),
                     )],
-                    &field.selection,
                 ),
                 errors: Vec::new(),
             };
@@ -1230,7 +2679,6 @@ impl DraftProxy {
             value: self.storefront_customer_default_address_payload(
                 Some((&customer_id, &customer)),
                 Vec::new(),
-                &field.selection,
             ),
             errors: Vec::new(),
         }
@@ -1321,75 +2769,21 @@ impl DraftProxy {
         }
     }
 
-    fn storefront_customer_selected_json(
-        &self,
-        customer_id: &str,
-        customer: &Value,
-        selection: &[SelectedField],
-    ) -> Value {
-        let base = storefront_customer_json(customer);
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "__typename" => Some(json!("Customer")),
-            "defaultAddress" => {
-                let address = customer
-                    .get("defaultAddress")
-                    .cloned()
-                    .unwrap_or(Value::Null);
-                Some(storefront_mailing_address_selected_json(
-                    &address,
-                    &field.selection,
-                ))
-            }
-            "addresses" => Some(storefront_customer_addresses_connection(
-                customer,
-                &field.arguments,
-                &field.selection,
-            )),
-            "orders" => Some(self.storefront_customer_orders_connection(
-                customer_id,
-                customer,
-                &field.arguments,
-                &field.selection,
-            )),
-            _ => selected_json(&base, std::slice::from_ref(field))
-                .as_object()
-                .and_then(|object| object.get(&field.response_key).cloned()),
-        })
-    }
-
     fn storefront_customer_update_payload(
         &self,
         customer: Option<(&str, &Value)>,
         customer_access_token: Value,
         customer_user_errors: Vec<Value>,
-        selection: &[SelectedField],
     ) -> Value {
         let customer_user_errors = storefront_customer_user_errors_with_codes(customer_user_errors);
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "customer" => Some(
-                customer
-                    .map(|(customer_id, customer)| {
-                        self.storefront_customer_selected_json(
-                            customer_id,
-                            customer,
-                            &field.selection,
-                        )
-                    })
-                    .unwrap_or(Value::Null),
-            ),
-            "customerAccessToken" => Some(selected_json(&customer_access_token, &field.selection)),
-            "customerUserErrors" => Some(selected_user_errors(
-                &customer_user_errors,
-                &field.selection,
-            )),
-            "userErrors" => {
-                let errors = storefront_user_errors_without_code(&customer_user_errors);
-                Some(selected_user_errors(
-                    errors.as_array().map(Vec::as_slice).unwrap_or(&[]),
-                    &field.selection,
-                ))
-            }
-            _ => None,
+        let user_errors = storefront_user_errors_without_code(&customer_user_errors);
+        json!({
+            "customer": customer
+                .map(|(_, customer)| storefront_customer_json(customer))
+                .unwrap_or(Value::Null),
+            "customerAccessToken": customer_access_token,
+            "customerUserErrors": customer_user_errors,
+            "userErrors": user_errors,
         })
     }
 
@@ -1397,57 +2791,16 @@ impl DraftProxy {
         &self,
         customer: Option<(&str, &Value)>,
         customer_user_errors: Vec<Value>,
-        selection: &[SelectedField],
     ) -> Value {
         let customer_user_errors = storefront_customer_user_errors_with_codes(customer_user_errors);
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "customer" => Some(
-                customer
-                    .map(|(customer_id, customer)| {
-                        self.storefront_customer_selected_json(
-                            customer_id,
-                            customer,
-                            &field.selection,
-                        )
-                    })
-                    .unwrap_or(Value::Null),
-            ),
-            "customerUserErrors" => Some(selected_user_errors(
-                &customer_user_errors,
-                &field.selection,
-            )),
-            "userErrors" => {
-                let errors = storefront_user_errors_without_code(&customer_user_errors);
-                Some(selected_user_errors(
-                    errors.as_array().map(Vec::as_slice).unwrap_or(&[]),
-                    &field.selection,
-                ))
-            }
-            _ => None,
+        let user_errors = storefront_user_errors_without_code(&customer_user_errors);
+        json!({
+            "customer": customer
+                .map(|(_, customer)| storefront_customer_json(customer))
+                .unwrap_or(Value::Null),
+            "customerUserErrors": customer_user_errors,
+            "userErrors": user_errors,
         })
-    }
-
-    fn storefront_customer_orders_connection(
-        &self,
-        customer_id: &str,
-        customer: &Value,
-        arguments: &BTreeMap<String, ResolvedValue>,
-        selection: &[SelectedField],
-    ) -> Value {
-        let orders = self
-            .store
-            .staged
-            .customer_orders
-            .get(customer_id)
-            .cloned()
-            .unwrap_or_else(|| connection_nodes(&customer["orders"]));
-        selected_typed_connection_with_args(
-            &orders,
-            arguments,
-            selection,
-            |order, order_selection| selected_json(&storefront_order_json(order), order_selection),
-            storefront_order_cursor,
-        )
     }
 
     fn storefront_customer_id_by_email(&self, normalized_email: &str) -> Option<String> {
@@ -1515,22 +2868,13 @@ impl DraftProxy {
     pub(in crate::proxy) fn record_storefront_customer_auth_log_entry(
         &mut self,
         request: &Request,
-        query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-        fields: &[RootFieldSelection],
+        operation_type: OperationType,
+        root_fields: &[String],
         details: StorefrontCustomerAuthLogDetails<'_>,
     ) {
-        let operation = parse_operation_with_variables(query, variables);
         let id = format!("log-{}", self.log_entries.len() + 1);
-        let root_fields = fields
-            .iter()
-            .map(|field| field.name.clone())
-            .collect::<Vec<_>>();
         let primary_root_field = root_fields.first().cloned().unwrap_or_default();
-        let operation_type = operation
-            .as_ref()
-            .map(|operation| operation.operation_type.keyword())
-            .unwrap_or("unknown");
         self.log_entries.push(json!({
             "id": id,
             "operationName": Value::Null,
@@ -1541,7 +2885,7 @@ impl DraftProxy {
             "variables": storefront_redacted_variables_json(variables),
             "rawBody": "<redacted:storefront-customer-auth-request>",
             "interpreted": {
-                "operationType": operation_type,
+                "operationType": operation_type.keyword(),
                 "rootFields": root_fields,
                 "primaryRootField": primary_root_field,
                 "capability": {
@@ -1553,146 +2897,242 @@ impl DraftProxy {
         }));
     }
 
-    pub(crate) fn resolve_storefront_graphql(
+    pub(crate) fn storefront_platform_query_resolver(
         &mut self,
-        execution: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            root_name,
+            arguments,
             request,
             query,
             variables,
-            operation,
-            root_name,
-            mode,
-        } = execution;
-        if storefront_graphql_version(&request.path) != Some(STOREFRONT_FIRST_SLICE_VERSION)
-            || self.config.read_mode == ReadMode::Live
-        {
-            return Self::unimplemented_resolver_response(mode, root_name);
-        }
-        let Some(field) = self.execution_root_field(query, variables, root_name) else {
-            return json_error(400, "Could not parse Storefront GraphQL root field");
-        };
-        if let Some(error) = storefront_discovery_argument_error(&field) {
-            let mut data = serde_json::Map::new();
-            data.insert(field.response_key.clone(), Value::Null);
-            return ok_json(json!({
-                "data": Value::Object(data),
-                "errors": [{
-                    "message": error.0,
-                    "path": [field.response_key],
-                    "extensions": error.1
-                }]
-            }));
-        }
-        match (operation.operation_type, mode) {
-            (OperationType::Query, LocalResolverMode::OverlayRead) if root_name == "cart" => {
-                let outcome = self.storefront_cart_query_root(&field);
-                let mut data = serde_json::Map::new();
-                data.insert(field.response_key.clone(), outcome.value);
-                let mut body = json!({ "data": Value::Object(data) });
-                if !outcome.errors.is_empty() {
-                    body["errors"] = Value::Array(outcome.errors);
-                }
-                return ok_json(body);
-            }
-            (OperationType::Query, LocalResolverMode::OverlayRead) if root_name == "customer" => {
-                let outcome = self.storefront_customer_query_root(&field);
-                let mut data = serde_json::Map::new();
-                data.insert(field.response_key.clone(), outcome.value);
-                let mut body = json!({ "data": Value::Object(data) });
-                if !outcome.errors.is_empty() {
-                    body["errors"] = Value::Array(outcome.errors);
-                }
-                return ok_json(body);
-            }
-            (OperationType::Mutation, LocalResolverMode::StageLocally)
-                if STOREFRONT_CART_MUTATION_ROOTS.contains(&root_name) =>
-            {
-                let outcome = self.storefront_cart_mutation_root(&field);
-                let mut data = serde_json::Map::new();
-                data.insert(field.response_key.clone(), outcome.value);
-                let mut body = json!({ "data": Value::Object(data) });
-                if !outcome.errors.is_empty() {
-                    body["errors"] = Value::Array(outcome.errors);
-                }
-                return ok_json(body);
-            }
-            (OperationType::Mutation, LocalResolverMode::StageLocally)
-                if STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS.contains(&root_name) =>
-            {
-                let outcome = self.storefront_customer_mutation_root(&field);
-                let mut data = serde_json::Map::new();
-                data.insert(field.response_key.clone(), outcome.value);
-                let mut body = json!({ "data": Value::Object(data) });
-                if !outcome.errors.is_empty() {
-                    body["errors"] = Value::Array(outcome.errors);
-                }
-                return ok_json(body);
-            }
-            (OperationType::Query, LocalResolverMode::OverlayRead) => {}
-            _ => return Self::unimplemented_resolver_response(mode, root_name),
-        }
-        if self.config.read_mode == ReadMode::LiveHybrid
-            && self.storefront_fields_include_catalog(std::slice::from_ref(&field))
-            && !self.storefront_catalog_is_locally_ready()
-        {
-            return Self::unimplemented_resolver_response(mode, root_name);
-        }
-
+            ..
+        } = invocation;
         let context = storefront_request_context(query, variables);
         if self.config.read_mode == ReadMode::LiveHybrid
-            && STOREFRONT_COLLECTION_ROOTS.contains(&field.name.as_str())
-            && self.storefront_collection_field_needs_hydration(&field)
-        {
-            self.hydrate_storefront_collections(request);
-        }
-        if self.config.read_mode == ReadMode::LiveHybrid
-            && self.storefront_first_slice_needs_hydration(std::slice::from_ref(&field), &context)
+            && self.storefront_first_slice_needs_hydration(root_name, &context)
         {
             self.hydrate_storefront_first_slice(request, &context);
         }
-        if self.config.read_mode == ReadMode::LiveHybrid {
-            self.hydrate_storefront_taxonomy_for_fields(request, std::slice::from_ref(&field));
-            self.hydrate_storefront_menus_for_fields(request, std::slice::from_ref(&field));
-        }
-
-        ok_json(json!({
-            "data": self.storefront_local_query_data(&[field], &context)
-        }))
+        let value = match root_name {
+            "shop" => self.storefront_shop_value(),
+            "localization" => self
+                .store
+                .base
+                .storefront_localizations
+                .get(&context.key())
+                .cloned()
+                .unwrap_or(Value::Null),
+            "locations" => self.storefront_locations_connection_value(&arguments),
+            "paymentSettings" => self.storefront_payment_settings_value(),
+            "publicApiVersions" => {
+                Value::Array(self.store.base.storefront_public_api_versions.clone())
+            }
+            _ => {
+                return ResolverOutcome::error(format!(
+                    "Storefront platform resolver does not own `{root_name}`"
+                ));
+            }
+        };
+        ResolverOutcome::value(value)
     }
 
-    pub(in crate::proxy) fn storefront_fields_are_local(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> bool {
+    pub(crate) fn storefront_catalog_query_resolver(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let context = storefront_request_context(invocation.query, invocation.variables);
+        if matches!(
+            invocation.root_name,
+            "product" | "productByHandle" | "products"
+        ) && self.config.read_mode == ReadMode::LiveHybrid
+            && !self.storefront_catalog_is_locally_ready()
+        {
+            return ResolverOutcome::error(format!(
+                "Storefront root `{}` has no local catalog backing",
+                invocation.root_name
+            ));
+        }
+        let value = match invocation.root_name {
+            "product" => self.storefront_product_root_value(&invocation.arguments, &context),
+            "productByHandle" => {
+                self.storefront_product_by_handle_root_value(&invocation.arguments, &context)
+            }
+            "products" => {
+                self.storefront_products_connection_value(&invocation.arguments, &context)
+            }
+            "productRecommendations" => {
+                self.storefront_product_recommendations_json(&invocation.arguments, &context)
+            }
+            "productTags" | "productTypes" => {
+                let kind = if invocation.root_name == "productTags" {
+                    StorefrontProductTaxonomyKind::Tag
+                } else {
+                    StorefrontProductTaxonomyKind::ProductType
+                };
+                if self.config.read_mode == ReadMode::LiveHybrid {
+                    self.hydrate_storefront_taxonomy(invocation.request, kind);
+                }
+                self.storefront_product_taxonomy_connection_json(&invocation.arguments, kind)
+            }
+            _ => {
+                return ResolverOutcome::error(format!(
+                    "Storefront catalog resolver does not own `{}`",
+                    invocation.root_name
+                ));
+            }
+        };
+        ResolverOutcome::value(value)
+    }
+
+    pub(crate) fn storefront_collection_query_resolver(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
         if self.config.read_mode == ReadMode::LiveHybrid
-            && self.storefront_fields_include_catalog(fields)
+            && self.storefront_collections_need_hydration()
+        {
+            self.hydrate_storefront_collections(invocation.request);
+        }
+        let value = match invocation.root_name {
+            "collection" => self.storefront_collection_root_value(&invocation.arguments),
+            "collectionByHandle" => {
+                self.storefront_collection_by_handle_root_value(&invocation.arguments)
+            }
+            "collections" => self.storefront_collections_connection_value(&invocation.arguments),
+            _ => {
+                return ResolverOutcome::error(format!(
+                    "Storefront collection resolver does not own `{}`",
+                    invocation.root_name
+                ));
+            }
+        };
+        ResolverOutcome::value(value)
+    }
+
+    pub(crate) fn storefront_content_query_resolver(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        if self.config.read_mode == ReadMode::LiveHybrid && invocation.root_name == "menu" {
+            let handle = invocation
+                .arguments
+                .get("handle")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if self.storefront_menu_by_handle(handle).is_none() {
+                self.hydrate_storefront_menu(invocation.request, handle);
+            }
+        }
+        let value = match invocation.root_name {
+            root if STOREFRONT_CONTENT_ROOTS.contains(&root) => {
+                self.storefront_content_root_value(root, &invocation.arguments)
+            }
+            "menu" => invocation
+                .arguments
+                .get("handle")
+                .and_then(Value::as_str)
+                .and_then(|handle| self.storefront_menu_by_handle(handle))
+                .unwrap_or(Value::Null),
+            "sitemap" => self.storefront_sitemap_value(&invocation.arguments),
+            "urlRedirects" => self.url_redirect_connection_value(&invocation.arguments),
+            _ => {
+                return ResolverOutcome::error(format!(
+                    "Storefront content resolver does not own `{}`",
+                    invocation.root_name
+                ));
+            }
+        };
+        ResolverOutcome::value(value)
+    }
+
+    pub(crate) fn storefront_custom_data_query_resolver(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let value = match invocation.root_name {
+            "metaobject" => self.storefront_metaobject_root_value(&invocation.arguments),
+            "metaobjects" => self.storefront_metaobjects_connection_value(&invocation.arguments),
+            _ => {
+                return ResolverOutcome::error(format!(
+                    "Storefront custom-data resolver does not own `{}`",
+                    invocation.root_name
+                ));
+            }
+        };
+        ResolverOutcome::value(value)
+    }
+
+    pub(crate) fn storefront_discovery_query_resolver(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let context = storefront_request_context(invocation.query, invocation.variables);
+        let value = match invocation.root_name {
+            "node" => self.storefront_node_root_value(&invocation.arguments, &context),
+            "nodes" => self.storefront_nodes_root_value(&invocation.arguments, &context),
+            "search" => self.storefront_search_root_json(&invocation.arguments, &context),
+            "predictiveSearch" => {
+                self.storefront_predictive_search_root_json(&invocation.arguments, &context)
+            }
+            _ => {
+                return ResolverOutcome::error(format!(
+                    "Storefront discovery resolver does not own `{}`",
+                    invocation.root_name
+                ));
+            }
+        };
+        ResolverOutcome::value(value)
+    }
+
+    pub(crate) fn storefront_customer_query_resolver(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let outcome = self.storefront_customer_query_root(&invocation.arguments);
+        ResolverOutcome::value(outcome.value).with_errors(outcome.errors)
+    }
+
+    pub(crate) fn storefront_customer_mutation_resolver(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let outcome =
+            self.storefront_customer_mutation_root(invocation.root_name, &invocation.arguments);
+        ResolverOutcome::value(outcome.value).with_errors(outcome.errors)
+    }
+
+    pub(in crate::proxy) fn storefront_query_root_is_local(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        if matches!(root_name, "product" | "productByHandle" | "products")
+            && self.config.read_mode == ReadMode::LiveHybrid
             && !self.storefront_catalog_is_locally_ready()
         {
             return false;
         }
-        fields
-            .iter()
-            .all(|field| self.storefront_field_is_local(field))
-    }
-
-    fn storefront_field_is_local(&self, field: &RootFieldSelection) -> bool {
         let capability = self.registry.resolve_for_surface(
             ApiSurface::Storefront,
             OperationType::Query,
-            &field.name,
+            root_name,
         );
         capability.domain == CapabilityDomain::Storefront
-            && self.storefront_root_is_promoted(&field.name)
-            && self.storefront_root_has_local_backing(field)
+            && self.storefront_root_is_promoted(root_name)
+            && self.storefront_root_has_local_backing(root_name, arguments)
     }
 
-    fn storefront_custom_data_field_has_local_effect(&self, field: &RootFieldSelection) -> bool {
-        match field.name.as_str() {
+    fn storefront_custom_data_root_has_local_effect(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        match root_name {
             "metaobject" => self.has_local_metaobject_state(),
             "metaobjects" => {
-                let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
+                let meta_type = resolved_string_field(arguments, "type").unwrap_or_default();
                 meta_type.is_empty()
                     || self.metaobject_definition_by_type(&meta_type).is_some()
                     || self.store.staged.metaobjects.values().any(|record| {
@@ -1703,23 +3143,14 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn storefront_mutation_fields_are_local(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> bool {
-        fields.iter().all(|field| {
-            (STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS.contains(&field.name.as_str())
-                || STOREFRONT_CART_MUTATION_ROOTS.contains(&field.name.as_str()))
-                && self
-                    .registry
-                    .resolve_for_surface(
-                        ApiSurface::Storefront,
-                        OperationType::Mutation,
-                        &field.name,
-                    )
-                    .execution
-                    == CapabilityExecution::StageLocally
-        })
+    pub(in crate::proxy) fn storefront_mutation_root_is_local(&self, root_name: &str) -> bool {
+        (STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS.contains(&root_name)
+            || STOREFRONT_CART_MUTATION_ROOTS.contains(&root_name))
+            && self
+                .registry
+                .resolve_for_surface(ApiSurface::Storefront, OperationType::Mutation, root_name)
+                .execution
+                == CapabilityExecution::StageLocally
     }
 
     fn storefront_root_is_promoted(&self, root: &str) -> bool {
@@ -1732,13 +3163,17 @@ impl DraftProxy {
             || STOREFRONT_DISCOVERY_ROOTS.contains(&root)
     }
 
-    fn storefront_root_has_local_backing(&self, field: &RootFieldSelection) -> bool {
+    fn storefront_root_has_local_backing(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
         if self.config.read_mode == ReadMode::Snapshot
-            || STOREFRONT_FIRST_SLICE_ROOTS.contains(&field.name.as_str())
+            || STOREFRONT_FIRST_SLICE_ROOTS.contains(&root_name)
         {
             return true;
         }
-        match field.name.as_str() {
+        match root_name {
             "cart" => true,
             "customer" => true,
             root if STOREFRONT_COLLECTION_ROOTS.contains(&root) => true,
@@ -1749,7 +3184,7 @@ impl DraftProxy {
             "urlRedirects" => self.has_staged_url_redirects(),
             "menu" => true,
             root if STOREFRONT_CUSTOM_DATA_ROOTS.contains(&root) => {
-                self.storefront_custom_data_field_has_local_effect(field)
+                self.storefront_custom_data_root_has_local_effect(root, arguments)
             }
             root if STOREFRONT_DISCOVERY_ROOTS.contains(&root) => {
                 self.has_storefront_discovery_state()
@@ -1772,15 +3207,6 @@ impl DraftProxy {
             || !self.store.base.storefront_menus.ordered_values().is_empty()
     }
 
-    fn storefront_fields_include_catalog(&self, fields: &[RootFieldSelection]) -> bool {
-        fields.iter().any(|field| {
-            matches!(
-                field.name.as_str(),
-                "product" | "productByHandle" | "productRecommendations" | "products"
-            )
-        })
-    }
-
     fn storefront_catalog_is_locally_ready(&self) -> bool {
         self.store.has_product_state()
             && (self.store.staged.current_channel_publication_resolved
@@ -1789,11 +3215,11 @@ impl DraftProxy {
 
     fn storefront_first_slice_needs_hydration(
         &self,
-        fields: &[RootFieldSelection],
+        root_name: &str,
         context: &StorefrontRequestContext,
     ) -> bool {
-        fields.iter().any(|field| match field.name.as_str() {
-            "shop" => self.storefront_shop_needs_hydration(&field.selection),
+        match root_name {
+            "shop" => self.storefront_shop_needs_hydration(),
             "localization" => !self.storefront_localization_is_observed(context),
             "locations" => self.storefront_location_records().is_empty(),
             "paymentSettings" => self
@@ -1802,48 +3228,14 @@ impl DraftProxy {
             "publicApiVersions" => self.store.base.storefront_public_api_versions.is_empty(),
             "product" | "productByHandle" | "products" => false,
             _ => false,
-        })
+        }
     }
 
-    fn storefront_shop_needs_hydration(&self, selections: &[SelectedField]) -> bool {
-        if self.store.base.storefront_shop.is_object() {
+    fn storefront_shop_needs_hydration(&self) -> bool {
+        if self.store.base.storefront_shop.is_object() || self.store.base.shop.is_object() {
             return false;
         }
-        let admin_shop = if self.store.base.shop.is_object() {
-            self.store.effective_shop()
-        } else {
-            Value::Null
-        };
-        if !admin_shop.is_object() {
-            return !self.storefront_shop_selection_uses_only_local_metafields(selections);
-        }
-        selections
-            .iter()
-            .filter(|selection| selection_applies_to_type(selection, "Shop"))
-            .any(|selection| !self.storefront_shop_field_has_admin_source(&admin_shop, selection))
-    }
-
-    fn storefront_shop_selection_uses_only_local_metafields(
-        &self,
-        selections: &[SelectedField],
-    ) -> bool {
-        let mut has_metafield_selection = false;
-        for selection in selections
-            .iter()
-            .filter(|selection| selection_applies_to_type(selection, "Shop"))
-        {
-            match selection.name.as_str() {
-                "__typename" => {}
-                "metafield" | "metafields" => {
-                    if !self.storefront_has_local_shop_metafield_state() {
-                        return false;
-                    }
-                    has_metafield_selection = true;
-                }
-                _ => return false,
-            }
-        }
-        has_metafield_selection
+        !self.storefront_has_local_shop_metafield_state()
     }
 
     fn storefront_has_local_shop_metafield_state(&self) -> bool {
@@ -1860,34 +3252,6 @@ impl DraftProxy {
                     .iter()
                     .any(|(deleted_owner_id, _, _)| deleted_owner_id == &owner_id)
         })
-    }
-
-    fn storefront_shop_field_has_admin_source(
-        &self,
-        shop: &Value,
-        selection: &SelectedField,
-    ) -> bool {
-        match selection.name.as_str() {
-            "__typename" => true,
-            "id" | "name" => shop.get(&selection.name).is_some(),
-            "primaryDomain" => shop.get("primaryDomain").is_some(),
-            "paymentSettings" => self
-                .storefront_payment_settings_source()
-                .is_some_and(|settings| settings.is_object()),
-            "privacyPolicy" => self.store.shop_policy_by_type("PRIVACY_POLICY").is_some(),
-            "refundPolicy" => self.store.shop_policy_by_type("REFUND_POLICY").is_some(),
-            "shippingPolicy" => self.store.shop_policy_by_type("SHIPPING_POLICY").is_some(),
-            "termsOfService" => self.store.shop_policy_by_type("TERMS_OF_SERVICE").is_some(),
-            "termsOfSale" => self.store.shop_policy_by_type("TERMS_OF_SALE").is_some(),
-            "legalNotice" => self.store.shop_policy_by_type("LEGAL_NOTICE").is_some(),
-            "contactInformation" => self
-                .store
-                .shop_policy_by_type("CONTACT_INFORMATION")
-                .is_some(),
-            "moneyFormat" => self.store.shop_money_format().is_some(),
-            "metafield" | "metafields" => self.storefront_has_local_shop_metafield_state(),
-            _ => false,
-        }
     }
 
     fn hydrate_storefront_first_slice(
@@ -1908,16 +3272,20 @@ impl DraftProxy {
         }
     }
 
-    fn hydrate_storefront_taxonomy_for_fields(
+    fn hydrate_storefront_taxonomy(
         &mut self,
         request: &Request,
-        fields: &[RootFieldSelection],
+        kind: StorefrontProductTaxonomyKind,
     ) {
-        let needs_tags = fields.iter().any(|field| field.name == "productTags")
-            && !self.store.base.storefront_product_tags.is_object();
-        let needs_types = fields.iter().any(|field| field.name == "productTypes")
-            && !self.store.base.storefront_product_types.is_object();
-        if !needs_tags && !needs_types {
+        let needs_hydration = match kind {
+            StorefrontProductTaxonomyKind::Tag => {
+                !self.store.base.storefront_product_tags.is_object()
+            }
+            StorefrontProductTaxonomyKind::ProductType => {
+                !self.store.base.storefront_product_types.is_object()
+            }
+        };
+        if !needs_hydration {
             return;
         }
         let response = self.storefront_upstream_post(
@@ -2028,22 +3396,6 @@ impl DraftProxy {
         }
     }
 
-    fn hydrate_storefront_menus_for_fields(
-        &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-    ) {
-        for field in fields.iter().filter(|field| field.name == "menu") {
-            let Some(handle) = resolved_string_field(&field.arguments, "handle") else {
-                continue;
-            };
-            if self.storefront_menu_by_handle(&handle).is_some() {
-                continue;
-            }
-            self.hydrate_storefront_menu(request, &handle);
-        }
-    }
-
     fn hydrate_storefront_menu(&mut self, request: &Request, handle: &str) {
         let response = self.storefront_upstream_post(
             request,
@@ -2069,123 +3421,80 @@ impl DraftProxy {
         self.store.base.storefront_menus.insert(id, menu);
     }
 
-    pub(in crate::proxy) fn storefront_local_query_data(
+    fn storefront_node_root_value(
         &self,
-        fields: &[RootFieldSelection],
+        arguments: &BTreeMap<String, Value>,
         context: &StorefrontRequestContext,
     ) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "shop" => self.storefront_shop_json(&field.selection),
-                "cart" => self.storefront_cart_query_root(field).value,
-                "localization" => self.storefront_localization_json(context, &field.selection),
-                "locations" => {
-                    self.storefront_locations_connection_json(&field.arguments, &field.selection)
-                }
-                "paymentSettings" => self.storefront_payment_settings_json(&field.selection),
-                "publicApiVersions" => Value::Array(
-                    self.store
-                        .base
-                        .storefront_public_api_versions
-                        .iter()
-                        .map(|version| selected_json(version, &field.selection))
-                        .collect(),
-                ),
-                "article" => self.storefront_article_root(field),
-                "articles" => self.storefront_content_connection(
-                    StorefrontContentKind::Article,
-                    self.storefront_article_records(),
-                    &field.arguments,
-                    &field.selection,
-                ),
-                "blog" => self.storefront_blog_root(field),
-                "blogByHandle" => self.storefront_blog_by_handle_root(field),
-                "blogs" => self.storefront_content_connection(
-                    StorefrontContentKind::Blog,
-                    self.storefront_blog_records(),
-                    &field.arguments,
-                    &field.selection,
-                ),
-                "page" => self.storefront_page_root(field),
-                "pageByHandle" => self.storefront_page_by_handle_root(field),
-                "pages" => self.storefront_content_connection(
-                    StorefrontContentKind::Page,
-                    self.storefront_page_records(),
-                    &field.arguments,
-                    &field.selection,
-                ),
-                "menu" => self.storefront_menu_root(field),
-                "sitemap" => self.storefront_sitemap_root(field),
-                "urlRedirects" => self
-                    .url_redirect_query_data(std::slice::from_ref(field))
-                    .get(&field.response_key)
-                    .cloned()
-                    .unwrap_or(Value::Null),
-                "product" => self.storefront_product_field_json(field, context),
-                "productByHandle" => self.storefront_product_by_handle_field_json(field, context),
-                "productRecommendations" => {
-                    self.storefront_product_recommendations_json(field, context)
-                }
-                "productTags" => self.storefront_product_taxonomy_connection_json(
-                    field,
-                    StorefrontProductTaxonomyKind::Tag,
-                ),
-                "productTypes" => self.storefront_product_taxonomy_connection_json(
-                    field,
-                    StorefrontProductTaxonomyKind::ProductType,
-                ),
-                "products" => self.storefront_products_connection_json(field, context),
-                "collection" => self.storefront_collection_field_json(field, context),
-                "collectionByHandle" => {
-                    self.storefront_collection_by_handle_field_json(field, context)
-                }
-                "collections" => self.storefront_collections_connection_json(field, context),
-                "metaobject" => self.storefront_metaobject_root_json(field),
-                "metaobjects" => self.storefront_metaobjects_connection_json(field),
-                "node" => self.storefront_node_root_json(field, context),
-                "nodes" => self.storefront_nodes_root_json(field, context),
-                "search" => self.storefront_search_root_json(field, context),
-                "predictiveSearch" => self.storefront_predictive_search_root_json(field, context),
-                _ => Value::Null,
-            })
-        })
-    }
-
-    fn storefront_node_root_json(
-        &self,
-        field: &RootFieldSelection,
-        context: &StorefrontRequestContext,
-    ) -> Value {
-        resolved_string_field(&field.arguments, "id")
-            .map(|id| self.storefront_node_by_id_json(&id, context, &field.selection))
+        arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .map(|id| self.storefront_node_by_id_value(id, context))
             .unwrap_or(Value::Null)
     }
 
-    fn storefront_nodes_root_json(
+    fn storefront_nodes_root_value(
         &self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
         context: &StorefrontRequestContext,
     ) -> Value {
         Value::Array(
-            list_string_field(&field.arguments, "ids")
+            arguments
+                .get("ids")
+                .and_then(Value::as_array)
                 .into_iter()
-                .map(|id| self.storefront_node_by_id_json(&id, context, &field.selection))
+                .flatten()
+                .filter_map(Value::as_str)
+                .map(|id| self.storefront_node_by_id_value(id, context))
                 .collect(),
         )
     }
 
-    fn storefront_node_by_id_json(
+    fn storefront_node_by_id_value(&self, id: &str, context: &StorefrontRequestContext) -> Value {
+        match self.storefront_node_load_state(id, context) {
+            NodeLoadState::Found(entity) => entity.value,
+            NodeLoadState::KnownMissing
+            | NodeLoadState::NeedsHydration
+            | NodeLoadState::UnsupportedType => Value::Null,
+        }
+    }
+
+    fn storefront_node_load_state(
         &self,
         id: &str,
         context: &StorefrontRequestContext,
-        selections: &[SelectedField],
+    ) -> NodeLoadState<EntityRef> {
+        let key = RequestEntityCacheKey::storefront(
+            self.execution_session.api_version(ApiSurface::Storefront),
+            id,
+            context.key(),
+        );
+        self.cached_request_entity_load_state(key, || {
+            let value = self.uncached_storefront_node_by_id_value(id, context);
+            if value.is_null() {
+                return NodeLoadState::KnownMissing;
+            }
+            let Some(type_name) = value
+                .get("__typename")
+                .and_then(Value::as_str)
+                .or_else(|| shopify_gid_resource_type(id))
+                .map(str::to_string)
+            else {
+                return NodeLoadState::UnsupportedType;
+            };
+            NodeLoadState::Found(EntityRef::new(type_name, id, value))
+        })
+    }
+
+    fn uncached_storefront_node_by_id_value(
+        &self,
+        id: &str,
+        context: &StorefrontRequestContext,
     ) -> Value {
         match shopify_gid_resource_type(id) {
-            Some("Product") => self.storefront_visible_product_json(
-                self.store.product_by_id(id),
-                context,
-                selections,
-            ),
+            Some("Product") => {
+                self.storefront_visible_product_value(self.store.product_by_id(id), context)
+            }
             Some("ProductVariant") => self
                 .store
                 .product_variant_by_id(id)
@@ -2195,43 +3504,36 @@ impl DraftProxy {
                         .is_some_and(|product| self.storefront_product_is_visible(product))
                 })
                 .map(|variant| {
-                    storefront_product_variant_json(
+                    storefront_product_variant_value(
                         self,
                         variant,
                         self.store.product_by_id(&variant.product_id),
                         context,
                         None,
-                        selections,
                     )
                 })
                 .unwrap_or(Value::Null),
-            Some("Collection") => self.storefront_visible_collection_json(
-                self.store.collection_by_id(id),
-                context,
-                selections,
-            ),
+            Some("Collection") => {
+                self.storefront_visible_collection_value(self.store.collection_by_id(id))
+            }
             Some("Article") => self
                 .storefront_content_by_id(StorefrontContentKind::Article, id)
-                .map(|record| self.selected_storefront_article(&record, selections))
                 .unwrap_or(Value::Null),
             Some("Blog") => self
                 .storefront_content_by_id(StorefrontContentKind::Blog, id)
-                .map(|record| self.selected_storefront_blog(&record, selections))
                 .unwrap_or(Value::Null),
             Some("Page") => self
                 .storefront_content_by_id(StorefrontContentKind::Page, id)
-                .map(|record| self.selected_storefront_page(&record, selections))
                 .unwrap_or(Value::Null),
             Some("Metaobject") => self
                 .metaobject_by_id(id)
                 .and_then(|record| self.storefront_visible_metaobject(&record))
-                .map(|record| self.storefront_selected_metaobject(&record, selections))
+                .map(|record| self.storefront_metaobject_value(&record))
                 .unwrap_or(Value::Null),
             Some("Location") => self
                 .storefront_location_records()
                 .into_iter()
                 .find(|record| record.get("id").and_then(Value::as_str) == Some(id))
-                .map(|record| selected_json(&record, selections))
                 .unwrap_or(Value::Null),
             Some("Menu") => self
                 .store
@@ -2240,7 +3542,7 @@ impl DraftProxy {
                 .ordered_values()
                 .into_iter()
                 .find(|record| record.get("id").and_then(Value::as_str) == Some(id))
-                .map(|record| selected_json(record, selections))
+                .cloned()
                 .unwrap_or(Value::Null),
             _ => Value::Null,
         }
@@ -2248,46 +3550,37 @@ impl DraftProxy {
 
     fn storefront_search_root_json(
         &self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
         context: &StorefrontRequestContext,
     ) -> Value {
-        let mut items = self.storefront_search_items(&field.arguments);
-        storefront_sort_search_items(self, &mut items, &field.arguments);
+        let arguments = resolved_arguments_from_json(arguments);
+        let mut items = self.storefront_search_items(&arguments);
+        storefront_sort_search_items(self, &mut items, &arguments);
         let total_count = items.len();
         let filter_items = items.clone();
         let (items, page_info) =
-            connection_window(&items, &field.arguments, storefront_search_item_cursor);
-        let node_selection = nested_selected_fields(&field.selection, &["nodes"]);
-        let edge_node_selection = nested_selected_fields(&field.selection, &["edges", "node"]);
-        selected_payload_json(&field.selection, |selection| {
-            match selection.name.as_str() {
-            "nodes" => Some(Value::Array(
+            connection_window(&items, &arguments, storefront_search_item_cursor);
+        json!({
+            "nodes": Value::Array(
                 items
                     .iter()
-                    .map(|item| self.storefront_search_item_json(item, context, &node_selection))
+                    .map(|item| self.storefront_search_item_json(item, context))
                     .collect(),
-            )),
-            "edges" => Some(Value::Array(
+            ),
+            "edges": Value::Array(
                 items
                     .iter()
                     .map(|item| {
                         json!({
                             "cursor": storefront_search_item_cursor(item),
-                            "node": self.storefront_search_item_json(item, context, &edge_node_selection)
+                            "node": self.storefront_search_item_json(item, context)
                         })
                     })
                     .collect(),
-            )),
-            "pageInfo" => Some(selected_json(&page_info, &selection.selection)),
-            "totalCount" => Some(json!(total_count)),
-            "productFilters" => Some(Value::Array(
-                storefront_search_product_filters(self, &filter_items)
-                    .iter()
-                    .map(|filter| selected_json(filter, &selection.selection))
-                    .collect(),
-            )),
-            _ => None,
-        }
+            ),
+            "pageInfo": page_info,
+            "totalCount": total_count,
+            "productFilters": storefront_search_product_filters(self, &filter_items),
         })
     }
 
@@ -2365,19 +3658,18 @@ impl DraftProxy {
         &self,
         item: &StorefrontSearchItem,
         context: &StorefrontRequestContext,
-        selections: &[SelectedField],
     ) -> Value {
         let (mut projected, type_name, id) = match item {
             StorefrontSearchItem::Product(product) => {
                 let variants = self.store.product_variants_for_product(&product.id);
                 (
-                    storefront_product_json(self, product, &variants, context, selections),
+                    storefront_product_value(self, product, &variants, context),
                     "Product",
                     product.id.as_str(),
                 )
             }
             StorefrontSearchItem::Article(article) => (
-                self.selected_storefront_article(article, selections),
+                article.clone(),
                 "Article",
                 article
                     .get("id")
@@ -2385,7 +3677,7 @@ impl DraftProxy {
                     .unwrap_or_default(),
             ),
             StorefrontSearchItem::Page(page) => (
-                self.selected_storefront_page(page, selections),
+                page.clone(),
                 "Page",
                 page.get("id").and_then(Value::as_str).unwrap_or_default(),
             ),
@@ -2401,21 +3693,22 @@ impl DraftProxy {
 
     fn storefront_predictive_search_root_json(
         &self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
         context: &StorefrontRequestContext,
     ) -> Value {
-        let query = resolved_string_field(&field.arguments, "query").unwrap_or_default();
-        let limit = resolved_int_field(&field.arguments, "limit")
+        let arguments = resolved_arguments_from_json(arguments);
+        let query = resolved_string_field(&arguments, "query").unwrap_or_default();
+        let limit = resolved_int_field(&arguments, "limit")
             .unwrap_or(10)
             .clamp(1, 10) as usize;
-        let limit_scope = resolved_string_field(&field.arguments, "limitScope")
-            .unwrap_or_else(|| "ALL".to_string());
-        let requested_types = list_string_field(&field.arguments, "types");
+        let limit_scope =
+            resolved_string_field(&arguments, "limitScope").unwrap_or_else(|| "ALL".to_string());
+        let requested_types = list_string_field(&arguments, "types");
         let includes = |name: &str| {
             requested_types.is_empty() || requested_types.iter().any(|value| value == name)
         };
-        let searchable_fields = list_string_field(&field.arguments, "searchableFields");
-        let unavailable = resolved_string_field(&field.arguments, "unavailableProducts")
+        let searchable_fields = list_string_field(&arguments, "searchableFields");
+        let unavailable = resolved_string_field(&arguments, "unavailableProducts")
             .unwrap_or_else(|| "LAST".to_string());
         let mut products = if includes("PRODUCT") {
             self.storefront_visible_products()
@@ -2536,57 +3829,25 @@ impl DraftProxy {
         } else {
             Vec::new()
         };
-        selected_payload_json(&field.selection, |selection| {
-            match selection.name.as_str() {
-                "products" => Some(Value::Array(
-                    products
-                        .iter()
-                        .map(|product| {
-                            let variants = self.store.product_variants_for_product(&product.id);
-                            storefront_product_json(
-                                self,
-                                product,
-                                &variants,
-                                context,
-                                &selection.selection,
-                            )
-                        })
-                        .collect(),
-                )),
-                "collections" => Some(Value::Array(
-                    collections
-                        .iter()
-                        .map(|record| {
-                            self.storefront_collection_json(record, context, &selection.selection)
-                        })
-                        .collect(),
-                )),
-                "articles" => Some(Value::Array(
-                    articles
-                        .iter()
-                        .map(|record| {
-                            self.selected_storefront_article(record, &selection.selection)
-                        })
-                        .collect(),
-                )),
-                "pages" => Some(Value::Array(
-                    pages
-                        .iter()
-                        .map(|record| self.selected_storefront_page(record, &selection.selection))
-                        .collect(),
-                )),
-                "queries" => Some(Value::Array(
-                    suggestions
-                        .iter()
-                        .map(|record| selected_json(record, &selection.selection))
-                        .collect(),
-                )),
-                _ => None,
-            }
+        json!({
+            "products": products
+                .iter()
+                .map(|product| {
+                    let variants = self.store.product_variants_for_product(&product.id);
+                    storefront_product_value(self, product, &variants, context)
+                })
+                .collect::<Vec<_>>(),
+            "collections": collections
+                .iter()
+                .map(|record| self.storefront_collection_value(record))
+                .collect::<Vec<_>>(),
+            "articles": articles,
+            "pages": pages,
+            "queries": suggestions,
         })
     }
 
-    fn storefront_collection_field_needs_hydration(&self, _field: &RootFieldSelection) -> bool {
+    fn storefront_collections_need_hydration(&self) -> bool {
         self.store.staged.collections.is_empty()
     }
 
@@ -2654,42 +3915,94 @@ impl DraftProxy {
         }
     }
 
-    fn storefront_collection_field_json(
-        &self,
-        field: &RootFieldSelection,
-        context: &StorefrontRequestContext,
-    ) -> Value {
-        let collection = resolved_string_field(&field.arguments, "id")
-            .and_then(|id| self.store.collection_by_id(&id))
+    fn storefront_collection_root_value(&self, arguments: &BTreeMap<String, Value>) -> Value {
+        let collection = arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .and_then(|id| self.store.collection_by_id(id))
             .or_else(|| {
-                resolved_string_field(&field.arguments, "handle")
-                    .and_then(|handle| self.store.collection_by_handle(&handle))
+                arguments
+                    .get("handle")
+                    .and_then(Value::as_str)
+                    .and_then(|handle| self.store.collection_by_handle(handle))
             });
-        self.storefront_visible_collection_json(collection, context, &field.selection)
+        self.storefront_visible_collection_value(collection)
     }
 
-    fn storefront_collection_by_handle_field_json(
+    fn storefront_collection_by_handle_root_value(
         &self,
-        field: &RootFieldSelection,
-        context: &StorefrontRequestContext,
+        arguments: &BTreeMap<String, Value>,
     ) -> Value {
-        let collection = resolved_string_field(&field.arguments, "handle")
-            .and_then(|handle| self.store.collection_by_handle(&handle));
-        self.storefront_visible_collection_json(collection, context, &field.selection)
+        let collection = arguments
+            .get("handle")
+            .and_then(Value::as_str)
+            .and_then(|handle| self.store.collection_by_handle(handle));
+        self.storefront_visible_collection_value(collection)
     }
 
-    fn storefront_visible_collection_json(
+    fn storefront_visible_collection_value(&self, collection: Option<&Value>) -> Value {
+        collection
+            .filter(|collection| self.storefront_collection_is_visible(collection))
+            .map(|collection| self.storefront_collection_value(collection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn storefront_collections_connection_value(
         &self,
-        collection: Option<&Value>,
-        context: &StorefrontRequestContext,
-        selections: &[SelectedField],
+        arguments: &BTreeMap<String, Value>,
     ) -> Value {
-        let Some(collection) =
-            collection.filter(|collection| self.storefront_collection_is_visible(collection))
-        else {
-            return Value::Null;
-        };
-        self.storefront_collection_json(collection, context, selections)
+        let arguments = resolved_arguments_from_json(arguments);
+        staged_connection_value_with_args(
+            self.store
+                .staged
+                .collections
+                .values()
+                .filter(|collection| self.storefront_collection_is_visible(collection))
+                .cloned()
+                .collect(),
+            &arguments,
+            |collection, query| self.collection_search_decision(collection, query),
+            |collection, sort_key| self.storefront_collection_sort_key(collection, sort_key),
+            |collection| self.storefront_collection_value(collection),
+            value_id_cursor,
+        )
+    }
+
+    fn storefront_collection_value(&self, collection: &Value) -> Value {
+        let description = collection
+            .get("description")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| {
+                storefront_strip_html(
+                    collection
+                        .get("descriptionHtml")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default(),
+                )
+            });
+        json!({
+            "__typename": "Collection",
+            "description": description,
+            "descriptionHtml": collection
+                .get("descriptionHtml")
+                .cloned()
+                .unwrap_or_else(|| json!("")),
+            "handle": collection.get("handle").cloned().unwrap_or(Value::Null),
+            "id": collection.get("id").cloned().unwrap_or(Value::Null),
+            "image": collection.get("image").cloned().unwrap_or(Value::Null),
+            "onlineStoreUrl": collection
+                .get("onlineStoreUrl")
+                .cloned()
+                .unwrap_or(Value::Null),
+            "seo": storefront_collection_seo(collection),
+            "title": collection.get("title").cloned().unwrap_or(Value::Null),
+            "trackingParameters": collection
+                .get("trackingParameters")
+                .cloned()
+                .unwrap_or(Value::Null),
+            "updatedAt": collection.get("updatedAt").cloned().unwrap_or(Value::Null),
+        })
     }
 
     fn storefront_collection_is_visible(&self, collection: &Value) -> bool {
@@ -2708,30 +4021,6 @@ impl DraftProxy {
             .get("__storefrontVisible")
             .and_then(Value::as_bool)
             .unwrap_or(false)
-    }
-
-    fn storefront_collections_connection_json(
-        &self,
-        field: &RootFieldSelection,
-        context: &StorefrontRequestContext,
-    ) -> Value {
-        selected_staged_connection_with_args(
-            self.store
-                .staged
-                .collections
-                .values()
-                .filter(|collection| self.storefront_collection_is_visible(collection))
-                .cloned()
-                .collect(),
-            &field.arguments,
-            &field.selection,
-            |collection, query| self.collection_search_decision(collection, query),
-            |collection, sort_key| self.storefront_collection_sort_key(collection, sort_key),
-            |collection, selections| {
-                self.storefront_collection_json(collection, context, selections)
-            },
-            value_id_cursor,
-        )
     }
 
     fn storefront_collection_sort_key(
@@ -2775,157 +4064,100 @@ impl DraftProxy {
         ]
     }
 
-    fn storefront_collection_json(
+    fn storefront_product_root_value(
         &self,
-        collection: &Value,
+        arguments: &BTreeMap<String, Value>,
         context: &StorefrontRequestContext,
-        selections: &[SelectedField],
     ) -> Value {
-        let owner_id = collection
+        let product = arguments
             .get("id")
             .and_then(Value::as_str)
-            .unwrap_or_default();
-        selected_payload_json(selections, |selection| {
-            if !selection_applies_to_type(selection, "Collection") {
-                return None;
-            }
-            match selection.name.as_str() {
-                "__typename" => Some(json!("Collection")),
-                "description" => Some(json!(storefront_collection_description(
-                    collection, selection,
-                ))),
-                "descriptionHtml" => Some(json!(collection
-                    .get("descriptionHtml")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default())),
-                "image" => Some(
-                    collection
-                        .get("image")
-                        .map(|image| nullable_selected_json(image, &selection.selection))
-                        .unwrap_or(Value::Null),
-                ),
-                "seo" => Some(selected_json(
-                    &storefront_collection_seo(collection),
-                    &selection.selection,
-                )),
-                "metafield" => Some(self.storefront_owner_metafield_json(owner_id, selection)),
-                "metafields" => Some(self.storefront_owner_metafields_json(owner_id, selection)),
-                "products" => Some(self.storefront_collection_products_connection_json(
-                    collection, context, selection,
-                )),
-                _ => collection
-                    .get(&selection.name)
-                    .map(|value| nullable_selected_json(value, &selection.selection)),
-            }
-        })
-    }
-
-    fn storefront_collection_products_connection_json(
-        &self,
-        collection: &Value,
-        context: &StorefrontRequestContext,
-        selection: &SelectedField,
-    ) -> Value {
-        let filters = resolved_object_list_field(&selection.arguments, "filters");
-        let mut products = self
-            .collection_product_entries(collection)
-            .into_iter()
-            .filter(|entry| self.storefront_product_is_visible(&entry.product))
-            .filter(|entry| storefront_collection_product_matches_filters(entry, &filters))
-            .collect::<Vec<_>>();
-        let requested_sort_key = resolved_string_field(&selection.arguments, "sortKey");
-        let sort_key = if matches!(
-            requested_sort_key.as_deref(),
-            None | Some("COLLECTION_DEFAULT")
-        ) && collection
-            .get(STOREFRONT_CAPTURED_COLLECTION_DEFAULT_ORDER_FIELD)
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
-        {
-            Some("MANUAL")
-        } else {
-            requested_sort_key.as_deref()
-        };
-        let reverse = resolved_bool_field(&selection.arguments, "reverse").unwrap_or(false);
-        sort_collection_product_entries(collection, &mut products, sort_key, reverse);
-        selected_typed_connection_with_args(
-            &products,
-            &selection.arguments,
-            &selection.selection,
-            |entry, selections| {
-                storefront_product_json(self, &entry.product, &entry.variants, context, selections)
-            },
-            collection_product_cursor,
-        )
-    }
-
-    fn storefront_product_field_json(
-        &self,
-        field: &RootFieldSelection,
-        context: &StorefrontRequestContext,
-    ) -> Value {
-        let product = resolved_string_field(&field.arguments, "id")
-            .and_then(|id| self.store.product_by_id(&id))
+            .and_then(|id| self.store.product_by_id(id))
             .or_else(|| {
-                resolved_string_field(&field.arguments, "handle")
-                    .and_then(|handle| self.store.product_by_handle(&handle))
+                arguments
+                    .get("handle")
+                    .and_then(Value::as_str)
+                    .and_then(|handle| self.store.product_by_handle(handle))
             });
-        self.storefront_visible_product_json(product, context, &field.selection)
+        self.storefront_visible_product_value(product, context)
     }
 
-    fn storefront_product_by_handle_field_json(
+    fn storefront_product_by_handle_root_value(
         &self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
         context: &StorefrontRequestContext,
     ) -> Value {
-        let product = resolved_string_field(&field.arguments, "handle")
-            .and_then(|handle| self.store.product_by_handle(&handle));
-        self.storefront_visible_product_json(product, context, &field.selection)
+        let product = arguments
+            .get("handle")
+            .and_then(Value::as_str)
+            .and_then(|handle| self.store.product_by_handle(handle));
+        self.storefront_visible_product_value(product, context)
     }
 
-    fn storefront_visible_product_json(
+    fn storefront_visible_product_value(
         &self,
         product: Option<&ProductRecord>,
         context: &StorefrontRequestContext,
-        selections: &[SelectedField],
     ) -> Value {
         let Some(product) = product.filter(|product| self.storefront_product_is_visible(product))
         else {
             return Value::Null;
         };
         let variants = self.store.product_variants_for_product(&product.id);
-        storefront_product_json(self, product, &variants, context, selections)
+        storefront_product_value(self, product, &variants, context)
     }
 
-    fn storefront_products_connection_json(
+    fn storefront_products_connection_value(
         &self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
         context: &StorefrontRequestContext,
     ) -> Value {
-        selected_staged_connection_with_args(
+        let arguments = arguments
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+            .collect();
+        let result = staged_connection_query(
             self.storefront_visible_products(),
-            &field.arguments,
-            &field.selection,
+            &arguments,
             |product, query| self.storefront_product_search_decision(product, query),
             |product, sort_key| self.storefront_product_sort_key(product, sort_key),
-            |product, selections| {
-                let variants = self.store.product_variants_for_product(&product.id);
-                storefront_product_json(self, product, &variants, context, selections)
-            },
             |product| product_cursor(product).to_string(),
+        );
+        connection_json_with_cursor(
+            result
+                .records
+                .iter()
+                .map(|product| {
+                    let variants = self.store.product_variants_for_product(&product.id);
+                    storefront_product_value(self, product, &variants, context)
+                })
+                .collect(),
+            |index, _| {
+                result
+                    .records
+                    .get(index)
+                    .map(product_cursor)
+                    .unwrap_or_default()
+                    .to_string()
+            },
+            result.page_info,
         )
     }
 
     fn storefront_product_recommendations_json(
         &self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
         context: &StorefrontRequestContext,
     ) -> Value {
-        let source = resolved_string_field(&field.arguments, "productId")
-            .and_then(|id| self.store.product_by_id(&id))
+        let source = arguments
+            .get("productId")
+            .and_then(Value::as_str)
+            .and_then(|id| self.store.product_by_id(id))
             .or_else(|| {
-                resolved_string_field(&field.arguments, "productHandle")
-                    .and_then(|handle| self.store.product_by_handle(&handle))
+                arguments
+                    .get("productHandle")
+                    .and_then(Value::as_str)
+                    .and_then(|handle| self.store.product_by_handle(handle))
             })
             .filter(|product| self.storefront_product_is_visible(product));
         let Some(source) = source else {
@@ -2967,7 +4199,7 @@ impl DraftProxy {
                 .take(10)
                 .map(|(_, product)| {
                     let variants = self.store.product_variants_for_product(&product.id);
-                    storefront_product_json(self, &product, &variants, context, &field.selection)
+                    storefront_product_value(self, &product, &variants, context)
                 })
                 .collect(),
         )
@@ -2975,7 +4207,7 @@ impl DraftProxy {
 
     fn storefront_product_taxonomy_connection_json(
         &self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, Value>,
         kind: StorefrontProductTaxonomyKind,
     ) -> Value {
         let observed = match kind {
@@ -3002,10 +4234,10 @@ impl DraftProxy {
                 .then_with(|| left.cmp(right))
         });
         values.dedup();
-        selected_connection_json_with_args(
+        let arguments = resolved_arguments_from_json(arguments);
+        connection_value_with_args(
             values.into_iter().map(Value::String).collect(),
-            &field.arguments,
-            &field.selection,
+            &arguments,
             |value| {
                 base64::engine::general_purpose::STANDARD
                     .encode(value.as_str().unwrap_or_default().as_bytes())
@@ -3177,7 +4409,8 @@ impl DraftProxy {
             .observed_shop_currency_code()
             .unwrap_or_else(|| "USD".to_string())
     }
-    fn storefront_shop_json(&self, selections: &[SelectedField]) -> Value {
+
+    fn storefront_shop_value(&self) -> Value {
         let storefront_shop = self.store.base.storefront_shop.clone();
         let admin_shop = if self.store.base.shop.is_object() {
             self.store.effective_shop()
@@ -3186,75 +4419,61 @@ impl DraftProxy {
         };
         let has_shop = storefront_shop.is_object()
             || admin_shop.is_object()
-            || self.storefront_shop_selection_uses_only_local_metafields(selections);
+            || self.storefront_has_local_shop_metafield_state();
         if !has_shop {
             return Value::Null;
         }
-        selected_payload_json(selections, |selection| {
-            if !selection_applies_to_type(selection, "Shop") {
-                return None;
-            }
-            match selection.name.as_str() {
-                "__typename" => Some(json!("Shop")),
-                "paymentSettings" => {
-                    Some(self.storefront_payment_settings_json(&selection.selection))
-                }
-                "primaryDomain" => self
-                    .storefront_shop_field(&storefront_shop, &admin_shop, "primaryDomain")
-                    .map(|domain| selected_json(&domain, &selection.selection)),
-                "privacyPolicy" => self.storefront_shop_policy_json(
-                    &storefront_shop,
-                    "privacyPolicy",
-                    "PRIVACY_POLICY",
-                    &selection.selection,
-                ),
-                "refundPolicy" => self.storefront_shop_policy_json(
-                    &storefront_shop,
-                    "refundPolicy",
-                    "REFUND_POLICY",
-                    &selection.selection,
-                ),
-                "shippingPolicy" => self.storefront_shop_policy_json(
-                    &storefront_shop,
-                    "shippingPolicy",
-                    "SHIPPING_POLICY",
-                    &selection.selection,
-                ),
-                "termsOfService" => self.storefront_shop_policy_json(
-                    &storefront_shop,
-                    "termsOfService",
-                    "TERMS_OF_SERVICE",
-                    &selection.selection,
-                ),
-                "termsOfSale" => self.storefront_shop_policy_json(
-                    &storefront_shop,
-                    "termsOfSale",
-                    "TERMS_OF_SALE",
-                    &selection.selection,
-                ),
-                "legalNotice" => self.storefront_shop_policy_json(
-                    &storefront_shop,
-                    "legalNotice",
-                    "LEGAL_NOTICE",
-                    &selection.selection,
-                ),
-                "contactInformation" => self.storefront_shop_policy_json(
-                    &storefront_shop,
-                    "contactInformation",
-                    "CONTACT_INFORMATION",
-                    &selection.selection,
-                ),
-                "moneyFormat" => self
-                    .storefront_shop_field(&storefront_shop, &admin_shop, "moneyFormat")
-                    .or_else(|| self.store.shop_money_format().map(Value::String)),
-                "metafield" => Some(self.storefront_shop_metafield_json(selection)),
-                "metafields" => Some(self.storefront_shop_metafields_json(selection)),
-                _ => self
-                    .storefront_shop_field(&storefront_shop, &admin_shop, &selection.name)
-                    .map(|value| nullable_selected_json(&value, &selection.selection))
-                    .or(Some(Value::Null)),
-            }
-        })
+        let mut value = serde_json::Map::new();
+        value.insert("__typename".to_string(), json!("Shop"));
+        for field in [
+            "brand",
+            "customerAccountTranslations",
+            "customerAccountUrl",
+            "description",
+            "id",
+            "name",
+            "shipsToCountries",
+            "shopPayInstallmentsPricing",
+            "socialLoginProviders",
+            "subscriptionPolicy",
+        ] {
+            value.insert(
+                field.to_string(),
+                self.storefront_shop_field(&storefront_shop, &admin_shop, field)
+                    .unwrap_or(Value::Null),
+            );
+        }
+        value.insert(
+            "paymentSettings".to_string(),
+            self.storefront_payment_settings_value(),
+        );
+        value.insert(
+            "primaryDomain".to_string(),
+            self.storefront_shop_field(&storefront_shop, &admin_shop, "primaryDomain")
+                .unwrap_or(Value::Null),
+        );
+        for (field, policy_type) in [
+            ("privacyPolicy", "PRIVACY_POLICY"),
+            ("refundPolicy", "REFUND_POLICY"),
+            ("shippingPolicy", "SHIPPING_POLICY"),
+            ("termsOfService", "TERMS_OF_SERVICE"),
+            ("termsOfSale", "TERMS_OF_SALE"),
+            ("legalNotice", "LEGAL_NOTICE"),
+            ("contactInformation", "CONTACT_INFORMATION"),
+        ] {
+            value.insert(
+                field.to_string(),
+                self.storefront_shop_policy_value(&storefront_shop, field, policy_type)
+                    .unwrap_or(Value::Null),
+            );
+        }
+        value.insert(
+            "moneyFormat".to_string(),
+            self.storefront_shop_field(&storefront_shop, &admin_shop, "moneyFormat")
+                .or_else(|| self.store.shop_money_format().map(Value::String))
+                .unwrap_or(Value::Null),
+        );
+        Value::Object(value)
     }
 
     fn storefront_shop_field(
@@ -3269,21 +4488,17 @@ impl DraftProxy {
             .or_else(|| admin_shop.get(field).cloned())
     }
 
-    fn storefront_shop_policy_json(
+    fn storefront_shop_policy_value(
         &self,
         storefront_shop: &Value,
         storefront_field: &str,
         policy_type: &str,
-        selections: &[SelectedField],
     ) -> Option<Value> {
         if let Some(policy) = storefront_shop.get(storefront_field) {
-            return Some(nullable_selected_json(policy, selections));
+            return Some(policy.clone());
         }
         let policy = self.store.shop_policy_by_type(policy_type)?;
-        Some(selected_json(
-            &storefront_policy_from_admin(policy),
-            selections,
-        ))
+        Some(storefront_policy_from_admin(policy))
     }
 
     fn storefront_localization_is_observed(&self, context: &StorefrontRequestContext) -> bool {
@@ -3293,30 +4508,38 @@ impl DraftProxy {
             .contains_key(&context.key())
     }
 
-    fn storefront_localization_json(
-        &self,
-        context: &StorefrontRequestContext,
-        selections: &[SelectedField],
-    ) -> Value {
-        self.store
-            .base
-            .storefront_localizations
-            .get(&context.key())
-            .map(|localization| selected_json(localization, selections))
-            .unwrap_or(Value::Null)
-    }
-
-    fn storefront_payment_settings_json(&self, selections: &[SelectedField]) -> Value {
-        self.storefront_payment_settings_source()
-            .map(|settings| selected_json(&settings, selections))
-            .unwrap_or(Value::Null)
-    }
-
     fn storefront_payment_settings_source(&self) -> Option<Value> {
         if self.store.base.storefront_payment_settings.is_object() {
             return Some(self.store.base.storefront_payment_settings.clone());
         }
         self.admin_storefront_payment_settings_source()
+    }
+
+    fn storefront_payment_settings_value(&self) -> Value {
+        let Some(source) = self.storefront_payment_settings_source() else {
+            return Value::Null;
+        };
+        let mut value = serde_json::Map::new();
+        for field in [
+            "acceptedCardBrands",
+            "cardVaultUrl",
+            "countryCode",
+            "currencyCode",
+            "enabledPresentmentCurrencies",
+            "shopifyPaymentsAccountId",
+            "supportedDigitalWallets",
+        ] {
+            value.insert(
+                field.to_string(),
+                source.get(field).cloned().unwrap_or_else(|| match field {
+                    "acceptedCardBrands"
+                    | "enabledPresentmentCurrencies"
+                    | "supportedDigitalWallets" => json!([]),
+                    _ => Value::Null,
+                }),
+            );
+        }
+        Value::Object(value)
     }
 
     fn admin_storefront_payment_settings_source(&self) -> Option<Value> {
@@ -3337,22 +4560,20 @@ impl DraftProxy {
         (!settings.is_empty()).then_some(Value::Object(settings))
     }
 
-    fn storefront_locations_connection_json(
-        &self,
-        arguments: &BTreeMap<String, ResolvedValue>,
-        selections: &[SelectedField],
-    ) -> Value {
+    fn storefront_locations_connection_value(&self, arguments: &BTreeMap<String, Value>) -> Value {
+        let arguments = arguments
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+            .collect();
         let mut records = self.storefront_location_records();
-        sort_storefront_locations(&mut records, arguments);
+        sort_storefront_locations(&mut records, &arguments);
         let cursor_by_id = self.storefront_location_cursor_map(&records);
-        let (records, page_info) = connection_window(&records, arguments, |location| {
+        let (records, page_info) = connection_window(&records, &arguments, |location| {
             storefront_location_cursor(location, &cursor_by_id)
         });
-        selected_typed_connection_with_page_info(
-            &records,
-            selections,
-            selected_json,
-            |location| storefront_location_cursor(location, &cursor_by_id),
+        connection_json_with_cursor(
+            records,
+            |_, location| storefront_location_cursor(location, &cursor_by_id),
             page_info,
         )
     }
@@ -3399,51 +4620,100 @@ impl DraftProxy {
             .collect()
     }
 
-    fn storefront_article_root(&self, field: &RootFieldSelection) -> Value {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        self.storefront_content_by_id(StorefrontContentKind::Article, &id)
-            .map(|article| self.selected_storefront_article(&article, &field.selection))
-            .unwrap_or(Value::Null)
-    }
-
-    fn storefront_blog_root(&self, field: &RootFieldSelection) -> Value {
-        let record = resolved_string_field(&field.arguments, "id")
-            .and_then(|id| self.storefront_content_by_id(StorefrontContentKind::Blog, &id))
-            .or_else(|| {
-                resolved_string_field(&field.arguments, "handle").and_then(|handle| {
-                    self.storefront_content_by_handle(StorefrontContentKind::Blog, &handle)
+    fn storefront_content_root_value(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, Value>,
+    ) -> Value {
+        let string_argument = |name: &str| {
+            arguments
+                .get(name)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+        };
+        match root_name {
+            "article" => self
+                .storefront_content_by_id(StorefrontContentKind::Article, string_argument("id"))
+                .unwrap_or(Value::Null),
+            "articles" => self.storefront_content_connection_value(
+                StorefrontContentKind::Article,
+                self.storefront_article_records(),
+                arguments,
+            ),
+            "blog" => arguments
+                .get("id")
+                .and_then(Value::as_str)
+                .and_then(|id| self.storefront_content_by_id(StorefrontContentKind::Blog, id))
+                .or_else(|| {
+                    arguments
+                        .get("handle")
+                        .and_then(Value::as_str)
+                        .and_then(|handle| {
+                            self.storefront_content_by_handle(StorefrontContentKind::Blog, handle)
+                        })
                 })
-            });
-        record
-            .map(|blog| self.selected_storefront_blog(&blog, &field.selection))
-            .unwrap_or(Value::Null)
-    }
-
-    fn storefront_blog_by_handle_root(&self, field: &RootFieldSelection) -> Value {
-        let handle = resolved_string_field(&field.arguments, "handle").unwrap_or_default();
-        self.storefront_content_by_handle(StorefrontContentKind::Blog, &handle)
-            .map(|blog| self.selected_storefront_blog(&blog, &field.selection))
-            .unwrap_or(Value::Null)
-    }
-
-    fn storefront_page_root(&self, field: &RootFieldSelection) -> Value {
-        let record = resolved_string_field(&field.arguments, "id")
-            .and_then(|id| self.storefront_content_by_id(StorefrontContentKind::Page, &id))
-            .or_else(|| {
-                resolved_string_field(&field.arguments, "handle").and_then(|handle| {
-                    self.storefront_content_by_handle(StorefrontContentKind::Page, &handle)
+                .unwrap_or(Value::Null),
+            "blogByHandle" => self
+                .storefront_content_by_handle(
+                    StorefrontContentKind::Blog,
+                    string_argument("handle"),
+                )
+                .unwrap_or(Value::Null),
+            "blogs" => self.storefront_content_connection_value(
+                StorefrontContentKind::Blog,
+                self.storefront_blog_records(),
+                arguments,
+            ),
+            "page" => arguments
+                .get("id")
+                .and_then(Value::as_str)
+                .and_then(|id| self.storefront_content_by_id(StorefrontContentKind::Page, id))
+                .or_else(|| {
+                    arguments
+                        .get("handle")
+                        .and_then(Value::as_str)
+                        .and_then(|handle| {
+                            self.storefront_content_by_handle(StorefrontContentKind::Page, handle)
+                        })
                 })
-            });
-        record
-            .map(|page| self.selected_storefront_page(&page, &field.selection))
-            .unwrap_or(Value::Null)
+                .unwrap_or(Value::Null),
+            "pageByHandle" => self
+                .storefront_content_by_handle(
+                    StorefrontContentKind::Page,
+                    string_argument("handle"),
+                )
+                .unwrap_or(Value::Null),
+            "pages" => self.storefront_content_connection_value(
+                StorefrontContentKind::Page,
+                self.storefront_page_records(),
+                arguments,
+            ),
+            _ => Value::Null,
+        }
     }
 
-    fn storefront_page_by_handle_root(&self, field: &RootFieldSelection) -> Value {
-        let handle = resolved_string_field(&field.arguments, "handle").unwrap_or_default();
-        self.storefront_content_by_handle(StorefrontContentKind::Page, &handle)
-            .map(|page| self.selected_storefront_page(&page, &field.selection))
-            .unwrap_or(Value::Null)
+    fn storefront_content_connection_value(
+        &self,
+        kind: StorefrontContentKind,
+        records: Vec<Value>,
+        arguments: &BTreeMap<String, Value>,
+    ) -> Value {
+        let arguments = arguments
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+            .collect();
+        let result = staged_connection_query(
+            records,
+            &arguments,
+            |record, query| storefront_content_search_decision(kind, record, query),
+            |record, sort_key| storefront_content_sort_key(kind, record, sort_key),
+            value_id_cursor,
+        );
+        connection_json_with_cursor(
+            result.records,
+            |_, record| value_id_cursor(record),
+            result.page_info,
+        )
     }
 
     fn storefront_content_by_id(&self, kind: StorefrontContentKind, id: &str) -> Option<Value> {
@@ -3539,159 +4809,6 @@ impl DraftProxy {
             .collect()
     }
 
-    fn selected_storefront_blog(&self, blog: &Value, selection: &[SelectedField]) -> Value {
-        let blog_id = blog.get("id").and_then(Value::as_str).unwrap_or_default();
-        selected_payload_json(selection, |field| {
-            if !selection_applies_to_type(field, "Blog") {
-                return None;
-            }
-            match field.name.as_str() {
-                "articleByHandle" => {
-                    let handle =
-                        resolved_string_field(&field.arguments, "handle").unwrap_or_default();
-                    self.storefront_articles_for_blog(blog_id)
-                        .into_iter()
-                        .find(|article| {
-                            article.get("handle").and_then(Value::as_str) == Some(&handle)
-                        })
-                        .map(|article| self.selected_storefront_article(&article, &field.selection))
-                        .or(Some(Value::Null))
-                }
-                "articles" => Some(self.storefront_content_connection(
-                    StorefrontContentKind::Article,
-                    self.storefront_articles_for_blog(blog_id),
-                    &field.arguments,
-                    &field.selection,
-                )),
-                "authors" => {
-                    let mut seen = BTreeSet::new();
-                    let authors = self
-                        .storefront_articles_for_blog(blog_id)
-                        .into_iter()
-                        .filter_map(|article| article.get("author").cloned())
-                        .filter(|author| {
-                            let name = author
-                                .get("name")
-                                .and_then(Value::as_str)
-                                .unwrap_or_default();
-                            !name.is_empty() && seen.insert(name.to_string())
-                        })
-                        .map(|author| selected_json(&author, &field.selection))
-                        .collect::<Vec<_>>();
-                    Some(Value::Array(authors))
-                }
-                "metafield" => Some(Value::Null),
-                "metafields" => Some(storefront_metafields_list(
-                    &field.arguments,
-                    &field.selection,
-                )),
-                "onlineStoreUrl" => Some(Value::Null),
-                "seo" => Some(selected_json(&storefront_default_seo(), &field.selection)),
-                _ => selected_field_json(blog, field).or(Some(Value::Null)),
-            }
-        })
-    }
-
-    fn selected_storefront_article(&self, article: &Value, selection: &[SelectedField]) -> Value {
-        selected_payload_json(selection, |field| {
-            if !selection_applies_to_type(field, "Article") {
-                return None;
-            }
-            match field.name.as_str() {
-                "author" | "authorV2" => article
-                    .get("author")
-                    .map(|author| selected_json(author, &field.selection))
-                    .or(Some(Value::Null)),
-                "blog" => article
-                    .get("blogId")
-                    .and_then(Value::as_str)
-                    .and_then(|blog_id| {
-                        self.storefront_content_by_id(StorefrontContentKind::Blog, blog_id)
-                    })
-                    .map(|blog| self.selected_storefront_blog(&blog, &field.selection)),
-                "comments" => Some(selected_empty_connection_json(&field.selection)),
-                "content" => Some(json!(storefront_truncated_text(
-                    article
-                        .get("content")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default(),
-                    &field.arguments,
-                ))),
-                "contentHtml" => selected_field_json(article, field).or(Some(json!(""))),
-                "excerpt" => Some(
-                    article
-                        .get("excerpt")
-                        .and_then(Value::as_str)
-                        .map(|excerpt| json!(storefront_truncated_text(excerpt, &field.arguments)))
-                        .unwrap_or(Value::Null),
-                ),
-                "excerptHtml" => selected_field_json(article, field).or(Some(Value::Null)),
-                "metafield" => Some(Value::Null),
-                "metafields" => Some(storefront_metafields_list(
-                    &field.arguments,
-                    &field.selection,
-                )),
-                "onlineStoreUrl" | "trackingParameters" => Some(Value::Null),
-                "seo" => Some(selected_json(&storefront_default_seo(), &field.selection)),
-                _ => selected_field_json(article, field).or(Some(Value::Null)),
-            }
-        })
-    }
-
-    fn selected_storefront_page(&self, page: &Value, selection: &[SelectedField]) -> Value {
-        selected_payload_json(selection, |field| {
-            if !selection_applies_to_type(field, "Page") {
-                return None;
-            }
-            match field.name.as_str() {
-                "metafield" => Some(Value::Null),
-                "metafields" => Some(storefront_metafields_list(
-                    &field.arguments,
-                    &field.selection,
-                )),
-                "onlineStoreUrl" | "trackingParameters" => Some(Value::Null),
-                "seo" => Some(selected_json(&storefront_default_seo(), &field.selection)),
-                _ => selected_field_json(page, field).or(Some(Value::Null)),
-            }
-        })
-    }
-
-    fn storefront_content_connection(
-        &self,
-        kind: StorefrontContentKind,
-        records: Vec<Value>,
-        arguments: &BTreeMap<String, ResolvedValue>,
-        selection: &[SelectedField],
-    ) -> Value {
-        let result = staged_connection_query(
-            records,
-            arguments,
-            |record, query| storefront_content_search_decision(kind, record, query),
-            |record, sort_key| storefront_content_sort_key(kind, record, sort_key),
-            value_id_cursor,
-        );
-        selected_typed_connection_with_page_info(
-            &result.records,
-            selection,
-            |record, selection| match kind {
-                StorefrontContentKind::Blog => self.selected_storefront_blog(record, selection),
-                StorefrontContentKind::Page => self.selected_storefront_page(record, selection),
-                StorefrontContentKind::Article => {
-                    self.selected_storefront_article(record, selection)
-                }
-            },
-            value_id_cursor,
-            result.page_info,
-        )
-    }
-
-    fn storefront_menu_root(&self, field: &RootFieldSelection) -> Value {
-        let handle = resolved_string_field(&field.arguments, "handle").unwrap_or_default();
-        self.storefront_menu_by_handle(&handle)
-            .map(|menu| selected_json(&menu, &field.selection))
-            .unwrap_or(Value::Null)
-    }
-
     fn storefront_menu_by_handle(&self, handle: &str) -> Option<Value> {
         self.store
             .base
@@ -3702,22 +4819,13 @@ impl DraftProxy {
             .cloned()
     }
 
-    fn storefront_sitemap_root(&self, field: &RootFieldSelection) -> Value {
-        let sitemap_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
-        let resources = self.storefront_sitemap_resources(&sitemap_type);
-        selected_payload_json(&field.selection, |selection| {
-            match selection.name.as_str() {
-                "pagesCount" => Some(selected_json(
-                    &count_object(resources.len()),
-                    &selection.selection,
-                )),
-                "resources" => Some(storefront_selected_sitemap_resources(
-                    &resources,
-                    &selection.arguments,
-                    &selection.selection,
-                )),
-                _ => None,
-            }
+    fn storefront_sitemap_value(&self, arguments: &BTreeMap<String, Value>) -> Value {
+        let sitemap_type = arguments
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        json!({
+            "_resources": self.storefront_sitemap_resources(sitemap_type),
         })
     }
 
@@ -3740,37 +4848,49 @@ impl DraftProxy {
                         .or_else(|| record.get("publishedAt"))
                         .cloned()
                         .unwrap_or(Value::Null),
-                    "image": record.get("image").cloned().unwrap_or(Value::Null)
+                    "image": storefront_sitemap_image(record.get("image"))
                 })
             })
             .collect()
     }
 
-    fn storefront_metaobject_root_json(&self, field: &RootFieldSelection) -> Value {
-        let record = if let Some(id) = resolved_string_field(&field.arguments, "id") {
-            self.metaobject_by_id(&id)
-        } else if let Some(handle) = resolved_object_field(&field.arguments, "handle") {
-            let meta_type = resolved_string_field(&handle, "type").unwrap_or_default();
-            let meta_handle = resolved_string_field(&handle, "handle").unwrap_or_default();
-            self.metaobject_by_type_and_handle(&meta_type, &meta_handle)
+    fn storefront_metaobject_root_value(&self, arguments: &BTreeMap<String, Value>) -> Value {
+        let record = if let Some(id) = arguments.get("id").and_then(Value::as_str) {
+            self.metaobject_by_id(id)
+        } else if let Some(handle) = arguments.get("handle").and_then(Value::as_object) {
+            let meta_type = handle
+                .get("type")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let meta_handle = handle
+                .get("handle")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            self.metaobject_by_type_and_handle(meta_type, meta_handle)
         } else {
             None
         };
         record
             .and_then(|record| self.storefront_visible_metaobject(&record))
-            .map(|record| self.storefront_selected_metaobject(&record, &field.selection))
+            .map(|record| self.storefront_metaobject_value(&record))
             .unwrap_or(Value::Null)
     }
 
-    fn storefront_metaobjects_connection_json(&self, field: &RootFieldSelection) -> Value {
-        let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
+    fn storefront_metaobjects_connection_value(
+        &self,
+        arguments: &BTreeMap<String, Value>,
+    ) -> Value {
+        let meta_type = arguments
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         let records =
             self.store
                 .staged
                 .metaobjects
                 .values()
                 .filter(|record| {
-                    record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
+                    record.get("type").and_then(Value::as_str) == Some(meta_type)
                         && !self.store.staged.metaobjects.is_tombstoned(
                             record.get("id").and_then(Value::as_str).unwrap_or_default(),
                         )
@@ -3778,14 +4898,25 @@ impl DraftProxy {
                 .filter_map(|record| self.storefront_visible_metaobject(record))
                 .filter(|record| self.metaobject_visible_in_catalog(record))
                 .collect::<Vec<_>>();
-        selected_staged_connection_with_args(
+        let arguments = arguments
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+            .collect();
+        let result = staged_connection_query(
             records,
-            &field.arguments,
-            &field.selection,
+            &arguments,
             |_record, _query| StagedSearchDecision::Match,
             storefront_metaobject_sort_key,
-            |record, selections| self.storefront_selected_metaobject(record, selections),
             metaobject_cursor,
+        );
+        connection_json_with_cursor(
+            result
+                .records
+                .iter()
+                .map(|record| self.storefront_metaobject_value(record))
+                .collect(),
+            |_, record| metaobject_cursor(record),
+            result.page_info,
         )
     }
 
@@ -3814,149 +4945,24 @@ impl DraftProxy {
         Some(projected)
     }
 
-    fn storefront_selected_metaobject(
-        &self,
-        record: &Value,
-        selections: &[SelectedField],
-    ) -> Value {
-        selected_payload_json(selections, |selection| {
-            if !selection_applies_to_type(selection, "Metaobject") {
-                return None;
-            }
-            match selection.name.as_str() {
-                "__typename" => Some(json!("Metaobject")),
-                "field" => {
-                    let key =
-                        resolved_string_field(&selection.arguments, "key").unwrap_or_default();
-                    let field =
-                        record["fields"]
-                            .as_array()
-                            .into_iter()
-                            .flatten()
-                            .find(|candidate| {
-                                candidate.get("key").and_then(Value::as_str) == Some(key.as_str())
-                            })?;
-                    Some(self.storefront_selected_metaobject_field(field, &selection.selection))
-                }
-                "fields" => {
-                    let fields = storefront_metaobject_fields(record);
-                    Some(Value::Array(
-                        fields
-                            .as_array()
-                            .into_iter()
-                            .flatten()
-                            .map(|field| {
-                                self.storefront_selected_metaobject_field(
-                                    field,
-                                    &selection.selection,
-                                )
-                            })
-                            .collect(),
-                    ))
-                }
-                "onlineStoreUrl" | "seo" => Some(
-                    record
-                        .get(&selection.name)
-                        .map(|value| nullable_selected_json(value, &selection.selection))
-                        .unwrap_or(Value::Null),
-                ),
-                _ => record
-                    .get(&selection.name)
-                    .map(|value| nullable_selected_json(value, &selection.selection)),
-            }
+    fn storefront_metaobject_value(&self, record: &Value) -> Value {
+        let fields = storefront_metaobject_fields(record)
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(storefront_metaobject_field_value)
+            .collect::<Vec<_>>();
+        json!({
+            "__typename": "Metaobject",
+            "field": Value::Null,
+            "fields": fields,
+            "handle": record.get("handle").cloned().unwrap_or(Value::Null),
+            "id": record.get("id").cloned().unwrap_or(Value::Null),
+            "onlineStoreUrl": record.get("onlineStoreUrl").cloned().unwrap_or(Value::Null),
+            "seo": record.get("seo").cloned().unwrap_or(Value::Null),
+            "type": record.get("type").cloned().unwrap_or(Value::Null),
+            "updatedAt": record.get("updatedAt").cloned().unwrap_or(Value::Null),
         })
-    }
-
-    fn storefront_selected_metaobject_field(
-        &self,
-        record: &Value,
-        selections: &[SelectedField],
-    ) -> Value {
-        selected_payload_json(selections, |selection| match selection.name.as_str() {
-            "reference" => Some(self.storefront_selected_scalar_reference_json(record, selection)),
-            "references" => {
-                Some(self.storefront_selected_reference_connection_json(record, selection))
-            }
-            _ => record
-                .get(&selection.name)
-                .map(|value| nullable_selected_json(value, &selection.selection)),
-        })
-    }
-
-    fn storefront_shop_metafield_json(&self, selection: &SelectedField) -> Value {
-        let Some(owner_id) = self.storefront_shop_owner_id() else {
-            return Value::Null;
-        };
-        self.storefront_owner_metafield_json(&owner_id, selection)
-    }
-
-    fn storefront_owner_metafield_json(&self, owner_id: &str, selection: &SelectedField) -> Value {
-        let namespace =
-            resolved_string_field(&selection.arguments, "namespace").unwrap_or_default();
-        let key = resolved_string_field(&selection.arguments, "key").unwrap_or_default();
-        self.storefront_owner_metafield(owner_id, &namespace, &key)
-            .map(|metafield| self.storefront_selected_metafield(&metafield, &selection.selection))
-            .unwrap_or(Value::Null)
-    }
-
-    fn storefront_shop_metafields_json(&self, selection: &SelectedField) -> Value {
-        let Some(owner_id) = self.storefront_shop_owner_id() else {
-            return Value::Array(Vec::new());
-        };
-        self.storefront_owner_metafields_json(&owner_id, selection)
-    }
-
-    fn storefront_owner_metafields_json(&self, owner_id: &str, selection: &SelectedField) -> Value {
-        Value::Array(
-            resolved_object_list_field(&selection.arguments, "identifiers")
-                .into_iter()
-                .map(|identifier| {
-                    let namespace =
-                        resolved_string_field(&identifier, "namespace").unwrap_or_default();
-                    let key = resolved_string_field(&identifier, "key").unwrap_or_default();
-                    self.storefront_owner_metafield(owner_id, &namespace, &key)
-                        .map(|metafield| {
-                            self.storefront_selected_metafield(&metafield, &selection.selection)
-                        })
-                        .unwrap_or(Value::Null)
-                })
-                .collect(),
-        )
-    }
-
-    fn storefront_resource_metafield_json(
-        &self,
-        owner_id: &str,
-        selection: &SelectedField,
-    ) -> Value {
-        let namespace =
-            resolved_string_field(&selection.arguments, "namespace").unwrap_or_default();
-        let key = resolved_string_field(&selection.arguments, "key").unwrap_or_default();
-        self.storefront_owner_metafield(owner_id, &namespace, &key)
-            .map(|metafield| self.storefront_selected_metafield(&metafield, &selection.selection))
-            .unwrap_or(Value::Null)
-    }
-
-    fn storefront_resource_metafields_json(
-        &self,
-        owner_id: &str,
-        selection: &SelectedField,
-    ) -> Value {
-        Value::Array(
-            resolved_object_list_field(&selection.arguments, "identifiers")
-                .into_iter()
-                .map(|identifier| {
-                    let namespace =
-                        resolved_string_field(&identifier, "namespace").unwrap_or_default();
-                    let key = resolved_string_field(&identifier, "key").unwrap_or_default();
-                    self.storefront_owner_metafield(owner_id, &namespace, &key)
-                        .map(|metafield| {
-                            self.storefront_selected_metafield(&metafield, &selection.selection)
-                        })
-                        .unwrap_or(Value::Null)
-                })
-                .collect(),
-        )
     }
 
     fn storefront_owner_metafield(
@@ -3975,98 +4981,40 @@ impl DraftProxy {
             .filter(storefront_metafield_is_public)
     }
 
-    fn storefront_selected_metafield(&self, record: &Value, selections: &[SelectedField]) -> Value {
-        selected_payload_json(selections, |selection| {
-            if !selection_applies_to_type(selection, "Metafield") {
-                return None;
-            }
-            match selection.name.as_str() {
-                "__typename" => Some(json!("Metafield")),
-                "list" => Some(json!(record
-                    .get("type")
-                    .and_then(Value::as_str)
-                    .is_some_and(|field_type| field_type.starts_with("list.")))),
-                "description" => Some(Value::Null),
-                "reference" => {
-                    Some(self.storefront_selected_scalar_reference_json(record, selection))
-                }
-                "references" => {
-                    Some(self.storefront_selected_reference_connection_json(record, selection))
-                }
-                "parentResource" => {
-                    Some(self.storefront_selected_metafield_parent(record, selection))
-                }
-                _ => record
-                    .get(&selection.name)
-                    .map(|value| nullable_selected_json(value, &selection.selection)),
-            }
-        })
-    }
-
-    fn storefront_selected_metafield_parent(
+    fn storefront_reference_connection_value(
         &self,
         record: &Value,
-        selection: &SelectedField,
-    ) -> Value {
-        let Some(owner_id) = record.pointer("/owner/id").and_then(Value::as_str) else {
-            return Value::Null;
-        };
-        self.storefront_selected_reference_node_json(owner_id, &selection.selection)
-            .unwrap_or(Value::Null)
-    }
-
-    fn storefront_selected_scalar_reference_json(
-        &self,
-        record: &Value,
-        selection: &SelectedField,
-    ) -> Value {
-        let Some(id) = scalar_reference_id(record) else {
-            return Value::Null;
-        };
-        self.storefront_selected_reference_node_json(&id, &selection.selection)
-            .unwrap_or(Value::Null)
-    }
-
-    fn storefront_selected_reference_connection_json(
-        &self,
-        record: &Value,
-        selection: &SelectedField,
+        arguments: &BTreeMap<String, Value>,
     ) -> Value {
         let ids = list_reference_ids(record)
             .into_iter()
-            .filter(|id| {
-                self.storefront_selected_reference_node_json(id, &[])
-                    .is_some()
-            })
+            .filter(|id| self.storefront_reference_node_value(id).is_some())
             .collect::<Vec<_>>();
-        let (ids, page_info) = connection_window(&ids, &selection.arguments, |id| id.clone());
-        selected_typed_connection_with_page_info(
-            &ids,
-            &selection.selection,
-            |id, selections| {
-                self.storefront_selected_reference_node_json(id, selections)
-                    .unwrap_or(Value::Null)
-            },
-            |id| id.clone(),
+        let arguments = arguments
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+            .collect();
+        let (ids, page_info) = connection_window(&ids, &arguments, |id| id.clone());
+        connection_json_with_cursor(
+            ids.iter()
+                .filter_map(|id| self.storefront_reference_node_value(id))
+                .collect(),
+            |index, _| ids.get(index).cloned().unwrap_or_default(),
             page_info,
         )
     }
 
-    fn storefront_selected_reference_node_json(
-        &self,
-        id: &str,
-        selections: &[SelectedField],
-    ) -> Option<Value> {
+    fn storefront_reference_node_value(&self, id: &str) -> Option<Value> {
         match shopify_gid_resource_type(id) {
             Some("Metaobject") => {
                 let record = self.metaobject_by_id(id)?;
                 let record = self.storefront_visible_metaobject(&record)?;
-                Some(self.storefront_selected_metaobject(&record, selections))
+                Some(self.storefront_metaobject_value(&record))
             }
             Some("Shop") => {
                 let shop = self.store.effective_shop();
                 (shop.get("id").and_then(Value::as_str) == Some(id))
-                    .then(|| self.storefront_shop_json(selections))
+                    .then(|| self.storefront_shop_value())
             }
             _ => None,
         }
@@ -4556,7 +5504,7 @@ fn storefront_article_record_from_admin(record: &Value) -> Value {
             .or_else(|| record.get("createdAt").cloned())
             .unwrap_or(Value::Null),
         "author": storefront_article_author(record.get("author")),
-        "image": record.get("image").cloned().unwrap_or(Value::Null),
+        "image": storefront_article_image(record.get("image")),
     })
 }
 
@@ -4565,7 +5513,52 @@ fn storefront_article_author(author: Option<&Value>) -> Value {
         .and_then(|author| author.get("name"))
         .and_then(Value::as_str)
         .unwrap_or_default();
-    json!({ "name": name })
+    json!({
+        "bio": author.and_then(|value| value.get("bio")).cloned().unwrap_or(Value::Null),
+        "email": author.and_then(|value| value.get("email")).cloned().unwrap_or(Value::Null),
+        "firstName": author.and_then(|value| value.get("firstName")).cloned().unwrap_or(Value::Null),
+        "lastName": author.and_then(|value| value.get("lastName")).cloned().unwrap_or(Value::Null),
+        "name": name,
+    })
+}
+
+fn storefront_article_image(image: Option<&Value>) -> Value {
+    let Some(image) = image.filter(|image| image.is_object()) else {
+        return Value::Null;
+    };
+    let url = image
+        .get("url")
+        .or_else(|| image.get("originalSrc"))
+        .or_else(|| image.get("src"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    json!({
+        "_url": url,
+        "altText": image.get("altText").or_else(|| image.get("alt")).cloned().unwrap_or(Value::Null),
+        "height": image.get("height").cloned().unwrap_or(Value::Null),
+        "id": image.get("id").cloned().unwrap_or(Value::Null),
+        "originalSrc": url,
+        "src": url,
+        "thumbhash": image.get("thumbhash").cloned().unwrap_or(Value::Null),
+        "width": image.get("width").cloned().unwrap_or(Value::Null),
+    })
+}
+
+fn storefront_sitemap_image(image: Option<&Value>) -> Value {
+    let Some(image) = image.filter(|image| image.is_object()) else {
+        return Value::Null;
+    };
+    json!({
+        "alt": image.get("alt").or_else(|| image.get("altText")).cloned().unwrap_or(Value::Null),
+        "filepath": image
+            .get("filepath")
+            .or_else(|| image.get("url"))
+            .or_else(|| image.get("originalSrc"))
+            .or_else(|| image.get("src"))
+            .cloned()
+            .unwrap_or(Value::Null),
+        "updatedAt": image.get("updatedAt").cloned().unwrap_or(Value::Null),
+    })
 }
 
 fn storefront_content_is_visible(record: &Value) -> bool {
@@ -4580,21 +5573,6 @@ fn storefront_default_seo() -> Value {
         "title": Value::Null,
         "description": Value::Null,
     })
-}
-
-fn storefront_metafields_list(
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selection: &[SelectedField],
-) -> Value {
-    let count = match arguments.get("identifiers") {
-        Some(ResolvedValue::List(values)) => values.len(),
-        _ => 0,
-    };
-    Value::Array(
-        std::iter::repeat_with(|| nullable_selected_json(&Value::Null, selection))
-            .take(count)
-            .collect(),
-    )
 }
 
 fn storefront_collection_observed_products(collection: &Value) -> Vec<Value> {
@@ -4640,34 +5618,6 @@ fn storefront_collection_observed_products(collection: &Value) -> Vec<Value> {
         .collect()
 }
 
-fn storefront_collection_description(collection: &Value, selection: &SelectedField) -> String {
-    let description = collection
-        .get("description")
-        .and_then(Value::as_str)
-        .map(str::to_string)
-        .unwrap_or_else(|| {
-            storefront_strip_html(
-                collection
-                    .get("descriptionHtml")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default(),
-            )
-        });
-    let Some(limit) = resolved_int_field(&selection.arguments, "truncateAt")
-        .and_then(|limit| (limit >= 0).then_some(limit as usize))
-    else {
-        return description;
-    };
-    if description.chars().count() <= limit {
-        return description;
-    }
-    let prefix_len = limit.saturating_sub(3);
-    format!(
-        "{}...",
-        description.chars().take(prefix_len).collect::<String>()
-    )
-}
-
 fn storefront_collection_seo(collection: &Value) -> Value {
     collection.get("seo").cloned().unwrap_or_else(|| {
         json!({
@@ -4707,15 +5657,6 @@ fn storefront_collection_product_matches_filters(
                     .any(|candidate| candidate.eq_ignore_ascii_case(&tag))
             })
     })
-}
-
-fn storefront_truncated_text(value: &str, arguments: &BTreeMap<String, ResolvedValue>) -> String {
-    let Some(limit) = resolved_int_field(arguments, "truncateAt")
-        .and_then(|limit| (limit >= 0).then_some(limit as usize))
-    else {
-        return value.to_string();
-    };
-    value.chars().take(limit).collect()
 }
 
 fn storefront_strip_html(value: &str) -> String {
@@ -4919,166 +5860,653 @@ fn storefront_record_gid_tail_sort_value(record: &Value) -> StagedSortValue {
         .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
 }
 
-fn storefront_selected_sitemap_resources(
-    resources: &[Value],
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selection: &[SelectedField],
-) -> Value {
-    let page = resolved_int_field(arguments, "page")
-        .and_then(|page| (page > 0).then_some(page as usize))
-        .unwrap_or(1);
-    let start = (page - 1) * 250;
-    let end = (start + 250).min(resources.len());
-    let window = if start < resources.len() {
-        &resources[start..end]
-    } else {
-        &[]
-    };
-    selected_payload_json(selection, |field| match field.name.as_str() {
-        "hasNextPage" => Some(json!(end < resources.len())),
-        "items" => Some(Value::Array(
-            window
-                .iter()
-                .map(|resource| selected_json(resource, &field.selection))
-                .collect(),
-        )),
-        _ => None,
-    })
-}
-
-fn storefront_product_json(
+fn storefront_product_value(
     proxy: &DraftProxy,
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
     context: &StorefrontRequestContext,
-    selections: &[SelectedField],
 ) -> Value {
-    selected_payload_json(selections, |selection| {
-        if !selection_applies_to_type(selection, "Product") {
-            return None;
-        }
-        match selection.name.as_str() {
-            "__typename" => Some(json!("Product")),
-            "id" => Some(json!(product.id)),
-            "title" => Some(json!(product.title)),
-            "handle" => Some(json!(product.handle)),
-            "createdAt" => Some(json!(product.created_at)),
-            "updatedAt" => Some(json!(product.updated_at)),
-            "description" => Some(json!(storefront_product_description(product, selection))),
-            "descriptionHtml" => Some(json!(product.description_html)),
-            "availableForSale" => Some(json!(storefront_product_available_for_sale(
-                product, variants
-            ))),
-            "totalInventory" => Some(json!(storefront_product_total_inventory(product, variants))),
-            "vendor" => Some(json!(product.vendor)),
-            "productType" => Some(json!(product.product_type)),
-            "tags" => Some(json!(product.tags)),
-            "publishedAt" => Some(storefront_product_published_at(product)),
-            "requiresSellingPlan" => Some(
-                product
-                    .extra_fields
-                    .get("requiresSellingPlan")
-                    .cloned()
-                    .unwrap_or(Value::Bool(false)),
-            ),
-            "isGiftCard" => Some(
-                product
-                    .extra_fields
-                    .get("isGiftCard")
-                    .cloned()
-                    .unwrap_or(Value::Bool(false)),
-            ),
-            "seo" => Some(product_seo_json(product, &selection.selection)),
-            "options" => Some(storefront_product_options_json(
-                product, variants, selection,
-            )),
-            "variants" => Some(storefront_product_variants_connection_json(
-                proxy,
-                product,
-                variants,
-                context,
-                &selection.arguments,
-                &selection.selection,
-            )),
-            "variantsCount" => Some(selected_count_json(
-                storefront_product_variant_count(product, variants),
-                &selection.selection,
-            )),
-            "priceRange" => Some(storefront_product_price_range_json(
-                proxy,
-                product,
-                variants,
-                context,
-                &selection.selection,
-                StorefrontPriceRangeKind::Price,
-            )),
-            "compareAtPriceRange" => Some(storefront_product_price_range_json(
-                proxy,
-                product,
-                variants,
-                context,
-                &selection.selection,
-                StorefrontPriceRangeKind::CompareAtPrice,
-            )),
-            "featuredImage" => Some(
-                product
-                    .media
-                    .iter()
-                    .find_map(storefront_product_image_json_from_media)
-                    .map(|image| selected_json(&image, &selection.selection))
-                    .unwrap_or(Value::Null),
-            ),
-            "images" => Some(storefront_product_images_connection_json(
-                product,
-                &selection.arguments,
-                &selection.selection,
-            )),
-            "media" => Some(storefront_product_media_connection_json(
-                product,
-                &selection.arguments,
-                &selection.selection,
-            )),
-            "onlineStoreUrl" => Some(
-                product
-                    .extra_fields
-                    .get("onlineStoreUrl")
-                    .cloned()
-                    .unwrap_or(Value::Null),
-            ),
-            "selectedOrFirstAvailableVariant" => {
-                Some(storefront_selected_or_first_available_variant_json(
-                    proxy, product, variants, context, selection,
-                ))
-            }
-            "variantBySelectedOptions" => Some(storefront_variant_by_selected_options_json(
-                proxy, product, variants, context, selection,
-            )),
-            "metafield" => Some(proxy.storefront_resource_metafield_json(&product.id, selection)),
-            "metafields" => Some(proxy.storefront_resource_metafields_json(&product.id, selection)),
-            "sellingPlanGroups" => Some(storefront_selling_plan_groups_connection_json(
-                proxy, product, variants, context, selection,
-            )),
-            _ => product
-                .extra_fields
-                .get(&selection.name)
-                .map(|value| nullable_selected_json(value, &selection.selection)),
-        }
-    })
-}
-
-fn storefront_product_description(product: &ProductRecord, selection: &SelectedField) -> String {
-    let mut description = product
+    let currency_code = storefront_product_currency_code(proxy, variants, context);
+    let description = product
         .extra_fields
         .get("description")
         .and_then(Value::as_str)
         .map(str::to_string)
         .unwrap_or_else(|| strip_html_tags(&product.description_html));
-    if let Some(ResolvedValue::Int(limit)) = selection.arguments.get("truncateAt") {
-        if *limit >= 0 {
-            description = description.chars().take(*limit as usize).collect();
+    let featured_image = product
+        .media
+        .iter()
+        .find_map(storefront_product_image_value_from_media)
+        .unwrap_or(Value::Null);
+    json!({
+        "__typename": "Product",
+        "availableForSale": storefront_product_available_for_sale(product, variants),
+        "compareAtPriceRange": storefront_product_price_range_value(
+            proxy,
+            product,
+            variants,
+            context,
+            &currency_code,
+            StorefrontPriceRangeKind::CompareAtPrice,
+        ),
+        "createdAt": product.created_at,
+        "description": description,
+        "descriptionHtml": product.description_html,
+        "featuredImage": featured_image,
+        "handle": product.handle,
+        "id": product.id,
+        "isGiftCard": product
+            .extra_fields
+            .get("isGiftCard")
+            .cloned()
+            .unwrap_or(Value::Bool(false)),
+        "onlineStoreUrl": product
+            .extra_fields
+            .get("onlineStoreUrl")
+            .cloned()
+            .unwrap_or(Value::Null),
+        "priceRange": storefront_product_price_range_value(
+            proxy,
+            product,
+            variants,
+            context,
+            &currency_code,
+            StorefrontPriceRangeKind::Price,
+        ),
+        "productType": product.product_type,
+        "publishedAt": storefront_product_published_at(product),
+        "requiresSellingPlan": product
+            .extra_fields
+            .get("requiresSellingPlan")
+            .cloned()
+            .unwrap_or(Value::Bool(false)),
+        "seo": {
+            "title": product.seo_title,
+            "description": product.seo_description,
+        },
+        "tags": product.tags,
+        "title": product.title,
+        "totalInventory": storefront_product_total_inventory(product, variants),
+        "updatedAt": product.updated_at,
+        "variantsCount": count_object(storefront_product_variant_count(product, variants)),
+        "vendor": product.vendor,
+    })
+}
+
+fn storefront_product_options_value(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    first: Option<i64>,
+) -> Value {
+    let mut options = product
+        .extra_fields
+        .get("options")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_else(|| storefront_options_from_variants(product, variants));
+    if let Some(first) = first.filter(|first| *first >= 0) {
+        options.truncate(first as usize);
+    }
+    Value::Array(
+        options
+            .iter()
+            .map(storefront_product_option_value)
+            .collect(),
+    )
+}
+
+fn storefront_product_option_value(option: &Value) -> Value {
+    let option_values = option
+        .get("optionValues")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_else(|| {
+            option
+                .get("values")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .map(|value| {
+                    json!({
+                        "firstSelectableVariant": Value::Null,
+                        "id": Value::Null,
+                        "name": value,
+                        "swatch": Value::Null,
+                    })
+                })
+                .collect()
+        });
+    let values = option.get("values").cloned().unwrap_or_else(|| {
+        Value::Array(
+            option_values
+                .iter()
+                .filter_map(|value| value.get("name").cloned())
+                .collect(),
+        )
+    });
+    json!({
+        "__typename": "ProductOption",
+        "id": option.get("id").cloned().unwrap_or(Value::Null),
+        "name": option.get("name").cloned().unwrap_or(Value::Null),
+        "optionValues": option_values,
+        "values": values,
+    })
+}
+
+fn storefront_selling_plan_group_value(
+    group: &SellingPlanGroupRecord,
+    currency_code: &str,
+) -> Value {
+    let options = group
+        .options
+        .iter()
+        .enumerate()
+        .map(|(index, name)| {
+            let mut values = group
+                .selling_plans
+                .iter()
+                .filter_map(|plan| plan.options.get(index).cloned())
+                .collect::<Vec<_>>();
+            values.dedup();
+            json!({ "name": name, "values": values })
+        })
+        .collect::<Vec<_>>();
+    json!({
+        "__typename": "SellingPlanGroup",
+        "_sellingPlanGroupId": group.id,
+        "_currencyCode": currency_code,
+        "appName": Value::Null,
+        "name": group.name,
+        "options": options,
+    })
+}
+
+fn storefront_selling_plan_value(
+    plan: &SellingPlanRecord,
+    option_names: &[String],
+    currency_code: &str,
+) -> Value {
+    let recurring_deliveries = plan
+        .delivery_policy
+        .get("__typename")
+        .and_then(Value::as_str)
+        == Some("SellingPlanRecurringDeliveryPolicy")
+        || plan.delivery_policy.get("recurring").is_some();
+    let options = plan
+        .options
+        .iter()
+        .enumerate()
+        .map(|(index, value)| {
+            json!({
+                "name": option_names.get(index).cloned().unwrap_or_default(),
+                "value": value,
+            })
+        })
+        .collect::<Vec<_>>();
+    let price_adjustments = plan
+        .pricing_policies
+        .iter()
+        .map(|policy| {
+            json!({
+                "orderCount": policy
+                    .get("afterCycle")
+                    .and_then(Value::as_i64)
+                    .map(|after_cycle| json!(after_cycle + 1))
+                    .unwrap_or(Value::Null),
+                "adjustmentValue": storefront_selling_plan_adjustment_value(
+                    policy,
+                    currency_code,
+                ),
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({
+        "__typename": "SellingPlan",
+        "billingPolicy": plan.billing_policy,
+        "checkoutCharge": plan
+            .billing_policy
+            .get("checkoutCharge")
+            .cloned()
+            .unwrap_or(Value::Null),
+        "deliveryPolicy": plan.delivery_policy,
+        "description": plan.description,
+        "id": plan.id,
+        "name": plan.name,
+        "options": options,
+        "priceAdjustments": price_adjustments,
+        "recurringDeliveries": recurring_deliveries,
+    })
+}
+
+fn storefront_selling_plan_adjustment_value(policy: &Value, currency_code: &str) -> Value {
+    match policy
+        .get("adjustmentType")
+        .and_then(Value::as_str)
+        .unwrap_or("PERCENTAGE")
+    {
+        "FIXED_AMOUNT" => json!({
+            "__typename": "SellingPlanFixedAmountPriceAdjustment",
+            "adjustmentAmount": storefront_money_value(
+                policy
+                    .pointer("/adjustmentValue/amount")
+                    .and_then(Value::as_str)
+                    .unwrap_or("0"),
+                currency_code,
+            ),
+        }),
+        "PRICE" => json!({
+            "__typename": "SellingPlanFixedPriceAdjustment",
+            "price": storefront_money_value(
+                policy
+                    .pointer("/adjustmentValue/amount")
+                    .and_then(Value::as_str)
+                    .unwrap_or("0"),
+                currency_code,
+            ),
+        }),
+        _ => json!({
+            "__typename": "SellingPlanPercentagePriceAdjustment",
+            "adjustmentPercentage": policy
+                .pointer("/adjustmentValue/percentage")
+                .cloned()
+                .unwrap_or_else(|| json!(0)),
+        }),
+    }
+}
+
+fn storefront_selling_plan_allocation_value(
+    plan: &SellingPlanRecord,
+    option_names: &[String],
+    pricing: &StorefrontVariantPricing,
+) -> Value {
+    let original = storefront_parse_price(&pricing.price).unwrap_or_default();
+    let adjusted = plan
+        .pricing_policies
+        .first()
+        .map(|policy| storefront_adjusted_selling_plan_price(original, policy))
+        .unwrap_or(original);
+    let adjusted_amount = format_money_amount(adjusted);
+    json!({
+        "checkoutChargeAmount": storefront_money_value(
+            &adjusted_amount,
+            &pricing.currency_code,
+        ),
+        "remainingBalanceChargeAmount": storefront_money_value("0", &pricing.currency_code),
+        "priceAdjustments": [{
+            "price": storefront_money_value(&adjusted_amount, &pricing.currency_code),
+            "perDeliveryPrice": storefront_money_value(&adjusted_amount, &pricing.currency_code),
+            "compareAtPrice": storefront_money_value(&pricing.price, &pricing.currency_code),
+            "unitPrice": Value::Null,
+        }],
+        "sellingPlan": storefront_selling_plan_value(
+            plan,
+            option_names,
+            &pricing.currency_code,
+        ),
+    })
+}
+
+fn storefront_adjusted_selling_plan_price(price: f64, policy: &Value) -> f64 {
+    let percentage = policy
+        .pointer("/adjustmentValue/percentage")
+        .and_then(Value::as_f64)
+        .or_else(|| {
+            policy
+                .pointer("/adjustmentValue/percentage")
+                .and_then(Value::as_i64)
+                .map(|value| value as f64)
+        })
+        .unwrap_or_default();
+    match policy
+        .get("adjustmentType")
+        .and_then(Value::as_str)
+        .unwrap_or("PERCENTAGE")
+    {
+        "FIXED_AMOUNT" => {
+            let amount = policy
+                .pointer("/adjustmentValue/amount")
+                .and_then(Value::as_str)
+                .and_then(storefront_parse_price)
+                .unwrap_or_default();
+            (price - amount).max(0.0)
+        }
+        "PRICE" => policy
+            .pointer("/adjustmentValue/amount")
+            .and_then(Value::as_str)
+            .and_then(storefront_parse_price)
+            .unwrap_or(price),
+        _ => price * (1.0 - percentage / 100.0),
+    }
+}
+
+fn storefront_product_variants_connection_value(
+    proxy: &DraftProxy,
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    context: &StorefrontRequestContext,
+    arguments: &BTreeMap<String, Value>,
+) -> Value {
+    let arguments = arguments
+        .iter()
+        .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+        .collect::<BTreeMap<_, _>>();
+    if variants.is_empty() {
+        let raw_variants = sorted_storefront_raw_variants(product.variants.clone(), &arguments);
+        let (raw_variants, page_info) =
+            connection_window(&raw_variants, &arguments, value_id_cursor);
+        let nodes = raw_variants
+            .into_iter()
+            .map(|mut variant| {
+                if let Some(object) = variant.as_object_mut() {
+                    object
+                        .entry("__typename".to_string())
+                        .or_insert_with(|| json!("ProductVariant"));
+                    object.insert("_productId".to_string(), json!(product.id));
+                }
+                variant
+            })
+            .collect();
+        return connection_json_with_cursor(nodes, |_, node| value_id_cursor(node), page_info);
+    }
+    let variants = sorted_storefront_variants(variants.to_vec(), &arguments);
+    let (variants, page_info) =
+        connection_window(&variants, &arguments, |variant| variant.id.clone());
+    typed_connection_value(
+        &variants,
+        |variant| storefront_product_variant_value(proxy, variant, Some(product), context, None),
+        |variant| variant.id.clone(),
+        page_info,
+    )
+}
+
+pub(in crate::proxy) fn storefront_product_variant_value(
+    proxy: &DraftProxy,
+    variant: &ProductVariantRecord,
+    product: Option<&ProductRecord>,
+    context: &StorefrontRequestContext,
+    currency_code_override: Option<&str>,
+) -> Value {
+    let mut pricing = proxy.storefront_variant_pricing(variant, context);
+    if let Some(currency_code) = currency_code_override {
+        pricing.currency_code = currency_code.to_string();
+    }
+    let image = product
+        .map(|product| storefront_variant_image_value(variant, product))
+        .unwrap_or(Value::Null);
+    let empty_connection = || connection_json(Vec::new());
+    json!({
+        "__typename": "ProductVariant",
+        "_productId": variant.product_id,
+        "availableForSale": storefront_variant_available_for_sale(variant),
+        "barcode": variant.barcode,
+        "compareAtPrice": pricing.compare_at_price.as_deref().map(|price| storefront_money_value(price, &pricing.currency_code)),
+        "compareAtPriceV2": pricing.compare_at_price.as_deref().map(|price| storefront_money_value(price, &pricing.currency_code)),
+        "components": empty_connection(),
+        "currentlyNotInStock": variant.inventory_item.tracked
+            && variant.inventory_quantity <= 0
+            && variant.inventory_policy == "CONTINUE",
+        "groupedBy": empty_connection(),
+        "id": variant.id,
+        "image": image,
+        "price": storefront_money_value(&pricing.price, &pricing.currency_code),
+        "priceV2": storefront_money_value(&pricing.price, &pricing.currency_code),
+        "quantityAvailable": if variant.inventory_item.tracked {
+            json!(variant.inventory_quantity.max(0))
+        } else {
+            Value::Null
+        },
+        "quantityPriceBreaks": empty_connection(),
+        "quantityRule": { "increment": 1, "maximum": Value::Null, "minimum": 1 },
+        "requiresComponents": false,
+        "requiresShipping": variant.inventory_item.requires_shipping,
+        "selectedOptions": variant.selected_options.iter().map(|option| json!({
+            "name": option.name,
+            "value": option.value,
+        })).collect::<Vec<_>>(),
+        "sellingPlanAllocations": empty_connection(),
+        "shopPayInstallmentsPricing": Value::Null,
+        "sku": if variant.sku.is_empty() { Value::Null } else { json!(variant.sku) },
+        "storeAvailability": empty_connection(),
+        "taxable": variant.taxable,
+        "title": variant.title,
+        "unitPrice": Value::Null,
+        "unitPriceMeasurement": Value::Null,
+        "weight": variant.extra_fields.get("weight").cloned().unwrap_or(Value::Null),
+        "weightUnit": variant.extra_fields.get("weightUnit").cloned().unwrap_or_else(|| json!("KILOGRAMS")),
+    })
+}
+
+fn storefront_variant_image_value(
+    variant: &ProductVariantRecord,
+    product: &ProductRecord,
+) -> Value {
+    variant
+        .media_ids
+        .iter()
+        .find_map(|media_id| {
+            product
+                .media
+                .iter()
+                .find(|media| media.get("id").and_then(Value::as_str) == Some(media_id))
+                .and_then(storefront_product_image_value_from_media)
+        })
+        // Shopify's Storefront ProductVariant.image falls back to the
+        // product image when the variant has no explicitly attached image.
+        .or_else(|| {
+            product
+                .media
+                .iter()
+                .find_map(storefront_product_image_value_from_media)
+        })
+        .unwrap_or(Value::Null)
+}
+
+fn storefront_variant_matching_json_options<'a>(
+    variants: &'a [ProductVariantRecord],
+    arguments: &BTreeMap<String, Value>,
+) -> Option<&'a ProductVariantRecord> {
+    let selected = arguments
+        .get("selectedOptions")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|option| {
+            Some((
+                option.get("name")?.as_str()?.to_string(),
+                option.get("value")?.as_str()?.to_string(),
+            ))
+        })
+        .collect::<Vec<_>>();
+    if selected.is_empty() {
+        return None;
+    }
+    let case_insensitive = arguments
+        .get("caseInsensitiveMatch")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    variants.iter().find(|variant| {
+        selected.iter().all(|(name, value)| {
+            variant.selected_options.iter().any(|option| {
+                if case_insensitive {
+                    option.name.eq_ignore_ascii_case(name)
+                        && option.value.eq_ignore_ascii_case(value)
+                } else {
+                    option.name == *name && option.value == *value
+                }
+            })
+        })
+    })
+}
+
+fn storefront_product_price_range_value(
+    proxy: &DraftProxy,
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    context: &StorefrontRequestContext,
+    currency_code: &str,
+    kind: StorefrontPriceRangeKind,
+) -> Value {
+    let observed_field = match kind {
+        StorefrontPriceRangeKind::Price => "priceRange",
+        StorefrontPriceRangeKind::CompareAtPrice => "compareAtPriceRange",
+    };
+    if variants.is_empty() && product.variants.is_empty() {
+        if let Some(observed) = product.extra_fields.get(observed_field) {
+            return observed.clone();
         }
     }
-    description
+    let prices = match kind {
+        StorefrontPriceRangeKind::Price => {
+            storefront_product_variant_prices(proxy, product, variants, context)
+        }
+        StorefrontPriceRangeKind::CompareAtPrice => {
+            storefront_product_variant_compare_at_prices(proxy, product, variants, context)
+        }
+    };
+    let (min_price, max_price) = storefront_price_bounds(prices).unwrap_or((0.0, 0.0));
+    json!({
+        "__typename": "ProductPriceRange",
+        "minVariantPrice": storefront_money_value(&format!("{min_price:.2}"), currency_code),
+        "maxVariantPrice": storefront_money_value(&format!("{max_price:.2}"), currency_code),
+    })
+}
+
+pub(in crate::proxy) fn storefront_money_value(price: &str, currency_code: &str) -> Value {
+    json!({
+        "__typename": "MoneyV2",
+        "amount": normalize_money_amount(price),
+        "currencyCode": currency_code,
+    })
+}
+
+fn storefront_product_images_connection_value(
+    product: &ProductRecord,
+    arguments: &BTreeMap<String, Value>,
+) -> Value {
+    let arguments = arguments
+        .iter()
+        .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+        .collect();
+    connection_value_with_args(
+        product
+            .media
+            .iter()
+            .filter_map(storefront_product_image_value_from_media)
+            .collect(),
+        &arguments,
+        value_id_cursor,
+    )
+}
+
+fn storefront_product_media_connection_value(
+    product: &ProductRecord,
+    arguments: &BTreeMap<String, Value>,
+) -> Value {
+    let arguments = arguments
+        .iter()
+        .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+        .collect();
+    connection_value_with_args(
+        product.media.iter().map(storefront_media_value).collect(),
+        &arguments,
+        value_id_cursor,
+    )
+}
+
+fn storefront_product_image_value_from_media(media: &Value) -> Option<Value> {
+    let mut image = product_image_json_from_media(media).or_else(|| {
+        let source = media
+            .pointer("/originalSource/url")
+            .and_then(Value::as_str)
+            .or_else(|| media.get("originalSource").and_then(Value::as_str))?;
+        let media_id = media.get("id").and_then(Value::as_str)?;
+        Some(json!({
+            "id": shopify_gid("ProductImage", resource_id_tail(media_id)),
+            "url": source,
+            "altText": media.get("alt").cloned().unwrap_or(Value::Null),
+            "width": Value::Null,
+            "height": Value::Null,
+        }))
+    })?;
+    if image.get("width").is_none_or(Value::is_null)
+        || image.get("height").is_none_or(Value::is_null)
+    {
+        if let Some(source) = image.get("url").and_then(Value::as_str) {
+            if let Some((width, height)) = storefront_image_dimensions_from_url(source) {
+                image["width"] = json!(width);
+                image["height"] = json!(height);
+            }
+        }
+    }
+    Some(image)
+}
+
+fn storefront_media_image_value(media: &Value) -> Value {
+    let Some(mut image) = storefront_product_image_value_from_media(media) else {
+        return Value::Null;
+    };
+    if let Some(media_id) = media.get("id").and_then(Value::as_str) {
+        image["id"] = json!(shopify_gid("ImageSource", resource_id_tail(media_id)));
+    }
+    image
+}
+
+fn storefront_image_dimensions_from_url(url: &str) -> Option<(i64, i64)> {
+    url.split(['/', '?', '&']).find_map(|part| {
+        let (width, height) = part.split_once('x')?;
+        let width = width.parse::<i64>().ok()?;
+        let height = height.parse::<i64>().ok()?;
+        (width > 0 && height > 0).then_some((width, height))
+    })
+}
+
+fn storefront_media_value(media: &Value) -> Value {
+    let media_content_type = media
+        .get("mediaContentType")
+        .and_then(Value::as_str)
+        .unwrap_or("IMAGE");
+    let type_name = match media_content_type {
+        "EXTERNAL_VIDEO" => "ExternalVideo",
+        "MODEL_3D" => "Model3d",
+        "VIDEO" => "Video",
+        _ => "MediaImage",
+    };
+    let preview_image = storefront_media_image_value(media);
+    let mut value = json!({
+        "__typename": type_name,
+        "alt": media
+            .get("alt")
+            .or_else(|| media.get("altText"))
+            .cloned()
+            .unwrap_or(Value::Null),
+        "id": media.get("id").cloned().unwrap_or(Value::Null),
+        "mediaContentType": media_content_type,
+        "presentation": media.get("presentation").cloned().unwrap_or(Value::Null),
+        "previewImage": preview_image,
+    });
+    if let Some(object) = value.as_object_mut() {
+        match type_name {
+            "MediaImage" => {
+                object.insert("image".to_string(), storefront_media_image_value(media));
+            }
+            "ExternalVideo" => {
+                for field in ["embedUrl", "embeddedUrl", "host", "originUrl"] {
+                    object.insert(
+                        field.to_string(),
+                        media.get(field).cloned().unwrap_or(Value::Null),
+                    );
+                }
+            }
+            "Video" | "Model3d" => {
+                object.insert(
+                    "sources".to_string(),
+                    media.get("sources").cloned().unwrap_or_else(|| json!([])),
+                );
+            }
+            _ => {}
+        }
+    }
+    value
 }
 
 fn strip_html_tags(value: &str) -> String {
@@ -5188,30 +6616,6 @@ fn storefront_product_variant_count(
     }
 }
 
-fn storefront_product_options_json(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    selection: &SelectedField,
-) -> Value {
-    let mut options = product
-        .extra_fields
-        .get("options")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_else(|| storefront_options_from_variants(product, variants));
-    if let Some(ResolvedValue::Int(first)) = selection.arguments.get("first") {
-        if *first >= 0 && options.len() > *first as usize {
-            options.truncate(*first as usize);
-        }
-    }
-    Value::Array(
-        options
-            .iter()
-            .map(|option| storefront_product_option_json(option, &selection.selection))
-            .collect(),
-    )
-}
-
 fn storefront_options_from_variants(
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
@@ -5256,77 +6660,6 @@ fn storefront_options_from_variants(
             })
         })
         .collect()
-}
-
-fn storefront_product_option_json(option: &Value, selections: &[SelectedField]) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("ProductOption")),
-        "id" => option.get("id").cloned(),
-        "name" => option.get("name").cloned(),
-        "values" => option.get("values").cloned().or_else(|| {
-            option
-                .get("optionValues")
-                .and_then(Value::as_array)
-                .map(|values| {
-                    Value::Array(
-                        values
-                            .iter()
-                            .filter_map(|value| value.get("name").cloned())
-                            .collect(),
-                    )
-                })
-        }),
-        "optionValues" => option.get("optionValues").cloned().map(|values| {
-            if let Some(values) = values.as_array() {
-                Value::Array(
-                    values
-                        .iter()
-                        .map(|value| selected_json(value, &selection.selection))
-                        .collect(),
-                )
-            } else {
-                Value::Array(Vec::new())
-            }
-        }),
-        _ => None,
-    })
-}
-
-fn storefront_product_variants_connection_json(
-    proxy: &DraftProxy,
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    context: &StorefrontRequestContext,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
-) -> Value {
-    if variants.is_empty() {
-        let raw_variants = sorted_storefront_raw_variants(product.variants.clone(), arguments);
-        return selected_typed_connection_with_args(
-            &raw_variants,
-            arguments,
-            selections,
-            selected_json,
-            value_id_cursor,
-        );
-    }
-    let variants = sorted_storefront_variants(variants.to_vec(), arguments);
-    selected_typed_connection_with_args(
-        &variants,
-        arguments,
-        selections,
-        |variant, selections| {
-            storefront_product_variant_json(
-                proxy,
-                variant,
-                Some(product),
-                context,
-                None,
-                selections,
-            )
-        },
-        |variant| variant.id.clone(),
-    )
 }
 
 fn sorted_storefront_variants(
@@ -5405,263 +6738,34 @@ fn storefront_raw_variant_sort_key(
     }
 }
 
-pub(in crate::proxy) fn storefront_product_variant_json(
-    proxy: &DraftProxy,
-    variant: &ProductVariantRecord,
-    product: Option<&ProductRecord>,
-    context: &StorefrontRequestContext,
-    currency_code_override: Option<&str>,
-    selections: &[SelectedField],
-) -> Value {
-    let mut pricing = proxy.storefront_variant_pricing(variant, context);
-    if let Some(currency_code) = currency_code_override {
-        pricing.currency_code = currency_code.to_string();
-    }
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("ProductVariant")),
-        "id" => Some(json!(variant.id)),
-        "title" => Some(json!(variant.title)),
-        "sku" => Some(if variant.sku.is_empty() {
-            Value::Null
-        } else {
-            json!(variant.sku)
-        }),
-        "barcode" => Some(
-            variant
-                .barcode
-                .as_ref()
-                .map(|value| json!(value))
-                .unwrap_or(Value::Null),
-        ),
-        "availableForSale" => Some(json!(storefront_variant_available_for_sale(variant))),
-        "currentlyNotInStock" => Some(json!(
-            variant.inventory_item.tracked
-                && variant.inventory_quantity <= 0
-                && variant.inventory_policy == "CONTINUE"
-        )),
-        "quantityAvailable" => Some(if variant.inventory_item.tracked {
-            json!(variant.inventory_quantity.max(0))
-        } else {
-            Value::Null
-        }),
-        "requiresShipping" => Some(json!(variant.inventory_item.requires_shipping)),
-        "taxable" => Some(json!(variant.taxable)),
-        "price" | "priceV2" => Some(storefront_money_json(
-            &pricing.price,
-            &pricing.currency_code,
-            &selection.selection,
-        )),
-        "compareAtPrice" | "compareAtPriceV2" => Some(
-            pricing
-                .compare_at_price
-                .as_ref()
-                .map(|price| {
-                    storefront_money_json(price, &pricing.currency_code, &selection.selection)
-                })
-                .unwrap_or(Value::Null),
-        ),
-        "selectedOptions" => Some(Value::Array(
-            variant
-                .selected_options
-                .iter()
-                .map(|option| {
-                    selected_json(
-                        &json!({ "name": option.name, "value": option.value }),
-                        &selection.selection,
-                    )
-                })
-                .collect(),
-        )),
-        "image" => Some(
-            product
-                .and_then(|product| {
-                    variant
-                        .media_ids
-                        .iter()
-                        .find_map(|media_id| {
-                            product
-                                .media
-                                .iter()
-                                .find(|media| {
-                                    media.get("id").and_then(Value::as_str)
-                                        == Some(media_id.as_str())
-                                })
-                                .and_then(storefront_product_image_json_from_media)
-                        })
-                        .or_else(|| {
-                            product
-                                .media
-                                .iter()
-                                .find_map(storefront_product_image_json_from_media)
-                        })
-                })
-                .map(|image| selected_json(&image, &selection.selection))
-                .unwrap_or(Value::Null),
-        ),
-        "product" => Some(match product {
-            Some(product) => {
-                storefront_product_json(proxy, product, &[], context, &selection.selection)
-            }
-            None => Value::Null,
-        }),
-        "unitPrice" | "unitPriceMeasurement" | "shopPayInstallmentsPricing" => Some(Value::Null),
-        "metafield" => Some(proxy.storefront_resource_metafield_json(&variant.id, selection)),
-        "metafields" => Some(proxy.storefront_resource_metafields_json(&variant.id, selection)),
-        "sellingPlanAllocations" => Some(storefront_selling_plan_allocations_connection_json(
-            proxy, variant, product, context, selection,
-        )),
-        "components" | "groupedBy" | "quantityPriceBreaks" | "storeAvailability" => {
-            Some(selected_empty_connection_json(&selection.selection))
-        }
-        "quantityRule" => Some(selected_json(
-            &json!({ "increment": 1, "maximum": Value::Null, "minimum": 1 }),
-            &selection.selection,
-        )),
-        "requiresComponents" => Some(Value::Bool(false)),
-        "weight" => variant
-            .extra_fields
-            .get("weight")
-            .cloned()
-            .or(Some(Value::Null)),
-        "weightUnit" => variant
-            .extra_fields
-            .get("weightUnit")
-            .cloned()
-            .or_else(|| Some(json!("KILOGRAMS"))),
-        _ => variant
-            .extra_fields
-            .get(&selection.name)
-            .map(|value| nullable_selected_json(value, &selection.selection)),
-    })
-}
-
-fn storefront_selected_or_first_available_variant_json(
-    proxy: &DraftProxy,
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    context: &StorefrontRequestContext,
-    selection: &SelectedField,
-) -> Value {
-    let selected = storefront_variant_matching_selected_options(variants, selection)
-        .or_else(|| {
-            variants
-                .iter()
-                .find(|variant| storefront_variant_available_for_sale(variant))
-        })
-        .or_else(|| variants.first());
-    selected
-        .map(|variant| {
-            storefront_product_variant_json(
-                proxy,
-                variant,
-                Some(product),
-                context,
-                None,
-                &selection.selection,
-            )
-        })
-        .unwrap_or(Value::Null)
-}
-
-fn storefront_variant_by_selected_options_json(
-    proxy: &DraftProxy,
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    context: &StorefrontRequestContext,
-    selection: &SelectedField,
-) -> Value {
-    storefront_variant_matching_selected_options(variants, selection)
-        .map(|variant| {
-            storefront_product_variant_json(
-                proxy,
-                variant,
-                Some(product),
-                context,
-                None,
-                &selection.selection,
-            )
-        })
-        .unwrap_or(Value::Null)
-}
-
-fn storefront_variant_matching_selected_options<'a>(
-    variants: &'a [ProductVariantRecord],
-    selection: &SelectedField,
-) -> Option<&'a ProductVariantRecord> {
-    let selected = resolved_object_list_field(&selection.arguments, "selectedOptions")
-        .into_iter()
-        .filter_map(|option| {
-            Some((
-                resolved_string_field(&option, "name")?,
-                resolved_string_field(&option, "value")?,
-            ))
-        })
-        .collect::<Vec<_>>();
-    if selected.is_empty() {
-        return None;
-    }
-    let case_insensitive =
-        resolved_bool_field(&selection.arguments, "caseInsensitiveMatch").unwrap_or(false);
-    variants.iter().find(|variant| {
-        selected.iter().all(|(name, value)| {
-            variant.selected_options.iter().any(|option| {
-                if case_insensitive {
-                    option.name.eq_ignore_ascii_case(name)
-                        && option.value.eq_ignore_ascii_case(value)
-                } else {
-                    option.name == *name && option.value == *value
-                }
-            })
-        })
-    })
-}
-
 #[derive(Clone, Copy)]
 enum StorefrontPriceRangeKind {
     Price,
     CompareAtPrice,
 }
 
-fn storefront_product_price_range_json(
+fn storefront_product_currency_code(
     proxy: &DraftProxy,
-    product: &ProductRecord,
     variants: &[ProductVariantRecord],
     context: &StorefrontRequestContext,
-    selections: &[SelectedField],
-    kind: StorefrontPriceRangeKind,
-) -> Value {
-    let observed_field = match kind {
-        StorefrontPriceRangeKind::Price => "priceRange",
-        StorefrontPriceRangeKind::CompareAtPrice => "compareAtPriceRange",
-    };
-    if variants.is_empty() && product.variants.is_empty() {
-        if let Some(observed) = product.extra_fields.get(observed_field) {
-            return selected_json(observed, selections);
-        }
-    }
-    let prices = match kind {
-        StorefrontPriceRangeKind::Price => {
-            storefront_product_variant_prices(proxy, product, variants, context)
-        }
-        StorefrontPriceRangeKind::CompareAtPrice => {
-            storefront_product_variant_compare_at_prices(proxy, product, variants, context)
-        }
-    };
-    let (min_price, max_price) = storefront_price_bounds(prices).unwrap_or((0.0, 0.0));
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("ProductPriceRange")),
-        "minVariantPrice" => Some(storefront_money_json(
-            &format!("{min_price:.2}"),
-            &storefront_product_currency_code(proxy, variants, context),
-            &selection.selection,
-        )),
-        "maxVariantPrice" => Some(storefront_money_json(
-            &format!("{max_price:.2}"),
-            &storefront_product_currency_code(proxy, variants, context),
-            &selection.selection,
-        )),
-        _ => None,
-    })
+) -> String {
+    variants
+        .first()
+        .map(|variant| {
+            proxy
+                .storefront_variant_pricing(variant, context)
+                .currency_code
+        })
+        .filter(|currency| !currency.is_empty())
+        .or_else(|| {
+            proxy
+                .storefront_context_localization(context)
+                .and_then(|localization| localization.pointer("/country/currency/isoCode"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .or_else(|| proxy.store.observed_shop_currency_code())
+        .unwrap_or_else(|| "USD".to_string())
 }
 
 fn storefront_product_variant_prices(
@@ -5729,439 +6833,6 @@ fn storefront_price_bounds(prices: Vec<f64>) -> Option<(f64, f64)> {
 
 fn storefront_parse_price(price: &str) -> Option<f64> {
     price.trim().parse::<f64>().ok()
-}
-
-fn storefront_product_currency_code(
-    proxy: &DraftProxy,
-    variants: &[ProductVariantRecord],
-    context: &StorefrontRequestContext,
-) -> String {
-    variants
-        .first()
-        .map(|variant| {
-            proxy
-                .storefront_variant_pricing(variant, context)
-                .currency_code
-        })
-        .filter(|currency| !currency.is_empty())
-        .or_else(|| {
-            proxy
-                .storefront_context_localization(context)
-                .and_then(|localization| localization.pointer("/country/currency/isoCode"))
-                .and_then(Value::as_str)
-                .map(str::to_string)
-        })
-        .or_else(|| proxy.store.observed_shop_currency_code())
-        .unwrap_or_default()
-}
-
-fn storefront_selling_plan_groups_connection_json(
-    proxy: &DraftProxy,
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    context: &StorefrontRequestContext,
-    selection: &SelectedField,
-) -> Value {
-    let variant_ids = variants
-        .iter()
-        .map(|variant| variant.id.as_str())
-        .collect::<BTreeSet<_>>();
-    let groups = proxy
-        .store
-        .selling_plan_groups()
-        .into_iter()
-        .filter(|group| {
-            group.product_ids.iter().any(|id| id == &product.id)
-                || group
-                    .product_variant_ids
-                    .iter()
-                    .any(|id| variant_ids.contains(id.as_str()))
-        })
-        .collect::<Vec<_>>();
-    let currency_code = storefront_product_currency_code(proxy, variants, context);
-    selected_typed_connection_with_args(
-        &groups,
-        &selection.arguments,
-        &selection.selection,
-        |group, selections| storefront_selling_plan_group_json(group, &currency_code, selections),
-        |group| group.id.clone(),
-    )
-}
-
-fn storefront_selling_plan_group_json(
-    group: &SellingPlanGroupRecord,
-    currency_code: &str,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("SellingPlanGroup")),
-        "appName" => Some(Value::Null),
-        "name" => Some(json!(group.name)),
-        "options" => Some(Value::Array(
-            group
-                .options
-                .iter()
-                .enumerate()
-                .map(|(index, name)| {
-                    let mut values = group
-                        .selling_plans
-                        .iter()
-                        .filter_map(|plan| plan.options.get(index).cloned())
-                        .collect::<Vec<_>>();
-                    values.dedup();
-                    selected_json(
-                        &json!({ "name": name, "values": values }),
-                        &selection.selection,
-                    )
-                })
-                .collect(),
-        )),
-        "sellingPlans" => Some(selected_typed_connection_with_args(
-            &group.selling_plans,
-            &selection.arguments,
-            &selection.selection,
-            |plan, selections| {
-                storefront_selling_plan_json(plan, &group.options, currency_code, selections)
-            },
-            |plan| plan.id.clone(),
-        )),
-        _ => None,
-    })
-}
-
-fn storefront_selling_plan_json(
-    plan: &SellingPlanRecord,
-    option_names: &[String],
-    currency_code: &str,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("SellingPlan")),
-        "id" => Some(json!(plan.id)),
-        "name" => Some(json!(plan.name)),
-        "description" => Some(json!(plan.description)),
-        "recurringDeliveries" => Some(json!(
-            plan.delivery_policy
-                .get("__typename")
-                .and_then(Value::as_str)
-                == Some("SellingPlanRecurringDeliveryPolicy")
-        )),
-        "options" => Some(Value::Array(
-            plan.options
-                .iter()
-                .enumerate()
-                .map(|(index, value)| {
-                    selected_json(
-                        &json!({
-                            "name": option_names.get(index).cloned().unwrap_or_default(),
-                            "value": value
-                        }),
-                        &selection.selection,
-                    )
-                })
-                .collect(),
-        )),
-        "priceAdjustments" => Some(Value::Array(
-            plan.pricing_policies
-                .iter()
-                .map(|policy| {
-                    selected_payload_json(&selection.selection, |field| match field.name.as_str() {
-                        "orderCount" => Some(
-                            policy
-                                .get("afterCycle")
-                                .and_then(Value::as_i64)
-                                .map(|after_cycle| json!(after_cycle + 1))
-                                .unwrap_or(Value::Null),
-                        ),
-                        "adjustmentValue" => Some(storefront_selling_plan_adjustment_value_json(
-                            policy,
-                            currency_code,
-                            &field.selection,
-                        )),
-                        _ => None,
-                    })
-                })
-                .collect(),
-        )),
-        _ => None,
-    })
-}
-
-fn storefront_selling_plan_adjustment_value_json(
-    policy: &Value,
-    currency_code: &str,
-    selections: &[SelectedField],
-) -> Value {
-    let adjustment_type = policy
-        .get("adjustmentType")
-        .and_then(Value::as_str)
-        .unwrap_or("PERCENTAGE");
-    selected_payload_json(selections, |selection| {
-        match (adjustment_type, selection.name.as_str()) {
-            (_, "__typename") => Some(json!(match adjustment_type {
-                "FIXED_AMOUNT" => "SellingPlanFixedAmountPriceAdjustment",
-                "PRICE" => "SellingPlanFixedPriceAdjustment",
-                _ => "SellingPlanPercentagePriceAdjustment",
-            })),
-            ("FIXED_AMOUNT", "adjustmentAmount") => Some(storefront_money_json(
-                policy
-                    .pointer("/adjustmentValue/amount")
-                    .and_then(Value::as_str)
-                    .unwrap_or("0"),
-                currency_code,
-                &selection.selection,
-            )),
-            ("PRICE", "price") => Some(storefront_money_json(
-                policy
-                    .pointer("/adjustmentValue/amount")
-                    .and_then(Value::as_str)
-                    .unwrap_or("0"),
-                currency_code,
-                &selection.selection,
-            )),
-            (_, "adjustmentPercentage") => Some(
-                policy
-                    .pointer("/adjustmentValue/percentage")
-                    .cloned()
-                    .unwrap_or_else(|| json!(0)),
-            ),
-            _ => None,
-        }
-    })
-}
-
-fn storefront_selling_plan_allocations_connection_json(
-    proxy: &DraftProxy,
-    variant: &ProductVariantRecord,
-    product: Option<&ProductRecord>,
-    context: &StorefrontRequestContext,
-    selection: &SelectedField,
-) -> Value {
-    let Some(product) = product else {
-        return selected_empty_connection_json(&selection.selection);
-    };
-    let allocations = proxy
-        .store
-        .selling_plan_groups()
-        .into_iter()
-        .filter(|group| {
-            group.product_ids.iter().any(|id| id == &product.id)
-                || group.product_variant_ids.iter().any(|id| id == &variant.id)
-        })
-        .flat_map(|group| group.selling_plans)
-        .collect::<Vec<_>>();
-    let pricing = proxy.storefront_variant_pricing(variant, context);
-    selected_typed_connection_with_args(
-        &allocations,
-        &selection.arguments,
-        &selection.selection,
-        |plan, selections| storefront_selling_plan_allocation_json(plan, &pricing, selections),
-        |plan| plan.id.clone(),
-    )
-}
-
-fn storefront_selling_plan_allocation_json(
-    plan: &SellingPlanRecord,
-    pricing: &StorefrontVariantPricing,
-    selections: &[SelectedField],
-) -> Value {
-    let original = storefront_parse_price(&pricing.price).unwrap_or_default();
-    let adjusted = plan
-        .pricing_policies
-        .first()
-        .map(|policy| storefront_adjusted_selling_plan_price(original, policy))
-        .unwrap_or(original);
-    let adjusted_amount = format_money_amount(adjusted);
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "checkoutChargeAmount" => Some(storefront_money_json(
-            &adjusted_amount,
-            &pricing.currency_code,
-            &selection.selection,
-        )),
-        "remainingBalanceChargeAmount" => Some(storefront_money_json(
-            "0",
-            &pricing.currency_code,
-            &selection.selection,
-        )),
-        "priceAdjustments" => Some(Value::Array(vec![selected_payload_json(
-            &selection.selection,
-            |field| match field.name.as_str() {
-                "price" | "perDeliveryPrice" => Some(storefront_money_json(
-                    &adjusted_amount,
-                    &pricing.currency_code,
-                    &field.selection,
-                )),
-                "compareAtPrice" => Some(storefront_money_json(
-                    &pricing.price,
-                    &pricing.currency_code,
-                    &field.selection,
-                )),
-                "unitPrice" => Some(Value::Null),
-                _ => None,
-            },
-        )])),
-        "sellingPlan" => Some(storefront_selling_plan_json(
-            plan,
-            &[],
-            &pricing.currency_code,
-            &selection.selection,
-        )),
-        _ => None,
-    })
-}
-
-fn storefront_adjusted_selling_plan_price(price: f64, policy: &Value) -> f64 {
-    let value = policy
-        .pointer("/adjustmentValue/percentage")
-        .and_then(Value::as_f64)
-        .or_else(|| {
-            policy
-                .pointer("/adjustmentValue/percentage")
-                .and_then(Value::as_i64)
-                .map(|value| value as f64)
-        })
-        .unwrap_or_default();
-    match policy
-        .get("adjustmentType")
-        .and_then(Value::as_str)
-        .unwrap_or("PERCENTAGE")
-    {
-        "FIXED_AMOUNT" => {
-            let amount = policy
-                .pointer("/adjustmentValue/amount")
-                .and_then(Value::as_str)
-                .and_then(storefront_parse_price)
-                .unwrap_or_default();
-            (price - amount).max(0.0)
-        }
-        "PRICE" => policy
-            .pointer("/adjustmentValue/amount")
-            .and_then(Value::as_str)
-            .and_then(storefront_parse_price)
-            .unwrap_or(price),
-        _ => price * (1.0 - value / 100.0),
-    }
-}
-
-pub(in crate::proxy) fn storefront_money_json(
-    price: &str,
-    currency_code: &str,
-    selections: &[SelectedField],
-) -> Value {
-    let amount = normalize_money_amount(price);
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("MoneyV2")),
-        "amount" => Some(json!(amount)),
-        "currencyCode" => Some(json!(currency_code)),
-        _ => None,
-    })
-}
-
-fn storefront_product_images_connection_json(
-    product: &ProductRecord,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
-) -> Value {
-    let images = product
-        .media
-        .iter()
-        .filter_map(storefront_product_image_json_from_media)
-        .collect::<Vec<_>>();
-    selected_connection_json_with_args(images, arguments, selections, value_id_cursor)
-}
-
-fn storefront_product_media_connection_json(
-    product: &ProductRecord,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
-) -> Value {
-    let media = product
-        .media
-        .iter()
-        .map(storefront_product_media_json)
-        .collect::<Vec<_>>();
-    selected_connection_json_with_args(media, arguments, selections, value_id_cursor)
-}
-
-fn storefront_product_media_json(media: &Value) -> Value {
-    let image = storefront_media_image_json(media);
-    let mut value = json!({
-        "__typename": media
-            .get("__typename")
-            .cloned()
-            .unwrap_or_else(|| json!("MediaImage")),
-        "id": media.get("id").cloned().unwrap_or(Value::Null),
-        "alt": media.get("alt").cloned().unwrap_or(Value::Null),
-        "mediaContentType": media
-            .get("mediaContentType")
-            .cloned()
-            .unwrap_or_else(|| json!("IMAGE")),
-        "previewImage": image.clone(),
-    });
-    if media.get("mediaContentType").and_then(Value::as_str) == Some("IMAGE")
-        || media.get("__typename").and_then(Value::as_str) == Some("MediaImage")
-    {
-        value["image"] = image;
-    }
-    value
-}
-
-fn storefront_media_image_json(media: &Value) -> Value {
-    let Some(mut image) = storefront_product_image_json_from_media(media) else {
-        return Value::Null;
-    };
-    if let Some(media_id) = media.get("id").and_then(Value::as_str) {
-        image["id"] = json!(shopify_gid("ImageSource", resource_id_tail(media_id)));
-    }
-    if image.get("width").is_none_or(Value::is_null)
-        || image.get("height").is_none_or(Value::is_null)
-    {
-        if let Some(source) = image.get("url").and_then(Value::as_str) {
-            if let Some((width, height)) = storefront_image_dimensions_from_url(source) {
-                image["width"] = json!(width);
-                image["height"] = json!(height);
-            }
-        }
-    }
-    image
-}
-
-fn storefront_product_image_json_from_media(media: &Value) -> Option<Value> {
-    let mut image = product_image_json_from_media(media).or_else(|| {
-        let source = media
-            .pointer("/originalSource/url")
-            .and_then(Value::as_str)
-            .or_else(|| media.get("originalSource").and_then(Value::as_str))?;
-        let media_id = media.get("id").and_then(Value::as_str)?;
-        Some(json!({
-            "id": shopify_gid("ProductImage", resource_id_tail(media_id)),
-            "url": source,
-            "altText": media.get("alt").cloned().unwrap_or(Value::Null),
-            "width": Value::Null,
-            "height": Value::Null
-        }))
-    })?;
-    image.as_object_mut()?.remove("__typename");
-    if image.get("width").is_none_or(Value::is_null)
-        || image.get("height").is_none_or(Value::is_null)
-    {
-        if let Some(source) = image.get("url").and_then(Value::as_str) {
-            if let Some((width, height)) = storefront_image_dimensions_from_url(source) {
-                image["width"] = json!(width);
-                image["height"] = json!(height);
-            }
-        }
-    }
-    Some(image)
-}
-
-fn storefront_image_dimensions_from_url(url: &str) -> Option<(i64, i64)> {
-    url.split(['/', '?', '&']).find_map(|part| {
-        let (width, height) = part.split_once('x')?;
-        let width = width.parse::<i64>().ok()?;
-        let height = height.parse::<i64>().ok()?;
-        (width > 0 && height > 0).then_some((width, height))
-    })
 }
 
 fn storefront_product_sort_key(
@@ -6253,6 +6924,12 @@ pub(in crate::proxy) fn storefront_request_context(
     context
 }
 
+fn storefront_request_context_from_request(request: &Request) -> StorefrontRequestContext {
+    parse_graphql_request_body(&request.body)
+        .map(|body| storefront_request_context(&body.query, &body.variables))
+        .unwrap_or_default()
+}
+
 fn storefront_first_slice_hydrate_body(
     context: &StorefrontRequestContext,
 ) -> (&'static str, Value) {
@@ -6290,58 +6967,6 @@ fn resolved_value_string(value: Option<&ResolvedValue>) -> Option<String> {
     }
 }
 
-fn selection_applies_to_type(selection: &SelectedField, type_name: &str) -> bool {
-    match selection.type_condition.as_deref() {
-        None => true,
-        Some("Node") => true,
-        Some("SearchResultItem") => matches!(type_name, "Article" | "Page" | "Product"),
-        Some("HasMetafields") => matches!(
-            type_name,
-            "Article"
-                | "Blog"
-                | "Collection"
-                | "Customer"
-                | "Page"
-                | "Product"
-                | "ProductVariant"
-                | "Shop"
-        ),
-        Some("OnlineStorePublishable") => type_name == "Metaobject",
-        Some("MetafieldReference") => matches!(
-            type_name,
-            "Article"
-                | "Collection"
-                | "GenericFile"
-                | "MediaImage"
-                | "Metaobject"
-                | "Model3d"
-                | "Page"
-                | "Product"
-                | "ProductVariant"
-                | "Video"
-        ),
-        Some("MetafieldParentResource") => matches!(
-            type_name,
-            "Article"
-                | "Blog"
-                | "Cart"
-                | "Collection"
-                | "Company"
-                | "CompanyLocation"
-                | "Customer"
-                | "Location"
-                | "Market"
-                | "Order"
-                | "Page"
-                | "Product"
-                | "ProductVariant"
-                | "SellingPlan"
-                | "Shop"
-        ),
-        Some(condition) => condition == type_name,
-    }
-}
-
 fn storefront_metafield_is_public(metafield: &Value) -> bool {
     metafield
         .pointer("/definition/access/storefront")
@@ -6367,6 +6992,15 @@ fn storefront_metaobject_fields(record: &Value) -> Value {
             .cmp(right.get("key").and_then(Value::as_str).unwrap_or_default())
     });
     Value::Array(fields)
+}
+
+fn storefront_metaobject_field_value(record: &Value) -> Value {
+    json!({
+        "__typename": "MetaobjectField",
+        "key": record.get("key").cloned().unwrap_or(Value::Null),
+        "type": record.get("type").cloned().unwrap_or(Value::Null),
+        "value": record.get("value").cloned().unwrap_or(Value::Null),
+    })
 }
 
 fn storefront_metaobject_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
@@ -6563,7 +7197,12 @@ pub(in crate::proxy) fn storefront_customer_json(customer: &Value) -> Value {
                 .and_then(Value::as_str)
                 == Some("SUBSCRIBED")
         });
+    let default_address = customer
+        .get("defaultAddress")
+        .map(storefront_mailing_address_json)
+        .unwrap_or(Value::Null);
     json!({
+        "__typename": "Customer",
         "id": customer.get("id").cloned().unwrap_or(Value::Null),
         "email": customer.get("email").cloned().unwrap_or(Value::Null),
         "firstName": customer.get("firstName").cloned().unwrap_or(Value::Null),
@@ -6575,7 +7214,7 @@ pub(in crate::proxy) fn storefront_customer_json(customer: &Value) -> Value {
         "updatedAt": customer.get("updatedAt").cloned().unwrap_or(Value::Null),
         "numberOfOrders": customer.get("numberOfOrders").cloned().unwrap_or_else(|| json!("0")),
         "tags": customer.get("tags").cloned().unwrap_or_else(|| json!([])),
-        "defaultAddress": Value::Null,
+        "defaultAddress": default_address,
         "addresses": connection_json_with_empty_edges(Vec::new()),
         "orders": connection_json_with_empty_edges(Vec::new()),
         "avatarUrl": Value::Null,
@@ -6583,30 +7222,6 @@ pub(in crate::proxy) fn storefront_customer_json(customer: &Value) -> Value {
         "metafield": Value::Null,
         "metafields": []
     })
-}
-
-fn storefront_customer_addresses_connection(
-    customer: &Value,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selection: &[SelectedField],
-) -> Value {
-    let addresses = customer_address_nodes(customer);
-    selected_typed_connection_with_args(
-        &addresses,
-        arguments,
-        selection,
-        |address, address_selection| {
-            storefront_mailing_address_selected_json(address, address_selection)
-        },
-        |address| customer_address_cursor(address).unwrap_or_default(),
-    )
-}
-
-fn storefront_mailing_address_selected_json(address: &Value, selection: &[SelectedField]) -> Value {
-    if address.is_null() {
-        return Value::Null;
-    }
-    selected_json(&storefront_mailing_address_json(address), selection)
 }
 
 fn storefront_mailing_address_json(address: &Value) -> Value {
@@ -6740,53 +7355,30 @@ fn storefront_customer_payload(
     })
 }
 
-fn storefront_customer_address_payload_selected(
+fn storefront_customer_address_payload(
     address_field: &str,
     address: Value,
     customer_user_errors: Vec<Value>,
-    selection: &[SelectedField],
 ) -> Value {
     let customer_user_errors = storefront_customer_user_errors_with_codes(customer_user_errors);
-    selected_payload_json(selection, |field| match field.name.as_str() {
-        name if name == address_field => Some(storefront_mailing_address_selected_json(
-            &address,
-            &field.selection,
-        )),
-        "customerUserErrors" => Some(selected_user_errors(
-            &customer_user_errors,
-            &field.selection,
-        )),
-        "userErrors" => {
-            let errors = storefront_user_errors_without_code(&customer_user_errors);
-            Some(selected_user_errors(
-                errors.as_array().map(Vec::as_slice).unwrap_or(&[]),
-                &field.selection,
-            ))
-        }
-        _ => None,
+    let user_errors = storefront_user_errors_without_code(&customer_user_errors);
+    json!({
+        (address_field): storefront_mailing_address_json(&address),
+        "customerUserErrors": customer_user_errors,
+        "userErrors": user_errors,
     })
 }
 
-fn storefront_customer_address_delete_payload_selected(
+fn storefront_customer_address_delete_payload(
     deleted_customer_address_id: Value,
     customer_user_errors: Vec<Value>,
-    selection: &[SelectedField],
 ) -> Value {
     let customer_user_errors = storefront_customer_user_errors_with_codes(customer_user_errors);
-    selected_payload_json(selection, |field| match field.name.as_str() {
-        "deletedCustomerAddressId" => Some(deleted_customer_address_id.clone()),
-        "customerUserErrors" => Some(selected_user_errors(
-            &customer_user_errors,
-            &field.selection,
-        )),
-        "userErrors" => {
-            let errors = storefront_user_errors_without_code(&customer_user_errors);
-            Some(selected_user_errors(
-                errors.as_array().map(Vec::as_slice).unwrap_or(&[]),
-                &field.selection,
-            ))
-        }
-        _ => None,
+    let user_errors = storefront_user_errors_without_code(&customer_user_errors);
+    json!({
+        "deletedCustomerAddressId": deleted_customer_address_id,
+        "customerUserErrors": customer_user_errors,
+        "userErrors": user_errors,
     })
 }
 
@@ -6884,20 +7476,31 @@ fn storefront_invalid_customer_access_token_errors() -> Vec<Value> {
     )]
 }
 
-fn storefront_access_denied_error(response_key: &str) -> Value {
-    let message = format!(
-        "Access denied for {response_key} field. Required access: `unauthenticated_write_customers` access scope. Also: Requires valid customer access token."
-    );
-    json!({
-        "message": message,
-        "path": [response_key],
-        "locations": [],
-        "extensions": {
-            "code": "ACCESS_DENIED",
-            "documentation": "https://shopify.dev/api/usage/access-scopes",
-            "requiredAccess": "`unauthenticated_write_customers` access scope. Also: Requires valid customer access token."
-        }
-    })
+fn storefront_access_denied_error() -> crate::admin_graphql::RootFieldError {
+    storefront_access_denied_error_for("customerAccessTokenDelete")
+}
+
+fn storefront_access_denied_error_for(root_name: &str) -> crate::admin_graphql::RootFieldError {
+    crate::admin_graphql::RootFieldError {
+        message: format!(
+            "Access denied for {root_name} field. Required access: `unauthenticated_write_customers` access scope. Also: Requires valid customer access token."
+        ),
+        extensions: [
+            ("code".to_string(), json!("ACCESS_DENIED")),
+            (
+                "documentation".to_string(),
+                json!("https://shopify.dev/api/usage/access-scopes"),
+            ),
+            (
+                "requiredAccess".to_string(),
+                json!("`unauthenticated_write_customers` access scope. Also: Requires valid customer access token."),
+            ),
+        ]
+        .into_iter()
+        .collect(),
+        path: Some(Vec::new()),
+        locations: Vec::new(),
+    }
 }
 
 fn preserve_storefront_address_phone(
@@ -6917,13 +7520,15 @@ fn preserve_storefront_address_phone(
     }
 }
 
-fn storefront_not_found_error(response_key: &str) -> Value {
-    json!({
-        "message": "Unidentified customer",
-        "path": [response_key],
-        "locations": [],
-        "extensions": { "code": "NOT_FOUND" }
-    })
+fn storefront_not_found_error() -> crate::admin_graphql::RootFieldError {
+    crate::admin_graphql::RootFieldError {
+        message: "Unidentified customer".to_string(),
+        extensions: [("code".to_string(), json!("NOT_FOUND"))]
+            .into_iter()
+            .collect(),
+        path: Some(Vec::new()),
+        locations: Vec::new(),
+    }
 }
 
 fn storefront_customer_display_name(

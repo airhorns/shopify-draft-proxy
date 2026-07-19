@@ -1,37 +1,38 @@
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn customer_merge(
+    pub(crate) fn customer_merge_root(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || {
-                "customerMerge".to_string()
-            });
-        let one_id = resolved_string_field(&arguments, "customerOneId")
-            .or_else(|| resolved_string_field(variables, "customerOneId"))
-            .unwrap_or_default();
-        let two_id = resolved_string_field(&arguments, "customerTwoId")
-            .or_else(|| resolved_string_field(variables, "customerTwoId"))
-            .unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let one_id = resolved_string_field(&arguments, "customerOneId").unwrap_or_default();
+        let two_id = resolved_string_field(&arguments, "customerTwoId").unwrap_or_default();
 
         // Pre-existing customers referenced by a merge are resolved the real way:
         // forward one combined scalar hydrate upstream and stage the observed
         // records so existence checks and merge validation read consistent state.
         // Attached resources are fetched later, only for the successful branch.
-        let hydrated_ids =
-            self.ensure_customers_hydrated_for_merge(request, &[one_id.clone(), two_id.clone()]);
+        let hydrated_ids = self.ensure_customers_hydrated_for_merge(
+            invocation.request,
+            &[one_id.clone(), two_id.clone()],
+        );
 
         // Compute the payload generically from staged state. State only mutates on
         // the success branch; each early return mirrors a live customerMerge
         // userError branch (self-merge, unknown customer, merge blockers).
-        let (payload, staged_ids) =
-            self.customer_merge_payload(request, &arguments, &one_id, &two_id, &hydrated_ids);
-        self.record_mutation_log_entry(request, query, variables, "customerMerge", staged_ids);
-        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+        let (payload, staged_ids) = self.customer_merge_payload(
+            invocation.request,
+            &arguments,
+            &one_id,
+            &two_id,
+            &hydrated_ids,
+        );
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "customerMerge",
+            "customers",
+            staged_ids,
+        ))
     }
 
     /// Stage a `customerRequestDataErasure` / `customerCancelDataErasure`
@@ -39,26 +40,30 @@ impl DraftProxy {
     /// root; `false` is the cancel root. Records the raw mutation in the log
     /// (status `staged` on success, `failed` on userError) and never forwards
     /// upstream. Returns `{ <responseKey>: { customerId, userErrors } }`.
-    pub(in crate::proxy) fn customer_data_erasure(
+    pub(crate) fn customer_data_erasure_root(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-        root_field: &str,
-        request_erasure: bool,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            self.execution_primary_root_response_parts(query, variables, || root_field.to_string());
-        let customer_id = resolved_string_field(&arguments, "customerId")
-            .or_else(|| resolved_string_field(variables, "customerId"))
-            .unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let customer_id = resolved_string_field(&arguments, "customerId").unwrap_or_default();
+        let request_erasure = invocation.root_name == "customerRequestDataErasure";
 
         let (payload, status, staged_ids) =
-            self.customer_data_erasure_payload(request, &customer_id, request_erasure);
-        self.record_mutation_log_with_status(
-            request, query, variables, root_field, staged_ids, status,
-        );
-        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+            self.customer_data_erasure_payload(invocation.request, &customer_id, request_erasure);
+        let outcome = ResolverOutcome::value(payload);
+        if status == "staged" {
+            outcome.with_log_draft(LogDraft::staged(
+                invocation.root_name,
+                "customers",
+                staged_ids,
+            ))
+        } else {
+            outcome.with_log_draft(LogDraft::failed(
+                invocation.root_name,
+                "customers",
+                "Customer erasure mutation rejected by local validation.",
+            ))
+        }
     }
 
     fn customer_data_erasure_payload(

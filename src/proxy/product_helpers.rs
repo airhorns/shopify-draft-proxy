@@ -11,6 +11,772 @@ pub(in crate::proxy) use self::collections::*;
 pub(in crate::proxy) use self::saved_search::*;
 pub(in crate::proxy) use self::search::*;
 
+pub(in crate::proxy) fn product_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
+    let mut policies = vec![
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "Product",
+            "field is not yet modeled by the canonical Product resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductVariant",
+            "field is not yet modeled by the canonical ProductVariant resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "Collection",
+            "field is not yet modeled by the canonical collection resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "Publication",
+            "field is not yet modeled by the canonical publication resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "Channel",
+            "field is not yet modeled by the canonical publication resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "Metafield",
+            "field is not yet modeled by the canonical metafield resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "MetafieldIdentifier",
+            "field is not yet modeled by the canonical metafield-delete resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "MetafieldsDeletePayload",
+            "field is not yet modeled by the canonical metafield-delete resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "MetafieldsSetPayload",
+            "field is not yet modeled by the canonical metafield-set resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "MetafieldsSetUserError",
+            "field is not yet modeled by the canonical metafield-set resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductCreatePayload",
+            "field is not yet modeled by the canonical product-create resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductUpdatePayload",
+            "field is not yet modeled by the canonical product-update resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductDeletePayload",
+            "field is not yet modeled by the canonical product-delete resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductDeleteOperation",
+            "field is not yet modeled by the canonical product-delete operation resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductChangeStatusPayload",
+            "field is not yet modeled by the canonical product-status resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductChangeStatusUserError",
+            "field is not yet modeled by the canonical product-status resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "TagsAddPayload",
+            "field is not yet modeled by the canonical tag mutation resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "TagsRemovePayload",
+            "field is not yet modeled by the canonical tag mutation resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductPublishPayload",
+            "field is not yet modeled by the canonical product-publication resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductUnpublishPayload",
+            "field is not yet modeled by the canonical product-publication resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductSetPayload",
+            "field is not yet modeled by the canonical product-set resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductSetOperation",
+            "field is not yet modeled by the canonical product-operation resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductSetUserError",
+            "field is not yet modeled by the canonical product-set resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductDuplicatePayload",
+            "field is not yet modeled by the canonical product-duplicate resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductDuplicateOperation",
+            "field is not yet modeled by the canonical product-operation resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductBundleCreatePayload",
+            "field is not yet modeled by the canonical product-bundle resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductBundleUpdatePayload",
+            "field is not yet modeled by the canonical product-bundle resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductBundleOperation",
+            "field is not yet modeled by the canonical product-operation resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductOptionsCreatePayload",
+            "field is not yet modeled by the canonical product-option resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductOptionUpdatePayload",
+            "field is not yet modeled by the canonical product-option resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductOptionsDeletePayload",
+            "field is not yet modeled by the canonical product-option resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductOptionsReorderPayload",
+            "field is not yet modeled by the canonical product-option resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductVariantAppendMediaPayload",
+            "field is not yet modeled by the canonical product-variant media resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductVariantDetachMediaPayload",
+            "field is not yet modeled by the canonical product-variant media resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductVariantsBulkCreatePayload",
+            "field is not yet modeled by the canonical product-variant resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductVariantsBulkUpdatePayload",
+            "field is not yet modeled by the canonical product-variant resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductVariantsBulkDeletePayload",
+            "field is not yet modeled by the canonical product-variant resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductVariantsBulkReorderPayload",
+            "field is not yet modeled by the canonical product-variant resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductFeed",
+            "field is not yet modeled by the canonical product-feed resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductFeedCreatePayload",
+            "field is not yet modeled by the canonical product-feed resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductFeedDeletePayload",
+            "field is not yet modeled by the canonical product-feed resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "ProductFullSyncPayload",
+            "field is not yet modeled by the canonical product-feed resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "CollectionCreatePayload",
+            "field is not yet modeled by the canonical collection resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "CollectionUpdatePayload",
+            "field is not yet modeled by the canonical collection resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "CollectionDeletePayload",
+            "field is not yet modeled by the canonical collection resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "CollectionAddProductsPayload",
+            "field is not yet modeled by the canonical collection resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "CollectionAddProductsV2Payload",
+            "field is not yet modeled by the canonical collection resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "CollectionRemoveProductsPayload",
+            "field is not yet modeled by the canonical collection resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "CollectionReorderProductsPayload",
+            "field is not yet modeled by the canonical collection resolver",
+        ),
+    ];
+    policies.extend(
+        [
+            "CombinedListing",
+            "ProductOption",
+            "ProductOptionValue",
+            "ProductTaxonomyNode",
+            "Publishable",
+            "TaxonomyCategory",
+            "TaxonomyValue",
+        ]
+            .into_iter()
+            .map(|parent_type| {
+                FieldResolverTypePolicy::property_backed_ordinary_fields(
+                    ApiSurface::Admin,
+                    parent_type,
+                    "argument-bearing product taxonomy or publication field has no explicit canonical resolver",
+                )
+            }),
+    );
+    policies
+}
+
+pub(in crate::proxy) fn product_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
+    let mut registrations = Vec::new();
+    for (parent_type, fields) in [
+        ("ProductConnection", &["edges", "nodes", "pageInfo"][..]),
+        ("ProductEdge", &["cursor", "node"][..]),
+        ("MetafieldIdentifier", &["key", "namespace", "ownerId"][..]),
+        (
+            "MetafieldsDeletePayload",
+            &["deletedMetafields", "userErrors"][..],
+        ),
+        ("MetafieldsSetPayload", &["metafields", "userErrors"][..]),
+        (
+            "MetafieldsSetUserError",
+            &["code", "elementIndex", "field", "message"][..],
+        ),
+        ("ProductCreatePayload", &["product", "userErrors"][..]),
+        ("ProductUpdatePayload", &["product", "userErrors"][..]),
+        (
+            "ProductDeletePayload",
+            &["deletedProductId", "productDeleteOperation", "userErrors"][..],
+        ),
+        (
+            "ProductDeleteOperation",
+            &["deletedProductId", "id", "status", "userErrors"][..],
+        ),
+        ("ProductChangeStatusPayload", &["product", "userErrors"][..]),
+        (
+            "ProductChangeStatusUserError",
+            &["code", "field", "message"][..],
+        ),
+        ("TagsAddPayload", &["node", "userErrors"][..]),
+        ("TagsRemovePayload", &["node", "userErrors"][..]),
+        (
+            "ProductPublishPayload",
+            &["product", "productPublications", "userErrors"][..],
+        ),
+        ("ProductUnpublishPayload", &["product", "userErrors"][..]),
+        (
+            "ProductSetPayload",
+            &["product", "productSetOperation", "userErrors"][..],
+        ),
+        (
+            "ProductSetOperation",
+            &["id", "product", "status", "userErrors"][..],
+        ),
+        ("ProductSetUserError", &["code", "field", "message"][..]),
+        (
+            "ProductDuplicatePayload",
+            &[
+                "imageJob",
+                "newProduct",
+                "productDuplicateOperation",
+                "userErrors",
+            ][..],
+        ),
+        (
+            "ProductDuplicateOperation",
+            &["id", "newProduct", "product", "status", "userErrors"][..],
+        ),
+        (
+            "ProductBundleCreatePayload",
+            &["productBundleOperation", "userErrors"][..],
+        ),
+        (
+            "ProductBundleUpdatePayload",
+            &["productBundleOperation", "userErrors"][..],
+        ),
+        (
+            "ProductBundleOperation",
+            &["id", "product", "status", "userErrors"][..],
+        ),
+        (
+            "ProductOptionsCreatePayload",
+            &["product", "userErrors"][..],
+        ),
+        ("ProductOptionUpdatePayload", &["product", "userErrors"][..]),
+        (
+            "ProductOptionsDeletePayload",
+            &["deletedOptionsIds", "product", "userErrors"][..],
+        ),
+        (
+            "ProductOptionsReorderPayload",
+            &["product", "userErrors"][..],
+        ),
+        (
+            "ProductVariantAppendMediaPayload",
+            &["product", "productVariants", "userErrors"][..],
+        ),
+        (
+            "ProductVariantDetachMediaPayload",
+            &["product", "productVariants", "userErrors"][..],
+        ),
+        (
+            "ProductVariantsBulkCreatePayload",
+            &["product", "productVariants", "userErrors"][..],
+        ),
+        (
+            "ProductVariantsBulkUpdatePayload",
+            &["product", "productVariants", "userErrors"][..],
+        ),
+        (
+            "ProductVariantsBulkDeletePayload",
+            &["product", "userErrors"][..],
+        ),
+        (
+            "ProductVariantsBulkReorderPayload",
+            &["product", "userErrors"][..],
+        ),
+        ("ProductFeedConnection", &["edges", "nodes", "pageInfo"][..]),
+        ("ProductFeedEdge", &["cursor", "node"][..]),
+        (
+            "ProductFeedCreatePayload",
+            &["productFeed", "userErrors"][..],
+        ),
+        ("ProductFeedDeletePayload", &["deletedId", "userErrors"][..]),
+        ("ProductFullSyncPayload", &["id", "userErrors"][..]),
+        (
+            "ProductFeedCreateUserError",
+            &["code", "field", "message"][..],
+        ),
+        (
+            "ProductFeedDeleteUserError",
+            &["code", "field", "message"][..],
+        ),
+        (
+            "ProductFullSyncUserError",
+            &["code", "field", "message"][..],
+        ),
+        ("CollectionCreatePayload", &["collection", "userErrors"][..]),
+        (
+            "CollectionUpdatePayload",
+            &["collection", "job", "userErrors"][..],
+        ),
+        (
+            "CollectionDeletePayload",
+            &["deletedCollectionId", "userErrors"][..],
+        ),
+        (
+            "CollectionAddProductsPayload",
+            &["collection", "userErrors"][..],
+        ),
+        ("CollectionAddProductsV2Payload", &["job", "userErrors"][..]),
+        (
+            "CollectionRemoveProductsPayload",
+            &["job", "userErrors"][..],
+        ),
+        (
+            "CollectionReorderProductsPayload",
+            &["job", "userErrors"][..],
+        ),
+    ] {
+        registrations.extend(fields.iter().map(|field| {
+            FieldResolverRegistration::property(ApiSurface::Admin, parent_type, field)
+        }));
+    }
+    registrations.push(FieldResolverRegistration::explicit(
+        ApiSurface::Admin,
+        "ProductCreatePayload",
+        "shop",
+        mutation_payload_shop_field,
+    ));
+    registrations.push(FieldResolverRegistration::explicit(
+        ApiSurface::Admin,
+        "ProductDeletePayload",
+        "shop",
+        mutation_payload_shop_field,
+    ));
+    for parent_type in ["ProductPublishPayload", "ProductUnpublishPayload"] {
+        registrations.push(FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            parent_type,
+            "shop",
+            mutation_payload_shop_field,
+        ));
+    }
+    registrations.push(FieldResolverRegistration::explicit(
+        ApiSurface::Admin,
+        "ProductDuplicatePayload",
+        "shop",
+        mutation_payload_shop_field,
+    ));
+    registrations.push(FieldResolverRegistration::explicit(
+        ApiSurface::Admin,
+        "CollectionDeletePayload",
+        "shop",
+        mutation_payload_shop_field,
+    ));
+    registrations.push(FieldResolverRegistration::explicit(
+        ApiSurface::Admin,
+        "CombinedListing",
+        "combinedListingChildren",
+        combined_listing_children_field,
+    ));
+    for (field, handler) in [
+        (
+            "products",
+            collection_products_field as crate::resolver_registry::FieldResolverHandler,
+        ),
+        ("hasProduct", collection_has_product_field),
+        ("productsCount", collection_products_count_field),
+    ] {
+        registrations.push(FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "Collection",
+            field,
+            handler,
+        ));
+    }
+    registrations.extend([
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "Collection",
+            "metafield",
+            product_metafield_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "Collection",
+            "metafields",
+            product_metafields_field,
+        ),
+    ]);
+    for field in [
+        "description",
+        "descriptionHtml",
+        "handle",
+        "id",
+        "image",
+        "legacyResourceId",
+        "ruleSet",
+        "seo",
+        "sortOrder",
+        "storefrontId",
+        "templateSuffix",
+        "title",
+        "updatedAt",
+    ] {
+        registrations.push(FieldResolverRegistration::property(
+            ApiSurface::Admin,
+            "Collection",
+            field,
+        ));
+    }
+    for field in ["autoPublish", "id", "name", "supportsFuturePublishing"] {
+        registrations.push(FieldResolverRegistration::property(
+            ApiSurface::Admin,
+            "Publication",
+            field,
+        ));
+    }
+    for (field, handler) in [
+        (
+            "channel",
+            publication_channel_field as crate::resolver_registry::FieldResolverHandler,
+        ),
+        ("channels", publication_channels_field),
+        ("products", publication_products_field),
+        ("includedProducts", publication_products_field),
+        ("includedProductsCount", publication_product_count_field),
+        ("publishedProductsCount", publication_product_count_field),
+        ("collectionsCount", publication_collections_count_field),
+    ] {
+        registrations.push(FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "Publication",
+            field,
+            handler,
+        ));
+    }
+    for field in ["id", "name", "publication"] {
+        registrations.push(FieldResolverRegistration::property(
+            ApiSurface::Admin,
+            "Channel",
+            field,
+        ));
+    }
+    registrations.push(FieldResolverRegistration::explicit(
+        ApiSurface::Admin,
+        "Channel",
+        "productsCount",
+        channel_products_count_field,
+    ));
+    for (field, handler) in [
+        (
+            "publishedOnPublication",
+            collection_published_on_publication_field
+                as crate::resolver_registry::FieldResolverHandler,
+        ),
+        (
+            "publishedOnCurrentPublication",
+            collection_published_on_current_publication_field,
+        ),
+        (
+            "availablePublicationsCount",
+            collection_publications_count_field,
+        ),
+        (
+            "resourcePublicationsCount",
+            collection_publications_count_field,
+        ),
+        ("publicationCount", collection_publication_count_field),
+    ] {
+        registrations.push(FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "Collection",
+            field,
+            handler,
+        ));
+    }
+    for field in [
+        "category",
+        "combinedListing",
+        "combinedListingRole",
+        "createdAt",
+        "descriptionHtml",
+        "giftCardTemplateSuffix",
+        "handle",
+        "hasOnlyDefaultVariant",
+        "hasOutOfStockVariants",
+        "id",
+        "isGiftCard",
+        "legacyResourceId",
+        "onlineStorePreviewUrl",
+        "options",
+        "productType",
+        "requiresSellingPlan",
+        "seo",
+        "status",
+        "tags",
+        "templateSuffix",
+        "title",
+        "totalInventory",
+        "totalVariants",
+        "tracksInventory",
+        "updatedAt",
+        "vendor",
+    ] {
+        registrations.push(FieldResolverRegistration::property(
+            ApiSurface::Admin,
+            "Product",
+            field,
+        ));
+    }
+    for field in ["channelId", "country", "id", "language", "status"] {
+        registrations.push(FieldResolverRegistration::property(
+            ApiSurface::Admin,
+            "ProductFeed",
+            field,
+        ));
+    }
+    for (field, handler) in [
+        (
+            "compareAtPriceRange",
+            product_compare_at_price_range_field as crate::resolver_registry::FieldResolverHandler,
+        ),
+        ("collections", product_collections_field),
+        ("featuredImage", product_featured_image_field),
+        ("featuredMedia", product_featured_media_field),
+        ("images", product_images_field),
+        ("media", product_media_field),
+        ("metafield", product_metafield_field),
+        ("metafields", product_metafields_field),
+        (
+            "availablePublicationsCount",
+            product_publication_count_field,
+        ),
+        ("publications", product_publication_connection_field),
+        ("productPublications", product_publication_connection_field),
+        ("publishedAt", product_published_at_field),
+        (
+            "publishedOnCurrentPublication",
+            product_published_on_current_publication_field,
+        ),
+        (
+            "publishedOnPublication",
+            product_published_on_publication_field,
+        ),
+        (
+            "resourcePublicationOnCurrentPublication",
+            product_resource_publication_on_current_publication_field,
+        ),
+        ("resourcePublications", product_publication_connection_field),
+        ("resourcePublicationsCount", product_publication_count_field),
+        (
+            "resourcePublicationsV2",
+            product_publication_connection_field,
+        ),
+        ("sellingPlanGroups", product_selling_plan_groups_field),
+        (
+            "sellingPlanGroupsCount",
+            product_selling_plan_groups_count_field,
+        ),
+        ("priceRange", product_price_range_field),
+        ("priceRangeV2", product_price_range_v2_field),
+        ("variants", product_variants_field),
+        ("variantsCount", product_variants_count_field),
+    ] {
+        let registration =
+            FieldResolverRegistration::explicit(ApiSurface::Admin, "Product", field, handler);
+        registrations.push(registration);
+    }
+    registrations.extend([
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "Metafield",
+            "reference",
+            metafield_reference_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "Metafield",
+            "references",
+            metafield_references_field,
+        ),
+    ]);
+    for field in [
+        "compareDigest",
+        "createdAt",
+        "definition",
+        "id",
+        "jsonValue",
+        "key",
+        "namespace",
+        "owner",
+        "ownerType",
+        "type",
+        "updatedAt",
+        "value",
+    ] {
+        registrations.push(FieldResolverRegistration::property(
+            ApiSurface::Admin,
+            "Metafield",
+            field,
+        ));
+    }
+    for field in [
+        "availableForSale",
+        "barcode",
+        "compareAtPrice",
+        "defaultCursor",
+        "id",
+        "inventoryPolicy",
+        "inventoryQuantity",
+        "legacyResourceId",
+        "position",
+        "price",
+        "productVariantComponents",
+        "requiresComponents",
+        "selectedOptions",
+        "sellableOnlineQuantity",
+        "sku",
+        "taxable",
+        "title",
+    ] {
+        registrations.push(FieldResolverRegistration::property(
+            ApiSurface::Admin,
+            "ProductVariant",
+            field,
+        ));
+    }
+    for (field, handler) in [
+        (
+            "inventoryItem",
+            product_variant_inventory_item_field as crate::resolver_registry::FieldResolverHandler,
+        ),
+        ("media", product_variant_media_field),
+        ("metafield", product_variant_metafield_field),
+        ("metafields", product_variant_metafields_field),
+        ("product", product_variant_product_field),
+        (
+            "publishedOnCurrentPublication",
+            product_variant_published_on_current_publication_field,
+        ),
+        (
+            "publishedOnPublication",
+            product_variant_published_on_publication_field,
+        ),
+        (
+            "sellingPlanGroups",
+            product_variant_selling_plan_groups_field,
+        ),
+        (
+            "sellingPlanGroupsCount",
+            product_variant_selling_plan_groups_count_field,
+        ),
+    ] {
+        registrations.push(FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "ProductVariant",
+            field,
+            handler,
+        ));
+    }
+    registrations
+}
+
 fn catalog_search_predicate_requires_full_catalog(predicate: &str) -> bool {
     let predicate = predicate.to_ascii_lowercase();
     predicate.contains("inventory_total:")
@@ -34,7 +800,10 @@ impl DraftProxy {
         })
     }
 
-    fn product_read_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
+    pub(in crate::proxy) fn product_read_needs_upstream(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
         if Self::product_query_needs_upstream_catalog_search(fields) {
             return true;
         }
@@ -71,454 +840,955 @@ impl DraftProxy {
         }
         false
     }
-
-    fn inventory_read_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
-        if self.config.read_mode != ReadMode::LiveHybrid {
-            return false;
-        }
-        fields
-            .iter()
-            .any(|field| self.live_hybrid_inventory_field_needs_upstream(field))
-    }
-
-    fn live_hybrid_inventory_field_needs_upstream(&self, field: &RootFieldSelection) -> bool {
-        match field.name.as_str() {
-            "inventoryTransfers" => !self.store.has_base_inventory_transfer_state(),
-            "inventoryTransfer" => {
-                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                id.is_empty()
-                    || (self.store.inventory_transfer_by_id(&id).is_none()
-                        && !self.store.staged.inventory_transfers.is_tombstoned(&id))
-            }
-            _ => false,
-        }
-    }
-
-    pub(in crate::proxy) fn products_query_response(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_field: &str,
-    ) -> Response {
-        if self.should_route_owner_metafields_read(query, variables) {
-            return self.owner_metafields_read(request, query, variables);
-        }
-        match root_field {
-            "product"
-            | "products"
-            | "productsCount"
-            | "productByIdentifier"
-            | "productOperation"
-            | "productFeed"
-            | "productFeeds"
-            | "productVariant" => {
-                let fields = self
-                    .execution_root_fields(query, variables)
-                    .unwrap_or_default();
-                if self.product_read_needs_upstream(&fields) {
-                    (self.upstream_transport)(request.clone())
-                } else if self.has_product_overlay_state()
-                    || self.config.read_mode == ReadMode::Snapshot
-                {
-                    if product_root_fields_select_shop_currency_money(&fields) {
-                        self.hydrate_shop_pricing_state_if_missing(request, true, false);
-                    }
-                    // An overlay read reproduces staged inventory levels but not the
-                    // opaque pagination cursors Shopify assigns each level edge: the
-                    // node-hydrate warm path selects `inventoryLevels { nodes }`, never
-                    // `edges { cursor }`, so cursors are never observed. When the client
-                    // selects level edge/pageInfo cursors and none have been observed,
-                    // forward this exact read upstream once and observe the real cursors
-                    // before serving, so the overlay read can fill them in for real
-                    // instead of relying on seeded cursor state.
-                    self.hydrate_inventory_level_cursors_for_read(request, query);
-                    let api_client_id = request_app_namespace_api_client_id(request);
-                    ok_json(json!({
-                        "data": self.product_overlay_read_data(&fields, api_client_id.as_deref())
-                    }))
-                } else {
-                    (self.upstream_transport)(request.clone())
-                }
-            }
-            "inventoryItem"
-            | "inventoryItems"
-            | "inventoryLevel"
-            | "inventoryProperties"
-            | "inventoryTransfer"
-            | "inventoryTransfers"
-            | "inventoryShipment" => {
-                let fields = match self.root_fields_or_error(query, variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
-                let had_inventory_transfer_state = self.store.has_inventory_transfer_state();
-                if self.inventory_read_needs_upstream(&fields) {
-                    let response = (self.upstream_transport)(request.clone());
-                    if response.status < 400 {
-                        self.observe_inventory_transfer_read_response(&response.body);
-                    }
-                    if !had_inventory_transfer_state {
-                        return response;
-                    }
-                }
-                ok_json(json!({ "data": self.inventory_query_data(&fields, variables) }))
-            }
-            "sellingPlanGroup" | "sellingPlanGroups" => {
-                let fields = match self.root_fields_or_error(query, variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
-                self.hydrate_selling_plan_groups_for_read(request, &fields);
-                if product_root_fields_select_shop_currency_money(&fields) {
-                    self.hydrate_shop_pricing_state_if_missing(request, true, false);
-                }
-                ok_json(json!({ "data": self.selling_plan_group_query_data(&fields) }))
-            }
-            "collections" | "collectionsCount" => {
-                let fields = match self.root_fields_or_error(query, variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
-                let mut upstream_data = None;
-                if self.config.read_mode == ReadMode::LiveHybrid
-                    && self.store.has_collection_state()
-                {
-                    upstream_data = self.hydrate_collections_for_read(request, &fields);
-                }
-                if self.store.has_collection_state() {
-                    ok_json(json!({
-                        "data": self.collection_membership_downstream_read_data_with_upstream(
-                            &fields,
-                            upstream_data.as_ref(),
-                        )
-                    }))
-                } else {
-                    (self.upstream_transport)(request.clone())
-                }
-            }
-            "collectionByIdentifier" | "collectionByHandle" => {
-                let fields = match self.root_fields_or_error(query, variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
-                if self.collection_identifier_read_needs_upstream(&fields) {
-                    let response = (self.upstream_transport)(request.clone());
-                    if response.status < 400 {
-                        self.observe_collections_read_response(&response);
-                    }
-                    response
-                } else {
-                    ok_json(
-                        json!({ "data": self.collection_membership_downstream_read_data(&fields) }),
-                    )
-                }
-            }
-            "publication"
-            | "channel"
-            | "channels"
-            | "publicationsCount"
-            | "publishedProductsCount" => {
-                // Only a scenario that seeded publications is served locally; the
-                // whole multi-root publication read (publication/channel/channels/
-                // counts plus any product/collection publication fields) is
-                // rendered from local state. Otherwise these roots forward upstream
-                // as before.
-                if !self.publication_engine_active() {
-                    (self.upstream_transport)(request.clone())
-                } else {
-                    let fields = match self.root_fields_or_error(query, variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
-                    ok_json(json!({ "data": self.publication_roots_read_data(&fields) }))
-                }
-            }
-            _ => unimplemented_root_response("overlay-read", root_field),
-        }
-    }
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_products_graphql(
+    pub(crate) fn products_count_outcome(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
-            request,
-            query,
-            variables,
-            operation,
-            root_name: root_field,
-            mode,
-        } = context;
-        match mode {
-            LocalResolverMode::OverlayRead if operation.operation_type == OperationType::Query => {
-                self.products_query_response(request, query, variables, root_field)
-            }
-            LocalResolverMode::StageLocally
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "publicationCreate"
-                            | "publicationUpdate"
-                            | "publicationDelete"
-                            | "productFeedCreate"
-                            | "productFeedDelete"
-                            | "productFullSync"
-                            | "combinedListingUpdate"
-                            | "productVariantRelationshipBulkUpdate"
-                            | "bulkProductResourceFeedbackCreate"
-                            | "shopResourceFeedbackCreate"
-                    ) =>
-            {
-                self.products_mutation_tail_helper_response(
-                    request,
-                    query,
-                    variables,
-                    operation.operation_type,
-                    &operation.root_fields,
-                )
-                .unwrap_or_else(|| unimplemented_root_response("products", root_field))
-            }
-            LocalResolverMode::StageLocally if root_field == "productCreate" => {
-                let outcome = self.product_create(request, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            LocalResolverMode::StageLocally if root_field == "productUpdate" => {
-                let outcome = self.product_update(request, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            LocalResolverMode::StageLocally if root_field == "productDelete" => {
-                let outcome = self.product_delete(request, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            LocalResolverMode::StageLocally if root_field == "productSet" => {
-                let outcome = self.product_set(request, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            LocalResolverMode::StageLocally if root_field == "productDuplicate" => {
-                let outcome = self.product_duplicate(request, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            LocalResolverMode::StageLocally
-                if matches!(root_field, "productBundleCreate" | "productBundleUpdate") =>
-            {
-                let outcome = self.product_bundle_mutation(root_field, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            LocalResolverMode::StageLocally
-                if matches!(root_field, "productPublish" | "productUnpublish") =>
-            {
-                let outcome =
-                    self.product_publication_mutation(root_field, query, variables, request);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            LocalResolverMode::StageLocally if root_field == "productChangeStatus" => {
-                let outcome = self.product_change_status(request, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            LocalResolverMode::StageLocally
-                if matches!(
-                    root_field,
-                    "productCreateMedia"
-                        | "productUpdateMedia"
-                        | "productDeleteMedia"
-                        | "productReorderMedia"
-                ) =>
-            {
-                // Media staging is store-backed: in Snapshot mode (unit tests) no
-                // upstream product has been observed, so there is nothing to stage
-                // media onto. Fail closed exactly like an unrouted mutation rather
-                // than fabricate a baked media payload from empty local state.
-                if self.config.read_mode == ReadMode::Snapshot {
-                    self.dispatch_unknown_passthrough_or_legacy_error(
-                        request,
-                        query,
-                        variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    )
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        if self.config.read_mode != ReadMode::Snapshot {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        let arguments = invocation
+            .arguments
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+            .collect::<BTreeMap<_, _>>();
+        let count = if arguments.contains_key("query") {
+            staged_connection_query(
+                self.store.products(),
+                &arguments,
+                |product, query| self.product_search_decision(product, query),
+                product_staged_sort_key,
+                |product| product_cursor(product).to_string(),
+            )
+            .total_count
+        } else {
+            self.store.product_count()
+        };
+        ResolverOutcome::value(count_object(count))
+    }
+
+    pub(crate) fn products_root_outcome(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        if self.config.read_mode != ReadMode::Snapshot {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        let arguments = invocation
+            .arguments
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+            .collect::<BTreeMap<_, _>>();
+        ResolverOutcome::value(staged_connection_value_with_args(
+            self.store.products(),
+            &arguments,
+            |product, query| self.product_search_decision(product, query),
+            product_staged_sort_key,
+            |product| self.product_canonical_value(product),
+            |product| product_cursor(product).to_string(),
+        ))
+    }
+
+    pub(crate) fn product_by_identifier_root_outcome(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let identifier = invocation
+            .arguments
+            .get("identifier")
+            .and_then(Value::as_object);
+        let id = identifier
+            .and_then(|identifier| identifier.get("id"))
+            .and_then(Value::as_str);
+        let handle = identifier
+            .and_then(|identifier| identifier.get("handle"))
+            .and_then(Value::as_str);
+        let product = id
+            .and_then(|id| self.store.product_by_id(id))
+            .or_else(|| handle.and_then(|handle| self.store.product_by_handle(handle)));
+        let has_local_answer =
+            product.is_some() || id.is_some_and(|id| self.store.product_is_tombstoned(id));
+        if self.config.read_mode == ReadMode::Live
+            || (self.config.read_mode == ReadMode::LiveHybrid && !has_local_answer)
+        {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        ResolverOutcome::value(
+            product
+                .map(|product| self.product_canonical_value(product))
+                .unwrap_or(Value::Null),
+        )
+    }
+
+    pub(crate) fn product_variant_root_outcome(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let id = invocation
+            .arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let owner_metafield_catalog_active = self
+            .store
+            .staged
+            .owner_metafields
+            .keys()
+            .any(|owner_id| shopify_gid_resource_type(owner_id) == Some("ProductVariant"));
+        let owner_read_fallback = owner_metafield_catalog_active
+            && self.execution_session.owner_metafield_read_ids.contains(id);
+        let owner_known_missing = self
+            .execution_session
+            .owner_metafield_missing_ids
+            .contains(id);
+        let has_local_answer = self.store.product_variant_by_id(id).is_some()
+            || self.store.product_variants.staged.is_tombstoned(id)
+            || self.owner_has_metafield_local_effects(id)
+            || owner_read_fallback
+            || owner_known_missing
+            || self
+                .execution_session
+                .owner_metafield_hydrated_ids
+                .contains(id);
+        if self.config.read_mode == ReadMode::Live
+            || (self.config.read_mode == ReadMode::LiveHybrid && !has_local_answer)
+        {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        let value = if self.store.product_variants.staged.is_tombstoned(id) || owner_known_missing {
+            Value::Null
+        } else {
+            self.store
+                .product_variant_by_id(id)
+                .map(|variant| self.product_variant_canonical_value(variant))
+                .or_else(|| {
+                    (self.owner_has_metafield_local_effects(id)
+                        || (self.config.read_mode == ReadMode::Snapshot
+                            && owner_metafield_catalog_active)
+                        || owner_read_fallback)
+                        .then(|| json!({ "id": id }))
+                })
+                .unwrap_or(Value::Null)
+        };
+        ResolverOutcome::value(value)
+    }
+
+    pub(crate) fn product_root_outcome(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let id = invocation
+            .arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let owner_metafield_catalog_active = self
+            .store
+            .staged
+            .owner_metafields
+            .keys()
+            .any(|owner_id| shopify_gid_resource_type(owner_id) == Some("Product"));
+        let owner_read_fallback = owner_metafield_catalog_active
+            && self.execution_session.owner_metafield_read_ids.contains(id);
+        let owner_known_missing = self
+            .execution_session
+            .owner_metafield_missing_ids
+            .contains(id);
+        let has_local_answer = self.store.has_product(id)
+            || self.store.product_is_tombstoned(id)
+            || self.owner_has_metafield_local_effects(id)
+            || owner_read_fallback
+            || owner_known_missing
+            || self
+                .execution_session
+                .owner_metafield_hydrated_ids
+                .contains(id);
+        if self.config.read_mode == ReadMode::Live
+            || (self.config.read_mode == ReadMode::LiveHybrid && !has_local_answer)
+        {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        let value = if self.store.product_is_tombstoned(id) || owner_known_missing {
+            Value::Null
+        } else {
+            self.store
+                .product_by_id(id)
+                .map(|product| self.product_canonical_value(product))
+                .or_else(|| {
+                    (self.owner_has_metafield_local_effects(id)
+                        || (self.config.read_mode == ReadMode::Snapshot
+                            && owner_metafield_catalog_active)
+                        || owner_read_fallback)
+                        .then(|| json!({ "id": id }))
+                })
+                .unwrap_or(Value::Null)
+        };
+        ResolverOutcome::value(value)
+    }
+
+    pub(in crate::proxy) fn product_canonical_value(&self, product: &ProductRecord) -> Value {
+        let variants = self.store.product_variants_for_product(&product.id);
+        let mut object = product
+            .extra_fields
+            .clone()
+            .into_iter()
+            .collect::<serde_json::Map<_, _>>();
+        object.extend([
+            ("__typename".to_string(), json!("Product")),
+            ("id".to_string(), json!(product.id)),
+            ("title".to_string(), json!(product.title)),
+            ("handle".to_string(), json!(product.handle)),
+            ("status".to_string(), json!(product.status)),
+            ("createdAt".to_string(), json!(product.created_at)),
+            ("updatedAt".to_string(), json!(product.updated_at)),
+            (
+                "descriptionHtml".to_string(),
+                json!(product.description_html),
+            ),
+            ("vendor".to_string(), json!(product.vendor)),
+            ("productType".to_string(), json!(product.product_type)),
+            ("tags".to_string(), json!(product.tags)),
+            (
+                "legacyResourceId".to_string(),
+                json!(resource_id_tail(&product.id)),
+            ),
+            ("totalInventory".to_string(), json!(product.total_inventory)),
+            (
+                "tracksInventory".to_string(),
+                if variants.is_empty() {
+                    json!(product.tracks_inventory)
                 } else {
-                    match self.execution_root_fields(query, variables) {
-                        Some(fields) => match self.product_media_mutation_data(request, &fields) {
-                            Some(data) => {
-                                self.record_mutation_log_entry(
-                                    request,
-                                    query,
-                                    variables,
-                                    root_field,
-                                    Vec::new(),
-                                );
-                                ok_json(json!({ "data": data }))
-                            }
-                            // Error scenarios (e.g. unstaged live products) fall
-                            // through to the real upstream rather than a 501.
-                            None => (self.upstream_transport)(request.clone()),
-                        },
-                        None => (self.upstream_transport)(request.clone()),
-                    }
-                }
-            }
-            LocalResolverMode::StageLocally
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "productVariantAppendMedia" | "productVariantDetachMedia"
-                    ) =>
-            {
-                // Variant media attach/detach is store-backed against the owning
-                // product's staged variants. Snapshot mode has nothing staged, so
-                // fail closed; LiveHybrid stages through the variant mutation path.
-                if self.config.read_mode == ReadMode::Snapshot {
-                    self.dispatch_unknown_passthrough_or_legacy_error(
-                        request,
-                        query,
-                        variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    )
+                    json!(variants
+                        .iter()
+                        .any(|variant| variant.inventory_item.tracked))
+                },
+            ),
+            (
+                "hasOnlyDefaultVariant".to_string(),
+                if variants.is_empty() {
+                    product
+                        .extra_fields
+                        .get("hasOnlyDefaultVariant")
+                        .cloned()
+                        .unwrap_or(Value::Bool(true))
                 } else {
-                    let outcome =
-                        self.product_variant_mutation(request, root_field, query, variables);
-                    self.finalize_mutation_outcome(request, query, variables, outcome)
-                }
-            }
-            LocalResolverMode::StageLocally
-                if matches!(
-                    root_field,
-                    "collectionCreate"
-                        | "collectionUpdate"
-                        | "collectionDelete"
-                        | "collectionAddProducts"
-                        | "collectionAddProductsV2"
-                        | "collectionRemoveProducts"
-                        | "collectionReorderProducts"
-                ) =>
-            {
-                let outcome = self.collection_mutation(request, root_field, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            LocalResolverMode::StageLocally
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "productVariantsBulkCreate"
-                            | "productVariantsBulkUpdate"
-                            | "productVariantsBulkDelete"
-                            | "productVariantsBulkReorder"
-                    ) =>
-            {
-                let outcome = self.product_variant_mutation(request, root_field, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            LocalResolverMode::StageLocally
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "sellingPlanGroupCreate"
-                            | "sellingPlanGroupUpdate"
-                            | "sellingPlanGroupDelete"
-                            | "sellingPlanGroupAddProducts"
-                            | "sellingPlanGroupRemoveProducts"
-                            | "sellingPlanGroupAddProductVariants"
-                            | "sellingPlanGroupRemoveProductVariants"
-                            | "productJoinSellingPlanGroups"
-                            | "productLeaveSellingPlanGroups"
-                            | "productVariantJoinSellingPlanGroups"
-                            | "productVariantLeaveSellingPlanGroups"
-                    ) =>
-            {
-                self.hydrate_selling_plan_mutation_targets(request, root_field, query, variables);
-                let outcome = self.selling_plan_group_mutation(root_field, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            LocalResolverMode::StageLocally
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "productOptionsCreate"
-                            | "productOptionUpdate"
-                            | "productOptionsDelete"
-                            | "productOptionsReorder"
-                    ) =>
-            {
-                let outcome = self.product_option_mutation(root_field, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            LocalResolverMode::StageLocally if matches!(root_field, "tagsAdd" | "tagsRemove") => {
-                let outcome = self.product_tags_mutation(root_field, query, variables, request);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            LocalResolverMode::StageLocally
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "metafieldsSet" =>
-            {
-                let arguments = self
-                    .execution_root_field(query, variables, root_field)
-                    .map(|field| field.arguments)
-                    .unwrap_or_default();
-                match metafields_set_coercion_error(query, variables, &arguments) {
-                    Some(response) => response,
-                    None => {
-                        let outcome = self.owner_metafields_set(request, query, variables);
-                        self.finalize_mutation_outcome(request, query, variables, outcome)
-                    }
-                }
-            }
-            LocalResolverMode::StageLocally
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "metafieldsDelete" =>
-            {
-                let outcome = self.owner_metafields_delete(request, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            LocalResolverMode::StageLocally
-                if operation.operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "inventoryAdjustQuantities"
-                            | "inventorySetQuantities"
-                            | "inventorySetOnHandQuantities"
-                            | "inventoryMoveQuantities"
-                            | "inventoryActivate"
-                            | "inventoryDeactivate"
-                            | "inventoryBulkToggleActivation"
-                            | "inventoryItemUpdate"
-                            | "inventoryTransferCreate"
-                            | "inventoryTransferCreateAsReadyToShip"
-                            | "inventoryTransferMarkAsReadyToShip"
-                            | "inventoryTransferEdit"
-                            | "inventoryTransferSetItems"
-                            | "inventoryTransferRemoveItems"
-                            | "inventoryTransferDuplicate"
-                            | "inventoryTransferCancel"
-                            | "inventoryTransferDelete"
-                            | "inventoryShipmentCreate"
-                            | "inventoryShipmentCreateInTransit"
-                            | "inventoryShipmentAddItems"
-                            | "inventoryShipmentRemoveItems"
-                            | "inventoryShipmentUpdateItemQuantities"
-                            | "inventoryShipmentSetTracking"
-                            | "inventoryShipmentMarkInTransit"
-                            | "inventoryShipmentReceive"
-                            | "inventoryShipmentDelete"
-                    ) =>
-            {
-                let fields = match self.root_fields_or_error(query, variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
-                let outcome = self.inventory_mutation_data(request, &fields);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            LocalResolverMode::OverlayRead | LocalResolverMode::StageLocally => {
-                Self::unimplemented_resolver_response(mode, root_field)
-            }
+                    json!(product_has_only_default_variant(&variants))
+                },
+            ),
+            (
+                "hasOutOfStockVariants".to_string(),
+                if variants.is_empty() {
+                    product
+                        .extra_fields
+                        .get("hasOutOfStockVariants")
+                        .cloned()
+                        .unwrap_or(Value::Bool(false))
+                } else {
+                    json!(product_has_out_of_stock_variants(&variants))
+                },
+            ),
+            (
+                "totalVariants".to_string(),
+                if variants.is_empty() {
+                    product
+                        .extra_fields
+                        .get("totalVariants")
+                        .cloned()
+                        .unwrap_or_else(|| json!(product.variants.len()))
+                } else {
+                    json!(variants.len())
+                },
+            ),
+            (
+                "templateSuffix".to_string(),
+                if product.template_suffix.is_empty() {
+                    Value::Null
+                } else {
+                    json!(product.template_suffix)
+                },
+            ),
+            (
+                "seo".to_string(),
+                product.extra_fields.get("seo").cloned().unwrap_or_else(|| {
+                    json!({
+                        "title": product.seo_title,
+                        "description": product.seo_description,
+                    })
+                }),
+            ),
+            (
+                "onlineStorePreviewUrl".to_string(),
+                product
+                    .extra_fields
+                    .get("onlineStorePreviewUrl")
+                    .cloned()
+                    .unwrap_or(Value::Null),
+            ),
+            (
+                "category".to_string(),
+                product
+                    .extra_fields
+                    .get("category")
+                    .cloned()
+                    .unwrap_or(Value::Null),
+            ),
+            (
+                "requiresSellingPlan".to_string(),
+                product
+                    .extra_fields
+                    .get("requiresSellingPlan")
+                    .cloned()
+                    .unwrap_or(Value::Bool(false)),
+            ),
+            (
+                "isGiftCard".to_string(),
+                product
+                    .extra_fields
+                    .get("isGiftCard")
+                    .cloned()
+                    .unwrap_or(Value::Bool(false)),
+            ),
+            (
+                "giftCardTemplateSuffix".to_string(),
+                product
+                    .extra_fields
+                    .get("giftCardTemplateSuffix")
+                    .cloned()
+                    .unwrap_or(Value::Null),
+            ),
+            (
+                "options".to_string(),
+                product
+                    .extra_fields
+                    .get("options")
+                    .cloned()
+                    .unwrap_or_else(|| Value::Array(Vec::new())),
+            ),
+        ]);
+        Value::Object(object)
+    }
+
+    pub(in crate::proxy) fn product_variant_canonical_value(
+        &self,
+        variant: &ProductVariantRecord,
+    ) -> Value {
+        let variant = self.variant_with_inventory_levels(variant);
+        let mut value = product_variant_state_json(&variant);
+        value["__typename"] = json!("ProductVariant");
+        value["legacyResourceId"] = json!(resource_id_tail(&variant.id));
+        value["defaultCursor"] = json!(variant.id);
+        value["availableForSale"] =
+            json!(!variant.inventory_item.tracked || variant.inventory_quantity > 0);
+        value["sellableOnlineQuantity"] = json!(variant.inventory_quantity.max(0));
+        value
+    }
+}
+
+fn product_field_arguments(
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> BTreeMap<String, ResolvedValue> {
+    invocation
+        .arguments
+        .iter()
+        .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+        .collect()
+}
+
+fn combined_listing_children_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(connection_value_with_args(
+        invocation
+            .parent
+            .get("combinedListingChildren")
+            .map(connection_nodes)
+            .unwrap_or_default(),
+        &product_field_arguments(invocation),
+        |child| {
+            child
+                .pointer("/product/id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        },
+    ))
+}
+
+fn product_field_record(
+    proxy: &DraftProxy,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Option<ProductRecord> {
+    let id = invocation.parent.get("id").and_then(Value::as_str)?;
+    proxy.store.product_by_id(id).cloned()
+}
+
+fn product_price_range_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    product_price_range_resolver_value(proxy, request, invocation, ProductPriceRangeKind::Legacy)
+}
+
+fn product_price_range_v2_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    product_price_range_resolver_value(proxy, request, invocation, ProductPriceRangeKind::Current)
+}
+
+fn product_price_range_resolver_value(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+    kind: ProductPriceRangeKind,
+) -> Result<Value, String> {
+    proxy.hydrate_shop_pricing_state_if_missing(request, true, false);
+    let Some(product) = product_field_record(proxy, invocation) else {
+        return Ok(Value::Null);
+    };
+    let variants = proxy.store.product_variants_for_product(&product.id);
+    Ok(product_price_range_value(
+        &product,
+        &variants,
+        &proxy.store.shop_currency_code(),
+        kind,
+    ))
+}
+
+fn product_compare_at_price_range_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    proxy.hydrate_shop_pricing_state_if_missing(request, true, false);
+    let Some(product) = product_field_record(proxy, invocation) else {
+        return Ok(Value::Null);
+    };
+    let variants = proxy.store.product_variants_for_product(&product.id);
+    Ok(product_compare_at_price_range_value(
+        &product,
+        &variants,
+        &proxy.store.shop_currency_code(),
+    ))
+}
+
+fn product_variants_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(product) = product_field_record(proxy, invocation) else {
+        return Ok(Value::Null);
+    };
+    let variants = proxy.store.product_variants_for_product(&product.id);
+    Ok(product_variants_count_value(&product, &variants))
+}
+
+fn product_variants_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(product) = product_field_record(proxy, invocation) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    let variants = proxy.store.product_variants_for_product(&product.id);
+    Ok(product_variant_connection_with_fallback_value(
+        &variants,
+        &product.variants,
+        &product_field_arguments(invocation),
+    ))
+}
+
+fn product_collections_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(product) = product_field_record(proxy, invocation) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    Ok(product_collections_connection_value(
+        &product,
+        &product_field_arguments(invocation),
+    ))
+}
+
+fn product_media_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    // Mutation payloads may intentionally expose a point-in-time media view
+    // (for example productCreateMedia returns UPLOADED before the next read
+    // promotes the stored asset to READY). The explicit resolver owns that
+    // distinction; the generic field runtime never falls back to a materialized
+    // property implicitly.
+    if let Some(media) = invocation.parent.get("media") {
+        return Ok(connection_value_with_args(
+            connection_nodes(media),
+            &product_field_arguments(invocation),
+            value_id_cursor,
+        ));
+    }
+    proxy.promote_all_product_media_ready_on_read();
+    let Some(product) = product_field_record(proxy, invocation) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    Ok(product_media_connection_value(
+        product.media,
+        &product_field_arguments(invocation),
+    ))
+}
+
+fn product_images_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    proxy.promote_all_product_media_ready_on_read();
+    let Some(product) = product_field_record(proxy, invocation) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    Ok(product_image_connection_value(
+        product.media,
+        &product_field_arguments(invocation),
+    ))
+}
+
+fn product_featured_image_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    proxy.promote_all_product_media_ready_on_read();
+    Ok(product_field_record(proxy, invocation)
+        .and_then(|product| product.media.iter().find_map(product_image_json_from_media))
+        .unwrap_or(Value::Null))
+}
+
+fn product_featured_media_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    proxy.promote_all_product_media_ready_on_read();
+    Ok(product_field_record(proxy, invocation)
+        .and_then(|product| product.media.first().cloned())
+        .unwrap_or(Value::Null))
+}
+
+fn product_metafield_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    if invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .is_none()
+    {
+        return Ok(Value::Null);
+    }
+    let arguments = product_field_arguments(invocation);
+    let api_client_id = request_app_namespace_api_client_id(request);
+    Ok(proxy.canonical_embedded_or_owner_metafield_value(
+        invocation.parent,
+        &arguments,
+        api_client_id.as_deref(),
+    ))
+}
+
+fn product_metafields_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    if invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .is_none()
+    {
+        return Ok(connection_json(Vec::new()));
+    }
+    let arguments = product_field_arguments(invocation);
+    let api_client_id = request_app_namespace_api_client_id(request);
+    Ok(
+        proxy.canonical_embedded_or_owner_metafields_connection_value(
+            invocation.parent,
+            &arguments,
+            api_client_id.as_deref(),
+        ),
+    )
+}
+
+fn product_variant_record(
+    proxy: &DraftProxy,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Option<ProductVariantRecord> {
+    let id = invocation.parent.get("id").and_then(Value::as_str)?;
+    proxy.store.product_variant_by_id(id).cloned()
+}
+
+fn product_variant_inventory_item_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(product_variant_record(proxy, invocation)
+        .map(|variant| {
+            let variant = proxy.variant_with_inventory_levels(&variant);
+            product_variant_state_json(&variant)["inventoryItem"].clone()
+        })
+        .unwrap_or(Value::Null))
+}
+
+fn product_variant_product_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(product_variant_record(proxy, invocation)
+        .and_then(|variant| {
+            proxy
+                .store
+                .product_by_id(&variant.product_id)
+                .map(|product| proxy.product_canonical_value(product))
+        })
+        // Relationship parents learned through another domain (for example a
+        // PriceListPrice variant) can carry a canonical embedded product before
+        // the product aggregate itself has been hydrated. Preserve that observed
+        // relationship instead of replacing it with null merely because the
+        // typed product store is cold.
+        .or_else(|| invocation.parent.get("product").cloned())
+        .unwrap_or(Value::Null))
+}
+
+fn product_variant_media_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(variant) = product_variant_record(proxy, invocation) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    let media =
+        variant_attached_media_nodes(&variant, proxy.store.product_by_id(&variant.product_id));
+    Ok(product_media_connection_value(
+        media,
+        &product_field_arguments(invocation),
+    ))
+}
+
+fn product_variant_metafield_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    if invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .is_none()
+    {
+        return Ok(Value::Null);
+    }
+    let arguments = product_field_arguments(invocation);
+    let api_client_id = request_app_namespace_api_client_id(request);
+    Ok(proxy.canonical_embedded_or_owner_metafield_value(
+        invocation.parent,
+        &arguments,
+        api_client_id.as_deref(),
+    ))
+}
+
+fn product_variant_metafields_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    if invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .is_none()
+    {
+        return Ok(connection_json(Vec::new()));
+    }
+    let arguments = product_field_arguments(invocation);
+    let api_client_id = request_app_namespace_api_client_id(request);
+    Ok(
+        proxy.canonical_embedded_or_owner_metafields_connection_value(
+            invocation.parent,
+            &arguments,
+            api_client_id.as_deref(),
+        ),
+    )
+}
+
+fn product_variant_published_on_current_publication_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(product_variant_record(proxy, invocation)
+        .and_then(|variant| proxy.store.product_by_id(&variant.product_id))
+        .map(|product| {
+            Value::Bool(
+                proxy
+                    .store
+                    .product_is_published_on_current_publication(product),
+            )
+        })
+        .unwrap_or(Value::Bool(false)))
+}
+
+fn product_variant_published_on_publication_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let publication_id = invocation
+        .arguments
+        .get("publicationId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(product_variant_record(proxy, invocation)
+        .and_then(|variant| proxy.store.product_by_id(&variant.product_id))
+        .map(|product| Value::Bool(product_is_published_on_publication(product, publication_id)))
+        .unwrap_or(Value::Bool(false)))
+}
+
+fn product_variant_selling_plan_groups_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(variant) = product_variant_record(proxy, invocation) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    Ok(proxy.canonical_product_variant_selling_plan_groups_value(
+        &variant.id,
+        &variant.product_id,
+        &product_field_arguments(invocation),
+    ))
+}
+
+fn product_variant_selling_plan_groups_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(product_variant_record(proxy, invocation)
+        .map(|variant| proxy.canonical_product_variant_selling_plan_groups_count_value(&variant.id))
+        .unwrap_or_else(|| count_object(0)))
+}
+
+fn product_selling_plan_groups_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(product) = product_field_record(proxy, invocation) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    Ok(proxy.canonical_product_selling_plan_groups_value(
+        &product.id,
+        &product_field_arguments(invocation),
+    ))
+}
+
+fn product_selling_plan_groups_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(product_field_record(proxy, invocation)
+        .map(|product| proxy.canonical_product_selling_plan_groups_count_value(&product.id))
+        .unwrap_or_else(|| count_object(0)))
+}
+
+fn metafield_reference_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(proxy.canonical_metafield_reference_value(invocation.parent, Some(request)))
+}
+
+fn metafield_references_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(proxy.canonical_metafield_references_connection_value(
+        invocation.parent,
+        &product_field_arguments(invocation),
+        Some(request),
+    ))
+}
+
+fn product_published_at_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(product_field_record(proxy, invocation)
+        .and_then(|product| product.extra_fields.get("publishedAt").cloned())
+        .unwrap_or(Value::Null))
+}
+
+fn product_published_on_current_publication_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(product_field_record(proxy, invocation)
+        .map(|product| {
+            Value::Bool(
+                proxy
+                    .store
+                    .product_is_published_on_current_publication(&product),
+            )
+        })
+        .unwrap_or(Value::Bool(false)))
+}
+
+fn product_published_on_publication_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let publication_id = invocation
+        .arguments
+        .get("publicationId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(product_field_record(proxy, invocation)
+        .map(|product| {
+            Value::Bool(product_is_published_on_publication(
+                &product,
+                publication_id,
+            ))
+        })
+        .unwrap_or(Value::Bool(false)))
+}
+
+fn product_resource_publication_on_current_publication_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    _invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(Value::Null)
+}
+
+fn product_publication_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(product) = product_field_record(proxy, invocation) else {
+        return Ok(count_object(0));
+    };
+    Ok(product
+        .extra_fields
+        .get(&invocation.field_name)
+        .cloned()
+        .unwrap_or_else(|| count_object(product_visible_publication_entries(&product).len())))
+}
+
+pub(in crate::proxy) fn canonical_product_publication_node(
+    product: &ProductRecord,
+    entry: &ProductPublicationEntry,
+) -> Value {
+    json!({
+        "__typename": "ProductPublication",
+        "channel": Value::Null,
+        "isPublished": true,
+        "publishDate": product_publication_publish_date_json(entry),
+        "product": { "__typename": "Product", "id": product.id },
+    })
+}
+
+fn canonical_resource_publication_node(
+    product: &ProductRecord,
+    entry: &ProductPublicationEntry,
+    typename: &str,
+) -> Value {
+    json!({
+        "__typename": typename,
+        "channel": Value::Null,
+        "isPublished": true,
+        "publication": { "__typename": "Publication", "id": entry.publication_id },
+        "publishDate": product_publication_publish_date_json(entry),
+        "publishable": { "__typename": "Product", "id": product.id },
+    })
+}
+
+fn product_publication_connection_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(product) = product_field_record(proxy, invocation) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    if let Some(value) = product.extra_fields.get(&invocation.field_name) {
+        if matches!(
+            invocation.field_name.as_str(),
+            "publications" | "resourcePublicationsV2"
+        ) {
+            return Ok(value.clone());
         }
     }
+    let entries = product_visible_publication_entries(&product);
+    let nodes = entries
+        .iter()
+        .map(|entry| match invocation.field_name.as_str() {
+            "publications" | "productPublications" => {
+                canonical_product_publication_node(&product, entry)
+            }
+            "resourcePublications" => {
+                canonical_resource_publication_node(&product, entry, "ResourcePublication")
+            }
+            _ => canonical_resource_publication_node(&product, entry, "ResourcePublicationV2"),
+        })
+        .collect::<Vec<_>>();
+    Ok(connection_value_with_args(
+        nodes,
+        &product_field_arguments(invocation),
+        |node| {
+            node.pointer("/publication/id")
+                .or_else(|| node.pointer("/product/id"))
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        },
+    ))
 }
 
 const PRODUCT_STATUS_BASE_VALUES: &[&str] = &["ACTIVE", "ARCHIVED", "DRAFT"];
@@ -586,6 +1856,13 @@ struct ProductStatusInputContext<'a> {
     input_object_type: &'a str,
     field_name: &'a str,
     expected_type: &'a str,
+}
+
+pub(in crate::proxy) struct ProductStatusArgumentContext<'a> {
+    pub argument_name: &'a str,
+    pub container_type_name: &'a str,
+    pub container_name: &'a str,
+    pub expected_type: &'a str,
 }
 
 struct ProductStatusLiteralError<'a> {
@@ -675,6 +1952,7 @@ pub(in crate::proxy) fn product_publication_state_known(product: &ProductRecord)
     let resource_nodes = product
         .extra_fields
         .get("resourcePublicationsV2")
+        .or_else(|| product.extra_fields.get("resourcePublications"))
         .and_then(|connection| connection.get("nodes"))
         .and_then(Value::as_array);
     if resource_nodes.is_some_and(|nodes| !nodes.is_empty()) {
@@ -719,6 +1997,7 @@ pub(in crate::proxy) fn product_publication_entries(
     product
         .extra_fields
         .get("resourcePublicationsV2")
+        .or_else(|| product.extra_fields.get("resourcePublications"))
         .and_then(|connection| connection.get("nodes"))
         .and_then(Value::as_array)
         .into_iter()
@@ -794,100 +2073,14 @@ pub(in crate::proxy) fn product_is_published_on_publication(
         .any(|entry| entry.publication_id == publication_id)
 }
 
-fn product_visible_publication_entries(product: &ProductRecord) -> Vec<ProductPublicationEntry> {
+pub(in crate::proxy) fn product_visible_publication_entries(
+    product: &ProductRecord,
+) -> Vec<ProductPublicationEntry> {
     if product.status == "ACTIVE" {
         product_publication_entries(product)
     } else {
         Vec::new()
     }
-}
-
-fn publication_node_json(publication_id: &str, selections: &[SelectedField]) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("Publication")),
-        "id" => Some(json!(publication_id)),
-        _ => None,
-    })
-}
-
-fn publishable_node_json(
-    resource_id: &str,
-    resource_type: &str,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!(resource_type)),
-        "id" => Some(json!(resource_id)),
-        _ => None,
-    })
-}
-
-fn product_publication_connection_node_json(
-    product: &ProductRecord,
-    entry: &ProductPublicationEntry,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("ProductPublication")),
-        "channel" => Some(Value::Null),
-        "isPublished" => Some(json!(true)),
-        "publishDate" => Some(product_publication_publish_date_json(entry)),
-        "product" => Some(publishable_node_json(
-            &product.id,
-            "Product",
-            &selection.selection,
-        )),
-        _ => None,
-    })
-}
-
-fn resource_publication_connection_node_json(
-    product: &ProductRecord,
-    entry: &ProductPublicationEntry,
-    typename: &str,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!(typename)),
-        "channel" => Some(Value::Null),
-        "isPublished" => Some(json!(true)),
-        "publication" => Some(publication_node_json(
-            &entry.publication_id,
-            &selection.selection,
-        )),
-        "publishDate" => Some(product_publication_publish_date_json(entry)),
-        "publishable" => Some(publishable_node_json(
-            &product.id,
-            "Product",
-            &selection.selection,
-        )),
-        _ => None,
-    })
-}
-
-fn staged_resource_publication_connection_node_json(
-    resource_id: &str,
-    resource_type: &str,
-    entry: &ProductPublicationEntry,
-    typename: &str,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!(typename)),
-        "channel" => Some(Value::Null),
-        "isPublished" => Some(json!(true)),
-        "publication" => Some(publication_node_json(
-            &entry.publication_id,
-            &selection.selection,
-        )),
-        "publishDate" => Some(product_publication_publish_date_json(entry)),
-        "publishable" => Some(publishable_node_json(
-            resource_id,
-            resource_type,
-            &selection.selection,
-        )),
-        _ => None,
-    })
 }
 
 fn product_publication_publish_date_json(entry: &ProductPublicationEntry) -> Value {
@@ -897,144 +2090,6 @@ fn product_publication_publish_date_json(entry: &ProductPublicationEntry) -> Val
         .or(entry.published_at.as_ref())
         .map(|value| json!(value))
         .unwrap_or(Value::Null)
-}
-
-fn product_publication_connection_json(
-    product: &ProductRecord,
-    selections: &[SelectedField],
-) -> Value {
-    let entries = product_visible_publication_entries(product);
-    selected_typed_connection(
-        &entries,
-        selections,
-        |entry, selections| product_publication_connection_node_json(product, entry, selections),
-        |entry| entry.publication_id.clone(),
-        |selections| selected_json(&empty_page_info(), selections),
-    )
-}
-
-fn resource_publication_connection_json(
-    product: &ProductRecord,
-    typename: &str,
-    selections: &[SelectedField],
-) -> Value {
-    let entries = product_visible_publication_entries(product);
-    selected_typed_connection(
-        &entries,
-        selections,
-        |entry, selections| {
-            resource_publication_connection_node_json(product, entry, typename, selections)
-        },
-        |entry| entry.publication_id.clone(),
-        |selections| selected_json(&empty_page_info(), selections),
-    )
-}
-
-pub(in crate::proxy) fn staged_resource_publication_connection_json(
-    resource_id: &str,
-    resource_type: &str,
-    publication_ids: &BTreeSet<String>,
-    typename: &str,
-    selections: &[SelectedField],
-) -> Value {
-    let entries = publication_ids
-        .iter()
-        .map(|publication_id| ProductPublicationEntry {
-            publication_id: publication_id.clone(),
-            publish_date: None,
-            published_at: None,
-        })
-        .collect::<Vec<_>>();
-    selected_typed_connection(
-        &entries,
-        selections,
-        |entry, selections| {
-            staged_resource_publication_connection_node_json(
-                resource_id,
-                resource_type,
-                entry,
-                typename,
-                selections,
-            )
-        },
-        |entry| entry.publication_id.clone(),
-        |selections| selected_json(&empty_page_info(), selections),
-    )
-}
-
-pub(in crate::proxy) fn product_publication_field_json(
-    product: &ProductRecord,
-    selection: &SelectedField,
-    published_on_current_publication: Option<bool>,
-) -> Option<Value> {
-    match selection.name.as_str() {
-        "publishedAt" => Some(
-            product
-                .extra_fields
-                .get("publishedAt")
-                .cloned()
-                .unwrap_or(Value::Null),
-        ),
-        "publishedOnCurrentPublication" => Some(Value::Bool(
-            published_on_current_publication.unwrap_or(false),
-        )),
-        "publishedOnPublication" => {
-            let publication_id = selection
-                .arguments
-                .get("publicationId")
-                .and_then(resolved_value_string)
-                .unwrap_or_default();
-            Some(Value::Bool(product_is_published_on_publication(
-                product,
-                &publication_id,
-            )))
-        }
-        "availablePublicationsCount" | "resourcePublicationsCount" => product
-            .extra_fields
-            .get(&selection.name)
-            .cloned()
-            .map(|value| selected_json(&value, &selection.selection))
-            .or_else(|| {
-                Some(selected_count_json(
-                    product_visible_publication_entries(product).len(),
-                    &selection.selection,
-                ))
-            }),
-        "publications" => product
-            .extra_fields
-            .get("publications")
-            .cloned()
-            .map(|value| selected_json(&value, &selection.selection))
-            .or_else(|| {
-                Some(product_publication_connection_json(
-                    product,
-                    &selection.selection,
-                ))
-            }),
-        "productPublications" => Some(product_publication_connection_json(
-            product,
-            &selection.selection,
-        )),
-        "resourcePublications" => Some(resource_publication_connection_json(
-            product,
-            "ResourcePublication",
-            &selection.selection,
-        )),
-        "resourcePublicationsV2" => product
-            .extra_fields
-            .get("resourcePublicationsV2")
-            .cloned()
-            .map(|value| selected_json(&value, &selection.selection))
-            .or_else(|| {
-                Some(resource_publication_connection_json(
-                    product,
-                    "ResourcePublicationV2",
-                    &selection.selection,
-                ))
-            }),
-        "resourcePublicationOnCurrentPublication" => Some(Value::Null),
-        _ => None,
-    }
 }
 
 /// The canonical `Publication` record the local publication engine stages and
@@ -1093,34 +2148,50 @@ impl DraftProxy {
         append
     }
 
-    pub(in crate::proxy) fn product_media_mutation_data(
+    pub(crate) fn product_media_outcome(
         &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-    ) -> Option<Value> {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let payload = match field.name.as_str() {
-                "productCreateMedia" => {
-                    self.product_create_media_payload(request, &field.arguments)?
-                }
-                "productUpdateMedia" => {
-                    self.product_update_media_payload(request, &field.arguments)?
-                }
-                "productDeleteMedia" => {
-                    self.product_delete_media_payload(request, &field.arguments)?
-                }
-                "productReorderMedia" => {
-                    self.product_reorder_media_payload(request, &field.arguments)?
-                }
-                _ => return None,
-            };
-            data.insert(
-                field.response_key.clone(),
-                selected_json(&payload, &field.selection),
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return resolver_http_error_outcome(
+                400,
+                format!(
+                    "No mutation dispatcher implemented for root field: {}",
+                    invocation.root_name
+                ),
             );
         }
-        Some(Value::Object(data))
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let payload = match invocation.root_name {
+            "productCreateMedia" => {
+                self.product_create_media_payload(invocation.request, &arguments)
+            }
+            "productUpdateMedia" => {
+                self.product_update_media_payload(invocation.request, &arguments)
+            }
+            "productDeleteMedia" => {
+                self.product_delete_media_payload(invocation.request, &arguments)
+            }
+            "productReorderMedia" => {
+                self.product_reorder_media_payload(invocation.request, &arguments)
+            }
+            root => {
+                return ResolverOutcome::error(format!(
+                    "No product-media resolver implemented for root `{root}`"
+                ))
+            }
+        };
+        let Some(payload) = payload else {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        };
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            invocation.root_name,
+            "products",
+            Vec::new(),
+        ))
     }
 
     /// productCreateMedia stages newly uploaded media on a product. Each media
@@ -1203,14 +2274,21 @@ impl DraftProxy {
                 .extend(ready_on_read_ids);
         }
 
+        let product = self
+            .store
+            .product_staged_or_base(&product_id)
+            .map(|product| {
+                let mut value = self.product_canonical_value(&product);
+                value["media"] = connection_json(product_media_nodes);
+                value
+            })
+            .unwrap_or(Value::Null);
+
         Some(json!({
             "media": created.clone(),
             "userErrors": source_errors.clone(),
             "mediaUserErrors": source_errors,
-            "product": {
-                "id": product_id,
-                "media": { "nodes": product_media_nodes }
-            }
+            "product": product,
         }))
     }
 
@@ -1336,16 +2414,18 @@ impl DraftProxy {
             self.store.staged.media_ready_on_read.remove(id);
         }
         self.stage_product_media_nodes(&product_id, remaining.clone());
+        let product = self
+            .store
+            .product_staged_or_base(&product_id)
+            .map(|product| self.product_canonical_value(&product))
+            .unwrap_or(Value::Null);
 
         Some(json!({
             "deletedMediaIds": media_ids,
             "deletedProductImageIds": deleted_product_image_ids,
             "userErrors": [],
             "mediaUserErrors": [],
-            "product": {
-                "id": product_id,
-                "media": { "nodes": remaining }
-            }
+            "product": product,
         }))
     }
 
@@ -1426,29 +2506,17 @@ impl DraftProxy {
             .unwrap_or_default()
     }
 
-    pub(in crate::proxy) fn promote_product_media_ready_on_read(
-        &mut self,
-        root_fields: &[RootFieldSelection],
-    ) {
-        if !root_fields.iter().any(|field| {
-            matches!(
-                field.name.as_str(),
-                "product" | "products" | "productByIdentifier" | "node" | "nodes"
-            )
-        }) {
-            return;
-        }
-
+    pub(in crate::proxy) fn promote_all_product_media_ready_on_read(&mut self) {
         let ready_on_read_ids = self.store.staged.media_ready_on_read.clone();
         let product_ids = self
             .store
-            .staged
             .products
+            .staged
             .iter()
             .map(|(id, _)| id.clone())
             .collect::<Vec<_>>();
         for product_id in product_ids {
-            let Some(product) = self.store.staged.products.get_mut(&product_id) else {
+            let Some(product) = self.store.products.staged.get_mut(&product_id) else {
                 continue;
             };
             let mut promoted = Vec::new();
@@ -1885,59 +2953,6 @@ impl DraftProxy {
     pub(in crate::proxy) fn next_product_updated_at(&self, current: &str) -> String {
         product_next_updated_at(current, self.mutation_log_ordinal() as u64)
     }
-
-    pub(in crate::proxy) fn product_json_with_variants_and_currency_context(
-        &self,
-        product: &ProductRecord,
-        variants: &[ProductVariantRecord],
-        selections: &[SelectedField],
-        currency_code: &str,
-    ) -> Value {
-        product_json_with_variants_and_currency_and_publication_context(
-            product,
-            variants,
-            selections,
-            currency_code,
-            Some(
-                self.store
-                    .product_is_published_on_current_publication(product),
-            ),
-        )
-    }
-
-    pub(in crate::proxy) fn product_variant_json_with_current_publication_context(
-        &self,
-        variant: &ProductVariantRecord,
-        product: Option<&ProductRecord>,
-        selections: &[SelectedField],
-    ) -> Value {
-        product_variant_json_with_publication_context(
-            variant,
-            product,
-            selections,
-            product.map(|product| {
-                self.store
-                    .product_is_published_on_current_publication(product)
-            }),
-        )
-    }
-
-    pub(in crate::proxy) fn product_variant_inventory_item_json_with_current_publication_context(
-        &self,
-        variant: &ProductVariantRecord,
-        product: Option<&ProductRecord>,
-        selections: &[SelectedField],
-    ) -> Value {
-        product_variant_inventory_item_json_with_publication_context(
-            variant,
-            product,
-            selections,
-            product.map(|product| {
-                self.store
-                    .product_is_published_on_current_publication(product)
-            }),
-        )
-    }
 }
 
 pub(in crate::proxy) fn product_root_fields_select_shop_currency_money(
@@ -1969,9 +2984,8 @@ fn product_root_field_selects_shop_currency_money(field: &RootFieldSelection) ->
 
 fn product_selections_include_names(selections: &[SelectedField], names: &[&str]) -> bool {
     selections.iter().any(|selection| {
-        names.iter().any(|field_name| {
-            selection.name == *field_name || selection.response_key == *field_name
-        }) || product_selections_include_names(&selection.selection, names)
+        names.iter().any(|field_name| selection.name == *field_name)
+            || product_selections_include_names(&selection.selection, names)
     })
 }
 
@@ -1981,40 +2995,31 @@ enum ProductPriceRangeKind {
     Legacy,
 }
 
-fn product_price_range_json(
+fn product_price_range_value(
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
-    selection: &SelectedField,
     currency_code: &str,
     kind: ProductPriceRangeKind,
 ) -> Value {
     if !variants.is_empty() {
         if let Some((min_price, max_price)) = product_variant_price_bounds(variants) {
-            return computed_product_price_range_json(
-                min_price,
-                max_price,
-                currency_code,
-                kind,
-                &selection.selection,
-            );
+            return computed_product_price_range_value(min_price, max_price, currency_code, kind);
         }
     }
 
-    if let Some(observed) = product.extra_fields.get(&selection.name) {
-        return nullable_selected_json(observed, &selection.selection);
+    let observed_field = match kind {
+        ProductPriceRangeKind::Current => "priceRangeV2",
+        ProductPriceRangeKind::Legacy => "priceRange",
+    };
+    if let Some(observed) = product.extra_fields.get(observed_field) {
+        return observed.clone();
     }
 
     if let Some((min_price, max_price)) = product_raw_variant_price_bounds(&product.variants) {
-        return computed_product_price_range_json(
-            min_price,
-            max_price,
-            currency_code,
-            kind,
-            &selection.selection,
-        );
+        return computed_product_price_range_value(min_price, max_price, currency_code, kind);
     }
 
-    computed_product_price_range_json(0.0, 0.0, currency_code, kind, &selection.selection)
+    computed_product_price_range_value(0.0, 0.0, currency_code, kind)
 }
 
 fn product_variant_price_bounds(variants: &[ProductVariantRecord]) -> Option<(f64, f64)> {
@@ -2034,54 +3039,41 @@ fn product_raw_variant_price_bounds(variants: &[Value]) -> Option<(f64, f64)> {
     }))
 }
 
-fn product_variants_count_json(
+fn product_variants_count_value(
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
-    selection: &SelectedField,
 ) -> Value {
     if !variants.is_empty() {
-        return selected_count_json(variants.len(), &selection.selection);
+        return count_object(variants.len());
     }
 
     product
         .extra_fields
         .get("variantsCount")
         .cloned()
-        .map(|value| selected_json(&value, &selection.selection))
-        .unwrap_or_else(|| selected_count_json(product.variants.len(), &selection.selection))
+        .unwrap_or_else(|| count_object(product.variants.len()))
 }
 
-fn product_compare_at_price_range_json(
+fn product_compare_at_price_range_value(
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
-    selection: &SelectedField,
     currency_code: &str,
 ) -> Value {
     if !variants.is_empty() {
         return product_variant_compare_at_price_bounds(variants)
             .map(|(min_price, max_price)| {
-                computed_product_compare_at_price_range_json(
-                    min_price,
-                    max_price,
-                    currency_code,
-                    &selection.selection,
-                )
+                computed_product_compare_at_price_range_value(min_price, max_price, currency_code)
             })
             .unwrap_or(Value::Null);
     }
 
     if let Some(observed) = product.extra_fields.get("compareAtPriceRange") {
-        return nullable_selected_json(observed, &selection.selection);
+        return observed.clone();
     }
 
     product_raw_variant_compare_at_price_bounds(&product.variants)
         .map(|(min_price, max_price)| {
-            computed_product_compare_at_price_range_json(
-                min_price,
-                max_price,
-                currency_code,
-                &selection.selection,
-            )
+            computed_product_compare_at_price_range_value(min_price, max_price, currency_code)
         })
         .unwrap_or(Value::Null)
 }
@@ -2129,47 +3121,39 @@ fn parse_product_price(price: impl AsRef<str>) -> Option<f64> {
     price.as_ref().trim().parse::<f64>().ok()
 }
 
-fn computed_product_price_range_json(
+fn computed_product_price_range_value(
     min_price: f64,
     max_price: f64,
     currency_code: &str,
     kind: ProductPriceRangeKind,
-    selections: &[SelectedField],
 ) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!(match kind {
+    json!({
+        "__typename": match kind {
             ProductPriceRangeKind::Current => "ProductPriceRangeV2",
             ProductPriceRangeKind::Legacy => "ProductPriceRange",
-        })),
-        "minVariantPrice" => Some(selected_json(
-            &product_price_range_money(min_price, currency_code, kind),
-            &selection.selection,
-        )),
-        "maxVariantPrice" => Some(selected_json(
-            &product_price_range_money(max_price, currency_code, kind),
-            &selection.selection,
-        )),
-        _ => None,
+        },
+        "minVariantPrice": product_price_range_money(min_price, currency_code, kind),
+        "maxVariantPrice": product_price_range_money(max_price, currency_code, kind),
     })
 }
 
-fn computed_product_compare_at_price_range_json(
+fn computed_product_compare_at_price_range_value(
     min_price: f64,
     max_price: f64,
     currency_code: &str,
-    selections: &[SelectedField],
 ) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("ProductCompareAtPriceRange")),
-        "minVariantCompareAtPrice" => Some(selected_json(
-            &product_price_range_money(min_price, currency_code, ProductPriceRangeKind::Current),
-            &selection.selection,
-        )),
-        "maxVariantCompareAtPrice" => Some(selected_json(
-            &product_price_range_money(max_price, currency_code, ProductPriceRangeKind::Current),
-            &selection.selection,
-        )),
-        _ => None,
+    json!({
+        "__typename": "ProductCompareAtPriceRange",
+        "minVariantCompareAtPrice": product_price_range_money(
+            min_price,
+            currency_code,
+            ProductPriceRangeKind::Current,
+        ),
+        "maxVariantCompareAtPrice": product_price_range_money(
+            max_price,
+            currency_code,
+            ProductPriceRangeKind::Current,
+        ),
     })
 }
 
@@ -2189,25 +3173,20 @@ fn product_price_range_money(
     })
 }
 
-fn product_collections_connection_json(
+fn product_collections_connection_value(
     product: &ProductRecord,
-    selection: &SelectedField,
+    arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
     let collections =
-        sorted_product_collection_nodes_for_connection(product.collections.clone(), selection);
-    selected_connection_json_with_args(
-        collections,
-        &selection.arguments,
-        &selection.selection,
-        value_id_cursor,
-    )
+        sorted_product_collection_nodes_for_connection(product.collections.clone(), arguments);
+    connection_value_with_args(collections, arguments, value_id_cursor)
 }
 
 fn sorted_product_collection_nodes_for_connection(
     collections: Vec<Value>,
-    selection: &SelectedField,
+    arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
-    let sort_key_name = resolved_string_field(&selection.arguments, "sortKey");
+    let sort_key_name = resolved_string_field(arguments, "sortKey");
     sorted_indexed_records(
         collections,
         false,
@@ -2259,234 +3238,57 @@ pub(in crate::proxy) fn product_has_out_of_stock_variants(
         .any(|variant| variant.inventory_quantity <= 0)
 }
 
-pub(in crate::proxy) fn product_json_with_variants_and_currency_and_publication_context(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    selections: &[SelectedField],
-    currency_code: &str,
-    published_on_current_publication: Option<bool>,
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("Product")),
-        "id" => Some(json!(product.id)),
-        "title" => Some(json!(product.title)),
-        "handle" => Some(json!(product.handle)),
-        "status" => Some(json!(product.status)),
-        "createdAt" => Some(json!(product.created_at)),
-        "updatedAt" => Some(json!(product.updated_at)),
-        "descriptionHtml" => Some(json!(product.description_html)),
-        "vendor" => Some(json!(product.vendor)),
-        "productType" => Some(json!(product.product_type)),
-        "tags" => Some(json!(product.tags)),
-        "legacyResourceId" => Some(json!(resource_id_tail(&product.id))),
-        // `Product.totalInventory` is a denormalized aggregate Shopify maintains lazily:
-        // variant/inventory-item quantities update immediately, but the product total can
-        // lag (notably after a 2025-01 `inventoryAdjustQuantities`, and for non-`available`
-        // quantity changes). The mutation handlers recompute and store it on the product
-        // record (`sync_product_total_inventory`) following the route-version contract, so
-        // the read path renders the stored value rather than recomputing live.
-        "totalInventory" => Some(json!(product.total_inventory)),
-        "tracksInventory" => Some(if variants.is_empty() {
-            json!(product.tracks_inventory)
-        } else {
-            json!(variants
-                .iter()
-                .any(|variant| variant.inventory_item.tracked))
-        }),
-        // Recomputed live from the effective variants: unlike `totalInventory`, Shopify
-        // keeps these structural aggregates in step with the current variant set.
-        "hasOnlyDefaultVariant" => Some(if variants.is_empty() {
-            product
-                .extra_fields
-                .get("hasOnlyDefaultVariant")
-                .cloned()
-                .unwrap_or(Value::Bool(true))
-        } else {
-            json!(product_has_only_default_variant(variants))
-        }),
-        "hasOutOfStockVariants" => Some(if variants.is_empty() {
-            product
-                .extra_fields
-                .get("hasOutOfStockVariants")
-                .cloned()
-                .unwrap_or(Value::Bool(false))
-        } else {
-            json!(product_has_out_of_stock_variants(variants))
-        }),
-        "totalVariants" => Some(if variants.is_empty() {
-            product
-                .extra_fields
-                .get("totalVariants")
-                .cloned()
-                .unwrap_or_else(|| json!(product.variants.len()))
-        } else {
-            json!(variants.len())
-        }),
-        "variantsCount" => Some(product_variants_count_json(product, variants, selection)),
-        "priceRangeV2" => Some(product_price_range_json(
-            product,
-            variants,
-            selection,
-            currency_code,
-            ProductPriceRangeKind::Current,
-        )),
-        "compareAtPriceRange" => Some(product_compare_at_price_range_json(
-            product,
-            variants,
-            selection,
-            currency_code,
-        )),
-        "priceRange" => Some(product_price_range_json(
-            product,
-            variants,
-            selection,
-            currency_code,
-            ProductPriceRangeKind::Legacy,
-        )),
-        "templateSuffix" => Some(
-            product
-                .extra_fields
-                .get("templateSuffix")
-                .cloned()
-                .unwrap_or_else(|| json!(product.template_suffix)),
-        ),
-        "seo" => Some(
-            product
-                .extra_fields
-                .get("seo")
-                .cloned()
-                .map(|value| nullable_selected_json(&value, &selection.selection))
-                .unwrap_or_else(|| product_seo_json(product, &selection.selection)),
-        ),
-        "onlineStorePreviewUrl" => Some(
-            product
-                .extra_fields
-                .get("onlineStorePreviewUrl")
-                .cloned()
-                .unwrap_or(Value::Null),
-        ),
-        "category" => Some(
-            product
-                .extra_fields
-                .get("category")
-                .map(|value| nullable_selected_json(value, &selection.selection))
-                .unwrap_or(Value::Null),
-        ),
-        "requiresSellingPlan" => Some(
-            product
-                .extra_fields
-                .get("requiresSellingPlan")
-                .cloned()
-                .unwrap_or(Value::Bool(false)),
-        ),
-        "isGiftCard" => Some(
-            product
-                .extra_fields
-                .get("isGiftCard")
-                .cloned()
-                .unwrap_or(Value::Bool(false)),
-        ),
-        "giftCardTemplateSuffix" => Some(
-            product
-                .extra_fields
-                .get("giftCardTemplateSuffix")
-                .cloned()
-                .unwrap_or(Value::Null),
-        ),
-        "options" => Some(Value::Array(
-            product
-                .extra_fields
-                .get("options")
-                .and_then(Value::as_array)
-                .map(|options| {
-                    options
-                        .iter()
-                        .map(|option| nullable_selected_json(option, &selection.selection))
-                        .collect()
-                })
-                .unwrap_or_default(),
-        )),
-        "variants" => Some(if variants.is_empty() {
-            selected_connection_json(product.variants.clone(), &selection.selection)
-        } else {
-            product_variant_connection_with_fallback_json(
-                product,
-                variants,
-                &product.variants,
-                &selection.arguments,
-                &selection.selection,
-            )
-        }),
-        "collections" => Some(product_collections_connection_json(product, selection)),
-        "media" => Some(product_media_connection_json(
-            product.media.clone(),
-            &selection.arguments,
-            &selection.selection,
-        )),
-        "images" => Some(product_image_connection_json(
-            product.media.clone(),
-            &selection.arguments,
-            &selection.selection,
-        )),
-        "featuredImage" => Some(product_featured_image_json(product, &selection.selection)),
-        "featuredMedia" => Some(product_featured_media_json(product, &selection.selection)),
-        "metafield" => Some(
-            product
-                .extra_fields
-                .get("metafield")
-                .cloned()
-                .unwrap_or(Value::Null),
-        ),
-        "metafields" => Some(
-            product
-                .extra_fields
-                .get("metafields")
-                .cloned()
-                .map(|value| selected_json(&value, &selection.selection))
-                .unwrap_or_else(|| selected_empty_connection_json(&selection.selection)),
-        ),
-        _ => product_publication_field_json(product, selection, published_on_current_publication)
-            .or_else(|| {
-                product
-                    .extra_fields
-                    .get(&selection.name)
-                    .cloned()
-                    .map(|value| nullable_selected_json(&value, &selection.selection))
-            }),
-    })
-}
-
-pub(in crate::proxy) fn product_variant_connection_with_fallback_json(
-    _product: &ProductRecord,
+fn product_variant_connection_with_fallback_value(
     variants: &[ProductVariantRecord],
     fallback_variants: &[Value],
     arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
 ) -> Value {
-    let variants = sorted_product_variant_records_for_connection(variants.to_vec(), arguments);
-    let (variant_records, page_info) =
-        connection_window(&variants, arguments, |variant| variant.id.clone());
-    let variant_nodes = variant_records
+    // The embedded product connection owns the observed order. A separately
+    // hydrated/staged variant is an overlay for its existing slot, not a new
+    // record to move to the end of the connection.
+    let mut sort_arguments = arguments.clone();
+    sort_arguments.remove("reverse");
+    let variants =
+        sorted_product_variant_records_for_connection(variants.to_vec(), &sort_arguments);
+    let variants_by_id = variants
         .iter()
-        .map(product_variant_state_json)
-        .collect::<Vec<_>>();
-    let variant_ids = variant_records
+        .map(|variant| (variant.id.as_str(), variant))
+        .collect::<BTreeMap<_, _>>();
+    let fallback_ids = fallback_variants
         .iter()
-        .map(|variant| variant.id.as_str())
+        .filter_map(|variant| variant.get("id").and_then(Value::as_str))
         .collect::<BTreeSet<_>>();
-    let mut nodes = Vec::new();
-    for fallback in fallback_variants {
-        let fallback_id = fallback.get("id").and_then(Value::as_str);
-        if fallback_id.is_some_and(|id| variant_ids.contains(id)) {
-            continue;
-        }
-        nodes.push(fallback.clone());
+    let typed_order_is_authoritative = !fallback_ids.is_empty()
+        && variants
+            .iter()
+            .all(|variant| product_variant_position(variant).is_some())
+        && fallback_ids
+            .iter()
+            .all(|id| variants_by_id.contains_key(*id));
+    let mut nodes: Vec<Value> = if typed_order_is_authoritative {
+        variants.iter().map(product_variant_state_json).collect()
+    } else {
+        fallback_variants
+            .iter()
+            .map(|fallback| {
+                fallback
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .and_then(|id| variants_by_id.get(id))
+                    .map(|variant| product_variant_state_json(variant))
+                    .unwrap_or_else(|| fallback.clone())
+            })
+            .collect()
+    };
+    if !typed_order_is_authoritative {
+        nodes.extend(
+            variants
+                .iter()
+                .filter(|variant| !fallback_ids.contains(variant.id.as_str()))
+                .map(product_variant_state_json),
+        );
     }
-    nodes.extend(variant_nodes);
-    selected_json(
-        &connection_json_with_cursor(nodes, |_, node| value_id_cursor(node), page_info),
-        selections,
-    )
+    connection_value_with_args(nodes, arguments, value_id_cursor)
 }
 
 fn sorted_product_variant_records_for_connection(
@@ -2536,83 +3338,6 @@ fn product_variant_connection_sort_key(
     }
 }
 
-pub(in crate::proxy) fn product_variant_json_with_publication_context(
-    variant: &ProductVariantRecord,
-    product: Option<&ProductRecord>,
-    selections: &[SelectedField],
-    published_on_current_publication: Option<bool>,
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("ProductVariant")),
-        "id" => Some(json!(variant.id)),
-        "title" => Some(json!(variant.title)),
-        // Shopify returns `null` (not an empty string) for a variant with no SKU.
-        "sku" => Some(if variant.sku.is_empty() {
-            Value::Null
-        } else {
-            json!(variant.sku)
-        }),
-        "barcode" => Some(match &variant.barcode {
-            Some(value) => json!(value),
-            None => Value::Null,
-        }),
-        "price" => Some(json!(variant.price)),
-        "compareAtPrice" => Some(match &variant.compare_at_price {
-            Some(value) => json!(value),
-            None => Value::Null,
-        }),
-        "taxable" => Some(json!(variant.taxable)),
-        "inventoryPolicy" => Some(json!(variant.inventory_policy)),
-        "inventoryQuantity" => Some(json!(variant.inventory_quantity)),
-        "selectedOptions" => Some(Value::Array(
-            variant
-                .selected_options
-                .iter()
-                .map(|option| {
-                    selected_json(
-                        &json!({ "name": option.name, "value": option.value }),
-                        &selection.selection,
-                    )
-                })
-                .collect(),
-        )),
-        "inventoryItem" => Some(
-            product_variant_inventory_item_json_with_publication_context(
-                variant,
-                product,
-                &selection.selection,
-                published_on_current_publication,
-            ),
-        ),
-        "product" => Some(match product {
-            Some(product) => product_json_with_variants_and_currency_and_publication_context(
-                product,
-                &[],
-                &selection.selection,
-                "USD",
-                published_on_current_publication,
-            ),
-            None => variant
-                .extra_fields
-                .get("product")
-                .map(|value| product_variant_extra_field_json(value, &selection.selection))
-                .unwrap_or(Value::Null),
-        }),
-        // A variant's `media` is the subset of the owning product's media library
-        // that has been attached to the variant (via productVariantAppendMedia),
-        // rendered in attachment order.
-        "media" => Some(product_media_connection_json(
-            variant_attached_media_nodes(variant, product),
-            &selection.arguments,
-            &selection.selection,
-        )),
-        _ => variant
-            .extra_fields
-            .get(&selection.name)
-            .map(|value| product_variant_extra_field_json(value, &selection.selection)),
-    })
-}
-
 /// Resolve a variant's attached `media_ids` against its owning product's media
 /// library, preserving attachment order. Falls back to any media nodes stashed
 /// in `extra_fields` when the product (library) is not available in this render
@@ -2637,13 +3362,12 @@ pub(in crate::proxy) fn variant_attached_media_nodes(
     }
 }
 
-fn product_media_connection_json(
+fn product_media_connection_value(
     media: Vec<Value>,
     arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
 ) -> Value {
     let media = sorted_product_media_nodes_for_connection(media, arguments);
-    selected_connection_json_with_args(media, arguments, selections, value_id_cursor)
+    connection_value_with_args(media, arguments, value_id_cursor)
 }
 
 fn sorted_product_media_nodes_for_connection(
@@ -2659,33 +3383,15 @@ fn sorted_product_media_nodes_for_connection(
     )
 }
 
-fn product_image_connection_json(
+fn product_image_connection_value(
     media: Vec<Value>,
     arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
 ) -> Value {
     let images = sorted_product_media_nodes_for_connection(media, arguments)
         .iter()
         .filter_map(product_image_json_from_media)
         .collect::<Vec<_>>();
-    selected_connection_json_with_args(images, arguments, selections, value_id_cursor)
-}
-
-fn product_featured_image_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
-    product
-        .media
-        .iter()
-        .find_map(product_image_json_from_media)
-        .map(|image| selected_json(&image, selections))
-        .unwrap_or(Value::Null)
-}
-
-fn product_featured_media_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
-    product
-        .media
-        .first()
-        .map(|media| selected_json(media, selections))
-        .unwrap_or(Value::Null)
+    connection_value_with_args(images, arguments, value_id_cursor)
 }
 
 pub(in crate::proxy) fn product_image_json_from_media(media: &Value) -> Option<Value> {
@@ -2783,114 +3489,6 @@ fn value_string_field_sort_key(value: &Value, field: &str) -> StagedSortKey {
 
 fn sort_string_value(value: impl AsRef<str>) -> StagedSortValue {
     StagedSortValue::String(value.as_ref().to_ascii_lowercase())
-}
-
-pub(in crate::proxy) fn product_variant_inventory_item_json_with_publication_context(
-    variant: &ProductVariantRecord,
-    product: Option<&ProductRecord>,
-    selections: &[SelectedField],
-    published_on_current_publication: Option<bool>,
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("InventoryItem")),
-        "id" => Some(json!(variant.inventory_item.id)),
-        "tracked" => Some(json!(variant.inventory_item.tracked)),
-        "requiresShipping" => Some(json!(variant.inventory_item.requires_shipping)),
-        "sku" => Some(if variant.sku.is_empty() {
-            Value::Null
-        } else {
-            json!(variant.sku)
-        }),
-        // Render the inventory item's backreference variant with its owning product so
-        // `inventoryItem(id:).variant.product` resolves rather than returning null.
-        "variant" => Some(product_variant_json_with_publication_context(
-            variant,
-            product,
-            &selection.selection,
-            published_on_current_publication,
-        )),
-        _ => variant
-            .inventory_item
-            .extra_fields
-            .get(&selection.name)
-            .map(|value| product_variant_extra_field_json(value, &selection.selection)),
-    })
-}
-
-pub(in crate::proxy) fn observed_product_variant_inventory_item_json_with_publication_context(
-    product: &ProductRecord,
-    variant: &Value,
-    selections: &[SelectedField],
-    published_on_current_publication: Option<bool>,
-) -> Option<Value> {
-    let inventory_item = variant.get("inventoryItem")?;
-    Some(selected_payload_json(
-        selections,
-        |selection| match selection.name.as_str() {
-            "__typename" => Some(json!("InventoryItem")),
-            "variant" => Some(observed_product_variant_json_with_publication_context(
-                product,
-                variant,
-                &selection.selection,
-                published_on_current_publication,
-            )),
-            _ => inventory_item
-                .get(&selection.name)
-                .map(|value| product_variant_extra_field_json(value, &selection.selection)),
-        },
-    ))
-}
-
-fn observed_product_variant_json_with_publication_context(
-    product: &ProductRecord,
-    variant: &Value,
-    selections: &[SelectedField],
-    published_on_current_publication: Option<bool>,
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("ProductVariant")),
-        "product" => Some(
-            product_json_with_variants_and_currency_and_publication_context(
-                product,
-                &[],
-                &selection.selection,
-                "USD",
-                published_on_current_publication,
-            ),
-        ),
-        _ => variant
-            .get(&selection.name)
-            .map(|value| product_variant_extra_field_json(value, &selection.selection)),
-    })
-}
-
-pub(in crate::proxy) fn product_variant_extra_field_json(
-    value: &Value,
-    selections: &[SelectedField],
-) -> Value {
-    if selections.is_empty() || value.is_null() {
-        value.clone()
-    } else if let Some(values) = value.as_array() {
-        Value::Array(
-            values
-                .iter()
-                .map(|item| selected_json(item, selections))
-                .collect(),
-        )
-    } else {
-        selected_json(value, selections)
-    }
-}
-
-pub(in crate::proxy) fn product_seo_json(
-    product: &ProductRecord,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "title" => Some(json!(product.seo_title)),
-        "description" => Some(json!(product.seo_description)),
-        _ => None,
-    })
 }
 
 pub(in crate::proxy) fn product_variant_state_from_observed_json(
@@ -3332,33 +3930,6 @@ pub(in crate::proxy) fn rust_state_dump_path_exists(dump: &Value, path: &str) ->
         .is_some()
 }
 
-pub(in crate::proxy) fn product_mutation_payload_json(
-    product: &ProductRecord,
-    variants: &[ProductVariantRecord],
-    payload_selections: &[SelectedField],
-    product_selections: &[SelectedField],
-    currency_code: &str,
-    shop: Option<&Value>,
-    published_on_current_publication: Option<bool>,
-) -> Value {
-    selected_payload_json(payload_selections, |selection| {
-        match selection.name.as_str() {
-            "product" => Some(
-                product_json_with_variants_and_currency_and_publication_context(
-                    product,
-                    variants,
-                    product_selections,
-                    currency_code,
-                    published_on_current_publication,
-                ),
-            ),
-            "shop" => shop.map(|shop| selected_json(shop, &selection.selection)),
-            "userErrors" => Some(json!([])),
-            _ => None,
-        }
-    })
-}
-
 pub(in crate::proxy) fn product_variant_record_from_create_input(
     input: &BTreeMap<String, ResolvedValue>,
     id: String,
@@ -3744,81 +4315,96 @@ fn variant_weight_error_field(prefix: &[String]) -> Value {
     }
 }
 
-pub(in crate::proxy) fn product_create_user_errors_response(
-    response_key: String,
-    payload_selection: &[SelectedField],
-    shop: &Value,
+pub(in crate::proxy) fn product_create_payload_value(
+    product: Option<Value>,
     errors: Vec<Value>,
-) -> Response {
-    ok_json(json!({
-        "data": {
-            response_key: selected_payload_json(payload_selection, |selection| match selection.name.as_str() {
-                "product" => Some(Value::Null),
-                "shop" => Some(selected_json(shop, &selection.selection)),
-                "userErrors" => selected_user_errors_field(errors.as_slice(), selection),
-                _ => None,
-            })
-        }
-    }))
-}
-
-pub(in crate::proxy) fn product_delete_payload_json(
-    deleted_product_id: &str,
-    shop: &Value,
-    payload_selections: &[SelectedField],
 ) -> Value {
-    selected_payload_json(payload_selections, |selection| {
-        match selection.name.as_str() {
-            "deletedProductId" => Some(json!(deleted_product_id)),
-            "shop" => Some(selected_json(shop, &selection.selection)),
-            "userErrors" => Some(json!([])),
-            _ => None,
-        }
+    json!({
+        "product": product,
+        // `ProductCreatePayload.shop` is resolved lazily by its explicit field
+        // resolver, which performs identity hydration only when selected.
+        "shop": Value::Null,
+        "userErrors": errors,
     })
 }
 
-pub(in crate::proxy) fn product_delete_async_operation_payload(
-    operation_id: &str,
-    shop: &Value,
-    payload_selections: &[SelectedField],
+pub(in crate::proxy) fn product_update_payload_value(
+    product: Option<Value>,
+    errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selections, |selection| {
-        match selection.name.as_str() {
-            "deletedProductId" => Some(Value::Null),
-            "productDeleteOperation" => Some(selected_payload_json(
-                &selection.selection,
-                |operation_selection| match operation_selection.name.as_str() {
-                    "id" => Some(json!(operation_id)),
-                    "status" => Some(json!("CREATED")),
-                    "deletedProductId" => Some(Value::Null),
-                    "userErrors" => Some(json!([])),
-                    _ => None,
-                },
-            )),
-            "shop" => Some(selected_json(shop, &selection.selection)),
-            "userErrors" => Some(json!([])),
-            _ => None,
-        }
+    json!({
+        "product": product,
+        "userErrors": errors,
     })
 }
 
-pub(in crate::proxy) fn product_delete_async_duplicate_payload(
-    shop: &Value,
-    payload_selections: &[SelectedField],
-) -> Value {
-    let user_errors = [user_error_omit_code(
-        Value::Null,
-        "Another operation already in progress. Please wait until current one is finished.",
+pub(in crate::proxy) fn product_update_missing_payload_value() -> Value {
+    product_update_payload_value(
         None,
-    )];
-    selected_payload_json(payload_selections, |selection| {
-        match selection.name.as_str() {
-            "deletedProductId" => Some(Value::Null),
-            "productDeleteOperation" => Some(Value::Null),
-            "shop" => Some(selected_json(shop, &selection.selection)),
-            "userErrors" => selected_user_errors_field(&user_errors, selection),
-            _ => None,
-        }
+        vec![user_error(
+            ["id"],
+            "Product does not exist",
+            Some("NOT_FOUND"),
+        )],
+    )
+}
+
+pub(in crate::proxy) fn product_change_status_payload_value(
+    product: Option<Value>,
+    errors: Vec<Value>,
+) -> Value {
+    json!({
+        "product": product,
+        "userErrors": errors,
+    })
+}
+
+pub(in crate::proxy) fn product_delete_payload_value(deleted_product_id: &str) -> Value {
+    json!({
+        "deletedProductId": deleted_product_id,
+        "productDeleteOperation": Value::Null,
+        "shop": Value::Null,
+        "userErrors": [],
+    })
+}
+
+pub(in crate::proxy) fn product_delete_async_operation_payload_value(operation_id: &str) -> Value {
+    json!({
+        "deletedProductId": Value::Null,
+        "productDeleteOperation": {
+            "id": operation_id,
+            "status": "CREATED",
+            "deletedProductId": Value::Null,
+            "userErrors": [],
+        },
+        "shop": Value::Null,
+        "userErrors": [],
+    })
+}
+
+pub(in crate::proxy) fn product_delete_async_duplicate_payload_value() -> Value {
+    json!({
+        "deletedProductId": Value::Null,
+        "productDeleteOperation": Value::Null,
+        "shop": Value::Null,
+        "userErrors": [user_error_omit_code(
+            Value::Null,
+            "Another operation already in progress. Please wait until current one is finished.",
+            None,
+        )],
+    })
+}
+
+pub(in crate::proxy) fn product_delete_missing_payload_value() -> Value {
+    json!({
+        "deletedProductId": Value::Null,
+        "productDeleteOperation": Value::Null,
+        "shop": Value::Null,
+        "userErrors": [user_error(
+            ["id"],
+            "Product does not exist",
+            Some("NOT_FOUND"),
+        )],
     })
 }
 
@@ -3978,19 +4564,16 @@ fn taxonomy_category_tail_label(segment: &str) -> String {
         .join(" ")
 }
 
-pub(in crate::proxy) fn invalid_product_taxonomy_node_id_response(
+pub(in crate::proxy) fn invalid_product_taxonomy_node_id_error(
     response_key: &str,
     location: SourceLocation,
-) -> Response {
-    ok_json(json!({
-        "errors": [{
-            "message": "Invalid product_taxonomy_node_id",
-            "locations": [{ "line": location.line, "column": location.column }],
-            "extensions": { "code": "INVALID_PRODUCT_TAXONOMY_NODE_ID" },
-            "path": [response_key]
-        }],
-        "data": { response_key: Value::Null }
-    }))
+) -> Value {
+    json!({
+        "message": "Invalid product_taxonomy_node_id",
+        "locations": [{ "line": location.line, "column": location.column }],
+        "extensions": { "code": "INVALID_PRODUCT_TAXONOMY_NODE_ID" },
+        "path": [response_key]
+    })
 }
 
 pub(in crate::proxy) fn product_input(
@@ -4137,21 +4720,25 @@ fn product_scalar_length_field_label(field: ProductScalarLengthField) -> &'stati
     }
 }
 
-pub(in crate::proxy) fn product_create_status_validation_error(
+pub(in crate::proxy) fn product_create_status_validation_errors(
     request: &Request,
     query: &str,
-    field: &RootFieldSelection,
-) -> Option<Response> {
-    let (argument_name, input_object_type) = if field.raw_arguments.contains_key("product") {
+    root_name: &str,
+    root_location: SourceLocation,
+    raw_arguments: &BTreeMap<String, RawArgumentValue>,
+) -> Option<Vec<Value>> {
+    let (argument_name, input_object_type) = if raw_arguments.contains_key("product") {
         ("product", "ProductCreateInput")
     } else {
         ("input", "ProductInput")
     };
-    let input = field.raw_arguments.get(argument_name)?;
-    product_status_input_field_validation_error(
+    let input = raw_arguments.get(argument_name)?;
+    product_status_input_field_validation_errors(
         request,
         query,
-        field,
+        root_name,
+        root_location,
+        raw_arguments,
         input,
         ProductStatusInputContext {
             argument_name,
@@ -4162,16 +4749,15 @@ pub(in crate::proxy) fn product_create_status_validation_error(
     )
 }
 
-pub(in crate::proxy) fn product_status_argument_validation_error(
+pub(in crate::proxy) fn product_status_argument_validation_errors(
     request: &Request,
     query: &str,
-    field: &RootFieldSelection,
-    argument_name: &str,
-    container_type_name: &str,
-    container_name: &str,
-    expected_type: &str,
-) -> Option<Response> {
-    let raw = field.raw_arguments.get(argument_name)?;
+    root_name: &str,
+    root_location: SourceLocation,
+    raw_arguments: &BTreeMap<String, RawArgumentValue>,
+    context: ProductStatusArgumentContext<'_>,
+) -> Option<Vec<Value>> {
+    let raw = raw_arguments.get(context.argument_name)?;
     match raw {
         RawArgumentValue::Variable { name, value } => {
             let status = resolved_status_value(value.as_ref()?)?;
@@ -4182,9 +4768,9 @@ pub(in crate::proxy) fn product_status_argument_validation_error(
             let variable_type = definition
                 .as_ref()
                 .map(|definition| definition.type_display.clone())
-                .unwrap_or_else(|| expected_type.to_string());
+                .unwrap_or_else(|| context.expected_type.to_string());
             let location = definition.map(|definition| definition.location);
-            Some(invalid_product_status_variable_error(
+            Some(vec![invalid_product_status_variable_error(
                 request,
                 name,
                 &variable_type,
@@ -4192,46 +4778,53 @@ pub(in crate::proxy) fn product_status_argument_validation_error(
                 None,
                 &status,
                 location,
-            ))
+            )])
         }
         raw => {
             let status = raw_product_status_value(raw)?;
             if product_status_allowed(&status, request) {
                 return None;
             }
-            Some(invalid_product_status_literal_error(
+            Some(vec![invalid_product_status_literal_error(
                 query,
-                field,
+                root_name,
+                root_location,
+                raw_arguments,
                 ProductStatusLiteralError {
                     value: &status,
-                    argument_name,
-                    type_name: container_type_name,
-                    container_name,
-                    expected_type,
+                    argument_name: context.argument_name,
+                    type_name: context.container_type_name,
+                    container_name: context.container_name,
+                    expected_type: context.expected_type,
                     location: None,
                 },
-            ))
+            )])
         }
     }
 }
 
-fn product_status_input_field_validation_error(
+fn product_status_input_field_validation_errors(
     request: &Request,
     query: &str,
-    field: &RootFieldSelection,
+    root_name: &str,
+    root_location: SourceLocation,
+    raw_arguments: &BTreeMap<String, RawArgumentValue>,
     input: &RawArgumentValue,
     context: ProductStatusInputContext<'_>,
-) -> Option<Response> {
+) -> Option<Vec<Value>> {
     match input {
         RawArgumentValue::Object(input) => {
             let status = raw_product_status_value(input.get(context.field_name)?)?;
             if product_status_allowed(&status, request) {
                 return None;
             }
-            let location = inline_argument_value_location(query, field, context.argument_name);
-            Some(invalid_product_status_literal_error(
+            let location =
+                argument_value_location_after(query, root_location, context.argument_name);
+            Some(vec![invalid_product_status_literal_error(
                 query,
-                field,
+                root_name,
+                root_location,
+                raw_arguments,
                 ProductStatusLiteralError {
                     value: &status,
                     argument_name: context.field_name,
@@ -4240,7 +4833,7 @@ fn product_status_input_field_validation_error(
                     expected_type: context.expected_type,
                     location,
                 },
-            ))
+            )])
         }
         RawArgumentValue::Variable { name, value } => {
             let value = value.as_ref()?;
@@ -4257,7 +4850,7 @@ fn product_status_input_field_validation_error(
                 .map(|definition| definition.type_display.clone())
                 .unwrap_or_else(|| context.input_object_type.to_string());
             let location = definition.map(|definition| definition.location);
-            Some(invalid_product_status_variable_error(
+            Some(vec![invalid_product_status_variable_error(
                 request,
                 name,
                 &variable_type,
@@ -4265,7 +4858,7 @@ fn product_status_input_field_validation_error(
                 Some(context.field_name),
                 &status,
                 location,
-            ))
+            )])
         }
         _ => None,
     }
@@ -4273,44 +4866,43 @@ fn product_status_input_field_validation_error(
 
 fn invalid_product_status_literal_error(
     query: &str,
-    field: &RootFieldSelection,
+    root_name: &str,
+    root_location: SourceLocation,
+    raw_arguments: &BTreeMap<String, RawArgumentValue>,
     error: ProductStatusLiteralError<'_>,
-) -> Response {
+) -> Value {
     let operation_path = parsed_document(query, &BTreeMap::new())
         .map(|document| document.operation_path)
         .unwrap_or_else(|| "mutation".to_string());
     let path = if error.type_name == "InputObject" {
-        let input_argument_name = field
-            .raw_arguments
+        let input_argument_name = raw_arguments
             .contains_key("product")
             .then_some("product")
-            .or_else(|| field.raw_arguments.contains_key("input").then_some("input"))
+            .or_else(|| raw_arguments.contains_key("input").then_some("input"))
             .unwrap_or("input");
         json!([
             operation_path,
-            field.name.clone(),
+            root_name,
             input_argument_name,
             error.argument_name
         ])
     } else {
-        json!([operation_path, field.name.clone(), error.argument_name])
+        json!([operation_path, root_name, error.argument_name])
     };
-    let location = error.location.unwrap_or(field.location);
-    ok_json(json!({
-        "errors": [{
-            "message": format!(
-                "Argument '{}' on {} '{}' has an invalid value ({}). Expected type '{}'.",
-                error.argument_name, error.type_name, error.container_name, error.value, error.expected_type
-            ),
-            "locations": [{"line": location.line, "column": location.column}],
-            "path": path,
-            "extensions": {
-                "code": "argumentLiteralsIncompatible",
-                "typeName": error.type_name,
-                "argumentName": error.argument_name
-            }
-        }]
-    }))
+    let location = error.location.unwrap_or(root_location);
+    json!({
+        "message": format!(
+            "Argument '{}' on {} '{}' has an invalid value ({}). Expected type '{}'.",
+            error.argument_name, error.type_name, error.container_name, error.value, error.expected_type
+        ),
+        "locations": [{"line": location.line, "column": location.column}],
+        "path": path,
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": error.type_name,
+            "argumentName": error.argument_name
+        }
+    })
 }
 
 fn invalid_product_status_variable_error(
@@ -4321,7 +4913,7 @@ fn invalid_product_status_variable_error(
     field_name: Option<&str>,
     invalid_status: &str,
     location: Option<SourceLocation>,
-) -> Response {
+) -> Value {
     let explanation = format!(
         "Expected \"{}\" to be one of: {}",
         invalid_status,
@@ -4338,14 +4930,12 @@ fn invalid_product_status_variable_error(
     let path = field_name
         .map(|field_name| json!([field_name]))
         .unwrap_or_else(|| json!([]));
-    ok_json(json!({
-        "errors": [invalid_variable_error_envelope(
-            message,
-            location.unwrap_or(SourceLocation { line: 1, column: 1 }),
-            resolved_value_json(value),
-            json!([{ "path": path, "explanation": explanation }]),
-        )]
-    }))
+    invalid_variable_error_envelope(
+        message,
+        location.unwrap_or(SourceLocation { line: 1, column: 1 }),
+        resolved_value_json(value),
+        json!([{ "path": path, "explanation": explanation }]),
+    )
 }
 
 fn raw_product_status_value(value: &RawArgumentValue) -> Option<String> {
@@ -4379,10 +4969,10 @@ fn product_status_allows_unlisted(request: &Request) -> bool {
     admin_graphql_version(&request.path).is_some_and(|version| version_at_least(version, 2025, 10))
 }
 
-pub(in crate::proxy) fn product_delete_required_id_error(
+pub(in crate::proxy) fn product_delete_required_id_errors(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
-) -> Option<Response> {
+) -> Option<Vec<Value>> {
     let document = parsed_document(query, variables)?;
     let field = document
         .root_fields
@@ -4399,86 +4989,50 @@ pub(in crate::proxy) fn product_delete_required_id_error(
 
     match input {
         RawArgumentValue::Object(input) => match input.get("id") {
-            None => Some(product_delete_inline_missing_id_error(
+            None => Some(vec![product_delete_inline_missing_id_error(
                 &document.operation_path,
                 field,
                 input_argument_name,
                 inline_location,
-            )),
-            Some(value) if value.is_literal_null() => Some(product_delete_inline_null_id_error(
-                &document.operation_path,
-                field,
-                input_argument_name,
-                inline_location,
-            )),
+            )]),
+            Some(value) if value.is_literal_null() => {
+                Some(vec![product_delete_inline_null_id_error(
+                    &document.operation_path,
+                    field,
+                    input_argument_name,
+                    inline_location,
+                )])
+            }
             _ => None,
         },
-        RawArgumentValue::Variable { name, value: None } => Some(
-            product_delete_variable_required_id_error(Value::Null, name, &document, field),
-        ),
+        RawArgumentValue::Variable { name, value: None } => {
+            Some(vec![product_delete_variable_required_id_error(
+                Value::Null,
+                name,
+                &document,
+                field,
+            )])
+        }
         RawArgumentValue::Variable {
             name,
             value: Some(ResolvedValue::Object(input)),
         } => match input.get("id") {
-            None => Some(product_delete_variable_required_id_error(
+            None => Some(vec![product_delete_variable_required_id_error(
                 resolved_value_json(&ResolvedValue::Object(input.clone())),
                 name,
                 &document,
                 field,
-            )),
-            Some(ResolvedValue::Null) => Some(product_delete_variable_required_id_error(
+            )]),
+            Some(ResolvedValue::Null) => Some(vec![product_delete_variable_required_id_error(
                 resolved_value_json(&ResolvedValue::Object(input.clone())),
                 name,
                 &document,
                 field,
-            )),
+            )]),
             _ => None,
         },
         _ => None,
     }
-}
-
-pub(in crate::proxy) fn product_update_missing_product(
-    response_key: String,
-    payload_selection: &[SelectedField],
-) -> Response {
-    product_missing_product_response(response_key, payload_selection, "product", None)
-}
-
-pub(in crate::proxy) fn product_delete_missing_product(
-    response_key: String,
-    payload_selection: &[SelectedField],
-    shop: &Value,
-) -> Response {
-    product_missing_product_response(
-        response_key,
-        payload_selection,
-        "deletedProductId",
-        Some(shop),
-    )
-}
-
-fn product_missing_product_response(
-    response_key: String,
-    payload_selection: &[SelectedField],
-    null_payload_field: &str,
-    shop: Option<&Value>,
-) -> Response {
-    let user_errors = [user_error(
-        ["id"],
-        "Product does not exist",
-        Some("NOT_FOUND"),
-    )];
-    ok_json(json!({
-        "data": {
-            response_key: selected_payload_json(payload_selection, |selection| match selection.name.as_str() {
-                field if field == null_payload_field => Some(Value::Null),
-                "shop" => shop.map(|shop| selected_json(shop, &selection.selection)),
-                "userErrors" => selected_user_errors_field(&user_errors, selection),
-                _ => None,
-            })
-        }
-    }))
 }
 
 pub(in crate::proxy) fn product_delete_inline_missing_id_error(
@@ -4486,16 +5040,19 @@ pub(in crate::proxy) fn product_delete_inline_missing_id_error(
     field: &RootFieldSelection,
     input_argument_name: &str,
     location: SourceLocation,
-) -> Response {
-    ok_json(json!({
-        "errors": [missing_required_input_object_attribute_error_envelope(
-            "ProductDeleteInput",
-            "id",
-            "ID!",
-            location,
-            json!([operation_path, field.response_key.clone(), input_argument_name, "id"]),
-        )]
-    }))
+) -> Value {
+    missing_required_input_object_attribute_error_envelope(
+        "ProductDeleteInput",
+        "id",
+        "ID!",
+        location,
+        json!([
+            operation_path,
+            field.response_key.clone(),
+            input_argument_name,
+            "id"
+        ]),
+    )
 }
 
 pub(in crate::proxy) fn product_delete_inline_null_id_error(
@@ -4503,16 +5060,14 @@ pub(in crate::proxy) fn product_delete_inline_null_id_error(
     field: &RootFieldSelection,
     input_argument_name: &str,
     location: SourceLocation,
-) -> Response {
-    ok_json(json!({
-        "errors": [argument_literals_incompatible_error_envelope(
-            "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.".to_string(),
-            Some(location),
-            Some(json!([operation_path, field.response_key.clone(), input_argument_name, "id"])),
-            Some("InputObject"),
-            Some("id"),
-        )]
-    }))
+) -> Value {
+    argument_literals_incompatible_error_envelope(
+        "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.".to_string(),
+        Some(location),
+        Some(json!([operation_path, field.response_key.clone(), input_argument_name, "id"])),
+        Some("InputObject"),
+        Some("id"),
+    )
 }
 
 pub(in crate::proxy) fn product_delete_variable_required_id_error(
@@ -4520,21 +5075,19 @@ pub(in crate::proxy) fn product_delete_variable_required_id_error(
     variable_name: &str,
     document: &ParsedDocument,
     field: &RootFieldSelection,
-) -> Response {
+) -> Value {
     let (variable_type, location) = document
         .variable_definitions
         .get(variable_name)
         .map(|definition| (definition.type_display.as_str(), definition.location))
         .unwrap_or(("ProductDeleteInput!", field.location));
     let message = format!("Variable ${variable_name} of type {variable_type} was provided invalid value for id (Expected value to not be null)");
-    ok_json(json!({
-        "errors": [invalid_variable_error_envelope(
-            message,
-            location,
-            value,
-            json!([{ "path": ["id"], "explanation": "Expected value to not be null" }]),
-        )]
-    }))
+    invalid_variable_error_envelope(
+        message,
+        location,
+        value,
+        json!([{ "path": ["id"], "explanation": "Expected value to not be null" }]),
+    )
 }
 
 pub(in crate::proxy) fn product_variant_media_user_error(
@@ -4567,4 +5120,97 @@ pub(in crate::proxy) fn variant_media_ids_from_json(value: &Value) -> Vec<String
             }
             ids
         })
+}
+
+#[cfg(test)]
+mod product_variant_connection_tests {
+    use super::*;
+
+    #[test]
+    fn staged_variant_overlays_its_observed_connection_position() {
+        let product_id = "gid://shopify/Product/1";
+        let variant_ids = [
+            "gid://shopify/ProductVariant/1",
+            "gid://shopify/ProductVariant/2",
+            "gid://shopify/ProductVariant/3",
+        ];
+        let fallback = variant_ids
+            .iter()
+            .enumerate()
+            .map(|(index, id)| {
+                json!({
+                    "id": id,
+                    "title": format!("Variant {}", index + 1),
+                    "sku": format!("SKU-{}", index + 1),
+                    "price": format!("{}.00", index + 1),
+                })
+            })
+            .collect::<Vec<_>>();
+        let staged = product_variant_state_from_observed_json(&json!({
+            "id": variant_ids[1],
+            "title": "Updated variant 2",
+            "sku": "SKU-2",
+            "price": "22.00",
+            "product": { "id": product_id },
+        }))
+        .expect("observed variant should normalize");
+
+        let connection =
+            product_variant_connection_with_fallback_value(&[staged], &fallback, &BTreeMap::new());
+        let nodes = connection["nodes"]
+            .as_array()
+            .expect("connection should have nodes");
+        assert_eq!(
+            nodes
+                .iter()
+                .filter_map(|node| node["id"].as_str())
+                .collect::<Vec<_>>(),
+            variant_ids
+        );
+        assert_eq!(nodes[1]["title"], json!("Updated variant 2"));
+        assert_eq!(nodes[1]["price"], json!("22.00"));
+    }
+
+    #[test]
+    fn complete_positioned_variant_state_replaces_stale_embedded_order() {
+        let product_id = "gid://shopify/Product/1";
+        let first_id = "gid://shopify/ProductVariant/1";
+        let second_id = "gid://shopify/ProductVariant/2";
+        let fallback = vec![
+            json!({ "id": first_id, "title": "Red", "price": "1.00" }),
+            json!({ "id": second_id, "title": "Green", "price": "2.00" }),
+        ];
+        let reordered = [
+            json!({
+                "id": second_id,
+                "title": "Small / Green",
+                "price": "2.00",
+                "position": 1,
+                "product": { "id": product_id },
+            }),
+            json!({
+                "id": first_id,
+                "title": "Small / Red",
+                "price": "1.00",
+                "position": 2,
+                "product": { "id": product_id },
+            }),
+        ]
+        .iter()
+        .map(product_variant_state_from_observed_json)
+        .collect::<Option<Vec<_>>>()
+        .expect("positioned variants should normalize");
+
+        let connection =
+            product_variant_connection_with_fallback_value(&reordered, &fallback, &BTreeMap::new());
+        assert_eq!(
+            connection["nodes"]
+                .as_array()
+                .expect("connection should have nodes")
+                .iter()
+                .filter_map(|node| node["id"].as_str())
+                .collect::<Vec<_>>(),
+            vec![second_id, first_id]
+        );
+    }
 }

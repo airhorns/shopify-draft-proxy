@@ -1,5 +1,178 @@
 use super::*;
 
+pub(in crate::proxy) fn customer_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
+    let mut registrations = vec![FieldResolverRegistration::explicit(
+        ApiSurface::Admin,
+        "StoreCreditAccount",
+        "transactions",
+        store_credit_account_transactions_field,
+    )];
+    registrations.extend(
+        [
+            (
+                "Customer",
+                "addressesV2",
+                customer_addresses_field as crate::resolver_registry::FieldResolverHandler,
+            ),
+            ("Customer", "orders", customer_orders_field),
+            ("Customer", "paymentMethods", customer_payment_methods_field),
+            (
+                "Customer",
+                "storeCreditAccounts",
+                customer_store_credit_accounts_field,
+            ),
+            ("Customer", "metafield", customer_metafield_field),
+            ("Customer", "metafields", customer_metafields_field),
+        ]
+        .into_iter()
+        .map(|(parent_type, field_name, handler)| {
+            FieldResolverRegistration::explicit(ApiSurface::Admin, parent_type, field_name, handler)
+        }),
+    );
+    registrations
+}
+
+pub(in crate::proxy) fn customer_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
+    [
+        "Customer",
+        "CustomerAccountsV2",
+        "CustomerCreditCardBillingAddress",
+        "CustomerEmailAddress",
+        "CustomerEmailMarketingConsentState",
+        "CustomerJourney",
+        "CustomerJourneySummary",
+        "CustomerMergeable",
+        "CustomerMergeRequest",
+        "CustomerMoment",
+        "CustomerPaymentInstrumentBillingAddress",
+        "CustomerPaymentMethod",
+        "CustomerPaypalBillingAgreement",
+        "CustomerPhoneNumber",
+        "CustomerSegmentMember",
+        "CustomerSegmentMembersQuery",
+        "CustomerShopPayAgreement",
+        "CustomerSmsMarketingConsentState",
+        "CustomerStatistics",
+        "CustomerVisit",
+        "CustomerWhatsAppMarketingConsent",
+        "HasStoreCreditAccounts",
+        "MailingAddress",
+        "StoreCreditAccount",
+        "StoreCreditAccountCreditTransaction",
+        "StoreCreditAccountDebitRevertTransaction",
+        "StoreCreditAccountDebitTransaction",
+        "StoreCreditAccountExpirationTransaction",
+        "StoreCreditAccountTransaction",
+    ]
+    .into_iter()
+    .map(|parent_type| {
+        FieldResolverTypePolicy::property_backed_ordinary_fields(
+            ApiSurface::Admin,
+            parent_type,
+            "argument-bearing customer field has no explicit canonical resolver",
+        )
+    })
+    .collect()
+}
+
+fn customer_parent_id<'a>(
+    invocation: &'a crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<&'a str, String> {
+    invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "Customer parent has no canonical id".to_string())
+}
+
+fn customer_addresses_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(connection_value_with_args(
+        customer_address_nodes(invocation.parent),
+        &resolved_arguments_from_json(&invocation.arguments),
+        |address| customer_address_cursor(address).unwrap_or_default(),
+    ))
+}
+
+fn customer_orders_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(proxy.customer_orders_connection_value(
+        customer_parent_id(invocation)?,
+        invocation.parent,
+        &resolved_arguments_from_json(&invocation.arguments),
+    ))
+}
+
+fn customer_payment_methods_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(proxy.customer_payment_methods_connection_value(
+        customer_parent_id(invocation)?,
+        &resolved_arguments_from_json(&invocation.arguments),
+    ))
+}
+
+fn customer_store_credit_accounts_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(proxy.store_credit_accounts_connection_for_owner(
+        customer_parent_id(invocation)?,
+        &resolved_arguments_from_json(&invocation.arguments),
+    ))
+}
+
+fn customer_metafield_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let api_client_id = request_app_namespace_api_client_id(request);
+    Ok(proxy.canonical_owner_metafield_value(
+        customer_parent_id(invocation)?,
+        &resolved_arguments_from_json(&invocation.arguments),
+        api_client_id.as_deref(),
+    ))
+}
+
+fn customer_metafields_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let api_client_id = request_app_namespace_api_client_id(request);
+    Ok(proxy.canonical_owner_metafields_connection_value(
+        customer_parent_id(invocation)?,
+        &resolved_arguments_from_json(&invocation.arguments),
+        api_client_id.as_deref(),
+    ))
+}
+
+fn store_credit_account_transactions_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let account_id = invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "StoreCreditAccount parent has no canonical id".to_string())?;
+    Ok(proxy.store_credit_account_transactions_value(
+        account_id,
+        &resolved_arguments_from_json(&invocation.arguments),
+    ))
+}
+
 enum StoreCreditAccountMutationResolution {
     Existing(String),
     CreateForOwner(String),
@@ -82,102 +255,6 @@ const CUSTOMER_ACCOUNT_ACTIVATION_TOKEN_FIELD: &str = "__proxyAccountActivationT
 const CUSTOMER_ACCOUNT_INVITE_FIELD: &str = "__proxyAccountInvite";
 
 impl DraftProxy {
-    pub(in crate::proxy) fn dispatch_unknown_passthrough_or_legacy_error(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        operation_type: OperationType,
-        root_fields: &[String],
-        root_field: &str,
-    ) -> Response {
-        if operation_type == OperationType::Query
-            && self.has_staged_url_redirects()
-            && root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "urlRedirect" | "urlRedirects" | "urlRedirectsCount"
-                )
-            })
-        {
-            let Some(fields) = self.execution_root_fields(query, variables) else {
-                return json_error(400, "Could not parse GraphQL operation");
-            };
-            return ok_json(json!({ "data": self.url_redirect_query_data(&fields) }));
-        }
-        match operation_type {
-            OperationType::Mutation
-                if self.config.unsupported_mutation_mode
-                    == Some(UnsupportedMutationMode::Reject) =>
-            {
-                json_error(
-                    400,
-                    &format!(
-                        "Unsupported mutation rejected by configuration: {}",
-                        root_field
-                    ),
-                )
-            }
-            OperationType::Query if self.config.read_mode == ReadMode::Snapshot => json_error(
-                400,
-                &format!(
-                    "No domain dispatcher implemented for root field: {}",
-                    root_field
-                ),
-            ),
-            OperationType::Mutation if self.config.read_mode == ReadMode::Snapshot => json_error(
-                400,
-                &format!(
-                    "No mutation dispatcher implemented for root field: {}",
-                    root_field
-                ),
-            ),
-            OperationType::Subscription if self.config.read_mode == ReadMode::Snapshot => {
-                json_error(
-                    400,
-                    &format!(
-                        "No domain dispatcher implemented for root field: {}",
-                        root_field
-                    ),
-                )
-            }
-            _ => {
-                if operation_type == OperationType::Mutation {
-                    self.record_passthrough_log_entry(
-                        request,
-                        query,
-                        variables,
-                        root_fields,
-                        root_field,
-                    );
-                }
-                let response = (self.upstream_transport)(request.clone());
-                if operation_type == OperationType::Mutation && root_field == "customerMerge" {
-                    self.observe_customer_merge_passthrough_response(query, variables, &response);
-                }
-                if operation_type == OperationType::Query
-                    && root_fields
-                        .iter()
-                        .all(|field| matches!(field.as_str(), "node" | "nodes"))
-                {
-                    self.observe_collection_passthrough_response(&response);
-                }
-                if operation_type == OperationType::Mutation
-                    && matches!(
-                        root_field,
-                        "collectionAddProducts" | "collectionCreate" | "collectionReorderProducts"
-                    )
-                {
-                    self.observe_collection_passthrough_response(&response);
-                    let hydrate_ids =
-                        collection_passthrough_hydration_ids(root_field, &response, variables);
-                    self.hydrate_product_nodes_for_observation(hydrate_ids);
-                }
-                response
-            }
-        }
-    }
-
     pub(in crate::proxy) fn observe_customer_merge_passthrough_response(
         &mut self,
         query: &str,
@@ -212,13 +289,17 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn should_handle_customer_overlay_read(
         &self,
-        fields: &[RootFieldSelection],
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        requests_payment_methods: bool,
     ) -> bool {
-        fields.iter().any(|field| match field.name.as_str() {
-            "customer" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
+        match root_name {
+            "customer" => resolved_string_field(arguments, "id").is_some_and(|id| {
                 self.store.staged.customers.contains_key(&id)
                     || self.store.staged.customers.is_tombstoned(&id)
                     || self.store_credit_owner_has_accounts(&id)
+                    || self.owner_has_metafield_local_effects(&id)
+                    || requests_payment_methods
             }),
             "customerByIdentifier" => !self.store.staged.customers.is_empty(),
             // A standalone `customers(query:)` / `customersCount` list read is
@@ -227,80 +308,54 @@ impl DraftProxy {
             // dataSaleOptOut synthetic). With no staged customers there is
             // nothing local to serve, so the read forwards upstream unchanged.
             "customers" | "customersCount" => !self.store.staged.customers.is_empty(),
-            "customerMergeJobStatus" => resolved_string_field(&field.arguments, "jobId")
+            "customerMergeJobStatus" => resolved_string_field(arguments, "jobId")
                 .is_some_and(|id| self.store.staged.customer_merge_requests.contains_key(&id)),
-            "job" => resolved_string_field(&field.arguments, "id")
+            "job" => resolved_string_field(arguments, "id")
                 .is_some_and(|id| self.store.staged.customer_merge_requests.contains_key(&id)),
             _ => false,
-        })
-    }
-
-    pub(in crate::proxy) fn customer_overlay_upstream_data(
-        &self,
-        request: &Request,
-    ) -> Option<Value> {
-        if self.config.read_mode != ReadMode::LiveHybrid {
-            return None;
         }
-        let response = (self.upstream_transport)(request.clone());
-        if !(200..300).contains(&response.status) {
-            return None;
-        }
-        response.body.get("data").cloned()
     }
 
     pub(in crate::proxy) fn customer_overlay_needs_upstream_data(
         &self,
-        fields: &[RootFieldSelection],
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return false;
         }
-        fields.iter().any(|field| match field.name.as_str() {
-            "customer" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
+        match root_name {
+            "customer" => resolved_string_field(arguments, "id").is_some_and(|id| {
                 !self.store.staged.customers.contains_key(&id)
                     && !self.store.staged.customers.is_tombstoned(&id)
             }),
-            "customerByIdentifier" => resolved_object_field(&field.arguments, "identifier")
-                .is_some_and(|identifier| {
+            "customerByIdentifier" => {
+                resolved_object_field(arguments, "identifier").is_some_and(|identifier| {
                     self.customer_staged_identifier_match(&identifier).is_none()
-                }),
+                })
+            }
             "customers" => true,
-            "customersCount" => field.arguments.contains_key("query"),
+            "customersCount" => arguments.contains_key("query"),
             _ => false,
-        })
+        }
     }
 
-    pub(in crate::proxy) fn customer_overlay_read_fields(
+    pub(in crate::proxy) fn customer_overlay_read_value(
         &mut self,
         request: &Request,
-        fields: &[RootFieldSelection],
-        upstream_data: Option<&Value>,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        upstream_value: Option<&Value>,
     ) -> Value {
-        root_payload_json(fields, |field| match field.name.as_str() {
-            "customer" => Some(self.customer_read_field(field, upstream_data)),
-            "customerByIdentifier" => Some(self.customer_by_identifier_field(field, upstream_data)),
-            "customers" => Some(self.customers_list_field(request, field, upstream_data)),
-            "customersCount" => Some(self.customers_count_field(request, field, upstream_data)),
-            "customerMergeJobStatus" => Some(self.customer_merge_job_status_field(field)),
-            "job" => Some(self.customer_merge_job_node_field(field)),
-            "node" if self.customer_merge_job_reference(field) => {
-                Some(self.customer_merge_job_node_field(field))
-            }
-            _ => None,
-        })
-    }
-
-    pub(in crate::proxy) fn customer_read_selects_amount_spent(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> bool {
-        fields.iter().any(|field| {
-            matches!(
-                field.name.as_str(),
-                "customer" | "customerByIdentifier" | "customers"
-            ) && selection_contains_any(&field.selection, &["amountSpent"])
-        })
+        match root_name {
+            "customer" => self.customer_read_value(arguments, upstream_value),
+            "customerByIdentifier" => self.customer_by_identifier_value(arguments, upstream_value),
+            "customers" => self.customers_list_value(request, arguments, upstream_value),
+            "customersCount" => self.customers_count_read_value(request, arguments, upstream_value),
+            "customerMergeJobStatus" => self.customer_merge_job_status_value(arguments),
+            "job" => self.customer_merge_job_node_value(arguments),
+            _ => Value::Null,
+        }
     }
 
     /// The store-wide total customer count: the seeded live baseline (or the
@@ -331,16 +386,29 @@ impl DraftProxy {
             .saturating_sub(deleted_base_customers)
     }
 
-    fn customers_count_field(
+    fn customers_count_read_value(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
-        upstream_data: Option<&Value>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        upstream_value: Option<&Value>,
     ) -> Value {
-        if field.arguments.contains_key("query") {
-            let query = resolved_string_field(&field.arguments, "query");
-            let base_count = upstream_count_total(field, upstream_data);
-            let base_records = self.customer_overlay_catalog_records(request, field, upstream_data);
+        // Count deltas must see sibling customer roots from the shared upstream
+        // preflight. A staged customer already present in an aliased connection
+        // is not a local addition to the upstream count baseline.
+        let upstream_identity_data = self
+            .execution_session
+            .upstream_query_response
+            .as_ref()
+            .and_then(|response| response.body.get("data"))
+            .cloned();
+        let upstream_identity_data = upstream_identity_data.as_ref().or(upstream_value);
+        if arguments.contains_key("query") {
+            let query = resolved_string_field(arguments, "query");
+            let base_count = upstream_value
+                .and_then(|value| value.get("count"))
+                .and_then(Value::as_u64)
+                .and_then(|count| usize::try_from(count).ok());
+            let base_records = self.customer_overlay_catalog_records(request, arguments, None);
             let base_matching_ids = customer_matching_record_ids(&base_records, query.as_deref());
             let mut count = base_count.as_ref().copied().unwrap_or_else(|| {
                 self.effective_customer_records(base_records.clone())
@@ -366,8 +434,10 @@ impl DraftProxy {
                         == StagedSearchDecision::Match;
                     if self.store.staged.locally_created_customer_ids.contains(id) {
                         if matches
-                            && !self
-                                .upstream_data_contains_customer_identity(upstream_data, customer)
+                            && !self.upstream_data_contains_customer_identity(
+                                upstream_identity_data,
+                                customer,
+                            )
                         {
                             count = count.saturating_add(1);
                         }
@@ -382,12 +452,12 @@ impl DraftProxy {
             }
 
             let count_value = if base_count.is_some() {
-                upstream_count_with_effective_total(field, upstream_data, count, &field.arguments)
-                    .unwrap_or_else(|| snapshot_count_with_limit_precision(count, &field.arguments))
+                upstream_count_value_with_effective_total(upstream_value, count, arguments)
+                    .unwrap_or_else(|| snapshot_count_with_limit_precision(count, arguments))
             } else {
-                snapshot_count_with_limit_precision(count, &field.arguments)
+                snapshot_count_with_limit_precision(count, arguments)
             };
-            return selected_json(&count_value, &field.selection);
+            return count_value;
         }
 
         let mut delta = 0isize;
@@ -399,111 +469,106 @@ impl DraftProxy {
         for (id, customer) in self.store.staged.customers.iter() {
             if !self.store.staged.locally_created_customer_ids.contains(id)
                 || self.store.staged.customers.is_tombstoned(id)
-                || self.upstream_data_contains_customer_identity(upstream_data, customer)
+                || self.upstream_data_contains_customer_identity(upstream_identity_data, customer)
             {
                 continue;
             }
             delta += 1;
         }
         if let Some(count) =
-            upstream_count_with_staged_delta(field, upstream_data, delta, &field.arguments)
+            upstream_count_value_with_staged_delta(upstream_value, delta, arguments)
         {
-            return selected_json(&count, &field.selection);
+            return count;
         }
 
-        selected_json(
-            &count_object(self.customers_count_value()),
-            &field.selection,
-        )
+        count_object(self.customers_count_value())
     }
 
     /// `customerMergeJobStatus(jobId:)` read: project the requested selection over
     /// the locally recorded merge request (keyed by the synthetic job id minted by
     /// `customerMerge`). Returns null for unknown job ids.
-    pub(in crate::proxy) fn customer_merge_job_status_field(
+    pub(in crate::proxy) fn customer_merge_job_status_value(
         &self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let Some(job_id) = resolved_string_field(&field.arguments, "jobId") else {
+        let Some(job_id) = resolved_string_field(arguments, "jobId") else {
             return Value::Null;
         };
         self.store
             .staged
             .customer_merge_requests
             .get(&job_id)
-            .map(|request| selected_json(request, &field.selection))
+            .cloned()
             .unwrap_or(Value::Null)
     }
 
     /// Resolve `job(id:)` / `node(id:)` for a synthetic merge job id minted by
     /// `customer_merge`. Returns a completed `Job` projection from the staged
     /// merge request, or null for ids the proxy did not mint.
-    pub(in crate::proxy) fn customer_merge_job_node_field(
+    pub(in crate::proxy) fn customer_merge_job_node_value(
         &self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let Some(id) = resolved_string_field(&field.arguments, "id") else {
+        let Some(id) = resolved_string_field(arguments, "id") else {
             return Value::Null;
         };
+        self.customer_merge_job_value(&id).unwrap_or(Value::Null)
+    }
+
+    pub(in crate::proxy) fn customer_merge_job_value(&self, id: &str) -> Option<Value> {
         self.store
             .staged
             .customer_merge_requests
-            .get(&id)
+            .get(id)
             .map(customer_merge_job_from_request)
-            .map(|job| selected_json(&job, &field.selection))
-            .unwrap_or(Value::Null)
     }
 
-    /// True iff `node(id:)` targets a `Job` id we minted for a staged merge
-    /// request, so the overlay read may serve it instead of forwarding.
-    pub(in crate::proxy) fn customer_merge_job_reference(
+    pub(in crate::proxy) fn customer_read_value(
         &self,
-        field: &RootFieldSelection,
-    ) -> bool {
-        resolved_string_field(&field.arguments, "id")
-            .as_deref()
-            .is_some_and(|id| self.store.staged.customer_merge_requests.contains_key(id))
-    }
-
-    pub(in crate::proxy) fn customer_read_field(
-        &self,
-        field: &RootFieldSelection,
-        upstream_data: Option<&Value>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        upstream_value: Option<&Value>,
     ) -> Value {
-        let Some(id) = resolved_string_field(&field.arguments, "id") else {
+        let Some(id) = resolved_string_field(arguments, "id") else {
             return Value::Null;
         };
         if self.store.staged.customers.is_tombstoned(&id) {
             return Value::Null;
         }
         if let Some(customer) = self.store.staged.customers.get(&id) {
-            return self.customer_with_order_connection(&id, customer, &field.selection);
+            return self.canonical_customer_value(&id, customer);
         }
-        upstream_root_field(field, upstream_data)
-            .map(|customer| selected_json(&customer, &field.selection))
-            .unwrap_or(Value::Null)
+        if let Some(customer) = upstream_value.filter(|customer| !customer.is_null()) {
+            return self.canonical_customer_value(&id, customer);
+        }
+        if self.customer_related_state_exists(&id) {
+            return self.canonical_customer_value(&id, &json!({ "id": id }));
+        }
+        Value::Null
     }
 
-    pub(in crate::proxy) fn customer_node_value_by_id(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+    /// Some supported child domains are staged independently of a complete
+    /// customer record. Return a canonical identity parent so the GraphQL
+    /// engine can invoke the explicit child-field resolver instead of
+    /// nulling the whole customer root before that resolver is reached.
+    fn customer_related_state_exists(&self, id: &str) -> bool {
+        self.store_credit_owner_has_accounts(id)
+            || self.owner_has_metafield_local_effects(id)
+            || self
+                .store
+                .staged
+                .customer_payment_method_customer_index
+                .get(id)
+                .is_some_and(|method_ids| !method_ids.is_empty())
+    }
+
+    pub(in crate::proxy) fn customer_node_value_by_id(&self, id: &str) -> Option<Value> {
         if self.store.staged.customers.is_tombstoned(id) {
             return Some(Value::Null);
         }
-        self.store
-            .staged
-            .customers
-            .get(id)
-            .map(|customer| self.customer_with_order_connection(id, customer, selection))
+        self.store.staged.customers.get(id).cloned()
     }
 
-    pub(in crate::proxy) fn customer_address_node_value_by_id(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+    pub(in crate::proxy) fn customer_address_node_value_by_id(&self, id: &str) -> Option<Value> {
         self.store
             .staged
             .customers
@@ -511,91 +576,49 @@ impl DraftProxy {
             .filter(|(customer_id, _)| !self.store.staged.customers.is_tombstoned(customer_id))
             .flat_map(|(_, customer)| customer_address_nodes(customer))
             .find(|address| address.get("id").and_then(Value::as_str) == Some(id))
-            .map(|mut address| {
-                if let Some(object) = address.as_object_mut() {
-                    object.insert("__typename".to_string(), json!("MailingAddress"));
-                }
-                selected_json(&address, selection)
-            })
     }
 
-    pub(in crate::proxy) fn customer_with_order_connection(
+    pub(in crate::proxy) fn canonical_customer_value(&self, id: &str, customer: &Value) -> Value {
+        let can_delete = self.customer_can_delete_value(id, customer);
+        let zero_amount_spent = customer.get("amountSpent").is_none_or(Value::is_null)
+            && customer_order_count(customer) == Some(0);
+        let mut customer = customer.clone();
+        let Some(fields) = customer.as_object_mut() else {
+            return customer;
+        };
+        fields.insert("__typename".to_string(), json!("Customer"));
+        fields.insert("canDelete".to_string(), json!(can_delete));
+        if zero_amount_spent {
+            fields.insert(
+                "amountSpent".to_string(),
+                money_value("0.0", &self.store.shop_currency_code()),
+            );
+        }
+        customer
+    }
+
+    fn customer_orders_connection_value(
         &self,
         id: &str,
         customer: &Value,
-        selection: &[SelectedField],
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        // The per-customer order connection is resolved from the staged
-        // `customer_orders` index when present (orders created/transferred in the
-        // scenario), windowing + cursoring generically. When a customer has no staged
-        // orders but carries a recorded inline `orders` connection (a seeded read
-        // baseline whose opaque cursors / pageInfo cannot be reconstructed locally),
-        // that recorded page is projected verbatim instead.
-        let mapped_orders = self.store.staged.customer_orders.get(id);
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "__typename" => Some(json!("Customer")),
-            "canDelete" => Some(json!(self.customer_can_delete_value(id, customer))),
-            "amountSpent"
-                if customer.get("amountSpent").is_none_or(Value::is_null)
-                    && customer_order_count(customer) == Some(0) =>
-            {
-                let projected = json!({
-                    "amountSpent": money_value("0.0", &self.store.shop_currency_code())
-                });
-                selected_json(&projected, std::slice::from_ref(field))
-                    .as_object()
-                    .and_then(|object| object.get(&field.response_key).cloned())
+        // A seeded page carries authoritative opaque cursors/pageInfo. Staged
+        // orders instead use the shared searchable connection implementation.
+        match self.store.staged.customer_orders.get(id) {
+            Some(orders) => staged_connection_value_with_args(
+                orders.clone(),
+                arguments,
+                order_search_decision,
+                order_staged_sort_key,
+                Value::clone,
+                order_connection_cursor,
+            ),
+            None if connection_has_nodes(&customer["orders"]) => {
+                seeded_connection_value(&customer["orders"], arguments)
             }
-            "orders" => Some(match mapped_orders {
-                Some(orders) => selected_staged_connection_with_args(
-                    orders.clone(),
-                    &field.arguments,
-                    &field.selection,
-                    order_search_decision,
-                    order_staged_sort_key,
-                    selected_json,
-                    order_connection_cursor,
-                ),
-                None if connection_has_nodes(&customer["orders"]) => project_seeded_connection(
-                    &customer["orders"],
-                    &field.arguments,
-                    &field.selection,
-                ),
-                None => selected_connection_json_with_args(
-                    Vec::new(),
-                    &field.arguments,
-                    &field.selection,
-                    order_connection_cursor,
-                ),
-            }),
-            "addressesV2" => Some(selected_customer_addresses_connection(customer, field)),
-            // The `storeCreditAccounts` connection is resolved from the staged
-            // store-credit accounts indexed by owner, so a customer read reflects
-            // credit/debit mutations (and locally minted accounts) immediately.
-            "storeCreditAccounts" => Some(self.store_credit_accounts_connection_for_owner(
-                id,
-                &field.arguments,
-                &field.selection,
-            )),
-            "metafield" | "metafields" => {
-                let base = selected_json(customer, std::slice::from_ref(field));
-                let projected = self.owner_metafield_overlay_owner_json(
-                    "customer",
-                    id,
-                    std::slice::from_ref(field),
-                    base,
-                );
-                Some(
-                    projected
-                        .get(field.response_key.as_str())
-                        .cloned()
-                        .unwrap_or(Value::Null),
-                )
-            }
-            _ => selected_json(customer, std::slice::from_ref(field))
-                .as_object()
-                .and_then(|object| object.get(&field.response_key).cloned()),
-        })
+            None => connection_value_with_args(Vec::new(), arguments, order_connection_cursor),
+        }
     }
 
     fn customer_can_delete_value(&self, id: &str, customer: &Value) -> bool {
@@ -621,70 +644,48 @@ impl DraftProxy {
                 .is_some_and(|last_order| !last_order.is_null())
     }
 
-    pub(in crate::proxy) fn store_credit_account_read_fields(
+    pub(in crate::proxy) fn store_credit_account_read_value(
         &self,
-        fields: &[RootFieldSelection],
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        root_payload_json(fields, |field| {
-            if field.name != "storeCreditAccount" {
-                return None;
-            }
-            let value = resolved_string_field(&field.arguments, "id")
-                .and_then(|id| self.store.staged.store_credit_accounts.get(&id))
-                .map(|account| self.selected_store_credit_account(account, &field.selection))
-                .unwrap_or(Value::Null);
-            Some(value)
-        })
+        resolved_string_field(arguments, "id")
+            .and_then(|id| self.store.staged.store_credit_accounts.get(&id))
+            .cloned()
+            .unwrap_or(Value::Null)
     }
 
-    pub(in crate::proxy) fn store_credit_account_mutation(
+    pub(crate) fn store_credit_account_mutation_root(
         &mut self,
-        root_field: &str,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return MutationOutcome::response(json_error(400, "Could not parse GraphQL operation"));
-        };
-        if let Some(response) = store_credit_result_only_currency_response(&fields) {
-            return MutationOutcome::response(response);
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        if let Some(error) = store_credit_result_only_currency_error(
+            invocation.root_name,
+            invocation.root_location,
+            invocation.response_key,
+            &arguments,
+        ) {
+            return graphql_error_outcome(vec![error], invocation.response_key);
         }
-        let mut log_drafts = Vec::new();
-        let data = root_payload_json(&fields, |field| {
-            if !matches!(
-                field.name.as_str(),
-                "storeCreditAccountCredit" | "storeCreditAccountDebit"
-            ) {
-                return None;
-            }
-            let outcome = self.store_credit_account_mutation_field(field, request);
-            if let Some(log_draft) = outcome.log_draft {
-                log_drafts.push(log_draft);
-            }
-            Some(outcome.value)
-        });
-        if data.as_object().is_none_or(serde_json::Map::is_empty) {
-            return MutationOutcome::response(json_error(501, "Unsupported store credit mutation"));
+        let outcome = self.store_credit_account_mutation_field(
+            invocation.root_name,
+            &arguments,
+            invocation.request,
+        );
+        let mut resolver_outcome = ResolverOutcome::value(outcome.value);
+        if let Some(log_draft) = outcome.log_draft {
+            resolver_outcome.log_drafts.push(log_draft);
         }
-        let response = ok_json(json!({ "data": data }));
-        if log_drafts.is_empty() {
-            MutationOutcome::response(response)
-        } else if root_field == "storeCreditAccountCredit"
-            || root_field == "storeCreditAccountDebit"
-        {
-            MutationOutcome::with_log_drafts(response, log_drafts)
-        } else {
-            MutationOutcome::response(response)
-        }
+        resolver_outcome
     }
 
     fn store_credit_account_mutation_field(
         &mut self,
-        field: &RootFieldSelection,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> MutationFieldOutcome {
-        let is_credit = field.name == "storeCreditAccountCredit";
+        let is_credit = root_name == "storeCreditAccountCredit";
         let input_name = if is_credit {
             "creditInput"
         } else {
@@ -695,7 +696,7 @@ impl DraftProxy {
         } else {
             "debitAmount"
         };
-        let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
+        let input = resolved_object_field(arguments, input_name).unwrap_or_default();
         let amount_input = resolved_object_field(&input, amount_name).unwrap_or_default();
         let currency = resolved_string_field(&amount_input, "currencyCode").unwrap_or_default();
         let amount_text = resolved_money_amount_text(&amount_input, "amount");
@@ -704,12 +705,12 @@ impl DraftProxy {
             .and_then(|value| value.parse::<f64>().ok())
             .unwrap_or(0.0);
 
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(arguments, "id").unwrap_or_default();
         let Some(account_resolution) =
             self.resolve_store_credit_account_for_mutation(request, &id, &currency, is_credit)
         else {
             return self.store_credit_error_outcome(
-                field,
+                root_name,
                 store_credit_missing_id_user_error(&id, is_credit),
             );
         };
@@ -723,7 +724,7 @@ impl DraftProxy {
                 .unwrap_or(false)
         {
             return self.store_credit_error_outcome(
-                field,
+                root_name,
                 user_error(
                     [input_name, "expiresAt"],
                     "The expiry date must be in the future",
@@ -734,7 +735,7 @@ impl DraftProxy {
 
         if amount <= 0.0 {
             return self.store_credit_error_outcome(
-                field,
+                root_name,
                 user_error(
                     [input_name, amount_name, "amount"],
                     if is_credit {
@@ -751,7 +752,7 @@ impl DraftProxy {
             StoreCreditAccountMutationResolution::Existing(account_id) => {
                 let Some(existing) = self.store.staged.store_credit_accounts.get(account_id) else {
                     return self.store_credit_error_outcome(
-                        field,
+                        root_name,
                         user_error(
                             ["id"],
                             "Store credit account does not exist",
@@ -773,7 +774,7 @@ impl DraftProxy {
         };
         if currency != account_currency {
             return self.store_credit_error_outcome(
-                field,
+                root_name,
                 user_error(
                     [input_name, amount_name, "currencyCode"],
                     "The currency provided does not match the currency of the store credit account",
@@ -784,7 +785,7 @@ impl DraftProxy {
 
         if is_credit && current_balance + amount >= STORE_CREDIT_LIMIT {
             return self.store_credit_error_outcome(
-                field,
+                root_name,
                 user_error(
                     [input_name, amount_name, "amount"],
                     "The operation would cause the account's credit limit to be exceeded",
@@ -794,7 +795,7 @@ impl DraftProxy {
         }
         if !is_credit && amount > current_balance {
             return self.store_credit_error_outcome(
-                field,
+                root_name,
                 user_error(
                     [input_name, amount_name, "amount"],
                     "The store credit account does not have sufficient funds to satisfy the request",
@@ -813,7 +814,7 @@ impl DraftProxy {
                     .cloned()
                 else {
                     return self.store_credit_error_outcome(
-                        field,
+                        root_name,
                         user_error(
                             ["id"],
                             "Store credit account does not exist",
@@ -833,7 +834,7 @@ impl DraftProxy {
                     .cloned()
                 else {
                     return self.store_credit_error_outcome(
-                        field,
+                        root_name,
                         user_error(
                             ["id"],
                             "Store credit account does not exist",
@@ -894,29 +895,15 @@ impl DraftProxy {
             .store_credit_accounts
             .insert(account_id.clone(), account);
 
-        let payload = self.store_credit_payload_for_selection(
-            &field.selection,
-            &field.name,
-            Some(&transaction),
-            Vec::new(),
-        );
+        let payload = store_credit_payload_value(root_name, Some(&transaction), Vec::new());
         MutationFieldOutcome::staged(
             payload,
-            LogDraft::staged(&field.name, "customers", vec![account_id]),
+            LogDraft::staged(root_name, "customers", vec![account_id]),
         )
     }
 
-    fn store_credit_error_outcome(
-        &self,
-        field: &RootFieldSelection,
-        error: Value,
-    ) -> MutationFieldOutcome {
-        MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
-            &field.selection,
-            &field.name,
-            None,
-            vec![error],
-        ))
+    fn store_credit_error_outcome(&self, root_name: &str, error: Value) -> MutationFieldOutcome {
+        MutationFieldOutcome::unlogged(store_credit_payload_value(root_name, None, vec![error]))
     }
 
     fn resolve_store_credit_account_for_mutation(
@@ -1021,117 +1008,36 @@ impl DraftProxy {
         }
     }
 
-    fn store_credit_payload_for_selection(
+    fn store_credit_account_transactions_value(
         &self,
-        selection: &[SelectedField],
-        root_field: &str,
-        transaction: Option<&Value>,
-        user_errors: Vec<Value>,
+        account_id: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let payload = json!({
-            "__typename": if root_field == "storeCreditAccountCredit" {
-                "StoreCreditAccountCreditPayload"
-            } else {
-                "StoreCreditAccountDebitPayload"
-            },
-            "storeCreditAccountTransaction": transaction.cloned().unwrap_or(Value::Null),
-            "userErrors": user_errors
-        });
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "storeCreditAccountTransaction" => Some(
-                transaction
-                    .map(|transaction| {
-                        self.selected_store_credit_transaction(transaction, &field.selection)
-                    })
-                    .unwrap_or(Value::Null),
-            ),
-            _ => selected_json(&payload, std::slice::from_ref(field))
-                .as_object()
-                .and_then(|object| object.get(&field.response_key).cloned()),
-        })
-    }
-
-    fn selected_store_credit_transaction(
-        &self,
-        transaction: &Value,
-        selection: &[SelectedField],
-    ) -> Value {
-        let mut projected = selected_payload_json(selection, |field| match field.name.as_str() {
-            "account"
-                if selected_field_applies_to_record(
-                    transaction,
-                    transaction.get("__typename").and_then(Value::as_str),
-                    field,
-                ) =>
-            {
-                transaction
-                    .get("account")
-                    .map(|account| self.selected_store_credit_account(account, &field.selection))
-            }
-            _ => selected_json(transaction, std::slice::from_ref(field))
-                .as_object()
-                .and_then(|object| object.get(&field.response_key).cloned()),
-        });
-        if let (Some(projected), Some(typename)) = (
-            projected.as_object_mut(),
-            transaction.get("__typename").and_then(Value::as_str),
-        ) {
-            projected.insert("__typename".to_string(), json!(typename));
+        let mut transactions = self
+            .store
+            .staged
+            .store_credit_transaction_order
+            .iter()
+            .filter_map(|id| self.store.staged.store_credit_transactions.get(id))
+            .filter(|transaction| transaction["account"]["id"].as_str() == Some(account_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+            transactions.reverse();
         }
-        projected
+        let (transactions, page_info) =
+            connection_window(&transactions, arguments, value_id_cursor);
+        typed_connection_value(&transactions, Value::clone, value_id_cursor, page_info)
     }
 
-    fn selected_store_credit_account(&self, account: &Value, selection: &[SelectedField]) -> Value {
-        let projected = selected_payload_json(selection, |field| match field.name.as_str() {
-            "__typename" => Some(json!("StoreCreditAccount")),
-            "transactions"
-                if selected_field_applies_to_record(account, Some("StoreCreditAccount"), field) =>
-            {
-                let account_id = account
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default();
-                let mut transactions = self
-                    .store
-                    .staged
-                    .store_credit_transaction_order
-                    .iter()
-                    .filter_map(|id| self.store.staged.store_credit_transactions.get(id))
-                    .filter(|transaction| transaction["account"]["id"].as_str() == Some(account_id))
-                    .cloned()
-                    .collect::<Vec<_>>();
-                if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
-                    transactions.reverse();
-                }
-                Some(selected_typed_connection_with_args(
-                    &transactions,
-                    &field.arguments,
-                    &field.selection,
-                    |transaction, selection| {
-                        self.selected_store_credit_transaction(transaction, selection)
-                    },
-                    value_id_cursor,
-                ))
-            }
-            _ => selected_json(account, std::slice::from_ref(field))
-                .as_object()
-                .and_then(|object| object.get(&field.response_key).cloned()),
-        });
-        projected
-    }
-
-    pub(in crate::proxy) fn store_credit_node_value_by_id(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+    pub(in crate::proxy) fn store_credit_node_value_by_id(&self, id: &str) -> Option<Value> {
         match shopify_gid_resource_type(id) {
             Some("StoreCreditAccount") => Some(
                 self.store
                     .staged
                     .store_credit_accounts
                     .get(id)
-                    .map(|account| self.selected_store_credit_account(account, selection))
+                    .cloned()
                     .unwrap_or(Value::Null),
             ),
             Some(
@@ -1144,9 +1050,7 @@ impl DraftProxy {
                     .staged
                     .store_credit_transactions
                     .get(id)
-                    .map(|transaction| {
-                        self.selected_store_credit_transaction(transaction, selection)
-                    })
+                    .cloned()
                     .unwrap_or(Value::Null),
             ),
             _ => None,
@@ -1157,7 +1061,6 @@ impl DraftProxy {
         &self,
         owner_id: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
-        selection: &[SelectedField],
     ) -> Value {
         let accounts = self
             .store
@@ -1169,13 +1072,12 @@ impl DraftProxy {
             .filter(|account| account["owner"]["id"].as_str() == Some(owner_id))
             .cloned()
             .collect::<Vec<_>>();
-        selected_staged_connection_with_args(
+        staged_connection_value_with_args(
             accounts,
             arguments,
-            selection,
             store_credit_account_search_decision,
             store_credit_account_sort_key,
-            selected_json,
+            Value::clone,
             value_id_cursor,
         )
     }
@@ -1367,56 +1269,55 @@ impl DraftProxy {
     /// each node through the shared customer renderer so nested
     /// `orders`/`addressesV2`/`metafields` connections resolve from store state
     /// exactly as the singular `customer`/`customerByIdentifier` reads do.
-    pub(in crate::proxy) fn customers_list_field(
+    pub(in crate::proxy) fn customers_list_value(
         &self,
         request: &Request,
-        field: &RootFieldSelection,
-        upstream_data: Option<&Value>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        upstream_value: Option<&Value>,
     ) -> Value {
         let records = self.effective_customer_records(self.customer_overlay_catalog_records(
             request,
-            field,
-            upstream_data,
+            arguments,
+            upstream_value,
         ));
-        selected_staged_connection_with_args(
+        staged_connection_value_with_args(
             records,
-            &field.arguments,
-            &field.selection,
+            arguments,
             customer_overlay_search_decision,
             customer_staged_sort_key,
-            |customer, selection| {
+            |customer| {
                 let id = customer["id"].as_str().unwrap_or_default().to_string();
-                self.customer_with_order_connection(&id, customer, selection)
+                self.canonical_customer_value(&id, customer)
             },
             value_id_cursor,
         )
     }
 
-    pub(in crate::proxy) fn customer_by_identifier_field(
+    pub(in crate::proxy) fn customer_by_identifier_value(
         &self,
-        field: &RootFieldSelection,
-        upstream_data: Option<&Value>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        upstream_value: Option<&Value>,
     ) -> Value {
-        let Some(identifier) = resolved_object_field(&field.arguments, "identifier") else {
+        let Some(identifier) = resolved_object_field(arguments, "identifier") else {
             return Value::Null;
         };
         if let Some(customer) = self.customer_staged_identifier_match(&identifier) {
             return customer
                 .map(|customer| {
                     let id = customer["id"].as_str().unwrap_or_default().to_string();
-                    self.customer_with_order_connection(&id, customer, &field.selection)
+                    self.canonical_customer_value(&id, customer)
                 })
                 .unwrap_or(Value::Null);
         }
 
-        let Some(base_customer) = upstream_root_field(field, upstream_data) else {
+        let Some(base_customer) = upstream_value.cloned() else {
             return Value::Null;
         };
         if base_customer.is_null() {
             return Value::Null;
         }
         let Some(id) = base_customer.get("id").and_then(Value::as_str) else {
-            return selected_json(&base_customer, &field.selection);
+            return base_customer;
         };
         if self.store.staged.customers.is_tombstoned(id) {
             return Value::Null;
@@ -1424,12 +1325,12 @@ impl DraftProxy {
         if let Some(customer) = self.store.staged.customers.get(id) {
             return if self.customer_matches_identifier(id, customer, &identifier) {
                 let id = customer["id"].as_str().unwrap_or_default().to_string();
-                self.customer_with_order_connection(&id, customer, &field.selection)
+                self.canonical_customer_value(&id, customer)
             } else {
                 Value::Null
             };
         }
-        selected_json(&base_customer, &field.selection)
+        self.canonical_customer_value(id, &base_customer)
     }
 
     fn customer_staged_identifier_match(
@@ -1496,21 +1397,18 @@ impl DraftProxy {
     fn customer_overlay_catalog_records(
         &self,
         request: &Request,
-        field: &RootFieldSelection,
-        upstream_data: Option<&Value>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        upstream_value: Option<&Value>,
     ) -> Vec<Value> {
-        let mut records = self.customer_overlay_catalog_hydrate_records(request, field);
-        merge_customer_records_from_connection(
-            &mut records,
-            upstream_root_field(field, upstream_data).as_ref(),
-        );
+        let mut records = self.customer_overlay_catalog_hydrate_records(request, arguments);
+        merge_customer_records_from_connection(&mut records, upstream_value);
         records
     }
 
     fn customer_overlay_catalog_hydrate_records(
         &self,
         request: &Request,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Vec<Value> {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return Vec::new();
@@ -1521,7 +1419,7 @@ impl DraftProxy {
                 "query": CUSTOMER_OVERLAY_CATALOG_HYDRATE_QUERY,
                 "operationName": "CustomerOverlayCatalogHydrate",
                 "variables": {
-                    "query": resolved_string_field(&field.arguments, "query"),
+                    "query": resolved_string_field(arguments, "query"),
                 },
             }),
         );
@@ -1599,13 +1497,9 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn customer_order_create(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || "orderCreate".to_string());
-        let order_input = resolved_object_field(&arguments, "order").unwrap_or_default();
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> ResolverOutcome<Value> {
+        let order_input = resolved_object_field(arguments, "order").unwrap_or_default();
         let customer_id = resolved_string_field(&order_input, "customerId").unwrap_or_default();
         let customer = self
             .store
@@ -1628,140 +1522,99 @@ impl DraftProxy {
                 .or_default()
                 .push(order.clone());
         }
-        self.record_mutation_log_entry(request, query, variables, "orderCreate", vec![id]);
         let payload = json!({ "order": order, "userErrors": [] });
-        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "orderCreate",
+            "orders",
+            vec![id],
+        ))
     }
 
-    pub(in crate::proxy) fn customer_mutation_response(
+    pub(crate) fn customer_lifecycle_mutation_root(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        if invocation.requests_field_path(&["customer", "amountSpent"]) {
+            self.hydrate_shop_pricing_state_if_missing(invocation.request, true, false);
+        }
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let (payload, staged_ids, errors) = self.customer_mutation_payload(&invocation, &arguments);
+        let value = if errors.is_empty() {
+            self.canonical_customer_payload_value(payload)
+        } else {
+            Value::Null
         };
-        if !fields.iter().all(|field| {
-            matches!(
-                field.name.as_str(),
-                "customerCreate" | "customerUpdate" | "customerDelete" | "customerSet"
-            )
-        }) {
-            return json_error(400, "Unsupported mixed customer mutation selection");
+        let mut outcome = ResolverOutcome::value(value).with_errors(root_field_errors_from_json(
+            &errors,
+            invocation.response_key,
+        ));
+        if !staged_ids.is_empty() {
+            outcome.log_drafts.push(LogDraft::staged(
+                invocation.root_name,
+                "customers",
+                staged_ids,
+            ));
         }
-        let selects_amount_spent = fields
-            .iter()
-            .any(|field| selection_contains_any(&field.selection, &["amountSpent"]));
-        if selects_amount_spent {
-            self.hydrate_shop_pricing_state_if_missing(request, true, false);
-        }
-
-        let mut errors = Vec::new();
-        let data = root_payload_json(&fields, |field| {
-            let (payload, staged_ids, field_errors) =
-                self.customer_mutation_payload(request, field);
-            // A top-level GraphQL error whose path points at this root field means
-            // the field itself resolves to `null` in `data` (GraphQL error
-            // propagation), not `{customer:null,userErrors:[]}`. This mirrors
-            // Shopify's REDACTED inline-consent rejection, which surfaces a
-            // top-level error AND `customerCreate: null`.
-            let has_top_error = !field_errors.is_empty();
-            errors.extend(field_errors);
-            if !staged_ids.is_empty() {
-                self.record_mutation_log_entry(request, query, variables, &field.name, staged_ids);
-            }
-            let rendered = if has_top_error {
-                Value::Null
-            } else {
-                self.selected_customer_mutation_payload(&payload, &field.selection)
-            };
-            Some(rendered)
-        });
-        let mut body = json!({ "data": data });
-        if !errors.is_empty() {
-            body["errors"] = Value::Array(errors);
-        }
-        ok_json(body)
+        outcome
     }
 
-    pub(in crate::proxy) fn customer_outbound_lifecycle_response(
+    pub(crate) fn customer_outbound_lifecycle_root(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
-        };
-        if !fields.iter().all(|field| {
-            matches!(
-                field.name.as_str(),
-                "customerGenerateAccountActivationUrl"
-                    | "customerSendAccountInviteEmail"
-                    | "customerPaymentMethodSendUpdateEmail"
-            )
-        }) {
-            return json_error(
-                400,
-                "Unsupported mixed customer outbound mutation selection",
-            );
-        }
-
-        let data = root_payload_json(&fields, |field| {
-            let (payload, staged_ids) = match field.name.as_str() {
-                "customerGenerateAccountActivationUrl" => {
-                    self.customer_generate_account_activation_url_payload(request, field)
-                }
-                "customerSendAccountInviteEmail" => {
-                    self.customer_send_account_invite_email_payload(request, field)
-                }
-                // Kept unimplemented as a primary root. This projection lets the
-                // existing mixed outbound-validation parity request continue to
-                // compare its captured not-found branch without staging delivery.
-                "customerPaymentMethodSendUpdateEmail" => (
-                    customer_payment_method_send_update_email_not_found_payload(),
-                    Vec::new(),
-                ),
-                _ => unreachable!("validated customer outbound root"),
-            };
-            if !staged_ids.is_empty() {
-                self.record_mutation_log_entry(request, query, variables, &field.name, staged_ids);
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let hydrate_addresses = invocation.requests_field_path(&["customer", "addressesV2"]);
+        let (payload, staged_ids) = match invocation.root_name {
+            "customerGenerateAccountActivationUrl" => self
+                .customer_generate_account_activation_url_payload(invocation.request, &arguments),
+            "customerSendAccountInviteEmail" => self.customer_send_account_invite_email_payload(
+                invocation.request,
+                &arguments,
+                hydrate_addresses,
+            ),
+            "customerPaymentMethodSendUpdateEmail" => (
+                customer_payment_method_send_update_email_not_found_payload(),
+                Vec::new(),
+            ),
+            _ => {
+                return resolver_http_error_outcome(
+                    400,
+                    "Unsupported customer outbound mutation selection",
+                );
             }
-            Some(self.selected_customer_outbound_payload(&payload, &field.selection))
-        });
-        ok_json(json!({ "data": data }))
+        };
+        let outcome = ResolverOutcome::value(self.canonical_customer_payload_value(payload));
+        if staged_ids.is_empty() {
+            outcome
+        } else {
+            outcome.with_log_draft(LogDraft::staged(
+                invocation.root_name,
+                "customers",
+                staged_ids,
+            ))
+        }
     }
 
-    fn selected_customer_outbound_payload(
-        &self,
-        payload: &Value,
-        selection: &[SelectedField],
-    ) -> Value {
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "customer" => {
-                let customer = &payload["customer"];
-                if customer.is_null() {
-                    return Some(Value::Null);
-                }
-                let id = customer
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default();
-                Some(self.customer_with_order_connection(id, customer, &field.selection))
-            }
-            _ => selected_json(payload, std::slice::from_ref(field))
-                .as_object()
-                .and_then(|object| object.get(&field.response_key).cloned()),
-        })
+    fn canonical_customer_payload_value(&self, mut payload: Value) -> Value {
+        if let Some(customer) = payload
+            .get("customer")
+            .filter(|customer| !customer.is_null())
+        {
+            let id = customer
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            payload["customer"] = self.canonical_customer_value(id, customer);
+        }
+        payload
     }
 
     fn customer_generate_account_activation_url_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Vec<String>) {
-        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
+        let customer_id = resolved_string_field(arguments, "customerId").unwrap_or_default();
         let Some(mut customer) = self.customer_existing_for_update(request, &customer_id, false)
         else {
             return (
@@ -1807,10 +1660,10 @@ impl DraftProxy {
     fn customer_send_account_invite_email_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        hydrate_addresses: bool,
     ) -> (Value, Vec<String>) {
-        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
-        let hydrate_addresses = customer_payload_selection_needs_address_hydrate(&field.selection);
+        let customer_id = resolved_string_field(arguments, "customerId").unwrap_or_default();
         let Some(mut customer) =
             self.customer_existing_for_update(request, &customer_id, hydrate_addresses)
         else {
@@ -1827,7 +1680,7 @@ impl DraftProxy {
             );
         };
 
-        if let Some(errors) = customer_invite_email_user_errors(&field.arguments) {
+        if let Some(errors) = customer_invite_email_user_errors(arguments) {
             return (customer_payload(Value::Null, vec![errors]), Vec::new());
         }
 
@@ -1847,7 +1700,7 @@ impl DraftProxy {
         }
 
         customer["state"] = json!("INVITED");
-        customer[CUSTOMER_ACCOUNT_INVITE_FIELD] = customer_account_invite_state(&field.arguments);
+        customer[CUSTOMER_ACCOUNT_INVITE_FIELD] = customer_account_invite_state(arguments);
         self.store
             .staged
             .customers
@@ -1855,39 +1708,28 @@ impl DraftProxy {
         (customer_payload(customer, Vec::new()), vec![customer_id])
     }
 
-    fn selected_customer_mutation_payload(
-        &self,
-        payload: &Value,
-        selection: &[SelectedField],
-    ) -> Value {
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "customer" => {
-                let customer = &payload["customer"];
-                if customer.is_null() {
-                    return Some(Value::Null);
-                }
-                let id = customer
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default();
-                Some(self.customer_with_order_connection(id, customer, &field.selection))
-            }
-            _ => selected_json(payload, std::slice::from_ref(field))
-                .as_object()
-                .and_then(|object| object.get(&field.response_key).cloned()),
-        })
-    }
-
     fn customer_mutation_payload(
         &mut self,
-        request: &Request,
-        field: &RootFieldSelection,
+        invocation: &RootInvocation<'_>,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Vec<String>, Vec<Value>) {
-        match field.name.as_str() {
-            "customerCreate" => self.customer_create_payload(request, field),
-            "customerUpdate" => self.customer_update_payload(request, field),
-            "customerDelete" => self.customer_delete_payload(request, field),
-            "customerSet" => self.customer_set_payload(request, field),
+        let hydrate_addresses = invocation.requests_field_path(&["customer", "addressesV2"]);
+        match invocation.root_name {
+            "customerCreate" => {
+                self.customer_create_payload(invocation.request, arguments, invocation.response_key)
+            }
+            "customerUpdate" => {
+                self.customer_update_payload(invocation.request, arguments, hydrate_addresses)
+            }
+            "customerDelete" => self.customer_delete_payload(
+                invocation.request,
+                arguments,
+                invocation.requests_field_path(&["shop"]),
+                &invocation.requested_field_paths,
+            ),
+            "customerSet" => {
+                self.customer_set_payload(invocation.request, arguments, hydrate_addresses)
+            }
             _ => (
                 customer_payload(
                     Value::Null,
@@ -1906,9 +1748,10 @@ impl DraftProxy {
     fn customer_create_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
     ) -> (Value, Vec<String>, Vec<Value>) {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let input = resolved_object_field(arguments, "input").unwrap_or_default();
         if input.contains_key("id") {
             return (
                 customer_payload(
@@ -1931,7 +1774,7 @@ impl DraftProxy {
             );
         }
         if let Some((response, errors)) =
-            self.customer_create_inline_consent_response(field, &input)
+            self.customer_create_inline_consent_response(response_key, &input)
         {
             return (response, Vec::new(), errors);
         }
@@ -1985,8 +1828,8 @@ impl DraftProxy {
         apply_customer_order_summary_defaults(&mut customer, shop_currency_code.as_deref());
         // A freshly created customer also has no store-credit accounts. Bake the
         // empty connection so a create payload selecting `storeCreditAccounts`
-        // matches; reads recompute it from staged store-credit state via
-        // `customer_with_order_connection`.
+        // matches; reads recompute it from staged store-credit state via the
+        // explicit `Customer.storeCreditAccounts` field resolver.
         if customer
             .get("storeCreditAccounts")
             .is_none_or(Value::is_null)
@@ -2020,9 +1863,10 @@ impl DraftProxy {
     fn customer_update_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        hydrate_addresses: bool,
     ) -> (Value, Vec<String>, Vec<Value>) {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let input = resolved_object_field(arguments, "input").unwrap_or_default();
         let inline_consent_errors = customer_update_inline_consent_errors(&input);
         if !inline_consent_errors.is_empty() {
             return (
@@ -2035,7 +1879,7 @@ impl DraftProxy {
             );
         }
         let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let hydrate_addresses = customer_update_needs_address_hydrate(&input, &field.selection);
+        let hydrate_addresses = input.contains_key("addresses") || hydrate_addresses;
         let Some(existing) = self.customer_existing_for_update(request, &id, hydrate_addresses)
         else {
             return (
@@ -2064,14 +1908,20 @@ impl DraftProxy {
     fn customer_delete_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        requests_shop: bool,
+        requested_field_paths: &BTreeSet<Vec<String>>,
     ) -> (Value, Vec<String>, Vec<Value>) {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let input = resolved_object_field(arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
         let customer_exists = !id.is_empty() && self.customer_exists_for_mutation(request, &id);
-        self.hydrate_customer_delete_shop_if_selected(request, &field.selection);
-        let selected_shop = self.customer_delete_shop_payload(&field.selection);
-        let mut payload = if !customer_exists {
+        self.hydrate_customer_delete_shop_if_requested(
+            request,
+            requests_shop,
+            requested_field_paths,
+        );
+        let selected_shop = self.customer_delete_shop_payload(requests_shop);
+        let payload = if !customer_exists {
             json!({
                 "deletedCustomerId": null,
                 "shop": selected_shop.clone(),
@@ -2099,13 +1949,6 @@ impl DraftProxy {
                 "userErrors": []
             })
         };
-        if !field
-            .selection
-            .iter()
-            .any(|selection| selection.name == "shop")
-        {
-            payload.as_object_mut().map(|object| object.remove("shop"));
-        }
         let staged_ids = payload
             .get("deletedCustomerId")
             .and_then(Value::as_str)
@@ -2114,8 +1957,8 @@ impl DraftProxy {
         (payload, staged_ids, Vec::new())
     }
 
-    fn customer_delete_shop_payload(&self, payload_selection: &[SelectedField]) -> Value {
-        if selected_child_selection(payload_selection, "shop").is_none() {
+    fn customer_delete_shop_payload(&self, requests_shop: bool) -> Value {
+        if !requests_shop {
             return Value::Null;
         }
         if !self.shop_has_observed_identity() {
@@ -2124,15 +1967,25 @@ impl DraftProxy {
         self.store.effective_shop()
     }
 
-    fn hydrate_customer_delete_shop_if_selected(
+    fn hydrate_customer_delete_shop_if_requested(
         &mut self,
         request: &Request,
-        payload_selection: &[SelectedField],
+        requests_shop: bool,
+        requested_field_paths: &BTreeSet<Vec<String>>,
     ) {
-        let Some(shop_selection) = selected_child_selection(payload_selection, "shop") else {
+        if self.config.read_mode == ReadMode::Snapshot || !requests_shop {
             return;
-        };
-        if !self.payload_shop_selection_needs_hydration(&shop_selection) {
+        }
+        let needs_hydration = !self.shop_has_observed_identity()
+            || requested_field_paths.iter().any(|path| {
+                path.first().is_some_and(|field| field == "shop")
+                    && path
+                        .iter()
+                        .skip(1)
+                        .try_fold(&self.store.base.shop, |value, segment| value.get(segment))
+                        .is_none()
+            });
+        if !needs_hydration {
             return;
         }
         let response = self.upstream_post(
@@ -2151,10 +2004,11 @@ impl DraftProxy {
     fn customer_set_payload(
         &mut self,
         request: &Request,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        hydrate_addresses: bool,
     ) -> (Value, Vec<String>, Vec<Value>) {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let identifier = resolved_object_field(&field.arguments, "identifier");
+        let input = resolved_object_field(arguments, "input").unwrap_or_default();
+        let identifier = resolved_object_field(arguments, "identifier");
         if input.contains_key("id") && identifier.is_some() {
             return (
                 customer_payload(
@@ -2171,7 +2025,7 @@ impl DraftProxy {
         }
 
         if let Some(identifier) = identifier.as_ref() {
-            let hydrate_addresses = customer_update_needs_address_hydrate(&input, &field.selection);
+            let hydrate_addresses = input.contains_key("addresses") || hydrate_addresses;
             if let Some(id) = resolved_string_field(identifier, "id") {
                 let Some(existing) =
                     self.customer_existing_for_update(request, &id, hydrate_addresses)
@@ -3199,7 +3053,7 @@ impl DraftProxy {
 
     fn customer_create_inline_consent_response(
         &self,
-        field: &RootFieldSelection,
+        response_key: &str,
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Option<(Value, Vec<Value>)> {
         for field_name in [
@@ -3215,7 +3069,7 @@ impl DraftProxy {
                     customer_payload(Value::Null, Vec::new()),
                     vec![json!({
                         "message": "Cannot specify REDACTED as a marketing state input",
-                        "path": [field.response_key.clone()],
+                        "path": [response_key],
                         "extensions": { "code": "INVALID" }
                     })],
                 ));
@@ -3268,20 +3122,6 @@ impl DraftProxy {
         }
         None
     }
-}
-
-fn customer_update_needs_address_hydrate(
-    input: &BTreeMap<String, ResolvedValue>,
-    payload_selection: &[SelectedField],
-) -> bool {
-    input.contains_key("addresses")
-        || customer_payload_selection_needs_address_hydrate(payload_selection)
-}
-
-fn customer_payload_selection_needs_address_hydrate(payload_selection: &[SelectedField]) -> bool {
-    selected_child_selection(payload_selection, "customer").is_some_and(|customer_selection| {
-        selection_contains_any(&customer_selection, &["addressesV2"])
-    })
 }
 
 #[derive(Default)]
@@ -4169,12 +4009,6 @@ fn customer_matching_record_ids(customers: &[Value], query: Option<&str>) -> BTr
         .collect()
 }
 
-fn upstream_root_field(field: &RootFieldSelection, upstream_data: Option<&Value>) -> Option<Value> {
-    upstream_data
-        .and_then(|data| data.get(field.response_key.as_str()))
-        .cloned()
-}
-
 fn merge_customer_records_from_connection(records: &mut Vec<Value>, connection: Option<&Value>) {
     let mut by_id = records
         .iter()
@@ -4983,39 +4817,49 @@ fn store_credit_expires_at_in_past(expires_at: &str, now_epoch: i64) -> bool {
         .unwrap_or(false)
 }
 
-fn store_credit_result_only_currency_response(fields: &[RootFieldSelection]) -> Option<Response> {
-    let field = fields.iter().find(|field| {
-        matches!(
-            field.name.as_str(),
-            "storeCreditAccountCredit" | "storeCreditAccountDebit"
-        )
-    })?;
-    let (input_name, amount_name) = if field.name == "storeCreditAccountCredit" {
+fn store_credit_payload_value(
+    root_name: &str,
+    transaction: Option<&Value>,
+    user_errors: Vec<Value>,
+) -> Value {
+    json!({
+        "__typename": if root_name == "storeCreditAccountCredit" {
+            "StoreCreditAccountCreditPayload"
+        } else {
+            "StoreCreditAccountDebitPayload"
+        },
+        "storeCreditAccountTransaction": transaction.cloned().unwrap_or(Value::Null),
+        "userErrors": user_errors
+    })
+}
+
+fn store_credit_result_only_currency_error(
+    root_name: &str,
+    root_location: SourceLocation,
+    response_key: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let (input_name, amount_name) = if root_name == "storeCreditAccountCredit" {
         ("creditInput", "creditAmount")
     } else {
         ("debitInput", "debitAmount")
     };
-    let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
+    let input = resolved_object_field(arguments, input_name).unwrap_or_default();
     let amount_input = resolved_object_field(&input, amount_name).unwrap_or_default();
     let currency = resolved_string_field(&amount_input, "currencyCode")?;
     if !matches!(currency.as_str(), "USDC" | "XXX") {
         return None;
     }
 
-    let mut data = serde_json::Map::new();
-    data.insert(field.response_key.clone(), Value::Null);
-    Some(ok_json(json!({
-        "errors": [{
-            "message": format!("CurrencyCode \"{currency}\" is invalid. It can only be used as a result and not as an input value."),
-            "locations": [{
-                "line": field.location.line,
-                "column": field.location.column
-            }],
-            "extensions": { "code": "CURRENCY_CODE_INVALID" },
-            "path": [field.response_key.clone()]
+    Some(json!({
+        "message": format!("CurrencyCode \"{currency}\" is invalid. It can only be used as a result and not as an input value."),
+        "locations": [{
+            "line": root_location.line,
+            "column": root_location.column
         }],
-        "data": Value::Object(data)
-    })))
+        "extensions": { "code": "CURRENCY_CODE_INVALID" },
+        "path": [response_key]
+    }))
 }
 
 #[cfg(test)]

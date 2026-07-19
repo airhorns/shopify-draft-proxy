@@ -310,6 +310,15 @@ The request version comes from an explicit target override, the live capture's
 schema manifest default is used. A declared/path version without an executable
 schema is an error; the runner never substitutes a different version silently.
 
+Lifecycle captures whose inputs contain one plausible millisecond `runId` and
+at least one `startsAt` or `endsAt` timestamp run in a temporary proxy fixed to
+that captured run time. This keeps status and time-window comparisons
+deterministic after the fixture's real-world dates pass. The runner supplies
+`SHOPIFY_DRAFT_PROXY_FIXED_NOW` only while starting that temporary process and
+disposes it after the scenario. The environment variable is a test/parity-only
+server seam, not production configuration; normal runtimes must leave it unset
+so the proxy uses its wall clock.
+
 ## Debugging a single scenario
 
 When a scenario fails and `first_line(message)` in the gate summary

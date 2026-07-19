@@ -7,34 +7,41 @@ use base64::Engine as _;
 
 const BULK_OPERATION_CURSORS_FIELD: &str = "__shopifyDraftProxyBulkOperationCursors";
 
+pub(in crate::proxy) fn bulk_operation_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy>
+{
+    vec![FieldResolverTypePolicy::property_backed_ordinary_fields(
+        ApiSurface::Admin,
+        "BulkOperation",
+        "argument-bearing bulk-operation field has no explicit canonical resolver",
+    )]
+}
+
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_bulk_operations_graphql(
+    pub(crate) fn bulk_operation_query_root(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
-            request,
-            query,
-            variables,
-            root_name,
-            mode,
-            ..
-        } = context;
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                self.bulk_operation_read_response(request, query, variables, root_name)
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        self.bulk_operation_read_outcome(&invocation, &arguments)
+    }
+
+    pub(crate) fn bulk_operation_mutation_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        match invocation.root_name {
+            "bulkOperationRunQuery" => {
+                self.bulk_operation_run_query_outcome(invocation.request, &arguments)
             }
-            LocalResolverMode::StageLocally if root_name == "bulkOperationRunQuery" => {
-                self.bulk_operation_run_query(request, query, variables)
+            "bulkOperationRunMutation" => {
+                self.bulk_operation_run_mutation_outcome(invocation.request, &arguments)
             }
-            LocalResolverMode::StageLocally if root_name == "bulkOperationRunMutation" => {
-                self.bulk_operation_run_mutation(request, query, variables)
+            "bulkOperationCancel" => {
+                self.bulk_operation_cancel_outcome(invocation.request, &arguments)
             }
-            LocalResolverMode::StageLocally if root_name == "bulkOperationCancel" => {
-                self.bulk_operation_cancel(request, query, variables)
-            }
-            LocalResolverMode::StageLocally => {
-                Self::unimplemented_resolver_response(mode, root_name)
+            root => {
+                ResolverOutcome::error(format!("Unknown bulk-operation mutation root `{root}`"))
             }
         }
     }
@@ -111,7 +118,11 @@ impl DraftProxy {
         id
     }
 
-    fn bulk_operation_run_query_result(&self, query_text: &str) -> BulkOperationRunQueryResult {
+    fn bulk_operation_run_query_result(
+        &self,
+        query_text: &str,
+        api_version: crate::admin_graphql::AdminApiVersion,
+    ) -> BulkOperationRunQueryResult {
         let Some(document) = parsed_document(query_text, &BTreeMap::new()) else {
             return BulkOperationRunQueryResult {
                 jsonl: String::new(),
@@ -126,8 +137,8 @@ impl DraftProxy {
         };
 
         match field.name.as_str() {
-            "products" => self.bulk_operation_products_result(field),
-            "productVariants" => self.bulk_operation_product_variants_result(field),
+            "products" => self.bulk_operation_products_result(field, api_version),
+            "productVariants" => self.bulk_operation_product_variants_result(field, api_version),
             _ => BulkOperationRunQueryResult {
                 jsonl: String::new(),
                 root_object_count: 0,
@@ -138,6 +149,7 @@ impl DraftProxy {
     fn bulk_operation_products_result(
         &self,
         field: &RootFieldSelection,
+        api_version: crate::admin_graphql::AdminApiVersion,
     ) -> BulkOperationRunQueryResult {
         let products = self.products_filtered_by_search_query(field.arguments.get("query"));
         let root_object_count = products.len();
@@ -154,18 +166,17 @@ impl DraftProxy {
         let mut rows = Vec::new();
         for product in products {
             let variants = self.store.product_variants_for_product(&product.id);
-            let product_json = bulk_jsonl_projected_node(
-                self.product_owner_json_with_store_currency(
-                    &product,
-                    &variants,
-                    &product_selection,
-                ),
+            let product_json = bulk_project_value(
+                &self.product_canonical_value(&product),
                 &product_selection,
+                api_version,
             );
             rows.push(product_json);
 
             for selection in &nested_connections {
-                for child in self.bulk_jsonl_product_child_rows(&product, &variants, selection) {
+                for child in
+                    self.bulk_jsonl_product_child_rows(&product, &variants, selection, api_version)
+                {
                     rows.push(bulk_jsonl_child_node(child, &product.id));
                 }
             }
@@ -182,6 +193,7 @@ impl DraftProxy {
         product: &ProductRecord,
         variants: &[ProductVariantRecord],
         selection: &SelectedField,
+        api_version: crate::admin_graphql::AdminApiVersion,
     ) -> Vec<Value> {
         let child_node_selection = edge_node_selection(&selection.selection);
         let child_node_selection = bulk_jsonl_node_selection(&child_node_selection);
@@ -193,18 +205,20 @@ impl DraftProxy {
             "collections" => product
                 .collections
                 .iter()
-                .map(|collection| selected_json(collection, &child_node_selection))
+                .map(|collection| {
+                    bulk_project_value(collection, &child_node_selection, api_version)
+                })
                 .collect(),
             "images" => product
                 .media
                 .iter()
                 .filter_map(product_image_json_from_media)
-                .map(|image| selected_json(&image, &child_node_selection))
+                .map(|image| bulk_project_value(&image, &child_node_selection, api_version))
                 .collect(),
             "media" => product
                 .media
                 .iter()
-                .map(|media| selected_json(media, &child_node_selection))
+                .map(|media| bulk_project_value(media, &child_node_selection, api_version))
                 .collect(),
             "metafields" => self
                 .bulk_owner_metafield_nodes(
@@ -214,24 +228,43 @@ impl DraftProxy {
                 )
                 .into_iter()
                 .map(|metafield| {
-                    self.selected_reference_value_record_json(&metafield, &child_node_selection)
+                    self.bulk_metafield_value(metafield, &child_node_selection, api_version)
                 })
                 .collect(),
             "variants" => variants
                 .iter()
-                .map(|variant| {
-                    self.product_variant_json_with_current_publication_context(
-                        variant,
-                        Some(product),
-                        &child_node_selection,
-                    )
-                })
+                .map(|variant| self.product_variant_canonical_value(variant))
                 .collect(),
             _ => Vec::new(),
         };
         rows.into_iter()
-            .map(|row| bulk_jsonl_projected_node(row, &child_node_selection))
+            .map(|row| bulk_project_value(&row, &child_node_selection, api_version))
             .collect()
+    }
+
+    fn bulk_metafield_value(
+        &self,
+        mut metafield: Value,
+        selection: &[SelectedField],
+        api_version: crate::admin_graphql::AdminApiVersion,
+    ) -> Value {
+        for field in selection {
+            match field.name.as_str() {
+                "reference" => {
+                    metafield["reference"] =
+                        self.canonical_metafield_reference_value(&metafield, None);
+                }
+                "references" => {
+                    metafield["references"] = self.canonical_metafield_references_connection_value(
+                        &metafield,
+                        &field.arguments,
+                        None,
+                    );
+                }
+                _ => {}
+            }
+        }
+        bulk_project_value(&metafield, selection, api_version)
     }
 
     fn bulk_owner_metafield_nodes(
@@ -304,6 +337,7 @@ impl DraftProxy {
     fn bulk_operation_product_variants_result(
         &self,
         field: &RootFieldSelection,
+        api_version: crate::admin_graphql::AdminApiVersion,
     ) -> BulkOperationRunQueryResult {
         let products = self.products_filtered_by_search_query(field.arguments.get("query"));
         let node_selection = edge_node_selection(&field.selection);
@@ -320,19 +354,17 @@ impl DraftProxy {
         for product in products {
             for variant in self.store.product_variants_for_product(&product.id) {
                 root_object_count += 1;
-                rows.push(bulk_jsonl_projected_node(
-                    self.product_variant_json_with_current_publication_context(
-                        &variant,
-                        Some(&product),
-                        &variant_selection,
-                    ),
-                    &variant_selection,
-                ));
+                let mut value = self.product_variant_canonical_value(&variant);
+                value["product"] = self.product_canonical_value(&product);
+                rows.push(bulk_project_value(&value, &variant_selection, api_version));
 
                 for selection in &nested_connections {
-                    for child in
-                        self.bulk_jsonl_product_variant_child_rows(&product, &variant, selection)
-                    {
+                    for child in self.bulk_jsonl_product_variant_child_rows(
+                        &product,
+                        &variant,
+                        selection,
+                        api_version,
+                    ) {
                         rows.push(bulk_jsonl_child_node(child, &variant.id));
                     }
                 }
@@ -350,6 +382,7 @@ impl DraftProxy {
         product: &ProductRecord,
         variant: &ProductVariantRecord,
         selection: &SelectedField,
+        api_version: crate::admin_graphql::AdminApiVersion,
     ) -> Vec<Value> {
         let child_node_selection = edge_node_selection(&selection.selection);
         let child_node_selection = bulk_jsonl_node_selection(&child_node_selection);
@@ -360,7 +393,7 @@ impl DraftProxy {
         let rows = match selection.name.as_str() {
             "media" => variant_attached_media_nodes(variant, Some(product))
                 .iter()
-                .map(|media| selected_json(media, &child_node_selection))
+                .map(|media| bulk_project_value(media, &child_node_selection, api_version))
                 .collect(),
             "metafields" => self
                 .bulk_owner_metafield_nodes(
@@ -370,121 +403,140 @@ impl DraftProxy {
                 )
                 .into_iter()
                 .map(|metafield| {
-                    self.selected_reference_value_record_json(&metafield, &child_node_selection)
+                    self.bulk_metafield_value(metafield, &child_node_selection, api_version)
                 })
                 .collect(),
             _ => Vec::new(),
         };
         rows.into_iter()
-            .map(|row| bulk_jsonl_projected_node(row, &child_node_selection))
+            .map(|row| bulk_project_value(&row, &child_node_selection, api_version))
             .collect()
     }
 
-    pub(in crate::proxy) fn bulk_operation_read_response(
+    pub(in crate::proxy) fn bulk_operation_read_outcome(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_field: &str,
-    ) -> Response {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
+        invocation: &RootInvocation<'_>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> ResolverOutcome<Value> {
+        if let Some(errors) = bulk_operation_read_validation_errors(
+            invocation.root_name,
+            invocation.response_key,
+            arguments,
+            invocation.root_location,
+            invocation.operation_path,
+        ) {
+            return graphql_error_outcome(errors, invocation.response_key);
+        }
+
+        let upstream_outcome =
+            if self.bulk_operation_read_needs_upstream(invocation.root_name, arguments) {
+                let result = self.cached_or_forward_upstream_graphql_result(
+                    invocation.request,
+                    invocation.response_key,
+                );
+                if !result.transport_succeeded {
+                    return result.outcome;
+                }
+                self.observe_bulk_operation_read_result(
+                    invocation.response_key,
+                    invocation.root_name,
+                    arguments,
+                    &result.data,
+                );
+                Some(result.outcome)
+            } else {
+                None
+            };
+
+        let value = match invocation.root_name {
+            "bulkOperation" => {
+                let id = resolved_string_field(arguments, "id").unwrap_or_default();
+                self.bulk_operation_by_id(&id)
+                    .cloned()
+                    .unwrap_or(Value::Null)
+            }
+            "bulkOperations" => self.bulk_operations_connection_value(arguments),
+            "currentBulkOperation" => {
+                let operation_type =
+                    resolved_string_field(arguments, "type").unwrap_or_else(|| "QUERY".to_string());
+                self.current_bulk_operation(&operation_type)
+                    .unwrap_or(Value::Null)
+            }
+            _ => {
+                return resolver_http_error_outcome(
+                    501,
+                    format!(
+                        "Unsupported bulk operation read root: {}",
+                        invocation.root_name
+                    ),
+                );
+            }
         };
-        let operation_path = parsed_document(query, variables)
-            .map(|document| document.operation_path)
-            .unwrap_or_else(|| "query".to_string());
-        if let Some(response) =
-            self.bulk_operation_read_validation_response(&fields, root_field, &operation_path)
-        {
-            return response;
+        let mut outcome = ResolverOutcome::value(value);
+        if let Some(search) = bulk_operation_search_extension(
+            invocation.response_key,
+            invocation.root_name,
+            arguments,
+        ) {
+            outcome.extensions.insert("search".to_string(), search);
         }
-        if self.bulk_operation_read_needs_upstream(&fields) {
-            let response = (self.upstream_transport)(request.clone());
-            if response.status == 200 {
-                self.observe_bulk_operation_read_response(&fields, &response.body);
-            }
-            if !self.store.staged.bulk_operations.is_empty()
-                && fields.iter().any(|field| field.name == "bulkOperations")
-            {
-                return self.bulk_operation_local_read_response(&fields);
-            }
-            return self.bulk_operation_response_with_local_missing_roots(&fields, response);
+        if let Some(upstream) = upstream_outcome {
+            outcome.errors = upstream.errors;
+            outcome.extensions.extend(upstream.extensions);
         }
-        self.bulk_operation_local_read_response(&fields)
+        outcome
     }
 
-    fn bulk_operation_local_read_response(&self, fields: &[RootFieldSelection]) -> Response {
-        let data = self.bulk_operation_read_data(fields);
-        let mut body = json!({ "data": data });
-        if let Some(search) = bulk_operation_search_extensions(fields) {
-            body["extensions"] = json!({ "search": search });
-        }
-        ok_json(body)
-    }
-
-    fn bulk_operation_response_with_local_missing_roots(
+    fn bulk_operation_read_needs_upstream(
         &self,
-        fields: &[RootFieldSelection],
-        mut response: Response,
-    ) -> Response {
-        let needs_local_fill = response
-            .body
-            .get("data")
-            .and_then(Value::as_object)
-            .is_some_and(|data| {
-                fields
-                    .iter()
-                    .any(|field| !data.contains_key(&field.response_key))
-            });
-        if !needs_local_fill {
-            return response;
-        }
-
-        let local_data = self.bulk_operation_read_data(fields);
-        let Some(local_data) = local_data.as_object() else {
-            return response;
-        };
-        let Some(data) = response.body.get_mut("data").and_then(Value::as_object_mut) else {
-            return response;
-        };
-        for field in fields {
-            if data.contains_key(&field.response_key) {
-                continue;
-            }
-            if let Some(value) = local_data.get(&field.response_key) {
-                data.insert(field.response_key.clone(), value.clone());
-            }
-        }
-        response
-    }
-
-    fn bulk_operation_read_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
+        root_field: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return false;
         }
-        fields.iter().any(|field| match field.name.as_str() {
+        match root_field {
             "bulkOperation" => {
-                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                let id = resolved_string_field(arguments, "id").unwrap_or_default();
                 self.bulk_operation_by_id(&id).is_none()
             }
-            "bulkOperations" => self.bulk_operations_connection_needs_upstream(field),
+            "bulkOperations" => self.bulk_operations_connection_needs_upstream(arguments),
             "currentBulkOperation" => {
-                let operation_type = resolved_string_field(&field.arguments, "type")
-                    .unwrap_or_else(|| "QUERY".to_string());
+                let operation_type =
+                    resolved_string_field(arguments, "type").unwrap_or_else(|| "QUERY".to_string());
                 self.current_bulk_operation(&operation_type).is_none()
             }
             _ => false,
-        })
+        }
     }
 
-    fn bulk_operations_connection_needs_upstream(&self, field: &RootFieldSelection) -> bool {
+    fn bulk_operations_connection_needs_upstream(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
         if !self.store.base.bulk_operations_observed {
-            return true;
+            let requested = arguments
+                .get("first")
+                .and_then(|value| match value {
+                    ResolvedValue::Int(first) => Some(*first),
+                    _ => None,
+                })
+                .filter(|first| *first >= 0)
+                .map(|first| first as usize);
+            let matching_staged = self
+                .store
+                .staged
+                .bulk_operations
+                .values()
+                .filter(|operation| bulk_operation_matches_query(operation, arguments))
+                .count();
+            // A bounded window that can be filled entirely from locally staged
+            // operations is authoritative. Larger or unbounded windows still
+            // need the upstream catalog so staging one operation does not hide
+            // all pre-existing operations.
+            return requested.is_none_or(|requested| matching_staged < requested);
         }
-        if !self.store.staged.bulk_operations.is_empty() {
-            return false;
-        }
-        let sort_key = bulk_operation_connection_sort_key(field);
+        let sort_key = bulk_operation_connection_sort_key(arguments);
         self.store
             .base
             .bulk_operations
@@ -493,37 +545,34 @@ impl DraftProxy {
             .any(|operation| bulk_operation_observed_cursor(operation, &sort_key).is_none())
     }
 
-    fn observe_bulk_operation_read_response(
+    fn observe_bulk_operation_read_result(
         &mut self,
-        fields: &[RootFieldSelection],
-        body: &Value,
+        response_key: &str,
+        root_field: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        data: &Value,
     ) {
-        let Some(data) = body.get("data").and_then(Value::as_object) else {
+        let Some(value) = data.get(response_key) else {
             return;
         };
-        for field in fields {
-            let Some(value) = data.get(&field.response_key) else {
-                continue;
-            };
-            match field.name.as_str() {
-                "bulkOperation" | "currentBulkOperation" => {
-                    self.observe_bulk_operation_value(value);
-                }
-                "bulkOperations" => {
-                    self.store.base.bulk_operations_observed = true;
-                    self.observe_bulk_operations_connection(field, value);
-                }
-                _ => {}
+        match root_field {
+            "bulkOperation" | "currentBulkOperation" => {
+                self.observe_bulk_operation_value(value);
             }
+            "bulkOperations" => {
+                self.store.base.bulk_operations_observed = true;
+                self.observe_bulk_operations_connection(arguments, value);
+            }
+            _ => {}
         }
     }
 
     fn observe_bulk_operations_connection(
         &mut self,
-        field: &RootFieldSelection,
+        arguments: &BTreeMap<String, ResolvedValue>,
         connection: &Value,
     ) {
-        let sort_key = bulk_operation_connection_sort_key(field);
+        let sort_key = bulk_operation_connection_sort_key(arguments);
         if let Some(edges) = connection.get("edges").and_then(Value::as_array) {
             for edge in edges {
                 if let Some(node) = edge.get("node") {
@@ -609,45 +658,6 @@ impl DraftProxy {
             .insert(id.to_string(), operation);
     }
 
-    pub(in crate::proxy) fn bulk_operation_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "bulkOperation" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.bulk_operation_by_id(&id)
-                        .map(|operation| selected_json(operation, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "bulkOperations" => self.bulk_operations_connection(field),
-                "currentBulkOperation" => {
-                    let operation_type = resolved_string_field(&field.arguments, "type")
-                        .unwrap_or_else(|| "QUERY".to_string());
-                    self.current_bulk_operation(&operation_type)
-                        .map(|operation| selected_json(&operation, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                _ => return None,
-            })
-        })
-    }
-
-    fn bulk_operation_read_validation_response(
-        &self,
-        fields: &[RootFieldSelection],
-        root_field: &str,
-        operation_path: &str,
-    ) -> Option<Response> {
-        let field = fields.iter().find(|field| field.name == root_field)?;
-        match field.name.as_str() {
-            "bulkOperation" => bulk_operation_id_validation_response(field, operation_path),
-            "bulkOperations" => bulk_operations_argument_validation_response(field, operation_path),
-            _ => None,
-        }
-    }
-
     fn bulk_operation_by_id(&self, id: &str) -> Option<&Value> {
         effective_get(
             &self.store.base.bulk_operations,
@@ -680,11 +690,14 @@ impl DraftProxy {
             .find(|operation| operation.get("type").and_then(Value::as_str) == Some(operation_type))
     }
 
-    fn bulk_operations_connection(&self, field: &RootFieldSelection) -> Value {
+    fn bulk_operations_connection_value(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
         let mut operations = self.effective_bulk_operations();
-        operations.retain(|operation| bulk_operation_matches_query(operation, &field.arguments));
+        operations.retain(|operation| bulk_operation_matches_query(operation, arguments));
 
-        let sort_key = bulk_operation_connection_sort_key(field);
+        let sort_key = bulk_operation_connection_sort_key(arguments);
         operations.sort_by(|left, right| {
             bulk_operation_sort_value(right, &sort_key)
                 .cmp(&bulk_operation_sort_value(left, &sort_key))
@@ -695,25 +708,17 @@ impl DraftProxy {
                         .cmp(&left.get("id").and_then(Value::as_str))
                 })
         });
-        selected_connection_json_with_args(
-            operations,
-            &field.arguments,
-            &field.selection,
-            |operation| bulk_operation_connection_cursor(operation, &sort_key),
-        )
+        connection_value_with_args(operations, arguments, |operation| {
+            bulk_operation_connection_cursor(operation, &sort_key)
+        })
     }
 
-    pub(in crate::proxy) fn bulk_operation_run_query(
+    pub(in crate::proxy) fn bulk_operation_run_query_outcome(
         &mut self,
         request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || {
-                "bulkOperationRunQuery".to_string()
-            });
-        let query_text = resolved_string_field(&arguments, "query").unwrap_or_else(|| {
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> ResolverOutcome<Value> {
+        let query_text = resolved_string_field(arguments, "query").unwrap_or_else(|| {
             "#graphql\n{ products { edges { node { id title } } } }".to_string()
         });
         if let Some(user_errors) = bulk_operation_run_query_user_errors(&query_text) {
@@ -721,9 +726,7 @@ impl DraftProxy {
                 "bulkOperation": null,
                 "userErrors": user_errors
             });
-            return ok_json(
-                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
-            );
+            return ResolverOutcome::value(payload);
         }
         if let Some(operation_id) = self.throttled_bulk_operation_id("QUERY", request) {
             let payload = json!({
@@ -734,9 +737,7 @@ impl DraftProxy {
                     Some("OPERATION_IN_PROGRESS"),
                 )]
             });
-            return ok_json(
-                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
-            );
+            return ResolverOutcome::value(payload);
         }
 
         // Shopify validates bulk queries against the Admin GraphQL schema, so the proxy
@@ -754,7 +755,7 @@ impl DraftProxy {
             if let Some(payload) =
                 self.bulk_operation_run_query_upstream_payload(request, &query_text)
             {
-                return ok_json(json!({ "data": { response_key: payload } }));
+                return ResolverOutcome::value(payload);
             }
             let payload = json!({
                 "bulkOperation": null,
@@ -762,23 +763,21 @@ impl DraftProxy {
                     root_name.as_deref().unwrap_or_default()
                 )]
             });
-            return ok_json(
-                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
-            );
+            return ResolverOutcome::value(payload);
         }
         if let Some(user_errors) = bulk_operation_run_query_local_support_user_errors(&query_text) {
             let payload = json!({
                 "bulkOperation": null,
                 "userErrors": user_errors
             });
-            return ok_json(
-                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
-            );
+            return ResolverOutcome::value(payload);
         }
 
         let id = self.next_bulk_operation_gid();
         let created_at = self.next_product_timestamp();
-        let result = self.bulk_operation_run_query_result(&query_text);
+        let api_version = crate::admin_graphql::AdminApiVersion::from_route(&request.path)
+            .unwrap_or(crate::admin_graphql::AdminApiVersion::DEFAULT);
+        let result = self.bulk_operation_run_query_result(&query_text, api_version);
         let (object_count, file_size) = bulk_operation_result_metadata(&result.jsonl);
         let root_object_count = result.root_object_count.to_string();
         let terminal_operation = self.bulk_operation_record(BulkOperationRecordSpec {
@@ -796,14 +795,6 @@ impl DraftProxy {
             .staged
             .bulk_operations
             .insert(id.clone(), terminal_operation);
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "bulkOperationRunQuery",
-            vec![id.clone()],
-        );
-
         let payload = json!({
             "bulkOperation": self.bulk_operation_record(BulkOperationRecordSpec {
                 id: &id,
@@ -817,7 +808,11 @@ impl DraftProxy {
             }),
             "userErrors": []
         });
-        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "bulkOperationRunQuery",
+            "bulk-operations",
+            vec![id],
+        ))
     }
 
     /// Forwards the canonical `BulkOperationRunQueryProxyFallback` mutation upstream for a
@@ -851,40 +846,27 @@ impl DraftProxy {
             .cloned()
     }
 
-    pub(in crate::proxy) fn bulk_operation_run_mutation(
+    pub(in crate::proxy) fn bulk_operation_run_mutation_outcome(
         &mut self,
         request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || {
-                "bulkOperationRunMutation".to_string()
-            });
-        let mutation_text = resolved_string_field(&arguments, "mutation").unwrap_or_default();
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> ResolverOutcome<Value> {
+        let mutation_text = resolved_string_field(arguments, "mutation").unwrap_or_default();
         let staged_upload_path =
-            resolved_string_field(&arguments, "stagedUploadPath").unwrap_or_default();
-        let client_identifier = resolved_string_field(&arguments, "clientIdentifier");
+            resolved_string_field(arguments, "stagedUploadPath").unwrap_or_default();
+        let client_identifier = resolved_string_field(arguments, "clientIdentifier");
 
         let api_version = admin_graphql_version(&request.path)
             .unwrap_or_else(|| latest_supported_admin_graphql_version().unwrap_or("2026-04"));
         if let Some(user_errors) =
             bulk_operation_run_mutation_document_user_errors(&mutation_text, api_version)
         {
-            return bulk_operation_run_mutation_error_response(
-                &response_key,
-                &payload_selection,
-                user_errors,
-            );
+            return bulk_operation_run_mutation_error_outcome(user_errors);
         }
         if let Some(user_errors) =
             bulk_operation_run_mutation_client_identifier_user_errors(client_identifier.as_deref())
         {
-            return bulk_operation_run_mutation_error_response(
-                &response_key,
-                &payload_selection,
-                user_errors,
-            );
+            return bulk_operation_run_mutation_error_outcome(user_errors);
         }
         let staged_upload_file_size = self.bulk_operation_staged_upload_size(&staged_upload_path);
         let max_file_size = self
@@ -895,48 +877,34 @@ impl DraftProxy {
             .flatten()
             .is_some_and(|file_size| file_size > max_file_size)
         {
-            return bulk_operation_run_mutation_error_response(
-                &response_key,
-                &payload_selection,
-                vec![bulk_operation_run_mutation_file_size_too_large_user_error(
-                    max_file_size,
-                )],
-            );
+            return bulk_operation_run_mutation_error_outcome(vec![
+                bulk_operation_run_mutation_file_size_too_large_user_error(max_file_size),
+            ]);
         }
         if staged_upload_file_size.flatten() == Some(0) {
-            return bulk_operation_run_mutation_error_response(
-                &response_key,
-                &payload_selection,
-                vec![bulk_operation_run_mutation_empty_file_user_error()],
-            );
+            return bulk_operation_run_mutation_error_outcome(vec![
+                bulk_operation_run_mutation_empty_file_user_error(),
+            ]);
         }
         if staged_upload_file_size.is_none() {
-            return bulk_operation_run_mutation_error_response(
-                &response_key,
-                &payload_selection,
-                vec![bulk_operation_run_mutation_no_such_file_user_error()],
-            );
+            return bulk_operation_run_mutation_error_outcome(vec![
+                bulk_operation_run_mutation_no_such_file_user_error(),
+            ]);
         }
         let Some(staged_upload_body) = self
             .bulk_operation_staged_upload_body(&staged_upload_path)
             .map(str::to_string)
         else {
-            return bulk_operation_run_mutation_error_response(
-                &response_key,
-                &payload_selection,
-                vec![bulk_operation_run_mutation_no_such_file_user_error()],
-            );
+            return bulk_operation_run_mutation_error_outcome(vec![
+                bulk_operation_run_mutation_no_such_file_user_error(),
+            ]);
         };
         if let Some(operation_id) = self.throttled_bulk_operation_id("MUTATION", request) {
-            return bulk_operation_run_mutation_error_response(
-                &response_key,
-                &payload_selection,
-                vec![user_error(
+            return bulk_operation_run_mutation_error_outcome(vec![user_error(
                     Value::Null,
                     &format!("A bulk mutation operation for this app and shop is already in progress: {operation_id}."),
                     Some("OPERATION_IN_PROGRESS"),
-                )],
-            );
+                )]);
         }
 
         let id = self.next_bulk_operation_gid();
@@ -976,7 +944,7 @@ impl DraftProxy {
             }),
             "userErrors": []
         });
-        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+        ResolverOutcome::value(payload)
     }
 
     fn throttled_bulk_operation_id(
@@ -1031,6 +999,8 @@ impl DraftProxy {
         mutation_text: &str,
         jsonl: &str,
     ) -> String {
+        let api_version = crate::admin_graphql::AdminApiVersion::from_route(&request.path)
+            .unwrap_or(crate::admin_graphql::AdminApiVersion::DEFAULT);
         let mut rows = Vec::new();
         for (line_number, line) in jsonl.lines().enumerate() {
             if line.trim().is_empty() {
@@ -1063,7 +1033,12 @@ impl DraftProxy {
                 })
                 .to_string(),
             };
-            let mut row = self.resolve_nested_graphql_request(&row_request).body;
+            let mut row = bulk_project_mutation_response(
+                self.resolve_nested_graphql_request(&row_request).body,
+                mutation_text,
+                &variables,
+                api_version,
+            );
             if let Some(object) = row.as_object_mut() {
                 object.insert("__lineNumber".to_string(), json!(line_number));
             } else {
@@ -1077,17 +1052,12 @@ impl DraftProxy {
         values_to_jsonl(rows)
     }
 
-    pub(in crate::proxy) fn bulk_operation_cancel(
+    pub(in crate::proxy) fn bulk_operation_cancel_outcome(
         &mut self,
         request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let id = resolved_string_field(variables, "id").unwrap_or_default();
-        let (response_key, payload_selection) =
-            self.execution_primary_root_response_selection(query, variables, || {
-                "bulkOperationCancel".to_string()
-            });
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> ResolverOutcome<Value> {
+        let id = resolved_string_field(arguments, "id").unwrap_or_default();
 
         if self.bulk_operation_by_id(&id).is_none() {
             self.hydrate_bulk_operation_for_cancel(request, &id);
@@ -1102,9 +1072,7 @@ impl DraftProxy {
                     None,
                 )]
             });
-            return ok_json(
-                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
-            );
+            return ResolverOutcome::value(payload);
         };
 
         let status = existing_operation
@@ -1123,9 +1091,7 @@ impl DraftProxy {
                     None,
                 )]
             });
-            return ok_json(
-                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
-            );
+            return ResolverOutcome::value(payload);
         }
 
         let mut operation = existing_operation;
@@ -1134,9 +1100,12 @@ impl DraftProxy {
             .staged
             .bulk_operations
             .insert(id.clone(), operation.clone());
-        self.record_mutation_log_entry(request, query, variables, "bulkOperationCancel", vec![id]);
         let payload = json!({ "bulkOperation": operation, "userErrors": [] });
-        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "bulkOperationCancel",
+            "bulk-operations",
+            vec![id],
+        ))
     }
 
     fn hydrate_bulk_operation_for_cancel(&mut self, request: &Request, id: &str) {
@@ -1170,6 +1139,48 @@ impl DraftProxy {
                 .insert(id.to_string(), operation);
         }
     }
+}
+
+/// Bulk mutation result rows are GraphQL-as-data in the same way as bulk query
+/// JSONL. The nested compatibility executor intentionally returns canonical
+/// resolver values, so this boundary must apply the selection from the mutation
+/// document before persisting the result artifact.
+fn bulk_project_mutation_response(
+    mut response: Value,
+    mutation_text: &str,
+    variables: &Value,
+    api_version: crate::admin_graphql::AdminApiVersion,
+) -> Value {
+    let variables = variables
+        .as_object()
+        .map(|variables| {
+            variables
+                .iter()
+                .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+                .collect()
+        })
+        .unwrap_or_default();
+    let variables =
+        variables_with_operation_defaults(mutation_text, &variables, None).unwrap_or(variables);
+    let Some(root) = parsed_document(mutation_text, &variables)
+        .and_then(|document| document.root_fields.into_iter().next())
+    else {
+        return response;
+    };
+    let Some(data) = response.get_mut("data").and_then(Value::as_object_mut) else {
+        return response;
+    };
+    let Some(value) = data
+        .get(&root.response_key)
+        .or_else(|| data.get(&root.name))
+        .cloned()
+    else {
+        return response;
+    };
+    let value = bulk_project_value(&value, &root.selection, api_version);
+    data.clear();
+    data.insert(root.response_key, value);
+    response
 }
 
 fn bulk_operation_record_value(spec: BulkOperationRecordSpec<'_>, artifact_url: String) -> Value {
@@ -2843,16 +2854,66 @@ fn bulk_jsonl_node_selection(selection: &[SelectedField]) -> Vec<SelectedField> 
         .collect()
 }
 
-fn bulk_jsonl_projected_node(mut node: Value, selection: &[SelectedField]) -> Value {
-    let selects_unaliased_typename = selection
-        .iter()
-        .any(|field| field.name == "__typename" && field.response_key == "__typename");
-    if !selects_unaliased_typename {
-        if let Some(object) = node.as_object_mut() {
-            object.remove("__typename");
-        }
+/// Bulk query text is GraphQL-as-data: Shopify's JSONL format contains exactly
+/// the fields selected inside the `query:` argument, independently of the
+/// outer API executor. Keep this syntax-aware projection local to bulk output;
+/// ordinary Admin and Storefront responses are always projected by the schema
+/// engine.
+fn bulk_project_value(
+    value: &Value,
+    selection: &[SelectedField],
+    api_version: crate::admin_graphql::AdminApiVersion,
+) -> Value {
+    if value.is_null() || selection.is_empty() {
+        return value.clone();
     }
-    node
+    if let Some(values) = value.as_array() {
+        return Value::Array(
+            values
+                .iter()
+                .map(|value| bulk_project_value(value, selection, api_version))
+                .collect(),
+        );
+    }
+    let Some(object) = value.as_object() else {
+        return value.clone();
+    };
+    let record_type = value.get("__typename").and_then(Value::as_str).or_else(|| {
+        value
+            .get("id")
+            .and_then(Value::as_str)
+            .and_then(shopify_gid_resource_type)
+    });
+    let mut projected = serde_json::Map::new();
+    for field in selection {
+        if field.type_condition.as_deref().is_some_and(|condition| {
+            record_type.is_some_and(|record_type| {
+                condition != record_type
+                    && !crate::admin_graphql::output_type_condition_applies(
+                        api_version,
+                        record_type,
+                        condition,
+                    )
+            })
+        }) {
+            continue;
+        }
+        let Some(field_value) = object
+            .get(&field.name)
+            .or_else(|| object.get(&field.response_key))
+        else {
+            continue;
+        };
+        projected.insert(
+            field.response_key.clone(),
+            if field.selection.is_empty() || field_value.is_null() {
+                field_value.clone()
+            } else {
+                bulk_project_value(field_value, &field.selection, api_version)
+            },
+        );
+    }
+    Value::Object(projected)
 }
 
 fn bulk_jsonl_child_node(mut node: Value, parent_id: &str) -> Value {
@@ -3004,16 +3065,12 @@ fn bulk_operation_run_mutation_empty_file_user_error() -> Value {
     )
 }
 
-fn bulk_operation_run_mutation_error_response(
-    response_key: &str,
-    payload_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Response {
+fn bulk_operation_run_mutation_error_outcome(user_errors: Vec<Value>) -> ResolverOutcome<Value> {
     let payload = json!({
         "bulkOperation": null,
         "userErrors": user_errors
     });
-    ok_json(json!({ "data": { response_key: selected_json(&payload, payload_selection) } }))
+    ResolverOutcome::value(payload)
 }
 
 #[derive(Default)]
@@ -3181,8 +3238,11 @@ fn nested_connection_selection<'a>(
 }
 
 fn edge_node_selection(selection: &[SelectedField]) -> Vec<SelectedField> {
-    selected_child_selection(selection, "edges")
-        .and_then(|edge_selection| selected_child_selection(&edge_selection, "node"))
+    selection
+        .iter()
+        .find(|field| field.name == "edges")
+        .and_then(|edges| edges.selection.iter().find(|field| field.name == "node"))
+        .map(|node| node.selection.clone())
         .unwrap_or_default()
 }
 
@@ -3194,119 +3254,123 @@ fn bulk_query_list_field(name: &str) -> bool {
     matches!(name, "fulfillments")
 }
 
-fn bulk_operation_id_validation_response(
-    field: &RootFieldSelection,
+fn bulk_operation_read_validation_errors(
+    root_field: &str,
+    response_key: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    location: SourceLocation,
     operation_path: &str,
-) -> Option<Response> {
-    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+) -> Option<Vec<Value>> {
+    match root_field {
+        "bulkOperation" => {
+            bulk_operation_id_validation_errors(response_key, arguments, location, operation_path)
+        }
+        "bulkOperations" => bulk_operations_argument_validation_errors(
+            response_key,
+            arguments,
+            location,
+            operation_path,
+        ),
+        _ => None,
+    }
+}
+
+fn bulk_operation_id_validation_errors(
+    response_key: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    location: SourceLocation,
+    operation_path: &str,
+) -> Option<Vec<Value>> {
+    let id = resolved_string_field(arguments, "id").unwrap_or_default();
     match shopify_gid_resource_type(&id) {
         Some("BulkOperation") => None,
-        Some(_) => Some(ok_json(json!({
-            "errors": [{
+        Some(_) => Some(vec![json!({
                 "message": format!("Invalid id: {id}"),
-                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "locations": [{"line": location.line, "column": location.column}],
                 "extensions": {"code": "RESOURCE_NOT_FOUND"},
-                "path": [field.response_key]
-            }],
-            "data": { field.response_key.clone(): null }
-        }))),
-        None => Some(ok_json(json!({
-            "errors": [{
+                "path": [response_key]
+        })]),
+        None => Some(vec![json!({
                 "message": format!("Invalid global id '{id}'"),
-                "locations": [{"line": field.location.line, "column": field.location.column}],
-                "path": [operation_path, field.response_key.clone(), "id"],
+                "locations": [{"line": location.line, "column": location.column}],
+                "path": [operation_path, response_key, "id"],
                 "extensions": {
                     "code": "argumentLiteralsIncompatible",
                     "typeName": "CoercionError"
                 }
-            }]
-        }))),
+        })]),
     }
 }
 
-fn bulk_operations_argument_validation_response(
-    field: &RootFieldSelection,
+fn bulk_operations_argument_validation_errors(
+    response_key: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    location: SourceLocation,
     operation_path: &str,
-) -> Option<Response> {
-    if field.arguments.contains_key("first") && field.arguments.contains_key("last") {
-        return Some(ok_json(json!({
-            "errors": [{
+) -> Option<Vec<Value>> {
+    if arguments.contains_key("first") && arguments.contains_key("last") {
+        return Some(vec![json!({
                 "message": "providing both first and last is not supported",
-                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "locations": [{"line": location.line, "column": location.column}],
                 "extensions": {"code": "BAD_REQUEST"},
-                "path": [field.response_key]
-            }],
-            "data": null
-        })));
+                "path": [response_key]
+        })]);
     }
-    if !field.arguments.contains_key("first") && !field.arguments.contains_key("last") {
-        return Some(ok_json(json!({
-            "errors": [{
+    if !arguments.contains_key("first") && !arguments.contains_key("last") {
+        return Some(vec![json!({
                 "message": "you must provide one of first or last",
-                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "locations": [{"line": location.line, "column": location.column}],
                 "extensions": {"code": "BAD_REQUEST"},
-                "path": [field.response_key]
-            }],
-            "data": null
-        })));
+                "path": [response_key]
+        })]);
     }
     if matches!(
-        resolved_string_field(&field.arguments, "sortKey").as_deref(),
+        resolved_string_field(arguments, "sortKey").as_deref(),
         Some("ID")
     ) {
-        return Some(ok_json(json!({
-            "errors": [{
+        return Some(vec![json!({
                 "message": "Argument 'sortKey' on Field 'bulkOperations' has an invalid value (ID). Expected type 'BulkOperationsSortKeys'.",
-                "locations": [{"line": field.location.line, "column": field.location.column}],
-                "path": [operation_path, field.response_key.clone(), "sortKey"],
+                "locations": [{"line": location.line, "column": location.column}],
+                "path": [operation_path, response_key, "sortKey"],
                 "extensions": {
                     "code": "argumentLiteralsIncompatible",
                     "typeName": "Field",
                     "argumentName": "sortKey"
                 }
-            }]
-        })));
+        })]);
     }
-    if let Some(query) = resolved_string_field(&field.arguments, "query") {
+    if let Some(query) = resolved_string_field(arguments, "query") {
         if let Some(value) = bulk_operation_query_filter_value(&query, "created_at") {
             if !bulk_operation_valid_timestamp_filter(value) {
-                return Some(ok_json(json!({
-                    "errors": [{
+                return Some(vec![json!({
                         "message": "Invalid timestamp for query filter `created_at`.",
-                        "locations": [{"line": field.location.line, "column": field.location.column}],
+                        "locations": [{"line": location.line, "column": location.column}],
                         "extensions": {"code": "BAD_REQUEST"},
-                        "path": [field.response_key]
-                    }],
-                    "data": null
-                })));
+                        "path": [response_key]
+                })]);
             }
         }
         if let Some(value) = bulk_operation_query_filter_value(&query, "id") {
             match shopify_gid_resource_type(value) {
                 Some("BulkOperation") => {}
                 Some(_) => {
-                    return Some(ok_json(json!({
-                        "errors": [{
+                    return Some(vec![json!({
                             "message": format!("Invalid id: {value}"),
-                            "locations": [{"line": field.location.line, "column": field.location.column}],
+                            "locations": [{"line": location.line, "column": location.column}],
                             "extensions": {"code": "RESOURCE_NOT_FOUND"},
-                            "path": [field.response_key]
-                        }],
-                        "data": { field.response_key.clone(): null }
-                    })));
+                            "path": [response_key]
+                    })]);
                 }
                 None => {
-                    return Some(ok_json(json!({
-                        "errors": [{
+                    return Some(vec![json!({
                             "message": format!("Invalid global id '{value}'"),
-                            "locations": [{"line": field.location.line, "column": field.location.column}],
-                            "path": [operation_path, field.response_key.clone(), "query"],
+                            "locations": [{"line": location.line, "column": location.column}],
+                            "path": [operation_path, response_key, "query"],
                             "extensions": {
                                 "code": "argumentLiteralsIncompatible",
                                 "typeName": "CoercionError"
                             }
-                        }]
-                    })));
+                    })]);
                 }
             }
         }
@@ -3326,8 +3390,8 @@ fn bulk_operation_sort_value(operation: &Value, sort_key: &str) -> String {
         .to_string()
 }
 
-fn bulk_operation_connection_sort_key(field: &RootFieldSelection) -> String {
-    resolved_string_field(&field.arguments, "sortKey").unwrap_or_else(|| "CREATED_AT".to_string())
+fn bulk_operation_connection_sort_key(arguments: &BTreeMap<String, ResolvedValue>) -> String {
+    resolved_string_field(arguments, "sortKey").unwrap_or_else(|| "CREATED_AT".to_string())
 }
 
 fn bulk_operation_connection_cursor(operation: &Value, sort_key: &str) -> String {
@@ -3436,29 +3500,29 @@ fn bulk_operation_matches_query(
     true
 }
 
-fn bulk_operation_search_extensions(fields: &[RootFieldSelection]) -> Option<Value> {
-    let warnings = fields
-        .iter()
-        .filter(|field| field.name == "bulkOperations")
-        .filter_map(|field| {
-            let query = resolved_string_field(&field.arguments, "query")?;
-            let warning = bulk_operation_invalid_search_filter(&query)?;
-            Some(json!({
-                "path": [field.response_key.clone()],
-                "query": query,
-                "parsed": {
-                    "field": warning.field,
-                    "match_all": warning.value
-                },
-                "warnings": [{
-                    "field": warning.field,
-                    "message": warning.message,
-                    "code": warning.code
-                }]
-            }))
-        })
-        .collect::<Vec<_>>();
-    (!warnings.is_empty()).then_some(Value::Array(warnings))
+fn bulk_operation_search_extension(
+    response_key: &str,
+    root_field: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    if root_field != "bulkOperations" {
+        return None;
+    }
+    let query = resolved_string_field(arguments, "query")?;
+    let warning = bulk_operation_invalid_search_filter(&query)?;
+    Some(json!([{
+        "path": [response_key],
+        "query": query,
+        "parsed": {
+            "field": warning.field,
+            "match_all": warning.value
+        },
+        "warnings": [{
+            "field": warning.field,
+            "message": warning.message,
+            "code": warning.code
+        }]
+    }]))
 }
 
 struct BulkOperationSearchWarning {

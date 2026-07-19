@@ -6,36 +6,69 @@ mod online_store_helpers;
 mod sales_channel;
 mod search;
 
+pub(in crate::proxy) use self::content::online_store_field_resolver_registrations;
 pub(in crate::proxy) use self::online_store_helpers::*;
 
+pub(in crate::proxy) fn online_store_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy>
+{
+    [
+        "Article",
+        "ArticleAuthor",
+        "Blog",
+        "Comment",
+        "Link",
+        "OnlineStoreTheme",
+        "OnlineStoreThemeFile",
+        "Page",
+        "ScriptTag",
+    ]
+    .into_iter()
+    .map(|parent_type| {
+        FieldResolverTypePolicy::property_backed_ordinary_fields(
+            ApiSurface::Admin,
+            parent_type,
+            "argument-bearing online-store field has no explicit canonical resolver",
+        )
+    })
+    .collect()
+}
+
+/// Engine-coerced input for one online-store root. Output selections are
+/// intentionally absent: nested field ownership belongs to the executable
+/// schema and field-resolver catalog.
+#[derive(Clone)]
+pub(in crate::proxy) struct OnlineStoreRootCall {
+    name: String,
+    response_key: String,
+    location: SourceLocation,
+    arguments: BTreeMap<String, ResolvedValue>,
+}
+
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_online_store_graphql(
+    pub(crate) fn online_store_query_root(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
-            request,
-            query,
-            variables,
-            root_name: _,
-            mode,
-            ..
-        } = context;
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                let fields = match self.root_fields_or_error(query, variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
-                self.online_store_query_response(request, &fields)
-            }
-            LocalResolverMode::StageLocally => {
-                let fields = match self.root_fields_or_error(query, variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
-                self.online_store_mutation(&fields, request, query, variables)
-            }
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let field = OnlineStoreRootCall::from_invocation(&invocation);
+        self.online_store_query_outcome(invocation.request, &field, invocation.response_key)
+    }
+
+    pub(crate) fn online_store_mutation_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let field = OnlineStoreRootCall::from_invocation(&invocation);
+        self.online_store_mutation_outcome(&field, invocation.request, invocation.response_key)
+    }
+}
+
+impl OnlineStoreRootCall {
+    fn from_invocation(invocation: &RootInvocation<'_>) -> Self {
+        Self {
+            name: invocation.root_name.to_string(),
+            response_key: invocation.response_key.to_string(),
+            location: invocation.root_location,
+            arguments: resolved_arguments_from_json(&invocation.arguments),
         }
     }
 }
@@ -45,6 +78,7 @@ const ONLINE_STORE_HANDLE_MAX_CHARS: usize = 255;
 const ONLINE_STORE_ARTICLE_HANDLE_MAX_CHARS: usize = 265;
 const ONLINE_STORE_PAGE_BODY_MAX_BYTES: usize = 524_287;
 const ONLINE_STORE_ARTICLE_BODY_MAX_BYTES: usize = 1_048_576;
+const OBSERVED_BLOG_ARTICLES_COUNT_FIELD: &str = "__shopifyDraftProxyObservedArticlesCount";
 const ONLINE_STORE_COMMENT_HYDRATE_QUERY: &str = "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }";
 const ONLINE_STORE_COMMENT_ARTICLE_HYDRATE_QUERY: &str = "query OnlineStoreCommentArticleHydrate($id: ID!) { article(id: $id) { __typename id title handle body summary tags isPublished publishedAt createdAt updatedAt templateSuffix author { name } blog { __typename id title handle commentPolicy createdAt updatedAt } commentsCount { count precision } } }";
 const ONLINE_STORE_PAGE_HYDRATE_QUERY: &str = "query OnlineStorePageHydrate($id: ID!) { page(id: $id) { __typename id title handle body bodySummary isPublished publishedAt createdAt updatedAt templateSuffix } }";

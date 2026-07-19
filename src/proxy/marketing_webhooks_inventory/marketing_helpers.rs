@@ -26,13 +26,6 @@ fn marketing_record_with_cursor(mut record: Value, cursor: Option<String>) -> Va
     record
 }
 
-fn is_marketing_query_root(name: &str) -> bool {
-    matches!(
-        name,
-        "marketingActivity" | "marketingActivities" | "marketingEvent" | "marketingEvents"
-    )
-}
-
 fn marketing_activity_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
     let id = record["id"].as_str();
     let primary = match sort_key.unwrap_or("CREATED_AT") {
@@ -57,15 +50,13 @@ fn marketing_event_staged_sort_key(record: &Value, sort_key: Option<&str>) -> St
 fn marketing_activity_connection(
     records: Vec<Value>,
     arguments: &BTreeMap<String, ResolvedValue>,
-    selection: &[SelectedField],
 ) -> Value {
-    selected_staged_connection_with_args(
+    staged_connection_value_with_args(
         records,
         arguments,
-        selection,
         marketing_activity_search_decision,
         marketing_activity_staged_sort_key,
-        selected_json,
+        Value::clone,
         marketing_record_cursor,
     )
 }
@@ -73,15 +64,13 @@ fn marketing_activity_connection(
 fn marketing_event_connection(
     records: Vec<Value>,
     arguments: &BTreeMap<String, ResolvedValue>,
-    selection: &[SelectedField],
 ) -> Value {
-    selected_staged_connection_with_args(
+    staged_connection_value_with_args(
         records,
         arguments,
-        selection,
         marketing_event_search_decision,
         marketing_event_staged_sort_key,
-        selected_json,
+        Value::clone,
         marketing_record_cursor,
     )
 }
@@ -790,62 +779,51 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn marketing_query_response(
+    pub(super) fn marketing_query_outcome(
         &mut self,
         request: &Request,
-        fields: &[RootFieldSelection],
-    ) -> Response {
+        field: &MarketingRootInput,
+    ) -> ResolverOutcome<Value> {
         if self.config.read_mode == ReadMode::LiveHybrid {
-            let mut response = (self.upstream_transport)(request.clone());
-            if response.status < 400 {
-                self.observe_marketing_upstream_response(fields, &response.body);
+            let mut outcome =
+                self.cached_or_forward_upstream_root_outcome(request, &field.response_key);
+            if outcome.errors.is_empty() {
+                self.observe_marketing_upstream_response(
+                    field,
+                    &json!({ "data": { (&field.response_key): outcome.value.clone() } }),
+                );
             }
-            if !self.store.has_marketing_overlay_state() || response.body.get("data").is_none() {
-                return response;
+            if !self.store.has_marketing_overlay_state() || !outcome.errors.is_empty() {
+                return outcome;
             }
-            let marketing_data = self.marketing_query_data(request, fields);
-            if let (Some(upstream_data), Some(marketing_data)) = (
-                response.body.get_mut("data").and_then(Value::as_object_mut),
-                marketing_data.as_object(),
-            ) {
-                for field in fields {
-                    if !is_marketing_query_root(&field.name) {
-                        continue;
-                    }
-                    if let Some(value) = marketing_data.get(&field.response_key) {
-                        upstream_data.insert(field.response_key.clone(), value.clone());
-                    }
-                }
-            }
-            return response;
+            outcome.value = self.marketing_query_value(request, field);
+            return outcome;
         }
-        ok_json(json!({ "data": self.marketing_query_data(request, fields) }))
+        ResolverOutcome::value(self.marketing_query_value(request, field))
     }
 
-    fn observe_marketing_upstream_response(&mut self, fields: &[RootFieldSelection], body: &Value) {
+    fn observe_marketing_upstream_response(&mut self, field: &MarketingRootInput, body: &Value) {
         let Some(data) = body.get("data").and_then(Value::as_object) else {
             return;
         };
-        for field in fields {
-            let value = data
-                .get(&field.response_key)
-                .or_else(|| data.get(&field.name))
-                .unwrap_or(&Value::Null);
-            match field.name.as_str() {
-                "marketingActivity" => self.observe_base_marketing_activity(value.clone(), None),
-                "marketingActivities" => {
-                    for (activity, cursor) in marketing_connection_entries(value) {
-                        self.observe_base_marketing_activity(activity, cursor);
-                    }
+        let value = data
+            .get(&field.response_key)
+            .or_else(|| data.get(&field.name))
+            .unwrap_or(&Value::Null);
+        match field.name.as_str() {
+            "marketingActivity" => self.observe_base_marketing_activity(value.clone(), None),
+            "marketingActivities" => {
+                for (activity, cursor) in marketing_connection_entries(value) {
+                    self.observe_base_marketing_activity(activity, cursor);
                 }
-                "marketingEvent" => self.observe_base_marketing_event(value.clone(), None),
-                "marketingEvents" => {
-                    for (event, cursor) in marketing_connection_entries(value) {
-                        self.observe_base_marketing_event(event, cursor);
-                    }
-                }
-                _ => {}
             }
+            "marketingEvent" => self.observe_base_marketing_event(value.clone(), None),
+            "marketingEvents" => {
+                for (event, cursor) in marketing_connection_entries(value) {
+                    self.observe_base_marketing_event(event, cursor);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -882,73 +860,55 @@ impl DraftProxy {
         self.store.base.marketing_events.insert(id, event);
     }
 
-    pub(in crate::proxy) fn marketing_query_data(
-        &self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        root_payload_json(fields, |field| {
-            let value = match field.name.as_str() {
-                "marketingActivity" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .marketing_activity_by_id(&id)
-                        .filter(|record| {
-                            !self.marketing_activity_hidden_by_delete_all(record, request)
-                        })
-                        .cloned()
-                        .unwrap_or(Value::Null)
-                }
-                "marketingActivities" => {
-                    let remote_ids = resolved_string_list_arg(&field.arguments, "remoteIds");
-                    let ids = resolved_string_list_arg(&field.arguments, "marketingActivityIds");
-                    let records = self
-                        .store
-                        .marketing_activities()
-                        .into_iter()
-                        .filter(|record| {
-                            let id = record["id"].as_str().unwrap_or_default();
-                            if self.marketing_activity_hidden_by_delete_all(record, request) {
-                                return false;
-                            }
-                            if !ids.is_empty() && !ids.iter().any(|candidate| candidate == id) {
-                                return false;
-                            }
-                            if !remote_ids.is_empty()
-                                && !remote_ids.iter().any(|candidate| {
-                                    record["remoteId"].as_str() == Some(candidate.as_str())
-                                        || record["marketingEvent"]["remoteId"].as_str()
-                                            == Some(candidate.as_str())
-                                })
-                            {
-                                return false;
-                            }
-                            true
-                        })
-                        .collect::<Vec<_>>();
-                    marketing_activity_connection(records, &field.arguments, &field.selection)
-                }
-                "marketingEvent" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.store.marketing_event_by_id(&id).unwrap_or(Value::Null)
-                }
-                "marketingEvents" => {
-                    let records = self.store.marketing_events().into_iter().collect();
-                    marketing_event_connection(records, &field.arguments, &field.selection)
-                }
-                _ => Value::Null,
-            };
-            if value.is_null() {
-                Some(Value::Null)
-            } else if matches!(
-                field.name.as_str(),
-                "marketingActivities" | "marketingEvents"
-            ) {
-                Some(value)
-            } else {
-                Some(selected_json(&value, &field.selection))
+    fn marketing_query_value(&self, request: &Request, field: &MarketingRootInput) -> Value {
+        match field.name.as_str() {
+            "marketingActivity" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                self.store
+                    .marketing_activity_by_id(&id)
+                    .filter(|record| !self.marketing_activity_hidden_by_delete_all(record, request))
+                    .cloned()
+                    .unwrap_or(Value::Null)
             }
-        })
+            "marketingActivities" => {
+                let remote_ids = resolved_string_list_arg(&field.arguments, "remoteIds");
+                let ids = resolved_string_list_arg(&field.arguments, "marketingActivityIds");
+                let records = self
+                    .store
+                    .marketing_activities()
+                    .into_iter()
+                    .filter(|record| {
+                        let id = record["id"].as_str().unwrap_or_default();
+                        if self.marketing_activity_hidden_by_delete_all(record, request) {
+                            return false;
+                        }
+                        if !ids.is_empty() && !ids.iter().any(|candidate| candidate == id) {
+                            return false;
+                        }
+                        if !remote_ids.is_empty()
+                            && !remote_ids.iter().any(|candidate| {
+                                record["remoteId"].as_str() == Some(candidate.as_str())
+                                    || record["marketingEvent"]["remoteId"].as_str()
+                                        == Some(candidate.as_str())
+                            })
+                        {
+                            return false;
+                        }
+                        true
+                    })
+                    .collect::<Vec<_>>();
+                marketing_activity_connection(records, &field.arguments)
+            }
+            "marketingEvent" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                self.store.marketing_event_by_id(&id).unwrap_or(Value::Null)
+            }
+            "marketingEvents" => {
+                let records = self.store.marketing_events().into_iter().collect();
+                marketing_event_connection(records, &field.arguments)
+            }
+            _ => Value::Null,
+        }
     }
 
     fn marketing_activity_hidden_by_delete_all(
@@ -971,111 +931,104 @@ impl DraftProxy {
             .contains(activity_app_id)
     }
 
-    pub(in crate::proxy) fn marketing_mutation(
+    pub(super) fn marketing_mutation_outcome(
         &mut self,
-        fields: &[RootFieldSelection],
+        field: &MarketingRootInput,
         request: &Request,
-    ) -> Response {
+    ) -> (ResolverOutcome<Value>, Vec<String>) {
         let mut top_errors: Vec<Value> = Vec::new();
-        let mut omit_data = false;
-        let data = root_payload_json(fields, |field| {
-            if matches!(
-                field.name.as_str(),
-                "marketingActivityCreateExternal"
-                    | "marketingActivityUpdateExternal"
-                    | "marketingActivityUpsertExternal"
-            ) {
-                let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-                match marketing_url_scheme_error(&input) {
-                    Some(MarketingUrlError::WrongScheme) => {
-                        top_errors.push(json!({
-                            "message": "The URL scheme must be one of the following: https,http",
-                            "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
-                            "path": [field.name.clone()]
-                        }));
-                        return Some(Value::Null);
-                    }
-                    Some(MarketingUrlError::MissingHost {
-                        field: bad_field,
-                        url,
-                        value,
-                    }) => {
-                        let type_name = marketing_external_input_type_name(&field.name);
-                        let explanation = format!("Invalid url '{url}', missing host");
-                        let message = format!(
-                            "Variable $input of type {type_name}! was provided invalid value for {bad_field} ({explanation})"
-                        );
-                        top_errors.push(json!({
-                            "message": message,
-                            "extensions": {
-                                "code": "INVALID_VARIABLE",
-                                "value": value,
-                                "problems": [{
-                                    "path": [bad_field],
-                                    "explanation": explanation.clone(),
-                                    "message": explanation
-                                }]
-                            }
-                        }));
-                        omit_data = true;
-                        return None;
-                    }
-                    None => {}
+        if matches!(
+            field.name.as_str(),
+            "marketingActivityCreateExternal"
+                | "marketingActivityUpdateExternal"
+                | "marketingActivityUpsertExternal"
+        ) {
+            let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+            match marketing_url_scheme_error(&input) {
+                Some(MarketingUrlError::WrongScheme) => {
+                    top_errors.push(json!({
+                        "message": "The URL scheme must be one of the following: https,http",
+                        "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
+                        "path": [field.name.clone()]
+                    }));
                 }
+                Some(MarketingUrlError::MissingHost {
+                    field: bad_field,
+                    url,
+                    value,
+                }) => {
+                    let type_name = marketing_external_input_type_name(&field.name);
+                    let explanation = format!("Invalid url '{url}', missing host");
+                    let message = format!(
+                        "Variable $input of type {type_name}! was provided invalid value for {bad_field} ({explanation})"
+                    );
+                    top_errors.push(json!({
+                        "message": message,
+                        "extensions": {
+                            "code": "INVALID_VARIABLE",
+                            "value": value,
+                            "problems": [{
+                                "path": [bad_field],
+                                "explanation": explanation.clone(),
+                                "message": explanation
+                            }]
+                        }
+                    }));
+                }
+                None => {}
             }
-            let value = match field.name.as_str() {
-                "marketingActivityCreateExternal" => self.marketing_create_external(field, request),
-                "marketingActivityUpdateExternal" => self.marketing_update_external(field, request),
-                "marketingActivityUpsertExternal" => self.marketing_upsert_external(field, request),
-                "marketingActivityDeleteExternal" => self.marketing_delete_external(field, request),
-                "marketingActivitiesDeleteAllExternal" => {
-                    if let Some(api_client_id) = request.headers.get(API_CLIENT_ID_HEADER) {
-                        self.store
-                            .staged
-                            .marketing_delete_all_external_app_ids
-                            .insert(api_client_id.clone());
-                    } else {
-                        self.store.staged.marketing_delete_all_external = true;
-                    }
-                    let job_id = self.next_proxy_synthetic_gid("Job");
-                    selected_json(
-                        &json!({
-                            "job": { "id": job_id, "done": false },
-                            "userErrors": []
-                        }),
-                        &field.selection,
-                    )
-                }
-                "marketingEngagementCreate" => self.marketing_engagement_create(field, request),
-                "marketingEngagementsDelete" => self.marketing_engagements_delete(field, request),
-                "marketingActivityCreate" => self.marketing_create_native(field, request),
-                "marketingActivityUpdate" => self.marketing_update_native(field, request),
-                _ => Value::Null,
-            };
-            Some(value)
-        });
-        let mut body = if omit_data {
-            json!({})
-        } else {
-            json!({ "data": data })
-        };
-        if !top_errors.is_empty() {
-            body["errors"] = Value::Array(top_errors);
+            if !top_errors.is_empty() {
+                return (
+                    ResolverOutcome::value(Value::Null).with_errors(root_field_errors_from_json(
+                        &top_errors,
+                        &field.response_key,
+                    )),
+                    Vec::new(),
+                );
+            }
         }
-        ok_json(body)
+        let value = match field.name.as_str() {
+            "marketingActivityCreateExternal" => self.marketing_create_external(field, request),
+            "marketingActivityUpdateExternal" => self.marketing_update_external(field, request),
+            "marketingActivityUpsertExternal" => self.marketing_upsert_external(field, request),
+            "marketingActivityDeleteExternal" => self.marketing_delete_external(field, request),
+            "marketingActivitiesDeleteAllExternal" => {
+                if let Some(api_client_id) = request.headers.get(API_CLIENT_ID_HEADER) {
+                    self.store
+                        .staged
+                        .marketing_delete_all_external_app_ids
+                        .insert(api_client_id.clone());
+                } else {
+                    self.store.staged.marketing_delete_all_external = true;
+                }
+                let job_id = self.next_proxy_synthetic_gid("Job");
+                json!({
+                    "job": { "id": job_id, "done": false },
+                    "userErrors": []
+                })
+            }
+            "marketingEngagementCreate" => self.marketing_engagement_create(field, request),
+            "marketingEngagementsDelete" => self.marketing_engagements_delete(field, request),
+            "marketingActivityCreate" => self.marketing_create_native(field, request),
+            "marketingActivityUpdate" => self.marketing_update_native(field, request),
+            _ => Value::Null,
+        };
+        let staged_ids = value["marketingActivity"]["id"]
+            .as_str()
+            .map(ToString::to_string)
+            .into_iter()
+            .collect();
+        (ResolverOutcome::value(value), staged_ids)
     }
 
-    pub(in crate::proxy) fn marketing_create_native(
-        &mut self,
-        field: &RootFieldSelection,
-        request: &Request,
-    ) -> Value {
+    fn marketing_create_native(&mut self, field: &MarketingRootInput, request: &Request) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if let Some(error) = native_marketing_activity_extension_error(&input) {
-            return selected_json(
-                &json!({ "marketingActivity": null, "redirectPath": null, "userErrors": [error] }),
-                &field.selection,
-            );
+            return json!({
+                "marketingActivity": null,
+                "redirectPath": null,
+                "userErrors": [error]
+            });
         }
         let id = self.next_proxy_synthetic_gid("MarketingActivity");
         let timestamp = self.next_product_timestamp();
@@ -1093,17 +1046,10 @@ impl DraftProxy {
             .staged
             .marketing_activities
             .insert(id, activity.clone());
-        selected_json(
-            &json!({ "marketingActivity": activity, "redirectPath": null, "userErrors": [] }),
-            &field.selection,
-        )
+        json!({ "marketingActivity": activity, "redirectPath": null, "userErrors": [] })
     }
 
-    pub(in crate::proxy) fn marketing_update_native(
-        &mut self,
-        field: &RootFieldSelection,
-        request: &Request,
-    ) -> Value {
+    fn marketing_update_native(&mut self, field: &MarketingRootInput, request: &Request) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id")
             .unwrap_or_else(|| self.next_proxy_synthetic_gid("MarketingActivity"));
@@ -1123,25 +1069,21 @@ impl DraftProxy {
             .staged
             .marketing_activities
             .insert(id, activity.clone());
-        selected_json(
-            &json!({ "marketingActivity": activity, "redirectPath": "/admin/marketing", "userErrors": [] }),
-            &field.selection,
-        )
+        json!({ "marketingActivity": activity, "redirectPath": "/admin/marketing", "userErrors": [] })
     }
 
-    pub(in crate::proxy) fn marketing_create_external(
+    fn marketing_create_external(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketingRootInput,
         request: &Request,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let payload = self.marketing_create_or_update_payload(field, input, None, true, request);
-        selected_json(&payload, &field.selection)
+        self.marketing_create_or_update_payload(field, input, None, true, request)
     }
 
-    pub(in crate::proxy) fn marketing_update_external(
+    fn marketing_update_external(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketingRootInput,
         request: &Request,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
@@ -1155,10 +1097,7 @@ impl DraftProxy {
                 || target_by_utm.is_none()
                 || target_by_remote != target_by_utm
             {
-                return selected_json(
-                    &marketing_activity_error(marketing_activity_missing_error()),
-                    &field.selection,
-                );
+                return marketing_activity_error(marketing_activity_missing_error());
             }
         }
         let existing_id = resolved_string_field(&field.arguments, "marketingActivityId")
@@ -1173,10 +1112,7 @@ impl DraftProxy {
                     .and_then(|campaign| self.find_marketing_activity_by_utm(&campaign, request))
             });
         let Some(existing_id) = existing_id else {
-            return selected_json(
-                &marketing_activity_error(marketing_activity_missing_error()),
-                &field.selection,
-            );
+            return marketing_activity_error(marketing_activity_missing_error());
         };
         let existing = self
             .store
@@ -1190,31 +1126,21 @@ impl DraftProxy {
             selector_utm.as_ref(),
             request,
         ) {
-            return selected_json(&marketing_activity_error(err), &field.selection);
+            return marketing_activity_error(err);
         }
-        let payload = self.marketing_create_or_update_payload(
-            field,
-            input,
-            Some(existing_id),
-            false,
-            request,
-        );
-        selected_json(&payload, &field.selection)
+        self.marketing_create_or_update_payload(field, input, Some(existing_id), false, request)
     }
 
-    pub(in crate::proxy) fn marketing_upsert_external(
+    fn marketing_upsert_external(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketingRootInput,
         request: &Request,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if marketing_input_tactic_is_storefront_app(&input) {
-            return selected_json(
-                &marketing_activity_payload(
-                    None,
-                    vec![marketing_activity_cannot_update_tactic_to_storefront_error()],
-                ),
-                &field.selection,
+            return marketing_activity_payload(
+                None,
+                vec![marketing_activity_cannot_update_tactic_to_storefront_error()],
             );
         }
         let remote = resolved_string_field(&input, "remoteId").unwrap_or_default();
@@ -1224,18 +1150,16 @@ impl DraftProxy {
                 if let Some(err) =
                     self.marketing_external_immutable_update_error(existing, &input, None, request)
                 {
-                    return selected_json(&marketing_activity_error(err), &field.selection);
+                    return marketing_activity_error(err);
                 }
             }
         }
-        let payload =
-            self.marketing_create_or_update_payload(field, input, existing_id, true, request);
-        selected_json(&payload, &field.selection)
+        self.marketing_create_or_update_payload(field, input, existing_id, true, request)
     }
 
-    pub(in crate::proxy) fn marketing_create_or_update_payload(
+    fn marketing_create_or_update_payload(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketingRootInput,
         input: BTreeMap<String, ResolvedValue>,
         existing_id: Option<String>,
         create_if_missing: bool,
@@ -1256,7 +1180,7 @@ impl DraftProxy {
 
     fn marketing_create_or_update_error(
         &self,
-        field: &RootFieldSelection,
+        field: &MarketingRootInput,
         input: &BTreeMap<String, ResolvedValue>,
         existing_id: Option<&str>,
         create_if_missing: bool,
@@ -1321,7 +1245,7 @@ impl DraftProxy {
 
     fn marketing_create_duplicate_error(
         &self,
-        field: &RootFieldSelection,
+        field: &MarketingRootInput,
         input: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Option<Value> {
@@ -1399,19 +1323,16 @@ impl DraftProxy {
         activity
     }
 
-    pub(in crate::proxy) fn marketing_delete_external(
+    fn marketing_delete_external(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketingRootInput,
         request: &Request,
     ) -> Value {
         if !field.arguments.contains_key("marketingActivityId")
             && !field.arguments.contains_key("id")
             && !field.arguments.contains_key("remoteId")
         {
-            return selected_json(
-                &json!({ "deletedMarketingActivityId": null, "userErrors": [user_error(Value::Null, "Either the marketing activity ID or remote ID must be provided for the activity to be deleted.", Some("INVALID_DELETE_ACTIVITY_EXTERNAL_ARGUMENTS"))] }),
-                &field.selection,
-            );
+            return json!({ "deletedMarketingActivityId": null, "userErrors": [user_error(Value::Null, "Either the marketing activity ID or remote ID must be provided for the activity to be deleted.", Some("INVALID_DELETE_ACTIVITY_EXTERNAL_ARGUMENTS"))] });
         }
         let id = resolved_string_field(&field.arguments, "marketingActivityId")
             .or_else(|| resolved_string_field(&field.arguments, "id"))
@@ -1420,34 +1341,19 @@ impl DraftProxy {
                     .and_then(|remote| self.find_marketing_activity_by_remote(&remote, request))
             });
         let Some(id) = id else {
-            return selected_json(
-                &json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_missing_error()] }),
-                &field.selection,
-            );
+            return json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_missing_error()] });
         };
         let Some(activity) = self.marketing_activity_for_delete(&id, request) else {
-            return selected_json(
-                &json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_missing_error()] }),
-                &field.selection,
-            );
+            return json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_missing_error()] });
         };
         if activity["isExternal"] == json!(false) {
-            return selected_json(
-                &json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_delete_not_external_error()] }),
-                &field.selection,
-            );
+            return json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_delete_not_external_error()] });
         }
         if self.marketing_activity_has_child_events(&activity) {
-            return selected_json(
-                &json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_child_events_error()] }),
-                &field.selection,
-            );
+            return json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_child_events_error()] });
         }
         self.store.staged.marketing_activities.tombstone(id.clone());
-        selected_json(
-            &json!({ "deletedMarketingActivityId": id, "userErrors": [] }),
-            &field.selection,
-        )
+        json!({ "deletedMarketingActivityId": id, "userErrors": [] })
     }
 
     fn marketing_activity_for_delete(&self, id: &str, request: &Request) -> Option<Value> {
@@ -1481,9 +1387,9 @@ impl DraftProxy {
             })
     }
 
-    pub(in crate::proxy) fn marketing_engagement_create(
+    fn marketing_engagement_create(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketingRootInput,
         request: &Request,
     ) -> Value {
         let has_activity_id = field.arguments.contains_key("marketingActivityId");
@@ -1494,57 +1400,42 @@ impl DraftProxy {
             .filter(|v| **v)
             .count();
         if selector_count == 0 {
-            return selected_json(
-                &marketing_engagement_payload(
-                    None,
-                    vec![user_error(Value::Null, "No identifier found. For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.", Some("INVALID_MARKETING_ENGAGEMENT_ARGUMENT_MISSING"))],
-                ),
-                &field.selection,
+            return marketing_engagement_payload(
+                None,
+                vec![user_error(Value::Null, "No identifier found. For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.", Some("INVALID_MARKETING_ENGAGEMENT_ARGUMENT_MISSING"))],
             );
         }
         if selector_count > 1 {
-            return selected_json(
-                &marketing_engagement_payload(
-                    None,
-                    vec![user_error(Value::Null, "For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.", Some("INVALID_MARKETING_ENGAGEMENT_ARGUMENTS"))],
-                ),
-                &field.selection,
+            return marketing_engagement_payload(
+                None,
+                vec![user_error(Value::Null, "For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.", Some("INVALID_MARKETING_ENGAGEMENT_ARGUMENTS"))],
             );
         }
         if let Some(channel) = resolved_string_field(&field.arguments, "channelHandle") {
             if !recognized_marketing_channel_handle(&channel) {
-                return selected_json(
-                    &marketing_engagement_payload(
-                        None,
-                        vec![user_error(["channelHandle"], "The channel handle is not recognized. Please contact your partner manager for more information.", Some("INVALID_CHANNEL_HANDLE"))],
-                    ),
-                    &field.selection,
+                return marketing_engagement_payload(
+                    None,
+                    vec![user_error(["channelHandle"], "The channel handle is not recognized. Please contact your partner manager for more information.", Some("INVALID_CHANNEL_HANDLE"))],
                 );
             }
         }
         let engagement_input =
             resolved_object_field(&field.arguments, "marketingEngagement").unwrap_or_default();
         if has_engagement_currency_mismatch(&engagement_input) {
-            return selected_json(
-                &marketing_engagement_payload(
-                    None,
-                    vec![user_error(
-                        ["marketingEngagement"],
-                        "Currency codes in the marketing engagement input do not match.",
-                        Some("CURRENCY_CODE_MISMATCH_INPUT"),
-                    )],
-                ),
-                &field.selection,
+            return marketing_engagement_payload(
+                None,
+                vec![user_error(
+                    ["marketingEngagement"],
+                    "Currency codes in the marketing engagement input do not match.",
+                    Some("CURRENCY_CODE_MISMATCH_INPUT"),
+                )],
             );
         }
         if has_channel {
             let shop_currency_code = self.store.shop_currency_code();
             let engagement =
                 marketing_engagement_from_input(&engagement_input, None, &shop_currency_code);
-            return selected_json(
-                &marketing_engagement_payload(Some(engagement), Vec::new()),
-                &field.selection,
-            );
+            return marketing_engagement_payload(Some(engagement), Vec::new());
         }
         let activity_id = if has_activity_id {
             resolved_string_field(&field.arguments, "marketingActivityId")
@@ -1553,30 +1444,18 @@ impl DraftProxy {
                 .and_then(|remote| self.find_marketing_activity_by_remote(&remote, request))
         };
         let Some(activity_id) = activity_id else {
-            return selected_json(
-                &marketing_engagement_payload(None, vec![marketing_activity_missing_error()]),
-                &field.selection,
-            );
+            return marketing_engagement_payload(None, vec![marketing_activity_missing_error()]);
         };
         let Some(activity) = self.store.marketing_activity_by_id(&activity_id) else {
-            return selected_json(
-                &marketing_engagement_payload(None, vec![marketing_activity_missing_error()]),
-                &field.selection,
-            );
+            return marketing_engagement_payload(None, vec![marketing_activity_missing_error()]);
         };
         if activity["marketingEvent"].is_null() {
-            return selected_json(
-                &marketing_engagement_payload(None, vec![marketing_event_missing_error()]),
-                &field.selection,
-            );
+            return marketing_engagement_payload(None, vec![marketing_event_missing_error()]);
         }
         if self.engagement_currency_mismatches_activity(&activity_id, &engagement_input) {
-            return selected_json(
-                &marketing_engagement_payload(
-                    None,
-                    vec![user_error(["marketingEngagement"], "Marketing activity currency code does not match the currency code in the marketing engagement input.", Some("MARKETING_ACTIVITY_CURRENCY_CODE_MISMATCH"))],
-                ),
-                &field.selection,
+            return marketing_engagement_payload(
+                None,
+                vec![user_error(["marketingEngagement"], "Marketing activity currency code does not match the currency code in the marketing engagement input.", Some("MARKETING_ACTIVITY_CURRENCY_CODE_MISMATCH"))],
             );
         }
         let shop_currency_code = self.store.shop_currency_code();
@@ -1584,15 +1463,12 @@ impl DraftProxy {
             marketing_engagement_from_input(&engagement_input, Some(activity), &shop_currency_code);
         // Shopify accepts engagement metrics but does not fold engagement ad spend
         // back into the MarketingActivity.adSpend field in these captures.
-        selected_json(
-            &marketing_engagement_payload(Some(engagement), Vec::new()),
-            &field.selection,
-        )
+        marketing_engagement_payload(Some(engagement), Vec::new())
     }
 
-    pub(in crate::proxy) fn marketing_engagements_delete(
+    fn marketing_engagements_delete(
         &mut self,
-        field: &RootFieldSelection,
+        field: &MarketingRootInput,
         request: &Request,
     ) -> Value {
         let has_channel_handle = field.arguments.contains_key("channelHandle");
@@ -1631,10 +1507,7 @@ impl DraftProxy {
                 Vec::new(),
             )
         };
-        selected_json(
-            &json!({ "result": result, "userErrors": errors }),
-            &field.selection,
-        )
+        json!({ "result": result, "userErrors": errors })
     }
 
     fn marketing_channel_handles_for_request(&self, request: &Request) -> BTreeSet<String> {

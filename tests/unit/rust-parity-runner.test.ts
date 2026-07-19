@@ -7,6 +7,7 @@ import {
   defaultApiVersionForCapture,
   diffValues,
   parseJsonlRecordsForParity,
+  scenarioClockFromCapture,
   selectPaths,
 } from '../../scripts/parity-run.js';
 import {
@@ -21,6 +22,30 @@ const repoRoot = new URL('../..', import.meta.url);
 const paritySpecRoot = new URL('../../config/parity-specs/', import.meta.url);
 const parityCliTimeoutMs = 30_000;
 const execFileAsync = promisify(execFile);
+
+describe('scenarioClockFromCapture', () => {
+  it('derives a lifecycle replay clock from one captured epoch run id', () => {
+    expect(
+      scenarioClockFromCapture({
+        variables: { runId: '1783175824302' },
+        request: { startsAt: '2026-07-18T14:37:04.302Z' },
+      }),
+    ).toBe('2026-07-04T14:37:04.302Z');
+  });
+
+  it('does not freeze a capture without a lifecycle timestamp', () => {
+    expect(scenarioClockFromCapture({ variables: { runId: '1783175824302' } })).toBeUndefined();
+  });
+
+  it('does not freeze a capture with ambiguous epoch run ids', () => {
+    expect(
+      scenarioClockFromCapture({
+        first: { runId: '1783175824302', startsAt: '2026-07-18T14:37:04.302Z' },
+        second: { runId: '1783175824303' },
+      }),
+    ).toBeUndefined();
+  });
+});
 
 describe('parity runner API version routing', () => {
   it('uses a supported captured version from metadata or the fixture path', () => {

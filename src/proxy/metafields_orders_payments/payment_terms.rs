@@ -1,5 +1,34 @@
 use super::*;
 
+pub(in crate::proxy) fn payment_terms_field_resolver_registrations(
+) -> Vec<FieldResolverRegistration> {
+    vec![FieldResolverRegistration::explicit(
+        ApiSurface::Admin,
+        "PaymentTerms",
+        "paymentSchedules",
+        payment_terms_schedules_field,
+    )]
+}
+
+fn payment_terms_schedules_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let connection = invocation.parent.get("paymentSchedules");
+    Ok(connection_value_with_args(
+        connection.map(connection_nodes).unwrap_or_default(),
+        &resolved_arguments_from_json(&invocation.arguments),
+        |schedule| {
+            schedule
+                .get("id")
+                .and_then(Value::as_str)
+                .map(|id| format!("cursor:{id}"))
+                .unwrap_or_default()
+        },
+    ))
+}
+
 /// Exact GraphQL document the proxy issues to hydrate an **Order** owner before
 /// payment-terms staging. The text must match the recorded `PaymentTermsOwnerHydrate`
 /// cassette byte-for-byte (modulo trailing whitespace) so the strict upstream
@@ -23,13 +52,11 @@ pub(in crate::proxy) fn payment_terms_user_error(field: Value, message: &str, co
 pub(in crate::proxy) fn payment_terms_payload_value(
     payment_terms: Value,
     user_errors: Vec<Value>,
-    selections: &[SelectedField],
 ) -> Value {
-    let payload = json!({
+    json!({
         "paymentTerms": payment_terms,
         "userErrors": user_errors
-    });
-    selected_json(&payload, selections)
+    })
 }
 
 fn payment_terms_node_order_paid(node: &Value) -> bool {
@@ -236,39 +263,38 @@ fn payment_terms_template_type(template_id: &str) -> Option<&'static str> {
         .map(|(_, _, _, _, terms_type)| *terms_type)
 }
 
-/// Projects the fixed payment-terms template catalog for a `paymentTermsTemplates`
-/// query. Each selected root field (the live read aliases `all`/`filtered`) is
-/// resolved independently; an optional `paymentTermsType` argument filters the
-/// catalog to a single terms type.
-pub(in crate::proxy) fn payment_terms_templates_query_data(fields: &[RootFieldSelection]) -> Value {
-    root_payload_json(fields, |field| {
-        if field.name != "paymentTermsTemplates" {
-            return None;
-        }
-        let type_filter = resolved_string_field(&field.arguments, "paymentTermsType")
-            .or_else(|| resolved_string_field(&field.arguments, "type"));
+impl DraftProxy {
+    /// Return the canonical fixed template catalog. The GraphQL engine owns
+    /// aliases and output projection; this resolver only consumes coerced root
+    /// arguments.
+    pub(crate) fn payment_terms_templates_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let type_filter = invocation
+            .arguments
+            .get("paymentTermsType")
+            .or_else(|| invocation.arguments.get("type"))
+            .and_then(Value::as_str);
         let templates: Vec<Value> = PAYMENT_TERMS_TEMPLATE_CATALOG
             .iter()
             .filter(|(_, _, _, _, terms_type)| {
-                type_filter.as_deref().is_none_or(|f| *terms_type == f)
+                type_filter.is_none_or(|filter| *terms_type == filter)
             })
             .map(|(tail, name, description, due_in_days, terms_type)| {
-                selected_json(
-                    &json!({
-                        "id": shopify_gid("PaymentTermsTemplate", tail),
-                        "name": name,
-                        "description": description,
-                        "dueInDays": due_in_days.map(Value::from).unwrap_or(Value::Null),
-                        "paymentTermsType": terms_type,
-                        "translatedName": name,
-                        "__typename": "PaymentTermsTemplate"
-                    }),
-                    &field.selection,
-                )
+                json!({
+                    "id": shopify_gid("PaymentTermsTemplate", tail),
+                    "name": name,
+                    "description": description,
+                    "dueInDays": due_in_days.map(Value::from).unwrap_or(Value::Null),
+                    "paymentTermsType": terms_type,
+                    "translatedName": name,
+                    "__typename": "PaymentTermsTemplate"
+                })
             })
             .collect();
-        Some(Value::Array(templates))
-    })
+        ResolverOutcome::value(Value::Array(templates))
+    }
 }
 
 /// Adds `days` to the date portion of an ISO-8601 timestamp, preserving the
@@ -448,26 +474,24 @@ pub(in crate::proxy) fn payment_terms_validation_error(
 pub(in crate::proxy) fn payment_terms_delete_payload_value(
     deleted_id: Value,
     user_errors: Vec<Value>,
-    selections: &[SelectedField],
 ) -> Value {
-    let payload = json!({
+    json!({
         "deletedId": deleted_id,
         "userErrors": user_errors
-    });
-    selected_json(&payload, selections)
+    })
 }
 
-pub(in crate::proxy) fn payment_terms_attrs_from_create_field(
-    field: &RootFieldSelection,
+pub(in crate::proxy) fn payment_terms_attrs_from_create_arguments(
+    arguments: &BTreeMap<String, ResolvedValue>,
 ) -> BTreeMap<String, ResolvedValue> {
-    resolved_object_field(&field.arguments, "paymentTermsAttributes")
-        .unwrap_or_else(|| resolved_object_field(&field.arguments, "attrs").unwrap_or_default())
+    resolved_object_field(arguments, "paymentTermsAttributes")
+        .unwrap_or_else(|| resolved_object_field(arguments, "attrs").unwrap_or_default())
 }
 
-pub(in crate::proxy) fn payment_terms_attrs_from_update_field(
-    field: &RootFieldSelection,
+pub(in crate::proxy) fn payment_terms_attrs_from_update_arguments(
+    arguments: &BTreeMap<String, ResolvedValue>,
 ) -> (String, BTreeMap<String, ResolvedValue>) {
-    let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+    let input = resolved_object_field(arguments, "input").unwrap_or_default();
     let payment_terms_id = resolved_string_field(&input, "paymentTermsId").unwrap_or_default();
     let attrs = resolved_object_field(&input, "paymentTermsAttributes").unwrap_or_default();
     (payment_terms_id, attrs)
@@ -504,18 +528,14 @@ pub(in crate::proxy) fn payment_terms_record_from_attrs(
 }
 
 pub(in crate::proxy) fn payment_terms_create_value(
-    field: &RootFieldSelection,
+    arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Result<(String, String, BTreeMap<String, ResolvedValue>), Value> {
-    let reference_id = resolved_string_field(&field.arguments, "referenceId").unwrap_or_default();
-    let attrs = payment_terms_attrs_from_create_field(field);
+    let reference_id = resolved_string_field(arguments, "referenceId").unwrap_or_default();
+    let attrs = payment_terms_attrs_from_create_arguments(arguments);
     if let Some(error) =
         payment_terms_validation_error(&attrs, "PAYMENT_TERMS_CREATION_UNSUCCESSFUL")
     {
-        return Err(payment_terms_payload_value(
-            Value::Null,
-            vec![error],
-            &field.selection,
-        ));
+        return Err(payment_terms_payload_value(Value::Null, vec![error]));
     }
 
     let reference_tail = resource_id_tail(&reference_id);
@@ -529,21 +549,17 @@ pub(in crate::proxy) fn payment_terms_create_value(
 }
 
 pub(in crate::proxy) fn payment_terms_update_value(
-    field: &RootFieldSelection,
+    arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Result<(String, BTreeMap<String, ResolvedValue>), Value> {
-    let (payment_terms_id, attrs) = payment_terms_attrs_from_update_field(field);
+    let (payment_terms_id, attrs) = payment_terms_attrs_from_update_arguments(arguments);
     if let Some(error) = payment_terms_validation_error(&attrs, "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL")
     {
-        return Err(payment_terms_payload_value(
-            Value::Null,
-            vec![error],
-            &field.selection,
-        ));
+        return Err(payment_terms_payload_value(Value::Null, vec![error]));
     }
     Ok((payment_terms_id, attrs))
 }
 
-fn payment_terms_owner_paid_payload(code: &str, selections: &[SelectedField]) -> Value {
+fn payment_terms_owner_paid_payload(code: &str) -> Value {
     payment_terms_payload_value(
         Value::Null,
         vec![payment_terms_user_error(
@@ -551,11 +567,10 @@ fn payment_terms_owner_paid_payload(code: &str, selections: &[SelectedField]) ->
             "Cannot create payment terms on an Order that has already been paid in full.",
             code,
         )],
-        selections,
     )
 }
 
-fn payment_terms_owner_channel_policy_payload(code: &str, selections: &[SelectedField]) -> Value {
+fn payment_terms_owner_channel_policy_payload(code: &str) -> Value {
     payment_terms_payload_value(
         Value::Null,
         vec![payment_terms_user_error(
@@ -563,15 +578,10 @@ fn payment_terms_owner_channel_policy_payload(code: &str, selections: &[Selected
             "Cannot create payment terms on an Order where the sales channel does not allow payment terms.",
             code,
         )],
-        selections,
     )
 }
 
-fn payment_terms_owner_not_found_payload(
-    owner_id: &str,
-    code: &str,
-    selections: &[SelectedField],
-) -> Value {
+fn payment_terms_owner_not_found_payload(owner_id: &str, code: &str) -> Value {
     let (resource_name, tail) =
         if let Some(tail) = shopify_gid_tail_for_type(owner_id, "DraftOrder") {
             ("Draft order", tail)
@@ -587,7 +597,6 @@ fn payment_terms_owner_not_found_payload(
             &format!("Cannot find the specific {resource_name} with id {tail}."),
             code,
         )],
-        selections,
     )
 }
 
@@ -622,291 +631,274 @@ fn payment_terms_order_total_price_set(
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn payment_terms_local_data(
+    pub(crate) fn payment_terms_mutation_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let (value, staged_id) = match invocation.root_name {
+            "paymentTermsCreate" => {
+                self.payment_terms_create_payload(invocation.request, &arguments)
+            }
+            "paymentTermsUpdate" => {
+                self.payment_terms_update_payload(invocation.request, &arguments)
+            }
+            "paymentTermsDelete" => self.payment_terms_delete_payload(&arguments),
+            root => {
+                return ResolverOutcome::error(format!(
+                    "Unknown payment-terms mutation root `{root}`"
+                ));
+            }
+        };
+        let mut outcome = ResolverOutcome::value(value);
+        if let Some(id) = staged_id {
+            outcome = outcome.with_log_draft(LogDraft::staged(
+                invocation.root_name,
+                "payments",
+                vec![id],
+            ));
+        }
+        outcome
+    }
+
+    fn payment_terms_create_payload(
         &mut self,
         request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        let fields = self.execution_root_fields(query, variables)?;
-        if fields.iter().all(|field| {
-            matches!(
-                field.name.as_str(),
-                "orderCreate"
-                    | "order"
-                    | "draftOrder"
-                    | "paymentTermsCreate"
-                    | "paymentTermsUpdate"
-                    | "paymentTermsDelete"
-            )
-        }) {
-            let has_terms_mutation = fields.iter().any(|field| {
-                matches!(
-                    field.name.as_str(),
-                    "paymentTermsCreate" | "paymentTermsUpdate" | "paymentTermsDelete"
-                ) || (field.name == "orderCreate"
-                    && selection_contains_any(&field.selection, &["paymentTerms"]))
-            });
-            let has_staged_owner_read = fields.iter().any(|field| {
-                matches!(field.name.as_str(), "order" | "draftOrder")
-                    && resolved_string_field(&field.arguments, "id").is_some_and(|id| {
-                        self.store
-                            .staged
-                            .payment_terms_owner_index
-                            .contains_key(&id)
-                            || self.store.staged.orders.contains_key(&id)
-                            || self.store.staged.draft_orders.contains_key(&id)
-                    })
-            });
-            if !has_terms_mutation && !has_staged_owner_read {
-                return None;
-            }
-            if fields.iter().any(|field| {
-                field.name == "orderCreate"
-                    && resolved_object_field(&field.arguments, "order")
-                        .is_some_and(|input| order_create_input_needs_shop_currency_default(&input))
-            }) {
-                self.hydrate_shop_pricing_state_if_missing(request, true, false);
-            }
-            let mut staged_ids = Vec::new();
-            let mut logged = false;
-            let mut missing_required = false;
-            let data = root_payload_json(&fields, |field| {
-                if missing_required {
-                    return None;
-                }
-                let value = match field.name.as_str() {
-                    "orderCreate" => {
-                        let order = self.stage_payment_terms_order(field);
-                        staged_ids.push(order["id"].as_str().unwrap_or_default().to_string());
-                        logged = true;
-                        selected_json(
-                            &json!({ "order": order, "userErrors": [] }),
-                            &field.selection,
-                        )
-                    }
-                    "paymentTermsCreate" => match payment_terms_create_value(field) {
-                        Ok((owner_id, terms_id, attrs)) => match self
-                            .payment_terms_owner_record(request, &owner_id)
-                        {
-                            None => payment_terms_owner_not_found_payload(
-                                &owner_id,
-                                "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
-                                &field.selection,
-                            ),
-                            Some(owner)
-                                if is_shopify_gid_of_type(&owner_id, "Order")
-                                    && payment_terms_order_paid(&owner) =>
-                            {
-                                payment_terms_owner_paid_payload(
-                                    "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
-                                    &field.selection,
-                                )
-                            }
-                            Some(owner)
-                                if is_shopify_gid_of_type(&owner_id, "Order")
-                                    && payment_terms_order_channel_disallowed(&owner) =>
-                            {
-                                payment_terms_owner_channel_policy_payload(
-                                    "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
-                                    &field.selection,
-                                )
-                            }
-                            Some(owner) => {
-                                let (amount, currency) = payment_terms_extract_owner_money(&owner)
-                                    .unwrap_or_else(|| ("0.0".to_string(), "CAD".to_string()));
-                                let record = payment_terms_record_from_attrs(
-                                    &terms_id,
-                                    &attrs,
-                                    &amount,
-                                    &currency,
-                                    self.current_epoch_seconds(),
-                                );
-                                self.store
-                                    .staged
-                                    .payment_terms
-                                    .insert(terms_id.clone(), record.clone());
-                                self.store
-                                    .staged
-                                    .payment_terms_owner_index
-                                    .insert(owner_id.clone(), terms_id.clone());
-                                self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
-                                staged_ids.push(terms_id);
-                                logged = true;
-                                payment_terms_payload_value(
-                                    payment_terms_record_with_effective_due(
-                                        &record,
-                                        self.current_epoch_seconds(),
-                                    ),
-                                    Vec::new(),
-                                    &field.selection,
-                                )
-                            }
-                        },
-                        Err(payload) => payload,
-                    },
-                    "paymentTermsUpdate" => match payment_terms_update_value(field) {
-                        Ok((terms_id, attrs)) => {
-                            let owner_id = self.payment_terms_owner_id(&terms_id);
-                            let has_staged_record =
-                                self.store.staged.payment_terms.contains_key(&terms_id);
-                            let owner_record = owner_id
-                                .as_deref()
-                                .and_then(|owner| self.payment_terms_owner_record(request, owner));
-                            let cold_node = if owner_id.is_none() && !has_staged_record {
-                                self.hydrate_payment_terms_node(request, &terms_id)
-                            } else {
-                                None
-                            };
-                            // Cold update (no local owner link): hydrate the
-                            // PaymentTerms node and reject if its owning Order has
-                            // already been paid in full, without staging anything.
-                            if owner_id.is_none() && !has_staged_record && cold_node.is_none() {
-                                payment_terms_payload_value(
-                                    Value::Null,
-                                    vec![payment_terms_user_error(
-                                        Value::Null,
-                                        "Could not find payment terms.",
-                                        "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
-                                    )],
-                                    &field.selection,
-                                )
-                            } else if owner_id
-                                .as_deref()
-                                .is_some_and(|owner| is_shopify_gid_of_type(owner, "Order"))
-                                && owner_record.as_ref().is_some_and(payment_terms_order_paid)
-                                || cold_node
-                                    .as_ref()
-                                    .is_some_and(payment_terms_node_order_paid)
-                            {
-                                payment_terms_owner_paid_payload(
-                                    "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
-                                    &field.selection,
-                                )
-                            } else if owner_id
-                                .as_deref()
-                                .is_some_and(|owner| is_shopify_gid_of_type(owner, "Order"))
-                                && owner_record
-                                    .as_ref()
-                                    .is_some_and(payment_terms_order_channel_disallowed)
-                                || cold_node
-                                    .as_ref()
-                                    .is_some_and(payment_terms_node_order_channel_disallowed)
-                            {
-                                payment_terms_owner_channel_policy_payload(
-                                    "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
-                                    &field.selection,
-                                )
-                            } else {
-                                let (amount, currency) = match owner_id.as_deref() {
-                                    Some(_) => owner_record
-                                        .as_ref()
-                                        .and_then(payment_terms_extract_owner_money)
-                                        .unwrap_or_else(|| ("0.0".to_string(), "CAD".to_string())),
-                                    None => self
-                                        .payment_terms_record_money(&terms_id)
-                                        .unwrap_or_else(|| ("0.0".to_string(), "CAD".to_string())),
-                                };
-                                let record = payment_terms_record_from_attrs(
-                                    &terms_id,
-                                    &attrs,
-                                    &amount,
-                                    &currency,
-                                    self.current_epoch_seconds(),
-                                );
-                                self.store
-                                    .staged
-                                    .payment_terms
-                                    .insert(terms_id.clone(), record.clone());
-                                if let Some(owner_id) = owner_id {
-                                    self.attach_payment_terms_to_owner(
-                                        &owner_id,
-                                        Some(record.clone()),
-                                    );
-                                }
-                                staged_ids.push(terms_id);
-                                logged = true;
-                                payment_terms_payload_value(
-                                    payment_terms_record_with_effective_due(
-                                        &record,
-                                        self.current_epoch_seconds(),
-                                    ),
-                                    Vec::new(),
-                                    &field.selection,
-                                )
-                            }
-                        }
-                        Err(payload) => payload,
-                    },
-                    "paymentTermsDelete" => {
-                        let input =
-                            resolved_object_field(&field.arguments, "input").unwrap_or_default();
-                        let payment_terms_id =
-                            resolved_string_field(&input, "paymentTermsId").unwrap_or_default();
-                        if self
-                            .store
-                            .staged
-                            .payment_terms
-                            .remove(&payment_terms_id)
-                            .is_some()
-                        {
-                            if let Some(owner_id) =
-                                self.remove_payment_terms_owner_link(&payment_terms_id)
-                            {
-                                self.attach_payment_terms_to_owner(&owner_id, None);
-                            }
-                            staged_ids.push(payment_terms_id.clone());
-                            logged = true;
-                            payment_terms_delete_payload_value(
-                                json!(payment_terms_id),
-                                Vec::new(),
-                                &field.selection,
-                            )
-                        } else {
-                            payment_terms_delete_payload_value(
-                                Value::Null,
-                                vec![payment_terms_user_error(
-                                    Value::Null,
-                                    "Could not find payment terms.",
-                                    "PAYMENT_TERMS_DELETE_UNSUCCESSFUL",
-                                )],
-                                &field.selection,
-                            )
-                        }
-                    }
-                    "order" => {
-                        let Some(id) = resolved_string_field(&field.arguments, "id") else {
-                            missing_required = true;
-                            return None;
-                        };
-                        self.selected_payment_terms_owner(&id, &field.selection, false)
-                    }
-                    "draftOrder" => {
-                        let Some(id) = resolved_string_field(&field.arguments, "id") else {
-                            missing_required = true;
-                            return None;
-                        };
-                        self.selected_payment_terms_owner(&id, &field.selection, true)
-                    }
-                    _ => return None,
-                };
-                Some(value)
-            });
-            if missing_required {
-                return None;
-            }
-            if logged {
-                self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
-                    "paymentTerms",
-                    staged_ids,
-                );
-            }
-            return Some(json!({ "data": data }));
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> (Value, Option<String>) {
+        let (owner_id, terms_id, attrs) = match payment_terms_create_value(arguments) {
+            Ok(value) => value,
+            Err(payload) => return (payload, None),
+        };
+        let Some(owner) = self.payment_terms_owner_record(request, &owner_id) else {
+            return (
+                payment_terms_owner_not_found_payload(
+                    &owner_id,
+                    "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
+                ),
+                None,
+            );
+        };
+        if is_shopify_gid_of_type(&owner_id, "Order") && payment_terms_order_paid(&owner) {
+            return (
+                payment_terms_owner_paid_payload("PAYMENT_TERMS_CREATION_UNSUCCESSFUL"),
+                None,
+            );
         }
-        None
+        if is_shopify_gid_of_type(&owner_id, "Order")
+            && payment_terms_order_channel_disallowed(&owner)
+        {
+            return (
+                payment_terms_owner_channel_policy_payload("PAYMENT_TERMS_CREATION_UNSUCCESSFUL"),
+                None,
+            );
+        }
+
+        let (amount, currency) = payment_terms_extract_owner_money(&owner)
+            .unwrap_or_else(|| ("0.0".to_string(), "CAD".to_string()));
+        let record = payment_terms_record_from_attrs(
+            &terms_id,
+            &attrs,
+            &amount,
+            &currency,
+            self.current_epoch_seconds(),
+        );
+        self.store
+            .staged
+            .payment_terms
+            .insert(terms_id.clone(), record.clone());
+        self.store
+            .staged
+            .payment_terms_owner_index
+            .insert(owner_id.clone(), terms_id.clone());
+        self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
+        (
+            payment_terms_payload_value(
+                payment_terms_record_with_effective_due(&record, self.current_epoch_seconds()),
+                Vec::new(),
+            ),
+            Some(terms_id),
+        )
+    }
+
+    fn payment_terms_update_payload(
+        &mut self,
+        request: &Request,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> (Value, Option<String>) {
+        let (terms_id, attrs) = match payment_terms_update_value(arguments) {
+            Ok(value) => value,
+            Err(payload) => return (payload, None),
+        };
+        let owner_id = self.payment_terms_owner_id(&terms_id);
+        let has_staged_record = self.store.staged.payment_terms.contains_key(&terms_id);
+        let owner_record = owner_id
+            .as_deref()
+            .and_then(|owner| self.payment_terms_owner_record(request, owner));
+        let cold_node = if owner_id.is_none() && !has_staged_record {
+            self.hydrate_payment_terms_node(request, &terms_id)
+        } else {
+            None
+        };
+        if owner_id.is_none() && !has_staged_record && cold_node.is_none() {
+            return (
+                payment_terms_payload_value(
+                    Value::Null,
+                    vec![payment_terms_user_error(
+                        Value::Null,
+                        "Could not find payment terms.",
+                        "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
+                    )],
+                ),
+                None,
+            );
+        }
+        if owner_id
+            .as_deref()
+            .is_some_and(|owner| is_shopify_gid_of_type(owner, "Order"))
+            && owner_record.as_ref().is_some_and(payment_terms_order_paid)
+            || cold_node
+                .as_ref()
+                .is_some_and(payment_terms_node_order_paid)
+        {
+            return (
+                payment_terms_owner_paid_payload("PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"),
+                None,
+            );
+        }
+        if owner_id
+            .as_deref()
+            .is_some_and(|owner| is_shopify_gid_of_type(owner, "Order"))
+            && owner_record
+                .as_ref()
+                .is_some_and(payment_terms_order_channel_disallowed)
+            || cold_node
+                .as_ref()
+                .is_some_and(payment_terms_node_order_channel_disallowed)
+        {
+            return (
+                payment_terms_owner_channel_policy_payload("PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"),
+                None,
+            );
+        }
+
+        let (amount, currency) = match owner_id.as_deref() {
+            Some(_) => owner_record
+                .as_ref()
+                .and_then(payment_terms_extract_owner_money)
+                .unwrap_or_else(|| ("0.0".to_string(), "CAD".to_string())),
+            None => self
+                .payment_terms_record_money(&terms_id)
+                .unwrap_or_else(|| ("0.0".to_string(), "CAD".to_string())),
+        };
+        let record = payment_terms_record_from_attrs(
+            &terms_id,
+            &attrs,
+            &amount,
+            &currency,
+            self.current_epoch_seconds(),
+        );
+        self.store
+            .staged
+            .payment_terms
+            .insert(terms_id.clone(), record.clone());
+        if let Some(owner_id) = owner_id {
+            self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
+        }
+        (
+            payment_terms_payload_value(
+                payment_terms_record_with_effective_due(&record, self.current_epoch_seconds()),
+                Vec::new(),
+            ),
+            Some(terms_id),
+        )
+    }
+
+    fn payment_terms_delete_payload(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> (Value, Option<String>) {
+        let input = resolved_object_field(arguments, "input").unwrap_or_default();
+        let payment_terms_id = resolved_string_field(&input, "paymentTermsId").unwrap_or_default();
+        if self
+            .store
+            .staged
+            .payment_terms
+            .remove(&payment_terms_id)
+            .is_some()
+        {
+            if let Some(owner_id) = self.remove_payment_terms_owner_link(&payment_terms_id) {
+                self.attach_payment_terms_to_owner(&owner_id, None);
+            }
+            return (
+                payment_terms_delete_payload_value(json!(payment_terms_id), Vec::new()),
+                Some(payment_terms_id),
+            );
+        }
+        (
+            payment_terms_delete_payload_value(
+                Value::Null,
+                vec![payment_terms_user_error(
+                    Value::Null,
+                    "Could not find payment terms.",
+                    "PAYMENT_TERMS_DELETE_UNSUCCESSFUL",
+                )],
+            ),
+            None,
+        )
+    }
+
+    pub(in crate::proxy) fn payment_terms_local_outcome(
+        &mut self,
+        request: &Request,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        requests_payment_terms: bool,
+    ) -> Option<ResolverOutcome<Value>> {
+        match root_name {
+            "orderCreate" if requests_payment_terms => {
+                if resolved_object_field(arguments, "order")
+                    .is_some_and(|input| order_create_input_needs_shop_currency_default(&input))
+                {
+                    self.hydrate_shop_pricing_state_if_missing(request, true, false);
+                }
+                let order = self.stage_payment_terms_order(arguments);
+                let staged_ids = vec![order["id"].as_str().unwrap_or_default().to_string()];
+                Some(
+                    ResolverOutcome::value(json!({ "order": order, "userErrors": [] }))
+                        .with_log_draft(LogDraft::staged("orderCreate", "orders", staged_ids)),
+                )
+            }
+            "order" | "draftOrder" => {
+                let id = resolved_string_field(arguments, "id")?;
+                let has_staged_owner = self
+                    .store
+                    .staged
+                    .payment_terms_owner_index
+                    .contains_key(&id)
+                    || self.store.staged.orders.contains_key(&id)
+                    || self.store.staged.draft_orders.contains_key(&id);
+                has_staged_owner.then(|| {
+                    let record = if root_name == "draftOrder" {
+                        self.store.staged.draft_orders.get(&id)
+                    } else {
+                        self.store.staged.orders.get(&id)
+                    };
+                    let value = record
+                        .map(|record| self.payment_terms_owner_record_with_effective_due(record))
+                        .map(|record| {
+                            if root_name == "order" {
+                                self.order_with_return_status_value(&record)
+                            } else {
+                                record
+                            }
+                        })
+                        .unwrap_or(Value::Null);
+                    ResolverOutcome::value(value)
+                })
+            }
+            _ => None,
+        }
     }
 
     fn payment_terms_owner_id(&self, terms_id: &str) -> Option<String> {
@@ -1086,29 +1078,10 @@ impl DraftProxy {
         owner
     }
 
-    fn selected_payment_terms_owner(
-        &self,
-        owner_id: &str,
-        selection: &[SelectedField],
-        draft_order: bool,
-    ) -> Value {
-        let record = if draft_order {
-            self.store.staged.draft_orders.get(owner_id)
-        } else {
-            self.store.staged.orders.get(owner_id)
-        };
-        record
-            .map(|record| {
-                selected_json(
-                    &self.payment_terms_owner_record_with_effective_due(record),
-                    selection,
-                )
-            })
-            .unwrap_or(Value::Null)
-    }
-
-    fn stage_payment_terms_order(&mut self, field: &RootFieldSelection) -> Value {
-        let (id, order_input, _) = self.staged_order_input_and_first_line(field);
+    fn stage_payment_terms_order(&mut self, arguments: &BTreeMap<String, ResolvedValue>) -> Value {
+        let order_input = resolved_object_field(arguments, "order").unwrap_or_default();
+        let id = shopify_gid("Order", self.store.staged.next_order_id);
+        self.store.staged.next_order_id += 1;
         let shop_currency_code = self.store.shop_currency_code();
         let price_set = payment_terms_order_total_price_set(&order_input, &shop_currency_code);
         let order_name = self.next_order_name();

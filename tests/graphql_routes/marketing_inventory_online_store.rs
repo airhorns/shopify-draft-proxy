@@ -18160,6 +18160,105 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
 }
 
 #[test]
+fn online_store_multi_root_observations_preserve_rich_records_and_count_baselines() {
+    let article_id = "gid://shopify/Article/partial-observation";
+    let draft_article_id = "gid://shopify/Article/partial-draft";
+    let blog_id = "gid://shopify/Blog/partial-observation";
+    let upstream_calls = Arc::new(Mutex::new(0_usize));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |_| {
+            *upstream_calls.lock().unwrap() += 1;
+            let rich_article = json!({
+                "id": article_id,
+                "title": "Rich observed article",
+                "handle": "rich-observed-article",
+                "tags": ["preserved"],
+                "isPublished": true,
+                "author": { "name": "Observed Author" },
+                "blog": {
+                    "id": blog_id,
+                    "title": "Observed Blog",
+                    "handle": "observed-blog"
+                }
+            });
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "aRich": {
+                            "nodes": [rich_article],
+                            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null }
+                        },
+                        "zPartial": {
+                            "nodes": [
+                                { "id": draft_article_id, "title": "Partially observed draft" },
+                                { "id": article_id, "title": "Rich observed article" }
+                            ],
+                            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null }
+                        },
+                        "observedBlogs": {
+                            "nodes": [{
+                                "id": blog_id,
+                                "title": "Observed Blog",
+                                "handle": "observed-blog",
+                                "articlesCount": { "count": 2, "precision": "EXACT" }
+                            }],
+                            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null }
+                        },
+                        "filtered": {
+                            "nodes": [],
+                            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ObserveOnlineStoreResourceSeveralWays {
+          aRich: articles(first: 10, query: "tag:preserved") {
+            nodes { id title handle tags isPublished author { name } blog { id title handle } }
+          }
+          zPartial: articles(first: 10) { nodes { id title } }
+          observedBlogs: blogs(first: 10) {
+            nodes { id title handle articlesCount { count precision } }
+          }
+          filtered: articles(first: 10, query: "author:'Observed Author'") {
+            nodes { id title handle tags author { name } blog { id title handle } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["filtered"]["nodes"],
+        json!([{
+            "id": article_id,
+            "title": "Rich observed article",
+            "handle": "rich-observed-article",
+            "tags": ["preserved"],
+            "author": { "name": "Observed Author" },
+            "blog": {
+                "id": blog_id,
+                "title": "Observed Blog",
+                "handle": "observed-blog"
+            }
+        }])
+    );
+    assert_eq!(
+        response.body["data"]["observedBlogs"]["nodes"][0]["articlesCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+}
+
+#[test]
 fn online_store_content_back_references_project_full_parent_records() {
     let comment_id = "gid://shopify/Comment/9203";
     let hydrated_article_id = Arc::new(Mutex::new(String::new()));

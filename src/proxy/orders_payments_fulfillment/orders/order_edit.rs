@@ -428,8 +428,8 @@ fn oe_money_set_cents(value: &Value) -> Option<i64> {
 /// given userErrors are attached. The kitchen-sink shape is narrowed by the
 /// caller's field selection, so each mutation emits only the fields it asked
 /// for.
-pub(super) fn oe_error_payload(errors: Vec<Value>, selection: &[SelectedField]) -> Value {
-    let payload = json!({
+pub(super) fn oe_error_payload(errors: Vec<Value>) -> Value {
+    json!({
         "calculatedOrder": Value::Null,
         "calculatedLineItem": Value::Null,
         "calculatedShippingLine": Value::Null,
@@ -438,8 +438,7 @@ pub(super) fn oe_error_payload(errors: Vec<Value>, selection: &[SelectedField]) 
         "order": Value::Null,
         "successMessages": [],
         "userErrors": errors
-    });
-    selected_json(&payload, selection)
+    })
 }
 
 /// Find a session line index by its allocated CalculatedLineItem id.

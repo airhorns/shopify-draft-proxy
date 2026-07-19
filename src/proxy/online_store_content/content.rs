@@ -1,40 +1,246 @@
 use super::search::is_online_store_content_query_root;
 use super::*;
 
+pub(in crate::proxy) fn online_store_field_resolver_registrations() -> Vec<FieldResolverRegistration>
+{
+    [
+        (
+            "Article",
+            "comments",
+            online_store_article_comments_field as crate::resolver_registry::FieldResolverHandler,
+        ),
+        (
+            "Article",
+            "commentsCount",
+            online_store_article_comments_count_field,
+        ),
+        ("Article", "metafield", online_store_article_metafield_field),
+        (
+            "Article",
+            "metafields",
+            online_store_article_metafields_field,
+        ),
+        ("Comment", "article", online_store_comment_article_field),
+        ("Blog", "articles", online_store_blog_articles_field),
+        (
+            "Blog",
+            "articlesCount",
+            online_store_blog_articles_count_field,
+        ),
+        ("OnlineStoreTheme", "files", online_store_theme_files_field),
+    ]
+    .into_iter()
+    .map(|(parent_type, field_name, handler)| {
+        FieldResolverRegistration::explicit(ApiSurface::Admin, parent_type, field_name, handler)
+    })
+    .collect()
+}
+
+fn online_store_theme_files_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    let filename_patterns = resolved_string_list_arg(&arguments, "filenames");
+    let files = theme_file_nodes(invocation.parent)
+        .into_iter()
+        .filter(|file| {
+            filename_patterns.is_empty()
+                || file
+                    .get("filename")
+                    .and_then(Value::as_str)
+                    .is_some_and(|filename| {
+                        filename_patterns
+                            .iter()
+                            .any(|pattern| theme_filename_matches(pattern, filename))
+                    })
+        })
+        .collect();
+    Ok(connection_value_with_args(
+        files,
+        &arguments,
+        theme_file_cursor,
+    ))
+}
+
+fn online_store_parent_id<'a>(
+    invocation: &'a crate::admin_graphql::FieldResolverInvocation<'_>,
+    parent_type: &str,
+) -> Result<&'a str, String> {
+    invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("{parent_type} parent has no canonical id"))
+}
+
+fn online_store_article_comments_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let article_id = online_store_parent_id(invocation, "Article")?;
+    let comments = proxy
+        .online_store_records(OnlineStoreKind::Comment)
+        .into_iter()
+        .filter(|comment| comment["articleId"].as_str() == Some(article_id))
+        .collect();
+    Ok(proxy.online_store_connection_from_records(
+        OnlineStoreKind::Comment,
+        comments,
+        &resolved_arguments_from_json(&invocation.arguments),
+    ))
+}
+
+fn online_store_article_comments_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let article_id = online_store_parent_id(invocation, "Article")?;
+    Ok(count_object(
+        proxy
+            .online_store_records(OnlineStoreKind::Comment)
+            .iter()
+            .filter(|comment| comment["articleId"].as_str() == Some(article_id))
+            .count(),
+    ))
+}
+
+fn online_store_article_metafield_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let namespace = invocation
+        .arguments
+        .get("namespace")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let key = invocation
+        .arguments
+        .get("key")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(article_metafield(invocation.parent, namespace, key).unwrap_or(Value::Null))
+}
+
+fn online_store_article_metafields_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let namespace = invocation
+        .arguments
+        .get("namespace")
+        .and_then(Value::as_str);
+    Ok(connection_value_with_args(
+        article_metafield_nodes(invocation.parent, namespace),
+        &resolved_arguments_from_json(&invocation.arguments),
+        value_id_cursor,
+    ))
+}
+
+fn online_store_blog_articles_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let blog_id = online_store_parent_id(invocation, "Blog")?;
+    let articles = proxy
+        .online_store_records(OnlineStoreKind::Article)
+        .into_iter()
+        .filter(|article| article["blogId"].as_str() == Some(blog_id))
+        .collect();
+    Ok(proxy.online_store_connection_from_records(
+        OnlineStoreKind::Article,
+        articles,
+        &resolved_arguments_from_json(&invocation.arguments),
+    ))
+}
+
+fn online_store_blog_articles_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let blog_id = online_store_parent_id(invocation, "Blog")?;
+    let known_articles = proxy
+        .online_store_records(OnlineStoreKind::Article)
+        .into_iter()
+        .filter(|article| article["blogId"].as_str() == Some(blog_id))
+        .collect::<Vec<_>>();
+    Ok(count_object(proxy.online_store_blog_articles_count(
+        invocation.parent,
+        &known_articles,
+    )))
+}
+
+fn online_store_comment_article_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let article_id = invocation
+        .parent
+        .get("articleId")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            invocation
+                .parent
+                .pointer("/article/id")
+                .and_then(Value::as_str)
+        })
+        .unwrap_or_default();
+    if article_id.is_empty() {
+        return Ok(Value::Null);
+    }
+    if proxy
+        .online_store_record(OnlineStoreKind::Article, article_id)
+        .is_none()
+        && proxy.config.read_mode != ReadMode::Snapshot
+    {
+        proxy.hydrate_online_store_content_from_upstream(
+            request,
+            article_id,
+            ONLINE_STORE_COMMENT_ARTICLE_HYDRATE_QUERY,
+        );
+    }
+    Ok(proxy
+        .online_store_record(OnlineStoreKind::Article, article_id)
+        .map(|article| proxy.article_parent_record(&article))
+        .unwrap_or(Value::Null))
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn online_store_content_query_value(
         &self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
     ) -> Option<Value> {
         match field.name.as_str() {
             "blog" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 Some(
-                    self.online_store_value(OnlineStoreKind::Blog, &id, &field.selection)
+                    self.online_store_value(OnlineStoreKind::Blog, &id)
                         .unwrap_or(Value::Null),
                 )
             }
             "blogs" => Some(self.online_store_connection_value(OnlineStoreKind::Blog, field)),
-            "blogsCount" => Some(selected_json(
-                &count_object(self.online_store_count(OnlineStoreKind::Blog)),
-                &field.selection,
-            )),
+            "blogsCount" => Some(count_object(self.online_store_count(OnlineStoreKind::Blog))),
             "page" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 Some(
-                    self.online_store_value(OnlineStoreKind::Page, &id, &field.selection)
+                    self.online_store_value(OnlineStoreKind::Page, &id)
                         .unwrap_or(Value::Null),
                 )
             }
             "pages" => Some(self.online_store_connection_value(OnlineStoreKind::Page, field)),
-            "pagesCount" => Some(selected_json(
-                &count_object(self.online_store_count(OnlineStoreKind::Page)),
-                &field.selection,
-            )),
+            "pagesCount" => Some(count_object(self.online_store_count(OnlineStoreKind::Page))),
             "article" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 Some(
-                    self.online_store_value(OnlineStoreKind::Article, &id, &field.selection)
+                    self.online_store_value(OnlineStoreKind::Article, &id)
                         .unwrap_or(Value::Null),
                 )
             }
@@ -52,10 +258,9 @@ impl DraftProxy {
                     .into_iter()
                     .map(|name| json!({ "name": name }))
                     .collect::<Vec<_>>();
-                Some(selected_connection_json_with_args(
+                Some(connection_value_with_args(
                     records,
                     &field.arguments,
-                    &field.selection,
                     |_| String::new(),
                 ))
             }
@@ -81,7 +286,7 @@ impl DraftProxy {
             "comment" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 Some(
-                    self.online_store_value(OnlineStoreKind::Comment, &id, &field.selection)
+                    self.online_store_value(OnlineStoreKind::Comment, &id)
                         .unwrap_or(Value::Null),
                 )
             }
@@ -92,7 +297,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn online_store_content_mutation_value(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Option<Value> {
@@ -126,11 +331,7 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn online_store_content_node_value(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+    pub(in crate::proxy) fn online_store_content_node_value(&self, id: &str) -> Option<Value> {
         let kind = match shopify_gid_resource_type(id) {
             Some("Blog") => OnlineStoreKind::Blog,
             Some("Page") => OnlineStoreKind::Page,
@@ -141,24 +342,18 @@ impl DraftProxy {
         if kind.deleted_ids(&self.store.staged).contains(id) {
             return Some(Value::Null);
         }
-        self.online_store_value(kind, id, selection)
+        self.online_store_record(kind, id)
+            .map(|record| self.enriched_online_store_record(kind, &record))
     }
 
     pub(in crate::proxy) fn online_store_content_query_needs_upstream(
         &self,
-        fields: &[RootFieldSelection],
+        field: &OnlineStoreRootCall,
     ) -> bool {
         if self.config.read_mode == ReadMode::Snapshot {
             return false;
         }
-        let has_content_root = fields
-            .iter()
-            .any(|field| is_online_store_content_query_root(&field.name));
-        has_content_root
-            && fields
-                .iter()
-                .all(|field| is_online_store_content_query_root(&field.name))
-            && !self.has_online_store_content_state()
+        is_online_store_content_query_root(&field.name) && !self.has_online_store_content_state()
     }
 
     pub(in crate::proxy) fn observe_online_store_content_response(&mut self, body: &Value) {
@@ -268,33 +463,53 @@ impl DraftProxy {
                 if let Some(id) = object.get("id").and_then(Value::as_str) {
                     match shopify_gid_resource_type(id) {
                         Some("Blog") if should_stage_observed_blog(node) => {
+                            let node = self.merge_online_store_observation(
+                                OnlineStoreKind::Blog,
+                                id,
+                                node,
+                            );
                             self.stage_online_store_record(
                                 OnlineStoreKind::Blog,
                                 id.to_string(),
-                                normalize_observed_blog(node),
+                                normalize_observed_blog(&node),
                             );
                             next_parent_blog_id = Some(id.to_string());
                         }
                         Some("Page") if should_stage_observed_page(node) => {
+                            let node = self.merge_online_store_observation(
+                                OnlineStoreKind::Page,
+                                id,
+                                node,
+                            );
                             self.stage_online_store_record(
                                 OnlineStoreKind::Page,
                                 id.to_string(),
-                                normalize_observed_page(node),
+                                normalize_observed_page(&node),
                             );
                         }
                         Some("Article") if should_stage_observed_article(node) => {
+                            let node = self.merge_online_store_observation(
+                                OnlineStoreKind::Article,
+                                id,
+                                node,
+                            );
                             self.stage_online_store_record(
                                 OnlineStoreKind::Article,
                                 id.to_string(),
-                                normalize_observed_article(node, parent_blog_id.as_deref()),
+                                normalize_observed_article(&node, parent_blog_id.as_deref()),
                             );
                             next_parent_article_id = Some(id.to_string());
                         }
                         Some("Comment") if should_stage_observed_comment(node) => {
+                            let node = self.merge_online_store_observation(
+                                OnlineStoreKind::Comment,
+                                id,
+                                node,
+                            );
                             self.stage_online_store_record(
                                 OnlineStoreKind::Comment,
                                 id.to_string(),
-                                normalize_observed_comment(node, parent_article_id.as_deref()),
+                                normalize_observed_comment(&node, parent_article_id.as_deref()),
                             );
                         }
                         _ => {}
@@ -312,14 +527,29 @@ impl DraftProxy {
         }
     }
 
+    /// A single GraphQL document can observe the same resource through several
+    /// roots with different selections. Preserve fields learned from an earlier,
+    /// richer occurrence when a later occurrence only contains an ID or another
+    /// partial slice of the object.
+    fn merge_online_store_observation(
+        &self,
+        kind: OnlineStoreKind,
+        id: &str,
+        observed: &Value,
+    ) -> Value {
+        kind.records(&self.store.staged)
+            .get(id)
+            .map(|existing| merge_online_store_observed_values(existing, observed))
+            .unwrap_or_else(|| observed.clone())
+    }
+
     fn online_store_blog_create(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let Some(input) = resolved_object_field(&field.arguments, "blog") else {
             return resource_payload(
-                &field.selection,
                 "blog",
                 Value::Null,
                 vec![user_error(
@@ -330,29 +560,24 @@ impl DraftProxy {
             );
         };
         if let Some(error) = title_blank_error(&input, "blog", None, true) {
-            return resource_payload(&field.selection, "blog", Value::Null, vec![error]);
+            return resource_payload("blog", Value::Null, vec![error]);
         }
         if let Some(error) =
             content_length_error(&input, "blog", ONLINE_STORE_HANDLE_MAX_CHARS, None)
         {
-            return resource_payload(&field.selection, "blog", Value::Null, vec![error]);
+            return resource_payload("blog", Value::Null, vec![error]);
         }
         let id = self.next_online_store_id("Blog");
         let timestamp = online_store_operation_timestamp();
         let record = blog_record(&id, &input, &timestamp);
         self.stage_online_store_record(OnlineStoreKind::Blog, id.clone(), record.clone());
         staged_ids.push(id);
-        resource_payload(
-            &field.selection,
-            "blog",
-            self.enriched_blog_record(&record),
-            Vec::new(),
-        )
+        resource_payload("blog", self.enriched_blog_record(&record), Vec::new())
     }
 
     fn online_store_blog_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
@@ -360,7 +585,6 @@ impl DraftProxy {
         let kind = OnlineStoreKind::Blog;
         let Some(mut record) = self.load_online_store_record_for_update(request, kind, &id) else {
             return resource_payload(
-                &field.selection,
                 kind.resource_key(),
                 Value::Null,
                 vec![kind.not_found_error()],
@@ -368,28 +592,23 @@ impl DraftProxy {
         };
         let input = resolved_object_field(&field.arguments, "blog").unwrap_or_default();
         if let Some(error) = title_blank_error(&input, "blog", None, false) {
-            return resource_payload(&field.selection, "blog", Value::Null, vec![error]);
+            return resource_payload("blog", Value::Null, vec![error]);
         }
         if let Some(error) =
             content_length_error(&input, "blog", ONLINE_STORE_HANDLE_MAX_CHARS, None)
         {
-            return resource_payload(&field.selection, "blog", Value::Null, vec![error]);
+            return resource_payload("blog", Value::Null, vec![error]);
         }
         let timestamp = online_store_operation_timestamp();
         apply_blog_input(&mut record, &input, &timestamp);
         self.stage_online_store_record(kind, id.clone(), record.clone());
         staged_ids.push(id);
-        resource_payload(
-            &field.selection,
-            "blog",
-            self.enriched_blog_record(&record),
-            Vec::new(),
-        )
+        resource_payload("blog", self.enriched_blog_record(&record), Vec::new())
     }
 
     fn online_store_blog_delete(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
@@ -397,7 +616,6 @@ impl DraftProxy {
         let kind = OnlineStoreKind::Blog;
         if !self.guard_online_store_delete(request, kind, &id) {
             return resource_payload(
-                &field.selection,
                 kind.deleted_key(),
                 Value::Null,
                 vec![kind.not_found_error()],
@@ -417,17 +635,17 @@ impl DraftProxy {
             self.tombstone_online_store_article(&article_id);
         }
         staged_ids.push(id.clone());
-        resource_payload(&field.selection, kind.deleted_key(), json!(id), Vec::new())
+        resource_payload(kind.deleted_key(), json!(id), Vec::new())
     }
 
     fn online_store_page_create(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "page").unwrap_or_default();
         if let Some(error) = title_blank_error(&input, "page", Some("BLANK"), true) {
-            return resource_payload(&field.selection, "page", Value::Null, vec![error]);
+            return resource_payload("page", Value::Null, vec![error]);
         }
         if let Some(error) = content_length_error(
             &input,
@@ -439,12 +657,11 @@ impl DraftProxy {
                 Some("TOO_BIG"),
             )),
         ) {
-            return resource_payload(&field.selection, "page", Value::Null, vec![error]);
+            return resource_payload("page", Value::Null, vec![error]);
         }
         if let Some(handle) = resolved_string_field(&input, "handle") {
             if self.online_store_page_handle_taken(&handle, None) {
                 return resource_payload(
-                    &field.selection,
                     "page",
                     Value::Null,
                     vec![user_error(
@@ -456,7 +673,7 @@ impl DraftProxy {
             }
         }
         if let Some(error) = invalid_publish_date_error(&input, "page", None, true) {
-            return resource_payload(&field.selection, "page", Value::Null, vec![error]);
+            return resource_payload("page", Value::Null, vec![error]);
         }
         let id = self.next_online_store_id("Page");
         let timestamp = online_store_operation_timestamp();
@@ -467,12 +684,12 @@ impl DraftProxy {
         }
         self.stage_online_store_record(OnlineStoreKind::Page, id.clone(), record.clone());
         staged_ids.push(id);
-        resource_payload(&field.selection, "page", record, Vec::new())
+        resource_payload("page", record, Vec::new())
     }
 
     fn online_store_page_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
@@ -480,7 +697,6 @@ impl DraftProxy {
         let kind = OnlineStoreKind::Page;
         let Some(mut record) = self.load_online_store_record_for_update(request, kind, &id) else {
             return resource_payload(
-                &field.selection,
                 kind.resource_key(),
                 Value::Null,
                 vec![kind.not_found_error()],
@@ -488,7 +704,7 @@ impl DraftProxy {
         };
         let input = resolved_object_field(&field.arguments, "page").unwrap_or_default();
         if let Some(error) = title_blank_error(&input, "page", Some("BLANK"), false) {
-            return resource_payload(&field.selection, "page", Value::Null, vec![error]);
+            return resource_payload("page", Value::Null, vec![error]);
         }
         if let Some(error) = content_length_error(
             &input,
@@ -500,12 +716,11 @@ impl DraftProxy {
                 Some("TOO_BIG"),
             )),
         ) {
-            return resource_payload(&field.selection, "page", Value::Null, vec![error]);
+            return resource_payload("page", Value::Null, vec![error]);
         }
         if let Some(handle) = resolved_string_field(&input, "handle") {
             if self.online_store_page_handle_taken(&handle, Some(id.as_str())) {
                 return resource_payload(
-                    &field.selection,
                     "page",
                     Value::Null,
                     vec![user_error(
@@ -517,7 +732,7 @@ impl DraftProxy {
             }
         }
         if let Some(error) = invalid_publish_date_error(&input, "page", Some(&record), false) {
-            return resource_payload(&field.selection, "page", Value::Null, vec![error]);
+            return resource_payload("page", Value::Null, vec![error]);
         }
         let timestamp = online_store_operation_timestamp();
         apply_page_input(&mut record, &input, &timestamp);
@@ -528,12 +743,12 @@ impl DraftProxy {
         }
         self.stage_online_store_record(kind, id.clone(), record.clone());
         staged_ids.push(id);
-        resource_payload(&field.selection, "page", record, Vec::new())
+        resource_payload("page", record, Vec::new())
     }
 
     fn online_store_page_delete(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
@@ -541,7 +756,6 @@ impl DraftProxy {
         let kind = OnlineStoreKind::Page;
         if !self.guard_online_store_delete(request, kind, &id) {
             return resource_payload(
-                &field.selection,
                 kind.deleted_key(),
                 Value::Null,
                 vec![kind.not_found_error()],
@@ -550,17 +764,17 @@ impl DraftProxy {
         kind.deleted_ids_mut(&mut self.store.staged)
             .insert(id.clone());
         staged_ids.push(id.clone());
-        resource_payload(&field.selection, kind.deleted_key(), json!(id), Vec::new())
+        resource_payload(kind.deleted_key(), json!(id), Vec::new())
     }
 
     fn online_store_article_create(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "article").unwrap_or_default();
         if let Some(error) = title_blank_error(&input, "article", Some("BLANK"), true) {
-            return resource_payload(&field.selection, "article", Value::Null, vec![error]);
+            return resource_payload("article", Value::Null, vec![error]);
         }
         if let Some(error) = content_length_error(
             &input,
@@ -572,17 +786,16 @@ impl DraftProxy {
                 None,
             )),
         ) {
-            return resource_payload(&field.selection, "article", Value::Null, vec![error]);
+            return resource_payload("article", Value::Null, vec![error]);
         }
         if let Some(error) = invalid_publish_date_error(&input, "article", None, true) {
-            return resource_payload(&field.selection, "article", Value::Null, vec![error]);
+            return resource_payload("article", Value::Null, vec![error]);
         }
         let inline_blog = resolved_object_field(&field.arguments, "blog");
         let blog_id = resolved_string_field(&input, "blogId");
         let timestamp = online_store_operation_timestamp();
         if blog_id.is_some() && inline_blog.is_some() {
             return resource_payload(
-                &field.selection,
                 "article",
                 Value::Null,
                 vec![user_error(
@@ -597,12 +810,12 @@ impl DraftProxy {
                 .online_store_record(OnlineStoreKind::Blog, &blog_id)
                 .is_none()
             {
-                return article_blog_not_found_payload(&field.selection, "article");
+                return article_blog_not_found_payload("article");
             }
             blog_id
         } else if let Some(blog) = inline_blog {
             if let Some(error) = title_blank_error(&blog, "blog", None, true) {
-                return resource_payload(&field.selection, "article", Value::Null, vec![error]);
+                return resource_payload("article", Value::Null, vec![error]);
             }
             let id = self.next_online_store_id("Blog");
             let record = blog_record(&id, &blog, &timestamp);
@@ -611,7 +824,6 @@ impl DraftProxy {
             id
         } else {
             return resource_payload(
-                &field.selection,
                 "article",
                 Value::Null,
                 vec![user_error(
@@ -622,22 +834,18 @@ impl DraftProxy {
             );
         };
         if let Some(error) = article_author_error(&input, true, true) {
-            return resource_payload(&field.selection, "article", Value::Null, vec![error]);
+            return resource_payload("article", Value::Null, vec![error]);
         }
         let id = self.next_online_store_id("Article");
         let record = article_record(&id, &blog_id, &input, None, &timestamp);
         self.stage_online_store_record(OnlineStoreKind::Article, id.clone(), record.clone());
         staged_ids.push(id);
-        self.online_store_article_payload(
-            &field.selection,
-            self.enriched_article_record(&record),
-            Vec::new(),
-        )
+        self.online_store_article_payload(self.enriched_article_record(&record), Vec::new())
     }
 
     fn online_store_article_update(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
@@ -645,7 +853,6 @@ impl DraftProxy {
         let kind = OnlineStoreKind::Article;
         let Some(mut record) = self.load_online_store_record_for_update(request, kind, &id) else {
             return resource_payload(
-                &field.selection,
                 kind.resource_key(),
                 Value::Null,
                 vec![kind.not_found_error()],
@@ -653,7 +860,7 @@ impl DraftProxy {
         };
         let input = resolved_object_field(&field.arguments, "article").unwrap_or_default();
         if let Some(error) = title_blank_error(&input, "article", Some("BLANK"), false) {
-            return resource_payload(&field.selection, "article", Value::Null, vec![error]);
+            return resource_payload("article", Value::Null, vec![error]);
         }
         if let Some(error) = content_length_error(
             &input,
@@ -665,40 +872,36 @@ impl DraftProxy {
                 None,
             )),
         ) {
-            return resource_payload(&field.selection, "article", Value::Null, vec![error]);
+            return resource_payload("article", Value::Null, vec![error]);
         }
         if let Some(error) = invalid_publish_date_error(&input, "article", Some(&record), false) {
-            return resource_payload(&field.selection, "article", Value::Null, vec![error]);
+            return resource_payload("article", Value::Null, vec![error]);
         }
         if let Some(blog_id) = resolved_string_field(&input, "blogId") {
             if self
                 .online_store_record(OnlineStoreKind::Blog, &blog_id)
                 .is_none()
             {
-                return article_blog_not_found_payload(&field.selection, "article");
+                return article_blog_not_found_payload("article");
             }
             record["blogId"] = json!(blog_id);
         }
         if let Some(error) = article_author_error(&input, false, false) {
-            return resource_payload(&field.selection, "article", Value::Null, vec![error]);
+            return resource_payload("article", Value::Null, vec![error]);
         }
         if let Some(error) = article_image_update_error(&record, &input) {
-            return resource_payload(&field.selection, "article", Value::Null, vec![error]);
+            return resource_payload("article", Value::Null, vec![error]);
         }
         let timestamp = online_store_operation_timestamp();
         apply_article_input(&mut record, &input, &timestamp);
         self.stage_online_store_record(kind, id.clone(), record.clone());
         staged_ids.push(id);
-        self.online_store_article_payload(
-            &field.selection,
-            self.enriched_article_record(&record),
-            Vec::new(),
-        )
+        self.online_store_article_payload(self.enriched_article_record(&record), Vec::new())
     }
 
     fn online_store_article_delete(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
@@ -706,7 +909,6 @@ impl DraftProxy {
         let kind = OnlineStoreKind::Article;
         if !self.guard_online_store_delete(request, kind, &id) {
             return resource_payload(
-                &field.selection,
                 kind.deleted_key(),
                 Value::Null,
                 vec![kind.not_found_error()],
@@ -714,12 +916,12 @@ impl DraftProxy {
         }
         self.tombstone_online_store_article(&id);
         staged_ids.push(id.clone());
-        resource_payload(&field.selection, kind.deleted_key(), json!(id), Vec::new())
+        resource_payload(kind.deleted_key(), json!(id), Vec::new())
     }
 
     fn online_store_comment_moderate(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         request: &Request,
         root: &str,
         staged_ids: &mut Vec<String>,
@@ -733,7 +935,6 @@ impl DraftProxy {
             .contains(&id)
         {
             return resource_payload(
-                &field.selection,
                 kind.resource_key(),
                 Value::Null,
                 vec![kind.not_found_error()],
@@ -741,7 +942,6 @@ impl DraftProxy {
         }
         let Some(mut comment) = self.load_online_store_record_for_update(request, kind, &id) else {
             return resource_payload(
-                &field.selection,
                 kind.resource_key(),
                 Value::Null,
                 vec![kind.not_found_error()],
@@ -755,7 +955,6 @@ impl DraftProxy {
             Ok(next_status) => next_status,
             Err(message) => {
                 return resource_payload(
-                    &field.selection,
                     "comment",
                     Value::Null,
                     vec![user_error(vec!["id"], message, None)],
@@ -776,24 +975,7 @@ impl DraftProxy {
             self.stage_online_store_record(kind, id.clone(), comment.clone());
             staged_ids.push(id);
         }
-        let article_id = comment["articleId"]
-            .as_str()
-            .unwrap_or_default()
-            .to_string();
-        if comment_payload_selects_article(&field.selection)
-            && !article_id.is_empty()
-            && self
-                .online_store_record(OnlineStoreKind::Article, &article_id)
-                .is_none()
-        {
-            self.hydrate_online_store_content_from_upstream(
-                request,
-                &article_id,
-                ONLINE_STORE_COMMENT_ARTICLE_HYDRATE_QUERY,
-            );
-        }
         resource_payload(
-            &field.selection,
             "comment",
             self.enriched_comment_record(&comment),
             Vec::new(),
@@ -802,7 +984,7 @@ impl DraftProxy {
 
     fn online_store_comment_delete(
         &mut self,
-        field: &RootFieldSelection,
+        field: &OnlineStoreRootCall,
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
@@ -815,7 +997,6 @@ impl DraftProxy {
             .contains(&id)
         {
             return resource_payload(
-                &field.selection,
                 kind.deleted_key(),
                 Value::Null,
                 vec![kind.not_found_error()],
@@ -823,7 +1004,6 @@ impl DraftProxy {
         }
         if !self.guard_online_store_delete(request, kind, &id) {
             return resource_payload(
-                &field.selection,
                 kind.deleted_key(),
                 Value::Null,
                 vec![kind.not_found_error()],
@@ -865,17 +1045,12 @@ impl DraftProxy {
             .deleted_online_store_comment_ids
             .insert(id.clone());
         staged_ids.push(id.clone());
-        resource_payload(&field.selection, kind.deleted_key(), json!(id), Vec::new())
+        resource_payload(kind.deleted_key(), json!(id), Vec::new())
     }
 
-    fn online_store_value(
-        &self,
-        kind: OnlineStoreKind,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+    fn online_store_value(&self, kind: OnlineStoreKind, id: &str) -> Option<Value> {
         self.online_store_record(kind, id)
-            .map(|record| self.online_store_selected_record(kind, &record, selection))
+            .map(|record| self.enriched_online_store_record(kind, &record))
     }
 
     fn online_store_record(&self, kind: OnlineStoreKind, id: &str) -> Option<Value> {
@@ -898,89 +1073,18 @@ impl DraftProxy {
             .collect()
     }
 
-    fn online_store_article_payload(
-        &self,
-        selection: &[SelectedField],
-        article: Value,
-        user_errors: Vec<Value>,
-    ) -> Value {
-        let payload = json!({
+    fn online_store_article_payload(&self, article: Value, user_errors: Vec<Value>) -> Value {
+        json!({
             "article": article,
             "userErrors": user_errors
-        });
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "article" => Some(if payload["article"].is_null() {
-                Value::Null
-            } else {
-                self.selected_article_record(&payload["article"], &field.selection)
-            }),
-            _ => selected_online_store_field(&payload, field),
         })
     }
 
-    pub(super) fn online_store_selected_record(
+    pub(super) fn enriched_online_store_record(
         &self,
         kind: OnlineStoreKind,
         record: &Value,
-        selection: &[SelectedField],
     ) -> Value {
-        match kind {
-            OnlineStoreKind::Blog => self.selected_blog_record(record, selection),
-            OnlineStoreKind::Article => self.selected_article_record(record, selection),
-            OnlineStoreKind::Page => selected_json(record, selection),
-            OnlineStoreKind::Comment => {
-                selected_json(&self.enriched_comment_record(record), selection)
-            }
-        }
-    }
-
-    fn selected_blog_record(&self, record: &Value, selection: &[SelectedField]) -> Value {
-        let enriched = self.enriched_blog_record(record);
-        let id = enriched["id"].as_str().unwrap_or_default();
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "articles" => {
-                selected_online_store_field(&enriched, field)?;
-                let articles = self
-                    .online_store_records(OnlineStoreKind::Article)
-                    .into_iter()
-                    .filter(|article| article["blogId"].as_str() == Some(id))
-                    .collect::<Vec<_>>();
-                Some(self.online_store_connection_from_records(
-                    OnlineStoreKind::Article,
-                    articles,
-                    &field.arguments,
-                    &field.selection,
-                ))
-            }
-            _ => selected_online_store_field(&enriched, field),
-        })
-    }
-
-    fn selected_article_record(&self, record: &Value, selection: &[SelectedField]) -> Value {
-        let enriched = self.enriched_article_record(record);
-        let article_id = enriched["id"].as_str().unwrap_or_default().to_string();
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "metafield" => Some(selected_article_metafield(&enriched, field)),
-            "metafields" => Some(selected_article_metafields_connection(&enriched, field)),
-            "comments" => {
-                selected_online_store_field(&enriched, field)?;
-                let comments = self
-                    .online_store_records(OnlineStoreKind::Comment)
-                    .into_iter()
-                    .filter(|comment| comment["articleId"].as_str() == Some(article_id.as_str()))
-                    .collect::<Vec<_>>();
-                Some(self.online_store_connection_from_records(
-                    OnlineStoreKind::Comment,
-                    comments,
-                    &field.arguments,
-                    &field.selection,
-                ))
-            }
-            _ => selected_online_store_field(&enriched, field),
-        })
-    }
-
-    fn enriched_online_store_record(&self, kind: OnlineStoreKind, record: &Value) -> Value {
         match kind {
             OnlineStoreKind::Blog => self.enriched_blog_record(record),
             OnlineStoreKind::Page => record.clone(),
@@ -998,7 +1102,8 @@ impl DraftProxy {
             .filter(|article| article["blogId"].as_str() == Some(id))
             .map(|article| self.enriched_article_record(&article))
             .collect::<Vec<_>>();
-        record["articlesCount"] = count_object(articles.len());
+        record["articlesCount"] =
+            count_object(self.online_store_blog_articles_count(&record, &articles));
         record["articles"] = connection_json(articles);
         record
     }
@@ -1011,9 +1116,53 @@ impl DraftProxy {
             .into_iter()
             .filter(|article| article["blogId"].as_str() == Some(id))
             .collect::<Vec<_>>();
-        record["articlesCount"] = count_object(articles.len());
+        record["articlesCount"] =
+            count_object(self.online_store_blog_articles_count(&record, &articles));
         record["articles"] = connection_json(articles);
         record
+    }
+
+    fn online_store_blog_articles_count(&self, blog: &Value, known_articles: &[Value]) -> usize {
+        let Some(blog_id) = blog.get("id").and_then(Value::as_str) else {
+            return known_articles.len();
+        };
+        if is_synthetic_gid(blog_id) {
+            return known_articles.len();
+        }
+
+        let Some(baseline) = blog
+            .get(OBSERVED_BLOG_ARTICLES_COUNT_FIELD)
+            .and_then(Value::as_u64)
+            .or_else(|| blog.pointer("/articlesCount/count").and_then(Value::as_u64))
+            .map(|count| count as usize)
+        else {
+            return known_articles.len();
+        };
+        let synthetic_additions = known_articles
+            .iter()
+            .filter_map(|article| article.get("id").and_then(Value::as_str))
+            .filter(|id| is_synthetic_gid(id))
+            .count();
+        let deleted_baseline = self
+            .store
+            .staged
+            .deleted_online_store_article_ids
+            .iter()
+            .filter(|id| !is_synthetic_gid(id))
+            .filter(|id| {
+                self.store
+                    .staged
+                    .online_store_articles
+                    .get(*id)
+                    .and_then(|article| article.get("blogId"))
+                    .and_then(Value::as_str)
+                    == Some(blog_id)
+            })
+            .count();
+        baseline
+            .saturating_sub(deleted_baseline)
+            .saturating_add(synthetic_additions)
+            .max(known_articles.len())
     }
 
     fn enriched_article_record(&self, record: &Value) -> Value {
@@ -1568,39 +1717,6 @@ fn article_image_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
     })
 }
 
-fn selected_online_store_field(record: &Value, field: &SelectedField) -> Option<Value> {
-    selected_json(record, std::slice::from_ref(field))
-        .get(&field.response_key)
-        .cloned()
-}
-
-fn selected_article_metafield(record: &Value, field: &SelectedField) -> Value {
-    let Some(namespace) = resolved_string_field(&field.arguments, "namespace") else {
-        return Value::Null;
-    };
-    let Some(key) = resolved_string_field(&field.arguments, "key") else {
-        return Value::Null;
-    };
-    article_metafield(record, &namespace, &key)
-        .map(|metafield| selected_json(&metafield, &field.selection))
-        .unwrap_or(Value::Null)
-}
-
-fn selected_article_metafields_connection(record: &Value, field: &SelectedField) -> Value {
-    let namespace = resolved_string_field(&field.arguments, "namespace");
-    let mut records = article_metafield_nodes(record, namespace.as_deref());
-    if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
-        records.reverse();
-    }
-    selected_typed_connection_with_args(
-        &records,
-        &field.arguments,
-        &field.selection,
-        selected_json,
-        value_id_cursor,
-    )
-}
-
 fn article_metafield(record: &Value, namespace: &str, key: &str) -> Option<Value> {
     article_metafield_nodes(record, Some(namespace))
         .into_iter()
@@ -1743,9 +1859,8 @@ fn optional_string_value(input: &BTreeMap<String, ResolvedValue>, field: &str) -
     }
 }
 
-fn article_blog_not_found_payload(selection: &[SelectedField], key: &str) -> Value {
+fn article_blog_not_found_payload(key: &str) -> Value {
     resource_payload(
-        selection,
         key,
         Value::Null,
         vec![user_error(
@@ -1781,6 +1896,21 @@ fn should_stage_observed_comment(record: &Value) -> bool {
         || record.get("article").is_some()
 }
 
+fn merge_online_store_observed_values(existing: &Value, observed: &Value) -> Value {
+    let (Some(existing), Some(observed)) = (existing.as_object(), observed.as_object()) else {
+        return observed.clone();
+    };
+    let mut merged = existing.clone();
+    for (key, value) in observed {
+        let value = merged
+            .get(key)
+            .map(|current| merge_online_store_observed_values(current, value))
+            .unwrap_or_else(|| value.clone());
+        merged.insert(key.clone(), value);
+    }
+    Value::Object(merged)
+}
+
 fn string_value(record: &Value, key: &str) -> Option<String> {
     record.get(key).and_then(Value::as_str).map(str::to_string)
 }
@@ -1813,6 +1943,16 @@ fn normalize_observed_blog(record: &Value) -> Value {
     }
     if record.get("articlesCount").is_none() {
         record["articlesCount"] = count_object(articles.len());
+    }
+    if let Some(count) = record
+        .pointer("/articlesCount/count")
+        .and_then(Value::as_u64)
+    {
+        let previous = record
+            .get(OBSERVED_BLOG_ARTICLES_COUNT_FIELD)
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        record[OBSERVED_BLOG_ARTICLES_COUNT_FIELD] = json!(previous.max(count));
     }
     if record.get("articles").is_none() {
         record["articles"] = connection_json(Vec::new());
@@ -1931,10 +2071,4 @@ fn normalize_observed_comment(record: &Value, parent_article_id: Option<&str>) -
         record["publishedAt"] = Value::Null;
     }
     record
-}
-
-fn comment_payload_selects_article(selection: &[SelectedField]) -> bool {
-    selected_child_selection(selection, "comment")
-        .and_then(|comment_selection| selected_child_selection(&comment_selection, "article"))
-        .is_some()
 }

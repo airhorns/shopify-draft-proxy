@@ -73,25 +73,48 @@ The engine owns operation selection, aliases, fragments, built-in directives,
 variable/default coercion, selection projection, abstract-type checks, and null
 propagation. Root resolvers are request-scoped and execute serially against the
 same instance-owned proxy. Each invocation receives the engine-coerced root
-arguments and the original selected operation remains available to domain
-handlers. A local resolver receives `RootResolverContext`, whose mode can only
-be `OverlayRead` or `StageLocally`; passthrough is decided before domain code is
-entered. The runtime does not synthesize and reparse an internal one-root
-document. Single-root serialization exists only at the upstream transport
-boundary when one root genuinely must be forwarded. A few intentionally grouped
-read paths retain the complete operation to share hydration work. Multi-root
+arguments, raw argument-source metadata, root/operation source locations, and
+variable-definition metadata for compatibility validation. It also receives a
+set of engine-selected output paths for hydration planning plus a shallow,
+selection-free inventory of the operation's root names, response keys, and
+resolved arguments. The current root's arguments are engine-coerced; sibling
+root arguments in compatibility planning come from the parsed operation. Those
+values may choose a narrow or broad hydration but never shape the returned JSON;
+output projection remains engine-owned. A local resolver receives `RootInvocation`,
+whose `LocalResolverMode` can only be `OverlayRead` or `StageLocally`;
+passthrough is decided before domain code is entered. Domain roots route from
+the invocation's canonical root name and do not reparse the operation or
+manufacture `RootFieldSelection` values. The runtime serializes a single root
+only at the upstream transport boundary when that root genuinely must be
+forwarded. Grouped read/hydration, bulk GraphQL-as-data, and Shopify error
+compatibility paths retain the parsed operation. Multi-root
 mutations containing both local and passthrough roots are rejected before
 execution because splitting would change atomicity and could leak a supported
 write upstream. A fully passthrough document is forwarded once, not once per
-selected root.
+selected root. Live-hybrid queries that need upstream evidence execute the
+caller's complete document through one request-scoped cache, so mixed
+local/passthrough roots and sibling overlays consume the same Shopify response.
+The runtime keeps the raw, alias-shaped transport value separate from a
+canonicalized observation copy: untouched upstream values bypass local
+child-field resolution, while a value replaced by a store overlay or derived
+fallback is explicitly marked local and continues through the field-resolver
+registry. Request setup retains explicit preflight planning for discounts,
+owner metafields, localization/markets, and generic nodes, but those reads reuse
+the cached complete response when the caller selected the required evidence.
+Narrow secondary hydration documents remain only for data that the caller's
+operation cannot supply, especially mutation prerequisites and relationship
+lookups.
 
 ## GraphQL schema and resolver boundaries
 
 - Each Admin route version has its own full captured SDL. `config/admin-graphql/manifest.json` declares the executable inventory and default (`2026-07`); `AdminApiVersion` selects and lazily caches one immutable schema for `2025-01`, `2025-10`, `2026-01`, `2026-04`, or `2026-07`. Fields and input types that differ by version are therefore enforced by the requested route's actual schema.
 - Storefront keeps an independent version inventory and schema cache because Admin and Storefront intentionally reuse names such as `shop` with different types and semantics. `StorefrontApiVersion` currently executes the captured 2026-04 type graph. The accepted 2025-01 route remains an explicit legacy passthrough/no-data compatibility boundary until a complete schema capture exists for that version; it never substitutes the Admin schema or the Storefront 2026-04 schema.
+- `build.rs` generates both surface version enums, route parsing, schema-source lookup, defaults, and cache indexes from the Admin and Storefront manifests. `graphql-root-catalog-json` derives the complete cross-version root catalog from the executable schemas and attaches an operation-registry registration when one exists. Version-specific and unregistered roots therefore stay visible without becoming local capabilities or requiring another checked-in root list.
 - The shared schema builder registers objects, interfaces, unions, enums, scalars, input objects, arguments, defaults, descriptions, and deprecations dynamically. This avoids maintaining thousands of handwritten Rust GraphQL wrapper types while still using a real GraphQL executor. Storefront's captured introspection JSON is deterministically rendered to SDL once before entering the same builder.
 - Captured custom scalars have explicit codecs. URL, RFC 3339 DateTime, decimal/money, integer, JSON, and string-like scalar families are validated deliberately, and schema construction fails when a new capture introduces an unknown scalar instead of silently treating it as arbitrary JSON.
 - Root fields share one generic resolver bridge. Domain code continues to model Shopify behavior and store effects directly; it does not need a second resolver-shaped copy of every function. Complex lifecycle behavior can remain in rich domain methods, while ordinary output fields are read from the returned typed JSON object by the generic schema resolver.
+- Native root callbacks consume engine-coerced `RootInvocation` data and return one canonical, alias-free value. Domain-specific input structs contain only the arguments and source metadata that behavior actually needs; they are not reduced copies of a GraphQL selection tree.
+- Canonical parent values may carry unprojected relationship source data when mutation payload semantics differ from a later ordinary read. The explicit child-field resolver still owns arguments, sorting, windowing, and canonical child lookup; embedding relationship source data is not permission for the domain to pre-project the requested selection.
 - Returning a JSON object is not permission to return arbitrary shape. For every selected nested field, the executable schema validates its type and the generic object resolver reports an explicit `Local resolver did not implement Type.field` execution error when the domain result omits that field. The engine then applies GraphQL null propagation.
 - `ResolverRegistry` is owned by each `DraftProxy` and derives executable callbacks from implemented operation-registry entries. Admin registrations keep their public root names (`shop`, `products`); Storefront registrations receive globally unique internal names (`storefrontShop`, `storefrontProducts`). Surface-aware lookup performs that translation and also verifies the operation type and public root before returning a callback. Duplicate internal names fail registry construction, so same-named API roots cannot collide. There is no second checked-in local-routing inventory to synchronize. Every implemented capability domain has one distinct domain-owned callback, and structural tests prevent domains from collapsing back into a shared compatibility handler or crossing API surfaces.
 - A domain callback is the only GraphQL-shaped entry point for that domain. It routes the root to existing store-backed lifecycle methods directly; ordinary fields do not acquire a second one-line resolver/service copy.
@@ -156,14 +179,15 @@ selected root.
 
 - group supported runtime behavior by commerce area, including products/saved searches, localization/markets/catalogs, marketing/webhooks/inventory, online store, metaobjects, metafields, orders/payments/fulfillment, discounts/gift cards, B2B/customers, and admin/shipping/app helpers
 - own each area's root resolver beside those domain methods; `graphql_runtime.rs` contains no compatibility-domain switch
-- keep local staging, overlay reads, selected-field projection, alias-safe response keys, and live-hybrid passthrough/reject behavior near the domain logic that owns it
+- keep local staging, overlay reads, canonical resolver values, and live-hybrid passthrough/reject behavior near the domain logic that owns it; ordinary Admin and Storefront output projection belongs exclusively to the executable engine
+- keep syntax-aware output shaping only where GraphQL is itself operation input, currently bulk-operation JSONL; the schema-less Storefront 2025 compatibility route retains only a shallow root null/empty heuristic until it has a captured executable schema
 - use shared `Store` effective-get/list/count helpers for migrated product and saved-search read-after-write behavior, with base state, staged state, order arrays, and tombstones dumped/restored consistently
 - use the shared staged-connection query helpers for staged resource lists that need Shopify-like search filtering, sort-key mapping, `reverse`, cursor windows, and filtered counts; resource modules supply predicate and sort adapters while `connection.rs` owns the order of operations
 - share proxy-internal helpers only within `crate::proxy`; public package surface still flows through `DraftProxy`
 
 ### `src/graphql.rs`
 
-- retains a compatibility document view for domain handlers and the isolated Shopify error adapter; it is no longer the GraphQL executor
+- retains a compatibility document view for upstream serialization/batching, isolated Shopify error adapters, and GraphQL documents supplied as operation input (such as bulk operations); it is no longer the GraphQL executor or a native domain-routing API
 - extracts operation type, operation name/path, source locations, and top-level root fields without routing by alias or raw query text
 - preserves raw root-field argument sources separately from resolved values so validators can distinguish omitted arguments, literal nulls, bound variables, and unbound variables
 - resolves root-field arguments from literals, enums, lists, input objects, and variables for existing callers that need the compatibility view
@@ -177,6 +201,7 @@ selected root.
 - capability routing resolves a non-passthrough capability only when the root field matches an implemented registry entry's canonical name; anything else falls through to passthrough
 - keeps passthrough/unknown roots explicit so non-implemented metadata does not imply runtime support
 - exposes one registry source used by `ResolverRegistry`, runtime gates, and tests so executable handlers and exported metadata stay auditable together
+- derives a separate complete root catalog across every executable Admin and Storefront version; catalog entries without a registration remain explicit passthrough gaps
 
 ### `src/upstream.rs`
 

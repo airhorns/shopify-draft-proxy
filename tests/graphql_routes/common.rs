@@ -243,7 +243,6 @@ pub(super) fn registry_entry(
         operation_type,
         domain: CapabilityDomain::Products,
         implemented,
-        match_names: vec![name.to_string()],
         runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
     }
 }
