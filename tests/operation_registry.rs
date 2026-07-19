@@ -7,6 +7,23 @@ use shopify_draft_proxy::operation_registry::{
     CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::path::{Path, PathBuf};
+
+fn rust_source_files(path: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    for entry in fs::read_dir(path).expect("runtime source directory should be readable") {
+        let path = entry
+            .expect("runtime source entry should be readable")
+            .path();
+        if path.is_dir() {
+            files.extend(rust_source_files(&path));
+        } else if path.extension().is_some_and(|extension| extension == "rs") {
+            files.push(path);
+        }
+    }
+    files
+}
 
 fn sample_registry() -> Vec<OperationRegistryEntry> {
     vec![
@@ -58,6 +75,30 @@ fn execution_is_derived_from_operation_type() {
     assert_eq!(
         execution_for_operation_type(OperationType::Subscription),
         CapabilityExecution::Passthrough
+    );
+}
+
+#[test]
+fn runtime_source_does_not_depend_on_parity_request_artifacts() {
+    let source_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let offenders = rust_source_files(&source_root)
+        .into_iter()
+        .filter(|path| {
+            fs::read_to_string(path)
+                .expect("Rust runtime source should be UTF-8")
+                .contains("config/parity-requests")
+        })
+        .map(|path| {
+            path.strip_prefix(Path::new(env!("CARGO_MANIFEST_DIR")))
+                .unwrap_or(&path)
+                .display()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        offenders.is_empty(),
+        "runtime GraphQL documents must be implementation-owned and independent from parity artifacts; found references in {offenders:?}"
     );
 }
 

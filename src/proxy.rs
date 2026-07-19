@@ -2494,8 +2494,6 @@ struct ExecutionSession {
     node_hydration: Option<RequestNodeHydration>,
     owner_metafield_read_ids: BTreeSet<String>,
     owner_metafield_missing_ids: BTreeSet<String>,
-    product_catalog_hydration_attempted: bool,
-    product_catalog_hydrated: bool,
     entity_cache: RequestEntityCache,
 }
 
@@ -2546,10 +2544,10 @@ pub struct DraftProxy {
     /// `restoreState` between a scenario's targets; it is reset on `/__meta/reset`,
     /// which the parity runner issues at the start of every scenario.
     shop_sells_subscriptions: Option<bool>,
-    /// Complete upstream product catalogs are expensive on large shops. Keep
-    /// the hydrated base authoritative while the same staged product ID set is
-    /// being read, and invalidate it on reset/restore or a changed overlay.
-    product_catalog_hydrated_overlay_ids: Option<BTreeSet<String>>,
+    /// Original upstream/base records for products changed during the current
+    /// staging session. Count overlays compare these pre-mutation records with
+    /// the effective staged records without loading the surrounding catalog.
+    product_catalog_base_records: BTreeMap<String, ProductRecord>,
     clock: RuntimeClock,
     last_mutation_timestamp: Option<time::OffsetDateTime>,
     /// All GraphQL-execution transients live behind one request-lifetime

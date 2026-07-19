@@ -1,0 +1,28 @@
+query StorefrontEnrichmentTaxonomyHydrate {
+  productTags(first: 250) {
+    edges {
+      cursor
+      node
+    }
+    nodes
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  productTypes(first: 250) {
+    edges {
+      cursor
+      node
+    }
+    nodes
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

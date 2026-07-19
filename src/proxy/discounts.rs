@@ -380,7 +380,7 @@ const SHOPIFY_FUNCTION_AVAILABILITY_QUERY: &str = "query ShopifyFunctionAvailabi
 /// proxy forwards matches the recorded `DiscountUniquenessCheck` cassette call
 /// byte-for-byte (the cassette matcher is strict on query text + variables).
 const DISCOUNT_UNIQUENESS_QUERY: &str =
-    include_str!("../../config/parity-requests/discounts/discount-uniqueness-check.graphql");
+    include_str!("../runtime_graphql/discounts/discount-uniqueness-check.graphql");
 /// Item-entitlement existence probe forwarded before a native discount create /
 /// update is
 /// validated. Discounts that entitle products / variants / collections must
@@ -393,7 +393,7 @@ const DISCOUNT_UNIQUENESS_QUERY: &str =
 /// recorded `ProductsHydrateNodes` cassette call byte-for-byte (the cassette
 /// matcher is strict on query text + variables).
 const DISCOUNT_ITEM_REFS_HYDRATE_QUERY: &str =
-    include_str!("../../config/parity-requests/discounts/discount-item-refs-hydrate.graphql");
+    include_str!("../runtime_graphql/discounts/discount-item-refs-hydrate.graphql.raw");
 impl DraftProxy {
     pub(in crate::proxy) fn discounts_query_outcome(
         &mut self,
@@ -1029,7 +1029,9 @@ impl DraftProxy {
         let response = self.upstream_post(
             request,
             json!({
-                "query": DISCOUNT_ITEM_REFS_HYDRATE_QUERY,
+                "query": DISCOUNT_ITEM_REFS_HYDRATE_QUERY
+                    .strip_suffix('\n')
+                    .unwrap_or(DISCOUNT_ITEM_REFS_HYDRATE_QUERY),
                 "operationName": "ProductsHydrateNodes",
                 "variables": { "ids": ids }
             }),

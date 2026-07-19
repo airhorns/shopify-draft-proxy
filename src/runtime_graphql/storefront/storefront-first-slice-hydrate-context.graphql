@@ -1,0 +1,207 @@
+query StorefrontFirstSliceHydrateWithContext($country: CountryCode, $language: LanguageCode)
+@inContext(country: $country, language: $language) {
+  shop {
+    id
+    name
+    description
+    moneyFormat
+    primaryDomain {
+      host
+      url
+      sslEnabled
+    }
+    brand {
+      shortDescription
+      slogan
+      logo {
+        id
+        image {
+          url
+          altText
+          width
+          height
+        }
+      }
+      squareLogo {
+        id
+        image {
+          url
+          altText
+          width
+          height
+        }
+      }
+      coverImage {
+        id
+        image {
+          url
+          altText
+          width
+          height
+        }
+      }
+    }
+    privacyPolicy {
+      id
+      title
+      body
+      handle
+      url
+    }
+    refundPolicy {
+      id
+      title
+      body
+      handle
+      url
+    }
+    shippingPolicy {
+      id
+      title
+      body
+      handle
+      url
+    }
+    termsOfService {
+      id
+      title
+      body
+      handle
+      url
+    }
+    paymentSettings {
+      acceptedCardBrands
+      cardVaultUrl
+      countryCode
+      currencyCode
+      enabledPresentmentCurrencies
+      shopifyPaymentsAccountId
+      supportedDigitalWallets
+    }
+  }
+  localization {
+    availableCountries {
+      isoCode
+      name
+      unitSystem
+      currency {
+        isoCode
+        name
+        symbol
+      }
+      defaultLanguage {
+        isoCode
+        name
+        endonymName
+      }
+      availableLanguages {
+        isoCode
+        name
+        endonymName
+      }
+      market {
+        id
+        handle
+      }
+    }
+    availableLanguages {
+      isoCode
+      name
+      endonymName
+    }
+    country {
+      isoCode
+      name
+      unitSystem
+      currency {
+        isoCode
+        name
+        symbol
+      }
+      defaultLanguage {
+        isoCode
+        name
+        endonymName
+      }
+      availableLanguages {
+        isoCode
+        name
+        endonymName
+      }
+      market {
+        id
+        handle
+      }
+    }
+    language {
+      isoCode
+      name
+      endonymName
+    }
+    market {
+      id
+      handle
+    }
+  }
+  locations(first: 250) {
+    edges {
+      cursor
+      node {
+        id
+        name
+        address {
+          address1
+          address2
+          city
+          country
+          countryCode
+          formatted
+          latitude
+          longitude
+          phone
+          province
+          provinceCode
+          zip
+        }
+      }
+    }
+    nodes {
+      id
+      name
+      address {
+        address1
+        address2
+        city
+        country
+        countryCode
+        formatted
+        latitude
+        longitude
+        phone
+        province
+        provinceCode
+        zip
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  paymentSettings {
+    acceptedCardBrands
+    cardVaultUrl
+    countryCode
+    currencyCode
+    enabledPresentmentCurrencies
+    shopifyPaymentsAccountId
+    supportedDigitalWallets
+  }
+  publicApiVersions {
+    handle
+    displayName
+    supported
+  }
+}

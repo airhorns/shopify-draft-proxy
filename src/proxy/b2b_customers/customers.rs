@@ -217,40 +217,34 @@ query CustomerHydrate($id: ID!) {
   }
 }
 "#;
-// Shared with the parity capture scripts via include_str! so recorded address-aware
-// `CustomerHydrate` cassettes byte-match the request forwarded when address nodes
-// are required for validation/output. The leading newline is significant: the
+// Runtime-owned address-aware customer preflight. Parity capture maintains a
+// separate byte-matching request. The leading newline is significant because the
 // cassette matcher only trims trailing whitespace.
 const CUSTOMER_ADDRESS_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/customers/customer-mutation-hydrate.graphql");
+    include_str!("../../runtime_graphql/customers/customer-mutation-hydrate.graphql.raw");
 
-// Shared with the parity capture scripts via include_str! so recorded
-// `CustomerDuplicateHydrate` dedupe cassettes byte-match what the create path forwards
-// upstream. The leading newline is significant: the cassette matcher only trims trailing
-// whitespace.
+// Runtime-owned customer dedupe preflight with a separate byte-matching parity
+// request. The leading newline is significant because the cassette matcher only
+// trims trailing whitespace.
 const CUSTOMER_DUPLICATE_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/customers/customer-duplicate-hydrate.graphql");
+    include_str!("../../runtime_graphql/customers/customer-duplicate-hydrate.graphql.raw");
 const CUSTOMER_CUSTOM_ID_LOOKUP_QUERY: &str =
-    include_str!("../../../config/parity-requests/customers/customer-custom-id-lookup.graphql");
+    include_str!("../../runtime_graphql/customers/customer-custom-id-lookup.graphql.raw");
 
-// Shared with the parity capture scripts so recorded `customerMerge` hydrate
-// cassettes byte-match the request forwarded by the runtime.
+// Runtime-owned customer merge preflight. Parity capture maintains separate
+// matching request documents for exact cassette replay.
 const CUSTOMER_MERGE_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/customers/customer-merge-hydrate.graphql");
-const CUSTOMER_MERGE_ATTACHED_HYDRATE_QUERY: &str = include_str!(
-    "../../../config/parity-requests/customers/customer-merge-attached-hydrate.graphql"
-);
+    include_str!("../../runtime_graphql/customers/customer-merge-hydrate.graphql.raw");
+const CUSTOMER_MERGE_ATTACHED_HYDRATE_QUERY: &str =
+    include_str!("../../runtime_graphql/customers/customer-merge-attached-hydrate.graphql.raw");
 const CUSTOMER_DELETE_SHOP_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/customers/customer-delete-shop-hydrate.graphql");
-const CUSTOMER_OVERLAY_CATALOG_HYDRATE_QUERY: &str = include_str!(
-    "../../../config/parity-requests/customers/customer-live-hybrid-overlay-hydrate.graphql"
-);
-const STORE_CREDIT_CUSTOMER_HYDRATE_QUERY: &str = include_str!(
-    "../../../config/parity-requests/customers/storeCreditCustomerHydrate-parity.graphql"
-);
-const STORE_CREDIT_ACCOUNT_HYDRATE_QUERY: &str = include_str!(
-    "../../../config/parity-requests/customers/storeCreditAccountHydrate-parity.graphql"
-);
+    include_str!("../../runtime_graphql/customers/customer-delete-shop-hydrate.graphql");
+const CUSTOMER_OVERLAY_CATALOG_HYDRATE_QUERY: &str =
+    include_str!("../../runtime_graphql/customers/customer-live-hybrid-overlay-hydrate.graphql");
+const STORE_CREDIT_CUSTOMER_HYDRATE_QUERY: &str =
+    include_str!("../../runtime_graphql/customers/store-credit-customer-hydrate.graphql");
+const STORE_CREDIT_ACCOUNT_HYDRATE_QUERY: &str =
+    include_str!("../../runtime_graphql/customers/store-credit-account-hydrate.graphql");
 const CUSTOMER_ACCOUNT_ACTIVATION_TOKEN_FIELD: &str = "__proxyAccountActivationToken";
 const CUSTOMER_ACCOUNT_INVITE_FIELD: &str = "__proxyAccountInvite";
 

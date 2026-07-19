@@ -34,6 +34,7 @@ type SavedSearchMutationData = {
 };
 type ProductConnection = {
   nodes?: ProductNode[] | null;
+  edges?: Array<{ cursor?: string | null; node?: ProductNode | null }> | null;
   pageInfo?: {
     hasNextPage?: boolean | null;
     hasPreviousPage?: boolean | null;
@@ -52,8 +53,19 @@ type OverlayReadData = {
   limitedTotal?: { count?: number | null; precision?: string | null } | null;
   products?: ProductConnection | null;
 };
-type CatalogHydrateData = {
+type CatalogWindowData = {
   products?: ProductConnection | null;
+};
+type CatalogCountData = {
+  productsCount?: { count?: number | null; precision?: string | null } | null;
+};
+type SavedSearchHydrateData = {
+  node?: {
+    id?: string | null;
+    name?: string | null;
+    query?: string | null;
+    resourceType?: string | null;
+  } | null;
 };
 type UpstreamCall = {
   operationName: string;
@@ -78,7 +90,8 @@ const createDocument = await readFile(requestPath('product-live-hybrid-overlay-c
 const updateDocument = await readFile(requestPath('productUpdate-parity-plan.graphql'), 'utf8');
 const deleteDocument = await readFile(requestPath('product-live-hybrid-overlay-delete.graphql'), 'utf8');
 const nodesHydrateDocument = await readFile(requestPath('products-hydrate-nodes-observation.graphql'), 'utf8');
-const catalogHydrateDocument = await readFile(requestPath('product-live-hybrid-catalog-hydrate.graphql'), 'utf8');
+const catalogWindowDocument = await readFile(requestPath('product-live-hybrid-catalog-window.graphql'), 'utf8');
+const catalogCountDocument = await readFile(requestPath('product-live-hybrid-catalog-count.graphql'), 'utf8');
 const savedSearchHydrateDocument = await readFile(
   requestPath('product-live-hybrid-saved-search-hydrate.graphql'),
   'utf8',
@@ -150,34 +163,28 @@ function upstreamCall(
   return { operationName, query, variables, response: { status: 200, body } };
 }
 
-async function captureCatalogHydration(): Promise<{
-  calls: UpstreamCall[];
-  responses: Array<{ variables: Record<string, unknown>; response: ConformanceGraphqlPayload<CatalogHydrateData> }>;
-}> {
-  const calls: UpstreamCall[] = [];
-  const responses: Array<{
-    variables: Record<string, unknown>;
-    response: ConformanceGraphqlPayload<CatalogHydrateData>;
-  }> = [];
-  let after: string | null = null;
-  const seenCursors = new Set<string>();
-  while (true) {
-    const variables: { after: string | null } = { after };
-    const response: ConformanceGraphqlPayload<CatalogHydrateData> = await runGraphql<CatalogHydrateData>(
-      catalogHydrateDocument,
-      variables,
-    );
-    expectNoTopLevelErrors('product catalog hydrate', response);
-    calls.push(upstreamCall('DraftProxyProductCatalogHydration', catalogHydrateDocument, variables, response));
-    responses.push({ variables, response });
-    const pageInfo: ProductConnection['pageInfo'] = response.data?.products?.pageInfo;
-    if (pageInfo?.hasNextPage !== true) break;
-    if (typeof pageInfo.endCursor !== 'string' || !seenCursors.add(pageInfo.endCursor)) {
-      throw new Error(`Product catalog hydrate returned an invalid next cursor: ${JSON.stringify(pageInfo, null, 2)}`);
-    }
-    after = pageInfo.endCursor;
-  }
-  return { calls, responses };
+async function captureCatalogWindow(
+  label: string,
+  variables: Record<string, unknown>,
+): Promise<{ call: UpstreamCall; response: ConformanceGraphqlPayload<CatalogWindowData> }> {
+  const response = await runGraphql<CatalogWindowData>(catalogWindowDocument, variables);
+  expectNoTopLevelErrors(label, response);
+  return {
+    call: upstreamCall('DraftProxyProductCatalogWindow', catalogWindowDocument, variables, response),
+    response,
+  };
+}
+
+async function captureCatalogCount(
+  label: string,
+  variables: Record<string, unknown>,
+): Promise<{ call: UpstreamCall; response: ConformanceGraphqlPayload<CatalogCountData> }> {
+  const response = await runGraphql<CatalogCountData>(catalogCountDocument, variables);
+  expectNoTopLevelErrors(label, response);
+  return {
+    call: upstreamCall('DraftProxyProductCatalogCount', catalogCountDocument, variables, response),
+    response,
+  };
 }
 
 function titles(connection: ProductConnection | null | undefined): string[] {
@@ -291,10 +298,69 @@ try {
   const deleteHydrateVariables = { ids: [deleteProduct.id] };
   const deleteHydrateResponse = await runGraphql(nodesHydrateDocument, deleteHydrateVariables);
   expectNoTopLevelErrors('delete product node hydrate', deleteHydrateResponse);
-  const firstCatalogHydration = await captureCatalogHydration();
   const savedSearchHydrateVariables = { id: savedSearchId };
-  const savedSearchHydrateResponse = await runGraphql(savedSearchHydrateDocument, savedSearchHydrateVariables);
+  const catalogWindow = await captureCatalogWindow('matching product catalog window', {
+    first: 14,
+    after: null,
+    query: `tag:${matchTag}`,
+    sortKey: 'TITLE',
+    reverse: false,
+  });
+  const reverseWindow = await captureCatalogWindow('reverse matching product catalog window', {
+    first: 5,
+    after: null,
+    query: `tag:${matchTag}`,
+    sortKey: 'TITLE',
+    reverse: true,
+  });
+  const firstPageWindow = await captureCatalogWindow('first matching product catalog page window', {
+    first: 5,
+    after: null,
+    query: `tag:${matchTag}`,
+    sortKey: 'TITLE',
+    reverse: false,
+  });
+  const savedSearchHydrateResponse = await runGraphql<SavedSearchHydrateData>(
+    savedSearchHydrateDocument,
+    savedSearchHydrateVariables,
+  );
   expectNoTopLevelErrors('product saved-search hydrate', savedSearchHydrateResponse);
+  const hydratedSavedSearchQuery = savedSearchHydrateResponse.data?.node?.query;
+  if (typeof hydratedSavedSearchQuery !== 'string') {
+    throw new Error(
+      `Product saved-search hydrate did not return a query: ${JSON.stringify(savedSearchHydrateResponse, null, 2)}`,
+    );
+  }
+  const savedSearchWindow = await captureCatalogWindow('saved-search product catalog window', {
+    first: 14,
+    after: null,
+    query: hydratedSavedSearchQuery,
+    sortKey: 'TITLE',
+    reverse: false,
+  });
+  const deletedWindow = await captureCatalogWindow('deleted product catalog window', {
+    first: 14,
+    after: null,
+    query: `tag:${deleteTag}`,
+    sortKey: null,
+    reverse: false,
+  });
+  const unrelatedWindow = await captureCatalogWindow('unrelated product catalog window', {
+    first: 14,
+    after: null,
+    query: `tag:${controlTag}`,
+    sortKey: null,
+    reverse: false,
+  });
+  const matchingCount = await captureCatalogCount('matching products count', { query: `tag:${matchTag}` });
+  const totalCount = await captureCatalogCount('total products count', { query: null });
+  const secondPageWindow = await captureCatalogWindow('second matching product catalog page window', {
+    first: 5,
+    after: null,
+    query: `tag:${matchTag}`,
+    sortKey: 'TITLE',
+    reverse: false,
+  });
 
   const createVariables = {
     product: {
@@ -350,13 +416,21 @@ try {
   const upstreamCalls: UpstreamCall[] = [
     upstreamCall('ProductsHydrateNodes', nodesHydrateDocument, updateHydrateVariables, updateHydrateResponse),
     upstreamCall('ProductsHydrateNodes', nodesHydrateDocument, deleteHydrateVariables, deleteHydrateResponse),
-    ...firstCatalogHydration.calls,
+    catalogWindow.call,
+    reverseWindow.call,
+    firstPageWindow.call,
     upstreamCall(
       'DraftProxyProductSavedSearchHydration',
       savedSearchHydrateDocument,
       savedSearchHydrateVariables,
       savedSearchHydrateResponse,
     ),
+    savedSearchWindow.call,
+    deletedWindow.call,
+    unrelatedWindow.call,
+    matchingCount.call,
+    totalCount.call,
+    secondPageWindow.call,
   ];
 
   await mkdir(fixtureDir, { recursive: true });
@@ -374,11 +448,30 @@ try {
         hydration: {
           updateProduct: { variables: updateHydrateVariables, response: updateHydrateResponse },
           deleteProduct: { variables: deleteHydrateVariables, response: deleteHydrateResponse },
-          catalogPages: firstCatalogHydration.responses.map(({ variables, response }) => ({
-            variables,
-            nodeCount: response.data?.products?.nodes?.length ?? 0,
-            pageInfo: response.data?.products?.pageInfo ?? null,
-          })),
+          catalogWindows: [
+            ['catalog', catalogWindow],
+            ['reverse', reverseWindow],
+            ['firstPage', firstPageWindow],
+            ['savedSearch', savedSearchWindow],
+            ['deleted', deletedWindow],
+            ['unrelated', unrelatedWindow],
+            ['secondPage', secondPageWindow],
+          ].map(([name, capture]) => {
+            const typedCapture = capture as {
+              call: UpstreamCall;
+              response: ConformanceGraphqlPayload<CatalogWindowData>;
+            };
+            return {
+              name,
+              variables: typedCapture.call.variables,
+              nodeCount: typedCapture.response.data?.products?.edges?.length ?? 0,
+              pageInfo: typedCapture.response.data?.products?.pageInfo ?? null,
+            };
+          }),
+          catalogCounts: {
+            matching: { variables: matchingCount.call.variables, response: matchingCount.response },
+            total: { variables: totalCount.call.variables, response: totalCount.response },
+          },
           savedSearch: { variables: savedSearchHydrateVariables, response: savedSearchHydrateResponse },
         },
         mutations: {
@@ -503,7 +596,7 @@ try {
       ],
     },
     notes:
-      'Live Shopify capture records the exact pre-mutation product catalog, product-node, and PRODUCT saved-search hydrates used by LiveHybrid. Public productCreate/productUpdate/productDelete requests are replayed locally before strict effective-catalog comparisons cover create/update/delete precedence, unrelated retention, search, title sort, reverse, cursor windowing, saved searches, count deltas, and limited-count precision.',
+      'Live Shopify capture records the exact pre-mutation bounded product windows, filtered counts, product-node hydrates, and PRODUCT saved-search hydrate used by LiveHybrid. Public productCreate/productUpdate/productDelete requests are replayed locally before strict effective-catalog comparisons cover create/update/delete precedence, unrelated retention, search, title sort, reverse, cursor windowing, saved searches, count deltas, and limited-count precision without a full-catalog scan.',
   };
   await mkdir(path.dirname(specPath), { recursive: true });
   await writeFile(specPath, `${JSON.stringify(spec, null, 2)}\n`, 'utf8');

@@ -75,7 +75,7 @@ impl DraftProxy {
             store: Store::with_default_baseline(),
             next_synthetic_id: 1,
             shop_sells_subscriptions: None,
-            product_catalog_hydrated_overlay_ids: None,
+            product_catalog_base_records: BTreeMap::new(),
             clock: Arc::new(default_runtime_clock),
             last_mutation_timestamp: None,
             execution_session: ExecutionSession::default(),
@@ -202,7 +202,7 @@ impl DraftProxy {
                 self.store.clear_staged();
                 self.next_synthetic_id = 1;
                 self.shop_sells_subscriptions = None;
-                self.product_catalog_hydrated_overlay_ids = None;
+                self.product_catalog_base_records.clear();
                 self.last_mutation_timestamp = None;
                 self.execution_session = ExecutionSession::default();
                 ok_json(json!({ "ok": true, "message": "state reset" }))
@@ -1427,7 +1427,6 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn restore_state(&mut self, request: &Request) -> Response {
-        self.product_catalog_hydrated_overlay_ids = None;
         let Ok(dump) = serde_json::from_str::<Value>(&request.body) else {
             return json_error(400, "Invalid Rust state dump JSON");
         };

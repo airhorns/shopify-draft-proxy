@@ -1157,12 +1157,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'product-live-hybrid-overlay',
     scriptPath: 'scripts/capture-product-live-hybrid-overlay-conformance.ts',
     purpose:
-      'LiveHybrid products/productsCount parity for a complete upstream catalog overlaid with staged product create, update, and delete effects.',
+      'LiveHybrid products/productsCount parity for bounded upstream windows overlaid with staged product create, update, and delete effects.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-live-hybrid-overlay.json`,
       'config/parity-specs/products/product-live-hybrid-overlay.json',
-      'config/parity-requests/products/product-live-hybrid-catalog-hydrate.graphql',
+      'config/parity-requests/products/product-live-hybrid-catalog-window.graphql',
+      'config/parity-requests/products/product-live-hybrid-catalog-count.graphql',
       'config/parity-requests/products/product-live-hybrid-saved-search-hydrate.graphql',
       'config/parity-requests/products/product-live-hybrid-overlay-create.graphql',
       'config/parity-requests/products/product-live-hybrid-overlay-delete.graphql',
@@ -1172,10 +1173,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/productUpdate-parity-plan.graphql',
     ],
     cleanupBehavior:
-      'Creates three disposable base products, one staged-create comparison product, and one PRODUCT saved search; records pre-mutation hydrate cassettes, captures create/update/delete reads, then removes all disposable resources.',
+      'Creates three disposable base products, one staged-create comparison product, and one PRODUCT saved search; records pre-mutation bounded window/count cassettes, captures create/update/delete reads, then removes all disposable resources.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'The generated parity spec replays every mutation and read through public GraphQL requests while exact pre-mutation Shopify hydrates provide the authoritative base catalog.',
+      'The generated parity spec replays every mutation and read through public GraphQL requests while exact pre-mutation Shopify windows and counts provide the authoritative base slices without scanning the catalog.',
   },
   {
     domain: 'products',

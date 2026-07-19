@@ -9977,6 +9977,136 @@ fn live_hybrid_observed_product_does_not_make_catalog_reads_local() {
 }
 
 #[test]
+fn live_hybrid_product_overlay_uses_a_bounded_upstream_window_for_a_small_page() {
+    let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let calls = Arc::clone(&calls);
+        move |request| {
+            calls.lock().unwrap().push(request.body.clone());
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let after = body.pointer("/variables/after").and_then(Value::as_str);
+            let (id, title, has_next_page, end_cursor) = match after {
+                None => (
+                    "gid://shopify/Product/upstream-1",
+                    "Zulu upstream one",
+                    true,
+                    Some("upstream-page-1"),
+                ),
+                Some("upstream-page-1") => (
+                    "gid://shopify/Product/upstream-2",
+                    "Zulu upstream two",
+                    true,
+                    Some("upstream-page-2"),
+                ),
+                _ => (
+                    "gid://shopify/Product/upstream-3",
+                    "Zulu upstream three",
+                    false,
+                    None,
+                ),
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "products": {
+                            "edges": [{
+                                "cursor": end_cursor,
+                                "node": {
+                                    "id": id,
+                                    "title": title,
+                                    "handle": id.rsplit('/').next().unwrap_or_default(),
+                                    "status": "ACTIVE",
+                                    "createdAt": "2024-01-01T00:00:00Z",
+                                    "updatedAt": "2024-01-01T00:00:00Z",
+                                    "descriptionHtml": "",
+                                    "vendor": "",
+                                    "productType": "",
+                                    "tags": [],
+                                    "totalInventory": 0,
+                                    "tracksInventory": false,
+                                    "variants": { "nodes": [] }
+                                }
+                            }],
+                            "nodes": [{
+                                "id": id,
+                                "title": title,
+                                "handle": id.rsplit('/').next().unwrap_or_default(),
+                                "status": "ACTIVE",
+                                "createdAt": "2024-01-01T00:00:00Z",
+                                "updatedAt": "2024-01-01T00:00:00Z",
+                                "descriptionHtml": "",
+                                "vendor": "",
+                                "productType": "",
+                                "tags": [],
+                                "totalInventory": 0,
+                                "tracksInventory": false,
+                                "variants": { "nodes": [] }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": has_next_page,
+                                "hasPreviousPage": after.is_some(),
+                                "startCursor": end_cursor,
+                                "endCursor": end_cursor
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageBoundedCatalogProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Alpha staged" } }),
+    ));
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BoundedLiveHybridProductPage {
+          products(first: 1, sortKey: TITLE) {
+            nodes { title }
+            pageInfo { hasNextPage }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["products"]["nodes"],
+        json!([{ "title": "Alpha staged" }])
+    );
+    assert_eq!(
+        read.body["data"]["products"]["pageInfo"]["hasNextPage"],
+        true
+    );
+
+    let calls = calls.lock().unwrap();
+    assert_eq!(
+        calls.len(),
+        1,
+        "serving first: 1 must not traverse every upstream catalog page"
+    );
+    let upstream_request: Value = serde_json::from_str(&calls[0]).unwrap();
+    assert!(
+        upstream_request.pointer("/variables/first").and_then(Value::as_u64) <= Some(3),
+        "the upstream window should be page size + staged impact + one lookahead: {upstream_request}"
+    );
+}
+
+#[test]
 fn live_hybrid_product_catalog_overlays_staged_create_update_and_delete() {
     let update_id = "gid://shopify/Product/upstream-update";
     let delete_id = "gid://shopify/Product/upstream-delete";
@@ -10045,6 +10175,7 @@ fn live_hybrid_product_catalog_overlays_staged_create_update_and_delete() {
             let calls = Arc::clone(&calls);
             move |request| {
                 calls.lock().unwrap().push(request.body.clone());
+                let request_body: Value = serde_json::from_str(&request.body).unwrap();
                 let body = if request
                     .body
                     .contains("DraftProxyProductSavedSearchHydration")
@@ -10059,61 +10190,105 @@ fn live_hybrid_product_catalog_overlays_staged_create_update_and_delete() {
                             }
                         }
                     })
-                } else if request.body.contains("DraftProxyProductCatalogHydration") {
-                    let request_body: Value = serde_json::from_str(&request.body).unwrap();
-                    let after = request_body.pointer("/variables/after");
-                    let upstream_products = upstream_products_for_transport
+                } else if request.body.contains("DraftProxyProductCatalogWindow") {
+                    let query = request_body
+                        .pointer("/variables/query")
+                        .and_then(Value::as_str);
+                    let mut nodes = upstream_products_for_transport
                         .as_array()
-                        .expect("upstream products should be an array");
-                    let (nodes, has_next_page, end_cursor) = if after == Some(&Value::Null) {
-                        (
-                            upstream_products[..2].to_vec(),
-                            true,
-                            Some("catalog-page-1"),
-                        )
-                    } else {
-                        (upstream_products[2..].to_vec(), false, None::<&str>)
-                    };
+                        .expect("upstream products should be an array")
+                        .iter()
+                        .filter(|product| {
+                            !query.is_some_and(|query| query.contains("tag:overlay"))
+                                || product["tags"]
+                                    .as_array()
+                                    .is_some_and(|tags| tags.iter().any(|tag| tag == "overlay-tag"))
+                        })
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    nodes.sort_by(|left, right| {
+                        left["title"]
+                            .as_str()
+                            .unwrap_or_default()
+                            .cmp(right["title"].as_str().unwrap_or_default())
+                    });
+                    if request_body
+                        .pointer("/variables/reverse")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false)
+                    {
+                        nodes.reverse();
+                    }
+                    let after = request_body
+                        .pointer("/variables/after")
+                        .and_then(Value::as_str);
+                    let start = after
+                        .and_then(|after| {
+                            nodes.iter().position(|node| {
+                                format!("cursor:{}", node["id"].as_str().unwrap_or_default())
+                                    == after
+                            })
+                        })
+                        .map(|index| index + 1)
+                        .unwrap_or(0);
+                    let first = request_body
+                        .pointer("/variables/first")
+                        .and_then(Value::as_u64)
+                        .unwrap_or(50) as usize;
+                    let page = nodes
+                        .iter()
+                        .skip(start)
+                        .take(first)
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    let edges = page
+                        .iter()
+                        .map(|node| {
+                            json!({
+                                "cursor": format!(
+                                    "cursor:{}",
+                                    node["id"].as_str().unwrap_or_default()
+                                ),
+                                "node": node,
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    let end_cursor = edges
+                        .last()
+                        .and_then(|edge| edge["cursor"].as_str())
+                        .map(str::to_string);
                     json!({
                         "data": {
                             "products": {
-                                "nodes": nodes,
+                                "edges": edges,
                                 "pageInfo": {
-                                    "hasNextPage": has_next_page,
+                                    "hasNextPage": start + page.len() < nodes.len(),
+                                    "hasPreviousPage": start > 0,
+                                    "startCursor": edges
+                                        .first()
+                                        .and_then(|edge| edge["cursor"].as_str()),
                                     "endCursor": end_cursor
                                 }
                             }
                         }
                     })
+                } else if request.body.contains("DraftProxyProductCatalogCount") {
+                    let query = request_body
+                        .pointer("/variables/query")
+                        .and_then(Value::as_str);
+                    let count = if query.is_some_and(|query| query.contains("tag:overlay")) {
+                        0
+                    } else {
+                        3
+                    };
+                    json!({
+                        "data": {
+                            "productsCount": { "count": count, "precision": "EXACT" }
+                        }
+                    })
                 } else {
                     json!({
                         "data": {
-                            "catalog": {
-                                "nodes": [
-                                    {
-                                        "id": update_id,
-                                        "title": "Alpha original",
-                                        "handle": "alpha-original",
-                                        "tags": ["upstream"]
-                                    },
-                                    {
-                                        "id": delete_id,
-                                        "title": "Delete upstream",
-                                        "handle": "delete-upstream",
-                                        "tags": ["upstream"]
-                                    },
-                                    {
-                                        "id": unrelated_id,
-                                        "title": "Zulu unrelated",
-                                        "handle": "zulu-unrelated",
-                                        "tags": ["upstream"]
-                                    }
-                                ]
-                            },
-                            "total": { "count": 3, "precision": "EXACT" },
-                            "afterUpdated": { "nodes": [] },
-                            "overlayMatches": { "nodes": [] },
-                            "overlayCount": { "count": 0, "precision": "EXACT" },
                             "unobserved": {
                                 "id": "gid://shopify/Product/unobserved-sibling",
                                 "title": "Unobserved sibling"
@@ -10196,16 +10371,17 @@ fn live_hybrid_product_catalog_overlays_staged_create_update_and_delete() {
 
     let catalog = proxy.process_request(json_graphql_request(
         r#"
-        query LiveHybridProductOverlayRead($after: String!, $savedSearchId: ID!) {
+        query LiveHybridProductOverlayRead($savedSearchId: ID!) {
           catalog: products(first: 10, sortKey: TITLE) {
             nodes { id title handle tags }
           }
           total: productsCount(limit: 2) { count precision }
-          afterUpdated: products(first: 1, after: $after, sortKey: TITLE) {
-            nodes { id title }
-          }
           overlayMatches: products(first: 1, query: "tag:overlay", sortKey: TITLE, reverse: true) {
             nodes { id title }
+          }
+          firstPage: products(first: 1, query: "tag:overlay", sortKey: TITLE) {
+            nodes { id title }
+            pageInfo { hasNextPage endCursor }
           }
           overlayCount: productsCount(query: "tag:overlay") { count precision }
           savedSearchMatches: products(first: 10, savedSearchId: $savedSearchId, sortKey: TITLE) {
@@ -10217,7 +10393,7 @@ fn live_hybrid_product_catalog_overlays_staged_create_update_and_delete() {
           }
         }
         "#,
-        json!({ "after": update_id, "savedSearchId": saved_search_id }),
+        json!({ "savedSearchId": saved_search_id }),
     ));
 
     assert_eq!(catalog.status, 200, "catalog response: {}", catalog.body);
@@ -10249,8 +10425,12 @@ fn live_hybrid_product_catalog_overlays_staged_create_update_and_delete() {
         json!({ "count": 2, "precision": "AT_LEAST" })
     );
     assert_eq!(
-        catalog.body["data"]["afterUpdated"]["nodes"],
-        json!([{ "id": created_id, "title": "Bravo created" }])
+        catalog.body["data"]["firstPage"]["nodes"],
+        json!([{ "id": update_id, "title": "Alpha updated" }])
+    );
+    assert_eq!(
+        catalog.body["data"]["firstPage"]["pageInfo"]["hasNextPage"],
+        true
     );
     assert_eq!(
         catalog.body["data"]["overlayMatches"]["nodes"],
@@ -10275,14 +10455,18 @@ fn live_hybrid_product_catalog_overlays_staged_create_update_and_delete() {
         }),
         "an unobserved singular sibling should merge upstream without bypassing the local catalog overlay"
     );
+    let first_page_cursor = catalog.body["data"]["firstPage"]["pageInfo"]["endCursor"]
+        .as_str()
+        .expect("the first effective page should expose a continuation cursor")
+        .to_string();
     let recorded_calls = calls.lock().unwrap();
     assert_eq!(
         recorded_calls
             .iter()
-            .filter(|body| body.contains("DraftProxyProductCatalogHydration"))
+            .filter(|body| body.contains("DraftProxyProductCatalogWindow"))
             .count(),
-        2,
-        "catalog roots should share one complete paginated upstream hydration"
+        4,
+        "each product root should fetch only its own bounded upstream candidate window"
     );
     assert_eq!(
         recorded_calls
@@ -10294,29 +10478,34 @@ fn live_hybrid_product_catalog_overlays_staged_create_update_and_delete() {
     );
     drop(recorded_calls);
 
-    let cached_page = proxy.process_request(json_graphql_request(
+    let second_page = proxy.process_request(json_graphql_request(
         r#"
-        query LiveHybridProductOverlayCachedPage {
-          products(first: 1, query: "tag:overlay", sortKey: TITLE, reverse: true) {
+        query LiveHybridProductOverlaySecondPage($after: String!) {
+          products(first: 1, after: $after, query: "tag:overlay", sortKey: TITLE) {
             nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage }
           }
         }
         "#,
-        json!({}),
+        json!({ "after": first_page_cursor }),
     ));
     assert_eq!(
-        cached_page.body["data"]["products"]["nodes"],
+        second_page.body["data"]["products"]["nodes"],
         json!([{ "id": created_id, "title": "Bravo created" }])
+    );
+    assert_eq!(
+        second_page.body["data"]["products"]["pageInfo"],
+        json!({ "hasNextPage": false, "hasPreviousPage": true })
     );
     assert_eq!(
         calls
             .lock()
             .unwrap()
             .iter()
-            .filter(|body| body.contains("DraftProxyProductCatalogHydration"))
+            .filter(|body| body.contains("DraftProxyProductCatalogWindow"))
             .count(),
-        2,
-        "a later page over the same overlay should reuse the complete hydrated base"
+        5,
+        "the continuation should resume from encoded upstream/staged state with one bounded call"
     );
 }
 

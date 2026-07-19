@@ -1,0 +1,6 @@
+query DraftProxyProductCatalogCount($query: String) {
+  productsCount(query: $query) {
+    count
+    precision
+  }
+}

@@ -108,5 +108,5 @@
       }
     ]
   },
-  "notes": "Live Shopify capture records the exact pre-mutation product catalog, product-node, and PRODUCT saved-search hydrates used by LiveHybrid. Public productCreate/productUpdate/productDelete requests are replayed locally before strict effective-catalog comparisons cover create/update/delete precedence, unrelated retention, search, title sort, reverse, cursor windowing, saved searches, count deltas, and limited-count precision."
+  "notes": "Live Shopify capture records the exact pre-mutation bounded product windows, filtered counts, product-node hydrates, and PRODUCT saved-search hydrate used by LiveHybrid. Public productCreate/productUpdate/productDelete requests are replayed locally before strict effective-catalog comparisons cover create/update/delete precedence, unrelated retention, search, title sort, reverse, cursor windowing, saved searches, count deltas, and limited-count precision without a full-catalog scan."
 }

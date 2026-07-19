@@ -1,0 +1,87 @@
+query DraftProxyProductCatalogWindow(
+  $first: Int!
+  $after: String
+  $query: String
+  $sortKey: ProductSortKeys
+  $reverse: Boolean
+) {
+  products(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {
+    edges {
+      cursor
+      node {
+        id
+        legacyResourceId
+        title
+        handle
+        status
+        createdAt
+        updatedAt
+        publishedAt
+        descriptionHtml
+        vendor
+        productType
+        tags
+        templateSuffix
+        totalInventory
+        tracksInventory
+        isGiftCard
+        requiresSellingPlan
+        giftCardTemplateSuffix
+        onlineStorePreviewUrl
+        hasOnlyDefaultVariant
+        hasOutOfStockVariants
+        totalVariants
+        seo {
+          title
+          description
+        }
+        category {
+          id
+          fullName
+        }
+        options {
+          id
+          name
+          position
+          values
+        }
+        variants(first: 25) {
+          nodes {
+            id
+            title
+            sku
+            barcode
+            price
+            compareAtPrice
+            taxable
+            inventoryPolicy
+            inventoryQuantity
+            position
+            selectedOptions {
+              name
+              value
+            }
+            inventoryItem {
+              id
+              tracked
+              requiresShipping
+            }
+          }
+        }
+        collections(first: 10) {
+          nodes {
+            id
+            title
+            handle
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

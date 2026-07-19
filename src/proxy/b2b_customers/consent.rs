@@ -5,7 +5,7 @@ use super::*;
 /// mode. Mirrors the per-resource hydrate queries; the count is cached into
 /// `customers_count_base` so subsequent reads track deletions generically.
 const CUSTOMER_COUNT_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/customers/customer-count-hydrate.graphql");
+    include_str!("../../runtime_graphql/customers/customer-count-hydrate.graphql.raw");
 
 impl DraftProxy {
     /// `customerAddTaxExemptions` / `customerRemoveTaxExemptions` /
