@@ -38,12 +38,17 @@ created or observed inside the current proxy session. Successful
 `SellingPlan` records without runtime Shopify writes, while retaining the
 original raw mutations for commit replay.
 
-In LiveHybrid, cold `sellingPlanGroup(id:)` reads and
-`sellingPlanGroups(...)` connection reads hydrate observed upstream groups with
-read-only Admin GraphQL queries before local projection. The local response is
-then rendered from the observed group plus staged effects, so later local
-updates, deletes, and membership changes are visible on downstream
-selling-plan reads without sending caller mutations to Shopify.
+In LiveHybrid, cold `sellingPlanGroup(id:)` reads hydrate observed upstream
+groups with read-only Admin GraphQL queries before local projection. An
+unmodified `sellingPlanGroups(...)` page is returned from Shopify unchanged,
+including opaque edge cursors and `pageInfo`. When staged group state affects
+the catalog, the proxy exhausts a filtered/sorted upstream baseline without the
+caller's window arguments, hydrates every selected group's product and direct
+variant membership pages, and applies the caller's window once after merging
+the local overlay. Relationship counts are calculated only after those bounded
+upstream connections, including each product's variant pages, are complete.
+Later local updates, deletes, and membership changes are therefore visible on
+downstream selling-plan reads without sending caller mutations to Shopify.
 
 `sellingPlanGroupCreate` persists nullable `input.appId` on the staged group,
 and `sellingPlanGroupUpdate` changes or clears `appId` when the input includes
@@ -153,10 +158,10 @@ without a runtime Shopify write or a separate Storefront-only plan store.
 ### Boundaries
 
 Support is scoped to local staged groups, LiveHybrid-observed groups, and
-locally known or preflight-observed product/variant resources. A
-`sellingPlanGroups(...)` read hydrates the upstream page selected by that read;
-it does not materialize the shop's entire selling-plan catalog unless the
-caller pages through it. The proxy does not claim full upstream parity for every
+locally known or preflight-observed product/variant resources. LiveHybrid only
+materializes the complete selling-plan catalog when a staged overlay requires
+local filtering, sorting, or windowing; pass-through pages remain authoritative.
+The proxy does not claim full upstream parity for every
 `SellingPlanGroupInput` field or selling-plan policy variant.
 
 Generic `node(id:)` / `nodes(ids:)` readback for selling-plan group and nested

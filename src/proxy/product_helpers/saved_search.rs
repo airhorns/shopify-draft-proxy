@@ -11,15 +11,46 @@ impl DraftProxy {
         debug_assert_eq!(invocation.operation.operation_type, OperationType::Query);
         let api_client_id = saved_search_request_api_client_id(invocation.request);
         if self.config.read_mode == ReadMode::LiveHybrid {
+            let resource_type = saved_search_resource_type(invocation.root_name);
+            let has_overlay = self.store.has_saved_search_overlay(resource_type);
             let mut outcome = self.cached_or_forward_upstream_root_outcome(
                 invocation.request,
                 invocation.response_key,
             );
             if outcome.errors.is_empty() {
+                if !has_overlay {
+                    self.observe_saved_search_connection(
+                        invocation.root_name,
+                        &api_client_id,
+                        &outcome.value,
+                    );
+                    return outcome;
+                }
+                let (query, variables) = saved_search_complete_baseline_request(
+                    invocation.root_name,
+                    &invocation.arguments,
+                );
+                let baseline = self
+                    .complete_upstream_connection(
+                        invocation.request,
+                        &query,
+                        "SavedSearchConnectionBaseline",
+                        variables,
+                        "/data/savedSearchBaseline",
+                        None,
+                    )
+                    .or_else(|| {
+                        let arguments = resolved_arguments_from_json(&invocation.arguments);
+                        upstream_page_is_complete_baseline(&outcome.value, &arguments)
+                            .then(|| outcome.value.clone())
+                    });
+                let Some(baseline) = baseline else {
+                    return outcome;
+                };
                 self.observe_saved_search_connection(
                     invocation.root_name,
                     &api_client_id,
-                    &outcome.value,
+                    &baseline,
                 );
                 outcome.value = self.saved_search_connection_value(
                     invocation.root_name,
@@ -63,11 +94,19 @@ impl DraftProxy {
         connection: &Value,
     ) {
         let resource_type = saved_search_resource_type(root_name);
-        for node in connection_nodes(connection) {
-            let Some(record) = saved_search_record_from_node(&node, resource_type, api_client_id)
+        for row in observed_connection_rows(connection) {
+            let Some(mut record) =
+                saved_search_record_from_node(&row.node, resource_type, api_client_id)
             else {
                 continue;
             };
+            record.cursor = row.cursor.or_else(|| {
+                self.store
+                    .saved_searches
+                    .base
+                    .get(&record.id)
+                    .and_then(|existing| existing.cursor.clone())
+            });
             if !self.store.saved_searches.staged.is_tombstoned(&record.id) {
                 self.store
                     .saved_searches
@@ -99,45 +138,13 @@ impl DraftProxy {
         {
             records.reverse();
         }
-        let mut has_previous_page = false;
-        if let Some(after) = arguments.get("after").and_then(Value::as_str) {
-            if let Some(index) = records
-                .iter()
-                .position(|record| saved_search_cursor(record) == after)
-            {
-                records = records.into_iter().skip(index + 1).collect();
-                has_previous_page = true;
-            }
-        }
-        let total_after_cursor = records.len();
-        let limit = arguments
-            .get("first")
-            .and_then(Value::as_i64)
-            .filter(|value| *value >= 0)
-            .map(|value| value as usize);
-        let mut has_next_page = false;
-        if let Some(limit) = limit {
-            has_next_page = total_after_cursor > limit;
-            records.truncate(limit);
-        }
-        let page_info = connection_page_info(
-            has_next_page,
-            has_previous_page,
-            records.first().map(saved_search_cursor),
-            records.last().map(saved_search_cursor),
-        );
-        let nodes = records
-            .iter()
-            .map(|record| saved_search_full_value(record, api_client_id))
-            .collect::<Vec<_>>();
-        connection_json_with_cursor(
-            nodes,
-            |_, node| {
-                format!(
-                    "cursor:{}",
-                    node.get("id").and_then(Value::as_str).unwrap_or_default()
-                )
-            },
+        let resolved_arguments = resolved_arguments_from_json(arguments);
+        let (records, page_info) =
+            connection_window(&records, &resolved_arguments, saved_search_cursor);
+        typed_connection_value(
+            &records,
+            |record| saved_search_full_value(record, api_client_id),
+            saved_search_cursor,
             page_info,
         )
     }
@@ -187,6 +194,7 @@ impl DraftProxy {
         let id = self.next_proxy_synthetic_gid("SavedSearch");
         let record = SavedSearchRecord {
             id: id.clone(),
+            cursor: None,
             name: name.to_string(),
             query: normalize_saved_search_query_for_api_client(search_query, api_client_id),
             resource_type: resource_type.to_string(),
@@ -461,6 +469,10 @@ pub(in crate::proxy) fn saved_search_state_map_from_json(
 pub(in crate::proxy) fn saved_search_state_from_json(value: &Value) -> Option<SavedSearchRecord> {
     Some(SavedSearchRecord {
         id: value.get("id")?.as_str()?.to_string(),
+        cursor: value
+            .get("cursor")
+            .and_then(Value::as_str)
+            .map(str::to_string),
         name: value.get("name")?.as_str()?.to_string(),
         query: value.get("query")?.as_str()?.to_string(),
         resource_type: value.get("resourceType")?.as_str()?.to_string(),
@@ -479,6 +491,7 @@ pub(in crate::proxy) fn saved_search_record_from_node(
         .unwrap_or_default();
     Some(SavedSearchRecord {
         id: node.get("id")?.as_str()?.to_string(),
+        cursor: None,
         name: node.get("name")?.as_str()?.to_string(),
         query,
         resource_type: node
@@ -490,12 +503,16 @@ pub(in crate::proxy) fn saved_search_record_from_node(
 }
 
 pub(in crate::proxy) fn saved_search_state_json(record: &SavedSearchRecord) -> Value {
-    json!({
+    let mut value = json!({
         "id": record.id,
         "name": record.name,
         "query": record.query,
         "resourceType": record.resource_type
-    })
+    });
+    if let Some(cursor) = &record.cursor {
+        value["cursor"] = json!(cursor);
+    }
+    value
 }
 
 pub(in crate::proxy) fn saved_search_name_taken_user_error() -> Value {
@@ -798,6 +815,35 @@ pub(in crate::proxy) fn is_reserved_saved_search_name(resource_type: &str, name:
         .any(|reserved_name| normalized == *reserved_name)
 }
 
+fn saved_search_complete_baseline_request(
+    root_name: &str,
+    arguments: &BTreeMap<String, Value>,
+) -> (String, serde_json::Map<String, Value>) {
+    let supports_query = !matches!(
+        root_name,
+        "automaticDiscountSavedSearches" | "codeDiscountSavedSearches"
+    );
+    let query_argument = supports_query
+        .then(|| arguments.get("query").and_then(Value::as_str))
+        .flatten();
+    let (query_definition, query_call) = if query_argument.is_some() {
+        (", $query: String", ", query: $query")
+    } else {
+        ("", "")
+    };
+    let document = format!(
+        "query SavedSearchConnectionBaseline($first: Int!, $after: String{query_definition}) {{\n  savedSearchBaseline: {root_name}(first: $first, after: $after{query_call}) {{\n    edges {{ cursor node {{ id name query resourceType }} }}\n    pageInfo {{ hasNextPage hasPreviousPage startCursor endCursor }}\n  }}\n}}"
+    );
+    let mut variables = serde_json::Map::from_iter([
+        ("first".to_string(), json!(250)),
+        ("after".to_string(), Value::Null),
+    ]);
+    if let Some(query) = query_argument {
+        variables.insert("query".to_string(), json!(query));
+    }
+    (document, variables)
+}
+
 pub(in crate::proxy) fn saved_search_resource_type(root: &str) -> &'static str {
     match root {
         "automaticDiscountSavedSearches" => "PRICE_RULE",
@@ -896,6 +942,7 @@ pub(in crate::proxy) fn saved_search_record(
 ) -> SavedSearchRecord {
     SavedSearchRecord {
         id: id.to_string(),
+        cursor: None,
         name: name.to_string(),
         query: query.to_string(),
         resource_type: resource_type.to_string(),
@@ -917,7 +964,10 @@ pub(in crate::proxy) fn default_saved_search_record(
 }
 
 pub(in crate::proxy) fn saved_search_cursor(record: &SavedSearchRecord) -> String {
-    format!("cursor:{}", record.id)
+    record
+        .cursor
+        .clone()
+        .unwrap_or_else(|| format!("cursor:{}", record.id))
 }
 
 pub(in crate::proxy) fn saved_search_legacy_resource_id(id: &str) -> String {

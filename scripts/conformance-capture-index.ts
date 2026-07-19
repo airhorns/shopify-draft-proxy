@@ -1018,6 +1018,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'The nested rejection has no returned company ID, so empty read-after-write evidence uses a companies query by the rejected company name.',
   },
   {
+    domain: 'admin-platform',
+    captureId: 'connection-overlay-windowing',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-connection-overlay-windowing-conformance.ts',
+    purpose:
+      'Complete saved-search, Files API, and selling-plan-group connection payloads across first/reverse, after, last/before, and staged-delete windows.',
+    requiredAuthScopes: ['read_files', 'write_files', 'read_products', 'write_products', 'write_purchase_options'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}connection-overlay-windowing.json`,
+      'config/parity-specs/admin-platform/connection-overlay-windowing.json',
+      'config/parity-requests/admin-platform/connection-overlay-windowing-saved-search-create.graphql',
+      'config/parity-requests/admin-platform/connection-overlay-windowing-file-create.graphql',
+      'config/parity-requests/admin-platform/connection-overlay-windowing-selling-plan-group-create.graphql',
+      'config/parity-requests/admin-platform/connection-overlay-windowing-full-read.graphql',
+      'config/parity-requests/admin-platform/connection-overlay-windowing-after-delete-read.graphql',
+      'config/parity-requests/admin-platform/connection-overlay-windowing-after-read.graphql',
+      'config/parity-requests/admin-platform/connection-overlay-windowing-before-read.graphql',
+      'config/parity-requests/admin-platform/connection-overlay-windowing-delete.graphql',
+    ],
+    cleanupBehavior:
+      'Deletes existing disposable product saved searches, creates two saved searches/files/selling-plan groups, deletes the second set during capture, and deletes the first set in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'products',
     scriptPath: 'scripts/capture-product-conformance.mts',
