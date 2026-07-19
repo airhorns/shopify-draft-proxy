@@ -134,6 +134,426 @@ fn order_create_uses_shop_currency_but_preserves_presentment_currency() {
     );
 }
 
+#[test]
+fn generic_node_resolves_staged_order_payment_graph_records() {
+    let mut proxy = snapshot_proxy();
+
+    let create_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOrderPaymentNodeProbe($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              note
+              lineItems(first: 5) { nodes { id title quantity } }
+              transactions { id kind status gateway }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "order-payment-node@example.test",
+                "currency": "USD",
+                "note": "Before node update",
+                "lineItems": [{
+                    "title": "Node line",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "15.00", "currencyCode": "USD" } }
+                }],
+                "transactions": [{
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "30.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create_order.status, 200);
+    assert_eq!(
+        create_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let order_id = create_order.body["data"]["orderCreate"]["order"]["id"].clone();
+    let line_item_id =
+        create_order.body["data"]["orderCreate"]["order"]["lineItems"]["nodes"][0]["id"].clone();
+    let auth_transaction_id =
+        create_order.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateOrderNodeProbe($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { id note }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": order_id, "note": "After node update" } }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["orderUpdate"]["userErrors"], json!([]));
+
+    let payment_terms = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOrderNodePaymentTerms($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {
+          paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
+            paymentTerms {
+              id
+              due
+              overdue
+              paymentTermsName
+              paymentSchedules(first: 5) {
+                nodes { id dueAt due amount { amount currencyCode } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "referenceId": order_id,
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+                "paymentSchedules": [{ "dueAt": "2026-07-03T00:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(payment_terms.status, 200);
+    assert_eq!(
+        payment_terms.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
+    );
+    let payment_terms_id =
+        payment_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone();
+    let payment_schedule_id = payment_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]
+        ["paymentSchedules"]["nodes"][0]["id"]
+        .clone();
+
+    let capture = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"
+        ),
+        json!({
+            "input": {
+                "id": order_id,
+                "parentTransactionId": auth_transaction_id,
+                "amount": "30.00",
+                "currency": "USD"
+            }
+        }),
+    ));
+    assert_eq!(capture.status, 200);
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["userErrors"],
+        json!([])
+    );
+    let capture_transaction_id = capture.body["data"]["orderCapture"]["transaction"]["id"].clone();
+
+    let refund = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RefundOrderNodeProbe($input: RefundInput!) {
+          refundCreate(input: $input) {
+            refund {
+              id
+              totalRefundedSet { shopMoney { amount currencyCode } }
+              refundLineItems(first: 5) { nodes { id quantity lineItem { id } } }
+              transactions(first: 5) { nodes { id kind status gateway } }
+            }
+            order { id displayFinancialStatus }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "orderId": order_id,
+                "refundLineItems": [{
+                    "lineItemId": line_item_id,
+                    "quantity": 1,
+                    "restockType": "RETURN"
+                }],
+                "transactions": [{
+                    "parentId": capture_transaction_id,
+                    "kind": "REFUND",
+                    "amount": "15.00"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(refund.status, 200);
+    assert_eq!(refund.body["data"]["refundCreate"]["userErrors"], json!([]));
+    let refund_id = refund.body["data"]["refundCreate"]["refund"]["id"].clone();
+    let refund_transaction_id =
+        refund.body["data"]["refundCreate"]["refund"]["transactions"]["nodes"][0]["id"].clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadOrderPaymentGraphNodes($ids: [ID!]!) {
+          duplicateAndMissing: nodes(ids: $ids) {
+            __typename
+            ... on Order {
+              id
+              note
+              paymentTerms {
+                id
+                due
+                paymentSchedules(first: 5) { nodes { id due } }
+              }
+            }
+            ... on LineItem { id title quantity }
+            ... on OrderTransaction {
+              id
+              kind
+              status
+              gateway
+              parentTransaction { id kind status }
+            }
+            ... on Refund {
+              id
+              totalRefundedSet { shopMoney { amount currencyCode } }
+              transactions(first: 5) { nodes { id kind status } }
+            }
+            ... on PaymentTerms {
+              id
+              due
+              overdue
+              paymentTermsName
+              paymentSchedules(first: 5) { nodes { id due } }
+            }
+            ... on PaymentSchedule {
+              id
+              dueAt
+              due
+              amount { amount currencyCode }
+              paymentTerms { id due }
+            }
+          }
+        }
+        "#,
+        json!({
+            "ids": [
+                order_id,
+                line_item_id,
+                line_item_id,
+                auth_transaction_id,
+                capture_transaction_id,
+                refund_id,
+                refund_transaction_id,
+                payment_terms_id,
+                payment_schedule_id,
+                "gid://shopify/LineItem/does-not-exist",
+                "gid://shopify/Product/does-not-exist"
+            ]
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    let nodes = read.body["data"]["duplicateAndMissing"].as_array().unwrap();
+    assert_eq!(nodes[0]["__typename"], json!("Order"));
+    assert_eq!(nodes[0]["note"], json!("After node update"));
+    assert_eq!(nodes[0]["paymentTerms"]["id"], payment_terms_id);
+    assert_eq!(nodes[1]["__typename"], json!("LineItem"));
+    assert_eq!(nodes[1]["title"], json!("Node line"));
+    assert_eq!(nodes[2], nodes[1], "nodes(ids:) should preserve duplicates");
+    assert_eq!(nodes[3]["__typename"], json!("OrderTransaction"));
+    assert_eq!(nodes[3]["kind"], json!("AUTHORIZATION"));
+    assert_eq!(nodes[4]["kind"], json!("CAPTURE"));
+    assert_eq!(nodes[5]["__typename"], json!("Refund"));
+    assert_eq!(
+        nodes[5]["transactions"]["nodes"][0]["id"],
+        refund_transaction_id
+    );
+    assert_eq!(nodes[6]["kind"], json!("REFUND"));
+    assert_eq!(nodes[7]["__typename"], json!("PaymentTerms"));
+    assert_eq!(
+        nodes[7]["paymentSchedules"]["nodes"][0]["id"],
+        payment_schedule_id
+    );
+    assert_eq!(nodes[8]["__typename"], json!("PaymentSchedule"));
+    assert_eq!(nodes[8]["paymentTerms"]["id"], payment_terms_id);
+    assert_eq!(nodes[9], Value::Null);
+    assert_eq!(nodes[10], Value::Null);
+}
+
+#[test]
+fn generic_node_resolves_draft_and_order_edit_records_across_restore_and_reset() {
+    let mut proxy = snapshot_proxy();
+
+    let create_draft = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftOrderNodeProbe($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              email
+              lineItems(first: 5) { nodes { id title quantity } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "draft-node@example.test",
+                "lineItems": [{
+                    "title": "Draft node line",
+                    "quantity": 3,
+                    "originalUnitPrice": "7.00"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create_draft.status, 200);
+    assert_eq!(
+        create_draft.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_id = create_draft.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+    let draft_line_id = create_draft.body["data"]["draftOrderCreate"]["draftOrder"]["lineItems"]
+        ["nodes"][0]["id"]
+        .clone();
+
+    let create_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateEditableOrderNodeProbe($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              lineItems(first: 5) {
+                nodes {
+                  id
+                  title
+                  quantity
+                  originalUnitPriceSet { shopMoney { amount currencyCode } }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "edit-node@example.test",
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Editable node line",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create_order.status, 200);
+    assert_eq!(
+        create_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let order_id = create_order.body["data"]["orderCreate"]["order"]["id"].clone();
+    let begin = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BeginOrderEditNodeProbe($id: ID!) {
+          orderEditBegin(id: $id) {
+            calculatedOrder {
+              id
+              originalOrder { id }
+              lineItems(first: 5) { nodes { id title quantity } }
+              subtotalLineItemsQuantity
+            }
+            orderEditSession { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(begin.status, 200);
+    assert_eq!(
+        begin.body["data"]["orderEditBegin"]["userErrors"],
+        json!([])
+    );
+    let calculated_order_id = begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+    let session_id = begin.body["data"]["orderEditBegin"]["orderEditSession"]["id"].clone();
+
+    let read_nodes_query = r#"
+        query ReadDraftAndEditNodes($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on DraftOrder { id email lineItems(first: 5) { nodes { id title quantity } } }
+            ... on DraftOrderLineItem { id title quantity }
+            ... on CalculatedOrder {
+              id
+              originalOrder { id }
+              lineItems(first: 5) { nodes { id title quantity } }
+              subtotalLineItemsQuantity
+            }
+            ... on OrderEditSession { id }
+          }
+        }
+    "#;
+    let read_variables = json!({
+        "ids": [
+            draft_id,
+            draft_line_id,
+            calculated_order_id,
+            session_id,
+            "gid://shopify/DraftOrderLineItem/does-not-exist"
+        ]
+    });
+    let read = proxy.process_request(json_graphql_request(
+        read_nodes_query,
+        read_variables.clone(),
+    ));
+    assert_eq!(read.status, 200);
+    let nodes = read.body["data"]["nodes"].as_array().unwrap();
+    assert_eq!(nodes[0]["__typename"], json!("DraftOrder"));
+    assert_eq!(nodes[0]["lineItems"]["nodes"][0]["id"], draft_line_id);
+    assert_eq!(nodes[1]["__typename"], json!("DraftOrderLineItem"));
+    assert_eq!(nodes[1]["title"], json!("Draft node line"));
+    assert_eq!(nodes[2]["__typename"], json!("CalculatedOrder"));
+    assert_eq!(nodes[2]["originalOrder"]["id"], order_id);
+    assert_eq!(nodes[3]["__typename"], json!("OrderEditSession"));
+    assert_eq!(nodes[4], Value::Null);
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_read = restored.process_request(json_graphql_request(
+        read_nodes_query,
+        read_variables.clone(),
+    ));
+    assert_eq!(restored_read.status, 200);
+    assert_eq!(
+        restored_read.body["data"]["nodes"],
+        read.body["data"]["nodes"]
+    );
+
+    let reset = restored.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let after_reset =
+        restored.process_request(json_graphql_request(read_nodes_query, read_variables));
+    assert_eq!(after_reset.status, 200);
+    assert_eq!(
+        after_reset.body["data"]["nodes"],
+        json!([
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null
+        ])
+    );
+}
+
 fn stage_fulfillment_for_event(proxy: &mut DraftProxy) -> (Value, Value) {
     let create_order = proxy.process_request(json_graphql_request(
         r#"

@@ -2060,6 +2060,41 @@ impl DraftProxy {
         })
     }
 
+    pub(in crate::proxy) fn staged_calculated_order_record_for_id(
+        &self,
+        calculated_order_id: &str,
+    ) -> Option<Value> {
+        if self
+            .store
+            .staged
+            .order_edit_existing_calculated_order_id
+            .as_deref()
+            != Some(calculated_order_id)
+        {
+            return None;
+        }
+        self.store
+            .staged
+            .order_edit_existing_calculated_order
+            .as_ref()
+            .map(oe_calc_order_view)
+    }
+
+    pub(in crate::proxy) fn staged_order_edit_session_record_for_id(
+        &self,
+        session_id: &str,
+    ) -> Option<Value> {
+        let session = self
+            .store
+            .staged
+            .order_edit_existing_calculated_order
+            .as_ref()?;
+        if session.get("sessionId").and_then(Value::as_str) != Some(session_id) {
+            return None;
+        }
+        Some(json!({ "id": session_id }))
+    }
+
     pub(super) fn order_id_for_fulfillment_order(
         &mut self,
         fulfillment_order_id: &str,

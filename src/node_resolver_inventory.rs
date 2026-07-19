@@ -59,6 +59,11 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
+        "CalculatedOrder",
+        "DraftProxy::order_payment_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
         "CartTransform",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
@@ -124,6 +129,16 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
+        "DraftOrder",
+        "DraftProxy::order_payment_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "DraftOrderLineItem",
+        "DraftProxy::order_payment_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
         "ExternalVideo",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
@@ -141,6 +156,11 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     entry(
         "GiftCard",
         "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "LineItem",
+        "DraftProxy::order_payment_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
@@ -164,8 +184,38 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
+        "Order",
+        "DraftProxy::order_payment_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "OrderEditSession",
+        "DraftProxy::order_payment_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "OrderTransaction",
+        "DraftProxy::order_payment_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
         "Page",
         "DraftProxy::online_store_content_node_value",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "PaymentMandate",
+        "DraftProxy::order_payment_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "PaymentSchedule",
+        "DraftProxy::order_payment_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "PaymentTerms",
+        "DraftProxy::order_payment_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
@@ -206,6 +256,11 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     entry(
         "ProductVariant",
         "DraftProxy::product_variant_by_id_value",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "Refund",
+        "DraftProxy::order_payment_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(

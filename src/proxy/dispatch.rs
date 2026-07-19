@@ -1023,13 +1023,8 @@ impl DraftProxy {
         if let Some(abandonment) = self.store.staged.abandonments.get(id) {
             return Some(selected_json(abandonment, selection));
         }
-        if shopify_gid_resource_type(id) == Some("Order") {
-            if self.store.staged.orders.is_tombstoned(id) {
-                return Some(Value::Null);
-            }
-            if let Some(order) = self.staged_order_record_for_id(id) {
-                return Some(self.selected_order_with_return_status(&order, selection));
-            }
+        if let Some(value) = self.order_payment_node_value_by_id(id, selection) {
+            return Some(value);
         }
         if let Some(value) = self.app_node_value_by_id(id, selection, request) {
             return Some(value);
@@ -1123,6 +1118,206 @@ impl DraftProxy {
             return Some(value);
         }
         None
+    }
+
+    fn order_payment_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        match shopify_gid_resource_type(id)? {
+            "Order" => {
+                if self.store.staged.orders.is_tombstoned(id) {
+                    return Some(Value::Null);
+                }
+                let order = self.staged_order_record_for_id(id)?;
+                let order = self.payment_terms_owner_record_with_effective_due(&order);
+                Some(self.selected_order_with_return_status(&order, selection))
+            }
+            "DraftOrder" => self.store.staged.draft_orders.get(id).map(|draft_order| {
+                Self::selected_node_json(
+                    self.payment_terms_owner_record_with_effective_due(draft_order),
+                    "DraftOrder",
+                    selection,
+                )
+            }),
+            "CalculatedOrder" => {
+                self.staged_calculated_order_record_for_id(id)
+                    .map(|calculated_order| {
+                        Self::selected_node_json(calculated_order, "CalculatedOrder", selection)
+                    })
+            }
+            "OrderEditSession" => self
+                .staged_order_edit_session_record_for_id(id)
+                .map(|session| Self::selected_node_json(session, "OrderEditSession", selection)),
+            "LineItem" => self
+                .staged_order_line_item_record_for_id(id)
+                .map(|line_item| Self::selected_node_json(line_item, "LineItem", selection)),
+            "DraftOrderLineItem" => {
+                self.staged_draft_order_line_item_record_for_id(id)
+                    .map(|line_item| {
+                        Self::selected_node_json(line_item, "DraftOrderLineItem", selection)
+                    })
+            }
+            "OrderTransaction" => {
+                self.staged_order_transaction_record_for_id(id)
+                    .map(|transaction| {
+                        Self::selected_node_json(transaction, "OrderTransaction", selection)
+                    })
+            }
+            "Refund" => self
+                .staged_refund_record_for_id(id)
+                .map(|refund| Self::selected_node_json(refund, "Refund", selection)),
+            "PaymentTerms" => self
+                .store
+                .staged
+                .payment_terms
+                .get(id)
+                .map(|payment_terms| {
+                    Self::selected_node_json(
+                        self.payment_terms_record_with_owner_context(id, payment_terms),
+                        "PaymentTerms",
+                        selection,
+                    )
+                }),
+            "PaymentSchedule" => self
+                .staged_payment_schedule_record_for_id(id)
+                .map(|schedule| Self::selected_node_json(schedule, "PaymentSchedule", selection)),
+            "PaymentMandate" => self
+                .staged_payment_mandate_record_for_id(id)
+                .map(|mandate| Self::selected_node_json(mandate, "PaymentMandate", selection)),
+            _ => None,
+        }
+    }
+
+    fn staged_order_line_item_record_for_id(&self, id: &str) -> Option<Value> {
+        self.store
+            .staged
+            .orders
+            .values()
+            .find_map(|order| order_line_item_by_id(order, id))
+    }
+
+    fn staged_draft_order_line_item_record_for_id(&self, id: &str) -> Option<Value> {
+        self.store
+            .staged
+            .draft_orders
+            .values()
+            .find_map(|draft_order| {
+                Self::connection_node_by_id(&draft_order["lineItems"], id).or_else(|| {
+                    draft_order["__draftProxyLineItems"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .find(|line_item| line_item.get("id").and_then(Value::as_str) == Some(id))
+                        .cloned()
+                })
+            })
+    }
+
+    fn staged_order_transaction_record_for_id(&self, id: &str) -> Option<Value> {
+        self.store.staged.orders.values().find_map(|order| {
+            order_transaction_by_id(order, id).or_else(|| {
+                order["refunds"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .find_map(|refund| Self::connection_node_by_id(&refund["transactions"], id))
+            })
+        })
+    }
+
+    fn staged_refund_record_for_id(&self, id: &str) -> Option<Value> {
+        self.store
+            .staged
+            .orders
+            .values()
+            .find_map(|order| Self::array_or_connection_node_by_id(&order["refunds"], id))
+    }
+
+    fn staged_payment_schedule_record_for_id(&self, id: &str) -> Option<Value> {
+        self.store
+            .staged
+            .payment_terms
+            .iter()
+            .find_map(|(terms_id, payment_terms)| {
+                let terms = self.payment_terms_record_with_owner_context(terms_id, payment_terms);
+                let mut schedule = Self::connection_node_by_id(&terms["paymentSchedules"], id)?;
+                schedule["paymentTerms"] = terms;
+                Some(schedule)
+            })
+    }
+
+    fn staged_payment_mandate_record_for_id(&self, id: &str) -> Option<Value> {
+        self.store
+            .staged
+            .customer_payment_methods
+            .values()
+            .find_map(|method| Self::connection_node_by_id(&method["mandates"], id))
+    }
+
+    fn payment_terms_record_with_owner_context(
+        &self,
+        terms_id: &str,
+        payment_terms: &Value,
+    ) -> Value {
+        let mut terms =
+            payment_terms_record_with_effective_due(payment_terms, self.current_epoch_seconds());
+        if let Some(owner_id) = self.payment_terms_owner_id_for_node(terms_id) {
+            if is_shopify_gid_of_type(&owner_id, "DraftOrder") {
+                terms["draftOrder"] = self
+                    .store
+                    .staged
+                    .draft_orders
+                    .get(&owner_id)
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                terms["order"] = Value::Null;
+            } else {
+                terms["order"] = self
+                    .store
+                    .staged
+                    .orders
+                    .get(&owner_id)
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                terms["draftOrder"] = Value::Null;
+            }
+        }
+        terms
+    }
+
+    fn payment_terms_owner_id_for_node(&self, terms_id: &str) -> Option<String> {
+        self.store.staged.payment_terms_owner_index.iter().find_map(
+            |(owner_id, staged_terms_id)| (staged_terms_id == terms_id).then(|| owner_id.clone()),
+        )
+    }
+
+    fn selected_node_json(
+        mut record: Value,
+        type_name: &str,
+        selection: &[SelectedField],
+    ) -> Value {
+        if record.get("__typename").is_none() {
+            record["__typename"] = json!(type_name);
+        }
+        selected_json(&record, selection)
+    }
+
+    fn connection_node_by_id(connection: &Value, id: &str) -> Option<Value> {
+        connection_nodes(connection)
+            .into_iter()
+            .find(|node| node.get("id").and_then(Value::as_str) == Some(id))
+    }
+
+    fn array_or_connection_node_by_id(value: &Value, id: &str) -> Option<Value> {
+        value
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|node| node.get("id").and_then(Value::as_str) == Some(id))
+            .cloned()
+            .or_else(|| Self::connection_node_by_id(value, id))
     }
 
     pub(in crate::proxy) fn observe_nodes_response(&mut self, response: &Response) {
