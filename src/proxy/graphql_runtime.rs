@@ -1172,6 +1172,16 @@ impl DraftProxy {
             return response;
         }
 
+        if let Some(response) = shared_root_response(&resolved_responses)
+            .filter(|response| !(200..300).contains(&response.status))
+        {
+            // A registered read-through resolver still consumes the caller's
+            // authoritative upstream transport. If every resolved root shares
+            // the same failed response, return it before schema projection can
+            // replace the transport error with a non-null execution failure.
+            return response.clone();
+        }
+
         let authoritative_upstream_response =
             shared_root_response(&resolved_responses).filter(|response| {
                 (200..300).contains(&response.status)

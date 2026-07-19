@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-27T15:22:08.954Z",
+  "capturedAt": "2026-07-19T11:40:04.711Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
@@ -525,7 +525,7 @@
             "actualQueryCost": 1,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1994,
+              "currentlyAvailable": 1993,
               "restoreRate": 100
             }
           }
@@ -819,7 +819,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1988,
               "restoreRate": 100
             }
           }
@@ -854,5 +854,159 @@
       }
     }
   },
-  "upstreamCalls": []
+  "liveHybridRead": {
+    "query": "query FinanceRiskNoDataRead(\n  $cashId: ID!\n  $posId: ID!\n  $disputeId: ID!\n  $evidenceId: ID!\n  $token: String!\n  $first: Int!\n) {\n  cashTrackingSession(id: $cashId) {\n    __typename\n  }\n  cashTrackingSessions(first: $first) {\n    nodes {\n      __typename\n    }\n    edges {\n      node {\n        __typename\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  pointOfSaleDevice(id: $posId) {\n    __typename\n  }\n  dispute(id: $disputeId) {\n    __typename\n  }\n  disputeEvidence(id: $evidenceId) {\n    __typename\n  }\n  disputes(first: $first) {\n    nodes {\n      __typename\n    }\n    edges {\n      node {\n        __typename\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  shopPayPaymentRequestReceipt(token: $token) {\n    __typename\n  }\n  shopPayPaymentRequestReceipts(first: $first) {\n    nodes {\n      __typename\n    }\n    edges {\n      node {\n        __typename\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n",
+    "variables": {
+      "cashId": "gid://shopify/CashTrackingSession/0",
+      "posId": "gid://shopify/PointOfSaleDevice/0",
+      "disputeId": "gid://shopify/ShopifyPaymentsDispute/0",
+      "evidenceId": "gid://shopify/ShopifyPaymentsDisputeEvidence/0",
+      "token": "codex-missing-shop-pay-payment-request-receipt-token",
+      "first": 1
+    },
+    "status": 200,
+    "payload": {
+      "errors": [
+        {
+          "message": "Access denied for disputeEvidence field. Required access: `read_shopify_payments_dispute_evidences` access scope.",
+          "locations": [
+            {
+              "line": 32,
+              "column": 3
+            }
+          ],
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "`read_shopify_payments_dispute_evidences` access scope."
+          },
+          "path": ["disputeEvidence"]
+        }
+      ],
+      "data": {
+        "cashTrackingSession": null,
+        "cashTrackingSessions": {
+          "nodes": [],
+          "edges": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "pointOfSaleDevice": null,
+        "dispute": null,
+        "disputeEvidence": null,
+        "disputes": {
+          "nodes": [],
+          "edges": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "shopPayPaymentRequestReceipt": null,
+        "shopPayPaymentRequestReceipts": {
+          "nodes": [],
+          "edges": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "FinanceRiskNoDataRead",
+      "variables": {
+        "cashId": "gid://shopify/CashTrackingSession/0",
+        "posId": "gid://shopify/PointOfSaleDevice/0",
+        "disputeId": "gid://shopify/ShopifyPaymentsDispute/0",
+        "evidenceId": "gid://shopify/ShopifyPaymentsDisputeEvidence/0",
+        "token": "codex-missing-shop-pay-payment-request-receipt-token",
+        "first": 1
+      },
+      "query": "query FinanceRiskNoDataRead(\n  $cashId: ID!\n  $posId: ID!\n  $disputeId: ID!\n  $evidenceId: ID!\n  $token: String!\n  $first: Int!\n) {\n  cashTrackingSession(id: $cashId) {\n    __typename\n  }\n  cashTrackingSessions(first: $first) {\n    nodes {\n      __typename\n    }\n    edges {\n      node {\n        __typename\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  pointOfSaleDevice(id: $posId) {\n    __typename\n  }\n  dispute(id: $disputeId) {\n    __typename\n  }\n  disputeEvidence(id: $evidenceId) {\n    __typename\n  }\n  disputes(first: $first) {\n    nodes {\n      __typename\n    }\n    edges {\n      node {\n        __typename\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  shopPayPaymentRequestReceipt(token: $token) {\n    __typename\n  }\n  shopPayPaymentRequestReceipts(first: $first) {\n    nodes {\n      __typename\n    }\n    edges {\n      node {\n        __typename\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Access denied for disputeEvidence field. Required access: `read_shopify_payments_dispute_evidences` access scope.",
+              "locations": [
+                {
+                  "line": 32,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`read_shopify_payments_dispute_evidences` access scope."
+              },
+              "path": ["disputeEvidence"]
+            }
+          ],
+          "data": {
+            "cashTrackingSession": null,
+            "cashTrackingSessions": {
+              "nodes": [],
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "pointOfSaleDevice": null,
+            "dispute": null,
+            "disputeEvidence": null,
+            "disputes": {
+              "nodes": [],
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "shopPayPaymentRequestReceipt": null,
+            "shopPayPaymentRequestReceipts": {
+              "nodes": [],
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -64,7 +64,6 @@ validation behavior.
 - `paymentTermsCreate`
 - `paymentTermsUpdate`
 - `paymentTermsDelete`
-- `shopifyPaymentsAccount`
 
 Payment customization writes are local-only once supported. They must not invoke Shopify Functions or mutate checkout payment behavior at runtime; commit replay keeps the original raw mutation for an explicit later commit.
 
@@ -107,6 +106,10 @@ Earlier payment-customization captures did not see released `ShopifyFunction` no
 
 The registry tracks the sensitive finance/risk roots `cashTrackingSession`, `cashTrackingSessions`, `financeAppAccessPolicy`, `financeKycInformation`, `pointOfSaleDevice`, `dispute`, `disputes`, `disputeEvidence`, `disputeEvidenceUpdate`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsAccount`, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `tenderTransactions`. Most of this surface is no-data, access-denied, registry-only, or validation-only coverage rather than local lifecycle support.
 
+`cashTrackingSession`, `cashTrackingSessions`, `pointOfSaleDevice`, `dispute`, `disputes`, `shopPayPaymentRequestReceipt`, and `shopPayPaymentRequestReceipts` have a narrow local implementation only for captured-safe Snapshot no-data behavior. Cold LiveHybrid reads forward the caller's complete operation once and preserve the authoritative upstream values, GraphQL errors, HTTP status, headers, and extensions. The proxy does not normalize or overlay those finance values because it has no modeled financial records to merge.
+
+`disputeEvidence` and `shopifyPaymentsAccount` remain unimplemented roots. LiveHybrid therefore passes them through to Shopify, including scope/access errors and any non-empty values available to the caller's credential. Snapshot rejects them as unsupported instead of turning missing local modeling or access denial into a fabricated `null` result.
+
 The checked-in capture `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/finance-risk-access-read.json` deliberately avoids creating or exposing financial records. It records only root introspection, unknown-id or unknown-token reads, type-only connection nodes, access-denied credential blockers, an unknown-order `orderRiskAssessmentCreate` validation branch, and a non-executing missing-currency validation request for `shopifyPaymentsPayoutAlternateCurrencyCreate`.
 
 Current 2025-01 fixture-backed no-data coverage:
@@ -115,18 +118,18 @@ Current 2025-01 fixture-backed no-data coverage:
 - Generic `node(id:)` / `nodes(ids:)` dispatch also returns Shopify-like `null` entries for unknown `CashTrackingSession`, `PointOfSaleDevice`, and `ShopifyPaymentsDispute` GIDs. This is no-data behavior only; non-empty finance, POS, and dispute Node payloads remain unsupported until scrubbed fixtures and local state models exist.
 - `cashTrackingSessions(first: 1)` and `shopPayPaymentRequestReceipts(first: 1)` return empty connections with false `pageInfo` flags on the current store.
 - `disputes(first: 1)` returns an empty connection.
-- `shopifyPaymentsAccount` returns `null` in the captured access-denied/no-account branch. When a normalized Business Entity fixture includes a Shopify Payments account, the direct root serializes only captured-safe account scalars and empty no-data account connections shared with `BusinessEntity.shopifyPaymentsAccount`.
+- `disputeEvidence(id:)` and `shopifyPaymentsAccount` return `null` data alongside captured `ACCESS_DENIED` errors for the current credential; those are access results, not no-data evidence, and are not synthesized in Snapshot.
 
 Still-blocked sensitive coverage:
 
 - `disputeEvidence(id:)` is denied without `read_shopify_payments_dispute_evidences`.
 - `financeAppAccessPolicy` is denied without the required valid finance app user session/client; `financeKycInformation` is denied without `read_financial_kyc_information` plus finance-app permission.
 - `disputeEvidenceUpdate` is denied without `write_shopify_payments_dispute_evidences` plus staff dispute/order permission.
-- `shopifyPaymentsAccount` non-empty balance, bank account, payout schedule, statement descriptor, dispute, payout, and balance-transaction details require `read_shopify_payments` / `read_shopify_payments_accounts` style access and scrubbed disposable-store fixtures before local support expands beyond captured-safe scalar/no-data behavior.
+- `shopifyPaymentsAccount` non-empty balance, bank account, payout schedule, statement descriptor, dispute, payout, and balance-transaction details require `read_shopify_payments` / `read_shopify_payments_accounts` style access and scrubbed disposable-store fixtures before local modeling can be claimed.
 - `tenderTransactions(first: 1)` may expose real transaction rows on the current store, so the capture selects only `__typename` and page flags. Do not add IDs, amounts, payment methods, remote references, users, or transaction details unless the fixture is deliberately scrubbed and justified.
 - `shopifyPaymentsPayoutAlternateCurrencyCreate` must remain unsupported until a local payout model exists; live happy paths can alter payout configuration or money movement.
 
-The `finance-risk-no-data-read` parity scenario enforces the implemented empty/null local overlay slice. Future support needs disposable-store fixtures, sensitive-data minimization, Shopify-like no-data behavior, local read-after-write modeling for mutations, and raw mutation preservation for commit replay.
+The `finance-risk-no-data-read` parity scenario replays the exact combined request through a cold LiveHybrid cassette and compares the safe no-data fields plus the captured `disputeEvidence` access-denied error. `shopify-payments-account-read` separately compares the direct account root's captured null data and access-denied error. Snapshot no-data behavior is limited to the roots with explicit captured empty/unknown-identifier evidence.
 
 Do not add planned-only parity specs for payment roots. Keep unsupported payment-area reads and writes as registry/workpad gaps until captured evidence can back local behavior.
 

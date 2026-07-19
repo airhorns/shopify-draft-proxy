@@ -2796,9 +2796,9 @@ Captured shape for the first local slice:
 
 Practical rule:
 
-- local business entity snapshots can fixture safe account scalars only when they were explicitly captured
-- direct `shopifyPaymentsAccount` snapshot reads share the same normalized safe account fixture as `BusinessEntity.shopifyPaymentsAccount`; if no account fixture is present, the root returns `null` rather than inventing account data
-- `payouts`, `disputes`, and `balanceTransactions` are modeled only as empty no-data connections until non-empty Shopify Payments account activity is captured with account-level scopes
+- business entity snapshots may fixture safe account scalars only when they were explicitly captured and the business entity root has a real local model
+- direct `shopifyPaymentsAccount` reads remain authoritative passthrough in LiveHybrid and unsupported in Snapshot; an access-denied `null` is not evidence that the account is absent
+- do not model `payouts`, `disputes`, or `balanceTransactions` as empty account connections until no-data behavior is captured independently of account-level access denial
 - do not synthesize balances, bank accounts, statement descriptors, payout schedules, or account opener details from Store properties reads
 - order and market attribution should treat `BusinessEntity` as an identity link for now; do not model Markets assignment or order attribution rules until there is separate captured evidence for those domains
 
@@ -3604,7 +3604,8 @@ Captured facts:
 
 Practical rule:
 
-- captured no-data reads for `cashTrackingSession(s)`, `pointOfSaleDevice`, `dispute(s)`, and Shop Pay payment request receipt roots are safe to model as local empty/null overlay behavior and are enforced by `finance-risk-no-data-read`
+- captured no-data reads for `cashTrackingSession(s)`, `pointOfSaleDevice`, `dispute(s)`, and Shop Pay payment request receipt roots are safe Snapshot-only empty/null behavior; cold LiveHybrid reads remain authoritative upstream and are enforced by `finance-risk-no-data-read`
+- `disputeEvidence` and `shopifyPaymentsAccount` access-denied nulls are not no-data evidence; keep those roots unimplemented in Snapshot and preserve Shopify's full response in LiveHybrid
 - do not invent financial, KYC, dispute, POS cash, tender transaction, Shop Pay receipt, payout, or risk records
 - do not select or check in tender IDs, payment methods, amounts, remote references, user links, KYC details, dispute evidence content, or payout details unless the capture is intentionally scrubbed and justified
 - keep mutation roots scaffold-only until local staging preserves userErrors, downstream read-after-write effects, and original raw mutation commit replay without runtime Shopify writes
