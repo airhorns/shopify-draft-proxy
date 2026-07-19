@@ -1021,6 +1021,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'The nested rejection has no returned company ID, so empty read-after-write evidence uses a companies query by the rejected company name.',
   },
   {
+    domain: 'admin-platform',
+    captureId: 'connection-overlay-windowing',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-connection-overlay-windowing-conformance.ts',
+    purpose:
+      'Complete saved-search, Files API, and selling-plan-group connection payloads across first/reverse, after, last/before, and staged-delete windows.',
+    requiredAuthScopes: ['read_files', 'write_files', 'read_products', 'write_products', 'write_purchase_options'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}connection-overlay-windowing.json`,
+      'config/parity-specs/admin-platform/connection-overlay-windowing.json',
+      'config/parity-requests/admin-platform/connection-overlay-windowing-saved-search-create.graphql',
+      'config/parity-requests/admin-platform/connection-overlay-windowing-file-create.graphql',
+      'config/parity-requests/admin-platform/connection-overlay-windowing-selling-plan-group-create.graphql',
+      'config/parity-requests/admin-platform/connection-overlay-windowing-full-read.graphql',
+      'config/parity-requests/admin-platform/connection-overlay-windowing-after-delete-read.graphql',
+      'config/parity-requests/admin-platform/connection-overlay-windowing-after-read.graphql',
+      'config/parity-requests/admin-platform/connection-overlay-windowing-before-read.graphql',
+      'config/parity-requests/admin-platform/connection-overlay-windowing-delete.graphql',
+    ],
+    cleanupBehavior:
+      'Deletes existing disposable product saved searches, creates two saved searches/files/selling-plan groups, deletes the second set during capture, and deletes the first set in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'products',
     scriptPath: 'scripts/capture-product-conformance.mts',
@@ -1445,17 +1469,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'product-handle-dedup',
     scriptPath: 'scripts/capture-product-handle-dedup-conformance.mts',
     purpose:
-      'Generated productCreate, productDuplicate, and collectionCreate handle de-duplication with incrementing numeric suffixes.',
+      'Product create, update, productSet, and duplicate handle normalization, sticky updates, collision errors, and generated suffix reservation.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-handle-dedup-parity.json`,
       'config/parity-specs/products/productCreate-handle-dedup.json',
       'config/parity-requests/products/productCreate-handle-dedup.graphql',
+      'config/parity-requests/products/productUpdate-handle-dedup.graphql',
+      'config/parity-requests/products/productSet-handle-dedup.graphql',
       'config/parity-requests/products/productDuplicate-handle-dedup.graphql',
-      'config/parity-requests/products/collectionCreate-handle-dedup.graphql',
     ],
     cleanupBehavior:
-      'Creates disposable products, one synchronous duplicate, and disposable collections, then deletes them in best-effort cleanup.',
+      'Creates disposable products through productCreate, productSet, and productDuplicate, then deletes them in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2754,6 +2779,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates two disposable locations, one disposable two-variant product, updates one inventory item, creates one baseline draft transfer, records a cold window, creates one draft and one ready transfer, records filtered connection reads, then cancels/deletes transfers and deletes the product and locations best-effort.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
+    captureId: 'inventory-live-hybrid-cold-authoritative-reads',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-live-hybrid-cold-reads-conformance.ts',
+    purpose:
+      'Cold LiveHybrid inventoryItem, inventoryItems, and inventoryLevel authoritative reads in one complete caller document.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_inventory'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-live-hybrid-cold-authoritative-reads.json`,
+      'config/parity-specs/products/inventory-live-hybrid-cold-authoritative-reads.json',
+      'config/parity-requests/products/inventory-live-hybrid-cold-authoritative-reads.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, records its product-backed inventory item and level through a combined read-only document, then deletes the product.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -13204,6 +13246,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}delivery-profile-default-update.json`,
       'config/parity-specs/shipping-fulfillments/delivery-profile-default-update.json',
       'config/parity-requests/shipping-fulfillments/delivery-profile-default-update.graphql',
+      'config/parity-requests/shipping-fulfillments/delivery-profile-default-update-read.graphql',
     ],
     cleanupBehavior:
       'Finds the existing default delivery profile, updates its name for the capture, reads it back, then restores the original name in cleanup.',

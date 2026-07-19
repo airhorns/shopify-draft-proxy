@@ -770,6 +770,10 @@ impl DraftProxy {
                         && record.destination_location_id != *location_id
                 })
             {
+                self.stage_inventory_level_for_write(&(
+                    line_item.inventory_item_id.clone(),
+                    default_location_id.to_string(),
+                ));
                 self.store
                     .staged
                     .inventory_levels
@@ -779,6 +783,10 @@ impl DraftProxy {
                     ))
                     .or_insert_with(empty_inventory_quantities);
             }
+            self.stage_inventory_level_for_write(&(
+                line_item.inventory_item_id.clone(),
+                record.origin_location_id.clone(),
+            ));
             let origin = self
                 .store
                 .staged
@@ -791,6 +799,10 @@ impl DraftProxy {
             if origin.is_empty() {
                 *origin = empty_inventory_quantities();
             }
+            self.stage_inventory_level_for_write(&(
+                line_item.inventory_item_id.clone(),
+                record.destination_location_id.clone(),
+            ));
             self.store
                 .staged
                 .inventory_levels
@@ -879,14 +891,8 @@ impl DraftProxy {
         if location_id.is_empty() {
             return false;
         }
-        // A transfer endpoint must be a real, active location. Each scenario seeds its
-        // origin/destination via `locationAdd` (isActive: true), so this resolves the
-        // status from the live staged location registry rather than a hardcoded
-        // allow-list of capture-specific location ids.
-        self.store
-            .staged
-            .locations
-            .get(location_id)
+        self.location_for_read(location_id)
+            .as_ref()
             .and_then(|location| location.get("isActive"))
             .and_then(Value::as_bool)
             == Some(true)
@@ -908,10 +914,11 @@ impl DraftProxy {
         {
             return false;
         }
-        self.store.staged.inventory_levels.contains_key(&(
+        let key = (
             inventory_item_id.to_string(),
             origin_location_id.to_string(),
-        ))
+        );
+        self.effective_inventory_level(&key).is_some() && self.inventory_level_is_active(&key)
     }
 
     fn hydrate_inventory_transfer_references<'a>(
@@ -977,99 +984,10 @@ impl DraftProxy {
                         .then_some("InventoryItem")
                 });
             match node_type {
-                Some("Location") => self.merge_staged_location(&node, &[]),
-                Some("InventoryItem") => self.stage_inventory_transfer_inventory_item(node),
+                Some("Location") => self.observe_base_inventory_location(&node),
+                Some("InventoryItem") => self.observe_inventory_item_node(&node),
+                Some("InventoryLevel") => self.observe_inventory_level_node(&node),
                 _ => {}
-            }
-        }
-    }
-
-    fn stage_inventory_transfer_inventory_item(&mut self, item: Value) {
-        let Some(item_id) = item.get("id").and_then(Value::as_str).map(str::to_string) else {
-            return;
-        };
-        let Some(variant) = item.get("variant") else {
-            return;
-        };
-        let product = variant.get("product").cloned().unwrap_or_else(|| {
-            json!({
-                "id": shopify_gid("Product", resource_id_tail(&item_id)),
-                "title": "",
-                "handle": "",
-                "status": "ACTIVE",
-                "totalInventory": 0,
-                "tracksInventory": item.get("tracked").and_then(Value::as_bool).unwrap_or(true)
-            })
-        });
-        if let Some(product) = product_state_from_json(&product) {
-            self.store.stage_observed_product(product);
-        }
-        let variant_id = variant
-            .get("id")
-            .and_then(Value::as_str)
-            .map(str::to_string)
-            .unwrap_or_else(|| shopify_gid("ProductVariant", resource_id_tail(&item_id)));
-        let product_id = variant
-            .get("product")
-            .and_then(|product| product.get("id"))
-            .and_then(Value::as_str)
-            .map(str::to_string)
-            .unwrap_or_else(|| shopify_gid("Product", resource_id_tail(&item_id)));
-        let mut variant_value = variant.clone();
-        if let Some(fields) = variant_value.as_object_mut() {
-            fields.insert("id".to_string(), json!(variant_id));
-            fields.insert("productId".to_string(), json!(product_id));
-            fields.insert(
-                "inventoryItem".to_string(),
-                json!({
-                    "id": item_id,
-                    "tracked": item.get("tracked").and_then(Value::as_bool).unwrap_or(true),
-                    "requiresShipping": item.get("requiresShipping").and_then(Value::as_bool).unwrap_or(true)
-                }),
-            );
-        }
-        if let Some(variant) = product_variant_state_from_json(&variant_value) {
-            self.store.stage_product_variant(variant);
-        }
-        for level in item
-            .get("inventoryLevels")
-            .and_then(|connection| connection.get("nodes"))
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-        {
-            let Some(location_id) = level
-                .get("location")
-                .and_then(|location| location.get("id"))
-                .and_then(Value::as_str)
-                .map(str::to_string)
-            else {
-                continue;
-            };
-            let mut quantities = BTreeMap::new();
-            for quantity in level
-                .get("quantities")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-            {
-                let Some(name) = quantity.get("name").and_then(Value::as_str) else {
-                    continue;
-                };
-                quantities.insert(
-                    name.to_string(),
-                    quantity
-                        .get("quantity")
-                        .and_then(Value::as_i64)
-                        .unwrap_or_default(),
-                );
-            }
-            self.store
-                .staged
-                .inventory_levels
-                .insert((item_id.clone(), location_id.clone()), quantities);
-            if let Some(location) = level.get("location") {
-                self.merge_staged_location(location, &[]);
             }
         }
     }
@@ -1090,11 +1008,13 @@ impl DraftProxy {
         location_id: &str,
         reserved_delta: i64,
     ) {
+        let key = (inventory_item_id.to_string(), location_id.to_string());
+        self.stage_inventory_level_for_write(&key);
         let level = self
             .store
             .staged
             .inventory_levels
-            .entry((inventory_item_id.to_string(), location_id.to_string()))
+            .entry(key)
             .or_insert_with(empty_inventory_quantities);
         *level.entry("available".to_string()).or_insert(0) -= reserved_delta;
         *level.entry("reserved".to_string()).or_insert(0) += reserved_delta;

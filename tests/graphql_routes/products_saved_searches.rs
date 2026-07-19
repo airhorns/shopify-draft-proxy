@@ -11458,6 +11458,249 @@ fn saved_search_roots_live_hybrid_hydrate_base_rows_before_defaults() {
 }
 
 #[test]
+fn saved_search_live_hybrid_preserves_an_unmodified_opaque_page() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "productSavedSearches": {
+                        "nodes": [{
+                            "id": "gid://shopify/SavedSearch/1001",
+                            "name": "Upstream first",
+                            "query": "vendor:Acme",
+                            "resourceType": "PRODUCT"
+                        }],
+                        "edges": [{
+                            "cursor": "opaque-saved-search-one",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/1001",
+                                "name": "Upstream first"
+                            }
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-saved-search-one",
+                            "endCursor": "opaque-saved-search-one"
+                        }
+                    }
+                }
+            }),
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query SavedSearchOpaquePage {
+          productSavedSearches(first: 1) {
+            nodes { id name }
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["productSavedSearches"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/SavedSearch/1001",
+                "name": "Upstream first"
+            }],
+            "edges": [{
+                "cursor": "opaque-saved-search-one",
+                "node": {
+                    "id": "gid://shopify/SavedSearch/1001",
+                    "name": "Upstream first"
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-saved-search-one",
+                "endCursor": "opaque-saved-search-one"
+            }
+        })
+    );
+}
+
+#[test]
+fn saved_search_live_hybrid_overlay_windows_a_complete_opaque_baseline() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let upstream_first = json!({
+        "id": "gid://shopify/SavedSearch/2001",
+        "name": "Upstream first",
+        "query": "vendor:Alpha",
+        "resourceType": "PRODUCT"
+    });
+    let upstream_second = json!({
+        "id": "gid://shopify/SavedSearch/2002",
+        "name": "Upstream second",
+        "query": "vendor:Beta",
+        "resourceType": "PRODUCT"
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_first = upstream_first.clone();
+        let upstream_second = upstream_second.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let complete_baseline = body
+                .get("query")
+                .and_then(Value::as_str)
+                .is_some_and(|query| query.contains("SavedSearchConnectionBaseline"));
+            let connection = if complete_baseline {
+                json!({
+                    "nodes": [upstream_first.clone(), upstream_second.clone()],
+                    "edges": [
+                        {"cursor": "opaque-saved-search-one", "node": upstream_first.clone()},
+                        {"cursor": "opaque-saved-search-two", "node": upstream_second.clone()}
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "opaque-saved-search-one",
+                        "endCursor": "opaque-saved-search-two"
+                    }
+                })
+            } else {
+                json!({
+                    "nodes": [upstream_first.clone()],
+                    "edges": [{"cursor": "opaque-saved-search-one", "node": upstream_first.clone()}],
+                    "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "opaque-saved-search-one",
+                        "endCursor": "opaque-saved-search-one"
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"savedSearchBaseline": connection, "productSavedSearches": connection}}),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOverlaySavedSearch($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id name }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "resourceType": "PRODUCT",
+            "name": "Local third",
+            "query": "vendor:Local"
+        }}),
+    ));
+    let local_id = create.body["data"]["savedSearchCreate"]["savedSearch"]["id"]
+        .as_str()
+        .expect("local saved search id")
+        .to_string();
+
+    let before_second = proxy.process_request(json_graphql_request(
+        r#"
+        query SavedSearchBeforeOpaque($before: String!) {
+          productSavedSearches(last: 1, before: $before) {
+            nodes { id name }
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"before": "opaque-saved-search-two"}),
+    ));
+    assert_eq!(
+        before_second.body["data"]["productSavedSearches"],
+        json!({
+            "nodes": [{"id": "gid://shopify/SavedSearch/2001", "name": "Upstream first"}],
+            "edges": [{
+                "cursor": "opaque-saved-search-one",
+                "node": {"id": "gid://shopify/SavedSearch/2001", "name": "Upstream first"}
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-saved-search-one",
+                "endCursor": "opaque-saved-search-one"
+            }
+        })
+    );
+
+    let reverse_first = proxy.process_request(json_graphql_request(
+        r#"
+        query SavedSearchReverseOverlay {
+          productSavedSearches(first: 1, reverse: true) {
+            nodes { id name }
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        reverse_first.body["data"]["productSavedSearches"]["nodes"],
+        json!([{"id": local_id, "name": "Local third"}])
+    );
+    assert_eq!(
+        reverse_first.body["data"]["productSavedSearches"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteAuthoritativeSavedSearch($input: SavedSearchDeleteInput!) {
+          savedSearchDelete(input: $input) {
+            deletedSavedSearchId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"id": "gid://shopify/SavedSearch/2002"}}),
+    ));
+    assert_eq!(
+        delete.body["data"]["savedSearchDelete"]["deletedSavedSearchId"],
+        json!("gid://shopify/SavedSearch/2002")
+    );
+
+    let after_first = proxy.process_request(json_graphql_request(
+        r#"
+        query SavedSearchAfterOpaque($after: String!) {
+          productSavedSearches(first: 1, after: $after) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"after": "opaque-saved-search-one"}),
+    ));
+    assert_eq!(
+        after_first.body["data"]["productSavedSearches"]["nodes"],
+        json!([{"id": local_id, "name": "Local third"}])
+    );
+    assert!(
+        upstream_requests
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|body| body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("SavedSearchConnectionBaseline"))),
+        "staged overlay should fetch a proven-complete baseline"
+    );
+}
+
+#[test]
 fn staged_segment_reads_preserve_upstream_catalog_roots() {
     let real_segment = json!({
         "id": "gid://shopify/Segment/1000",

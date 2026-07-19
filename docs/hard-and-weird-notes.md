@@ -448,6 +448,7 @@ The current live-backed slice on this host now shows:
 - explicit colliding handles do **not** auto-rewrite silently
   - `productCreate` returns `product: null` plus `userErrors[{ field: ['input', 'handle'], message: "Handle '<handle>' already in use. Please provide a new handle." }]`
   - `productUpdate` and synchronous `productSet` return the unchanged existing product payload plus that same `['input', 'handle']` userError
+  - the message interpolates the raw submitted value, including surrounding whitespace and casing, even though collision detection uses the normalized handle
 - a follow-up HAR-22 live probe found no product-handle reserved word rejection for common storefront/admin-looking handles including `admin`, `products`, `collections`, `cart`, `checkout`, and `new`
   - those explicit handles were accepted as-is on `productCreate` when no product already owned the handle
 - explicit Unicode handles are not collapsed to the ASCII fallback path
@@ -458,6 +459,9 @@ The current live-backed slice on this host now shows:
 - a title-only `productUpdate` against a product that already has an explicit handle keeps that current handle stable
   - on this host, updating the title of a product created with `handle: title-only-handle-probe-<runId>` returned the new title but preserved the same handle
   - practical consequence: do not regenerate handles from title-only updates once a product already has a concrete handle unless a broader live capture proves Shopify does something more specific for other edge cases
+- omission and blank input are not the same update branch
+  - omitting `handle` keeps the current handle stable on `productUpdate` and synchronous `productSet`
+  - explicitly supplying whitespace-only `handle` regenerates the handle from the effective title; after a prior explicit handle change, this can restore the title-derived handle rather than preserve the latest explicit handle
 
 Practical rule:
 
@@ -465,8 +469,9 @@ Practical rule:
 - preserve Unicode letters/numbers during explicit handle normalization; do not treat non-ASCII handles as punctuation-only fallback input
 - keep explicit-handle collision handling separate from auto-generated-handle de-duplication after normalization
 - do not "fix" explicit collisions by silently inventing a new handle locally; Shopify surfaced a userError instead
+- preserve the raw explicit input for the collision message even though ownership is checked with the normalized candidate
 - when the source slug already ends in digits, de-duplication should increment that numeric tail instead of blindly appending another `-1`
-- keep title-only updates handle-stable in the first local parity slice rather than re-slugifying the new title
+- keep omitted-handle updates stable, but treat an explicitly blank handle as a request to regenerate from the effective title
 
 ### Current: Inventory quantity mutation contracts drift by Admin API version
 
@@ -3915,6 +3920,14 @@ Observed behavior:
 - a name-input update against the shop default delivery profile returned empty
   `userErrors` and incremented `version`, but the selected public payload kept
   the default profile display name as `General profile`
+- the relationship-heavy default profile required the initial 250-item hydrate
+  plus five cursor pages to enumerate 1,458 `profileItems`; those rows contained
+  2,315 selected variants even though `productVariantsCount` remained capped at
+  `{ count: 500, precision: AT_LEAST }`
+- the whole selected delivery profile in the successful mutation payload
+  matched the immediate `deliveryProfile(id:)` readback, including profile
+  items, nested variants, location groups, selling-plan groups, unassigned
+  locations, and Count precision metadata
 
 Practical rule:
 
@@ -3925,6 +3938,11 @@ Practical rule:
 - do not reject default-profile updates just because the profile is default;
   for the public name-input branch, preserve the hydrated default display name
   while staging Shopify's accepted payload shape
+- update hydration must follow every relationship cursor before treating the
+  record as authoritative; a first-page-only record silently turns omitted
+  input into destructive relationship loss
+- scalar updates must preserve Shopify's authoritative Count values and
+  precision instead of recomputing a capped `AT_LEAST` count as an exact total
 
 ## 85. `orderDelete` is permissive for disposable Admin-created orders
 
