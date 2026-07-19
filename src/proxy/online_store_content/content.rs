@@ -16,7 +16,7 @@ impl DraftProxy {
             }
             "blogs" => Some(self.online_store_connection_value(OnlineStoreKind::Blog, field)),
             "blogsCount" => Some(selected_json(
-                &count_object(self.online_store_count(OnlineStoreKind::Blog)),
+                &count_object(self.online_store_count(OnlineStoreKind::Blog, &field.arguments)),
                 &field.selection,
             )),
             "page" => {
@@ -28,7 +28,7 @@ impl DraftProxy {
             }
             "pages" => Some(self.online_store_connection_value(OnlineStoreKind::Page, field)),
             "pagesCount" => Some(selected_json(
-                &count_object(self.online_store_count(OnlineStoreKind::Page)),
+                &count_object(self.online_store_count(OnlineStoreKind::Page, &field.arguments)),
                 &field.selection,
             )),
             "article" => {

@@ -39,18 +39,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         selection: &[SelectedField],
     ) -> Value {
-        let indexed_records = records.into_iter().enumerate().collect::<Vec<_>>();
-        let result = staged_connection_query(
-            indexed_records,
-            arguments,
-            |(_, record), query| online_store_search_decision(kind, record, query),
-            |(index, record), sort_key| {
-                sort_key
-                    .map(|sort_key| online_store_sort_key(kind, record, sort_key))
-                    .unwrap_or_else(|| vec![StagedSortValue::I64(*index as i64)])
-            },
-            |(_, record)| value_id_cursor(record),
-        );
+        let result = self.online_store_records_query(kind, records, arguments);
 
         selected_typed_connection_with_page_info(
             &result.records,
@@ -61,13 +50,43 @@ impl DraftProxy {
         )
     }
 
-    pub(super) fn online_store_count(&self, kind: OnlineStoreKind) -> usize {
+    pub(super) fn online_store_count(
+        &self,
+        kind: OnlineStoreKind,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> usize {
+        if arguments.contains_key("query") {
+            return self
+                .online_store_records_query(kind, self.online_store_records(kind), arguments)
+                .total_count;
+        }
+
         online_store_count_with_baseline(
             kind.count_base(&self.store.staged),
             kind.order(&self.store.staged),
             kind.deleted_ids(&self.store.staged),
         )
         .unwrap_or_else(|| self.online_store_records(kind).len())
+    }
+
+    fn online_store_records_query(
+        &self,
+        kind: OnlineStoreKind,
+        records: Vec<Value>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> StagedConnectionResult<(usize, Value)> {
+        let indexed_records = records.into_iter().enumerate().collect::<Vec<_>>();
+        staged_connection_query(
+            indexed_records,
+            arguments,
+            |(_, record), query| online_store_search_decision(kind, record, query),
+            |(index, record), sort_key| {
+                sort_key
+                    .map(|sort_key| online_store_sort_key(kind, record, sort_key))
+                    .unwrap_or_else(|| vec![StagedSortValue::I64(*index as i64)])
+            },
+            |(_, record)| value_id_cursor(record),
+        )
     }
 
     fn hydrate_online_store_count_base(

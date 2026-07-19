@@ -15943,15 +15943,23 @@ fn online_store_blog_and_page_connections_filter_sort_and_reverse() {
         r#"
         query BlogPageConnectionFilters {
           blogsByTitle: blogs(first: 10, query: "title:'Alpha content blog'") { nodes { id title } }
+          blogsByTitleCount: blogsCount(query: "title:'Alpha content blog'") { count precision }
           blogsSorted: blogs(first: 10, sortKey: TITLE) { nodes { id title } }
           blogsSortedReverse: blogs(first: 10, sortKey: TITLE, reverse: true) { nodes { id title } }
           blogsUnknownFilter: blogs(first: 10, query: "not_a_real_filter:value") { nodes { id title } }
+          blogsUnknownFilterCount: blogsCount(query: "not_a_real_filter:value") { count precision }
+          blogsTotal: blogsCount { count precision }
           pagesByTitle: pages(first: 10, query: "title:'Alpha content page'") { nodes { id title isPublished } }
+          pagesByTitleCount: pagesCount(query: "title:'Alpha content page'") { count precision }
           pagesPublished: pages(first: 10, query: "published_status:published") { nodes { id title isPublished } }
+          pagesPublishedCount: pagesCount(query: "published_status:published") { count precision }
           pagesUnpublished: pages(first: 10, query: "published_status:unpublished") { nodes { id title isPublished } }
+          pagesUnpublishedCount: pagesCount(query: "published_status:unpublished") { count precision }
           pagesSorted: pages(first: 10, sortKey: TITLE) { nodes { id title } }
           pagesSortedReverse: pages(first: 10, sortKey: TITLE, reverse: true) { nodes { id title } }
           pagesUnknownFilter: pages(first: 10, query: "not_a_real_filter:value") { nodes { id title } }
+          pagesUnknownFilterCount: pagesCount(query: "not_a_real_filter:value") { count precision }
+          pagesTotal: pagesCount { count precision }
         }
         "#,
         json!({}),
@@ -15960,6 +15968,10 @@ fn online_store_blog_and_page_connections_filter_sort_and_reverse() {
     assert_eq!(
         read.body["data"]["blogsByTitle"]["nodes"],
         json!([{"id": a_blog, "title": "Alpha content blog"}])
+    );
+    assert_eq!(
+        read.body["data"]["blogsByTitleCount"],
+        json!({"count": 1, "precision": "EXACT"})
     );
     assert_eq!(
         read.body["data"]["blogsSorted"]["nodes"],
@@ -15977,16 +15989,36 @@ fn online_store_blog_and_page_connections_filter_sort_and_reverse() {
     );
     assert_eq!(read.body["data"]["blogsUnknownFilter"]["nodes"], json!([]));
     assert_eq!(
+        read.body["data"]["blogsUnknownFilterCount"],
+        json!({"count": 0, "precision": "EXACT"})
+    );
+    assert_eq!(
+        read.body["data"]["blogsTotal"],
+        json!({"count": 2, "precision": "EXACT"})
+    );
+    assert_eq!(
         read.body["data"]["pagesByTitle"]["nodes"],
         json!([{"id": a_page, "title": "Alpha content page", "isPublished": false}])
+    );
+    assert_eq!(
+        read.body["data"]["pagesByTitleCount"],
+        json!({"count": 1, "precision": "EXACT"})
     );
     assert_eq!(
         read.body["data"]["pagesPublished"]["nodes"],
         json!([{"id": z_page, "title": "Zulu content page", "isPublished": true}])
     );
     assert_eq!(
+        read.body["data"]["pagesPublishedCount"],
+        json!({"count": 1, "precision": "EXACT"})
+    );
+    assert_eq!(
         read.body["data"]["pagesUnpublished"]["nodes"],
         json!([{"id": a_page, "title": "Alpha content page", "isPublished": false}])
+    );
+    assert_eq!(
+        read.body["data"]["pagesUnpublishedCount"],
+        json!({"count": 1, "precision": "EXACT"})
     );
     assert_eq!(
         read.body["data"]["pagesSorted"]["nodes"],
@@ -16003,6 +16035,86 @@ fn online_store_blog_and_page_connections_filter_sort_and_reverse() {
         ])
     );
     assert_eq!(read.body["data"]["pagesUnknownFilter"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["pagesUnknownFilterCount"],
+        json!({"count": 0, "precision": "EXACT"})
+    );
+    assert_eq!(
+        read.body["data"]["pagesTotal"],
+        json!({"count": 2, "precision": "EXACT"})
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteMatchingBlogPage($blogId: ID!, $pageId: ID!) {
+          deleteBlog: blogDelete(id: $blogId) { deletedBlogId userErrors { field message code } }
+          deletePage: pageDelete(id: $pageId) { deletedPageId userErrors { field message code } }
+        }
+        "#,
+        json!({"blogId": a_blog, "pageId": a_page}),
+    ));
+    assert_eq!(delete.body["data"]["deleteBlog"]["userErrors"], json!([]));
+    assert_eq!(delete.body["data"]["deleteBlog"]["deletedBlogId"], a_blog);
+    assert_eq!(delete.body["data"]["deletePage"]["userErrors"], json!([]));
+    assert_eq!(delete.body["data"]["deletePage"]["deletedPageId"], a_page);
+
+    let read_after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query BlogPageConnectionFiltersAfterDelete {
+          blogsByTitle: blogs(first: 10, query: "title:'Alpha content blog'") { nodes { id title } }
+          blogsByTitleCount: blogsCount(query: "title:'Alpha content blog'") { count precision }
+          blogsTotal: blogsCount { count precision }
+          pagesByTitle: pages(first: 10, query: "title:'Alpha content page'") { nodes { id title isPublished } }
+          pagesByTitleCount: pagesCount(query: "title:'Alpha content page'") { count precision }
+          pagesPublished: pages(first: 10, query: "published_status:published") { nodes { id title isPublished } }
+          pagesPublishedCount: pagesCount(query: "published_status:published") { count precision }
+          pagesUnpublished: pages(first: 10, query: "published_status:unpublished") { nodes { id title isPublished } }
+          pagesUnpublishedCount: pagesCount(query: "published_status:unpublished") { count precision }
+          pagesTotal: pagesCount { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_delete.body["data"]["blogsByTitle"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["blogsByTitleCount"],
+        json!({"count": 0, "precision": "EXACT"})
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["blogsTotal"],
+        json!({"count": 1, "precision": "EXACT"})
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["pagesByTitle"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["pagesByTitleCount"],
+        json!({"count": 0, "precision": "EXACT"})
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["pagesPublished"]["nodes"],
+        json!([{"id": z_page, "title": "Zulu content page", "isPublished": true}])
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["pagesPublishedCount"],
+        json!({"count": 1, "precision": "EXACT"})
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["pagesUnpublished"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["pagesUnpublishedCount"],
+        json!({"count": 0, "precision": "EXACT"})
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["pagesTotal"],
+        json!({"count": 1, "precision": "EXACT"})
+    );
 }
 
 #[test]
