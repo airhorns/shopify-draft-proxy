@@ -127,6 +127,172 @@ pub(in crate::proxy) fn connection_nodes(connection: &Value) -> Vec<Value> {
         .collect()
 }
 
+#[derive(Clone, Debug)]
+pub(in crate::proxy) struct ObservedConnectionRow {
+    pub(in crate::proxy) cursor: Option<String>,
+    pub(in crate::proxy) node: Value,
+}
+
+/// Read a GraphQL connection without deriving cursors from its nodes. Edges are
+/// authoritative when present; `nodes` only fills records omitted from edges.
+pub(in crate::proxy) fn observed_connection_rows(connection: &Value) -> Vec<ObservedConnectionRow> {
+    let mut rows = Vec::new();
+    let mut seen = BTreeSet::new();
+    for edge in connection
+        .get("edges")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let Some(node) = edge.get("node").filter(|node| node.is_object()) else {
+            continue;
+        };
+        let identity = connection_node_identity(node);
+        if seen.insert(identity) {
+            rows.push(ObservedConnectionRow {
+                cursor: edge
+                    .get("cursor")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                node: node.clone(),
+            });
+        }
+    }
+    for node in connection
+        .get("nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|node| node.is_object())
+    {
+        let identity = connection_node_identity(node);
+        if seen.insert(identity) {
+            rows.push(ObservedConnectionRow {
+                cursor: None,
+                node: node.clone(),
+            });
+        }
+    }
+    rows
+}
+
+fn connection_node_identity(node: &Value) -> String {
+    node.get("id")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| node.to_string())
+}
+
+pub(in crate::proxy) fn connection_has_next_page(connection: &Value) -> bool {
+    connection
+        .pointer("/pageInfo/hasNextPage")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+pub(in crate::proxy) fn connection_end_cursor(connection: &Value) -> Option<String> {
+    connection
+        .pointer("/pageInfo/endCursor")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+pub(in crate::proxy) fn upstream_page_is_complete_baseline(
+    connection: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    !arguments.contains_key("after")
+        && !arguments.contains_key("before")
+        && !arguments.contains_key("last")
+        && !resolved_bool_field(arguments, "reverse").unwrap_or(false)
+        && connection
+            .pointer("/pageInfo/hasNextPage")
+            .and_then(Value::as_bool)
+            == Some(false)
+        && connection
+            .pointer("/pageInfo/hasPreviousPage")
+            .and_then(Value::as_bool)
+            == Some(false)
+}
+
+pub(in crate::proxy) fn complete_connection_value(rows: Vec<ObservedConnectionRow>) -> Value {
+    let start_cursor = rows.first().and_then(|row| row.cursor.clone());
+    let end_cursor = rows.last().and_then(|row| row.cursor.clone());
+    let nodes = rows.iter().map(|row| row.node.clone()).collect::<Vec<_>>();
+    let edges = rows
+        .into_iter()
+        .map(|row| json!({ "cursor": row.cursor, "node": row.node }))
+        .collect::<Vec<_>>();
+    json!({
+        "nodes": nodes,
+        "edges": edges,
+        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
+    })
+}
+
+impl DraftProxy {
+    /// Exhaust an upstream forward connection. Callers deliberately omit the
+    /// original request's first/last/before/after/reverse window and pass only
+    /// its filter/sort variables, so the returned rows are a proven-complete
+    /// baseline that can safely receive a staged overlay and one local window.
+    pub(in crate::proxy) fn complete_upstream_connection(
+        &self,
+        request: &Request,
+        query: &str,
+        operation_name: &str,
+        mut variables: serde_json::Map<String, Value>,
+        response_pointer: &str,
+        initial_page: Option<&Value>,
+    ) -> Option<Value> {
+        let mut rows = Vec::<ObservedConnectionRow>::new();
+        let mut row_indexes = BTreeMap::<String, usize>::new();
+        let mut seen_end_cursors = BTreeSet::new();
+        let mut page = initial_page.cloned();
+        let mut after = initial_page.and_then(connection_end_cursor);
+
+        for _ in 0..10_000 {
+            if page.is_none() {
+                variables.insert(
+                    "after".to_string(),
+                    after.clone().map_or(Value::Null, Value::String),
+                );
+                let response = self.upstream_post(
+                    request,
+                    json!({
+                        "query": query,
+                        "operationName": operation_name,
+                        "variables": variables
+                    }),
+                );
+                if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+                    return None;
+                }
+                page = response.body.pointer(response_pointer).cloned();
+            }
+
+            let current_page = page.take()?;
+            for row in observed_connection_rows(&current_page) {
+                let identity = connection_node_identity(&row.node);
+                if let Some(index) = row_indexes.get(&identity).copied() {
+                    rows[index] = row;
+                } else {
+                    row_indexes.insert(identity, rows.len());
+                    rows.push(row);
+                }
+            }
+            if !connection_has_next_page(&current_page) {
+                return Some(complete_connection_value(rows));
+            }
+            let end_cursor = connection_end_cursor(&current_page)?;
+            if !seen_end_cursors.insert(end_cursor.clone()) {
+                return None;
+            }
+            after = Some(end_cursor);
+        }
+        None
+    }
+}
+
 pub(in crate::proxy) fn connection_json_with_cursor<F>(
     nodes: Vec<Value>,
     mut cursor_for: F,

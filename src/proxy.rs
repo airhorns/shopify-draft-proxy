@@ -192,6 +192,8 @@ pub struct ProductVariantInventoryItem {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct SellingPlanRecord {
     id: String,
+    #[serde(default)]
+    cursor: Option<String>,
     name: String,
     description: String,
     options: Vec<String>,
@@ -207,6 +209,8 @@ struct SellingPlanRecord {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct SellingPlanGroupRecord {
     id: String,
+    #[serde(default)]
+    cursor: Option<String>,
     app_id: Option<String>,
     name: String,
     merchant_code: String,
@@ -219,6 +223,10 @@ struct SellingPlanGroupRecord {
     selling_plans: Vec<SellingPlanRecord>,
     product_ids: Vec<String>,
     product_variant_ids: Vec<String>,
+    #[serde(default)]
+    product_cursors: BTreeMap<String, String>,
+    #[serde(default)]
+    product_variant_cursors: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -333,6 +341,8 @@ enum ProductOperationKind {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct SavedSearchRecord {
     id: String,
+    #[serde(default)]
+    cursor: Option<String>,
     name: String,
     query: String,
     resource_type: String,
@@ -480,6 +490,7 @@ type MetafieldDefinitionKey = (String, String, String);
 struct StagedState {
     product_feeds: StagedRecords<Value>,
     selling_plan_groups: StagedRecords<SellingPlanGroupRecord>,
+    selling_plan_groups_overlay_dirty: bool,
     shipping_packages: StagedRecords<Value>,
     customers: StagedRecords<Value>,
     customer_addresses: BTreeMap<String, Value>,
@@ -629,6 +640,9 @@ struct StagedState {
     deleted_metafield_definitions: BTreeSet<MetafieldDefinitionKey>,
     metafield_reference_ids: BTreeSet<String>,
     media_files: StagedRecords<Value>,
+    media_file_cursors: BTreeMap<String, String>,
+    locally_created_media_file_ids: BTreeSet<String>,
+    media_files_overlay_dirty: bool,
     media_ready_on_read: BTreeSet<String>,
     online_store_integrations: BTreeMap<String, Value>,
     online_store_blogs: BTreeMap<String, Value>,
@@ -2393,6 +2407,13 @@ impl Store {
     }
 
     fn stage_selling_plan_group(&mut self, group: SellingPlanGroupRecord) {
+        self.staged.selling_plan_groups_overlay_dirty = true;
+        self.staged
+            .selling_plan_groups
+            .stage(group.id.clone(), group);
+    }
+
+    fn observe_selling_plan_group(&mut self, group: SellingPlanGroupRecord) {
         self.staged
             .selling_plan_groups
             .stage(group.id.clone(), group);
@@ -2402,6 +2423,7 @@ impl Store {
         let had_staged = self.staged.selling_plan_groups.remove_staged(id).is_some();
         if had_staged {
             self.staged.selling_plan_groups.tombstone(id.to_string());
+            self.staged.selling_plan_groups_overlay_dirty = true;
         }
         had_staged
     }
@@ -2455,6 +2477,22 @@ impl Store {
             .into_iter()
             .filter(|record| record.resource_type == resource_type)
             .collect()
+    }
+
+    fn has_saved_search_overlay(&self, resource_type: &str) -> bool {
+        self.saved_searches
+            .staged
+            .records
+            .values()
+            .any(|record| record.resource_type == resource_type)
+            || self.saved_searches.staged.tombstones.iter().any(|id| {
+                self.saved_searches
+                    .base
+                    .get(id)
+                    .is_some_and(|record| record.resource_type == resource_type)
+                    || default_saved_search_by_id(id)
+                        .is_some_and(|record| record.resource_type == resource_type)
+            })
     }
 
     fn stage_saved_search(&mut self, record: SavedSearchRecord) {

@@ -15737,6 +15737,242 @@ fn media_files_live_hybrid_cold_read_forwards_and_hydrates_files_and_saved_searc
 }
 
 #[test]
+fn media_files_live_hybrid_preserves_an_unmodified_opaque_page() {
+    let file = json!({
+        "__typename": "MediaImage",
+        "id": "gid://shopify/MediaImage/3001",
+        "alt": "Authoritative image",
+        "createdAt": "2026-07-01T00:00:00Z",
+        "updatedAt": "2026-07-01T00:00:00Z",
+        "fileStatus": "READY",
+        "image": {"url": "https://cdn.example.com/authoritative.jpg", "width": 10, "height": 10}
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let file = file.clone();
+        move |_| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({"data": {"files": {
+                "nodes": [file.clone()],
+                "edges": [{"cursor": "opaque-file-one", "node": file}],
+                "pageInfo": {
+                    "hasNextPage": true,
+                    "hasPreviousPage": false,
+                    "startCursor": "opaque-file-one",
+                    "endCursor": "opaque-file-one"
+                }
+            }}}),
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaOpaquePage {
+          files(first: 1) {
+            nodes { id alt }
+            edges { cursor node { id alt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["files"],
+        json!({
+            "nodes": [{"id": "gid://shopify/MediaImage/3001", "alt": "Authoritative image"}],
+            "edges": [{
+                "cursor": "opaque-file-one",
+                "node": {"id": "gid://shopify/MediaImage/3001", "alt": "Authoritative image"}
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-file-one",
+                "endCursor": "opaque-file-one"
+            }
+        })
+    );
+}
+
+#[test]
+fn media_files_live_hybrid_overlay_windows_a_complete_opaque_baseline() {
+    let requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&requests);
+    let first_file = json!({
+        "__typename": "MediaImage",
+        "id": "gid://shopify/MediaImage/3101",
+        "alt": "Authoritative first",
+        "createdAt": "2026-07-01T00:00:00Z",
+        "updatedAt": "2026-07-01T00:00:00Z",
+        "fileStatus": "READY",
+        "image": {"url": "https://cdn.example.com/first.jpg", "width": 10, "height": 10}
+    });
+    let second_file = json!({
+        "__typename": "MediaImage",
+        "id": "gid://shopify/MediaImage/3102",
+        "alt": "Authoritative second",
+        "createdAt": "2026-07-01T00:00:01Z",
+        "updatedAt": "2026-07-01T00:00:01Z",
+        "fileStatus": "READY",
+        "image": {"url": "https://cdn.example.com/second.jpg", "width": 10, "height": 10}
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let first_file = first_file.clone();
+        let second_file = second_file.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let complete_baseline = body
+                .get("query")
+                .and_then(Value::as_str)
+                .is_some_and(|query| query.contains("MediaFilesConnectionBaseline"));
+            let connection = if complete_baseline {
+                json!({
+                    "nodes": [first_file.clone(), second_file.clone()],
+                    "edges": [
+                        {"cursor": "opaque-file-one", "node": first_file.clone()},
+                        {"cursor": "opaque-file-two", "node": second_file.clone()}
+                    ],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "opaque-file-one",
+                        "endCursor": "opaque-file-two"
+                    }
+                })
+            } else {
+                json!({
+                    "nodes": [first_file.clone()],
+                    "edges": [{"cursor": "opaque-file-one", "node": first_file.clone()}],
+                    "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "opaque-file-one",
+                        "endCursor": "opaque-file-one"
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"filesBaseline": connection, "files": connection}}),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalOverlayFile($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id alt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{
+            "alt": "Local third",
+            "contentType": "IMAGE",
+            "filename": "local-third.jpg",
+            "originalSource": "https://cdn.example.com/local-third.jpg"
+        }]}),
+    ));
+    let local_id = create.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .expect("local file id")
+        .to_string();
+
+    let before_second = proxy.process_request(json_graphql_request(
+        r#"
+        query FilesBeforeOpaque($before: String!) {
+          files(last: 1, before: $before, sortKey: ID) {
+            nodes { id alt }
+            edges { cursor node { id alt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"before": "opaque-file-two"}),
+    ));
+    assert_eq!(
+        before_second.body["data"]["files"]["nodes"],
+        json!([{"id": "gid://shopify/MediaImage/3101", "alt": "Authoritative first"}])
+    );
+    assert_eq!(
+        before_second.body["data"]["files"]["edges"][0]["cursor"],
+        json!("opaque-file-one")
+    );
+    assert_eq!(
+        before_second.body["data"]["files"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "opaque-file-one",
+            "endCursor": "opaque-file-one"
+        })
+    );
+
+    let reverse_first = proxy.process_request(json_graphql_request(
+        r#"
+        query FilesReverseOverlay {
+          files(first: 1, reverse: true, sortKey: ID) {
+            nodes { id alt }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        reverse_first.body["data"]["files"]["nodes"],
+        json!([{"id": local_id, "alt": "Local third"}])
+    );
+    assert_eq!(
+        reverse_first.body["data"]["files"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteAuthoritativeFile($fileIds: [ID!]!) {
+          fileDelete(fileIds: $fileIds) {
+            deletedFileIds
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"fileIds": ["gid://shopify/MediaImage/3102"]}),
+    ));
+    assert_eq!(
+        delete.body["data"]["fileDelete"]["deletedFileIds"],
+        json!(["gid://shopify/MediaImage/3102"])
+    );
+
+    let after_first = proxy.process_request(json_graphql_request(
+        r#"
+        query FilesAfterOpaque($after: String!) {
+          files(first: 1, after: $after, sortKey: ID) {
+            nodes { id alt }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"after": "opaque-file-one"}),
+    ));
+    assert_eq!(
+        after_first.body["data"]["files"]["nodes"],
+        json!([{"id": local_id, "alt": "Local third"}])
+    );
+    assert!(
+        requests.lock().unwrap().iter().any(|body| body["query"]
+            .as_str()
+            .is_some_and(|query| query.contains("MediaFilesConnectionBaseline"))),
+        "staged file overlays should fetch a proven-complete baseline"
+    );
+}
+
+#[test]
 fn media_file_saved_searches_live_hybrid_cold_read_forwards_standalone_root() {
     let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_bodies = Arc::clone(&upstream_bodies);
@@ -16157,7 +16393,46 @@ fn media_file_saved_searches_live_hybrid_deduplicates_equivalent_records() {
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
             captured_bodies.lock().unwrap().push(body);
+            if query.contains("MediaFilesConnectionBaseline") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({"data": {"filesBaseline": {
+                        "edges": [],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": Value::Null,
+                            "endCursor": Value::Null
+                        }
+                    }}}),
+                };
+            }
+            if query.contains("SavedSearchConnectionBaseline") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({"data": {"savedSearchBaseline": {
+                        "edges": [{
+                            "cursor": "opaque-file-saved-search",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/4080031203634",
+                                "name": "Alpha files",
+                                "query": "filename:alpha-file.pdf",
+                                "resourceType": "FILE"
+                            }
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-file-saved-search",
+                            "endCursor": "opaque-file-saved-search"
+                        }
+                    }}}),
+                };
+            }
             Response {
                 status: 200,
                 headers: Default::default(),
@@ -16267,8 +16542,8 @@ fn media_file_saved_searches_live_hybrid_deduplicates_equivalent_records() {
     );
     assert_eq!(
         upstream_bodies.lock().unwrap().len(),
-        1,
-        "the grouped LiveHybrid read should forward its original document once"
+        3,
+        "the grouped LiveHybrid read should forward once and fetch complete file/saved-search baselines"
     );
 }
 

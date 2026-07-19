@@ -83,7 +83,9 @@ query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
       position
       createdAt
       products(first: 250) {
-        nodes {
+        edges {
+          cursor
+          node {
           __typename
           id
           title
@@ -92,7 +94,9 @@ query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
           createdAt
           updatedAt
           variants(first: 50) {
-            nodes {
+            edges {
+              cursor
+              node {
               __typename
               id
               title
@@ -105,12 +109,18 @@ query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
               inventoryQuantity
               selectedOptions { name value }
               inventoryItem { id tracked requiresShipping }
+              }
             }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
           }
         }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
       }
       productVariants(first: 250) {
-        nodes {
+        edges {
+          cursor
+          node {
           __typename
           id
           title
@@ -124,10 +134,14 @@ query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
           selectedOptions { name value }
           inventoryItem { id tracked requiresShipping }
           product { id title handle status createdAt updatedAt }
+          }
         }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
       }
       sellingPlans(first: 250) {
-        nodes {
+        edges {
+          cursor
+          node {
           __typename
           id
           name
@@ -166,7 +180,9 @@ query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
               }
             }
           }
+          }
         }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
       }
     }
   }
