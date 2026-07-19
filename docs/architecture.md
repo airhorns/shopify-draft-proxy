@@ -103,7 +103,10 @@ owner metafields, localization/markets, and generic nodes, but those reads reuse
 the cached complete response when the caller selected the required evidence.
 Narrow secondary hydration documents remain only for data that the caller's
 operation cannot supply, especially mutation prerequisites and relationship
-lookups.
+lookups. When registered read-through roots all consume the same non-2xx
+upstream response, the runtime returns that transport response verbatim before
+schema projection so the backend status, headers, and error body are not
+replaced by local non-null execution errors.
 
 ## GraphQL schema and resolver boundaries
 
