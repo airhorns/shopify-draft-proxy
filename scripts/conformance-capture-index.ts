@@ -2689,6 +2689,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'write_files',
       'read_content',
       'write_content',
+      'read_metaobjects',
+      'write_metaobjects',
     ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metafield-reference-fields-lifecycle.json`,
@@ -2697,11 +2699,15 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/metafields/metafield-reference-fields-collection-create.graphql',
       'config/parity-requests/metafields/metafield-reference-fields-file-create.graphql',
       'config/parity-requests/metafields/metafield-reference-fields-page-create.graphql',
+      'config/parity-requests/metafields/metafield-reference-fields-product-delete.graphql',
+      'config/parity-requests/metafields/metafield-reference-fields-metaobject-definition-create.graphql',
+      'config/parity-requests/metafields/metafield-reference-fields-metaobject-create.graphql',
+      'config/parity-requests/metafields/metafield-reference-fields-metaobject-read.graphql',
       'config/parity-requests/metafields/metafield-reference-fields-set.graphql',
       'config/parity-requests/metafields/metafield-reference-fields-read.graphql',
     ],
     cleanupBehavior:
-      'Creates disposable owner/target products, a variant, a collection, a media image, and an online-store page; sets reference metafields, captures downstream reads, then deletes created resources.',
+      'Creates disposable owner/target products, a variant, collections, a media image, an online-store page, and metaobject definitions/entries; sets reference values, captures downstream and post-delete reads, then deletes created resources.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

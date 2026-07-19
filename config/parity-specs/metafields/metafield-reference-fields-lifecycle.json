@@ -1,6 +1,17 @@
 {
   "scenarioId": "metafield-reference-fields-lifecycle",
-  "operationNames": ["productCreate", "collectionCreate", "fileCreate", "pageCreate", "metafieldsSet", "product"],
+  "operationNames": [
+    "productCreate",
+    "collectionCreate",
+    "fileCreate",
+    "pageCreate",
+    "metafieldsSet",
+    "productDelete",
+    "product",
+    "metaobjectDefinitionCreate",
+    "metaobjectCreate",
+    "metaobject"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "downstream-read-parity", "reference-resolution"],
   "liveCaptureFiles": [
@@ -8,7 +19,7 @@
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafields/metafield-reference-fields-product-create.graphql",
-    "variablesCapturePath": "$.setup.targetProduct.request.variables",
+    "variablesCapturePath": "$.setup.existingOwnerProduct.request.variables",
     "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
@@ -17,35 +28,182 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "create-target-product",
+        "name": "create-existing-reference-owner-product",
         "preserveProxyState": true,
-        "capturePath": "$.setup.targetProduct.response.data.productCreate.userErrors",
+        "capturePath": "$.setup.existingOwnerProduct.response.data.productCreate.userErrors",
         "proxyPath": "$.data.productCreate.userErrors"
       },
       {
-        "name": "create-owner-product",
+        "name": "set-existing-reference-metafields",
         "preserveProxyState": true,
-        "capturePath": "$.setup.ownerProduct.response.data.productCreate.userErrors",
+        "capturePath": "$.mutation.setExistingReferences.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-reference-fields-set.graphql",
+          "variables": {
+            "metafields": [
+              {
+                "ownerId": {
+                  "fromProxyResponse": "create-existing-reference-owner-product",
+                  "path": "$.data.productCreate.product.id"
+                },
+                "namespace": "reference_fields",
+                "key": "product_ref",
+                "type": "product_reference",
+                "value": {
+                  "fromCapturePath": "$.setup.existingTargetProduct.response.data.productCreate.product.id"
+                }
+              },
+              {
+                "ownerId": {
+                  "fromProxyResponse": "create-existing-reference-owner-product",
+                  "path": "$.data.productCreate.product.id"
+                },
+                "namespace": "reference_fields",
+                "key": "product_refs",
+                "type": "list.product_reference",
+                "value": {
+                  "jsonStringify": [
+                    {
+                      "fromCapturePath": "$.setup.existingTargetProduct.response.data.productCreate.product.id"
+                    }
+                  ]
+                }
+              },
+              {
+                "ownerId": {
+                  "fromProxyResponse": "create-existing-reference-owner-product",
+                  "path": "$.data.productCreate.product.id"
+                },
+                "namespace": "reference_fields",
+                "key": "variant_ref",
+                "type": "variant_reference",
+                "value": {
+                  "fromCapturePath": "$.setup.existingTargetProduct.response.data.productCreate.product.variants.nodes[0].id"
+                }
+              },
+              {
+                "ownerId": {
+                  "fromProxyResponse": "create-existing-reference-owner-product",
+                  "path": "$.data.productCreate.product.id"
+                },
+                "namespace": "reference_fields",
+                "key": "collection_ref",
+                "type": "collection_reference",
+                "value": {
+                  "fromCapturePath": "$.setup.existingTargetCollection.response.data.collectionCreate.collection.id"
+                }
+              },
+              {
+                "ownerId": {
+                  "fromProxyResponse": "create-existing-reference-owner-product",
+                  "path": "$.data.productCreate.product.id"
+                },
+                "namespace": "reference_fields",
+                "key": "plain",
+                "type": "single_line_text_field",
+                "value": {
+                  "fromCapturePath": "$.mutation.setExistingReferences.request.variables.metafields[4].value"
+                }
+              }
+            ]
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "existing-reference-fields-read",
+        "preserveProxyState": true,
+        "capturePath": "$.read.existingReferenceRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-reference-fields-read.graphql",
+          "variables": {
+            "ownerId": {
+              "fromProxyResponse": "create-existing-reference-owner-product",
+              "path": "$.data.productCreate.product.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy replays the owner as a locally created product while preserving captured existing reference target IDs."
+          },
+          {
+            "path": "$.product.productRef.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages synthetic metafield IDs."
+          },
+          {
+            "path": "$.product.productRefs.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages synthetic metafield IDs."
+          },
+          {
+            "path": "$.product.productRefs.references.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque while local cursors are deterministic."
+          },
+          {
+            "path": "$.product.productRefs.references.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque while local cursors are deterministic."
+          },
+          {
+            "path": "$.product.variantRef.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages synthetic metafield IDs."
+          },
+          {
+            "path": "$.product.collectionRef.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages synthetic metafield IDs."
+          },
+          {
+            "path": "$.product.plain.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages synthetic metafield IDs."
+          }
+        ]
+      },
+      {
+        "name": "create-staged-target-product",
+        "preserveProxyState": true,
+        "capturePath": "$.setup.stagedTargetProduct.response.data.productCreate.userErrors",
         "proxyPath": "$.data.productCreate.userErrors",
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafield-reference-fields-product-create.graphql",
-          "variablesCapturePath": "$.setup.ownerProduct.request.variables",
+          "variablesCapturePath": "$.setup.stagedTargetProduct.request.variables",
           "apiVersion": "2025-01"
         }
       },
       {
-        "name": "create-target-collection",
+        "name": "create-staged-reference-owner-product",
         "preserveProxyState": true,
-        "capturePath": "$.setup.collection.response.data.collectionCreate.userErrors",
+        "capturePath": "$.setup.stagedOwnerProduct.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-reference-fields-product-create.graphql",
+          "variablesCapturePath": "$.setup.stagedOwnerProduct.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "create-staged-target-collection",
+        "preserveProxyState": true,
+        "capturePath": "$.setup.stagedCollection.response.data.collectionCreate.userErrors",
         "proxyPath": "$.data.collectionCreate.userErrors",
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafield-reference-fields-collection-create.graphql",
-          "variablesCapturePath": "$.setup.collection.request.variables",
+          "variablesCapturePath": "$.setup.stagedCollection.request.variables",
           "apiVersion": "2025-01"
         }
       },
       {
-        "name": "create-target-file",
+        "name": "create-staged-target-file",
         "preserveProxyState": true,
         "capturePath": "$.setup.file.response.data.fileCreate.userErrors",
         "proxyPath": "$.data.fileCreate.userErrors",
@@ -56,7 +214,7 @@
         }
       },
       {
-        "name": "create-target-page",
+        "name": "create-staged-target-page",
         "preserveProxyState": true,
         "capturePath": "$.setup.page.response.data.pageCreate.userErrors",
         "proxyPath": "$.data.pageCreate.userErrors",
@@ -67,9 +225,9 @@
         }
       },
       {
-        "name": "set-reference-metafields",
+        "name": "set-staged-reference-metafields",
         "preserveProxyState": true,
-        "capturePath": "$.mutation.setReferences.response.data.metafieldsSet.userErrors",
+        "capturePath": "$.mutation.setStagedReferences.response.data.metafieldsSet.userErrors",
         "proxyPath": "$.data.metafieldsSet.userErrors",
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafield-reference-fields-set.graphql",
@@ -77,20 +235,20 @@
             "metafields": [
               {
                 "ownerId": {
-                  "fromProxyResponse": "create-owner-product",
+                  "fromProxyResponse": "create-staged-reference-owner-product",
                   "path": "$.data.productCreate.product.id"
                 },
                 "namespace": "reference_fields",
                 "key": "product_ref",
                 "type": "product_reference",
                 "value": {
-                  "fromProxyResponse": "create-target-product",
+                  "fromProxyResponse": "create-staged-target-product",
                   "path": "$.data.productCreate.product.id"
                 }
               },
               {
                 "ownerId": {
-                  "fromProxyResponse": "create-owner-product",
+                  "fromProxyResponse": "create-staged-reference-owner-product",
                   "path": "$.data.productCreate.product.id"
                 },
                 "namespace": "reference_fields",
@@ -99,7 +257,7 @@
                 "value": {
                   "jsonStringify": [
                     {
-                      "fromProxyResponse": "create-target-product",
+                      "fromProxyResponse": "create-staged-target-product",
                       "path": "$.data.productCreate.product.id"
                     }
                   ]
@@ -107,66 +265,66 @@
               },
               {
                 "ownerId": {
-                  "fromProxyResponse": "create-owner-product",
+                  "fromProxyResponse": "create-staged-reference-owner-product",
                   "path": "$.data.productCreate.product.id"
                 },
                 "namespace": "reference_fields",
                 "key": "variant_ref",
                 "type": "variant_reference",
                 "value": {
-                  "fromProxyResponse": "create-target-product",
+                  "fromProxyResponse": "create-staged-target-product",
                   "path": "$.data.productCreate.product.variants.nodes[0].id"
                 }
               },
               {
                 "ownerId": {
-                  "fromProxyResponse": "create-owner-product",
+                  "fromProxyResponse": "create-staged-reference-owner-product",
                   "path": "$.data.productCreate.product.id"
                 },
                 "namespace": "reference_fields",
                 "key": "collection_ref",
                 "type": "collection_reference",
                 "value": {
-                  "fromProxyResponse": "create-target-collection",
+                  "fromProxyResponse": "create-staged-target-collection",
                   "path": "$.data.collectionCreate.collection.id"
                 }
               },
               {
                 "ownerId": {
-                  "fromProxyResponse": "create-owner-product",
+                  "fromProxyResponse": "create-staged-reference-owner-product",
                   "path": "$.data.productCreate.product.id"
                 },
                 "namespace": "reference_fields",
                 "key": "file_ref",
                 "type": "file_reference",
                 "value": {
-                  "fromProxyResponse": "create-target-file",
+                  "fromProxyResponse": "create-staged-target-file",
                   "path": "$.data.fileCreate.files[0].id"
                 }
               },
               {
                 "ownerId": {
-                  "fromProxyResponse": "create-owner-product",
+                  "fromProxyResponse": "create-staged-reference-owner-product",
                   "path": "$.data.productCreate.product.id"
                 },
                 "namespace": "reference_fields",
                 "key": "page_ref",
                 "type": "page_reference",
                 "value": {
-                  "fromProxyResponse": "create-target-page",
+                  "fromProxyResponse": "create-staged-target-page",
                   "path": "$.data.pageCreate.page.id"
                 }
               },
               {
                 "ownerId": {
-                  "fromProxyResponse": "create-owner-product",
+                  "fromProxyResponse": "create-staged-reference-owner-product",
                   "path": "$.data.productCreate.product.id"
                 },
                 "namespace": "reference_fields",
                 "key": "plain",
                 "type": "single_line_text_field",
                 "value": {
-                  "fromCapturePath": "$.mutation.setReferences.request.variables.metafields[6].value"
+                  "fromCapturePath": "$.mutation.setStagedReferences.request.variables.metafields[6].value"
                 }
               }
             ]
@@ -175,15 +333,15 @@
         }
       },
       {
-        "name": "reference-fields-read",
+        "name": "staged-reference-fields-read",
         "preserveProxyState": true,
-        "capturePath": "$.read.response.data",
+        "capturePath": "$.read.stagedReferenceRead.response.data",
         "proxyPath": "$.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafield-reference-fields-read.graphql",
           "variables": {
             "ownerId": {
-              "fromProxyResponse": "create-owner-product",
+              "fromProxyResponse": "create-staged-reference-owner-product",
               "path": "$.data.productCreate.product.id"
             }
           },
@@ -306,8 +464,365 @@
             "reason": "The proxy stages synthetic metafield IDs."
           }
         ]
+      },
+      {
+        "name": "delete-staged-reference-target-product",
+        "preserveProxyState": true,
+        "capturePath": "$.mutation.deleteStagedTargetProduct.response.data.productDelete.userErrors",
+        "proxyPath": "$.data.productDelete.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-reference-fields-product-delete.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "create-staged-target-product",
+                "path": "$.data.productCreate.product.id"
+              }
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "staged-reference-fields-read-after-product-delete",
+        "preserveProxyState": true,
+        "capturePath": "$.read.stagedReferencePostDeleteRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-reference-fields-read.graphql",
+          "variables": {
+            "ownerId": {
+              "fromProxyResponse": "create-staged-reference-owner-product",
+              "path": "$.data.productCreate.product.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy replays the owner as a locally created product."
+          },
+          {
+            "path": "$.product.productRef.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages synthetic metafield IDs."
+          },
+          {
+            "path": "$.product.productRef.value",
+            "matcher": "shopify-gid:Product",
+            "reason": "The retained scalar value points at the locally deleted replay target."
+          },
+          {
+            "path": "$.product.productRefs.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages synthetic metafield IDs."
+          },
+          {
+            "path": "$.product.productRefs.value",
+            "matcher": "any-string",
+            "reason": "The retained list value contains the locally deleted replay target ID."
+          },
+          {
+            "path": "$.product.variantRef.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages synthetic metafield IDs."
+          },
+          {
+            "path": "$.product.variantRef.value",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The retained variant value points at the locally deleted replay target."
+          },
+          {
+            "path": "$.product.collectionRef.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages synthetic metafield IDs."
+          },
+          {
+            "path": "$.product.collectionRef.value",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The collection reference points at the locally created replay target."
+          },
+          {
+            "path": "$.product.collectionRef.reference.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The collection reference remains live after deleting the product target."
+          },
+          {
+            "path": "$.product.fileRef.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages synthetic metafield IDs."
+          },
+          {
+            "path": "$.product.fileRef.value",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The file reference points at the locally created replay target."
+          },
+          {
+            "path": "$.product.fileRef.reference.id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The file reference remains live after deleting the product target."
+          },
+          {
+            "path": "$.product.pageRef.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages synthetic metafield IDs."
+          },
+          {
+            "path": "$.product.pageRef.value",
+            "matcher": "shopify-gid:Page",
+            "reason": "The page reference points at the locally created replay target."
+          },
+          {
+            "path": "$.product.pageRef.reference.id",
+            "matcher": "shopify-gid:Page",
+            "reason": "The page reference remains live after deleting the product target."
+          },
+          {
+            "path": "$.product.plain.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages synthetic metafield IDs."
+          }
+        ]
+      },
+      {
+        "name": "create-metaobject-target-definition",
+        "preserveProxyState": true,
+        "capturePath": "$.setup.metaobjectTargetDefinition.response.data.metaobjectDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metaobjectDefinitionCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-reference-fields-metaobject-definition-create.graphql",
+          "variablesCapturePath": "$.setup.metaobjectTargetDefinition.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "create-metaobject-parent-definition",
+        "preserveProxyState": true,
+        "capturePath": "$.setup.metaobjectParentDefinition.response.data.metaobjectDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metaobjectDefinitionCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-reference-fields-metaobject-definition-create.graphql",
+          "variables": {
+            "definition": {
+              "type": {
+                "fromCapturePath": "$.setup.metaobjectParentDefinition.request.variables.definition.type"
+              },
+              "name": {
+                "fromCapturePath": "$.setup.metaobjectParentDefinition.request.variables.definition.name"
+              },
+              "displayNameKey": "title",
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "type": "single_line_text_field",
+                  "required": true
+                },
+                {
+                  "key": "single_ref",
+                  "name": "Single Ref",
+                  "type": "metaobject_reference",
+                  "required": false,
+                  "validations": [
+                    {
+                      "name": "metaobject_definition_id",
+                      "value": {
+                        "fromProxyResponse": "create-metaobject-target-definition",
+                        "path": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "key": "list_ref",
+                  "name": "List Ref",
+                  "type": "list.metaobject_reference",
+                  "required": false,
+                  "validations": [
+                    {
+                      "name": "metaobject_definition_id",
+                      "value": {
+                        "fromProxyResponse": "create-metaobject-target-definition",
+                        "path": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "key": "plain",
+                  "name": "Plain",
+                  "type": "single_line_text_field",
+                  "required": false
+                }
+              ]
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "create-metaobject-target-a",
+        "preserveProxyState": true,
+        "capturePath": "$.setup.metaobjectTargetA.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-reference-fields-metaobject-create.graphql",
+          "variablesCapturePath": "$.setup.metaobjectTargetA.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "create-metaobject-target-b",
+        "preserveProxyState": true,
+        "capturePath": "$.setup.metaobjectTargetB.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-reference-fields-metaobject-create.graphql",
+          "variablesCapturePath": "$.setup.metaobjectTargetB.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "create-metaobject-parent",
+        "preserveProxyState": true,
+        "capturePath": "$.setup.metaobjectParent.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-reference-fields-metaobject-create.graphql",
+          "variables": {
+            "metaobject": {
+              "type": {
+                "fromCapturePath": "$.setup.metaobjectParent.request.variables.metaobject.type"
+              },
+              "handle": {
+                "fromCapturePath": "$.setup.metaobjectParent.request.variables.metaobject.handle"
+              },
+              "fields": [
+                {
+                  "key": "title",
+                  "value": {
+                    "fromCapturePath": "$.setup.metaobjectParent.request.variables.metaobject.fields[0].value"
+                  }
+                },
+                {
+                  "key": "single_ref",
+                  "value": {
+                    "fromProxyResponse": "create-metaobject-target-a",
+                    "path": "$.data.metaobjectCreate.metaobject.id"
+                  }
+                },
+                {
+                  "key": "list_ref",
+                  "value": {
+                    "jsonStringify": [
+                      {
+                        "fromProxyResponse": "create-metaobject-target-a",
+                        "path": "$.data.metaobjectCreate.metaobject.id"
+                      },
+                      {
+                        "fromProxyResponse": "create-metaobject-target-b",
+                        "path": "$.data.metaobjectCreate.metaobject.id"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "key": "plain",
+                  "value": {
+                    "fromProxyResponse": "create-metaobject-target-a",
+                    "path": "$.data.metaobjectCreate.metaobject.id"
+                  }
+                }
+              ]
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "metaobject-reference-fields-read",
+        "preserveProxyState": true,
+        "capturePath": "$.read.metaobjectReferenceRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-reference-fields-metaobject-read.graphql",
+          "variables": {
+            "targetAId": {
+              "fromProxyResponse": "create-metaobject-target-a",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "targetBId": {
+              "fromProxyResponse": "create-metaobject-target-b",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "parentId": {
+              "fromProxyResponse": "create-metaobject-parent",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.targetA.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy replays the target as a locally staged metaobject."
+          },
+          {
+            "path": "$.targetA.referencedBy.nodes[*].referencer.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The backlink referencer is the locally staged parent metaobject."
+          },
+          {
+            "path": "$.targetB.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy replays the target as a locally staged metaobject."
+          },
+          {
+            "path": "$.targetB.referencedBy.nodes[*].referencer.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The backlink referencer is the locally staged parent metaobject."
+          },
+          {
+            "path": "$.parent.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy replays the parent as a locally staged metaobject."
+          },
+          {
+            "path": "$.parent.singleRef.value",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The scalar metaobject reference value points at the locally staged target."
+          },
+          {
+            "path": "$.parent.singleRef.reference.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The scalar metaobject reference resolves to the locally staged target."
+          },
+          {
+            "path": "$.parent.singleRefNoTypename.reference.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The inline-fragment-only scalar reference resolves to the locally staged target."
+          },
+          {
+            "path": "$.parent.listRef.value",
+            "matcher": "any-string",
+            "reason": "The list metaobject reference JSON contains locally staged target IDs."
+          },
+          {
+            "path": "$.parent.listRef.references.nodes[*].id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The list metaobject references resolve to locally staged targets."
+          },
+          {
+            "path": "$.parent.plain.value",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The non-reference control field stores a locally staged target ID as plain text."
+          }
+        ]
       }
     ]
   },
-  "notes": "Live Shopify capture for product-owned Metafield.reference and Metafield.references resolving product, variant, collection, file, and page reference targets. Setup uses public GraphQL mutations; the list reference value is rebuilt from the proxy-created product ID during replay instead of hardcoding captured or synthetic IDs."
+  "notes": "Live Shopify capture for product-owned Metafield.reference/references and metaobject field reference resolution. Replay covers a new product owner referencing captured existing product/variant/collection targets, a new product owner referencing newly staged product/variant/collection/file/page targets, post-product-delete reference readback, and newly staged metaobjects whose MetaobjectField.reference/references plus Metaobject.referencedBy are asserted from local state."
 }

@@ -1,0 +1,85 @@
+fragment MetafieldReferenceMetaobjectTarget on Metaobject {
+  id
+  handle
+  type
+  displayName
+}
+
+fragment MetafieldReferenceMetaobjectField on MetaobjectField {
+  key
+  type
+  value
+  reference {
+    __typename
+    ... on Metaobject {
+      ...MetafieldReferenceMetaobjectTarget
+    }
+  }
+  references(first: 5) {
+    nodes {
+      __typename
+      ... on Metaobject {
+        ...MetafieldReferenceMetaobjectTarget
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}
+
+query MetafieldReferenceFieldsMetaobjectRead($targetAId: ID!, $targetBId: ID!, $parentId: ID!) {
+  targetA: metaobject(id: $targetAId) {
+    ...MetafieldReferenceMetaobjectTarget
+    referencedBy(first: 10) {
+      nodes {
+        key
+        name
+        namespace
+        referencer {
+          __typename
+          ... on Metaobject {
+            ...MetafieldReferenceMetaobjectTarget
+          }
+        }
+      }
+    }
+  }
+  targetB: metaobject(id: $targetBId) {
+    ...MetafieldReferenceMetaobjectTarget
+    referencedBy(first: 10) {
+      nodes {
+        key
+        name
+        namespace
+        referencer {
+          __typename
+          ... on Metaobject {
+            ...MetafieldReferenceMetaobjectTarget
+          }
+        }
+      }
+    }
+  }
+  parent: metaobject(id: $parentId) {
+    ...MetafieldReferenceMetaobjectTarget
+    singleRef: field(key: "single_ref") {
+      ...MetafieldReferenceMetaobjectField
+    }
+    singleRefNoTypename: field(key: "single_ref") {
+      reference {
+        ... on Metaobject {
+          id
+          handle
+        }
+      }
+    }
+    listRef: field(key: "list_ref") {
+      ...MetafieldReferenceMetaobjectField
+    }
+    plain: field(key: "plain") {
+      ...MetafieldReferenceMetaobjectField
+    }
+  }
+}
