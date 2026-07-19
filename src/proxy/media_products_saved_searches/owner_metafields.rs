@@ -3050,6 +3050,103 @@ mod tests {
     }
 
     #[test]
+    fn locally_created_order_has_authoritative_empty_metafield_baseline() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let transport_calls = calls.clone();
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_upstream_transport(move |request| {
+            transport_calls.lock().unwrap().push(request.body);
+            Response {
+                status: 500,
+                headers: BTreeMap::new(),
+                body: json!({ "errors": [{ "message": "unexpected upstream call" }] }),
+            }
+        });
+
+        let create = proxy.process_request(graphql_request(
+            r#"
+            mutation CreateOrder($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+              orderCreate(order: $order, options: $options) {
+                order { id }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "order": {
+                    "email": "owner-metafields@example.com",
+                    "currency": "USD",
+                    "test": true,
+                    "lineItems": [{
+                        "title": "Owner metafield line",
+                        "quantity": 1,
+                        "priceSet": {
+                            "shopMoney": { "amount": "1.00", "currencyCode": "USD" }
+                        }
+                    }]
+                },
+                "options": { "inventoryBehaviour": "BYPASS" }
+            }),
+        ));
+        assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+        let order_id = create.body["data"]["orderCreate"]["order"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        let set = proxy.process_request(graphql_request(
+            r#"
+            mutation SetOrderMetafield($metafields: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $metafields) {
+                metafields { namespace key value ownerType }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "metafields": [{
+                    "ownerId": order_id,
+                    "namespace": "custom",
+                    "key": "state",
+                    "type": "single_line_text_field",
+                    "value": "ready"
+                }]
+            }),
+        ));
+        assert!(set.body.get("errors").is_none(), "{:#?}", set.body);
+        assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+        assert_eq!(
+            set.body["data"]["metafieldsSet"]["metafields"][0]["ownerType"],
+            "ORDER"
+        );
+
+        let read = proxy.process_request(graphql_request(
+            r#"
+            query ReadOrderMetafield($id: ID!) {
+              order(id: $id) {
+                metafield(namespace: "custom", key: "state") { value }
+                metafields(first: 10, namespace: "custom") { nodes { key value } }
+              }
+            }
+            "#,
+            json!({ "id": order_id }),
+        ));
+        assert_eq!(read.body["data"]["order"]["metafield"]["value"], "ready");
+        assert_eq!(
+            read.body["data"]["order"]["metafields"]["nodes"],
+            json!([{ "key": "state", "value": "ready" }])
+        );
+        assert!(calls.lock().unwrap().is_empty());
+    }
+
+    #[test]
     fn unresolved_hydration_aborts_set_and_delete_without_staging_absence() {
         let calls = Arc::new(Mutex::new(Vec::new()));
         let mut proxy = owner_hydration_proxy(calls.clone(), false);

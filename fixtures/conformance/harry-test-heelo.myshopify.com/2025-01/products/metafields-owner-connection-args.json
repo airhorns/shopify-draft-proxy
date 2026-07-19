@@ -2,12 +2,12 @@
   "scenarioId": "metafields-owner-connection-args",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-07-03T22:45:30.108Z",
+  "capturedAt": "2026-07-19T14:52:10.837Z",
   "setupProduct": {
     "query": "#graphql\n  mutation OwnerMetafieldsConnectionArgsProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
     "variables": {
       "product": {
-        "title": "Hermes Owner Metafields Connection Args mr5iuoxw",
+        "title": "Hermes Owner Metafields Connection Args mrrwzmkf",
         "status": "DRAFT"
       }
     },
@@ -16,8 +16,8 @@
       "data": {
         "productCreate": {
           "product": {
-            "id": "gid://shopify/Product/10231151493426",
-            "title": "Hermes Owner Metafields Connection Args mr5iuoxw"
+            "id": "gid://shopify/Product/10243937894706",
+            "title": "Hermes Owner Metafields Connection Args mrrwzmkf"
           },
           "userErrors": []
         }
@@ -40,32 +40,32 @@
     "variables": {
       "metafields": [
         {
-          "ownerId": "gid://shopify/Product/10231151493426",
+          "ownerId": "gid://shopify/Product/10243937894706",
           "namespace": "connection_args",
           "key": "alpha",
           "type": "single_line_text_field",
-          "value": "A mr5iuoxw"
+          "value": "A mrrwzmkf"
         },
         {
-          "ownerId": "gid://shopify/Product/10231151493426",
+          "ownerId": "gid://shopify/Product/10243937894706",
           "namespace": "connection_args",
           "key": "bravo",
           "type": "single_line_text_field",
-          "value": "B mr5iuoxw"
+          "value": "B mrrwzmkf"
         },
         {
-          "ownerId": "gid://shopify/Product/10231151493426",
+          "ownerId": "gid://shopify/Product/10243937894706",
           "namespace": "details",
           "key": "size",
           "type": "single_line_text_field",
-          "value": "M mr5iuoxw"
+          "value": "M mrrwzmkf"
         },
         {
-          "ownerId": "gid://shopify/Product/10231151493426",
+          "ownerId": "gid://shopify/Product/10243937894706",
           "namespace": "connection_args",
           "key": "charlie",
           "type": "single_line_text_field",
-          "value": "C mr5iuoxw"
+          "value": "C mrrwzmkf"
         }
       ]
     },
@@ -78,25 +78,25 @@
               "namespace": "connection_args",
               "key": "alpha",
               "type": "single_line_text_field",
-              "value": "A mr5iuoxw"
+              "value": "A mrrwzmkf"
             },
             {
               "namespace": "connection_args",
               "key": "bravo",
               "type": "single_line_text_field",
-              "value": "B mr5iuoxw"
+              "value": "B mrrwzmkf"
             },
             {
               "namespace": "details",
               "key": "size",
               "type": "single_line_text_field",
-              "value": "M mr5iuoxw"
+              "value": "M mrrwzmkf"
             },
             {
               "namespace": "connection_args",
               "key": "charlie",
               "type": "single_line_text_field",
-              "value": "C mr5iuoxw"
+              "value": "C mrrwzmkf"
             }
           ],
           "userErrors": []
@@ -118,7 +118,7 @@
   "readAfterSet": {
     "query": "query OwnerMetafieldsConnectionArgsRead($id: ID!, $keys: [String!]) {\n  product(id: $id) {\n    rawKeys: metafields(first: 10, keys: [\"bravo\", \"size\"]) {\n      nodes {\n        namespace\n        key\n        type\n        value\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    qualifiedKeys: metafields(first: 10, keys: $keys) {\n      nodes {\n        namespace\n        key\n        type\n        value\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    reversePage: metafields(first: 2, namespace: \"connection_args\", reverse: true) {\n      nodes {\n        namespace\n        key\n        type\n        value\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Product/10231151493426",
+      "id": "gid://shopify/Product/10243937894706",
       "keys": ["details.size", "connection_args.bravo"]
     },
     "status": 200,
@@ -138,13 +138,13 @@
                 "namespace": "details",
                 "key": "details.size",
                 "type": "single_line_text_field",
-                "value": "M mr5iuoxw"
+                "value": "M mrrwzmkf"
               },
               {
                 "namespace": "connection_args",
                 "key": "connection_args.bravo",
                 "type": "single_line_text_field",
-                "value": "B mr5iuoxw"
+                "value": "B mrrwzmkf"
               }
             ],
             "pageInfo": {
@@ -158,13 +158,13 @@
                 "namespace": "connection_args",
                 "key": "charlie",
                 "type": "single_line_text_field",
-                "value": "C mr5iuoxw"
+                "value": "C mrrwzmkf"
               },
               {
                 "namespace": "connection_args",
                 "key": "bravo",
                 "type": "single_line_text_field",
-                "value": "B mr5iuoxw"
+                "value": "B mrrwzmkf"
               }
             ],
             "pageInfo": {
@@ -192,7 +192,7 @@
     "variables": {
       "metafields": [
         {
-          "ownerId": "gid://shopify/Product/10231151493426",
+          "ownerId": "gid://shopify/Product/10243937894706",
           "namespace": "connection_args",
           "key": "bravo"
         }
@@ -204,7 +204,7 @@
         "metafieldsDelete": {
           "deletedMetafields": [
             {
-              "ownerId": "gid://shopify/Product/10231151493426",
+              "ownerId": "gid://shopify/Product/10243937894706",
               "namespace": "connection_args",
               "key": "bravo"
             }
@@ -218,7 +218,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1984,
+            "currentlyAvailable": 1986,
             "restoreRate": 100
           }
         }
@@ -228,7 +228,7 @@
   "readAfterDelete": {
     "query": "query OwnerMetafieldsConnectionArgsPostDelete($id: ID!) {\n  product(id: $id) {\n    postDeleteKeysReverse: metafields(\n      first: 10\n      keys: [\"connection_args.bravo\", \"connection_args.charlie\"]\n      reverse: true\n    ) {\n      nodes {\n        namespace\n        key\n        type\n        value\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Product/10231151493426"
+      "id": "gid://shopify/Product/10243937894706"
     },
     "status": 200,
     "response": {
@@ -240,7 +240,7 @@
                 "namespace": "connection_args",
                 "key": "connection_args.charlie",
                 "type": "single_line_text_field",
-                "value": "C mr5iuoxw"
+                "value": "C mrrwzmkf"
               }
             ],
             "pageInfo": {
@@ -256,42 +256,67 @@
           "actualQueryCost": 4,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1993,
+            "currentlyAvailable": 1995,
             "restoreRate": 100
           }
         }
       }
     }
   },
-  "cleanup": [
+  "cleanup": [],
+  "upstreamCalls": [
     {
-      "query": "#graphql\n  mutation OwnerMetafieldsConnectionArgsProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!, $metafield1Namespace: String!, $metafield1Key: String!, $metafield2Namespace: String!, $metafield2Key: String!, $metafield3Namespace: String!, $metafield3Key: String!) { nodes(ids: $ids) { __typename id ... on HasMetafields { metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield1: metafield(namespace: $metafield1Namespace, key: $metafield1Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield2: metafield(namespace: $metafield2Namespace, key: $metafield2Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } metafield3: metafield(namespace: $metafield3Namespace, key: $metafield3Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus } } } ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } } ... on Collection { id title handle } ... on Customer { id displayName email } ... on Order { id name } ... on Company { id name } ... on Page { id title } ... on Article { id title } } }",
+      "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "input": {
-          "id": "gid://shopify/Product/10231151493426"
-        }
+        "ids": ["gid://shopify/Product/10243937894706"],
+        "metafield0Key": "alpha",
+        "metafield0Namespace": "connection_args",
+        "metafield1Key": "bravo",
+        "metafield1Namespace": "connection_args",
+        "metafield2Key": "size",
+        "metafield2Namespace": "details",
+        "metafield3Key": "charlie",
+        "metafield3Namespace": "connection_args"
       },
-      "status": 200,
       "response": {
-        "data": {
-          "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10231151493426",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
-              "restoreRate": 100
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10243937894706",
+                "metafield0": null,
+                "metafield1": null,
+                "metafield2": null,
+                "metafield3": null,
+                "title": "Hermes Owner Metafields Connection Args mrrwzmkf",
+                "handle": "hermes-owner-metafields-connection-args-mrrwzmkf",
+                "status": "DRAFT",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-07-19T14:52:09Z",
+                "updatedAt": "2026-07-19T14:52:18Z"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
             }
           }
         }
       }
     }
-  ],
-  "upstreamCalls": []
+  ]
 }

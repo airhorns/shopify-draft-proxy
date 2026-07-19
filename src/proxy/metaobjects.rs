@@ -5068,7 +5068,13 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot || meta_type.trim().is_empty() {
             return None;
         }
-        let query = "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }";
+        let query = if admin_graphql_version(&request.path)
+            .is_some_and(|version| version_at_least(version, 2026, 4))
+        {
+            "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }"
+        } else {
+            "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } } }"
+        };
         let body = json!({
             "query": query,
             "variables": {"type": meta_type}
@@ -5417,6 +5423,100 @@ mod tests {
             response.body["data"]["parent"]["listRef"],
             json!({"key": "list_ref", "value": "list"})
         );
+    }
+
+    #[test]
+    fn live_hybrid_metaobject_create_uses_2025_01_definition_fields() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let observed_calls = Arc::clone(&calls);
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_upstream_transport(move |request| {
+            let request_body: Value = serde_json::from_str(&request.body).unwrap();
+            let query = request_body["query"].as_str().unwrap_or_default();
+            observed_calls.lock().unwrap().push(query.to_string());
+            if query.contains("createdAt") || query.contains("updatedAt") {
+                return Response {
+                    status: 200,
+                    headers: BTreeMap::new(),
+                    body: json!({
+                        "errors": [{
+                            "message": "Field does not exist on type MetaobjectDefinition"
+                        }]
+                    }),
+                };
+            }
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: json!({
+                    "data": {
+                        "metaobjectDefinitionByType": {
+                            "id": "gid://shopify/MetaobjectDefinition/1",
+                            "type": "legacy_definition",
+                            "name": "Legacy definition",
+                            "description": null,
+                            "displayNameKey": "title",
+                            "access": { "admin": "MERCHANT_READ_WRITE", "storefront": "NONE" },
+                            "capabilities": {},
+                            "fieldDefinitions": [{
+                                "key": "title",
+                                "name": "Title",
+                                "description": null,
+                                "required": true,
+                                "type": { "name": "single_line_text_field", "category": "TEXT" },
+                                "capabilities": {},
+                                "validations": []
+                            }],
+                            "hasThumbnailField": false,
+                            "metaobjectsCount": 0,
+                            "standardTemplate": null
+                        }
+                    }
+                }),
+            }
+        });
+
+        let response = proxy.process_request(Request {
+            method: "POST".to_string(),
+            path: "/admin/api/2025-01/graphql.json".to_string(),
+            headers: BTreeMap::new(),
+            body: json!({
+                "query": r#"
+                    mutation CreateLegacyMetaobject($metaobject: MetaobjectCreateInput!) {
+                      metaobjectCreate(metaobject: $metaobject) {
+                        metaobject { id type handle displayName }
+                        userErrors { field message code }
+                      }
+                    }
+                "#,
+                "variables": {
+                    "metaobject": {
+                        "type": "legacy_definition",
+                        "handle": "legacy-entry",
+                        "fields": [{ "key": "title", "value": "Legacy entry" }]
+                    }
+                }
+            })
+            .to_string(),
+        });
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["metaobjectCreate"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            response.body["data"]["metaobjectCreate"]["metaobject"]["displayName"],
+            json!("Legacy entry")
+        );
+        assert_eq!(calls.lock().unwrap().len(), 1);
     }
 
     #[test]

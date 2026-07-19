@@ -2525,6 +2525,7 @@ impl DraftProxy {
             "discountCodes": discount_codes,
             "shippingLines": order_connection(shipping_lines),
             "lineItems": order_connection(line_items),
+            "metafields": order_connection(Vec::new()),
             "fulfillments": [],
             "fulfillmentOrders": order_connection(fulfillment_orders),
             "transactions": transactions
