@@ -4503,55 +4503,361 @@ fn money_bag_presentment_replays_order_payment_refund_and_edit_shapes() {
     assert_eq!(edit_commit.body, fixture["orderEditCommit"]["expected"]);
 }
 
+const ABANDONMENT_DELIVERY_STATUS_MUTATION: &str = r#"
+mutation AbandonmentUpdateActivitiesDeliveryStatuses(
+  $abandonmentId: ID!
+  $marketingActivityId: ID!
+  $deliveryStatus: AbandonmentDeliveryState!
+  $deliveredAt: DateTime
+  $deliveryStatusChangeReason: String
+) {
+  abandonmentUpdateActivitiesDeliveryStatuses(
+    abandonmentId: $abandonmentId
+    marketingActivityId: $marketingActivityId
+    deliveryStatus: $deliveryStatus
+    deliveredAt: $deliveredAt
+    deliveryStatusChangeReason: $deliveryStatusChangeReason
+  ) {
+    abandonment {
+      id
+      emailState
+      emailSentAt
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
+"#;
+
+fn abandonment_delivery_status_hydrate_proxy(
+    marketing_activity: Value,
+    calls: Arc<Mutex<Vec<String>>>,
+) -> DraftProxy {
+    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+        calls.lock().unwrap().push(request.body.clone());
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        match body["operationName"].as_str() {
+            Some("OrdersAbandonmentDeliveryHydrate") => Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "abandonment": {
+                            "id": "gid://shopify/Abandonment/1001",
+                            "emailState": "NOT_SENT",
+                            "emailSentAt": null,
+                            "deliveryActivities": [{
+                                "marketingActivityId": "gid://shopify/MarketingActivity/2001",
+                                "deliveryStatus": "NOT_SENT",
+                                "deliveredAt": null,
+                                "deliveryStatusChangeReason": null
+                            }]
+                        }
+                    }
+                }),
+            },
+            Some("OrdersAbandonmentMarketingActivityHydrate") => Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "marketingActivity": marketing_activity } }),
+            },
+            _ => Response {
+                status: 500,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "mutation must stay local" }] }),
+            },
+        }
+    })
+}
+
 #[test]
-fn abandonment_delivery_status_edge_cases_replay_mutation_and_reads() {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.json"
-    ))
-    .unwrap();
-    let mut proxy = snapshot_proxy();
+fn abandonment_delivery_status_stages_sent_status_without_future_date_rejection() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = abandonment_delivery_status_hydrate_proxy(
+        json!({ "id": "gid://shopify/MarketingActivity/2001" }),
+        calls.clone(),
+    );
 
-    let forward = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql"),
-        fixture["cases"]["forward"]["variables"].clone(),
+    let response = proxy.process_request(json_graphql_request(
+        ABANDONMENT_DELIVERY_STATUS_MUTATION,
+        json!({
+            "abandonmentId": "gid://shopify/Abandonment/1001",
+            "marketingActivityId": "gid://shopify/MarketingActivity/2001",
+            "deliveryStatus": "SENT",
+            "deliveredAt": "2099-01-01T00:00:00Z",
+            "deliveryStatusChangeReason": "future date accepted by resolver"
+        }),
     ));
-    assert_eq!(forward.body, fixture["cases"]["forward"]["expected"]);
 
-    let abandonment_id = forward.body["data"]["abandonmentUpdateActivitiesDeliveryStatuses"]
-        ["abandonment"]["id"]
-        .clone();
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["abandonmentUpdateActivitiesDeliveryStatuses"],
+        json!({
+            "abandonment": {
+                "id": "gid://shopify/Abandonment/1001",
+                "emailState": "SENT",
+                "emailSentAt": "2099-01-01T00:00:00Z"
+            },
+            "userErrors": []
+        })
+    );
+
     let read_after = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-read.graphql"),
-        json!({"id": abandonment_id.clone()}),
+        r#"
+        query AbandonmentDeliveryRead($id: ID!) {
+          abandonment(id: $id) { id emailState emailSentAt }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Abandonment/1001" }),
     ));
-    assert_eq!(read_after.body, fixture["cases"]["forwardRead"]["expected"]);
+    assert_eq!(
+        read_after.body["data"]["abandonment"],
+        json!({
+            "id": "gid://shopify/Abandonment/1001",
+            "emailState": "SENT",
+            "emailSentAt": "2099-01-01T00:00:00Z"
+        })
+    );
 
     let node_read = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-node-read.graphql"),
-        json!({"id": abandonment_id}),
+        r#"
+        query AbandonmentDeliveryNodeRead($id: ID!) {
+          node(id: $id) { ... on Abandonment { id emailState emailSentAt } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Abandonment/1001" }),
     ));
     assert_eq!(
         node_read.body["data"]["node"],
-        fixture["cases"]["forwardRead"]["expected"]["data"]["abandonment"]
+        read_after.body["data"]["abandonment"]
     );
 
-    for case_name in [
-        "unknownMarketingActivity",
-        "backwards",
-        "sameStatus",
-        "futureDeliveredAt",
-    ] {
-        let response = proxy.process_request(json_graphql_request(
-            include_str!("../../config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql"),
-            fixture["cases"][case_name]["variables"].clone(),
+    let log = proxy.process_request(request_with_body("GET", "/__meta/log", ""));
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log.body["entries"][0]["interpreted"]["primaryRootField"],
+        json!("abandonmentUpdateActivitiesDeliveryStatuses")
+    );
+
+    let upstream_calls = calls.lock().unwrap();
+    assert_eq!(upstream_calls.len(), 2);
+    assert!(upstream_calls
+        .iter()
+        .all(|body| !body.contains("abandonmentUpdateActivitiesDeliveryStatuses")));
+}
+
+#[test]
+fn abandonment_delivery_status_unknown_abandonment_is_side_effect_free() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        ABANDONMENT_DELIVERY_STATUS_MUTATION,
+        json!({
+            "abandonmentId": "gid://shopify/Abandonment/1001",
+            "marketingActivityId": "gid://shopify/MarketingActivity/2001",
+            "deliveryStatus": "SENT",
+            "deliveredAt": "2026-04-27T00:00:00Z",
+            "deliveryStatusChangeReason": "unknown abandonment"
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["abandonmentUpdateActivitiesDeliveryStatuses"],
+        json!({
+            "abandonment": null,
+            "userErrors": [{
+                "field": ["abandonmentId"],
+                "message": "abandonment_not_found",
+                "code": "ABANDONMENT_NOT_FOUND"
+            }]
+        })
+    );
+    let log = proxy.process_request(request_with_body("GET", "/__meta/log", ""));
+    assert_eq!(log.body["entries"], json!([]));
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["abandonments"],
+        json!({})
+    );
+}
+
+#[test]
+fn abandonment_delivery_status_rejects_hallucinated_enum_and_list_shape_before_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let invalid_status = proxy.process_request(json_graphql_request(
+        ABANDONMENT_DELIVERY_STATUS_MUTATION,
+        json!({
+            "abandonmentId": "gid://shopify/Abandonment/1001",
+            "marketingActivityId": "gid://shopify/MarketingActivity/2001",
+            "deliveryStatus": "SENDING",
+            "deliveredAt": "2026-04-27T00:00:00Z",
+            "deliveryStatusChangeReason": "invalid enum"
+        }),
+    ));
+    assert_eq!(invalid_status.status, 200);
+    assert_eq!(
+        invalid_status.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert!(invalid_status.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(
+            |message| message.contains("SENDING") && message.contains("NOT_SENT, SENT, SCHEDULED")
         ));
-        assert_eq!(
-            response.body["data"]["abandonmentUpdateActivitiesDeliveryStatuses"],
-            fixture["cases"][case_name]["expected"]["data"]
-                ["abandonmentUpdateActivitiesDeliveryStatuses"],
-            "abandonment delivery-status case {case_name} should match fixture"
-        );
-    }
+
+    let invented_list_shape = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AbandonmentDeliveryInventedListShape(
+          $abandonmentId: ID!
+          $marketingActivityId: ID!
+        ) {
+          abandonmentUpdateActivitiesDeliveryStatuses(
+            abandonmentId: $abandonmentId
+            marketingActivityId: $marketingActivityId
+            deliveryStatuses: [{
+              marketingActivityId: $marketingActivityId
+              deliveryStatus: SENT
+            }]
+          ) {
+            abandonment { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "abandonmentId": "gid://shopify/Abandonment/1001",
+            "marketingActivityId": "gid://shopify/MarketingActivity/2001"
+        }),
+    ));
+    assert_eq!(invented_list_shape.status, 200);
+    assert!(invented_list_shape.body["errors"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(
+            |error| error["extensions"]["code"] == json!("argumentNotAccepted")
+                && error["extensions"]["argumentName"] == json!("deliveryStatuses")
+        ));
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["abandonments"],
+        json!({})
+    );
+}
+
+#[test]
+fn abandonment_delivery_status_validates_flat_marketing_activity_and_info_errors() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let mut unknown_activity_proxy =
+        abandonment_delivery_status_hydrate_proxy(Value::Null, calls.clone());
+
+    let unknown_activity = unknown_activity_proxy.process_request(json_graphql_request(
+        ABANDONMENT_DELIVERY_STATUS_MUTATION,
+        json!({
+            "abandonmentId": "gid://shopify/Abandonment/1001",
+            "marketingActivityId": "gid://shopify/MarketingActivity/9999",
+            "deliveryStatus": "SENT",
+            "deliveredAt": "2026-04-27T00:00:00Z",
+            "deliveryStatusChangeReason": "unknown marketing activity"
+        }),
+    ));
+    assert_eq!(
+        unknown_activity.body["data"]["abandonmentUpdateActivitiesDeliveryStatuses"],
+        json!({
+            "abandonment": null,
+            "userErrors": [{
+                "field": ["marketingActivityId"],
+                "message": "marketing_activity_not_found",
+                "code": "MARKETING_ACTIVITY_NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(
+        unknown_activity_proxy
+            .process_request(request_with_body("GET", "/__meta/log", ""))
+            .body["entries"],
+        json!([])
+    );
+    assert_eq!(
+        unknown_activity_proxy.get_state_snapshot()["stagedState"]["abandonments"],
+        json!({})
+    );
+
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let mut missing_info_proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport({
+            let calls = calls.clone();
+            move |request| {
+                calls.lock().unwrap().push(request.body.clone());
+                let body: Value = serde_json::from_str(&request.body).unwrap();
+                match body["operationName"].as_str() {
+                    Some("OrdersAbandonmentDeliveryHydrate") => Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({
+                            "data": {
+                                "abandonment": {
+                                    "id": "gid://shopify/Abandonment/1001",
+                                    "emailState": "NOT_SENT",
+                                    "emailSentAt": null,
+                                    "deliveryActivities": []
+                                }
+                            }
+                        }),
+                    },
+                    Some("OrdersAbandonmentMarketingActivityHydrate") => Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({
+                            "data": {
+                                "marketingActivity": {
+                                    "id": "gid://shopify/MarketingActivity/2001"
+                                }
+                            }
+                        }),
+                    },
+                    _ => Response {
+                        status: 500,
+                        headers: Default::default(),
+                        body: json!({ "errors": [{ "message": "mutation must stay local" }] }),
+                    },
+                }
+            }
+        });
+    let missing_info = missing_info_proxy.process_request(json_graphql_request(
+        ABANDONMENT_DELIVERY_STATUS_MUTATION,
+        json!({
+            "abandonmentId": "gid://shopify/Abandonment/1001",
+            "marketingActivityId": "gid://shopify/MarketingActivity/2001",
+            "deliveryStatus": "SCHEDULED",
+            "deliveredAt": "2026-04-27T00:00:00Z",
+            "deliveryStatusChangeReason": "missing delivery info"
+        }),
+    ));
+    assert_eq!(
+        missing_info.body["data"]["abandonmentUpdateActivitiesDeliveryStatuses"],
+        json!({
+            "abandonment": null,
+            "userErrors": [{
+                "field": null,
+                "message": "delivery_status_info_not_found",
+                "code": "DELIVERY_STATUS_INFO_NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(
+        missing_info_proxy
+            .process_request(request_with_body("GET", "/__meta/log", ""))
+            .body["entries"],
+        json!([])
+    );
+    assert_eq!(
+        missing_info_proxy.get_state_snapshot()["stagedState"]["abandonments"],
+        json!({})
+    );
 }
 
 #[test]

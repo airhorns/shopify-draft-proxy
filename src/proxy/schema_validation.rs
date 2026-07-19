@@ -570,6 +570,11 @@ fn validate_argument_value(
         }
         _ => {}
     }
+    if let Some(error) =
+        scalar_argument_coercion_error(argument_name, type_ref, value, field, document, context)
+    {
+        return vec![error];
+    }
     let Some(input_object) = schema.input_objects.get(&type_ref.named_type) else {
         return Vec::new();
     };
@@ -709,6 +714,60 @@ fn validate_argument_value(
             )]
         }
         _ => Vec::new(),
+    }
+}
+
+fn scalar_argument_coercion_error(
+    argument_name: &str,
+    type_ref: &SchemaTypeRef,
+    value: &RawArgumentValue,
+    field: &RootFieldSelection,
+    document: &ParsedDocument,
+    context: ValidationContext<'_>,
+) -> Option<Value> {
+    match value {
+        RawArgumentValue::Enum(raw) | RawArgumentValue::String(raw) => {
+            let problem = validate_named_scalar_string(raw, type_ref)?;
+            Some(scalar_argument_literal_incompatible_error(
+                field,
+                argument_name,
+                raw,
+                &problem.explanation,
+                type_ref,
+                context,
+            ))
+        }
+        RawArgumentValue::Variable {
+            name,
+            value: Some(resolved),
+        } => {
+            let problem = validate_resolved_scalar(resolved, type_ref)?;
+            let variable_type = document
+                .variable_definitions
+                .get(name)
+                .map(|definition| definition.type_display.as_str())
+                .unwrap_or(type_ref.display.as_str());
+            let location = document
+                .variable_definitions
+                .get(name)
+                .map(|definition| definition.location)
+                .unwrap_or(field.location);
+            let scalar_problem = if problem.include_message {
+                variable_problem_with_message(&[], &problem.explanation)
+            } else {
+                variable_problem(&[], &problem.explanation)
+            };
+            Some(invalid_variable_error(
+                VariableValidationContext {
+                    variable_name: name,
+                    variable_type,
+                    location,
+                },
+                resolved,
+                vec![scalar_problem],
+            ))
+        }
+        _ => None,
     }
 }
 
@@ -960,8 +1019,30 @@ fn validate_resolved_scalar(
             let ResolvedValue::String(raw) = value else {
                 return None;
             };
-            (!currency_code_is_allowed(raw)).then(|| ScalarValidationProblem {
-                explanation: format!("Expected \"{raw}\" to be one of: {CURRENCY_CODE_VALUES}"),
+            validate_named_scalar_string(raw, type_ref)
+        }
+        "AbandonmentDeliveryState" => {
+            let ResolvedValue::String(raw) = value else {
+                return None;
+            };
+            validate_named_scalar_string(raw, type_ref)
+        }
+        _ => None,
+    }
+}
+
+fn validate_named_scalar_string(
+    raw: &str,
+    type_ref: &SchemaTypeRef,
+) -> Option<ScalarValidationProblem> {
+    match type_ref.named_type.as_str() {
+        "CurrencyCode" => (!currency_code_is_allowed(raw)).then(|| ScalarValidationProblem {
+            explanation: format!("Expected \"{raw}\" to be one of: {CURRENCY_CODE_VALUES}"),
+            include_message: false,
+        }),
+        "AbandonmentDeliveryState" => {
+            (!abandonment_delivery_state_is_allowed(raw)).then(|| ScalarValidationProblem {
+                explanation: abandonment_delivery_state_expected_message(raw),
                 include_message: false,
             })
         }
@@ -976,6 +1057,14 @@ const CURRENCY_CODE_VALUES: &str = "USD, EUR, GBP, CAD, AFN, ALL, DZD, AOA, ARS,
 
 fn currency_code_is_allowed(code: &str) -> bool {
     CURRENCY_CODE_VALUES.split(", ").any(|value| value == code)
+}
+
+fn abandonment_delivery_state_is_allowed(status: &str) -> bool {
+    matches!(status, "NOT_SENT" | "SENT" | "SCHEDULED")
+}
+
+fn abandonment_delivery_state_expected_message(status: &str) -> String {
+    format!("Expected \"{status}\" to be one of: NOT_SENT, SENT, SCHEDULED")
 }
 
 fn fulfillment_event_status_is_allowed(status: &str) -> bool {
@@ -1080,6 +1169,30 @@ fn non_null_argument_literal_error(
             "code": "argumentLiteralsIncompatible",
             "typeName": "Field",
             "argumentName": argument_name
+        }
+    })
+}
+
+fn scalar_argument_literal_incompatible_error(
+    field: &RootFieldSelection,
+    argument_name: &str,
+    invalid_value: &str,
+    explanation: &str,
+    type_ref: &SchemaTypeRef,
+    context: ValidationContext<'_>,
+) -> Value {
+    json!({
+        "message": format!(
+            "Argument '{argument_name}' on Field '{}' has an invalid value ({invalid_value}). Expected type '{}'.",
+            field.name, type_ref.display
+        ),
+        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
+        "path": [context.operation_path, context.response_key, argument_name],
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "Field",
+            "argumentName": argument_name,
+            "explanation": explanation
         }
     })
 }
@@ -2093,6 +2206,25 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
             ("id".to_string(), mutation_arg(non_null("ID"))),
             ("notifyCustomer".to_string(), mutation_arg(named("Boolean"))),
             ("staffNote".to_string(), mutation_arg(named("String"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "abandonmentUpdateActivitiesDeliveryStatuses".to_string(),
+        BTreeMap::from([
+            ("abandonmentId".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "marketingActivityId".to_string(),
+                mutation_arg(non_null("ID")),
+            ),
+            (
+                "deliveryStatus".to_string(),
+                mutation_arg(non_null("AbandonmentDeliveryState")),
+            ),
+            ("deliveredAt".to_string(), mutation_arg(named("DateTime"))),
+            (
+                "deliveryStatusChangeReason".to_string(),
+                mutation_arg(named("String")),
+            ),
         ]),
     );
 

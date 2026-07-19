@@ -200,6 +200,7 @@ impl DraftProxy {
                 "nextStoreCreditTransactionId": self.store.staged.next_store_credit_transaction_id,
                 "giftCards": self.store.staged.gift_cards.clone(),
                 "taggableResources": self.store.staged.taggable_resources.clone(),
+                "abandonments": self.store.staged.abandonments.clone(),
                 "orders": self.store.staged.orders.records.clone(),
                 "deletedOrderIds": self.store.staged.orders.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "nextDraftOrderId": self.store.staged.next_draft_order_id,
@@ -1032,6 +1033,16 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.staged.abandonments = state["stagedState"]
+            .get("abandonments")
+            .and_then(Value::as_object)
+            .map(|abandonments| {
+                abandonments
+                    .iter()
+                    .map(|(id, abandonment)| (id.clone(), abandonment.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
         self.store.staged.order_customer_b2b_order_ids = state["stagedState"]
             .get("orderCustomerB2bOrderIds")
             .map(string_array_from_json)
