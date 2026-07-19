@@ -9977,6 +9977,350 @@ fn live_hybrid_observed_product_does_not_make_catalog_reads_local() {
 }
 
 #[test]
+fn live_hybrid_product_catalog_overlays_staged_create_update_and_delete() {
+    let update_id = "gid://shopify/Product/upstream-update";
+    let delete_id = "gid://shopify/Product/upstream-delete";
+    let unrelated_id = "gid://shopify/Product/upstream-unrelated";
+    let saved_search_id = "gid://shopify/SavedSearch/product-overlay";
+    let mut update_product = seed_product(update_id);
+    update_product.title = "Alpha original".to_string();
+    update_product.handle = "alpha-original".to_string();
+    update_product.tags = vec!["upstream".to_string()];
+    let mut delete_product = seed_product(delete_id);
+    delete_product.title = "Delete upstream".to_string();
+    delete_product.handle = "delete-upstream".to_string();
+
+    let upstream_products = json!([
+        {
+            "id": update_id,
+            "title": "Alpha original",
+            "handle": "alpha-original",
+            "status": "ACTIVE",
+            "createdAt": "2024-01-01T00:00:00Z",
+            "updatedAt": "2024-01-01T00:00:00Z",
+            "descriptionHtml": "",
+            "vendor": "Upstream vendor",
+            "productType": "Upstream type",
+            "tags": ["upstream"],
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "variants": { "nodes": [] }
+        },
+        {
+            "id": delete_id,
+            "title": "Delete upstream",
+            "handle": "delete-upstream",
+            "status": "ACTIVE",
+            "createdAt": "2024-01-02T00:00:00Z",
+            "updatedAt": "2024-01-02T00:00:00Z",
+            "descriptionHtml": "",
+            "vendor": "Upstream vendor",
+            "productType": "Upstream type",
+            "tags": ["upstream"],
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "variants": { "nodes": [] }
+        },
+        {
+            "id": unrelated_id,
+            "title": "Zulu unrelated",
+            "handle": "zulu-unrelated",
+            "status": "ACTIVE",
+            "createdAt": "2024-01-03T00:00:00Z",
+            "updatedAt": "2024-01-03T00:00:00Z",
+            "descriptionHtml": "",
+            "vendor": "Upstream vendor",
+            "productType": "Upstream type",
+            "tags": ["upstream"],
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "variants": { "nodes": [] }
+        }
+    ]);
+    let upstream_products_for_transport = upstream_products.clone();
+    let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![update_product, delete_product])
+        .with_upstream_transport({
+            let calls = Arc::clone(&calls);
+            move |request| {
+                calls.lock().unwrap().push(request.body.clone());
+                let body = if request
+                    .body
+                    .contains("DraftProxyProductSavedSearchHydration")
+                {
+                    json!({
+                        "data": {
+                            "node": {
+                                "id": saved_search_id,
+                                "name": "Overlay products",
+                                "query": "tag:overlay\\-tag",
+                                "resourceType": "PRODUCT"
+                            }
+                        }
+                    })
+                } else if request.body.contains("DraftProxyProductCatalogHydration") {
+                    let request_body: Value = serde_json::from_str(&request.body).unwrap();
+                    let after = request_body.pointer("/variables/after");
+                    let upstream_products = upstream_products_for_transport
+                        .as_array()
+                        .expect("upstream products should be an array");
+                    let (nodes, has_next_page, end_cursor) = if after == Some(&Value::Null) {
+                        (
+                            upstream_products[..2].to_vec(),
+                            true,
+                            Some("catalog-page-1"),
+                        )
+                    } else {
+                        (upstream_products[2..].to_vec(), false, None::<&str>)
+                    };
+                    json!({
+                        "data": {
+                            "products": {
+                                "nodes": nodes,
+                                "pageInfo": {
+                                    "hasNextPage": has_next_page,
+                                    "endCursor": end_cursor
+                                }
+                            }
+                        }
+                    })
+                } else {
+                    json!({
+                        "data": {
+                            "catalog": {
+                                "nodes": [
+                                    {
+                                        "id": update_id,
+                                        "title": "Alpha original",
+                                        "handle": "alpha-original",
+                                        "tags": ["upstream"]
+                                    },
+                                    {
+                                        "id": delete_id,
+                                        "title": "Delete upstream",
+                                        "handle": "delete-upstream",
+                                        "tags": ["upstream"]
+                                    },
+                                    {
+                                        "id": unrelated_id,
+                                        "title": "Zulu unrelated",
+                                        "handle": "zulu-unrelated",
+                                        "tags": ["upstream"]
+                                    }
+                                ]
+                            },
+                            "total": { "count": 3, "precision": "EXACT" },
+                            "afterUpdated": { "nodes": [] },
+                            "overlayMatches": { "nodes": [] },
+                            "overlayCount": { "count": 0, "precision": "EXACT" },
+                            "unobserved": {
+                                "id": "gid://shopify/Product/unobserved-sibling",
+                                "title": "Unobserved sibling"
+                            }
+                        }
+                    })
+                };
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body,
+                }
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageCatalogCreate($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title handle tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Bravo created",
+                "handle": "bravo-created",
+                "tags": ["overlay-tag"]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let created_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("productCreate should return an id")
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageCatalogUpdate($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id title handle tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": update_id,
+                "title": "Alpha updated",
+                "handle": "alpha-updated",
+                "tags": ["overlay-tag"]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageCatalogDelete($input: ProductDeleteInput!) {
+          productDelete(input: $input) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": delete_id } }),
+    ));
+    assert_eq!(
+        delete.body["data"]["productDelete"]["userErrors"],
+        json!([])
+    );
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        query LiveHybridProductOverlayRead($after: String!, $savedSearchId: ID!) {
+          catalog: products(first: 10, sortKey: TITLE) {
+            nodes { id title handle tags }
+          }
+          total: productsCount(limit: 2) { count precision }
+          afterUpdated: products(first: 1, after: $after, sortKey: TITLE) {
+            nodes { id title }
+          }
+          overlayMatches: products(first: 1, query: "tag:overlay", sortKey: TITLE, reverse: true) {
+            nodes { id title }
+          }
+          overlayCount: productsCount(query: "tag:overlay") { count precision }
+          savedSearchMatches: products(first: 10, savedSearchId: $savedSearchId, sortKey: TITLE) {
+            nodes { id title }
+          }
+          unobserved: product(id: "gid://shopify/Product/unobserved-sibling") {
+            id
+            title
+          }
+        }
+        "#,
+        json!({ "after": update_id, "savedSearchId": saved_search_id }),
+    ));
+
+    assert_eq!(catalog.status, 200, "catalog response: {}", catalog.body);
+    assert_eq!(
+        catalog.body["data"]["catalog"]["nodes"],
+        json!([
+            {
+                "id": update_id,
+                "title": "Alpha updated",
+                "handle": "alpha-updated",
+                "tags": ["overlay-tag"]
+            },
+            {
+                "id": created_id,
+                "title": "Bravo created",
+                "handle": "bravo-created",
+                "tags": ["overlay-tag"]
+            },
+            {
+                "id": unrelated_id,
+                "title": "Zulu unrelated",
+                "handle": "zulu-unrelated",
+                "tags": ["upstream"]
+            }
+        ])
+    );
+    assert_eq!(
+        catalog.body["data"]["total"],
+        json!({ "count": 2, "precision": "AT_LEAST" })
+    );
+    assert_eq!(
+        catalog.body["data"]["afterUpdated"]["nodes"],
+        json!([{ "id": created_id, "title": "Bravo created" }])
+    );
+    assert_eq!(
+        catalog.body["data"]["overlayMatches"]["nodes"],
+        json!([{ "id": created_id, "title": "Bravo created" }])
+    );
+    assert_eq!(
+        catalog.body["data"]["overlayCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        catalog.body["data"]["savedSearchMatches"]["nodes"],
+        json!([
+            { "id": update_id, "title": "Alpha updated" },
+            { "id": created_id, "title": "Bravo created" }
+        ])
+    );
+    assert_eq!(
+        catalog.body["data"]["unobserved"],
+        json!({
+            "id": "gid://shopify/Product/unobserved-sibling",
+            "title": "Unobserved sibling"
+        }),
+        "an unobserved singular sibling should merge upstream without bypassing the local catalog overlay"
+    );
+    let recorded_calls = calls.lock().unwrap();
+    assert_eq!(
+        recorded_calls
+            .iter()
+            .filter(|body| body.contains("DraftProxyProductCatalogHydration"))
+            .count(),
+        2,
+        "catalog roots should share one complete paginated upstream hydration"
+    );
+    assert_eq!(
+        recorded_calls
+            .iter()
+            .filter(|body| body.contains("DraftProxyProductSavedSearchHydration"))
+            .count(),
+        1,
+        "savedSearchId should hydrate its PRODUCT saved-search query once"
+    );
+    drop(recorded_calls);
+
+    let cached_page = proxy.process_request(json_graphql_request(
+        r#"
+        query LiveHybridProductOverlayCachedPage {
+          products(first: 1, query: "tag:overlay", sortKey: TITLE, reverse: true) {
+            nodes { id title }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        cached_page.body["data"]["products"]["nodes"],
+        json!([{ "id": created_id, "title": "Bravo created" }])
+    );
+    assert_eq!(
+        calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|body| body.contains("DraftProxyProductCatalogHydration"))
+            .count(),
+        2,
+        "a later page over the same overlay should reuse the complete hydrated base"
+    );
+}
+
+#[test]
 fn live_hybrid_handle_and_barcode_searches_forward_with_partial_overlay_state() {
     let calls = Arc::new(Mutex::new(Vec::<String>::new()));
     let upstream_search = json!({

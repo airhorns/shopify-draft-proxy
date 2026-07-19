@@ -1,0 +1,15 @@
+query ProductLiveHybridOverlayPage($matchQuery: String!, $after: String) {
+  products(first: 1, after: $after, query: $matchQuery, sortKey: TITLE) {
+    nodes {
+      title
+      handle
+      tags
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

@@ -7,6 +7,13 @@ mod product_tail;
 mod saved_search;
 mod search;
 
+const PRODUCT_LIVE_HYBRID_CATALOG_HYDRATE_QUERY: &str = include_str!(
+    "../../config/parity-requests/products/product-live-hybrid-catalog-hydrate.graphql"
+);
+const PRODUCT_LIVE_HYBRID_SAVED_SEARCH_HYDRATE_QUERY: &str = include_str!(
+    "../../config/parity-requests/products/product-live-hybrid-saved-search-hydrate.graphql"
+);
+
 pub(in crate::proxy) use self::collections::*;
 pub(in crate::proxy) use self::saved_search::*;
 pub(in crate::proxy) use self::search::*;
@@ -810,6 +817,16 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return false;
         }
+        if self.config.read_mode == ReadMode::Live {
+            return true;
+        }
+        if self.product_catalog_overlay_active()
+            && fields
+                .iter()
+                .any(|field| matches!(field.name.as_str(), "products" | "productsCount"))
+        {
+            return false;
+        }
         fields
             .iter()
             .any(|field| self.live_hybrid_product_field_needs_upstream(field))
@@ -817,7 +834,7 @@ impl DraftProxy {
 
     fn live_hybrid_product_field_needs_upstream(&self, field: &RootFieldSelection) -> bool {
         match field.name.as_str() {
-            "products" | "productsCount" => true,
+            "products" | "productsCount" => !self.product_catalog_overlay_active(),
             "product" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 id.is_empty()
@@ -843,11 +860,191 @@ impl DraftProxy {
 }
 
 impl DraftProxy {
+    fn staged_product_catalog_ids(&self) -> BTreeSet<String> {
+        let mut ids = self
+            .log_entries
+            .iter()
+            .filter(|entry| entry.get("status") == Some(&json!("staged")))
+            .filter(|entry| {
+                entry.pointer("/interpreted/capability/domain") == Some(&json!("products"))
+            })
+            .filter_map(|entry| entry.get("stagedResourceIds").and_then(Value::as_array))
+            .flatten()
+            .filter_map(Value::as_str)
+            .filter(|id| shopify_gid_resource_type(id) == Some("Product"))
+            .map(str::to_string)
+            .collect::<BTreeSet<_>>();
+        ids.extend(self.store.products.staged.tombstones.iter().cloned());
+        ids
+    }
+
+    fn product_catalog_overlay_active(&self) -> bool {
+        !self.staged_product_catalog_ids().is_empty()
+    }
+
+    fn ensure_live_hybrid_product_catalog_hydrated(&mut self, request: &Request) -> bool {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return true;
+        }
+        let staged_product_ids = self.staged_product_catalog_ids();
+        if self.product_catalog_hydrated_overlay_ids.as_ref() == Some(&staged_product_ids) {
+            self.execution_session.product_catalog_hydration_attempted = true;
+            self.execution_session.product_catalog_hydrated = true;
+            return true;
+        }
+        if self.execution_session.product_catalog_hydration_attempted {
+            return self.execution_session.product_catalog_hydrated;
+        }
+        self.execution_session.product_catalog_hydration_attempted = true;
+
+        let mut products = Vec::new();
+        let mut after = Value::Null;
+        let mut seen_cursors = BTreeSet::new();
+        loop {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": PRODUCT_LIVE_HYBRID_CATALOG_HYDRATE_QUERY,
+                    "operationName": "DraftProxyProductCatalogHydration",
+                    "variables": { "after": after },
+                }),
+            );
+            if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+                return false;
+            }
+            let connection = &response.body["data"]["products"];
+            let Some(nodes) = connection.get("nodes").and_then(Value::as_array) else {
+                return false;
+            };
+            for node in nodes {
+                let Some(product) = product_state_from_json(node) else {
+                    return false;
+                };
+                products.push(product);
+            }
+
+            let page_info = &connection["pageInfo"];
+            if !page_info["hasNextPage"].as_bool().unwrap_or(false) {
+                break;
+            }
+            let Some(end_cursor) = page_info["endCursor"].as_str() else {
+                return false;
+            };
+            if !seen_cursors.insert(end_cursor.to_string()) {
+                return false;
+            }
+            after = json!(end_cursor);
+        }
+
+        let observed_ids = self
+            .store
+            .products
+            .staged
+            .records
+            .keys()
+            .filter(|id| !staged_product_ids.contains(*id))
+            .cloned()
+            .collect::<Vec<_>>();
+        for id in observed_ids {
+            self.store.products.staged.remove_staged(&id);
+        }
+        self.store.replace_base_products(products);
+        self.product_catalog_hydrated_overlay_ids = Some(staged_product_ids);
+        self.execution_session.product_catalog_hydrated = true;
+        true
+    }
+
+    fn hydrate_product_saved_search_for_arguments(
+        &mut self,
+        request: &Request,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let Some(saved_search_id) = resolved_string_field(arguments, "savedSearchId") else {
+            return;
+        };
+        if self.store.saved_search_by_id(&saved_search_id).is_some() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": PRODUCT_LIVE_HYBRID_SAVED_SEARCH_HYDRATE_QUERY,
+                "operationName": "DraftProxyProductSavedSearchHydration",
+                "variables": { "id": saved_search_id },
+            }),
+        );
+        if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+            return;
+        }
+        let api_client_id = saved_search_request_api_client_id(request);
+        let Some(record) = saved_search_record_from_node(
+            &response.body["data"]["node"],
+            "PRODUCT",
+            &api_client_id,
+        ) else {
+            return;
+        };
+        if record.resource_type != "PRODUCT"
+            || self.store.saved_searches.staged.is_tombstoned(&record.id)
+        {
+            return;
+        }
+        self.store
+            .saved_searches
+            .base
+            .insert(record.id.clone(), record);
+    }
+
+    fn product_arguments_with_saved_search_query(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> BTreeMap<String, ResolvedValue> {
+        let Some(saved_search_id) = resolved_string_field(arguments, "savedSearchId") else {
+            return arguments.clone();
+        };
+        let mut merged = arguments.clone();
+        merged.remove("savedSearchId");
+        let Some(saved_search_query) = self
+            .store
+            .saved_search_by_id(&saved_search_id)
+            .filter(|record| record.resource_type == "PRODUCT")
+            .map(|record| record.query)
+        else {
+            return merged;
+        };
+        let argument_query = resolved_string_field(arguments, "query").unwrap_or_default();
+        let query = match (
+            saved_search_query.trim().is_empty(),
+            argument_query.trim().is_empty(),
+        ) {
+            (true, true) => String::new(),
+            (true, false) => argument_query,
+            (false, true) => saved_search_query,
+            (false, false) => format!("{saved_search_query} {argument_query}"),
+        };
+        merged.insert("query".to_string(), ResolvedValue::String(query));
+        merged
+    }
+
+    fn product_arguments_need_upstream_catalog_search(
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        resolved_string_field(arguments, "query")
+            .is_some_and(|query| catalog_search_predicate_requires_full_catalog(&query))
+    }
+
     pub(crate) fn products_count_outcome(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        if self.config.read_mode != ReadMode::Snapshot {
+        if self.config.read_mode == ReadMode::Live
+            || (self.config.read_mode == ReadMode::LiveHybrid
+                && (!self.product_catalog_overlay_active()
+                    || !self.ensure_live_hybrid_product_catalog_hydrated(invocation.request)))
+        {
             return self.cached_or_forward_upstream_root_outcome(
                 invocation.request,
                 invocation.response_key,
@@ -858,26 +1055,34 @@ impl DraftProxy {
             .iter()
             .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
             .collect::<BTreeMap<_, _>>();
-        let count = if arguments.contains_key("query") {
-            staged_connection_query(
-                self.store.products(),
-                &arguments,
-                |product, query| self.product_search_decision(product, query),
-                product_staged_sort_key,
-                |product| product_cursor(product).to_string(),
-            )
-            .total_count
-        } else {
-            self.store.product_count()
-        };
-        ResolverOutcome::value(count_object(count))
+        self.hydrate_product_saved_search_for_arguments(invocation.request, &arguments);
+        let arguments = self.product_arguments_with_saved_search_query(&arguments);
+        if Self::product_arguments_need_upstream_catalog_search(&arguments) {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        let count = staged_connection_query(
+            self.store.products(),
+            &arguments,
+            |product, query| self.product_search_decision(product, query),
+            product_staged_sort_key,
+            |product| product_cursor(product).to_string(),
+        )
+        .total_count;
+        ResolverOutcome::value(snapshot_count_with_limit_precision(count, &arguments))
     }
 
     pub(crate) fn products_root_outcome(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        if self.config.read_mode != ReadMode::Snapshot {
+        if self.config.read_mode == ReadMode::Live
+            || (self.config.read_mode == ReadMode::LiveHybrid
+                && (!self.product_catalog_overlay_active()
+                    || !self.ensure_live_hybrid_product_catalog_hydrated(invocation.request)))
+        {
             return self.cached_or_forward_upstream_root_outcome(
                 invocation.request,
                 invocation.response_key,
@@ -888,6 +1093,14 @@ impl DraftProxy {
             .iter()
             .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
             .collect::<BTreeMap<_, _>>();
+        self.hydrate_product_saved_search_for_arguments(invocation.request, &arguments);
+        let arguments = self.product_arguments_with_saved_search_query(&arguments);
+        if Self::product_arguments_need_upstream_catalog_search(&arguments) {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
         ResolverOutcome::value(staged_connection_value_with_args(
             self.store.products(),
             &arguments,

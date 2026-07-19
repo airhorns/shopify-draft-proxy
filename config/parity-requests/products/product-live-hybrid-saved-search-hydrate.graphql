@@ -1,0 +1,10 @@
+query DraftProxyProductSavedSearchHydration($id: ID!) {
+  node(id: $id) {
+    ... on SavedSearch {
+      id
+      name
+      query
+      resourceType
+    }
+  }
+}

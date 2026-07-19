@@ -186,7 +186,10 @@ fn search_query_tokens(query: &str) -> Vec<SearchToken> {
                     && chars[index] != '('
                     && chars[index] != ')'
                 {
-                    if chars[index] == '"' || chars[index] == '\'' {
+                    if chars[index] == '\\' && index + 1 < chars.len() {
+                        value.push(chars[index + 1]);
+                        index += 2;
+                    } else if chars[index] == '"' || chars[index] == '\'' {
                         let quote = chars[index];
                         value.push_str(&quoted_search_value(&chars, &mut index, quote));
                     } else {
@@ -207,8 +210,13 @@ fn quoted_search_value(chars: &[char], index: &mut usize, quote: char) -> String
     *index += 1;
     let mut value = String::new();
     while *index < chars.len() && chars[*index] != quote {
-        value.push(chars[*index]);
-        *index += 1;
+        if chars[*index] == '\\' && *index + 1 < chars.len() {
+            value.push(chars[*index + 1]);
+            *index += 2;
+        } else {
+            value.push(chars[*index]);
+            *index += 1;
+        }
     }
     if *index < chars.len() {
         *index += 1;
