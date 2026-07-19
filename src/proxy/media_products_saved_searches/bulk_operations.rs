@@ -55,13 +55,6 @@ const SUPPORTED_PRODUCT_BULK_CHILD_CONNECTIONS: &[&str] =
     &["collections", "images", "media", "metafields", "variants"];
 const SUPPORTED_PRODUCT_VARIANT_BULK_CHILD_CONNECTIONS: &[&str] = &["media", "metafields"];
 
-// Canonical mutation forwarded to upstream when a schema-valid bulk query root is
-// accepted by the validator but is not one of the locally synthesized roots
-// (`products`/`productVariants`). LiveHybrid replays the recorded upstream
-// `bulkOperationRunQuery` response unchanged. This text must stay byte-identical to
-// the cassette's recorded `query`, since the strict cassette matches query text exactly.
-const BULK_OPERATION_RUN_QUERY_PROXY_FALLBACK_QUERY: &str = "mutation BulkOperationRunQueryProxyFallback($query: String!) { bulkOperationRunQuery(query: $query) { bulkOperation { id status type } userErrors { field message code } } }";
-
 #[derive(Clone, Copy)]
 struct BulkOperationRecordSpec<'a> {
     id: &'a str,
@@ -743,20 +736,14 @@ impl DraftProxy {
         // Shopify validates bulk queries against the Admin GraphQL schema, so the proxy
         // accepts schema-valid roots beyond the ones it can synthesize JSONL for locally.
         // Local synthesis is scoped to `products`/`productVariants`; every other accepted
-        // root is replayed from the recorded upstream `bulkOperationRunQuery` response under
-        // LiveHybrid (returning Shopify's real BulkOperation id) rather than minting a
-        // synthetic operation we cannot faithfully export.
+        // root must fail explicitly because starting a real upstream bulk operation before
+        // commit would violate the stage-locally mutation contract.
         let root_name = bulk_query_root_field_name(&query_text);
         let locally_synthesized = matches!(
             root_name.as_deref(),
             Some("products") | Some("productVariants")
         );
         if !locally_synthesized {
-            if let Some(payload) =
-                self.bulk_operation_run_query_upstream_payload(request, &query_text)
-            {
-                return ResolverOutcome::value(payload);
-            }
             let payload = json!({
                 "bulkOperation": null,
                 "userErrors": [unsupported_bulk_query_root_error(
@@ -813,37 +800,6 @@ impl DraftProxy {
             "bulk-operations",
             vec![id],
         ))
-    }
-
-    /// Forwards the canonical `BulkOperationRunQueryProxyFallback` mutation upstream for a
-    /// schema-valid bulk query root the proxy does not synthesize locally, returning the
-    /// recorded `bulkOperationRunQuery` payload unchanged. Returns `None` when not in
-    /// LiveHybrid or when the upstream response does not carry a payload object.
-    fn bulk_operation_run_query_upstream_payload(
-        &self,
-        request: &Request,
-        query_text: &str,
-    ) -> Option<Value> {
-        if self.config.read_mode != ReadMode::LiveHybrid {
-            return None;
-        }
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": BULK_OPERATION_RUN_QUERY_PROXY_FALLBACK_QUERY,
-                "operationName": "BulkOperationRunQueryProxyFallback",
-                "variables": { "query": query_text }
-            }),
-        );
-        if response.status >= 400 {
-            return None;
-        }
-        response
-            .body
-            .get("data")
-            .and_then(|data| data.get("bulkOperationRunQuery"))
-            .filter(|payload| payload.is_object())
-            .cloned()
     }
 
     pub(in crate::proxy) fn bulk_operation_run_mutation_outcome(
@@ -1491,6 +1447,148 @@ mod tests {
             seed_product("gid://shopify/Product/2", "Blue product", "blue-product"),
         ])
         .with_upstream_transport(|_| panic!("bulk operation tests should not call upstream"))
+    }
+
+    #[test]
+    fn product_bulk_query_stays_local_and_logs_original_mutation() {
+        let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+        let calls_for_transport = Arc::clone(&upstream_calls);
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_base_products(vec![seed_product(
+            "gid://shopify/Product/base",
+            "Base product",
+            "base-product",
+        )])
+        .with_upstream_transport(move |request| {
+            calls_for_transport.lock().unwrap().push(request);
+            Response {
+                status: 500,
+                headers: BTreeMap::new(),
+                body: json!({ "errors": [{ "message": "unexpected upstream call" }] }),
+            }
+        });
+        let create = proxy.process_request(test_request(
+            r#"
+            mutation StageProductForBulkExport($product: ProductCreateInput!) {
+              productCreate(product: $product) {
+                product { id title }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "product": { "title": "Staged product" } }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(
+            create.body["data"]["productCreate"]["userErrors"],
+            json!([])
+        );
+        let staged_product_id = create.body["data"]["productCreate"]["product"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let raw_mutation = r#"
+            mutation StageLocalBulkExport($query: String!) {
+              bulkOperationRunQuery(query: $query) {
+                bulkOperation { id status type }
+                userErrors { field message code }
+              }
+            }
+        "#;
+
+        let run_request = test_request(
+            raw_mutation,
+            json!({ "query": "{ products { edges { node { id title } } } }" }),
+        );
+        let expected_raw_body = run_request.body.clone();
+        let response = proxy.process_request(run_request);
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["bulkOperationRunQuery"]["userErrors"],
+            json!([])
+        );
+        assert!(upstream_calls.lock().unwrap().is_empty());
+        let operation_id = response.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+            .as_str()
+            .unwrap();
+        let artifact = proxy.process_request(bulk_artifact_request(operation_id));
+        assert_eq!(artifact.status, 200);
+        let rows = artifact
+            .body
+            .as_str()
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).unwrap())
+            .collect::<Vec<_>>();
+        assert!(rows
+            .iter()
+            .any(|row| row["id"] == "gid://shopify/Product/base"));
+        assert!(rows.iter().any(|row| row["id"] == staged_product_id));
+        let log = proxy.process_request(meta_request("GET", "/__meta/log", ""));
+        assert_eq!(log.body["entries"].as_array().unwrap().len(), 2);
+        assert_eq!(log.body["entries"][1]["rawBody"], expected_raw_body);
+    }
+
+    #[test]
+    fn unsupported_non_product_bulk_query_never_calls_upstream() {
+        let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+        let calls_for_transport = Arc::clone(&upstream_calls);
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_upstream_transport(move |request| {
+            calls_for_transport.lock().unwrap().push(request);
+            Response {
+                status: 500,
+                headers: BTreeMap::new(),
+                body: json!({ "errors": [{ "message": "unexpected upstream call" }] }),
+            }
+        });
+
+        let response = proxy.process_request(test_request(
+            r#"
+            mutation RejectUnmodeledBulkExport($query: String!) {
+              bulkOperationRunQuery(query: $query) {
+                bulkOperation { id status type }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "query": "{ orders { edges { node { id } } } }" }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert!(
+            upstream_calls.lock().unwrap().is_empty(),
+            "unsupported bulk query must not run a substitute mutation upstream"
+        );
+        assert_eq!(
+            response.body["data"]["bulkOperationRunQuery"]["bulkOperation"],
+            Value::Null
+        );
+        assert_eq!(
+            response.body["data"]["bulkOperationRunQuery"]["userErrors"],
+            json!([{
+                "field": ["query"],
+                "message": "Bulk query root `orders` is accepted by Shopify's schema-driven validator but is not yet supported by the local JSONL synthesizer.",
+                "code": null
+            }])
+        );
+        let log = proxy.process_request(meta_request("GET", "/__meta/log", ""));
+        assert_eq!(log.body["entries"], json!([]));
     }
 
     fn create_variant(proxy: &mut DraftProxy, product_id: &str, sku: &str) -> Value {
@@ -2945,16 +3043,15 @@ fn bulk_operation_run_mutation_line_error(line_number: usize, message: &str) -> 
     })
 }
 
-/// Mirrors Shopify-vs-proxy divergence: a root the schema-driven validator accepts but
-/// the local JSONL synthesizer cannot emulate, surfaced only when no upstream replay is
-/// available (e.g. outside LiveHybrid).
+/// Mirrors the explicit Shopify-vs-proxy boundary for a root the schema-driven validator
+/// accepts but the local JSONL synthesizer cannot emulate safely.
 fn unsupported_bulk_query_root_error(root_name: &str) -> Value {
     user_error(
         ["query"],
         &format!(
             "Bulk query root `{root_name}` is accepted by Shopify's schema-driven validator but is not yet supported by the local JSONL synthesizer."
         ),
-        Some("UNSUPPORTED_IN_PROXY"),
+        None,
     )
 }
 
