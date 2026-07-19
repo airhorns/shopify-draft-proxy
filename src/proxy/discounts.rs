@@ -22,6 +22,14 @@ const SHOP_SUBSCRIPTION_CAPABILITY_QUERY: &str =
 /// revoked function returns an empty `nodes` list and activation fails with a
 /// base-field INTERNAL_ERROR. Must match the recorded cassette call byte-for-byte.
 const SHOPIFY_FUNCTION_AVAILABILITY_QUERY: &str = "query ShopifyFunctionAvailabilityForDiscountActivation($handle: String!) { shopifyFunctions(first: 1, handle: $handle) { nodes { id title handle apiType description appKey app { id title handle apiKey } } } }";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AppDiscountFunctionAvailability {
+    Present,
+    Absent,
+    Indeterminate,
+}
+
 /// Shop-wide redeem-code uniqueness probe forwarded during code-discount create
 /// validation. A code already assigned to any discount in the shop is rejected
 /// with a `TAKEN` userError; rather than relying on locally injected state, the
@@ -1039,21 +1047,23 @@ impl DraftProxy {
         // available; a revoked function fails activation with a base-field
         // INTERNAL_ERROR rather than transitioning the discount.
         if activating {
-            if let Some(handle) = record
-                .get("shopifyFunction")
-                .and_then(|function| function.get("handle"))
-                .and_then(Value::as_str)
-            {
-                if !self.app_discount_function_available(request, handle) {
-                    return MutationFieldOutcome::unlogged(discount_payload_for_root(
-                        &field.name,
-                        Value::Null,
-                        vec![user_error(
-                            ["base"],
-                            "Discount could not be activated.",
-                            Some("INTERNAL_ERROR"),
-                        )],
-                    ));
+            if let Some(function) = record.get("shopifyFunction") {
+                match self.app_discount_function_availability(request, function) {
+                    AppDiscountFunctionAvailability::Present => {}
+                    AppDiscountFunctionAvailability::Absent => {
+                        return MutationFieldOutcome::unlogged(discount_payload_for_root(
+                            &field.name,
+                            Value::Null,
+                            vec![app_discount_activation_unavailable_user_error()],
+                        ));
+                    }
+                    AppDiscountFunctionAvailability::Indeterminate => {
+                        return MutationFieldOutcome::unlogged(discount_payload_for_root(
+                            &field.name,
+                            Value::Null,
+                            vec![app_discount_activation_indeterminate_user_error()],
+                        ));
+                    }
                 }
             }
         }
@@ -1186,10 +1196,28 @@ impl DraftProxy {
 
     /// Whether the Function backing an app discount is still available for
     /// activation. Forwards a `ShopifyFunctionAvailabilityForDiscountActivation`
-    /// read; an empty `nodes` list means the function was revoked. When the probe
-    /// cannot be resolved (no upstream / no recorded call) we assume the function
-    /// is available so non-revocation scenarios activate normally.
-    fn app_discount_function_available(&self, request: &Request, handle: &str) -> bool {
+    /// read; an empty `nodes` list means the function was revoked. Transport
+    /// failures, GraphQL errors, and malformed responses are indeterminate and
+    /// must not activate the discount.
+    fn app_discount_function_availability(
+        &self,
+        request: &Request,
+        function: &Value,
+    ) -> AppDiscountFunctionAvailability {
+        if let Some(handle) = function.get("handle").and_then(Value::as_str) {
+            return self.app_discount_function_availability_by_handle(request, handle);
+        }
+        if let Some(id) = function.get("id").and_then(Value::as_str) {
+            return self.app_discount_function_availability_by_id(request, id);
+        }
+        AppDiscountFunctionAvailability::Indeterminate
+    }
+
+    fn app_discount_function_availability_by_handle(
+        &self,
+        request: &Request,
+        handle: &str,
+    ) -> AppDiscountFunctionAvailability {
         let response = self.upstream_post(
             request,
             json!({
@@ -1198,12 +1226,77 @@ impl DraftProxy {
             }),
         );
         if response.status != 200 {
-            return true;
+            return AppDiscountFunctionAvailability::Indeterminate;
         }
-        response.body["data"]["shopifyFunctions"]["nodes"]
-            .as_array()
-            .map(|nodes| !nodes.is_empty())
-            .unwrap_or(true)
+        if response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_some_and(|errors| !errors.is_empty())
+        {
+            return AppDiscountFunctionAvailability::Indeterminate;
+        }
+        let Some(nodes) = response
+            .body
+            .get("data")
+            .and_then(|data| data.get("shopifyFunctions"))
+            .and_then(|shopify_functions| shopify_functions.get("nodes"))
+            .and_then(Value::as_array)
+        else {
+            return AppDiscountFunctionAvailability::Indeterminate;
+        };
+        if nodes.is_empty() {
+            return AppDiscountFunctionAvailability::Absent;
+        }
+        if nodes
+            .iter()
+            .any(|node| node.get("id").and_then(Value::as_str).is_some())
+        {
+            AppDiscountFunctionAvailability::Present
+        } else {
+            AppDiscountFunctionAvailability::Indeterminate
+        }
+    }
+
+    fn app_discount_function_availability_by_id(
+        &self,
+        request: &Request,
+        id: &str,
+    ) -> AppDiscountFunctionAvailability {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": SHOPIFY_FUNCTION_BY_ID_QUERY,
+                "variables": { "id": id }
+            }),
+        );
+        if response.status != 200 {
+            return AppDiscountFunctionAvailability::Indeterminate;
+        }
+        if response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_some_and(|errors| !errors.is_empty())
+        {
+            return AppDiscountFunctionAvailability::Indeterminate;
+        }
+        match response
+            .body
+            .get("data")
+            .and_then(|data| data.get("shopifyFunction"))
+        {
+            Some(function)
+                if function
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .is_some_and(|function_id| function_id == id) =>
+            {
+                AppDiscountFunctionAvailability::Present
+            }
+            Some(function) if function.is_null() => AppDiscountFunctionAvailability::Absent,
+            _ => AppDiscountFunctionAvailability::Indeterminate,
+        }
     }
 
     fn discount_delete(&mut self, field: &RootFieldSelection) -> MutationFieldOutcome {
@@ -3537,6 +3630,22 @@ fn discount_unknown_id_user_error(root: &str) -> Value {
         "Code discount does not exist."
     };
     user_error_with_extra_info(vec!["id"], message, Some("INVALID"), Value::Null)
+}
+
+fn app_discount_activation_unavailable_user_error() -> Value {
+    user_error(
+        ["base"],
+        "Discount could not be activated.",
+        Some("INTERNAL_ERROR"),
+    )
+}
+
+fn app_discount_activation_indeterminate_user_error() -> Value {
+    user_error(
+        ["base"],
+        "Discount activation could not verify Function availability.",
+        Some("INTERNAL_ERROR"),
+    )
 }
 
 fn discount_id(record: &Value) -> &str {

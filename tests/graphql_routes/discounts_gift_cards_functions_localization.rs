@@ -581,14 +581,25 @@ fn discount_app_test_function() -> Value {
     })
 }
 
+#[derive(Clone, Copy, Debug)]
+enum DiscountAppActivationAvailability {
+    Present,
+    Absent,
+    Non200,
+    GraphqlError,
+    Malformed,
+    MissingField,
+}
+
 fn discount_app_function_upstream_response(
     request: Request,
-    activation_available: bool,
+    activation_availability: DiscountAppActivationAvailability,
 ) -> Response {
     let body = serde_json::from_str::<Value>(&request.body)
         .expect("discount app upstream body should parse");
     let query = body["query"].as_str().unwrap_or_default();
     let function = discount_app_test_function();
+    let mut status = 200;
     let response_body = if query.contains("ShopifyFunctionByHandle") {
         json!({ "data": { "shopifyFunctions": { "nodes": [function] } } })
     } else if query.contains("ShopifyFunctionById") {
@@ -599,12 +610,28 @@ fn discount_app_function_upstream_response(
             .remove("handle");
         json!({ "data": { "shopifyFunction": function } })
     } else if query.contains("ShopifyFunctionAvailabilityForDiscountActivation") {
-        let nodes = if activation_available {
-            vec![function]
-        } else {
-            Vec::new()
-        };
-        json!({ "data": { "shopifyFunctions": { "nodes": nodes } } })
+        match activation_availability {
+            DiscountAppActivationAvailability::Present => {
+                json!({ "data": { "shopifyFunctions": { "nodes": [function] } } })
+            }
+            DiscountAppActivationAvailability::Absent => {
+                json!({ "data": { "shopifyFunctions": { "nodes": [] } } })
+            }
+            DiscountAppActivationAvailability::Non200 => {
+                status = 503;
+                json!({ "errors": [{ "message": "availability probe unavailable" }] })
+            }
+            DiscountAppActivationAvailability::GraphqlError => json!({
+                "data": null,
+                "errors": [{ "message": "Field 'shopifyFunctions' doesn't exist on type 'QueryRoot'" }]
+            }),
+            DiscountAppActivationAvailability::Malformed => {
+                json!({ "data": { "shopifyFunctions": { "nodes": "not-a-list" } } })
+            }
+            DiscountAppActivationAvailability::MissingField => {
+                json!({ "data": { "shopifyFunctions": {} } })
+            }
+        }
     } else {
         json!({
             "errors": [{
@@ -614,7 +641,7 @@ fn discount_app_function_upstream_response(
     };
 
     Response {
-        status: 200,
+        status,
         headers: Default::default(),
         body: response_body,
     }
@@ -2093,7 +2120,12 @@ fn discount_code_app_title_validation_matches_shopify() {
 #[test]
 fn discount_app_lifecycle_stages_updates_reads_and_deletes_without_local_runtime_fixture() {
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
-        .with_upstream_transport(|request| discount_app_function_upstream_response(request, true));
+        .with_upstream_transport(|request| {
+            discount_app_function_upstream_response(
+                request,
+                DiscountAppActivationAvailability::Present,
+            )
+        });
 
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -2361,7 +2393,10 @@ fn discount_app_function_id_hydrate_matches_live_schema_without_function_handle(
             let body = serde_json::from_str::<Value>(&request.body)
                 .expect("discount app upstream body should parse");
             hits_for_transport.lock().unwrap().push(body.clone());
-            discount_app_function_upstream_response(request, true)
+            discount_app_function_upstream_response(
+                request,
+                DiscountAppActivationAvailability::Present,
+            )
         });
 
     let response = proxy.process_request(json_graphql_request(
@@ -2417,13 +2452,35 @@ fn discount_app_function_id_hydrate_matches_live_schema_without_function_handle(
 }
 
 #[test]
-fn discount_app_activation_fails_when_backing_function_is_unavailable() {
-    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
-        .with_upstream_transport(|request| discount_app_function_upstream_response(request, false));
+fn discount_app_activation_checks_function_id_when_handle_is_missing() {
+    let function_id_calls = Arc::new(Mutex::new(0usize));
+    let calls_for_transport = function_id_calls.clone();
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        move |request| {
+            let body = serde_json::from_str::<Value>(&request.body)
+                .expect("discount app upstream body should parse");
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("ShopifyFunctionById") {
+                let mut calls = calls_for_transport.lock().unwrap();
+                *calls += 1;
+                if *calls > 1 {
+                    return Response {
+                        status: 503,
+                        headers: Default::default(),
+                        body: json!({ "errors": [{ "message": "function id availability unavailable" }] }),
+                    };
+                }
+            }
+            discount_app_function_upstream_response(
+                request,
+                DiscountAppActivationAvailability::Present,
+            )
+        },
+    );
 
     let create = proxy.process_request(json_graphql_request(
         r#"
-        mutation DiscountActivationFailureCreate(
+        mutation DiscountActivationFunctionIdCreate(
           $codeInput: DiscountCodeAppInput!
           $automaticInput: DiscountAutomaticAppInput!
         ) {
@@ -2439,50 +2496,179 @@ fn discount_app_activation_fails_when_backing_function_is_unavailable() {
         "#,
         json!({
             "codeInput": {
-                "title": "Activation failure code app",
-                "code": "ACTIVATEFAILBASE",
-                "startsAt": "2026-05-05T00:00:00Z",
+                "title": "Function id activation code app",
+                "code": "APP-FUNCTION-ID-ACTIVATE",
+                "startsAt": "2030-05-05T00:00:00Z",
+                "functionId": "gid://shopify/ShopifyFunction/discount-function",
+                "discountClasses": ["ORDER"]
+            },
+            "automaticInput": {
+                "title": "Function id activation automatic app",
+                "startsAt": "2030-05-05T00:00:00Z",
+                "functionId": "gid://shopify/ShopifyFunction/discount-function",
+                "discountClasses": ["ORDER"]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["discountCodeAppCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["discountAutomaticAppCreate"]["userErrors"],
+        json!([])
+    );
+    let code_id = json_string(
+        &create.body["data"]["discountCodeAppCreate"]["codeAppDiscount"]["discountId"],
+        "function id activation code id",
+    );
+    let automatic_id = json_string(
+        &create.body["data"]["discountAutomaticAppCreate"]["automaticAppDiscount"]["discountId"],
+        "function id activation automatic id",
+    );
+    assert_app_discount_activation_probe_statuses(&mut proxy, &code_id, &automatic_id, "SCHEDULED");
+
+    let response = activate_app_discounts_for_probe(&mut proxy, &code_id, &automatic_id);
+
+    assert_app_discount_activation_blocked(&response, app_discount_activation_indeterminate_error());
+    assert_app_discount_activation_probe_statuses(&mut proxy, &code_id, &automatic_id, "SCHEDULED");
+    assert_eq!(
+        *function_id_calls.lock().unwrap(),
+        3,
+        "create should hydrate by id once, then each activation field should verify by id"
+    );
+}
+
+fn create_app_discounts_for_activation_probe(proxy: &mut DraftProxy) -> (String, String) {
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountActivationProbeCreate(
+          $codeInput: DiscountCodeAppInput!
+          $automaticInput: DiscountAutomaticAppInput!
+        ) {
+          discountCodeAppCreate(codeAppDiscount: $codeInput) {
+            codeAppDiscount { discountId }
+            userErrors { field message code extraInfo }
+          }
+          discountAutomaticAppCreate(automaticAppDiscount: $automaticInput) {
+            automaticAppDiscount { discountId }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "codeInput": {
+                "title": "Activation probe code app",
+                "code": "ACTIVATEPROBE",
+                "startsAt": "2030-05-05T00:00:00Z",
                 "functionHandle": "discount-function",
                 "discountClasses": ["ORDER"]
             },
             "automaticInput": {
-                "title": "Activation failure automatic app",
-                "startsAt": "2026-05-05T00:00:00Z",
+                "title": "Activation probe automatic app",
+                "startsAt": "2030-05-05T00:00:00Z",
                 "functionHandle": "discount-function",
                 "discountClasses": ["ORDER"]
             }
         }),
     ));
-    let code_id = json_string(
-        &create.body["data"]["discountCodeAppCreate"]["codeAppDiscount"]["discountId"],
-        "code activation failure id",
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["discountCodeAppCreate"]["userErrors"],
+        json!([])
     );
-    let automatic_id = json_string(
-        &create.body["data"]["discountAutomaticAppCreate"]["automaticAppDiscount"]["discountId"],
-        "automatic activation failure id",
+    assert_eq!(
+        create.body["data"]["discountAutomaticAppCreate"]["userErrors"],
+        json!([])
     );
+    (
+        json_string(
+            &create.body["data"]["discountCodeAppCreate"]["codeAppDiscount"]["discountId"],
+            "code activation probe id",
+        ),
+        json_string(
+            &create.body["data"]["discountAutomaticAppCreate"]["automaticAppDiscount"]
+                ["discountId"],
+            "automatic activation probe id",
+        ),
+    )
+}
 
-    let response = proxy.process_request(json_graphql_request(
+fn activate_app_discounts_for_probe(
+    proxy: &mut DraftProxy,
+    code_id: &str,
+    automatic_id: &str,
+) -> Response {
+    proxy.process_request(json_graphql_request(
         r#"
-        mutation DiscountActivationFailure($codeId: ID!, $automaticId: ID!) {
+        mutation DiscountActivationProbe($codeId: ID!, $automaticId: ID!) {
           code: discountCodeActivate(id: $codeId) {
-            codeDiscountNode { id }
+            codeDiscountNode {
+              id
+              codeDiscount { ... on DiscountCodeApp { status startsAt endsAt } }
+            }
             userErrors { field message code extraInfo }
           }
           automatic: discountAutomaticActivate(id: $automaticId) {
-            automaticDiscountNode { id }
+            automaticDiscountNode {
+              id
+              automaticDiscount { ... on DiscountAutomaticApp { status startsAt endsAt } }
+            }
             userErrors { field message code extraInfo }
           }
         }
         "#,
         json!({ "codeId": code_id, "automaticId": automatic_id }),
-    ));
+    ))
+}
 
-    let expected_error = json!([{
+fn assert_app_discount_activation_probe_statuses(
+    proxy: &mut DraftProxy,
+    code_id: &str,
+    automatic_id: &str,
+    expected_status: &str,
+) {
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountActivationProbeRead($codeId: ID!, $automaticId: ID!) {
+          codeDiscountNode(id: $codeId) {
+            codeDiscount { ... on DiscountCodeApp { status } }
+          }
+          automaticDiscountNode(id: $automaticId) {
+            automaticDiscount { ... on DiscountAutomaticApp { status } }
+          }
+        }
+        "#,
+        json!({ "codeId": code_id, "automaticId": automatic_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["codeDiscountNode"]["codeDiscount"]["status"],
+        json!(expected_status)
+    );
+    assert_eq!(
+        read.body["data"]["automaticDiscountNode"]["automaticDiscount"]["status"],
+        json!(expected_status)
+    );
+}
+
+fn app_discount_activation_unavailable_error() -> Value {
+    json!([{
         "field": ["base"],
         "message": "Discount could not be activated.",
         "code": "INTERNAL_ERROR"
-    }]);
+    }])
+}
+
+fn app_discount_activation_indeterminate_error() -> Value {
+    json!([{
+        "field": ["base"],
+        "message": "Discount activation could not verify Function availability.",
+        "code": "INTERNAL_ERROR"
+    }])
+}
+
+fn assert_app_discount_activation_blocked(response: &Response, expected_error: Value) {
     assert_eq!(
         response.body["data"]["code"]["codeDiscountNode"],
         json!(null)
@@ -2496,6 +2682,97 @@ fn discount_app_activation_fails_when_backing_function_is_unavailable() {
         response.body["data"]["automatic"]["userErrors"],
         expected_error
     );
+}
+
+#[test]
+fn discount_app_activation_succeeds_only_when_function_presence_is_verified() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        |request| {
+            discount_app_function_upstream_response(
+                request,
+                DiscountAppActivationAvailability::Present,
+            )
+        },
+    );
+
+    let (code_id, automatic_id) = create_app_discounts_for_activation_probe(&mut proxy);
+    assert_app_discount_activation_probe_statuses(&mut proxy, &code_id, &automatic_id, "SCHEDULED");
+
+    let response = activate_app_discounts_for_probe(&mut proxy, &code_id, &automatic_id);
+
+    assert_eq!(
+        response.body["data"]["code"]["userErrors"],
+        json!([]),
+        "verified present Function should permit code app activation"
+    );
+    assert_eq!(
+        response.body["data"]["code"]["codeDiscountNode"]["codeDiscount"]["status"],
+        json!("ACTIVE")
+    );
+    assert_eq!(
+        response.body["data"]["automatic"]["userErrors"],
+        json!([]),
+        "verified present Function should permit automatic app activation"
+    );
+    assert_eq!(
+        response.body["data"]["automatic"]["automaticDiscountNode"]["automaticDiscount"]["status"],
+        json!("ACTIVE")
+    );
+    assert_app_discount_activation_probe_statuses(&mut proxy, &code_id, &automatic_id, "ACTIVE");
+}
+
+#[test]
+fn discount_app_activation_fails_when_backing_function_is_unavailable() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        |request| {
+            discount_app_function_upstream_response(
+                request,
+                DiscountAppActivationAvailability::Absent,
+            )
+        },
+    );
+
+    let (code_id, automatic_id) = create_app_discounts_for_activation_probe(&mut proxy);
+    assert_app_discount_activation_probe_statuses(&mut proxy, &code_id, &automatic_id, "SCHEDULED");
+
+    let response = activate_app_discounts_for_probe(&mut proxy, &code_id, &automatic_id);
+
+    assert_app_discount_activation_blocked(&response, app_discount_activation_unavailable_error());
+    assert_app_discount_activation_probe_statuses(&mut proxy, &code_id, &automatic_id, "SCHEDULED");
+}
+
+#[test]
+fn discount_app_activation_fails_safe_when_function_availability_is_indeterminate() {
+    for availability in [
+        DiscountAppActivationAvailability::Non200,
+        DiscountAppActivationAvailability::GraphqlError,
+        DiscountAppActivationAvailability::Malformed,
+        DiscountAppActivationAvailability::MissingField,
+    ] {
+        let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+            move |request| discount_app_function_upstream_response(request, availability),
+        );
+        let (code_id, automatic_id) = create_app_discounts_for_activation_probe(&mut proxy);
+        assert_app_discount_activation_probe_statuses(
+            &mut proxy,
+            &code_id,
+            &automatic_id,
+            "SCHEDULED",
+        );
+
+        let response = activate_app_discounts_for_probe(&mut proxy, &code_id, &automatic_id);
+
+        assert_app_discount_activation_blocked(
+            &response,
+            app_discount_activation_indeterminate_error(),
+        );
+        assert_app_discount_activation_probe_statuses(
+            &mut proxy,
+            &code_id,
+            &automatic_id,
+            "SCHEDULED",
+        );
+    }
 }
 
 #[test]
@@ -3467,7 +3744,12 @@ fn discount_lifecycle_cross_kind_ids_are_not_found_and_do_not_mutate_records() {
 #[test]
 fn discount_redeem_code_bulk_add_rejects_code_app_discount_ids() {
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
-        .with_upstream_transport(|request| discount_app_function_upstream_response(request, true));
+        .with_upstream_transport(|request| {
+            discount_app_function_upstream_response(
+                request,
+                DiscountAppActivationAvailability::Present,
+            )
+        });
 
     let create = proxy.process_request(json_graphql_request(
         r#"
