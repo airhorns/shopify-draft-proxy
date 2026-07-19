@@ -1,5 +1,7 @@
 use super::resolved_values;
 use super::*;
+use base64::Engine as _;
+use sha2::{Digest, Sha256};
 
 mod gift_cards;
 
@@ -8397,7 +8399,11 @@ fn canonical_json_string(value: &Value) -> String {
 }
 
 fn local_flow_signature(id: &str, payload: &str) -> String {
-    format!("sha256:{}", stable_hash_hex(&format!("{id}:{payload}")))
+    let mut hasher = Sha256::new();
+    hasher.update(id.as_bytes());
+    hasher.update(b":");
+    hasher.update(payload.as_bytes());
+    base64::engine::general_purpose::STANDARD.encode(hasher.finalize())
 }
 
 fn stable_hash_hex(input: &str) -> String {

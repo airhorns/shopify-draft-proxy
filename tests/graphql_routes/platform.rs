@@ -1515,10 +1515,28 @@ fn flow_generate_signature_validates_arguments_and_stages_locally() {
     ));
     let payload = &generated.body["data"]["local"];
     assert_eq!(payload["payload"], json!("{\"a\":1,\"b\":2}"));
-    assert!(payload["signature"]
-        .as_str()
-        .is_some_and(|value| !value.is_empty()));
+    let signature = payload["signature"].as_str().unwrap();
+    assert_eq!(signature.len(), 44);
+    assert!(signature.ends_with('='));
+    assert!(!signature.starts_with("sha256:"));
+    assert!(signature
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '+' || ch == '/' || ch == '='));
     assert_eq!(payload["userErrors"], json!([]));
+
+    let repeated = snapshot_proxy().process_request(json_graphql_request(
+        r#"
+        mutation FlowGenerateSignatureValid {
+          local: flowGenerateSignature(id: "gid://shopify/FlowActionDefinition/0", payload: "{\"b\":2,\"a\":1}") {
+            signature
+            payload
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(repeated.body["data"]["local"]["signature"], json!(signature));
 
     let log = proxy.process_request(Request {
         method: "GET".to_string(),
