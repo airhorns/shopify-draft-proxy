@@ -45,6 +45,67 @@ query CollectionsIdentityHydrate(
 }
 "#;
 
+struct ProductHydrationPageState {
+    has_next: bool,
+    end_cursor: Option<String>,
+}
+
+fn product_hydration_page_state(product: &Value, relationship: &str) -> ProductHydrationPageState {
+    let page_info = product
+        .get(relationship)
+        .and_then(|value| value.get("pageInfo"));
+    ProductHydrationPageState {
+        has_next: page_info
+            .and_then(|value| value.get("hasNextPage"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        end_cursor: page_info
+            .and_then(|value| value.get("endCursor"))
+            .and_then(Value::as_str)
+            .map(str::to_string),
+    }
+}
+
+fn merge_product_mutation_hydration_page(accumulated: &mut Option<Value>, page: &Value) {
+    let Some(product) = accumulated.as_mut() else {
+        *accumulated = Some(page.clone());
+        return;
+    };
+    for relationship in ["variants", "media", "collections"] {
+        let page_nodes = page
+            .get(relationship)
+            .and_then(|connection| connection.get("nodes"))
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let target_nodes = product
+            .get_mut(relationship)
+            .and_then(|connection| connection.get_mut("nodes"))
+            .and_then(Value::as_array_mut);
+        if let Some(target_nodes) = target_nodes {
+            for page_node in page_nodes {
+                let page_id = page_node.get("id").and_then(Value::as_str);
+                if let Some(target_node) = page_id.and_then(|id| {
+                    target_nodes
+                        .iter_mut()
+                        .find(|node| node.get("id").and_then(Value::as_str) == Some(id))
+                }) {
+                    *target_node = shallow_merged_object(target_node.clone(), page_node);
+                } else {
+                    target_nodes.push(page_node);
+                }
+            }
+        }
+        if let Some(page_info) = page
+            .get(relationship)
+            .and_then(|connection| connection.get("pageInfo"))
+            .cloned()
+        {
+            product[relationship]["pageInfo"] = page_info;
+        }
+    }
+}
+
 pub(in crate::proxy) const STOREFRONT_COLLECTION_BASELINE_UPDATED_AT_FIELD: &str =
     "__storefrontBaselineUpdatedAt";
 
@@ -1605,6 +1666,115 @@ impl DraftProxy {
         self.observe_nodes_response(&response);
     }
 
+    pub(in crate::proxy) fn ensure_product_mutation_hydrated(
+        &mut self,
+        request: &Request,
+        product_id: &str,
+    ) -> bool {
+        if product_id.is_empty() || self.store.product_is_tombstoned(product_id) {
+            return false;
+        }
+        if self
+            .store
+            .product_by_id(product_id)
+            .is_some_and(product_mutation_hydration_complete)
+        {
+            return true;
+        }
+        if self.config.read_mode != ReadMode::LiveHybrid || is_synthetic_gid(product_id) {
+            return self.store.product_by_id(product_id).is_some();
+        }
+
+        let mut variants_after = None::<String>;
+        let mut media_after = None::<String>;
+        let mut collections_after = None::<String>;
+        let mut seen_cursors = BTreeSet::new();
+        let mut accumulated = None::<Value>;
+        let mut hydration_complete = false;
+
+        loop {
+            let cursor_key = (
+                variants_after.clone(),
+                media_after.clone(),
+                collections_after.clone(),
+            );
+            if !seen_cursors.insert(cursor_key) {
+                break;
+            }
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": PRODUCT_MUTATION_PREFLIGHT_HYDRATE_QUERY,
+                    "operationName": "ProductMutationPreflightHydrate",
+                    "variables": {
+                        "id": product_id,
+                        "variantsAfter": variants_after,
+                        "mediaAfter": media_after,
+                        "collectionsAfter": collections_after,
+                    }
+                }),
+            );
+            if !(200..300).contains(&response.status)
+                || response
+                    .body
+                    .get("errors")
+                    .and_then(Value::as_array)
+                    .is_some_and(|errors| !errors.is_empty())
+            {
+                break;
+            }
+            let Some(product_page) = response.body.pointer("/data/product") else {
+                break;
+            };
+            if product_page.is_null() {
+                return false;
+            }
+            merge_product_mutation_hydration_page(&mut accumulated, product_page);
+
+            let variants_page = product_hydration_page_state(product_page, "variants");
+            let media_page = product_hydration_page_state(product_page, "media");
+            let collections_page = product_hydration_page_state(product_page, "collections");
+            if !variants_page.has_next && !media_page.has_next && !collections_page.has_next {
+                hydration_complete = true;
+                break;
+            }
+            if variants_page.has_next {
+                let Some(cursor) = variants_page.end_cursor else {
+                    break;
+                };
+                variants_after = Some(cursor);
+            } else if variants_after.is_none() {
+                variants_after = variants_page.end_cursor;
+            }
+            if media_page.has_next {
+                let Some(cursor) = media_page.end_cursor else {
+                    break;
+                };
+                media_after = Some(cursor);
+            } else if media_after.is_none() {
+                media_after = media_page.end_cursor;
+            }
+            if collections_page.has_next {
+                let Some(cursor) = collections_page.end_cursor else {
+                    break;
+                };
+                collections_after = Some(cursor);
+            } else if collections_after.is_none() {
+                collections_after = collections_page.end_cursor;
+            }
+        }
+
+        if let Some(mut product) = accumulated {
+            if hydration_complete {
+                product[PRODUCT_MUTATION_HYDRATION_COMPLETE_FIELD] = Value::Bool(true);
+            }
+            self.observe_nodes_data(&json!({ "data": { "nodes": [product] } }));
+        }
+        self.store
+            .product_by_id(product_id)
+            .is_some_and(product_mutation_hydration_complete)
+    }
+
     pub(in crate::proxy) fn hydrate_product_set_target_by_id_with_request(
         &mut self,
         request: &Request,
@@ -1647,31 +1817,12 @@ impl DraftProxy {
     /// graph that the generic observation query omits) and observe it, so a cold
     /// productOptionsReorder resolves the real owning product + option graph from
     /// upstream instead of relying on seeded state.
-    pub(in crate::proxy) fn hydrate_product_options_owner(&mut self, product_id: &str) {
-        if product_id.is_empty() {
-            return;
-        }
-        let path = self
-            .log_entries
-            .last()
-            .and_then(|entry| entry.get("path"))
-            .and_then(Value::as_str)
-            .unwrap_or("/admin/api/2025-01/graphql.json")
-            .to_string();
-        let response = self.upstream_post(
-            &Request {
-                method: "POST".to_string(),
-                path,
-                headers: BTreeMap::new(),
-                body: String::new(),
-            },
-            json!({
-                "query": PRODUCT_OPTIONS_HYDRATE_NODES_QUERY,
-                "operationName": "ProductOptionsHydrateNodes",
-                "variables": { "ids": [product_id] }
-            }),
-        );
-        self.observe_nodes_response(&response);
+    pub(in crate::proxy) fn hydrate_product_options_owner(
+        &mut self,
+        request: &Request,
+        product_id: &str,
+    ) -> bool {
+        self.ensure_product_mutation_hydrated(request, product_id)
     }
 
     pub(in crate::proxy) fn stage_collection_from_observed_json(&mut self, collection: &Value) {

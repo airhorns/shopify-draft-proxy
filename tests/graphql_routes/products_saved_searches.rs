@@ -199,6 +199,531 @@ fn product_money_ranges_hydrate_shop_currency_in_live_hybrid() {
     assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
+fn mutation_hydrate_variant(product_id: &str, index: usize) -> Value {
+    json!({
+        "id": format!("gid://shopify/ProductVariant/{index}"),
+        "title": format!("Variant {index}"),
+        "sku": format!("SKU-{index:03}"),
+        "barcode": format!("BAR-{index:03}"),
+        "price": format!("{index}.00"),
+        "compareAtPrice": Value::Null,
+        "taxable": true,
+        "inventoryPolicy": "DENY",
+        "inventoryQuantity": index as i64,
+        "selectedOptions": [
+            { "name": "Color", "value": if index.is_multiple_of(2) { "Blue" } else { "Red" } },
+            { "name": "Size", "value": if index.is_multiple_of(2) { "Large" } else { "Small" } }
+        ],
+        "inventoryItem": {
+            "id": format!("gid://shopify/InventoryItem/{index}"),
+            "tracked": true,
+            "requiresShipping": true
+        },
+        "position": index,
+        "product": { "id": product_id }
+    })
+}
+
+fn mutation_hydrate_product_page(product_id: &str, variants_after: Option<&str>) -> Value {
+    let (variants, has_next_page, start_cursor, end_cursor) = if variants_after.is_none() {
+        (
+            (1..=250)
+                .map(|index| mutation_hydrate_variant(product_id, index))
+                .collect::<Vec<_>>(),
+            true,
+            Some("variant-1"),
+            Some("variant-250"),
+        )
+    } else {
+        (
+            vec![mutation_hydrate_variant(product_id, 251)],
+            false,
+            Some("variant-251"),
+            Some("variant-251"),
+        )
+    };
+    json!({
+        "__typename": "Product",
+        "id": product_id,
+        "legacyResourceId": "987654321",
+        "createdAt": "2024-02-03T04:05:06Z",
+        "updatedAt": "2024-03-04T05:06:07Z",
+        "title": "Rich upstream product",
+        "handle": "rich-upstream-product",
+        "status": "ACTIVE",
+        "publishedAt": "2024-02-03T04:05:06Z",
+        "descriptionHtml": "<p>Preserve this description</p>",
+        "vendor": "Rich Vendor",
+        "productType": "Hydrated",
+        "tags": ["alpha", "beta"],
+        "templateSuffix": "rich",
+        "seo": {
+            "title": "Rich SEO title",
+            "description": "Rich SEO description"
+        },
+        "totalInventory": 31626,
+        "tracksInventory": true,
+        "onlineStorePreviewUrl": "https://example.myshopify.com/products/rich-upstream-product",
+        "requiresSellingPlan": false,
+        "isGiftCard": false,
+        "giftCardTemplateSuffix": Value::Null,
+        "category": Value::Null,
+        "options": [
+            {
+                "id": "gid://shopify/ProductOption/color",
+                "name": "Color",
+                "position": 1,
+                "optionValues": [
+                    { "id": "gid://shopify/ProductOptionValue/red", "name": "Red", "hasVariants": true },
+                    { "id": "gid://shopify/ProductOptionValue/blue", "name": "Blue", "hasVariants": true }
+                ]
+            },
+            {
+                "id": "gid://shopify/ProductOption/size",
+                "name": "Size",
+                "position": 2,
+                "optionValues": [
+                    { "id": "gid://shopify/ProductOptionValue/small", "name": "Small", "hasVariants": true },
+                    { "id": "gid://shopify/ProductOptionValue/large", "name": "Large", "hasVariants": true }
+                ]
+            }
+        ],
+        "variants": {
+            "nodes": variants,
+            "pageInfo": {
+                "hasNextPage": has_next_page,
+                "hasPreviousPage": variants_after.is_some(),
+                "startCursor": start_cursor,
+                "endCursor": end_cursor
+            }
+        },
+        "media": {
+            "nodes": [{
+                "__typename": "MediaImage",
+                "id": "gid://shopify/MediaImage/rich",
+                "alt": "Rich image",
+                "mediaContentType": "IMAGE",
+                "status": "READY",
+                "preview": { "image": { "url": "https://cdn.shopify.com/rich.png", "width": 800, "height": 600 } },
+                "image": { "url": "https://cdn.shopify.com/rich.png", "width": 800, "height": 600 }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "media-1",
+                "endCursor": "media-1"
+            }
+        },
+        "collections": {
+            "nodes": [{
+                "id": "gid://shopify/Collection/rich",
+                "title": "Rich collection",
+                "handle": "rich-collection"
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "collection-1",
+                "endCursor": "collection-1"
+            }
+        }
+    })
+}
+
+fn mutation_hydrate_upstream_response(request: &Request, product_id: &str) -> Response {
+    assert_eq!(request.path, "/admin/api/2026-01/graphql.json");
+    assert_eq!(
+        request
+            .headers
+            .get("x-shopify-access-token")
+            .map(String::as_str),
+        Some("mutation-hydrate-token")
+    );
+    assert_eq!(
+        request.headers.get("x-request-id").map(String::as_str),
+        Some("mutation-hydrate-request")
+    );
+    let body: Value = serde_json::from_str(&request.body).expect("hydrate body should parse");
+    let query = body["query"]
+        .as_str()
+        .expect("hydrate query should be a string");
+    if query.contains("ProductMutationPreflightHydrate") {
+        for required in [
+            "createdAt",
+            "updatedAt",
+            "descriptionHtml",
+            "vendor",
+            "productType",
+            "tags",
+            "templateSuffix",
+            "seo",
+            "options",
+            "variants(first: 250",
+            "media(first: 250",
+            "collections(first: 250",
+            "pageInfo",
+        ] {
+            assert!(query.contains(required), "hydrate query omitted {required}");
+        }
+        let variants_after = body["variables"]["variantsAfter"].as_str();
+        return Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "product": mutation_hydrate_product_page(product_id, variants_after)
+                }
+            }),
+        };
+    }
+    if query.contains("ProductOptionsHydrateNodes") {
+        let mut product = mutation_hydrate_product_page(product_id, None);
+        product["variants"]["nodes"] = Value::Array(
+            (1..=100)
+                .map(|index| mutation_hydrate_variant(product_id, index))
+                .collect(),
+        );
+        return Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "nodes": [product] } }),
+        };
+    }
+    assert!(
+        query.contains("ProductsHydrateNodes"),
+        "unexpected hydrate query: {query}"
+    );
+    let mut product = mutation_hydrate_product_page(product_id, None);
+    let product_object = product
+        .as_object_mut()
+        .expect("test product should be an object");
+    product_object.retain(|key, _| {
+        matches!(
+            key.as_str(),
+            "__typename"
+                | "id"
+                | "title"
+                | "handle"
+                | "status"
+                | "totalInventory"
+                | "tracksInventory"
+                | "variants"
+                | "collections"
+        )
+    });
+    product["variants"]["nodes"] = Value::Array(
+        (1..=10)
+            .map(|index| mutation_hydrate_variant(product_id, index))
+            .collect(),
+    );
+    let ids = body["variables"]["ids"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let mut nodes = vec![product];
+    if ids
+        .iter()
+        .any(|id| id.as_str() == Some("gid://shopify/ProductVariant/251"))
+    {
+        nodes.push(mutation_hydrate_variant(product_id, 251));
+    }
+    Response {
+        status: 200,
+        headers: Default::default(),
+        body: json!({ "data": { "nodes": nodes } }),
+    }
+}
+
+fn mutation_request(query: &str, variables: Value) -> Request {
+    Request {
+        method: "POST".to_string(),
+        path: "/admin/api/2026-01/graphql.json".to_string(),
+        headers: std::collections::BTreeMap::from([
+            (
+                "x-shopify-access-token".to_string(),
+                "mutation-hydrate-token".to_string(),
+            ),
+            (
+                "x-request-id".to_string(),
+                "mutation-hydrate-request".to_string(),
+            ),
+        ]),
+        body: json!({ "query": query, "variables": variables }).to_string(),
+    }
+}
+
+#[test]
+fn product_and_variant_mutations_hydrate_rich_products_through_the_last_variant_page() {
+    let product_id = "gid://shopify/Product/rich-hydration";
+    let target_variant_id = "gid://shopify/ProductVariant/251";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_requests.lock().unwrap().push(request.clone());
+            mutation_hydrate_upstream_response(&request, product_id)
+        });
+
+    let update = proxy.process_request(mutation_request(
+        r#"
+        mutation NarrowRichProductUpdate($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product {
+              id title vendor productType tags descriptionHtml templateSuffix
+              seo { title description }
+              media(first: 10) { nodes { id alt } }
+              collections(first: 10) { nodes { id title } }
+              variants(first: 300) { nodes { id sku } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "id": product_id, "title": "Narrowly updated" } }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+    let product = &update.body["data"]["productUpdate"]["product"];
+    assert_eq!(product["title"], json!("Narrowly updated"));
+    assert_eq!(product["vendor"], json!("Rich Vendor"));
+    assert_eq!(product["productType"], json!("Hydrated"));
+    assert_eq!(product["tags"], json!(["alpha", "beta"]));
+    assert_eq!(
+        product["descriptionHtml"],
+        json!("<p>Preserve this description</p>")
+    );
+    assert_eq!(product["templateSuffix"], json!("rich"));
+    assert_eq!(product["seo"]["title"], json!("Rich SEO title"));
+    assert_eq!(product["media"]["nodes"].as_array().map(Vec::len), Some(1));
+    assert_eq!(
+        product["collections"]["nodes"].as_array().map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(
+        product["variants"]["nodes"].as_array().map(Vec::len),
+        Some(251)
+    );
+
+    let variant_update = proxy.process_request(mutation_request(
+        r#"
+        mutation UpdateHydratedLastVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            product { id variants(first: 300) { nodes { id price } } }
+            productVariants { id price }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [{ "id": target_variant_id, "price": "999.00" }]
+        }),
+    ));
+    assert_eq!(
+        variant_update.body["data"]["productVariantsBulkUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        variant_update.body["data"]["productVariantsBulkUpdate"]["productVariants"][0],
+        json!({ "id": target_variant_id, "price": "999.00" })
+    );
+    assert_eq!(
+        variant_update.body["data"]["productVariantsBulkUpdate"]["product"]["variants"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(251)
+    );
+
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "only the two paginated preflight reads should go upstream"
+    );
+    let bodies = requests
+        .iter()
+        .map(|request| serde_json::from_str::<Value>(&request.body).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(bodies[0]["variables"]["variantsAfter"], Value::Null);
+    assert_eq!(
+        bodies[1]["variables"]["variantsAfter"],
+        json!("variant-250")
+    );
+}
+
+#[test]
+fn variant_delete_and_reorder_hydrate_the_complete_cold_product_catalog() {
+    let product_id = "gid://shopify/Product/variant-family-hydration";
+    let target_variant_id = "gid://shopify/ProductVariant/251";
+    let cases = [
+        (
+            "productVariantsBulkDelete",
+            r#"
+            mutation DeleteHydratedLastVariant($productId: ID!, $variantsIds: [ID!]!) {
+              productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+                product { id variants(first: 300) { nodes { id position } } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "productId": product_id, "variantsIds": [target_variant_id] }),
+            250,
+            "gid://shopify/ProductVariant/1",
+        ),
+        (
+            "productVariantsBulkReorder",
+            r#"
+            mutation ReorderHydratedLastVariant(
+              $productId: ID!
+              $positions: [ProductVariantPositionInput!]!
+            ) {
+              productVariantsBulkReorder(productId: $productId, positions: $positions) {
+                product { id variants(first: 300) { nodes { id position } } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "productId": product_id,
+                "positions": [{ "id": target_variant_id, "position": 1 }]
+            }),
+            251,
+            target_variant_id,
+        ),
+    ];
+
+    for (root, mutation, variables, expected_count, expected_first_id) in cases {
+        let upstream_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+        let captured_requests = Arc::clone(&upstream_requests);
+        let mut proxy =
+            configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+                captured_requests.lock().unwrap().push(request.clone());
+                mutation_hydrate_upstream_response(&request, product_id)
+            });
+        let response = proxy.process_request(mutation_request(mutation, variables));
+        assert_eq!(response.status, 200, "{root}: {}", response.body);
+        assert_eq!(
+            response.body["data"][root]["userErrors"],
+            json!([]),
+            "{root}"
+        );
+        let nodes = response.body["data"][root]["product"]["variants"]["nodes"]
+            .as_array()
+            .expect("variant mutation should return the complete product catalog");
+        assert_eq!(nodes.len(), expected_count, "{root}");
+        assert_eq!(nodes[0]["id"], json!(expected_first_id), "{root}");
+        let requests = upstream_requests.lock().unwrap();
+        assert_eq!(requests.len(), 2, "{root} should paginate exactly once");
+    }
+}
+
+#[test]
+fn option_mutations_hydrate_partial_products_with_request_context_and_complete_variants() {
+    let product_id = "gid://shopify/Product/options-hydration";
+    let target_variant_id = "gid://shopify/ProductVariant/251";
+    let cases = [
+        (
+            "productOptionUpdate",
+            r#"
+            mutation UpdateColdProductOption(
+              $productId: ID!
+              $option: OptionUpdateInput!
+            ) {
+              productOptionUpdate(productId: $productId, option: $option) {
+                product { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "productId": product_id,
+                "option": { "id": "gid://shopify/ProductOption/color", "name": "Tone" }
+            }),
+            json!([
+                { "name": "Tone", "value": "Red" },
+                { "name": "Size", "value": "Small" }
+            ]),
+        ),
+        (
+            "productOptionsDelete",
+            r#"
+            mutation DeleteColdProductOption($productId: ID!, $options: [ID!]!) {
+              productOptionsDelete(productId: $productId, options: $options) {
+                product { id }
+                deletedOptionsIds
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "productId": product_id,
+                "options": ["gid://shopify/ProductOption/size"]
+            }),
+            json!([{ "name": "Color", "value": "Red" }]),
+        ),
+        (
+            "productOptionsReorder",
+            r#"
+            mutation ReorderColdProductOptions($productId: ID!, $options: [OptionReorderInput!]!) {
+              productOptionsReorder(productId: $productId, options: $options) {
+                product { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "productId": product_id,
+                "options": [
+                    { "id": "gid://shopify/ProductOption/size" },
+                    { "id": "gid://shopify/ProductOption/color" }
+                ]
+            }),
+            json!([
+                { "name": "Size", "value": "Small" },
+                { "name": "Color", "value": "Red" }
+            ]),
+        ),
+    ];
+
+    for (root, mutation, variables, expected_selected_options) in cases {
+        let upstream_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+        let captured_requests = Arc::clone(&upstream_requests);
+        let mut proxy =
+            configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+                captured_requests.lock().unwrap().push(request.clone());
+                mutation_hydrate_upstream_response(&request, product_id)
+            });
+        let response = proxy.process_request(mutation_request(mutation, variables));
+        assert_eq!(response.status, 200, "{root}: {}", response.body);
+        assert_eq!(
+            response.body["data"][root]["userErrors"],
+            json!([]),
+            "{root}"
+        );
+
+        let read = proxy.process_request(mutation_request(
+            r#"
+            query ReadLastHydratedVariant($id: ID!) {
+              productVariant(id: $id) {
+                id
+                selectedOptions { name value }
+              }
+            }
+            "#,
+            json!({ "id": target_variant_id }),
+        ));
+        assert_eq!(
+            read.body["data"]["productVariant"]["selectedOptions"], expected_selected_options,
+            "{root} should update the variant beyond the first page"
+        );
+        let requests = upstream_requests.lock().unwrap();
+        assert_eq!(requests.len(), 2, "{root} should paginate exactly once");
+    }
+}
+
 #[test]
 fn product_hydration_planning_ignores_response_alias_names() {
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| {

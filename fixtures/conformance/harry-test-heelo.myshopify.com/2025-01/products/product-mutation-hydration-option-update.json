@@ -1,0 +1,1065 @@
+{
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/10243909124402",
+      "option": {
+        "id": "gid://shopify/ProductOption/12804797268274",
+        "name": "Tone"
+      }
+    },
+    "response": {
+      "data": {
+        "productOptionUpdate": {
+          "product": {
+            "id": "gid://shopify/Product/10243909124402",
+            "createdAt": "2026-07-19T11:51:20Z",
+            "updatedAt": "2026-07-19T11:51:23Z",
+            "title": "Narrow hydration update 1784461880054",
+            "vendor": "Hydration Vendor",
+            "tags": ["hydration-alpha", "hydration-beta"],
+            "media": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ExternalVideo/44070447153458",
+                  "alt": "Hydration fixture video",
+                  "mediaContentType": "EXTERNAL_VIDEO"
+                }
+              ]
+            },
+            "options": [
+              {
+                "id": "gid://shopify/ProductOption/12804797268274",
+                "name": "Tone",
+                "position": 1,
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8321859289394",
+                    "name": "Hydration value 01",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8321859322162",
+                    "name": "Hydration value 02",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8321859354930",
+                    "name": "Hydration value 03",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8321859387698",
+                    "name": "Hydration value 04",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8321859420466",
+                    "name": "Hydration value 05",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8321859453234",
+                    "name": "Hydration value 06",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8321859486002",
+                    "name": "Hydration value 07",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8321859518770",
+                    "name": "Hydration value 08",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8321859551538",
+                    "name": "Hydration value 09",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8321859584306",
+                    "name": "Hydration value 10",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8321859617074",
+                    "name": "Hydration value 11",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8321859649842",
+                    "name": "Hydration value 12",
+                    "hasVariants": true
+                  }
+                ]
+              }
+            ],
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51487935496498",
+                  "title": "Hydration value 01",
+                  "sku": null,
+                  "price": "0.00",
+                  "position": 1,
+                  "selectedOptions": [
+                    {
+                      "name": "Tone",
+                      "value": "Hydration value 01"
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51487935529266",
+                  "title": "Hydration value 02",
+                  "sku": null,
+                  "price": "0.00",
+                  "position": 2,
+                  "selectedOptions": [
+                    {
+                      "name": "Tone",
+                      "value": "Hydration value 02"
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51487935562034",
+                  "title": "Hydration value 03",
+                  "sku": null,
+                  "price": "0.00",
+                  "position": 2,
+                  "selectedOptions": [
+                    {
+                      "name": "Tone",
+                      "value": "Hydration value 03"
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51487935594802",
+                  "title": "Hydration value 04",
+                  "sku": null,
+                  "price": "0.00",
+                  "position": 2,
+                  "selectedOptions": [
+                    {
+                      "name": "Tone",
+                      "value": "Hydration value 04"
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51487935627570",
+                  "title": "Hydration value 05",
+                  "sku": null,
+                  "price": "0.00",
+                  "position": 2,
+                  "selectedOptions": [
+                    {
+                      "name": "Tone",
+                      "value": "Hydration value 05"
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51487935660338",
+                  "title": "Hydration value 06",
+                  "sku": null,
+                  "price": "0.00",
+                  "position": 2,
+                  "selectedOptions": [
+                    {
+                      "name": "Tone",
+                      "value": "Hydration value 06"
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51487935693106",
+                  "title": "Hydration value 07",
+                  "sku": null,
+                  "price": "0.00",
+                  "position": 2,
+                  "selectedOptions": [
+                    {
+                      "name": "Tone",
+                      "value": "Hydration value 07"
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51487935725874",
+                  "title": "Hydration value 08",
+                  "sku": null,
+                  "price": "0.00",
+                  "position": 2,
+                  "selectedOptions": [
+                    {
+                      "name": "Tone",
+                      "value": "Hydration value 08"
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51487935758642",
+                  "title": "Hydration value 09",
+                  "sku": null,
+                  "price": "0.00",
+                  "position": 2,
+                  "selectedOptions": [
+                    {
+                      "name": "Tone",
+                      "value": "Hydration value 09"
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51487935791410",
+                  "title": "Hydration value 10",
+                  "sku": null,
+                  "price": "0.00",
+                  "position": 2,
+                  "selectedOptions": [
+                    {
+                      "name": "Tone",
+                      "value": "Hydration value 10"
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51487935824178",
+                  "title": "Hydration value 11",
+                  "sku": null,
+                  "price": "0.00",
+                  "position": 2,
+                  "selectedOptions": [
+                    {
+                      "name": "Tone",
+                      "value": "Hydration value 11"
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51487935856946",
+                  "title": "Hydration value 12",
+                  "sku": null,
+                  "price": "912.34",
+                  "position": 2,
+                  "selectedOptions": [
+                    {
+                      "name": "Tone",
+                      "value": "Hydration value 12"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 49,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Product/10243909124402"
+    },
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10243909124402",
+          "createdAt": "2026-07-19T11:51:20Z",
+          "updatedAt": "2026-07-19T11:51:23Z",
+          "title": "Narrow hydration update 1784461880054",
+          "handle": "product-mutation-hydration-1784461880054",
+          "status": "DRAFT",
+          "descriptionHtml": "<p>Rich product description retained by narrow mutations.</p>",
+          "vendor": "Hydration Vendor",
+          "productType": "Hydration Fixture",
+          "tags": ["hydration-alpha", "hydration-beta"],
+          "templateSuffix": null,
+          "seo": {
+            "title": "Hydration SEO title",
+            "description": "Hydration SEO description"
+          },
+          "media": {
+            "nodes": [
+              {
+                "__typename": "ExternalVideo",
+                "id": "gid://shopify/ExternalVideo/44070447153458",
+                "alt": "Hydration fixture video",
+                "mediaContentType": "EXTERNAL_VIDEO",
+                "status": "READY"
+              }
+            ]
+          },
+          "collections": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514579562802",
+                "title": "Product mutation hydration collection 1784461880054",
+                "handle": "product-mutation-hydration-collection-1784461880054"
+              }
+            ]
+          },
+          "options": [
+            {
+              "id": "gid://shopify/ProductOption/12804797268274",
+              "name": "Tone",
+              "position": 1,
+              "optionValues": [
+                {
+                  "id": "gid://shopify/ProductOptionValue/8321859289394",
+                  "name": "Hydration value 01",
+                  "hasVariants": true
+                },
+                {
+                  "id": "gid://shopify/ProductOptionValue/8321859322162",
+                  "name": "Hydration value 02",
+                  "hasVariants": true
+                },
+                {
+                  "id": "gid://shopify/ProductOptionValue/8321859354930",
+                  "name": "Hydration value 03",
+                  "hasVariants": true
+                },
+                {
+                  "id": "gid://shopify/ProductOptionValue/8321859387698",
+                  "name": "Hydration value 04",
+                  "hasVariants": true
+                },
+                {
+                  "id": "gid://shopify/ProductOptionValue/8321859420466",
+                  "name": "Hydration value 05",
+                  "hasVariants": true
+                },
+                {
+                  "id": "gid://shopify/ProductOptionValue/8321859453234",
+                  "name": "Hydration value 06",
+                  "hasVariants": true
+                },
+                {
+                  "id": "gid://shopify/ProductOptionValue/8321859486002",
+                  "name": "Hydration value 07",
+                  "hasVariants": true
+                },
+                {
+                  "id": "gid://shopify/ProductOptionValue/8321859518770",
+                  "name": "Hydration value 08",
+                  "hasVariants": true
+                },
+                {
+                  "id": "gid://shopify/ProductOptionValue/8321859551538",
+                  "name": "Hydration value 09",
+                  "hasVariants": true
+                },
+                {
+                  "id": "gid://shopify/ProductOptionValue/8321859584306",
+                  "name": "Hydration value 10",
+                  "hasVariants": true
+                },
+                {
+                  "id": "gid://shopify/ProductOptionValue/8321859617074",
+                  "name": "Hydration value 11",
+                  "hasVariants": true
+                },
+                {
+                  "id": "gid://shopify/ProductOptionValue/8321859649842",
+                  "name": "Hydration value 12",
+                  "hasVariants": true
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51487935496498",
+                "title": "Hydration value 01",
+                "sku": null,
+                "price": "0.00",
+                "position": 1,
+                "selectedOptions": [
+                  {
+                    "name": "Tone",
+                    "value": "Hydration value 01"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51487935529266",
+                "title": "Hydration value 02",
+                "sku": null,
+                "price": "0.00",
+                "position": 2,
+                "selectedOptions": [
+                  {
+                    "name": "Tone",
+                    "value": "Hydration value 02"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51487935562034",
+                "title": "Hydration value 03",
+                "sku": null,
+                "price": "0.00",
+                "position": 2,
+                "selectedOptions": [
+                  {
+                    "name": "Tone",
+                    "value": "Hydration value 03"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51487935594802",
+                "title": "Hydration value 04",
+                "sku": null,
+                "price": "0.00",
+                "position": 2,
+                "selectedOptions": [
+                  {
+                    "name": "Tone",
+                    "value": "Hydration value 04"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51487935627570",
+                "title": "Hydration value 05",
+                "sku": null,
+                "price": "0.00",
+                "position": 2,
+                "selectedOptions": [
+                  {
+                    "name": "Tone",
+                    "value": "Hydration value 05"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51487935660338",
+                "title": "Hydration value 06",
+                "sku": null,
+                "price": "0.00",
+                "position": 2,
+                "selectedOptions": [
+                  {
+                    "name": "Tone",
+                    "value": "Hydration value 06"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51487935693106",
+                "title": "Hydration value 07",
+                "sku": null,
+                "price": "0.00",
+                "position": 2,
+                "selectedOptions": [
+                  {
+                    "name": "Tone",
+                    "value": "Hydration value 07"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51487935725874",
+                "title": "Hydration value 08",
+                "sku": null,
+                "price": "0.00",
+                "position": 2,
+                "selectedOptions": [
+                  {
+                    "name": "Tone",
+                    "value": "Hydration value 08"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51487935758642",
+                "title": "Hydration value 09",
+                "sku": null,
+                "price": "0.00",
+                "position": 2,
+                "selectedOptions": [
+                  {
+                    "name": "Tone",
+                    "value": "Hydration value 09"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51487935791410",
+                "title": "Hydration value 10",
+                "sku": null,
+                "price": "0.00",
+                "position": 2,
+                "selectedOptions": [
+                  {
+                    "name": "Tone",
+                    "value": "Hydration value 10"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51487935824178",
+                "title": "Hydration value 11",
+                "sku": null,
+                "price": "0.00",
+                "position": 2,
+                "selectedOptions": [
+                  {
+                    "name": "Tone",
+                    "value": "Hydration value 11"
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51487935856946",
+                "title": "Hydration value 12",
+                "sku": null,
+                "price": "912.34",
+                "position": 2,
+                "selectedOptions": [
+                  {
+                    "name": "Tone",
+                    "value": "Hydration value 12"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 54,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductMutationPreflightHydrate",
+      "query": "query ProductMutationPreflightHydrate(\n  $id: ID!\n  $variantsAfter: String\n  $mediaAfter: String\n  $collectionsAfter: String\n) {\n  product(id: $id) {\n    __typename\n    id\n    legacyResourceId\n    createdAt\n    updatedAt\n    title\n    handle\n    status\n    publishedAt\n    descriptionHtml\n    vendor\n    productType\n    tags\n    templateSuffix\n    totalInventory\n    tracksInventory\n    onlineStorePreviewUrl\n    requiresSellingPlan\n    isGiftCard\n    giftCardTemplateSuffix\n    seo {\n      title\n      description\n    }\n    category {\n      id\n      name\n      fullName\n      isLeaf\n      level\n      parentId\n    }\n    options {\n      id\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    variants(first: 250, after: $variantsAfter) {\n      nodes {\n        id\n        title\n        sku\n        barcode\n        price\n        compareAtPrice\n        position\n        taxable\n        inventoryPolicy\n        inventoryQuantity\n        selectedOptions {\n          name\n          value\n        }\n        inventoryItem {\n          id\n          tracked\n          requiresShipping\n        }\n        media(first: 10) {\n          nodes {\n            id\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    media(first: 250, after: $mediaAfter) {\n      nodes {\n        __typename\n        id\n        alt\n        mediaContentType\n        status\n        preview {\n          image {\n            url\n            width\n            height\n          }\n        }\n        ... on MediaImage {\n          image {\n            url\n            width\n            height\n          }\n        }\n        ... on ExternalVideo {\n          embedUrl\n          host\n          originUrl\n        }\n        ... on Video {\n          duration\n          filename\n          originalSource {\n            fileSize\n            format\n            height\n            mimeType\n            url\n            width\n          }\n          sources {\n            fileSize\n            format\n            height\n            mimeType\n            url\n            width\n          }\n        }\n        ... on Model3d {\n          filename\n          originalSource {\n            filesize\n            format\n            mimeType\n            url\n          }\n          sources {\n            filesize\n            format\n            mimeType\n            url\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    collections(first: 250, after: $collectionsAfter) {\n      nodes {\n        id\n        title\n        handle\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Product/10243909124402",
+        "variantsAfter": null,
+        "mediaAfter": null,
+        "collectionsAfter": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "__typename": "Product",
+              "id": "gid://shopify/Product/10243909124402",
+              "legacyResourceId": "10243909124402",
+              "createdAt": "2026-07-19T11:51:20Z",
+              "updatedAt": "2026-07-19T11:51:22Z",
+              "title": "Narrow hydration update 1784461880054",
+              "handle": "product-mutation-hydration-1784461880054",
+              "status": "DRAFT",
+              "publishedAt": null,
+              "descriptionHtml": "<p>Rich product description retained by narrow mutations.</p>",
+              "vendor": "Hydration Vendor",
+              "productType": "Hydration Fixture",
+              "tags": ["hydration-alpha", "hydration-beta"],
+              "templateSuffix": null,
+              "totalInventory": 0,
+              "tracksInventory": false,
+              "onlineStorePreviewUrl": "https://adwzshsg5sv0hlo4-92891250994.shopifypreview.com/products_preview?preview_key=ef63d10664bf6c4a94a0b9f9309eedcc&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xOVQxMjo1MToyMy4xNzJaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--c68affe5adfa71d7a0d851d7f0971f2ff78dc8af",
+              "requiresSellingPlan": false,
+              "isGiftCard": false,
+              "giftCardTemplateSuffix": null,
+              "seo": {
+                "title": "Hydration SEO title",
+                "description": "Hydration SEO description"
+              },
+              "category": null,
+              "options": [
+                {
+                  "id": "gid://shopify/ProductOption/12804797268274",
+                  "name": "Color",
+                  "position": 1,
+                  "values": [
+                    "Hydration value 01",
+                    "Hydration value 02",
+                    "Hydration value 03",
+                    "Hydration value 04",
+                    "Hydration value 05",
+                    "Hydration value 06",
+                    "Hydration value 07",
+                    "Hydration value 08",
+                    "Hydration value 09",
+                    "Hydration value 10",
+                    "Hydration value 11",
+                    "Hydration value 12"
+                  ],
+                  "optionValues": [
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8321859289394",
+                      "name": "Hydration value 01",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8321859322162",
+                      "name": "Hydration value 02",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8321859354930",
+                      "name": "Hydration value 03",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8321859387698",
+                      "name": "Hydration value 04",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8321859420466",
+                      "name": "Hydration value 05",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8321859453234",
+                      "name": "Hydration value 06",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8321859486002",
+                      "name": "Hydration value 07",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8321859518770",
+                      "name": "Hydration value 08",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8321859551538",
+                      "name": "Hydration value 09",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8321859584306",
+                      "name": "Hydration value 10",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8321859617074",
+                      "name": "Hydration value 11",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8321859649842",
+                      "name": "Hydration value 12",
+                      "hasVariants": true
+                    }
+                  ]
+                }
+              ],
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51487935496498",
+                    "title": "Hydration value 01",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "position": 1,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Hydration value 01"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593531744562",
+                      "tracked": false,
+                      "requiresShipping": true
+                    },
+                    "media": {
+                      "nodes": []
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51487935529266",
+                    "title": "Hydration value 02",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "position": 2,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Hydration value 02"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593531777330",
+                      "tracked": false,
+                      "requiresShipping": true
+                    },
+                    "media": {
+                      "nodes": []
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51487935562034",
+                    "title": "Hydration value 03",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "position": 2,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Hydration value 03"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593531810098",
+                      "tracked": false,
+                      "requiresShipping": true
+                    },
+                    "media": {
+                      "nodes": []
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51487935594802",
+                    "title": "Hydration value 04",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "position": 2,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Hydration value 04"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593531842866",
+                      "tracked": false,
+                      "requiresShipping": true
+                    },
+                    "media": {
+                      "nodes": []
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51487935627570",
+                    "title": "Hydration value 05",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "position": 2,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Hydration value 05"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593531875634",
+                      "tracked": false,
+                      "requiresShipping": true
+                    },
+                    "media": {
+                      "nodes": []
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51487935660338",
+                    "title": "Hydration value 06",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "position": 2,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Hydration value 06"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593531908402",
+                      "tracked": false,
+                      "requiresShipping": true
+                    },
+                    "media": {
+                      "nodes": []
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51487935693106",
+                    "title": "Hydration value 07",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "position": 2,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Hydration value 07"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593531941170",
+                      "tracked": false,
+                      "requiresShipping": true
+                    },
+                    "media": {
+                      "nodes": []
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51487935725874",
+                    "title": "Hydration value 08",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "position": 2,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Hydration value 08"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593531973938",
+                      "tracked": false,
+                      "requiresShipping": true
+                    },
+                    "media": {
+                      "nodes": []
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51487935758642",
+                    "title": "Hydration value 09",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "position": 2,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Hydration value 09"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593532006706",
+                      "tracked": false,
+                      "requiresShipping": true
+                    },
+                    "media": {
+                      "nodes": []
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51487935791410",
+                    "title": "Hydration value 10",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "position": 2,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Hydration value 10"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593532039474",
+                      "tracked": false,
+                      "requiresShipping": true
+                    },
+                    "media": {
+                      "nodes": []
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51487935824178",
+                    "title": "Hydration value 11",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "position": 2,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Hydration value 11"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593532072242",
+                      "tracked": false,
+                      "requiresShipping": true
+                    },
+                    "media": {
+                      "nodes": []
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51487935856946",
+                    "title": "Hydration value 12",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "912.34",
+                    "compareAtPrice": null,
+                    "position": 2,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Hydration value 12"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593532105010",
+                      "tracked": false,
+                      "requiresShipping": true
+                    },
+                    "media": {
+                      "nodes": []
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo1MTQ4NzkzNTQ5NjQ5OCwibGFzdF92YWx1ZSI6IjEifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTQ4NzkzNTg1Njk0NiwibGFzdF92YWx1ZSI6IjIifQ=="
+                }
+              },
+              "media": {
+                "nodes": [
+                  {
+                    "__typename": "ExternalVideo",
+                    "id": "gid://shopify/ExternalVideo/44070447153458",
+                    "alt": "Hydration fixture video",
+                    "mediaContentType": "EXTERNAL_VIDEO",
+                    "status": "READY",
+                    "preview": {
+                      "image": {
+                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/preview_images/hqdefault_0497377d-0295-4c28-9ea3-108d081b39a9.jpg?v=1784461881",
+                        "width": 480,
+                        "height": 360
+                      }
+                    },
+                    "embedUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+                    "host": "YOUTUBE",
+                    "originUrl": "https://youtu.be/dQw4w9WgXcQ"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0NDA3MDQ0NzE1MzQ1OCwibGFzdF92YWx1ZSI6IjEifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo0NDA3MDQ0NzE1MzQ1OCwibGFzdF92YWx1ZSI6IjEifQ=="
+                }
+              },
+              "collections": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Collection/514579562802",
+                    "title": "Product mutation hydration collection 1784461880054",
+                    "handle": "product-mutation-hydration-collection-1784461880054"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo1MTQ1Nzk1NjI4MDIsImxhc3RfdmFsdWUiOiI1MTQ1Nzk1NjI4MDIifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTQ1Nzk1NjI4MDIsImxhc3RfdmFsdWUiOiI1MTQ1Nzk1NjI4MDIifQ=="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 176,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

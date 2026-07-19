@@ -514,9 +514,10 @@ impl DraftProxy {
         let Some(id) = resolved_string_field(&input, "id") else {
             return ResolverOutcome::value(product_update_missing_payload_value());
         };
-        if self.store.product_by_id(&id).is_none() && self.config.read_mode == ReadMode::LiveHybrid
+        if !self.ensure_product_mutation_hydrated(request, &id)
+            && self.config.read_mode == ReadMode::LiveHybrid
         {
-            self.hydrate_product_nodes_for_observation_with_request(request, vec![id.clone()]);
+            return ResolverOutcome::value(product_update_missing_payload_value());
         }
         let Some(existing) = self.store.product_staged_or_base(&id) else {
             return ResolverOutcome::value(product_update_missing_payload_value());
@@ -1671,19 +1672,10 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         product_id: &str,
-        variant_ids: &[String],
+        _variant_ids: &[String],
     ) -> Option<&ProductRecord> {
-        if self.store.product_by_id(product_id).is_none()
-            && self.config.read_mode == ReadMode::LiveHybrid
-        {
-            let mut hydrate_ids = vec![product_id.to_string()];
-            hydrate_ids.extend(variant_ids.iter().cloned());
-            if hydrate_ids.len() > 1 {
-                let mut tail = hydrate_ids.split_off(1);
-                tail.sort();
-                hydrate_ids.extend(tail);
-            }
-            self.hydrate_product_nodes_for_observation_with_request(request, hydrate_ids);
+        if !self.ensure_product_mutation_hydrated(request, product_id) {
+            return None;
         }
         self.store.product_by_id(product_id)
     }

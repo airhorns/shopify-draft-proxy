@@ -1,0 +1,68 @@
+mutation ProductMutationHydrationNarrowUpdate($product: ProductUpdateInput!) {
+  productUpdate(product: $product) {
+    product {
+      ...ProductMutationHydrationFields
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
+
+fragment ProductMutationHydrationFields on Product {
+  id
+  createdAt
+  updatedAt
+  title
+  handle
+  status
+  descriptionHtml
+  vendor
+  productType
+  tags
+  templateSuffix
+  seo {
+    title
+    description
+  }
+  media(first: 250) {
+    nodes {
+      __typename
+      id
+      alt
+      mediaContentType
+      status
+    }
+  }
+  collections(first: 250) {
+    nodes {
+      id
+      title
+      handle
+    }
+  }
+  options {
+    id
+    name
+    position
+    optionValues {
+      id
+      name
+      hasVariants
+    }
+  }
+  variants(first: 250) {
+    nodes {
+      id
+      title
+      sku
+      price
+      position
+      selectedOptions {
+        name
+        value
+      }
+    }
+  }
+}
