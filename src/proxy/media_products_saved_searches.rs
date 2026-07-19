@@ -215,6 +215,16 @@ impl DraftProxy {
             }
         }
 
+        let category = match self.product_category_for_mutation_input(
+            request,
+            &input,
+            invocation.response_key,
+            invocation.root_location,
+        ) {
+            Ok(category) => category,
+            Err(outcome) => return outcome,
+        };
+
         let id = self.next_proxy_synthetic_gid("Product");
         let handle =
             resolved_string_field(&input, "handle").unwrap_or_else(|| slugify_handle(&title));
@@ -270,26 +280,12 @@ impl DraftProxy {
                 .extra_fields
                 .insert("giftCardTemplateSuffix".to_string(), json!(suffix));
         }
-        // Shopify resolves the input `category` taxonomy GID into a `{id, fullName}`
-        // object on the created product, surfaced through both the mutation payload and
-        // downstream reads.
-        if let Some(category_id) = product_category_input_id(&input) {
-            match self.product_category_value_for_input(request, &category_id) {
-                Some(category) => {
-                    product
-                        .extra_fields
-                        .insert("category".to_string(), category);
-                }
-                None => {
-                    return graphql_error_outcome(
-                        vec![invalid_product_taxonomy_node_id_error(
-                            invocation.response_key,
-                            invocation.root_location,
-                        )],
-                        invocation.response_key,
-                    );
-                }
-            }
+        // Shopify resolves the input taxonomy GID before product identity or related
+        // resources are allocated. Only authoritative category metadata reaches state.
+        if let Some(category) = category {
+            product
+                .extra_fields
+                .insert("category".to_string(), category);
         }
 
         // `productCreate` always materializes at least one variant. With `productOptions`,
@@ -559,22 +555,18 @@ impl DraftProxy {
             }
         }
 
+        let category = match self.product_category_for_mutation_input(
+            request,
+            &input,
+            invocation.response_key,
+            invocation.root_location,
+        ) {
+            Ok(category) => category,
+            Err(outcome) => return outcome,
+        };
         let mut extra_fields = existing.extra_fields;
-        if let Some(category_id) = product_category_input_id(&input) {
-            match self.product_category_value_for_input(request, &category_id) {
-                Some(category) => {
-                    extra_fields.insert("category".to_string(), category);
-                }
-                None => {
-                    return graphql_error_outcome(
-                        vec![invalid_product_taxonomy_node_id_error(
-                            invocation.response_key,
-                            invocation.root_location,
-                        )],
-                        invocation.response_key,
-                    );
-                }
-            }
+        if let Some(category) = category {
+            extra_fields.insert("category".to_string(), category);
         }
 
         let media_append = top_level_media_inputs

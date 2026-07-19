@@ -4401,3 +4401,21 @@ Practical rule:
 - keep carrier callbacks and checkout navigation outside local delivery
   calculation; a local checkout URL is an opaque deterministic reference, not a
   claim that checkout can execute
+
+## 104. Taxonomy category GID structure is not category evidence
+
+Live Admin GraphQL 2025-01 capture tested a syntactically plausible but
+nonexistent `TaxonomyCategory` GID against `productCreate`, `productUpdate`, and
+`productSet`. All three returned a top-level
+`INVALID_PRODUCT_TAXONOMY_NODE_ID` error and a null mutation root. The alphabetic
+and numeric path segments therefore prove neither existence nor hierarchy.
+
+Practical rule:
+
+- accept product category metadata only from complete effective state or an
+  authoritative taxonomy-node read
+- copy `name`, `fullName`, `isLeaf`, `level`, and `parentId` from that source;
+  never derive labels, depth, leaf status, or parent identity from the GID
+- distinguish an authoritative null node from transport, GraphQL, or incomplete
+  response failures; all failure classes must leave product/category state
+  unchanged, but only the authoritative miss is proven invalid

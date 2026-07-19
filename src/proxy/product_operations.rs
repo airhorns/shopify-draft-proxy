@@ -145,6 +145,15 @@ impl DraftProxy {
             by_handle = self.store.product_by_handle(handle).cloned();
         }
         let base = existing.or(by_handle);
+        let category = match self.product_category_for_mutation_input(
+            request,
+            &input,
+            response_key,
+            root_location,
+        ) {
+            Ok(category) => category,
+            Err(outcome) => return outcome,
+        };
         let product_id = base
             .as_ref()
             .map(|product| product.id.clone())
@@ -225,23 +234,10 @@ impl DraftProxy {
                 .unwrap_or_default(),
         };
 
-        if let Some(category_id) = product_category_input_id(&input) {
-            match self.product_category_value_for_input(request, &category_id) {
-                Some(category) => {
-                    product
-                        .extra_fields
-                        .insert("category".to_string(), category);
-                }
-                None => {
-                    return graphql_error_outcome(
-                        vec![invalid_product_taxonomy_node_id_error(
-                            response_key,
-                            root_location,
-                        )],
-                        invocation.response_key,
-                    );
-                }
-            }
+        if let Some(category) = category {
+            product
+                .extra_fields
+                .insert("category".to_string(), category);
         }
         if let Some(requires_selling_plan) = input.get("requiresSellingPlan") {
             product.extra_fields.insert(
