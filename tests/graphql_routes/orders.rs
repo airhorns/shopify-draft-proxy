@@ -4653,6 +4653,216 @@ fn order_update_live_hybrid_hydration_miss_does_not_forward_mutation() {
     let calls = upstream_calls.lock().expect("upstream calls");
     assert_eq!(calls.len(), 1);
     assert!(calls[0].contains("query OrdersOrderHydrate"));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(state_snapshot(&proxy)["stagedState"]["orders"], json!({}));
+}
+
+#[test]
+fn order_update_live_hybrid_hydrates_existing_order_and_stages_locally() {
+    let order_id = "gid://shopify/Order/1234509876";
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let hydrate_response = Response {
+        status: 200,
+        headers: Default::default(),
+        body: json!({
+            "data": {
+                "order": {
+                    "id": order_id,
+                    "name": "#9876",
+                    "note": "preserved backend note",
+                    "tags": ["backend", "preserved"],
+                    "email": "existing-order@example.test",
+                    "createdAt": "2024-01-01T00:00:00Z",
+                    "updatedAt": "2024-01-01T00:00:00Z"
+                }
+            }
+        }),
+    };
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            assert!(
+                query.trim_start().starts_with("query"),
+                "orderUpdate must hydrate by query only, got upstream body: {}",
+                request.body
+            );
+            assert!(
+                !query.contains("orderUpdate"),
+                "orderUpdate caller mutation escaped upstream: {}",
+                request.body
+            );
+            upstream_calls.lock().expect("upstream calls").push(body);
+            hydrate_response.clone()
+        }
+    });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LiveHybridOrderUpdateExisting($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { id name note tags email }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": order_id, "note": "locally staged note" } }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["orderUpdate"],
+        json!({
+            "order": {
+                "id": order_id,
+                "name": "#9876",
+                "note": "locally staged note",
+                "tags": ["backend", "preserved"],
+                "email": "existing-order@example.test"
+            },
+            "userErrors": []
+        })
+    );
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().expect("log entries").len(), 1);
+    assert_eq!(log["entries"][0]["operationName"], json!("orderUpdate"));
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .expect("raw body")
+        .contains("LiveHybridOrderUpdateExisting"));
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["orders"][order_id]["note"],
+        json!("locally staged note")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadUpdatedHydratedOrder($id: ID!) {
+          order(id: $id) { id name note tags email }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["order"],
+        json!({
+            "id": order_id,
+            "name": "#9876",
+            "note": "locally staged note",
+            "tags": ["backend", "preserved"],
+            "email": "existing-order@example.test"
+        })
+    );
+
+    let calls = upstream_calls.lock().expect("upstream calls");
+    assert_eq!(calls.len(), 1);
+    assert!(calls[0]["query"]
+        .as_str()
+        .expect("hydrate query")
+        .contains("query OrdersOrderHydrate"));
+}
+
+#[test]
+fn order_update_live_hybrid_indeterminate_hydration_errors_do_not_stage_or_forward() {
+    let cases = [
+        (
+            "non-200",
+            "gid://shopify/Order/500500500",
+            Response {
+                status: 503,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "upstream unavailable" }] }),
+            },
+            "Order could not be verified because upstream hydration failed",
+        ),
+        (
+            "graphql-error",
+            "gid://shopify/Order/500500501",
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "access denied" }] }),
+            },
+            "Order could not be verified because upstream hydration returned errors",
+        ),
+        (
+            "malformed",
+            "gid://shopify/Order/500500502",
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "order": ["not", "an", "order"] } }),
+            },
+            "Order could not be verified because upstream hydration response was malformed",
+        ),
+    ];
+
+    for (label, order_id, hydrate_response, expected_message) in cases {
+        let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+        let mut proxy = configured_proxy(
+            ReadMode::LiveHybrid,
+            Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+        )
+        .with_upstream_transport({
+            let upstream_calls = Arc::clone(&upstream_calls);
+            move |request| {
+                let body: Value =
+                    serde_json::from_str(&request.body).expect("upstream GraphQL body");
+                let query = body["query"].as_str().unwrap_or_default().to_string();
+                assert!(
+                    query.trim_start().starts_with("query"),
+                    "{label}: orderUpdate must hydrate by query only, got upstream body: {}",
+                    request.body
+                );
+                assert!(
+                    !query.contains("orderUpdate"),
+                    "{label}: orderUpdate caller mutation escaped upstream: {}",
+                    request.body
+                );
+                upstream_calls.lock().expect("upstream calls").push(body);
+                hydrate_response.clone()
+            }
+        });
+
+        let update = proxy.process_request(json_graphql_request(
+            r#"
+            mutation LiveHybridOrderUpdateUnverified($input: OrderInput!) {
+              orderUpdate(input: $input) {
+                order { id }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "input": { "id": order_id, "note": "must not stage" } }),
+        ));
+
+        assert_eq!(update.status, 200, "{label}");
+        assert_eq!(
+            update.body["data"]["orderUpdate"],
+            json!({
+                "order": Value::Null,
+                "userErrors": [{ "field": ["id"], "message": expected_message }]
+            }),
+            "{label}"
+        );
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]), "{label}");
+        assert_eq!(
+            state_snapshot(&proxy)["stagedState"]["orders"],
+            json!({}),
+            "{label}"
+        );
+        let calls = upstream_calls.lock().expect("upstream calls");
+        assert_eq!(calls.len(), 1, "{label}");
+        assert!(calls[0]["query"]
+            .as_str()
+            .expect("hydrate query")
+            .contains("query OrdersOrderHydrate"));
+    }
 }
 
 #[test]

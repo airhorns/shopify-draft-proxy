@@ -215,6 +215,26 @@ pub(in crate::proxy) fn order_mark_as_paid_not_found_error() -> Value {
     user_error_omit_code(json!(["id"]), "Order does not exist", None)
 }
 
+pub(in crate::proxy) fn order_update_missing_or_unverified_error(
+    hydration_status: OrderHydrationStatus,
+) -> Value {
+    let message = match hydration_status {
+        OrderHydrationStatus::TransportFailure => {
+            "Order could not be verified because upstream hydration failed"
+        }
+        OrderHydrationStatus::GraphqlErrors => {
+            "Order could not be verified because upstream hydration returned errors"
+        }
+        OrderHydrationStatus::MalformedResponse => {
+            "Order could not be verified because upstream hydration response was malformed"
+        }
+        OrderHydrationStatus::Skipped
+        | OrderHydrationStatus::Found
+        | OrderHydrationStatus::VerifiedMissing => "Order does not exist",
+    };
+    user_error_omit_code(json!(["id"]), message, None)
+}
+
 pub(in crate::proxy) fn order_read_selects_order_edit_existing_fields(
     field: &RootFieldSelection,
 ) -> bool {
@@ -1464,16 +1484,20 @@ impl DraftProxy {
         // is not already staged: a record produced by an earlier local mutation
         // (e.g. a prior orderUpdate accumulating localization entries) is more
         // current than the backend snapshot and must not be clobbered. On a
-        // cassette miss this is a no-op and we fall through to the
-        // "Order does not exist" guard below.
-        if !self.store.staged.orders.contains_key(&order_id) {
-            self.ensure_order_hydrated(request, &order_id);
-        }
+        // verified null response falls through to the "Order does not exist"
+        // guard below. Transport/schema/cassette failures are indeterminate and
+        // must be reported locally rather than converted into a live write.
+        let hydration_status = if !self.store.staged.orders.contains_key(&order_id) {
+            self.ensure_order_hydrated(request, &order_id)
+        } else {
+            OrderHydrationStatus::Found
+        };
         let Some(existing_order) = self.store.staged.orders.get(&order_id).cloned() else {
+            let user_error = order_update_missing_or_unverified_error(hydration_status);
             return Some(selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [user_error_omit_code(["id"], "Order does not exist", None)]
+                    "userErrors": [user_error]
                 }),
                 &field.selection,
             ));

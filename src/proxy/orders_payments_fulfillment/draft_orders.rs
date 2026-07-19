@@ -3,6 +3,16 @@ use super::*;
 mod helpers;
 pub(in crate::proxy) use self::helpers::*;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::proxy) enum OrderHydrationStatus {
+    Skipped,
+    Found,
+    VerifiedMissing,
+    TransportFailure,
+    GraphqlErrors,
+    MalformedResponse,
+}
+
 fn merge_draft_order_string_field(
     draft_order: &mut Value,
     input: &BTreeMap<String, ResolvedValue>,
@@ -1891,9 +1901,13 @@ impl DraftProxy {
         self.sync_draft_order_tags(id);
     }
 
-    pub(super) fn ensure_order_hydrated(&mut self, request: &Request, id: &str) {
+    pub(super) fn ensure_order_hydrated(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> OrderHydrationStatus {
         if self.config.read_mode == ReadMode::Snapshot || id.is_empty() {
-            return;
+            return OrderHydrationStatus::Skipped;
         }
         // Always attempt a fresh upstream read so the order reflects its live
         // state at the time of this operation. A precondition seed may hold an
@@ -1901,7 +1915,9 @@ impl DraftProxy {
         // a draft was completed in setup, before the store recalculated
         // tax/shipping), so the recorded hydrate is authoritative when present.
         // On a cassette miss / non-2xx response we keep whatever record is
-        // already staged rather than dropping it.
+        // already staged rather than dropping it and report the uncertainty to
+        // mutation handlers that must not convert an indeterminate hydrate into
+        // a live write.
         let response = self.upstream_post(
             request,
             json!({
@@ -1911,13 +1927,34 @@ impl DraftProxy {
             }),
         );
         if !(200..300).contains(&response.status) {
-            return;
+            return OrderHydrationStatus::TransportFailure;
         }
-        let order = response.body["data"]["order"].clone();
+        if response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_some_and(|errors| !errors.is_empty())
+        {
+            return OrderHydrationStatus::GraphqlErrors;
+        }
+
+        let Some(data) = response.body.get("data").and_then(Value::as_object) else {
+            return OrderHydrationStatus::MalformedResponse;
+        };
+        let Some(order) = data.get("order") else {
+            return OrderHydrationStatus::MalformedResponse;
+        };
+        if order.is_null() {
+            return OrderHydrationStatus::VerifiedMissing;
+        }
         if !order.is_object() {
-            return;
+            return OrderHydrationStatus::MalformedResponse;
         }
-        self.store.staged.orders.insert(id.to_string(), order);
+        self.store
+            .staged
+            .orders
+            .insert(id.to_string(), order.clone());
+        OrderHydrationStatus::Found
     }
 
     pub(super) fn hydrate_draft_order_customer(
