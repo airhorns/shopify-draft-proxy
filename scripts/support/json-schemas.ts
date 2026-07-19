@@ -34,6 +34,15 @@ export function parseJsonFileWithSchema<T>(filePath: string, schema: ZodType<T>)
 
 export const graphqlVariablesSchema = z.record(z.string(), z.unknown());
 export const apiSurfaceSchema = z.enum(['admin', 'storefront']);
+const commitIdInputOrderSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('single') }),
+  z.strictObject({ kind: z.literal('argument-list'), path: z.array(z.string().min(1)).min(1) }),
+]);
+const commitIdMappingSchema = z.strictObject({
+  resourceTypes: z.array(z.string().min(1)),
+  responsePath: z.array(z.string().min(1)).min(1),
+  inputOrder: commitIdInputOrderSchema,
+});
 
 export const operationRegistryEntrySchema = z.strictObject({
   apiSurface: apiSurfaceSchema,
@@ -71,6 +80,7 @@ export const operationRegistryEntrySchema = z.strictObject({
   execution: z.enum(['overlay-read', 'stage-locally']),
   implemented: z.boolean(),
   runtimeTests: z.array(z.string().min(1)),
+  commitIdMappings: z.array(commitIdMappingSchema).min(1).optional(),
   supportNotes: z.string().min(1).optional(),
 });
 export const operationRegistrySchema = z.array(operationRegistryEntrySchema);

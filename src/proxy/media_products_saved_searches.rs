@@ -215,9 +215,14 @@ impl DraftProxy {
             }
         }
 
+        let explicit_handle = resolved_string_field(&input, "handle");
+        let handle = match self.resolve_product_handle(&title, explicit_handle.as_deref(), None) {
+            Ok(handle) => handle,
+            Err(error) => {
+                return ResolverOutcome::value(product_create_payload_value(None, vec![error]));
+            }
+        };
         let id = self.next_proxy_synthetic_gid("Product");
-        let handle =
-            resolved_string_field(&input, "handle").unwrap_or_else(|| slugify_handle(&title));
         let status =
             resolved_string_field(&input, "status").unwrap_or_else(|| "ACTIVE".to_string());
         let timestamp = self.next_product_timestamp();
@@ -560,6 +565,18 @@ impl DraftProxy {
             }
         }
 
+        let title =
+            resolved_string_field(&input, "title").unwrap_or_else(|| existing.title.clone());
+        let explicit_handle = resolved_string_field(&input, "handle");
+        let handle = match self.resolve_product_handle(
+            &title,
+            explicit_handle.as_deref(),
+            Some(&existing),
+        ) {
+            Ok(handle) => handle,
+            Err(error) => return self.product_update_field_user_error(&existing, error),
+        };
+
         let mut extra_fields = existing.extra_fields;
         if let Some(seo_input) = resolved_object_field(&input, "seo") {
             let mut seo = extra_fields
@@ -612,8 +629,8 @@ impl DraftProxy {
             id: existing.id,
             created_at: existing.created_at,
             updated_at: self.next_product_updated_at(&existing.updated_at),
-            title: resolved_string_field(&input, "title").unwrap_or(existing.title),
-            handle: resolved_string_field(&input, "handle").unwrap_or(existing.handle),
+            title,
+            handle,
             status: resolved_string_field(&input, "status").unwrap_or(existing.status),
             description_html: resolved_string_field(&input, "descriptionHtml")
                 .unwrap_or(existing.description_html),

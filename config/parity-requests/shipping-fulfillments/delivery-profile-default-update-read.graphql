@@ -1,0 +1,170 @@
+query DeliveryProfileDefaultUpdateRead($id: ID!) {
+  deliveryProfile(id: $id) {
+    id
+    name
+    default
+    version
+    activeMethodDefinitionsCount
+    locationsWithoutRatesCount
+    originLocationCount
+    zoneCountryCount
+    productVariantsCount {
+      count
+      precision
+    }
+    profileItems(first: 250) {
+      nodes {
+        id
+        product {
+          id
+          title
+        }
+        variants(first: 250) {
+          nodes {
+            id
+            title
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    profileLocationGroups {
+      countriesInAnyZone {
+        zone
+        country {
+          id
+          name
+          translatedName
+          code {
+            countryCode
+            restOfWorld
+          }
+          provinces {
+            id
+            name
+            code
+          }
+        }
+      }
+      locationGroup {
+        id
+        locations(first: 250) {
+          nodes {
+            id
+            name
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+          }
+        }
+        locationsCount {
+          count
+          precision
+        }
+      }
+      locationGroupZones(first: 250) {
+        nodes {
+          zone {
+            id
+            name
+            countries {
+              id
+              name
+              translatedName
+              code {
+                countryCode
+                restOfWorld
+              }
+              provinces {
+                id
+                name
+                code
+              }
+            }
+          }
+          methodDefinitions(first: 250) {
+            nodes {
+              id
+              name
+              active
+              description
+              rateProvider {
+                ... on DeliveryRateDefinition {
+                  id
+                  price {
+                    amount
+                    currencyCode
+                  }
+                }
+                ... on DeliveryParticipant {
+                  id
+                  fixedFee {
+                    amount
+                    currencyCode
+                  }
+                  percentageOfRateFee
+                }
+              }
+              methodConditions {
+                id
+                field
+                operator
+                conditionCriteria {
+                  __typename
+                  ... on MoneyV2 {
+                    amount
+                    currencyCode
+                  }
+                  ... on Weight {
+                    unit
+                    value
+                  }
+                }
+              }
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+    }
+    sellingPlanGroups(first: 250) {
+      nodes {
+        id
+        name
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    unassignedLocationsPaginated(first: 250) {
+      nodes {
+        id
+        name
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    unassignedLocations {
+      id
+      name
+    }
+  }
+}

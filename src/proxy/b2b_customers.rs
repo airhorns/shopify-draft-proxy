@@ -51,6 +51,7 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let field = b2b_root_input(&invocation);
+        self.hydrate_b2b_mutation_prerequisites(invocation.request, &field);
         let outcome = match invocation.root_name {
             "companyLocationUpdate" => self.b2b_location_buyer_experience_outcome(
                 invocation.request,

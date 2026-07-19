@@ -1,0 +1,290 @@
+{
+  "scenarioId": "inventory-live-hybrid-cold-authoritative-reads",
+  "capturedAt": "2026-07-19T13:22:16.278Z",
+  "source": "live-shopify",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "Cold authoritative inventoryItem, inventoryItems, and inventoryLevel reads for one disposable Shopify product-backed inventory item.",
+  "setup": {
+    "productCreate": {
+      "query": "#graphql\n  mutation InventoryColdReadsProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        variants(first: 1) {\n          nodes {\n            id\n            sku\n            inventoryItem {\n              id\n              inventoryLevels(first: 1) {\n                nodes { id }\n              }\n            }\n          }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "product": {
+          "title": "Inventory cold authoritative reads 1784467335602",
+          "status": "ACTIVE"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10243924263218",
+              "title": "Inventory cold authoritative reads 1784467335602",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51488064241970",
+                    "sku": null,
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53593660588338",
+                      "inventoryLevels": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53593660588338"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 17,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "coldRead": {
+    "query": "#graphql\nquery ColdInventoryAuthoritativeReads(\n  $inventoryItemId: ID!\n  $inventoryLevelId: ID!\n  $itemQuery: String!\n) {\n  item: inventoryItem(id: $inventoryItemId) {\n    id\n    tracked\n    requiresShipping\n    sku\n    variant {\n      id\n      sku\n      inventoryQuantity\n      product {\n        id\n      }\n    }\n  }\n  items: inventoryItems(first: 5, query: $itemQuery) {\n    edges {\n      cursor\n      node {\n        id\n        tracked\n        requiresShipping\n        sku\n        variant {\n          id\n          sku\n          inventoryQuantity\n          product {\n            id\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  level: inventoryLevel(id: $inventoryLevelId) {\n    id\n    isActive\n    item {\n      id\n      tracked\n    }\n    location {\n      id\n      name\n    }\n    quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) {\n      name\n      quantity\n      updatedAt\n    }\n  }\n}\n",
+    "variables": {
+      "inventoryItemId": "gid://shopify/InventoryItem/53593660588338",
+      "inventoryLevelId": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53593660588338",
+      "itemQuery": "id:53593660588338"
+    },
+    "response": {
+      "data": {
+        "item": {
+          "id": "gid://shopify/InventoryItem/53593660588338",
+          "tracked": false,
+          "requiresShipping": true,
+          "sku": null,
+          "variant": {
+            "id": "gid://shopify/ProductVariant/51488064241970",
+            "sku": null,
+            "inventoryQuantity": 0,
+            "product": {
+              "id": "gid://shopify/Product/10243924263218"
+            }
+          }
+        },
+        "items": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjo1MzU5MzY2MDU4ODMzOCwibGFzdF92YWx1ZSI6IjUzNTkzNjYwNTg4MzM4In0=",
+              "node": {
+                "id": "gid://shopify/InventoryItem/53593660588338",
+                "tracked": false,
+                "requiresShipping": true,
+                "sku": null,
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/51488064241970",
+                  "sku": null,
+                  "inventoryQuantity": 0,
+                  "product": {
+                    "id": "gid://shopify/Product/10243924263218"
+                  }
+                }
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo1MzU5MzY2MDU4ODMzOCwibGFzdF92YWx1ZSI6IjUzNTkzNjYwNTg4MzM4In0=",
+            "endCursor": "eyJsYXN0X2lkIjo1MzU5MzY2MDU4ODMzOCwibGFzdF92YWx1ZSI6IjUzNTkzNjYwNTg4MzM4In0="
+          }
+        },
+        "level": {
+          "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53593660588338",
+          "isActive": true,
+          "item": {
+            "id": "gid://shopify/InventoryItem/53593660588338",
+            "tracked": false
+          },
+          "location": {
+            "id": "gid://shopify/Location/106318430514",
+            "name": "Shop location"
+          },
+          "quantities": [
+            {
+              "name": "available",
+              "quantity": 0,
+              "updatedAt": "2026-07-19T13:22:15Z"
+            },
+            {
+              "name": "on_hand",
+              "quantity": 0,
+              "updatedAt": null
+            },
+            {
+              "name": "committed",
+              "quantity": 0,
+              "updatedAt": null
+            },
+            {
+              "name": "incoming",
+              "quantity": 0,
+              "updatedAt": null
+            },
+            {
+              "name": "reserved",
+              "quantity": 0,
+              "updatedAt": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "data": {
+      "productDelete": {
+        "deletedProductId": "gid://shopify/Product/10243924263218",
+        "userErrors": []
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 10,
+        "actualQueryCost": 10,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1990,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ColdInventoryAuthoritativeReads",
+      "variables": {
+        "inventoryItemId": "gid://shopify/InventoryItem/53593660588338",
+        "inventoryLevelId": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53593660588338",
+        "itemQuery": "id:53593660588338"
+      },
+      "query": "#graphql\nquery ColdInventoryAuthoritativeReads(\n  $inventoryItemId: ID!\n  $inventoryLevelId: ID!\n  $itemQuery: String!\n) {\n  item: inventoryItem(id: $inventoryItemId) {\n    id\n    tracked\n    requiresShipping\n    sku\n    variant {\n      id\n      sku\n      inventoryQuantity\n      product {\n        id\n      }\n    }\n  }\n  items: inventoryItems(first: 5, query: $itemQuery) {\n    edges {\n      cursor\n      node {\n        id\n        tracked\n        requiresShipping\n        sku\n        variant {\n          id\n          sku\n          inventoryQuantity\n          product {\n            id\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  level: inventoryLevel(id: $inventoryLevelId) {\n    id\n    isActive\n    item {\n      id\n      tracked\n    }\n    location {\n      id\n      name\n    }\n    quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) {\n      name\n      quantity\n      updatedAt\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "item": {
+              "id": "gid://shopify/InventoryItem/53593660588338",
+              "tracked": false,
+              "requiresShipping": true,
+              "sku": null,
+              "variant": {
+                "id": "gid://shopify/ProductVariant/51488064241970",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "product": {
+                  "id": "gid://shopify/Product/10243924263218"
+                }
+              }
+            },
+            "items": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo1MzU5MzY2MDU4ODMzOCwibGFzdF92YWx1ZSI6IjUzNTkzNjYwNTg4MzM4In0=",
+                  "node": {
+                    "id": "gid://shopify/InventoryItem/53593660588338",
+                    "tracked": false,
+                    "requiresShipping": true,
+                    "sku": null,
+                    "variant": {
+                      "id": "gid://shopify/ProductVariant/51488064241970",
+                      "sku": null,
+                      "inventoryQuantity": 0,
+                      "product": {
+                        "id": "gid://shopify/Product/10243924263218"
+                      }
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1MzU5MzY2MDU4ODMzOCwibGFzdF92YWx1ZSI6IjUzNTkzNjYwNTg4MzM4In0=",
+                "endCursor": "eyJsYXN0X2lkIjo1MzU5MzY2MDU4ODMzOCwibGFzdF92YWx1ZSI6IjUzNTkzNjYwNTg4MzM4In0="
+              }
+            },
+            "level": {
+              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53593660588338",
+              "isActive": true,
+              "item": {
+                "id": "gid://shopify/InventoryItem/53593660588338",
+                "tracked": false
+              },
+              "location": {
+                "id": "gid://shopify/Location/106318430514",
+                "name": "Shop location"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 0,
+                  "updatedAt": "2026-07-19T13:22:15Z"
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "committed",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "incoming",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "reserved",
+                  "quantity": 0,
+                  "updatedAt": null
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

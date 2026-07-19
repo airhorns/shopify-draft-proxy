@@ -9,6 +9,7 @@ export {
   type DraftProxyCommitAttemptRequest,
   type DraftProxyCommitAttemptResponse,
   type DraftProxyCommitResult,
+  type DraftProxyUnresolvedIdMapping,
   type DraftProxyConfigSnapshot,
   type DraftProxyGraphQLRequestOptions,
   type DraftProxyHeaderValue,

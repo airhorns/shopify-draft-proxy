@@ -130,6 +130,20 @@ pub struct OperationRegistryEntry {
     pub domain: CapabilityDomain,
     pub implemented: bool,
     pub runtime_tests: Vec<String>,
+    pub commit_id_mappings: Vec<CommitIdMappingSpec>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CommitIdInputOrder {
+    Single,
+    ArgumentList { path: Vec<String> },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommitIdMappingSpec {
+    pub resource_types: Vec<String>,
+    pub response_path: Vec<String>,
+    pub input_order: CommitIdInputOrder,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -329,7 +343,33 @@ fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
     );
     object.insert("implemented".to_string(), json!(entry.implemented));
     object.insert("runtimeTests".to_string(), json!(entry.runtime_tests));
+    if !entry.commit_id_mappings.is_empty() {
+        object.insert(
+            "commitIdMappings".to_string(),
+            Value::Array(
+                entry
+                    .commit_id_mappings
+                    .iter()
+                    .map(commit_id_mapping_json_value)
+                    .collect(),
+            ),
+        );
+    }
     Value::Object(object)
+}
+
+fn commit_id_mapping_json_value(mapping: &CommitIdMappingSpec) -> Value {
+    let input_order = match &mapping.input_order {
+        CommitIdInputOrder::Single => json!({ "kind": "single" }),
+        CommitIdInputOrder::ArgumentList { path } => {
+            json!({ "kind": "argument-list", "path": path })
+        }
+    };
+    json!({
+        "resourceTypes": mapping.resource_types,
+        "responsePath": mapping.response_path,
+        "inputOrder": input_order,
+    })
 }
 
 fn debug_assert_default_registry_local_routing_contract(registry: &[OperationRegistryEntry]) {
@@ -401,6 +441,7 @@ fn storefront_registry_bindings_for_roots(
                     domain: CapabilityDomain::Storefront,
                     implemented: handler.is_some(),
                     runtime_tests: storefront_runtime_tests(operation_type, &name),
+                    commit_id_mappings: Vec::new(),
                 },
                 handler,
             }
