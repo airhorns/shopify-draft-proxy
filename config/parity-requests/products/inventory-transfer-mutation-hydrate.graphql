@@ -1,0 +1,82 @@
+#graphql
+query InventoryTransferMutationHydrate($id: ID!) {
+  inventoryTransfer(id: $id) {
+    ...InventoryLifecycleTransfer
+  }
+}
+
+fragment InventoryLifecycleTransfer on InventoryTransfer {
+  id
+  name
+  dateCreated
+  status
+  tags
+  origin {
+    name
+    location {
+      id
+      name
+      isActive
+    }
+  }
+  destination {
+    name
+    location {
+      id
+      name
+      isActive
+    }
+  }
+  lineItems(first: 100) {
+    nodes {
+      id
+      totalQuantity
+      shippableQuantity
+      shippedQuantity
+      processableQuantity
+      pickedForShipmentQuantity
+      inventoryItem {
+        ...InventoryLifecycleItem
+      }
+    }
+  }
+  shipments(first: 25) {
+    nodes {
+      ...InventoryLifecycleShipment
+    }
+  }
+}
+
+fragment InventoryLifecycleShipment on InventoryShipment {
+  id
+  name
+  status
+  tracking {
+    trackingNumber
+    company
+    trackingUrl
+    arrivesAt
+  }
+  lineItems(first: 25) {
+    nodes {
+      id
+      quantity
+      acceptedQuantity
+      rejectedQuantity
+      unreceivedQuantity
+      inventoryItem {
+        id
+        sku
+        tracked
+        requiresShipping
+      }
+    }
+  }
+}
+
+fragment InventoryLifecycleItem on InventoryItem {
+  id
+  sku
+  tracked
+  requiresShipping
+}

@@ -1083,9 +1083,29 @@ impl DraftProxy {
                 .cloned()
                 .collect::<Vec<_>>());
         }
+        if !self.store.base.inventory_shipments.records.is_empty() {
+            snapshot["baseState"]["inventoryShipments"] =
+                serde_json::to_value(&self.store.base.inventory_shipments.records)
+                    .unwrap_or_default();
+            snapshot["baseState"]["inventoryShipmentOrder"] =
+                json!(self.store.base.inventory_shipments.order);
+        }
         if !self.store.staged.inventory_shipments.is_empty() {
             snapshot["stagedState"]["inventoryShipments"] =
-                serde_json::to_value(&self.store.staged.inventory_shipments).unwrap_or_default();
+                serde_json::to_value(&self.store.staged.inventory_shipments.records)
+                    .unwrap_or_default();
+            snapshot["stagedState"]["inventoryShipmentOrder"] =
+                json!(self.store.staged.inventory_shipments.order);
+        }
+        if !self.store.staged.inventory_shipments.tombstones.is_empty() {
+            snapshot["stagedState"]["deletedInventoryShipmentIds"] = json!(self
+                .store
+                .staged
+                .inventory_shipments
+                .tombstones
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
         }
         if !self.store.staged.inventory_quantity_updated_at.is_empty() {
             snapshot["stagedState"]["inventoryQuantityUpdatedAt"] =
@@ -1532,6 +1552,16 @@ impl DraftProxy {
                 .unwrap_or_default(),
             state["baseState"]
                 .get("inventoryTransferOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.inventory_shipments.replace_with_order(
+            state["baseState"]
+                .get("inventoryShipments")
+                .and_then(|value| serde_json::from_value(value.clone()).ok())
+                .unwrap_or_default(),
+            state["baseState"]
+                .get("inventoryShipmentOrder")
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
@@ -2549,10 +2579,25 @@ impl DraftProxy {
                     .into_iter()
                     .collect(),
             );
-        self.store.staged.inventory_shipments = state["stagedState"]
-            .get("inventoryShipments")
-            .and_then(|value| serde_json::from_value(value.clone()).ok())
-            .unwrap_or_default();
+        self.store
+            .staged
+            .inventory_shipments
+            .replace_with_order_and_tombstones(
+                state["stagedState"]
+                    .get("inventoryShipments")
+                    .and_then(|value| serde_json::from_value(value.clone()).ok())
+                    .unwrap_or_default(),
+                state["stagedState"]
+                    .get("inventoryShipmentOrder")
+                    .map(string_array_from_json)
+                    .unwrap_or_default(),
+                state["stagedState"]
+                    .get("deletedInventoryShipmentIds")
+                    .map(string_array_from_json)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect(),
+            );
         self.store.staged.inventory_quantity_updated_at = inventory_quantity_updated_at_from_json(
             &state["stagedState"]["inventoryQuantityUpdatedAt"],
         );

@@ -17,6 +17,16 @@ type CapturedOperation = {
   response: ConformanceGraphqlPayload<unknown>;
 };
 
+type UpstreamCall = {
+  operationName: string;
+  variables: GraphqlVariables;
+  query: string;
+  response: {
+    status: number;
+    body: ConformanceGraphqlPayload<unknown>;
+  };
+};
+
 const scenarioId = 'inventory-node-read-after-write';
 const requestDir = path.join('config', 'parity-requests', 'products');
 const requestPaths = {
@@ -34,6 +44,10 @@ const requestPaths = {
   shipmentCreate: path.join(requestDir, 'inventory-node-shipment-create.graphql'),
   shipmentSetTracking: path.join(requestDir, 'inventory-node-shipment-set-tracking.graphql'),
   shipmentRead: path.join(requestDir, 'inventory-node-shipment-read.graphql'),
+  shipmentDetail: path.join(requestDir, 'inventory-shipment-detail.graphql'),
+  shipmentHydrate: path.join(requestDir, 'inventory-shipment-mutation-hydrate.graphql'),
+  transferHydrate: path.join(requestDir, 'inventory-transfer-mutation-hydrate.graphql'),
+  referenceHydrate: path.join(requestDir, 'inventory-transfer-reference-hydrate.graphql'),
   shipmentDelete: path.join(requestDir, 'inventory-node-shipment-delete.graphql'),
 } as const;
 type RequestKey = keyof typeof requestPaths;
@@ -118,6 +132,7 @@ if (apiVersion !== '2025-01') {
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const outputPath = path.join(outputDir, 'inventory-node-read-after-write.json');
+const mutationFirstOutputPath = path.join(outputDir, 'inventory-shipment-mutation-first-hydration.json');
 
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
@@ -192,6 +207,32 @@ async function runOperation(key: RequestKey, variables: GraphqlVariables, label:
     query,
     variables,
     response: result.payload as ConformanceGraphqlPayload<unknown>,
+  };
+}
+
+async function runHydrationOperation(
+  key: RequestKey,
+  operationName: string,
+  variables: GraphqlVariables,
+  label: string,
+): Promise<UpstreamCall> {
+  const query = documents[key];
+  const result = await runGraphqlRequest(query, variables);
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(`${label} returned HTTP ${result.status}: ${JSON.stringify(result.payload, null, 2)}`);
+  }
+  const payload = result.payload as ConformanceGraphqlPayload<unknown>;
+  if (Array.isArray(payload.errors) && payload.errors.length > 0) {
+    throw new Error(`${label} returned GraphQL errors: ${JSON.stringify(result.payload, null, 2)}`);
+  }
+  return {
+    operationName,
+    variables,
+    query,
+    response: {
+      status: result.status,
+      body: payload,
+    },
   };
 }
 
@@ -337,6 +378,7 @@ const cleanup: JsonRecord = {};
 let productIdForCleanup: string | null = null;
 let readyTransferIdForCleanup: string | null = null;
 let shipmentIdForCleanup: string | null = null;
+let shipmentMutationFirstFixture: JsonRecord | null = null;
 const locationIdsForCleanup: string[] = [];
 
 try {
@@ -594,6 +636,112 @@ try {
     'generic inventory shipment Node read after delete',
   );
 
+  const mutationFirstShipmentCreate = await runOperation(
+    'shipmentCreate',
+    {
+      input: {
+        movementId: readyTransfer.transferId,
+        trackingInput: {
+          trackingNumber: `COLD-SHIP-BEFORE-${runId}`,
+          company: 'Japan Post',
+          trackingUrl: 'https://www.post.japanpost.jp/',
+          arrivesAt: '2026-07-03T12:00:00Z',
+        },
+        lineItems: [{ inventoryItemId: product.inventoryItemId, quantity: 1 }],
+      },
+    },
+    'inventoryShipmentCreate mutation-first target',
+  );
+  expectNoUserErrors(
+    mutationFirstShipmentCreate.response,
+    ['data', 'inventoryShipmentCreate', 'userErrors'],
+    'inventoryShipmentCreate mutation-first target',
+  );
+  const mutationFirstShipment = shipmentIds(mutationFirstShipmentCreate);
+  shipmentIdForCleanup = mutationFirstShipment.shipmentId;
+
+  const shipmentHydrate = await runHydrationOperation(
+    'shipmentHydrate',
+    'InventoryShipmentMutationHydrate',
+    { id: mutationFirstShipment.shipmentId, after: null },
+    'inventory shipment mutation hydrate',
+  );
+  stringAt(shipmentHydrate.response.body, ['data', 'inventoryShipment', 'id'], 'inventory shipment mutation hydrate');
+  const transferHydrate = await runHydrationOperation(
+    'transferHydrate',
+    'InventoryTransferMutationHydrate',
+    { id: readyTransfer.transferId },
+    'inventory shipment owning transfer hydrate',
+  );
+  const referenceHydrate = await runHydrationOperation(
+    'referenceHydrate',
+    'ProductsHydrateNodes',
+    { ids: [product.inventoryItemId] },
+    'inventory shipment reference hydrate',
+  );
+
+  const mutationFirstTrackingVariables = {
+    id: mutationFirstShipment.shipmentId,
+    tracking: {
+      trackingNumber: `COLD-SHIP-AFTER-${runId}`,
+      company: 'Japan Post',
+      trackingUrl: 'https://www.post.japanpost.jp/',
+      arrivesAt: '2026-07-04T12:00:00Z',
+    },
+  };
+  const mutationFirstShipmentTracking = await runOperation(
+    'shipmentSetTracking',
+    mutationFirstTrackingVariables,
+    'inventoryShipmentSetTracking mutation-first',
+  );
+  expectNoUserErrors(
+    mutationFirstShipmentTracking.response,
+    ['data', 'inventoryShipmentSetTracking', 'userErrors'],
+    'inventoryShipmentSetTracking mutation-first',
+  );
+  const mutationFirstShipmentRead = await runOperation(
+    'shipmentDetail',
+    { id: mutationFirstShipment.shipmentId },
+    'inventoryShipment read after mutation-first tracking',
+  );
+  const mutationFirstShipmentDelete = await runOperation(
+    'shipmentDelete',
+    { id: mutationFirstShipment.shipmentId },
+    'inventoryShipmentDelete mutation-first cleanup',
+  );
+  expectNoUserErrors(
+    mutationFirstShipmentDelete.response,
+    ['data', 'inventoryShipmentDelete', 'userErrors'],
+    'inventoryShipmentDelete mutation-first cleanup',
+  );
+  shipmentIdForCleanup = null;
+  shipmentMutationFirstFixture = {
+    scenario: 'inventory-shipment-mutation-first-hydration',
+    storeDomain,
+    apiVersion,
+    capturedAt: new Date().toISOString(),
+    setup: {
+      inventoryItemId: product.inventoryItemId,
+      transferId: readyTransfer.transferId,
+      shipmentCreate: mutationFirstShipmentCreate,
+    },
+    operation: {
+      query: documents.shipmentSetTracking,
+      variables: mutationFirstTrackingVariables,
+      response: mutationFirstShipmentTracking.response,
+    },
+    reads: {
+      afterTracking: mutationFirstShipmentRead,
+    },
+    cleanup: {
+      shipmentDelete: mutationFirstShipmentDelete,
+      shipmentDeleted: true,
+    },
+    upstreamCalls: [shipmentHydrate, transferHydrate, referenceHydrate],
+    notes:
+      'Creates a disposable real draft shipment, records the exact query-only shipment, owning-transfer, and inventory-node hydration calls used by the proxy, then runs inventoryShipmentSetTracking as the primary mutation from a cold proxy session and verifies downstream readback.',
+  };
+
   const draftTransferCreate = await runOperation(
     'transferCreateDraft',
     {
@@ -696,8 +844,14 @@ try {
     cleanup,
   };
 
+  if (!shipmentMutationFirstFixture) {
+    throw new Error('inventory shipment mutation-first capture did not produce a fixture');
+  }
   await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
-  console.log(JSON.stringify({ ok: true, storeDomain, apiVersion, outputPath }, null, 2));
+  await writeFile(mutationFirstOutputPath, `${JSON.stringify(shipmentMutationFirstFixture, null, 2)}\n`, 'utf8');
+  console.log(
+    JSON.stringify({ ok: true, storeDomain, apiVersion, outputs: [outputPath, mutationFirstOutputPath] }, null, 2),
+  );
 } finally {
   if (shipmentIdForCleanup) {
     cleanup['unhandledShipmentDelete'] = await runCleanup(documents.shipmentDelete, { id: shipmentIdForCleanup });

@@ -427,6 +427,21 @@ impl DraftProxy {
         };
         if let Some(variant) = node.get("variant") {
             self.stage_inventory_item_observed_variant(inventory_item_id, node, variant);
+        } else if let Some(mut variant) = self
+            .store
+            .product_variant_by_inventory_item_id(inventory_item_id)
+            .cloned()
+        {
+            if let Some(sku) = node.get("sku").and_then(Value::as_str) {
+                variant.sku = sku.to_string();
+            }
+            if let Some(tracked) = node.get("tracked").and_then(Value::as_bool) {
+                variant.inventory_item.tracked = tracked;
+            }
+            if let Some(requires_shipping) = node.get("requiresShipping").and_then(Value::as_bool) {
+                variant.inventory_item.requires_shipping = requires_shipping;
+            }
+            self.store.observe_base_product_variant(variant);
         }
         if let Some(levels) = node
             .get("inventoryLevels")
@@ -2657,7 +2672,7 @@ impl DraftProxy {
                     .any(|(item_id, _)| item_id == inventory_item_id))
     }
 
-    fn inventory_location_exists(&self, location_id: &str) -> bool {
+    pub(super) fn inventory_location_exists(&self, location_id: &str) -> bool {
         if location_id.is_empty() || !is_shopify_gid_of_type(location_id, "Location") {
             return false;
         }

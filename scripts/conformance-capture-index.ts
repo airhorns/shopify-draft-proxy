@@ -2589,7 +2589,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-inventory-transfer-conformance.ts',
     purpose:
-      'inventoryTransferCreate validation, inventory transfer draft-to-ready-to-canceled lifecycle behavior with downstream inventory reservation readback, and zero-origin inventory readback with real location names.',
+      'inventoryTransferCreate validation, inventory transfer draft-to-ready-to-canceled lifecycle behavior, mutation-first hydration of a real transfer, downstream inventory reservation readback, and zero-origin inventory readback with real location names.',
     requiredAuthScopes: [
       'read_products',
       'write_products',
@@ -2597,14 +2597,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'write_inventory',
       'read_locations',
       'write_locations',
+      'read_inventory_transfers',
+      'write_inventory_transfers',
     ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}inventory-transfer-create-validation.json`,
       `${CAPTURE_ROOT}inventory-transfer-lifecycle-local-staging.json`,
       `${CAPTURE_ROOT}inventory-transfer-zero-origin-read.json`,
+      `${CAPTURE_ROOT}inventory-transfer-mutation-first-hydration.json`,
       'config/parity-specs/products/inventory_transfer_create_validation.json',
       'config/parity-specs/products/inventory-transfer-lifecycle-local-staging.json',
       'config/parity-specs/products/inventory-transfer-zero-origin-read.json',
+      'config/parity-specs/products/inventory-transfer-mutation-first-hydration.json',
       'config/parity-requests/products/inventory-transfer-create-validation.graphql',
       'config/parity-requests/products/inventory-transfer-create.graphql',
       'config/parity-requests/products/inventory-transfer-edit.graphql',
@@ -2615,9 +2619,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/inventory-transfer-inventory-read-with-location-names.graphql',
       'config/parity-requests/products/inventory-transfer-cancel.graphql',
       'config/parity-requests/products/inventory-transfer-delete.graphql',
+      'config/parity-requests/products/inventory-transfer-mutation-hydrate.graphql',
+      'config/parity-requests/products/inventory-transfer-reference-hydrate.graphql',
+      'config/parity-requests/products/inventory-transfer-mutation-first-read.graphql',
     ],
     cleanupBehavior:
-      'Creates disposable locations and tracked products, activates inventory at both locations, records validation, lifecycle, and zero-origin readback branches, cancels/deletes transfer records where Shopify permits it, then deletes the products and locations.',
+      'Creates disposable locations and tracked products, activates inventory at both locations, records validation, lifecycle, cold mutation-first hydration, and zero-origin readback branches, cancels/deletes transfer records where Shopify permits it, then deletes the products and locations.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2660,7 +2667,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-inventory-node-read-conformance.ts',
     purpose:
-      'Generic node/nodes parity for staged inventory item, level, quantity, adjustment group, transfer, transfer line item, shipment, and shipment line item resources built through public Admin GraphQL requests.',
+      'Generic node/nodes parity plus cold mutation-first hydration for staged inventory item, level, quantity, adjustment group, transfer, transfer line item, shipment, and shipment line item resources built through public Admin GraphQL requests.',
     requiredAuthScopes: [
       'read_products',
       'write_products',
@@ -2675,7 +2682,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}inventory-node-read-after-write.json`,
+      `${CAPTURE_ROOT}inventory-shipment-mutation-first-hydration.json`,
       'config/parity-specs/products/inventory-node-read-after-write.json',
+      'config/parity-specs/products/inventory-shipment-mutation-first-hydration.json',
       'config/parity-requests/products/inventory-node-product-create.graphql',
       'config/parity-requests/products/inventory-node-track.graphql',
       'config/parity-requests/products/inventory-node-activate.graphql',
@@ -2690,9 +2699,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/inventory-node-shipment-set-tracking.graphql',
       'config/parity-requests/products/inventory-node-shipment-read.graphql',
       'config/parity-requests/products/inventory-node-shipment-delete.graphql',
+      'config/parity-requests/products/inventory-shipment-detail.graphql',
+      'config/parity-requests/products/inventory-shipment-mutation-hydrate.graphql',
     ],
     cleanupBehavior:
-      'Creates disposable locations, a tracked product, inventory quantities, a ready transfer, a draft shipment, and a draft transfer; deletes the draft resources, cancels the ready transfer, deletes the product, then deactivates and deletes the locations.',
+      'Creates disposable locations, a tracked product, inventory quantities, a ready transfer, ordinary and cold mutation-first draft shipments, and a draft transfer; deletes the draft resources, cancels the ready transfer, deletes the product, then deactivates and deletes the locations.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'The current conformance grant is missing write_inventory_shipments_received_items, so receive-specific shipment Node read-after-write parity is tracked by a linked human blocker and remains covered locally by Rust tests.',

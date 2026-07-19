@@ -1,0 +1,43 @@
+{
+  "scenarioId": "inventory-shipment-mutation-first-hydration",
+  "operationNames": ["inventoryShipment", "inventoryTransfers", "inventoryTransfer", "inventoryShipmentSetTracking"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "runtime-staging",
+    "base-state-hydration",
+    "no-upstream-passthrough"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-node-shipment-set-tracking.graphql",
+    "variablesCapturePath": "$.operation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cold-shipment-set-tracking-payload",
+        "capturePath": "$.operation.response.data.inventoryShipmentSetTracking",
+        "proxyPath": "$.data.inventoryShipmentSetTracking"
+      },
+      {
+        "name": "cold-shipment-read-after-tracking",
+        "capturePath": "$.reads.afterTracking.response.data.inventoryShipment",
+        "proxyPath": "$.data.inventoryShipment",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-detail.graphql",
+          "variablesCapturePath": "$.reads.afterTracking.variables"
+        }
+      }
+    ]
+  },
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-shipment-mutation-first-hydration.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "notes": "Creates a disposable real draft shipment, records the exact InventoryShipmentMutationHydrate, owning InventoryTransferMutationHydrate, and ProductsHydrateNodes reads used by a cold LiveHybrid proxy, then compares inventoryShipmentSetTracking and downstream detail read without forwarding the supported mutation."
+}
