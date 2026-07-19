@@ -6523,6 +6523,59 @@ fn customer_payment_methods_replay_shop_pay_guard_shapes() {
 }
 
 #[test]
+fn customer_payment_methods_unknown_ids_return_not_found_before_shop_pay_guards() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodUnknownIdNotFound {
+          duplicate: customerPaymentMethodGetDuplicationData(
+            customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-card-typo"
+            targetCustomerId: "gid://shopify/Customer/8802"
+            targetShopId: "gid://shopify/Shop/source"
+          ) {
+            encryptedDuplicationData
+            userErrors { field code message }
+          }
+          update: customerPaymentMethodGetUpdateUrl(
+            customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-card-typo"
+          ) {
+            updatePaymentMethodUrl
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    let expected_duplication_error = json!([{
+        "field": ["customerPaymentMethodId"],
+        "message": "Payment method doesn't exist.",
+        "code": "PAYMENT_METHOD_DOES_NOT_EXIST"
+    }]);
+    let expected_update_url_error = json!([{
+        "field": ["customerPaymentMethodId"],
+        "message": "Customer payment method does not exist",
+        "code": "PAYMENT_METHOD_DOES_NOT_EXIST"
+    }]);
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["duplicate"],
+        json!({
+            "encryptedDuplicationData": Value::Null,
+            "userErrors": expected_duplication_error
+        })
+    );
+    assert_eq!(
+        response.body["data"]["update"],
+        json!({
+            "updatePaymentMethodUrl": Value::Null,
+            "userErrors": expected_update_url_error
+        })
+    );
+}
+
+#[test]
 fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
     let lifecycle: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-local-staging.json"

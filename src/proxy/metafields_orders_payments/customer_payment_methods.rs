@@ -69,6 +69,22 @@ pub(in crate::proxy) fn customer_payment_method_billing_address_blank_errors(
     .collect()
 }
 
+fn customer_payment_method_duplication_does_not_exist_error() -> Value {
+    user_error(
+        ["customerPaymentMethodId"],
+        "Payment method doesn't exist.",
+        Some("PAYMENT_METHOD_DOES_NOT_EXIST"),
+    )
+}
+
+fn customer_payment_method_update_url_does_not_exist_error() -> Value {
+    user_error(
+        ["customerPaymentMethodId"],
+        "Customer payment method does not exist",
+        Some("PAYMENT_METHOD_DOES_NOT_EXIST"),
+    )
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn customer_payment_method_local_data(
         &mut self,
@@ -652,7 +668,14 @@ impl DraftProxy {
             resolved_string_arg(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
         let target_customer_id =
             resolved_string_arg(&field.arguments, "targetCustomerId").unwrap_or_default();
-        let errors = if source_id.contains("base-card") {
+        let errors = if !self
+            .store
+            .staged
+            .customer_payment_methods
+            .contains_key(&source_id)
+        {
+            vec![customer_payment_method_duplication_does_not_exist_error()]
+        } else if source_id.contains("base-card") {
             vec![user_error(
                 ["customerPaymentMethodId"],
                 "Invalid instrument",
@@ -764,7 +787,9 @@ impl DraftProxy {
     fn customer_payment_method_update_url(&self, field: &RootFieldSelection) -> Value {
         let id =
             resolved_string_arg(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
-        let errors = if id.contains("base-card") {
+        let errors = if !self.store.staged.customer_payment_methods.contains_key(&id) {
+            vec![customer_payment_method_update_url_does_not_exist_error()]
+        } else if id.contains("base-card") {
             vec![user_error(
                 ["customerPaymentMethodId"],
                 "Invalid instrument",
