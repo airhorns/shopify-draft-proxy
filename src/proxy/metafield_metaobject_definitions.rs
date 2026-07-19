@@ -84,7 +84,7 @@ impl DraftProxy {
                 "metafieldDefinitionCreate" => {
                     let definition_input =
                         resolved_object_field(&field.arguments, "definition").unwrap_or_default();
-                    if access_denied_for_reserved_metafield_namespace(&definition_input) {
+                    if access_denied_for_reserved_metafield_namespace(request, &definition_input) {
                         return metafield_definition_access_denied_response(
                             "metafieldDefinitionCreate",
                         );
@@ -103,12 +103,13 @@ impl DraftProxy {
                 "metafieldDefinitionUpdate" => {
                     let definition_input =
                         resolved_object_field(&field.arguments, "definition").unwrap_or_default();
-                    if access_denied_for_reserved_metafield_namespace(&definition_input) {
+                    if access_denied_for_reserved_metafield_namespace(request, &definition_input) {
                         return metafield_definition_access_denied_response(
                             "metafieldDefinitionUpdate",
                         );
                     }
-                    let payload = self.metafield_definition_update_payload(&definition_input);
+                    let payload =
+                        self.metafield_definition_update_payload(request, &definition_input);
                     if let Some(id) = metafield_definition_payload_staged_id(&payload) {
                         staged_ids.push(id);
                         primary_staged_root.get_or_insert(root_name);
@@ -145,7 +146,8 @@ impl DraftProxy {
                     );
                 }
                 "metafieldDefinitionDelete" => {
-                    let payload = self.metafield_definition_delete_payload(&field.arguments);
+                    let payload =
+                        self.metafield_definition_delete_payload(request, &field.arguments);
                     if let Some(id) = metafield_definition_payload_staged_id(&payload) {
                         staged_ids.push(id);
                         primary_staged_root.get_or_insert(root_name);
@@ -163,6 +165,8 @@ impl DraftProxy {
                     let mut namespace =
                         resolved_string_field(&identifier, "namespace").unwrap_or_default();
                     let mut key = resolved_string_field(&identifier, "key").unwrap_or_default();
+                    let api_client_id = request_app_api_client_id(request);
+                    namespace = canonical_app_metafield_namespace(Some(&namespace), &api_client_id);
                     if key.is_empty() {
                         if let Some(definition_id) =
                             resolved_string_field(&field.arguments, "definitionId")
@@ -271,6 +275,8 @@ impl DraftProxy {
                     let mut namespace =
                         resolved_string_field(&identifier, "namespace").unwrap_or_default();
                     let mut key = resolved_string_field(&identifier, "key").unwrap_or_default();
+                    let api_client_id = request_app_api_client_id(request);
+                    namespace = canonical_app_metafield_namespace(Some(&namespace), &api_client_id);
                     if key.is_empty() {
                         if let Some(definition_id) = resolved_string_arg(variables, "definitionId")
                             .or_else(|| resolved_string_arg(variables, "id"))
@@ -461,12 +467,13 @@ impl DraftProxy {
 
     fn metafield_definition_update_payload(
         &mut self,
+        request: &Request,
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let owner_type =
             resolved_string_field(input, "ownerType").unwrap_or_else(|| "PRODUCT".to_string());
         let Some((_, namespace, key)) =
-            self.metafield_definition_key_from_input(input, &owner_type)
+            self.metafield_definition_key_from_input(request, input, &owner_type)
         else {
             return json!({
                 "updatedDefinition": Value::Null,
@@ -651,6 +658,7 @@ impl DraftProxy {
 
     fn metafield_definition_delete_payload(
         &mut self,
+        request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let delete_all =
@@ -660,6 +668,7 @@ impl DraftProxy {
                 .unwrap_or_else(|| "PRODUCT".to_string());
             let namespace = canonical_app_metafield_namespace(
                 resolved_string_field(&identifier, "namespace").as_deref(),
+                &request_app_api_client_id(request),
             );
             let key = resolved_string_field(&identifier, "key").unwrap_or_default();
             metafield_definition_store_key(&owner_type, &namespace, &key)
@@ -825,14 +834,18 @@ impl DraftProxy {
 
     fn metafield_definition_key_from_input(
         &self,
+        request: &Request,
         input: &BTreeMap<String, ResolvedValue>,
         owner_type: &str,
     ) -> Option<MetafieldDefinitionKey> {
         // Definitions are stored under their canonical app namespace
-        // (`app--347082227713--<suffix>`), so an update/lookup arriving as
+        // (`app--<api_client_id>--<suffix>`), so an update/lookup arriving as
         // `$app:<suffix>` must be canonicalized before keying.
         let raw_namespace = resolved_string_field(input, "namespace")?;
-        let namespace = canonical_app_metafield_namespace(Some(&raw_namespace));
+        let namespace = canonical_app_metafield_namespace(
+            Some(&raw_namespace),
+            &request_app_api_client_id(request),
+        );
         let key = resolved_string_field(input, "key")?;
         let map_key = metafield_definition_store_key(owner_type, &namespace, &key);
         self.store
@@ -850,8 +863,7 @@ impl DraftProxy {
     ) -> String {
         let namespace = resolved_string_field(input, "namespace");
         if matches!(namespace.as_deref(), Some(value) if value.starts_with("$app:")) {
-            let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id")
-                .unwrap_or_else(|| "347082227713".to_string());
+            let api_client_id = request_app_api_client_id(request);
             let suffix = namespace
                 .as_deref()
                 .unwrap_or_default()
@@ -1151,9 +1163,11 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn metafield_definition_pinning_read(
         &self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
+        let api_client_id = request_app_api_client_id(request);
         let mut data = serde_json::Map::new();
         for field in root_fields(query, variables).unwrap_or_default() {
             match field.name.as_str() {
@@ -1176,6 +1190,7 @@ impl DraftProxy {
                                 .unwrap_or_else(|| "PRODUCT".to_string());
                             let namespace = canonical_app_metafield_namespace(
                                 resolved_string_field(&identifier, "namespace").as_deref(),
+                                &api_client_id,
                             );
                             let key = resolved_string_field(&identifier, "key").unwrap_or_default();
                             self.store
@@ -1198,8 +1213,10 @@ impl DraftProxy {
                 "metafieldDefinitions" => {
                     let owner_type = resolved_string_field(&field.arguments, "ownerType")
                         .unwrap_or_else(|| "PRODUCT".to_string());
-                    let namespace = resolved_string_field(&field.arguments, "namespace")
-                        .map(|namespace| canonical_app_metafield_namespace(Some(&namespace)));
+                    let namespace =
+                        resolved_string_field(&field.arguments, "namespace").map(|namespace| {
+                            canonical_app_metafield_namespace(Some(&namespace), &api_client_id)
+                        });
                     let key = resolved_string_field(&field.arguments, "key");
                     let pinned_status = resolved_string_field(&field.arguments, "pinnedStatus");
                     let mut definitions = self
@@ -2018,14 +2035,18 @@ fn metafield_definition_access_denied_response(root_field: &str) -> Response {
     }))
 }
 
-fn access_denied_for_reserved_metafield_namespace(input: &BTreeMap<String, ResolvedValue>) -> bool {
+fn access_denied_for_reserved_metafield_namespace(
+    request: &Request,
+    input: &BTreeMap<String, ResolvedValue>,
+) -> bool {
     let raw_namespace = resolved_string_field(input, "namespace");
     // A write targeting another app's reserved namespace
-    // (`app--<other-id>--…`) is rejected with a top-level ACCESS_DENIED,
-    // since the proxy authenticates only as api client 347082227713.
-    if app_namespace_belongs_to_other_app(&canonical_app_metafield_namespace(
-        raw_namespace.as_deref(),
-    )) {
+    // (`app--<other-id>--…`) is rejected with a top-level ACCESS_DENIED.
+    let api_client_id = request_app_api_client_id(request);
+    if app_namespace_belongs_to_other_app(
+        &canonical_app_metafield_namespace(raw_namespace.as_deref(), &api_client_id),
+        &api_client_id,
+    ) {
         return true;
     }
     raw_namespace.as_deref() == Some("shopify") && resolved_object_field(input, "access").is_some()

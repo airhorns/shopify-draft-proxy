@@ -18,6 +18,7 @@ impl DraftProxy {
         let (response_key, payload_selection) =
             primary_root_response_selection(query, variables, || "metafieldsSet".to_string());
         let inputs = metafields_mutation_inputs(query, variables, "metafieldsSet");
+        let api_client_id = request_app_api_client_id(request);
         let fallback_reference_ids = if inputs.len() <= 25 {
             self.hydrate_metafield_reference_ids(
                 request,
@@ -37,16 +38,17 @@ impl DraftProxy {
             );
         }
         let mut user_errors = if inputs.len() <= 25 {
-            self.metafields_set_compare_digest_errors(&inputs)
+            self.metafields_set_compare_digest_errors(&inputs, &api_client_id)
         } else {
             Vec::new()
         };
-        user_errors.extend(metafields_set_input_errors(&inputs, |id| {
+        user_errors.extend(metafields_set_input_errors(&inputs, &api_client_id, |id| {
             self.metafield_reference_exists(id) || fallback_reference_ids.contains(id)
         }));
         user_errors.extend(metafields_set_definition_user_errors(
             &inputs,
             &self.store.staged.metafield_definitions,
+            &api_client_id,
         ));
         if !user_errors.is_empty() {
             let metafields = if inputs.len() > 25 {
@@ -65,6 +67,7 @@ impl DraftProxy {
             let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
             let namespace = canonical_app_metafield_namespace(
                 resolved_string_field(&input, "namespace").as_deref(),
+                &api_client_id,
             );
             let key = resolved_string_field(&input, "key").unwrap_or_default();
             let metafield_type = resolved_string_field(&input, "type")
@@ -149,12 +152,17 @@ impl DraftProxy {
         let (response_key, payload_selection) =
             primary_root_response_selection(query, variables, || "metafieldsDelete".to_string());
         let inputs = metafields_mutation_inputs(query, variables, "metafieldsDelete");
+        let api_client_id = request_app_api_client_id(request);
         // A delete targeting another app's reserved namespace is not permitted;
         // Shopify rejects the whole batch before deleting anything.
         if inputs.iter().any(|input| {
-            app_namespace_belongs_to_other_app(&canonical_app_metafield_namespace(
-                resolved_string_field(input, "namespace").as_deref(),
-            ))
+            app_namespace_belongs_to_other_app(
+                &canonical_app_metafield_namespace(
+                    resolved_string_field(input, "namespace").as_deref(),
+                    &api_client_id,
+                ),
+                &api_client_id,
+            )
         }) {
             let payload = json!({
                 "deletedMetafields": [],
@@ -180,6 +188,7 @@ impl DraftProxy {
             let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
             let namespace = canonical_app_metafield_namespace(
                 resolved_string_field(&input, "namespace").as_deref(),
+                &api_client_id,
             );
             let key = resolved_string_field(&input, "key").unwrap_or_default();
             let owner_metafields = self
@@ -218,6 +227,7 @@ impl DraftProxy {
     fn metafields_set_compare_digest_errors(
         &self,
         inputs: &[BTreeMap<String, ResolvedValue>],
+        api_client_id: &str,
     ) -> Vec<Value> {
         inputs
             .iter()
@@ -227,6 +237,7 @@ impl DraftProxy {
                 let owner_id = resolved_string_field(input, "ownerId")?;
                 let namespace = canonical_app_metafield_namespace(
                     resolved_string_field(input, "namespace").as_deref(),
+                    api_client_id,
                 );
                 let key = resolved_string_field(input, "key")?;
                 let existing = self.owner_metafield(&owner_id, &namespace, &key);

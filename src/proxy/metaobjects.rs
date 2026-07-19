@@ -390,8 +390,7 @@ fn resolved_metaobject_definition_type_arg(
 
 fn canonical_metaobject_definition_type(raw: &str, request: &Request) -> String {
     let resolved = if let Some(suffix) = raw.strip_prefix("$app:") {
-        let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id")
-            .unwrap_or_else(|| "347082227713".to_string());
+        let api_client_id = request_app_api_client_id(request);
         format!("app--{api_client_id}--{suffix}")
     } else {
         raw.to_string()

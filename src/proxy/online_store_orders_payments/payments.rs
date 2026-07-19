@@ -1714,13 +1714,18 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn payment_customization_mutation_data(
         &mut self,
+        request: &Request,
         fields: &[RootFieldSelection],
     ) -> Value {
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
-                "paymentCustomizationCreate" => self.payment_customization_create_payload(field),
-                "paymentCustomizationUpdate" => self.payment_customization_update_payload(field),
+                "paymentCustomizationCreate" => {
+                    self.payment_customization_create_payload(request, field)
+                }
+                "paymentCustomizationUpdate" => {
+                    self.payment_customization_update_payload(request, field)
+                }
                 "paymentCustomizationActivation" => {
                     self.payment_customization_activation_payload(field)
                 }
@@ -1734,6 +1739,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn payment_customization_create_payload(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
     ) -> Value {
         let input =
@@ -1816,7 +1822,8 @@ impl DraftProxy {
             self.next_synthetic_id
         );
         self.next_synthetic_id += 1;
-        let record = payment_customization_record(&id, &input);
+        let api_client_id = request_app_api_client_id(request);
+        let record = payment_customization_record(&id, &input, &api_client_id);
         self.store
             .staged
             .payment_customizations
@@ -1826,6 +1833,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn payment_customization_update_payload(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
@@ -1906,7 +1914,8 @@ impl DraftProxy {
             updated["enabled"] = json!(enabled);
         }
         if input.contains_key("metafields") {
-            let metafields = payment_customization_metafields(&input);
+            let api_client_id = request_app_api_client_id(request);
+            let metafields = payment_customization_metafields(&input, &api_client_id);
             payment_customization_set_metafields(&mut updated, metafields);
         }
         self.store

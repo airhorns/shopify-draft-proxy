@@ -820,6 +820,107 @@ fn metafields_app_namespace_set_delete_stages_product_readback() {
 }
 
 #[test]
+fn metafields_app_namespace_set_delete_uses_request_client_id() {
+    let mut proxy = snapshot_proxy();
+    let owner_id = "gid://shopify/Product/10180596236594";
+    let api_client_id = "123456789012";
+    let canonical_namespace = "app--123456789012--value_namespace_repro";
+
+    let mut set_request = json_graphql_request(
+        r#"
+        mutation MetafieldsSetAppNamespaceResolution($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) { metafields { namespace key value } userErrors { field message code } }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "$app:value_namespace_repro", "key": "tier", "type": "single_line_text_field", "value": "gold"}]}),
+    );
+    set_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        api_client_id.to_string(),
+    );
+
+    let response = proxy.process_request(set_request);
+    assert_eq!(
+        response.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["metafieldsSet"]["metafields"][0]["namespace"],
+        json!(canonical_namespace)
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldsAppNamespaceProductRead($productId: ID!, $namespace: String!, $key: String!) {
+          product(id: $productId) {
+            metafield(namespace: $namespace, key: $key) { namespace key value }
+          }
+        }
+        "#,
+        json!({"productId": owner_id, "namespace": canonical_namespace, "key": "tier"}),
+    ));
+    assert_eq!(
+        read.body["data"]["product"]["metafield"],
+        json!({"namespace": canonical_namespace, "key": "tier", "value": "gold"})
+    );
+
+    let mut canonical_set_request = json_graphql_request(
+        r#"
+        mutation MetafieldsSetCanonicalAppNamespace($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) { metafields { namespace key value } userErrors { field message code } }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "app--123456789012--canonical_value_namespace_repro", "key": "rank", "type": "single_line_text_field", "value": "platinum"}]}),
+    );
+    canonical_set_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        api_client_id.to_string(),
+    );
+    let canonical_set = proxy.process_request(canonical_set_request);
+    assert_eq!(
+        canonical_set.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        canonical_set.body["data"]["metafieldsSet"]["metafields"][0]["namespace"],
+        json!("app--123456789012--canonical_value_namespace_repro")
+    );
+
+    let mut delete_request = json_graphql_request(
+        r#"
+        mutation MetafieldsDeleteAppNamespaceResolution($metafields: [MetafieldIdentifierInput!]!) {
+          metafieldsDelete(metafields: $metafields) { deletedMetafields { ownerId namespace key } userErrors { field message } }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "$app:value_namespace_repro", "key": "tier"}]}),
+    );
+    delete_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        api_client_id.to_string(),
+    );
+    let delete = proxy.process_request(delete_request);
+    assert_eq!(
+        delete.body["data"]["metafieldsDelete"],
+        json!({"deletedMetafields": [{"ownerId": owner_id, "namespace": canonical_namespace, "key": "tier"}], "userErrors": []})
+    );
+
+    let post_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldsAppNamespaceProductRead($productId: ID!, $namespace: String!, $key: String!) {
+          product(id: $productId) {
+            metafield(namespace: $namespace, key: $key) { namespace key value }
+          }
+        }
+        "#,
+        json!({"productId": owner_id, "namespace": canonical_namespace, "key": "tier"}),
+    ));
+    assert_eq!(
+        post_delete.body["data"]["product"]["metafield"],
+        Value::Null
+    );
+}
+
+#[test]
 fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes() {
     let mut proxy = snapshot_proxy();
 

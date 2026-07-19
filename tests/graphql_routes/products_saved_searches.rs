@@ -6506,6 +6506,72 @@ fn saved_search_multi_root_create_delete_and_filter_projection() {
 }
 
 #[test]
+fn saved_search_app_namespace_uses_request_client_id() {
+    let mut proxy = snapshot_proxy();
+    let mut create_request = json_graphql_request(
+        r#"
+        mutation SavedSearchAppNamespace($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id query searchTerms filters { key value } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"resourceType": "PRODUCT", "name": "App scoped search", "query": "metafields.$app.tier:gold"}}),
+    );
+    create_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "123456789012".to_string(),
+    );
+    let create = proxy.process_request(create_request);
+    assert_eq!(
+        create.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["savedSearchCreate"]["savedSearch"]["query"],
+        json!("metafields.app--123456789012.tier:gold")
+    );
+    assert_eq!(
+        create.body["data"]["savedSearchCreate"]["savedSearch"]["filters"],
+        json!([{ "key": "metafields.app--123456789012.tier", "value": "gold" }])
+    );
+
+    let id = create.body["data"]["savedSearchCreate"]["savedSearch"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let mut update_request = json_graphql_request(
+        r#"
+        mutation SavedSearchAppNamespaceUpdate($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id query searchTerms filters { key value } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"id": id, "query": "metafields.$app.vip:true"}}),
+    );
+    update_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "123456789012".to_string(),
+    );
+    let update = proxy.process_request(update_request);
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"]["savedSearch"]["query"],
+        json!("metafields.app--123456789012.vip:true")
+    );
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"]["savedSearch"]["filters"],
+        json!([{ "key": "metafields.app--123456789012.vip", "value": "true" }])
+    );
+}
+
+#[test]
 fn saved_search_query_validation_paths_sorting_deduping_and_allowlists_match_core() {
     let mut proxy = snapshot_proxy();
 

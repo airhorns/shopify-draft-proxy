@@ -995,7 +995,7 @@ impl DraftProxy {
                 if let Some(response) = saved_search_required_input_error(&query, &variables) {
                     return response;
                 }
-                let outcome = self.saved_search_mutation_fields(&query, &variables);
+                let outcome = self.saved_search_mutation_fields(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::AdminPlatform, CapabilityExecution::OverlayRead)
@@ -1486,7 +1486,7 @@ impl DraftProxy {
                             | "paymentCustomizationUpdate"
                     )
                 }) {
-                    let data = self.payment_customization_mutation_data(&fields);
+                    let data = self.payment_customization_mutation_data(request, &fields);
                     let staged_ids = fields
                         .iter()
                         .filter_map(|field| {
@@ -1761,7 +1761,7 @@ impl DraftProxy {
                 {
                     (self.upstream_transport)(request.clone())
                 } else {
-                    self.metafield_definition_pinning_read(&query, &variables)
+                    self.metafield_definition_pinning_read(request, &query, &variables)
                 }
             }
             (CapabilityDomain::Metafields, CapabilityExecution::StageLocally)

@@ -453,25 +453,41 @@ fn normalize_list_metafield_value_string(type_name: &str, raw: &str) -> String {
     }
 }
 
+pub(in crate::proxy) const DEFAULT_APP_API_CLIENT_ID: &str = "347082227713";
+
+pub(in crate::proxy) fn request_app_api_client_id(request: &Request) -> String {
+    request_header(request, "x-shopify-draft-proxy-api-client-id")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| DEFAULT_APP_API_CLIENT_ID.to_string())
+}
+
 /// A reserved app namespace (`app--<apiClientId>--<suffix>`) may only be
-/// written by the app that owns it. The proxy authenticates as api client
-/// 347082227713, so a write targeting any other app's reserved namespace is
-/// rejected with APP_NOT_AUTHORIZED.
-pub(in crate::proxy) fn app_namespace_belongs_to_other_app(namespace: &str) -> bool {
+/// written by the app that owns it.
+pub(in crate::proxy) fn app_namespace_belongs_to_other_app(
+    namespace: &str,
+    api_client_id: &str,
+) -> bool {
     let Some(remainder) = namespace.strip_prefix("app--") else {
         return false;
     };
     let app_id = remainder.split("--").next().unwrap_or_default();
-    !app_id.is_empty() && app_id != "347082227713"
+    !app_id.is_empty() && app_id != api_client_id
 }
 
-pub(in crate::proxy) fn canonical_app_metafield_namespace(namespace: Option<&str>) -> String {
+pub(in crate::proxy) fn canonical_app_metafield_namespace(
+    namespace: Option<&str>,
+    api_client_id: &str,
+) -> String {
     match namespace {
         Some(value) if value.starts_with("$app:") => {
-            format!("app--347082227713--{}", value.trim_start_matches("$app:"))
+            format!(
+                "app--{api_client_id}--{}",
+                value.trim_start_matches("$app:")
+            )
         }
         Some(value) => value.to_string(),
-        None => "app--347082227713".to_string(),
+        None => format!("app--{api_client_id}"),
     }
 }
 
@@ -594,6 +610,7 @@ pub(in crate::proxy) fn metafields_set_reference_values(
 
 pub(in crate::proxy) fn metafields_set_input_errors<F>(
     inputs: &[BTreeMap<String, ResolvedValue>],
+    api_client_id: &str,
     mut reference_exists: F,
 ) -> Vec<Value>
 where
@@ -609,7 +626,7 @@ where
 
     let mut errors = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
-        if let Some(error) = metafields_set_input_shape_error(index, input) {
+        if let Some(error) = metafields_set_input_shape_error(index, input, api_client_id) {
             errors.push(error);
             continue;
         }
@@ -630,9 +647,12 @@ where
 fn metafields_set_input_shape_error(
     index: usize,
     input: &BTreeMap<String, ResolvedValue>,
+    api_client_id: &str,
 ) -> Option<Value> {
-    let namespace =
-        canonical_app_metafield_namespace(resolved_string_field(input, "namespace").as_deref());
+    let namespace = canonical_app_metafield_namespace(
+        resolved_string_field(input, "namespace").as_deref(),
+        api_client_id,
+    );
     let key = resolved_string_field(input, "key").unwrap_or_default();
     if namespace.len() < 3 {
         Some(metafields_set_path_user_error(
@@ -667,7 +687,7 @@ fn metafields_set_input_shape_error(
             "",
             &format!("Namespace {namespace} is a reserved namespace"),
         ))
-    } else if app_namespace_belongs_to_other_app(&namespace) {
+    } else if app_namespace_belongs_to_other_app(&namespace, api_client_id) {
         Some(metafields_set_path_user_error(
             vec!["metafields", &index.to_string()],
             "APP_NOT_AUTHORIZED",
@@ -887,12 +907,15 @@ fn metafield_json_object_message(metafield_type: &str) -> &'static str {
 pub(in crate::proxy) fn metafields_set_definition_user_errors(
     inputs: &[BTreeMap<String, ResolvedValue>],
     definitions: &BTreeMap<MetafieldDefinitionKey, Value>,
+    api_client_id: &str,
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
         let owner_id = resolved_string_field(input, "ownerId").unwrap_or_default();
-        let namespace =
-            canonical_app_metafield_namespace(resolved_string_field(input, "namespace").as_deref());
+        let namespace = canonical_app_metafield_namespace(
+            resolved_string_field(input, "namespace").as_deref(),
+            api_client_id,
+        );
         let key = resolved_string_field(input, "key").unwrap_or_default();
         let value = resolved_string_field(input, "value").unwrap_or_default();
         let owner_type = owner_type_from_gid(&owner_id);
@@ -1814,6 +1837,7 @@ pub(in crate::proxy) fn payment_customization_connection(
 pub(in crate::proxy) fn payment_customization_record(
     id: &str,
     input: &BTreeMap<String, ResolvedValue>,
+    api_client_id: &str,
 ) -> Value {
     let function_id = resolved_string_field(input, "functionId");
     let function_handle = resolved_string_field(input, "functionHandle");
@@ -1825,19 +1849,23 @@ pub(in crate::proxy) fn payment_customization_record(
         "functionId": function_id,
         "functionHandle": if function_id.is_some() { Value::Null } else { json!(function_handle) }
     });
-    payment_customization_set_metafields(&mut record, payment_customization_metafields(input));
+    payment_customization_set_metafields(
+        &mut record,
+        payment_customization_metafields(input, api_client_id),
+    );
     record
 }
 
 pub(in crate::proxy) fn payment_customization_metafields(
     input: &BTreeMap<String, ResolvedValue>,
+    api_client_id: &str,
 ) -> Vec<Value> {
     resolved_object_list_field(input, "metafields")
         .into_iter()
         .enumerate()
         .map(|(index, metafield)| {
             let namespace = resolved_string_field(&metafield, "namespace")
-                .map(|namespace| payment_customization_namespace(&namespace))
+                .map(|namespace| payment_customization_namespace(&namespace, api_client_id))
                 .unwrap_or_default();
             json!({
                 "id": shopify_gid("Metafield", format_args!("payment-customization-{}", index + 1)),
@@ -1862,10 +1890,13 @@ pub(in crate::proxy) fn payment_customization_set_metafields(
     record["metafields"] = json!({ "edges": edges, "nodes": metafields });
 }
 
-pub(in crate::proxy) fn payment_customization_namespace(namespace: &str) -> String {
+pub(in crate::proxy) fn payment_customization_namespace(
+    namespace: &str,
+    api_client_id: &str,
+) -> String {
     namespace
         .strip_prefix("$app:")
-        .map(|suffix| format!("app--347082227713--{suffix}"))
+        .map(|suffix| format!("app--{api_client_id}--{suffix}"))
         .unwrap_or_else(|| namespace.to_string())
 }
 

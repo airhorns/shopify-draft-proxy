@@ -461,7 +461,17 @@ fn saved_search_base_filter_key(key: &str) -> &str {
 }
 
 pub(in crate::proxy) fn normalize_saved_search_query(query: &str) -> String {
-    query.replace("metafields.$app.", "metafields.app--347082227713.")
+    normalize_saved_search_query_for_app(query, DEFAULT_APP_API_CLIENT_ID)
+}
+
+pub(in crate::proxy) fn normalize_saved_search_query_for_app(
+    query: &str,
+    api_client_id: &str,
+) -> String {
+    query.replace(
+        "metafields.$app.",
+        &format!("metafields.app--{api_client_id}."),
+    )
 }
 
 pub(in crate::proxy) fn saved_search_read_query(query: &str) -> String {
@@ -815,6 +825,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn saved_search_mutation_fields(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
@@ -822,8 +833,8 @@ impl DraftProxy {
         let mut log_drafts = Vec::new();
         for field in root_fields(query, variables).unwrap_or_default() {
             let outcome = match field.name.as_str() {
-                "savedSearchCreate" => self.saved_search_create_field(&field),
-                "savedSearchUpdate" => self.saved_search_update_field(&field),
+                "savedSearchCreate" => self.saved_search_create_field(request, &field),
+                "savedSearchUpdate" => self.saved_search_update_field(request, &field),
                 "savedSearchDelete" => self.saved_search_delete_field(&field),
                 _ => continue,
             };
@@ -840,6 +851,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn saved_search_create_field(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
         let payload_selection = &field.selection;
@@ -902,7 +914,10 @@ impl DraftProxy {
         let record = SavedSearchRecord {
             id: id.clone(),
             name,
-            query: normalize_saved_search_query(&search_query),
+            query: normalize_saved_search_query_for_app(
+                &search_query,
+                &request_app_api_client_id(request),
+            ),
             resource_type,
         };
         self.store.stage_saved_search(record.clone());
@@ -919,6 +934,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn saved_search_update_field(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
         let payload_selection = &field.selection;
@@ -952,7 +968,10 @@ impl DraftProxy {
         let requested_query =
             resolved_string_field(&input, "query").unwrap_or_else(|| existing.query.clone());
         let mut updated = existing.clone();
-        updated.query = normalize_saved_search_query(&requested_query);
+        updated.query = normalize_saved_search_query_for_app(
+            &requested_query,
+            &request_app_api_client_id(request),
+        );
         let mut user_errors = Vec::new();
         let name_is_blank = requested_name.trim().is_empty();
         if name_is_blank {
