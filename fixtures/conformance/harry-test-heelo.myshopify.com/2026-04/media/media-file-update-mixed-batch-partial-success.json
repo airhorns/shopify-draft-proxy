@@ -1,0 +1,686 @@
+{
+  "capturedAt": "2026-07-19T21:59:53.532Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "media-file-update-mixed-batch-partial-success",
+  "setup": {
+    "imageCreate": {
+      "variables": {
+        "files": [
+          {
+            "contentType": "IMAGE",
+            "filename": "mixed-batch-1784498387512-valid.jpg",
+            "originalSource": "https://placehold.co/600x400.jpg",
+            "alt": "Mixed batch valid row before update"
+          },
+          {
+            "contentType": "IMAGE",
+            "filename": "mixed-batch-1784498387512-invalid.jpg",
+            "originalSource": "https://placehold.co/601x401.jpg",
+            "alt": "Mixed batch invalid row before update"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileCreate": {
+            "files": [
+              {
+                "id": "gid://shopify/MediaImage/44071355089202",
+                "__typename": "MediaImage",
+                "alt": "Mixed batch valid row before update",
+                "createdAt": "2026-07-19T21:59:47Z",
+                "fileStatus": "UPLOADED",
+                "image": null,
+                "preview": {
+                  "image": null
+                }
+              },
+              {
+                "id": "gid://shopify/MediaImage/44071355121970",
+                "__typename": "MediaImage",
+                "alt": "Mixed batch invalid row before update",
+                "createdAt": "2026-07-19T21:59:47Z",
+                "fileStatus": "UPLOADED",
+                "image": null,
+                "preview": {
+                  "image": null
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 23,
+            "actualQueryCost": 23,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1977,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "videoCreate": {
+      "variables": {
+        "files": [
+          {
+            "contentType": "EXTERNAL_VIDEO",
+            "originalSource": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "alt": "Validation seed video"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileCreate": {
+            "files": [
+              {
+                "id": "gid://shopify/ExternalVideo/44071355154738",
+                "__typename": "ExternalVideo",
+                "alt": "Validation seed video",
+                "createdAt": "2026-07-19T21:59:47Z",
+                "fileStatus": "UPLOADED"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 23,
+            "actualQueryCost": 21,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1973,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "nonReadyCreate": {
+      "variables": {
+        "files": [
+          {
+            "contentType": "IMAGE",
+            "filename": "validation-non-ready-1784498387512.jpg",
+            "originalSource": "https://placehold.co/600x400.jpg",
+            "alt": "Validation non-ready image"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileCreate": {
+            "files": [
+              {
+                "id": "gid://shopify/MediaImage/44071355187506",
+                "__typename": "MediaImage",
+                "alt": "Validation non-ready image",
+                "createdAt": "2026-07-19T21:59:47Z",
+                "fileStatus": "UPLOADED",
+                "image": null,
+                "preview": {
+                  "image": null
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 23,
+            "actualQueryCost": 23,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1964,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readyImageRead": {
+      "data": {
+        "node": {
+          "id": "gid://shopify/MediaImage/44071355089202",
+          "__typename": "MediaImage",
+          "alt": "Mixed batch valid row before update",
+          "createdAt": "2026-07-19T21:59:47Z",
+          "fileStatus": "READY",
+          "image": {
+            "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/mixed-batch-1784498387512-valid.jpg?v=1784498388",
+            "width": 600,
+            "height": 400
+          },
+          "preview": {
+            "image": {
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/mixed-batch-1784498387512-valid.jpg?v=1784498388",
+              "width": 600,
+              "height": 400
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "readyMixedInvalidImageRead": {
+      "data": {
+        "node": {
+          "id": "gid://shopify/MediaImage/44071355121970",
+          "__typename": "MediaImage",
+          "alt": "Mixed batch invalid row before update",
+          "createdAt": "2026-07-19T21:59:47Z",
+          "fileStatus": "READY",
+          "image": {
+            "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/mixed-batch-1784498387512-invalid.jpg?v=1784498389",
+            "width": 601,
+            "height": 401
+          },
+          "preview": {
+            "image": {
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/mixed-batch-1784498387512-invalid.jpg?v=1784498389",
+              "width": 601,
+              "height": 401
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "readyVideoRead": {
+      "data": {
+        "node": {
+          "id": "gid://shopify/ExternalVideo/44071355154738",
+          "__typename": "ExternalVideo",
+          "alt": "Validation seed video",
+          "createdAt": "2026-07-19T21:59:47Z",
+          "fileStatus": "READY"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "mixedReadyRead": {
+      "variables": {
+        "ids": ["gid://shopify/MediaImage/44071355089202", "gid://shopify/MediaImage/44071355121970"],
+        "query": "filename:mixed-batch-1784498387512*"
+      },
+      "response": {
+        "data": {
+          "files": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MediaImage/44071355121970",
+                "__typename": "MediaImage",
+                "alt": "Mixed batch invalid row before update",
+                "fileStatus": "READY"
+              },
+              {
+                "id": "gid://shopify/MediaImage/44071355089202",
+                "__typename": "MediaImage",
+                "alt": "Mixed batch valid row before update",
+                "fileStatus": "READY"
+              }
+            ]
+          },
+          "nodes": [
+            {
+              "id": "gid://shopify/MediaImage/44071355089202",
+              "__typename": "MediaImage",
+              "alt": "Mixed batch valid row before update",
+              "fileStatus": "READY"
+            },
+            {
+              "id": "gid://shopify/MediaImage/44071355121970",
+              "__typename": "MediaImage",
+              "alt": "Mixed batch invalid row before update",
+              "fileStatus": "READY"
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "mixedBatch": {
+    "mutation": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/MediaImage/44071355089202",
+            "alt": "Mixed batch valid row after update"
+          },
+          {
+            "id": "gid://shopify/MediaImage/44071355121970",
+            "alt": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [
+              {
+                "id": "gid://shopify/MediaImage/44071355089202",
+                "__typename": "MediaImage",
+                "alt": "Mixed batch valid row after update",
+                "fileStatus": "READY"
+              }
+            ],
+            "userErrors": [
+              {
+                "field": ["files", "1", "alt"],
+                "message": "The alt value exceeds the maximum limit of 512 characters.",
+                "code": "ALT_VALUE_LIMIT_EXCEEDED"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "downstreamRead": {
+      "variables": {
+        "ids": ["gid://shopify/MediaImage/44071355089202", "gid://shopify/MediaImage/44071355121970"],
+        "query": "filename:mixed-batch-1784498387512*"
+      },
+      "response": {
+        "data": {
+          "files": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MediaImage/44071355121970",
+                "__typename": "MediaImage",
+                "alt": "Mixed batch invalid row before update",
+                "fileStatus": "READY"
+              },
+              {
+                "id": "gid://shopify/MediaImage/44071355089202",
+                "__typename": "MediaImage",
+                "alt": "Mixed batch valid row after update",
+                "fileStatus": "READY"
+              }
+            ]
+          },
+          "nodes": [
+            {
+              "id": "gid://shopify/MediaImage/44071355089202",
+              "__typename": "MediaImage",
+              "alt": "Mixed batch valid row after update",
+              "fileStatus": "READY"
+            },
+            {
+              "id": "gid://shopify/MediaImage/44071355121970",
+              "__typename": "MediaImage",
+              "alt": "Mixed batch invalid row before update",
+              "fileStatus": "READY"
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "branches": {
+    "nonReadyAlt": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/MediaImage/44071355187506",
+            "alt": "Validation non-ready update attempt"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [],
+            "userErrors": [
+              {
+                "field": ["files"],
+                "message": "Non-ready files cannot be updated.",
+                "code": "NON_READY_STATE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1968,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "videoOriginalSource": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/ExternalVideo/44071355154738",
+            "originalSource": "https://cdn.example.com/validation-new-video.mp4"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [],
+            "userErrors": [
+              {
+                "field": ["files", "0", "originalSource"],
+                "message": "Updating the original source is not supported for this media type.",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "videoFilename": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/ExternalVideo/44071355154738",
+            "filename": "validation-renamed-1784498387512.youtube"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [],
+            "userErrors": [
+              {
+                "field": ["files"],
+                "message": "Updating the filename is only supported on images and generic files",
+                "code": "UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "imageFilenameMismatch": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/MediaImage/44071355089202",
+            "filename": "mixed-batch-1784498387512-valid.png"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [],
+            "userErrors": [
+              {
+                "field": ["files"],
+                "message": "The filename extension provided must match the original filename.",
+                "code": "INVALID_FILENAME_EXTENSION"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "missingReferences": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/MediaImage/44071355089202",
+            "referencesToAdd": ["gid://shopify/Product/999999999991"],
+            "referencesToRemove": ["gid://shopify/Product/999999999992"]
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [],
+            "userErrors": [
+              {
+                "field": ["files"],
+                "message": "The reference target does not exist",
+                "code": "REFERENCE_TARGET_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "wrongType": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/Video/44071355089202",
+            "alt": "Validation wrong typed id"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [],
+            "userErrors": [
+              {
+                "field": ["files"],
+                "message": "File id [\"gid://shopify/Video/44071355089202\"] does not exist.",
+                "code": "FILE_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "successAlt": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/MediaImage/44071355089202",
+            "alt": "Validation successful alt update preserves READY"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [
+              {
+                "id": "gid://shopify/MediaImage/44071355089202",
+                "__typename": "MediaImage",
+                "alt": "Validation successful alt update preserves READY",
+                "createdAt": "2026-07-19T21:59:47Z",
+                "fileStatus": "READY",
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/mixed-batch-1784498387512-valid.jpg?v=1784498388",
+                  "width": 600,
+                  "height": 400
+                },
+                "preview": {
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/mixed-batch-1784498387512-valid.jpg?v=1784498388",
+                    "width": 600,
+                    "height": 400
+                  }
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1981,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "cleanup": {
+    "variables": {
+      "fileIds": [
+        "gid://shopify/MediaImage/44071355089202",
+        "gid://shopify/MediaImage/44071355121970",
+        "gid://shopify/ExternalVideo/44071355154738",
+        "gid://shopify/MediaImage/44071355187506"
+      ]
+    },
+    "response": {
+      "data": {
+        "fileDelete": {
+          "deletedFileIds": [
+            "gid://shopify/MediaImage/44071355089202",
+            "gid://shopify/MediaImage/44071355121970",
+            "gid://shopify/ExternalVideo/44071355154738",
+            "gid://shopify/MediaImage/44071355187506"
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

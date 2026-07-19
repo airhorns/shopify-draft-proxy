@@ -16191,6 +16191,188 @@ fn media_file_create_poll_ready_then_update_succeeds() {
 }
 
 #[test]
+fn media_file_update_mixed_batch_preserves_per_item_partial_success() {
+    let mut proxy = snapshot_proxy().with_upstream_transport(|request| {
+        panic!(
+            "supported file mutations and snapshot reads must stay local, got upstream request: {}",
+            request.body
+        )
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileMixedBatchSeed($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id alt fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {
+                "alt": "Valid row before update",
+                "contentType": "IMAGE",
+                "filename": "mixed-valid.jpg",
+                "originalSource": "https://cdn.example.com/mixed-valid.jpg"
+            },
+            {
+                "alt": "Invalid row before update",
+                "contentType": "IMAGE",
+                "filename": "mixed-invalid.jpg",
+                "originalSource": "https://cdn.example.com/mixed-invalid.jpg"
+            }
+        ]}),
+    ));
+    assert_eq!(create.body["data"]["fileCreate"]["userErrors"], json!([]));
+    let valid_id = create.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .expect("valid seed id")
+        .to_string();
+    let invalid_id = create.body["data"]["fileCreate"]["files"][1]["id"]
+        .as_str()
+        .expect("invalid seed id")
+        .to_string();
+
+    let ready = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileMixedBatchReadyPoll {
+          files(first: 10) { nodes { id alt fileStatus } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        ready.body["data"]["files"]["nodes"][0]["fileStatus"],
+        json!("READY")
+    );
+    assert_eq!(
+        ready.body["data"]["files"]["nodes"][1]["fileStatus"],
+        json!("READY")
+    );
+
+    let update_query = r#"
+        mutation MediaFileMixedBatchUpdate($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files { id alt fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#;
+    let atomic_conflict = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"files": [
+            {"id": valid_id, "alt": "Must remain unchanged"},
+            {
+                "id": invalid_id,
+                "originalSource": "https://cdn.example.com/mixed-source.jpg",
+                "previewImageSource": "https://cdn.example.com/mixed-preview.jpg"
+            }
+        ]}),
+    ));
+    assert_eq!(
+        atomic_conflict.body["data"]["fileUpdate"],
+        json!({
+            "files": [],
+            "userErrors": [
+                {
+                    "field": ["files", "1", "previewImageSource"],
+                    "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                    "code": "INVALID"
+                },
+                {
+                    "field": ["files", "1", "originalSource"],
+                    "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                    "code": "INVALID"
+                }
+            ]
+        })
+    );
+    let after_atomic_conflict = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileMixedBatchAtomicRead($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            id
+            ... on MediaImage { alt fileStatus }
+          }
+        }
+        "#,
+        json!({"ids": [valid_id, invalid_id]}),
+    ));
+    assert_eq!(
+        after_atomic_conflict.body["data"]["nodes"],
+        json!([
+            {"id": valid_id, "alt": "Valid row before update", "fileStatus": "READY"},
+            {"id": invalid_id, "alt": "Invalid row before update", "fileStatus": "READY"}
+        ])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"files": [
+            {"id": valid_id, "alt": "Valid row after update"},
+            {"id": invalid_id, "alt": "x".repeat(513)}
+        ]}),
+    ));
+    assert_eq!(
+        update.body["data"]["fileUpdate"],
+        json!({
+            "files": [{
+                "id": valid_id,
+                "alt": "Valid row after update",
+                "fileStatus": "READY"
+            }],
+            "userErrors": [{
+                "field": ["files", "1", "alt"],
+                "message": "The alt value exceeds the maximum limit of 512 characters.",
+                "code": "ALT_VALUE_LIMIT_EXCEEDED"
+            }]
+        })
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileMixedBatchDownstream($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            id
+            __typename
+            ... on MediaImage { alt fileStatus }
+          }
+        }
+        "#,
+        json!({"ids": [valid_id, invalid_id]}),
+    ));
+    assert_eq!(
+        downstream.body["data"]["nodes"],
+        json!([
+            {
+                "id": valid_id,
+                "__typename": "MediaImage",
+                "alt": "Valid row after update",
+                "fileStatus": "READY"
+            },
+            {
+                "id": invalid_id,
+                "__typename": "MediaImage",
+                "alt": "Invalid row before update",
+                "fileStatus": "READY"
+            }
+        ])
+    );
+
+    let log = log_snapshot(&proxy);
+    let update_entries = log["entries"]
+        .as_array()
+        .expect("log entries")
+        .iter()
+        .filter(|entry| entry["interpreted"]["primaryRootField"] == json!("fileUpdate"))
+        .collect::<Vec<_>>();
+    assert_eq!(update_entries.len(), 1);
+    assert_eq!(update_entries[0]["operationName"], Value::Null);
+    assert_eq!(update_entries[0]["query"], json!(update_query));
+    assert_eq!(update_entries[0]["stagedResourceIds"], json!([valid_id]));
+}
+
+#[test]
 fn media_files_live_hybrid_cold_read_forwards_and_hydrates_files_and_saved_searches() {
     let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_bodies = Arc::clone(&upstream_bodies);

@@ -4514,3 +4514,28 @@ Practical rule:
 - distinguish an authoritative null node from transport, GraphQL, or incomplete
   response failures; all failure classes must leave product/category state
   unchanged, but only the authoritative miss is proven invalid
+
+## 108. READY `fileUpdate` batches can combine row success with indexed errors
+
+Admin GraphQL 2026-04 live capture created two disposable image files, waited
+until both were `READY`, and sent one valid alt update plus one 513-character
+alt update in the same `fileUpdate` call. Shopify returned the successfully
+updated file and one `ALT_VALUE_LIMIT_EXCEEDED` userError at
+`["files", "1", "alt"]`. Immediate `files` and `nodes` reads showed the valid
+alt while the rejected file retained its prior alt.
+
+This is narrower than making `fileUpdate` generally non-atomic. Missing IDs and
+non-READY targets are resolved before the row-scoped alt check, and existing
+source-conflict, media-target, version, and reference validations remain
+whole-batch boundaries until a live mixed-row capture proves otherwise.
+
+Practical rule:
+
+- retain the input index when collecting alt-limit userErrors, skip only those
+  rejected rows, and return successful files in their original input order
+- stage the successful subset into the shared file graph so `files`, `node`, and
+  `nodes` agree with the mutation payload while rejected rows remain unchanged
+- append one replay entry containing the original raw batch only when at least
+  one row succeeds; associate that entry with only the successfully staged IDs
+- do not generalize this result to other validation buckets without equivalent
+  captured mixed-batch evidence
