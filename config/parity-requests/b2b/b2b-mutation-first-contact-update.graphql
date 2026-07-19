@@ -1,0 +1,24 @@
+mutation B2BMutationFirstContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {
+  companyContactUpdate(companyContactId: $companyContactId, input: $input) {
+    companyContact {
+      id
+      title
+      isMainContact
+      company {
+        id
+        name
+      }
+      customer {
+        id
+        firstName
+        lastName
+        email
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

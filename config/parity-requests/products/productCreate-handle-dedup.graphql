@@ -1,4 +1,4 @@
-mutation ProductCreateHandleDedup($product: ProductCreateInput!) {
+mutation ProductHandleLifecycleCreate($product: ProductCreateInput!) {
   productCreate(product: $product) {
     product {
       id

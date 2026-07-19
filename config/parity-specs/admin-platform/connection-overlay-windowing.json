@@ -1,0 +1,567 @@
+{
+  "scenarioId": "connection-overlay-windowing",
+  "operationNames": [
+    "productSavedSearches",
+    "savedSearchCreate",
+    "savedSearchDelete",
+    "files",
+    "fileCreate",
+    "fileDelete",
+    "sellingPlanGroups",
+    "sellingPlanGroupCreate",
+    "sellingPlanGroupDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["pagination-shape", "downstream-read-parity", "mutation-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/connection-overlay-windowing.json"
+  ],
+  "runtimeTestFiles": [
+    "tests/graphql_routes/products_saved_searches.rs",
+    "tests/graphql_routes/marketing_inventory_online_store.rs",
+    "tests/graphql_routes/selling_plans.rs"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/connection-overlay-windowing-saved-search-create.graphql",
+    "variablesCapturePath": "$.savedSearchCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify evidence for complete saved-search, Files API, and selling-plan-group connection payloads across first/reverse, after, last/before, and post-delete reads. Only resource IDs and opaque cursor values are volatile.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "saved-search-create-setup",
+        "capturePath": "$.savedSearchCreate.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.first.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "Different created resource."
+          },
+          {
+            "path": "$.second.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "Different created resource."
+          }
+        ]
+      },
+      {
+        "name": "file-create-setup",
+        "capturePath": "$.fileCreate.response.data.fileCreate",
+        "proxyPath": "$.data.fileCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/connection-overlay-windowing-file-create.graphql",
+          "variablesCapturePath": "$.fileCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.files[*].id",
+            "matcher": "shopify-gid:GenericFile",
+            "reason": "Different created resources."
+          }
+        ]
+      },
+      {
+        "name": "selling-plan-group-create-setup",
+        "capturePath": "$.sellingPlanGroupCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/connection-overlay-windowing-selling-plan-group-create.graphql",
+          "variablesCapturePath": "$.sellingPlanGroupCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.first.sellingPlanGroup.id",
+            "matcher": "shopify-gid:SellingPlanGroup",
+            "reason": "Different created resource."
+          },
+          {
+            "path": "$.second.sellingPlanGroup.id",
+            "matcher": "shopify-gid:SellingPlanGroup",
+            "reason": "Different created resource."
+          }
+        ]
+      },
+      {
+        "name": "complete-connections-first-and-reverse",
+        "capturePath": "$.fullRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/connection-overlay-windowing-full-read.graphql",
+          "variablesCapturePath": "$.fullRead.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.saved.edges[*].cursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.saved.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.saved.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.savedReverse.edges[*].cursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.savedReverse.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.savedReverse.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.files.edges[*].cursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.files.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.files.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.filesReverse.edges[*].cursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.filesReverse.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.filesReverse.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.groups.edges[*].cursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.groups.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.groups.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.groupsReverse.edges[*].cursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.groupsReverse.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.groupsReverse.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.saved.edges[*].node.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy and live store create different resources of the same Shopify type."
+          },
+          {
+            "path": "$.savedReverse.edges[*].node.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy and live store create different resources of the same Shopify type."
+          },
+          {
+            "path": "$.files.edges[*].node.id",
+            "matcher": "shopify-gid:GenericFile",
+            "reason": "The proxy and live store create different resources of the same Shopify type."
+          },
+          {
+            "path": "$.filesReverse.edges[*].node.id",
+            "matcher": "shopify-gid:GenericFile",
+            "reason": "The proxy and live store create different resources of the same Shopify type."
+          },
+          {
+            "path": "$.groups.edges[*].node.id",
+            "matcher": "shopify-gid:SellingPlanGroup",
+            "reason": "The proxy and live store create different resources of the same Shopify type."
+          },
+          {
+            "path": "$.groupsReverse.edges[*].node.id",
+            "matcher": "shopify-gid:SellingPlanGroup",
+            "reason": "The proxy and live store create different resources of the same Shopify type."
+          }
+        ]
+      },
+      {
+        "name": "complete-connections-after",
+        "capturePath": "$.afterRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/connection-overlay-windowing-after-read.graphql",
+          "variables": {
+            "savedAfter": {
+              "fromProxyResponse": "complete-connections-first-and-reverse",
+              "path": "$.data.saved.edges[0].cursor"
+            },
+            "fileAfter": {
+              "fromProxyResponse": "complete-connections-first-and-reverse",
+              "path": "$.data.files.edges[0].cursor"
+            },
+            "groupAfter": {
+              "fromProxyResponse": "complete-connections-first-and-reverse",
+              "path": "$.data.groups.edges[0].cursor"
+            },
+            "fileQuery": {
+              "fromCapturePath": "$.afterRead.request.variables.fileQuery"
+            },
+            "groupQuery": {
+              "fromCapturePath": "$.afterRead.request.variables.groupQuery"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.saved.edges[*].cursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.saved.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.saved.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.files.edges[*].cursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.files.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.files.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.groups.edges[*].cursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.groups.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.groups.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.saved.edges[*].node.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy and live store create different resources of the same Shopify type."
+          },
+          {
+            "path": "$.files.edges[*].node.id",
+            "matcher": "shopify-gid:GenericFile",
+            "reason": "The proxy and live store create different resources of the same Shopify type."
+          },
+          {
+            "path": "$.groups.edges[*].node.id",
+            "matcher": "shopify-gid:SellingPlanGroup",
+            "reason": "The proxy and live store create different resources of the same Shopify type."
+          }
+        ]
+      },
+      {
+        "name": "complete-connections-last-before",
+        "capturePath": "$.beforeRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/connection-overlay-windowing-before-read.graphql",
+          "variables": {
+            "savedBefore": {
+              "fromProxyResponse": "complete-connections-first-and-reverse",
+              "path": "$.data.saved.edges[1].cursor"
+            },
+            "fileBefore": {
+              "fromProxyResponse": "complete-connections-first-and-reverse",
+              "path": "$.data.files.edges[1].cursor"
+            },
+            "groupBefore": {
+              "fromProxyResponse": "complete-connections-first-and-reverse",
+              "path": "$.data.groups.edges[1].cursor"
+            },
+            "fileQuery": {
+              "fromCapturePath": "$.beforeRead.request.variables.fileQuery"
+            },
+            "groupQuery": {
+              "fromCapturePath": "$.beforeRead.request.variables.groupQuery"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.saved.edges[*].cursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.saved.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.saved.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.files.edges[*].cursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.files.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.files.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.groups.edges[*].cursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.groups.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.groups.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.saved.edges[*].node.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy and live store create different resources of the same Shopify type."
+          },
+          {
+            "path": "$.files.edges[*].node.id",
+            "matcher": "shopify-gid:GenericFile",
+            "reason": "The proxy and live store create different resources of the same Shopify type."
+          },
+          {
+            "path": "$.groups.edges[*].node.id",
+            "matcher": "shopify-gid:SellingPlanGroup",
+            "reason": "The proxy and live store create different resources of the same Shopify type."
+          }
+        ]
+      },
+      {
+        "name": "delete-second-resources",
+        "capturePath": "$.deleteSecond.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/connection-overlay-windowing-delete.graphql",
+          "variables": {
+            "savedSearch": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.second.savedSearch.id"
+              }
+            },
+            "fileIds": [
+              {
+                "fromProxyResponse": "file-create-setup",
+                "path": "$.data.fileCreate.files[1].id"
+              }
+            ],
+            "sellingPlanGroupId": {
+              "fromProxyResponse": "selling-plan-group-create-setup",
+              "path": "$.data.second.sellingPlanGroup.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearchDelete.deletedSavedSearchId",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "Different deleted resource."
+          },
+          {
+            "path": "$.fileDelete.deletedFileIds[*]",
+            "matcher": "shopify-gid:GenericFile",
+            "reason": "Different deleted resource."
+          },
+          {
+            "path": "$.sellingPlanGroupDelete.deletedSellingPlanGroupId",
+            "matcher": "shopify-gid:SellingPlanGroup",
+            "reason": "Different deleted resource."
+          }
+        ]
+      },
+      {
+        "name": "complete-connections-after-delete",
+        "capturePath": "$.afterDeleteRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/connection-overlay-windowing-after-delete-read.graphql",
+          "variablesCapturePath": "$.afterDeleteRead.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.saved.edges[*].cursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.saved.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.saved.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.files.edges[*].cursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.files.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.files.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.groups.edges[*].cursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.groups.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.groups.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify connection cursors are opaque and resource-instance specific."
+          },
+          {
+            "path": "$.saved.edges[*].node.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy and live store create different resources of the same Shopify type."
+          },
+          {
+            "path": "$.files.edges[*].node.id",
+            "matcher": "shopify-gid:GenericFile",
+            "reason": "The proxy and live store create different resources of the same Shopify type."
+          },
+          {
+            "path": "$.groups.edges[*].node.id",
+            "matcher": "shopify-gid:SellingPlanGroup",
+            "reason": "The proxy and live store create different resources of the same Shopify type."
+          }
+        ]
+      }
+    ]
+  }
+}

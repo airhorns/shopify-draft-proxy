@@ -10,7 +10,7 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 
 type JsonRecord = Record<string, unknown>;
 type FixtureGroup = 'events' | 'payments' | 'apps' | 'bulk-operations' | 'functions';
-type PaymentFixtureTarget = 'reads' | 'customization-validation' | 'payment-reminder-send';
+type PaymentFixtureTarget = 'reads' | 'shopify-payments-account' | 'customization-validation' | 'payment-reminder-send';
 
 type Capture = {
   query: string;
@@ -34,7 +34,12 @@ type FunctionNode = {
 };
 
 const allGroups: FixtureGroup[] = ['events', 'payments', 'apps', 'bulk-operations', 'functions'];
-const paymentFixtureTargets: PaymentFixtureTarget[] = ['reads', 'customization-validation', 'payment-reminder-send'];
+const paymentFixtureTargets: PaymentFixtureTarget[] = [
+  'reads',
+  'shopify-payments-account',
+  'customization-validation',
+  'payment-reminder-send',
+];
 const requestedGroup = process.env['ORPHAN_FIXTURE_GROUP'];
 const requestedPaymentFixture = process.env['ORPHAN_PAYMENT_FIXTURE'];
 const groupsToCapture =
@@ -272,27 +277,30 @@ async function capturePaymentReads(): Promise<string[]> {
     upstreamCalls: [],
   });
 
-  const shopifyPaymentsAccountQuery = await readText(
-    'config/parity-requests/payments/shopify-payments-account-read.graphql',
-  );
-  const shopifyPaymentsAccount = await client.runGraphqlRequest(shopifyPaymentsAccountQuery, {});
-  if (shopifyPaymentsAccount.status < 200 || shopifyPaymentsAccount.status >= 300) {
-    throw new Error(`shopifyPaymentsAccount access probe failed: ${JSON.stringify(shopifyPaymentsAccount, null, 2)}`);
+  return written;
+}
+
+async function captureShopifyPaymentsAccount(): Promise<string> {
+  const client = await clientFor('2025-01');
+  const query = await readText('config/parity-requests/payments/shopify-payments-account-read.graphql');
+  const variables = {};
+  const response = await client.runGraphqlRequest(query, variables);
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`shopifyPaymentsAccount access probe failed: ${JSON.stringify(response, null, 2)}`);
   }
-  written.push(outputPath(client.config, 'payments', 'shopify-payments-account-access-denied.json'));
-  await writeJson(written.at(-1) as string, {
+  const filePath = outputPath(client.config, 'payments', 'shopify-payments-account-access-denied.json');
+  await writeJson(filePath, {
     storeDomain: client.config.storeDomain,
     apiVersion: client.config.apiVersion,
     capturedAt: new Date().toISOString(),
-    request: { query: shopifyPaymentsAccountQuery.replace(/\s+/gu, ' ').trim() },
-    status: shopifyPaymentsAccount.status,
-    errors: shopifyPaymentsAccount.payload.errors,
-    data: shopifyPaymentsAccount.payload.data,
-    extensions: shopifyPaymentsAccount.payload.extensions,
-    upstreamCalls: [],
+    request: { query: query.replace(/\s+/gu, ' ').trim() },
+    status: response.status,
+    errors: response.payload.errors,
+    data: response.payload.data,
+    extensions: response.payload.extensions,
+    upstreamCalls: [upstreamReadCall('ShopifyPaymentsAccountAccessProbe', query, variables, response)],
   });
-
-  return written;
+  return filePath;
 }
 
 async function capturePaymentCustomizationValidation(): Promise<string> {
@@ -697,6 +705,7 @@ async function capturePaymentReminderSend(): Promise<string> {
 async function capturePayments(): Promise<string[]> {
   const written: string[] = [];
   if (shouldCapturePaymentFixture('reads')) written.push(...(await capturePaymentReads()));
+  if (shouldCapturePaymentFixture('shopify-payments-account')) written.push(await captureShopifyPaymentsAccount());
   if (shouldCapturePaymentFixture('customization-validation'))
     written.push(await capturePaymentCustomizationValidation());
   if (shouldCapturePaymentFixture('payment-reminder-send')) written.push(await capturePaymentReminderSend());

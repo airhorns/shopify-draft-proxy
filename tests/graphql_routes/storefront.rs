@@ -4271,6 +4271,153 @@ fn storefront_customer_profile_addresses_orders_and_restore_share_state() {
 }
 
 #[test]
+fn storefront_customer_order_projection_preserves_authoritative_fields_across_admin_updates() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|request| {
+            panic!(
+                "Storefront order projection must remain local: {}",
+                request.body
+            )
+        });
+    let (customer_id, access_token) = create_storefront_customer_token(
+        &mut proxy,
+        "storefront-order-projection@example.test",
+        "Order",
+        "Projection",
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateProjectedOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id name email phone }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "customerId": customer_id,
+                "name": "IMPORT-9-X2-2026",
+                "email": "order-before-update@example.test",
+                "phone": "+33123456789",
+                "currency": "EUR",
+                "financialStatus": "PAID",
+                "fulfillmentStatus": "FULFILLED",
+                "processedAt": "2026-01-02T03:04:05Z",
+                "lineItems": [{
+                    "title": "Authoritative projection item",
+                    "quantity": 1,
+                    "priceSet": {
+                        "shopMoney": { "amount": "31.25", "currencyCode": "EUR" }
+                    }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200, "{}", create.body);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"]
+        .as_str()
+        .expect("created order id")
+        .to_string();
+
+    let read_order = |proxy: &mut DraftProxy| {
+        proxy.process_request(storefront_graphql_request(
+            r#"
+            query ReadProjectedOrder($token: String!) {
+              customer(customerAccessToken: $token) {
+                orders(first: 5) {
+                  nodes {
+                    id
+                    name
+                    email
+                    phone
+                    currencyCode
+                    financialStatus
+                    fulfillmentStatus
+                    orderNumber
+                    processedAt
+                    subtotalPriceV2 { amount currencyCode }
+                    totalPrice { amount currencyCode }
+                    totalPriceV2 { amount currencyCode }
+                  }
+                }
+              }
+            }
+            "#,
+            json!({ "token": access_token }),
+        ))
+    };
+
+    let before_update = read_order(&mut proxy);
+    assert_eq!(before_update.status, 200, "{}", before_update.body);
+    let before = &before_update.body["data"]["customer"]["orders"]["nodes"][0];
+    assert_eq!(before["id"], json!(order_id));
+    assert_eq!(before["name"], json!("IMPORT-9-X2-2026"));
+    assert_eq!(before["email"], json!("order-before-update@example.test"));
+    assert_eq!(before["phone"], json!("+33123456789"));
+    assert_eq!(before["currencyCode"], json!("EUR"));
+    assert_eq!(before["financialStatus"], json!("PAID"));
+    assert_eq!(before["fulfillmentStatus"], json!("FULFILLED"));
+    assert_eq!(before["orderNumber"], json!(1));
+    assert_ne!(before["orderNumber"], json!(922026));
+    assert_eq!(before["processedAt"], json!("2026-01-02T03:04:05Z"));
+    assert_eq!(
+        before["subtotalPriceV2"],
+        json!({ "amount": "31.25", "currencyCode": "EUR" })
+    );
+    assert_eq!(before["totalPrice"], before["totalPriceV2"]);
+    assert_eq!(
+        before["totalPriceV2"],
+        json!({ "amount": "31.25", "currencyCode": "EUR" })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateProjectedOrder($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { id name email phone }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": order_id,
+                "email": "order-after-update@example.test",
+                "phone": "+49891234567"
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200, "{}", update.body);
+    assert_eq!(update.body["data"]["orderUpdate"]["userErrors"], json!([]));
+
+    let after_update = read_order(&mut proxy);
+    assert_eq!(after_update.status, 200, "{}", after_update.body);
+    let after = &after_update.body["data"]["customer"]["orders"]["nodes"][0];
+    assert_eq!(after["email"], json!("order-after-update@example.test"));
+    assert_eq!(after["phone"], json!("+49891234567"));
+    for field in [
+        "id",
+        "name",
+        "currencyCode",
+        "financialStatus",
+        "fulfillmentStatus",
+        "orderNumber",
+        "processedAt",
+        "subtotalPriceV2",
+        "totalPrice",
+        "totalPriceV2",
+    ] {
+        assert_eq!(
+            after[field], before[field],
+            "Admin orderUpdate must preserve authoritative Storefront Order.{field}"
+        );
+    }
+}
+
+#[test]
 fn storefront_customer_password_update_rotates_access_tokens() {
     let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
         .with_upstream_transport(|_| panic!("Storefront password update must stay local"));

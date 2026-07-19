@@ -79,7 +79,7 @@ Meta API behavior:
 
 ### Boundaries
 
-- Bulk Operations roots are intercepted locally; they are not permanent passthrough capabilities. Unsupported local query synthesis returns an `UNSUPPORTED_IN_PROXY` userError without a cassette/upstream seam, while cassette-backed LiveHybrid parity can replay Shopify's captured payload for evidence.
+- Bulk Operations roots are intercepted locally; they are not permanent passthrough capabilities. Unsupported local query synthesis returns an explicit proxy-only userError in every read mode without calling the upstream transport. The error identifies the unsupported query root at `field: ["query"]` and leaves `code` null because Shopify's `BulkOperationUserErrorCode` enum has no proxy-unsupported value. Normal proxy handling never sends `bulkOperationRunQuery` or a substitute mutation to Shopify before explicit commit.
 - Query JSONL synthesis is supported for `products` and `productVariants` only.
 - Product and product-variant exports require a provably complete baseline in LiveHybrid. Callers receive an `INVALID` userError rather than partial JSONL when that read-side hydration cannot complete.
 - Mutation import result-file schema, partial failure status/counter behavior, and broader per-domain imports require deeper executable evidence before being claimed as local lifecycle support.

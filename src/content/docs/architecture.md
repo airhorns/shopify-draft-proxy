@@ -55,7 +55,7 @@ Unsupported mutations use the configured escape hatch:
 - `passthrough` forwards the request upstream and records that fact.
 - `reject` returns a 400 GraphQL error envelope before any upstream mutation call.
 
-`POST /__meta/commit` intentionally replays staged raw mutations upstream in original order. Commit replay lives in `src/proxy/commit.rs`, uses the commit request's auth headers, maps successful synthetic IDs to authoritative Shopify IDs for later replay bodies, and stops on the first transport or GraphQL error while reporting per-attempt details.
+`POST /__meta/commit` intentionally replays staged raw mutations upstream in original order. Commit replay lives in `src/proxy/commit.rs`, uses the commit request's auth headers, and maps successful synthetic IDs only from operation-registry response paths in declared input order. Caller aliases are resolved back to those canonical paths; unrelated same-type IDs cannot become mappings. Missing or ambiguous IDs are returned in the attempt's `unresolvedIds` without changing committed/failed log status. Replay stops on the first transport or GraphQL error while reporting per-attempt details.
 
 ## State Model
 

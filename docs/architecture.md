@@ -103,7 +103,10 @@ owner metafields, localization/markets, and generic nodes, but those reads reuse
 the cached complete response when the caller selected the required evidence.
 Narrow secondary hydration documents remain only for data that the caller's
 operation cannot supply, especially mutation prerequisites and relationship
-lookups.
+lookups. When registered read-through roots all consume the same non-2xx
+upstream response, the runtime returns that transport response verbatim before
+schema projection so the backend status, headers, and error body are not
+replaced by local non-null execution errors.
 
 ## GraphQL schema and resolver boundaries
 
@@ -173,7 +176,8 @@ lookups.
 - owns `POST /__meta/commit` replay behavior
 - replays staged mutations in original log order using each entry's preserved raw GraphQL body and path
 - forwards the commit request's auth headers through the commit transport
-- maps synthetic Shopify GIDs from successful upstream responses to authoritative GIDs before replaying later bodies
+- maps synthetic Shopify GIDs only through operation-registry response paths, translating caller aliases while preserving declared input order; unrelated same-type IDs elsewhere in a payload are never candidates
+- reports missing or ambiguous authoritative IDs in each attempt's `unresolvedIds` instead of guessing a mapping, while preserving the committed/failed log status contract
 - stops on the first transport or GraphQL error, records the stopped index, and updates staged log statuses to committed/failed while leaving later staged entries untouched
 
 ### `src/proxy/*.rs` domain modules
@@ -201,6 +205,7 @@ lookups.
 - the `implemented` flag marks roots the proxy handles locally (instead of 501-ing). Canonical implemented registry entries are the local-routing inventory. It is a "we answer this locally" fact, not a fidelity claim
 - capability routing resolves a non-passthrough capability only when the root field matches an implemented registry entry's canonical name; anything else falls through to passthrough
 - keeps passthrough/unknown roots explicit so non-implemented metadata does not imply runtime support
+- declares commit replay ID response paths and single/list input ordering for locally modeled create roots
 - exposes one registry source used by `ResolverRegistry`, runtime gates, and tests so executable handlers and exported metadata stay auditable together
 - derives a separate complete root catalog across every executable Admin and Storefront version; catalog entries without a registration remain explicit passthrough gaps
 

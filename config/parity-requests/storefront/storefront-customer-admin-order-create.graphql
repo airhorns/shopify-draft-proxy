@@ -4,11 +4,19 @@ mutation StorefrontCustomerAdminOrderCreate($order: OrderCreateOrderInput!) {
       id
       name
       email
+      phone
+      currencyCode
       customer {
         id
         email
       }
       currentTotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      currentSubtotalPriceSet {
         shopMoney {
           amount
           currencyCode

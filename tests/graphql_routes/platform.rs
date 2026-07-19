@@ -3599,15 +3599,173 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
 }
 
 #[test]
-fn finance_and_risk_no_data_top_level_reads_return_safe_empty_shapes_locally() {
-    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
+fn finance_live_hybrid_reads_preserve_authoritative_non_empty_and_no_data_responses() {
+    let authoritative_non_empty = json!({
+        "data": {
+            "shopifyPaymentsAccount": {
+                "id": "gid://shopify/ShopifyPaymentsAccount/authoritative",
+                "activated": true,
+                "country": "CA",
+                "defaultCurrency": "CAD",
+                "onboardable": false
+            },
+            "disputes": {
+                "nodes": [{ "__typename": "ShopifyPaymentsDispute" }],
+                "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+            }
+        },
+        "extensions": {
+            "cost": {
+                "requestedQueryCost": 7,
+                "actualQueryCost": 7
+            }
+        }
+    });
+    let non_empty_calls = Arc::new(Mutex::new(0));
+    let captured_non_empty_calls = Arc::clone(&non_empty_calls);
+    let mut non_empty_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+            let authoritative_non_empty = authoritative_non_empty.clone();
+            move |_| {
+                *captured_non_empty_calls.lock().unwrap() += 1;
+                Response {
+                    status: 200,
+                    headers: [("x-shopify-api-version".to_string(), "2026-04".to_string())]
+                        .into_iter()
+                        .collect(),
+                    body: authoritative_non_empty.clone(),
+                }
+            }
+        });
+    let response = non_empty_proxy.process_request(json_graphql_request(
+        r#"
+        query AuthoritativeFinanceRead {
+          shopifyPaymentsAccount {
+            id
+            activated
+            country
+            defaultCurrency
+            onboardable
+          }
+          disputes(first: 1) {
+            nodes { __typename }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body, authoritative_non_empty);
+    assert_eq!(response.headers["x-shopify-api-version"], "2026-04");
+    assert_eq!(*non_empty_calls.lock().unwrap(), 1);
+
+    let authoritative_no_data = json!({
+        "data": {
+            "cashTrackingSession": null,
+            "cashTrackingSessions": {
+                "nodes": [],
+                "edges": [],
+                "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+            }
+        }
+    });
+    let no_data_calls = Arc::new(Mutex::new(0));
+    let captured_no_data_calls = Arc::clone(&no_data_calls);
+    let mut no_data_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let authoritative_no_data = authoritative_no_data.clone();
+        move |_| {
+            *captured_no_data_calls.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: authoritative_no_data.clone(),
+            }
+        }
+    });
+    let response = no_data_proxy.process_request(json_graphql_request(
+        r#"
+        query AuthoritativeFinanceNoDataRead($cashId: ID!) {
+          cashTrackingSession(id: $cashId) { __typename }
+          cashTrackingSessions(first: 1) {
+            nodes { __typename }
+            edges { node { __typename } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#,
+        json!({ "cashId": "gid://shopify/CashTrackingSession/0" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body, authoritative_no_data);
+    assert_eq!(*no_data_calls.lock().unwrap(), 1);
+}
+
+#[test]
+fn finance_live_hybrid_preserves_access_denied_and_transport_failures() {
+    let access_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/shopify-payments-account-access-denied.json"
+    ))
+    .expect("Shopify Payments access fixture should parse");
+    let authoritative_access_denied = json!({
+        "errors": access_fixture["errors"].clone(),
+        "data": access_fixture["data"].clone(),
+        "extensions": access_fixture["extensions"].clone()
+    });
+    let mut access_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let authoritative_access_denied = authoritative_access_denied.clone();
+        move |_| Response {
+            status: 200,
+            headers: Default::default(),
+            body: authoritative_access_denied.clone(),
+        }
+    });
+    let mut access_request = json_graphql_request(
+        include_str!("../../config/parity-requests/payments/shopify-payments-account-read.graphql"),
+        json!({}),
+    );
+    access_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let access_denied = access_proxy.process_request(access_request);
+
+    assert_eq!(access_denied.status, 200);
+    assert_eq!(access_denied.body, authoritative_access_denied);
+
+    let transport_failure = json!({
+        "errors": [{ "message": "upstream returned malformed JSON" }]
+    });
+    let mut malformed_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+            let transport_failure = transport_failure.clone();
+            move |_| Response {
+                status: 502,
+                headers: [("content-type".to_string(), "application/json".to_string())]
+                    .into_iter()
+                    .collect(),
+                body: transport_failure.clone(),
+            }
+        });
+    let malformed = malformed_proxy.process_request(json_graphql_request(
+        "query FinanceMalformedTransport { disputes(first: 1) { nodes { __typename } } }",
+        json!({}),
+    ));
+
+    assert_eq!(malformed.status, 502);
+    assert_eq!(malformed.headers["content-type"], "application/json");
+    assert_eq!(malformed.body, transport_failure);
+}
+
+#[test]
+fn finance_snapshot_reads_return_only_captured_no_data_shapes() {
+    let mut proxy = snapshot_proxy()
+        .with_upstream_transport(|_| panic!("Snapshot finance reads must not call upstream"));
     let response = proxy.process_request(json_graphql_request(
         r#"
         query FinanceRiskNoDataRead(
           $cashId: ID!
           $posId: ID!
           $disputeId: ID!
-          $evidenceId: ID!
           $token: String!
           $first: Int!
         ) {
@@ -3619,7 +3777,6 @@ fn finance_and_risk_no_data_top_level_reads_return_safe_empty_shapes_locally() {
           }
           pointOfSaleDevice(id: $posId) { __typename }
           dispute(id: $disputeId) { __typename }
-          disputeEvidence(id: $evidenceId) { __typename }
           disputes(first: $first) {
             nodes { __typename }
             edges { node { __typename } }
@@ -3637,7 +3794,6 @@ fn finance_and_risk_no_data_top_level_reads_return_safe_empty_shapes_locally() {
             "cashId": "gid://shopify/CashTrackingSession/0",
             "posId": "gid://shopify/PointOfSaleDevice/0",
             "disputeId": "gid://shopify/ShopifyPaymentsDispute/0",
-            "evidenceId": "gid://shopify/ShopifyPaymentsDisputeEvidence/0",
             "token": "codex-missing-shop-pay-payment-request-receipt-token",
             "first": 1
         }),
@@ -3652,41 +3808,34 @@ fn finance_and_risk_no_data_top_level_reads_return_safe_empty_shapes_locally() {
                 "cashTrackingSessions": { "nodes": [], "edges": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false } },
                 "pointOfSaleDevice": null,
                 "dispute": null,
-                "disputeEvidence": null,
                 "disputes": { "nodes": [], "edges": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false } },
                 "shopPayPaymentRequestReceipt": null,
                 "shopPayPaymentRequestReceipts": { "nodes": [], "edges": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false } }
             }
         })
     );
-}
 
-#[test]
-fn shopify_payments_account_access_probe_returns_captured_null_account_data() {
-    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
-    let response = proxy.process_request(json_graphql_request(
-        r#"
-        query ShopifyPaymentsAccountAccessProbe {
-          shopifyPaymentsAccount {
-            id
-            activated
-            country
-            defaultCurrency
-            onboardable
-            payouts(first: 1) { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
-            disputes(first: 1) { edges { node { id } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
-            balanceTransactions(first: 1) { nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
-          }
-        }
-        "#,
-        json!({}),
-    ));
-
-    assert_eq!(response.status, 200);
-    assert_eq!(
-        response.body,
-        json!({ "data": { "shopifyPaymentsAccount": null } })
-    );
+    for (root, query) in [
+        (
+            "disputeEvidence",
+            "query { disputeEvidence(id: \"gid://shopify/ShopifyPaymentsDisputeEvidence/0\") { __typename } }",
+        ),
+        (
+            "shopifyPaymentsAccount",
+            "query { shopifyPaymentsAccount { id } }",
+        ),
+    ] {
+        let unsupported = proxy.process_request(json_graphql_request(query, json!({})));
+        assert_eq!(unsupported.status, 400);
+        assert_eq!(
+            unsupported.body,
+            json!({
+                "errors": [{
+                    "message": format!("No domain dispatcher implemented for root field: {root}")
+                }]
+            })
+        );
+    }
 }
 
 #[test]
@@ -6478,8 +6627,17 @@ fn location_deactivate_recomputes_inventory_for_hydrated_base_location() {
     );
 
     let calls = upstream_calls.lock().unwrap();
-    assert_eq!(calls.len(), 1);
+    assert_eq!(calls.len(), 2, "unexpected upstream calls: {calls:#?}");
     assert_eq!(calls[0]["variables"], json!({ "ids": [location_id] }));
+    assert!(calls[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("ProductsHydrateNodes"));
+    assert_eq!(calls[1]["variables"], json!({ "id": location_id }));
+    assert!(calls[1]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("StorePropertiesLocationHydrate"));
 }
 
 #[test]
