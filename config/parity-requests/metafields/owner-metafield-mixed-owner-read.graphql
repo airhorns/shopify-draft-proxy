@@ -1,0 +1,64 @@
+query OwnerMetafieldMixedOwnerRead(
+  $locationId: ID!
+  $pageId: ID!
+  $articleId: ID!
+  $marketId: ID!
+  $namespace: String!
+  $key: String!
+) {
+  location(id: $locationId) {
+    id
+    metafield(namespace: $namespace, key: $key) {
+      ...OwnerMetafieldMixedOwnerFields
+    }
+  }
+  page(id: $pageId) {
+    id
+    metafield(namespace: $namespace, key: $key) {
+      ...OwnerMetafieldMixedOwnerFields
+    }
+  }
+  article(id: $articleId) {
+    id
+    metafield(namespace: $namespace, key: $key) {
+      ...OwnerMetafieldMixedOwnerFields
+    }
+  }
+  market(id: $marketId) {
+    id
+    metafield(namespace: $namespace, key: $key) {
+      ...OwnerMetafieldMixedOwnerFields
+    }
+  }
+}
+
+fragment OwnerMetafieldMixedOwnerFields on Metafield {
+  id
+  namespace
+  key
+  type
+  value
+  jsonValue
+  compareDigest
+  createdAt
+  updatedAt
+  ownerType
+  definition {
+    id
+    name
+    namespace
+    key
+    ownerType
+    type {
+      name
+      category
+    }
+    description
+    validations {
+      name
+      value
+    }
+    pinnedPosition
+    validationStatus
+  }
+}

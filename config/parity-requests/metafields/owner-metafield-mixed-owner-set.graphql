@@ -1,0 +1,40 @@
+mutation OwnerMetafieldMixedOwnerSet($metafields: [MetafieldsSetInput!]!) {
+  metafieldsSet(metafields: $metafields) {
+    metafields {
+      id
+      namespace
+      key
+      type
+      value
+      jsonValue
+      compareDigest
+      createdAt
+      updatedAt
+      ownerType
+      definition {
+        id
+        name
+        namespace
+        key
+        ownerType
+        type {
+          name
+          category
+        }
+        description
+        validations {
+          name
+          value
+        }
+        pinnedPosition
+        validationStatus
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementIndex
+    }
+  }
+}

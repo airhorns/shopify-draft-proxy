@@ -1474,10 +1474,23 @@ fn metafields_delete_live_hybrid_staged_value_does_not_passthrough() {
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             captured_bodies.lock().unwrap().push(request.body.clone());
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let nodes = body["variables"]["ids"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|id| {
+                    json!({
+                        "__typename": "Product",
+                        "id": id,
+                        "metafield0": Value::Null
+                    })
+                })
+                .collect::<Vec<_>>();
             Response {
                 status: 200,
                 headers: Default::default(),
-                body: json!({"data": {"nodes": []}}),
+                body: json!({"data": {"nodes": nodes}}),
             }
         });
 

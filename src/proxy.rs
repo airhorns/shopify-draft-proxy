@@ -2494,6 +2494,7 @@ struct ExecutionSession {
     mutation_log_start: Option<usize>,
     discount_refs_preflighted: bool,
     owner_metafield_hydrated_ids: BTreeSet<String>,
+    owner_metafield_resolved_keys: BTreeSet<(String, String, String)>,
     upstream_query_response: Option<Response>,
     upstream_query_data: Option<Value>,
     upstream_query_selections: BTreeMap<String, Vec<SelectedField>>,

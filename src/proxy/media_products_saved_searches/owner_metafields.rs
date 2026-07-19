@@ -8,7 +8,9 @@ pub(in crate::proxy) fn owner_metafield_field_resolver_registrations(
         "DeliveryCustomization",
         "FulfillmentConstraintRule",
         "Location",
+        "Market",
         "Order",
+        "Page",
         "PaymentCustomization",
         "Shop",
         "Validation",
@@ -78,6 +80,10 @@ impl DraftProxy {
                         | "customer"
                         | "order"
                         | "company"
+                        | "location"
+                        | "page"
+                        | "article"
+                        | "market"
                         | "shop"
                 )
             })
@@ -86,12 +92,38 @@ impl DraftProxy {
 use base64::Engine as _;
 
 const OWNER_METAFIELD_OBSERVATION_FIELDS: &str =
-    "id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType";
+    "id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType definition { id name namespace key ownerType type { name category } description validations { name value } pinnedPosition validationStatus }";
 const OWNER_METAFIELD_PAGE_INFO_FIELDS: &str =
     "pageInfo { hasNextPage hasPreviousPage startCursor endCursor }";
 const OWNER_PRODUCT_BASE_FIELDS: &str =
     "id title handle status totalInventory tracksInventory createdAt updatedAt";
 const OWNER_PRODUCT_VARIANT_BASE_FIELDS: &str = "id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping }";
+
+const LOCAL_OWNER_METAFIELD_RESOURCE_TYPES: &[&str] = &[
+    "Article",
+    "CartTransform",
+    "Collection",
+    "Company",
+    "Customer",
+    "DeliveryCustomization",
+    "FulfillmentConstraintRule",
+    "Location",
+    "Market",
+    "Order",
+    "Page",
+    "PaymentCustomization",
+    "Product",
+    "ProductVariant",
+    "Shop",
+    "Validation",
+];
+
+#[derive(Clone, Debug, PartialEq)]
+enum OwnerMetafieldResolution {
+    Present(Value),
+    Absent,
+    Unresolved,
+}
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct OwnerMetafieldHydrationShape {
@@ -294,7 +326,7 @@ fn owner_metafield_hydrate_request(
     let product_variants = product_variants.unwrap_or_default();
     let variable_definition_list = variable_definitions.join(", ");
     let query = format!(
-        "query OwnerMetafieldsHydrateNodes({variable_definition_list}) {{ nodes(ids: $ids) {{ __typename id ... on Product {{ {OWNER_PRODUCT_BASE_FIELDS} {owner_metafields} {product_variants} }} ... on ProductVariant {{ {OWNER_PRODUCT_VARIANT_BASE_FIELDS} product {{ {OWNER_PRODUCT_BASE_FIELDS} }} {owner_metafields} }} ... on Collection {{ id title handle {owner_metafields} }} ... on Customer {{ id displayName email {owner_metafields} }} ... on Order {{ id name {owner_metafields} }} ... on Company {{ id name {owner_metafields} }} ... on Shop {{ id {owner_metafields} }} }} }}"
+        "query OwnerMetafieldsHydrateNodes({variable_definition_list}) {{ nodes(ids: $ids) {{ __typename id ... on HasMetafields {{ {owner_metafields} }} ... on Product {{ {OWNER_PRODUCT_BASE_FIELDS} {product_variants} }} ... on ProductVariant {{ {OWNER_PRODUCT_VARIANT_BASE_FIELDS} product {{ {OWNER_PRODUCT_BASE_FIELDS} }} }} ... on Collection {{ id title handle }} ... on Customer {{ id displayName email }} ... on Order {{ id name }} ... on Company {{ id name }} ... on Page {{ id title }} ... on Article {{ id title }} }} }}"
     );
     Some((query, Value::Object(variables)))
 }
@@ -365,6 +397,23 @@ fn push_optional_graphql_arg(
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn owner_metafield_owner_supported(
+        &self,
+        request: &Request,
+        owner_id: &str,
+    ) -> bool {
+        let Some(resource_type) = shopify_gid_resource_type(owner_id) else {
+            return false;
+        };
+        if !LOCAL_OWNER_METAFIELD_RESOURCE_TYPES.contains(&resource_type) {
+            return false;
+        }
+        let Some(version) = crate::admin_graphql::AdminApiVersion::from_route(&request.path) else {
+            return false;
+        };
+        crate::admin_graphql::output_type_condition_applies(version, resource_type, "HasMetafields")
+    }
+
     pub(crate) fn owner_metafields_set(
         &mut self,
         invocation: RootInvocation<'_>,
@@ -390,6 +439,7 @@ impl DraftProxy {
             Vec::new()
         };
         user_errors.extend(self.metafields_set_input_errors(
+            request,
             &inputs,
             api_client_id.as_deref(),
             |id| self.metafield_reference_exists(id) || fallback_reference_ids.contains(id),
@@ -405,6 +455,13 @@ impl DraftProxy {
             let payload = json!({"metafields": metafields, "userErrors": user_errors});
             return ResolverOutcome::value(payload);
         }
+        if let Some((index, owner_id, namespace, key)) =
+            self.first_unresolved_owner_metafield_input(request, &inputs, api_client_id.as_deref())
+        {
+            return ResolverOutcome::error(format!(
+                "Could not resolve owner metafield state for metafields[{index}] ({owner_id}, {namespace}.{key}) before staging"
+            ));
+        }
         let mut metafields = Vec::new();
         let mut staged_owner_ids = Vec::new();
         for input in inputs {
@@ -415,13 +472,20 @@ impl DraftProxy {
             );
             let key = resolved_string_field(&input, "key").unwrap_or_default();
             let owner_type = owner_type_from_gid(&owner_id);
-            let definition = self.owner_metafield_definition(&owner_type, &namespace, &key);
+            let existing = self.owner_metafield(&owner_id, &namespace, &key);
+            let definition = self
+                .owner_metafield_definition(&owner_type, &namespace, &key)
+                .or_else(|| {
+                    existing
+                        .as_ref()
+                        .and_then(|metafield| metafield.get("definition"))
+                        .cloned()
+                });
             let metafield_type = self
                 .metafields_set_effective_type(&input, api_client_id.as_deref())
                 .unwrap_or_else(|| "single_line_text_field".to_string());
             let value = resolved_string_field(&input, "value").unwrap_or_default();
             let index = self.next_owner_metafield_index(metafields.len());
-            let existing = self.owner_metafield(&owner_id, &namespace, &key);
             let metafield = owner_metafield_record(OwnerMetafieldRecordArgs {
                 owner_id: &owner_id,
                 namespace: &namespace,
@@ -510,7 +574,28 @@ impl DraftProxy {
             });
             return ResolverOutcome::value(payload);
         }
+        if let Some(index) = inputs.iter().position(|input| {
+            resolved_string_field(input, "ownerId")
+                .is_some_and(|owner_id| !self.owner_metafield_owner_supported(request, &owner_id))
+        }) {
+            let payload = json!({
+                "deletedMetafields": [],
+                "userErrors": [user_error_omit_code(
+                    vec!["metafields".to_string(), index.to_string(), "ownerId".to_string()],
+                    "Owner is invalid",
+                    None,
+                )]
+            });
+            return ResolverOutcome::value(payload);
+        }
         self.hydrate_owner_metafield_inputs(request, &inputs, api_client_id.as_deref());
+        if let Some((index, owner_id, namespace, key)) =
+            self.first_unresolved_owner_metafield_input(request, &inputs, api_client_id.as_deref())
+        {
+            return ResolverOutcome::error(format!(
+                "Could not resolve owner metafield state for metafields[{index}] ({owner_id}, {namespace}.{key}) before staging"
+            ));
+        }
         let mut deleted = Vec::new();
         let mut staged_owner_ids = Vec::new();
         for input in inputs {
@@ -570,16 +655,9 @@ impl DraftProxy {
                     api_client_id,
                 );
                 let key = resolved_string_field(input, "key")?;
-                let existing = self.owner_metafield(&owner_id, &namespace, &key);
-                match compare_digest {
-                    ResolvedValue::String(supplied) => {
-                        let Some(existing) = existing else {
-                            return Some(metafields_set_row_user_error(
-                                index,
-                                "INVALID_COMPARE_DIGEST",
-                                "Invalid `compareDigest` value.",
-                            ));
-                        };
+                let resolution = self.owner_metafield_resolution(&owner_id, &namespace, &key);
+                match (compare_digest, resolution) {
+                    (ResolvedValue::String(supplied), OwnerMetafieldResolution::Present(existing)) => {
                         let current_digest =
                             owner_metafield_compare_digest(&existing).unwrap_or_default();
                         if supplied == &current_digest {
@@ -592,17 +670,50 @@ impl DraftProxy {
                             ))
                         }
                     }
-                    ResolvedValue::Null => existing.map(|_| {
-                        metafields_set_row_user_error(
+                    (ResolvedValue::String(_), OwnerMetafieldResolution::Absent) => {
+                        Some(metafields_set_row_user_error(
+                            index,
+                            "INVALID_COMPARE_DIGEST",
+                            "Invalid `compareDigest` value.",
+                        ))
+                    }
+                    (ResolvedValue::Null, OwnerMetafieldResolution::Present(_)) => {
+                        Some(metafields_set_row_user_error(
                             index,
                             "STALE_OBJECT",
                             "The resource has been updated since it was loaded. Try again with an updated `compareDigest` value.",
-                        )
-                    }),
+                        ))
+                    }
+                    (ResolvedValue::Null, OwnerMetafieldResolution::Absent)
+                    | (_, OwnerMetafieldResolution::Unresolved) => None,
                     _ => None,
                 }
             })
             .collect()
+    }
+
+    fn first_unresolved_owner_metafield_input(
+        &self,
+        request: &Request,
+        inputs: &[BTreeMap<String, ResolvedValue>],
+        api_client_id: Option<&str>,
+    ) -> Option<(usize, String, String, String)> {
+        inputs.iter().enumerate().find_map(|(index, input)| {
+            let owner_id = resolved_string_field(input, "ownerId")?;
+            if !self.owner_metafield_owner_supported(request, &owner_id) {
+                return None;
+            }
+            let namespace = canonical_app_metafield_namespace(
+                resolved_string_field(input, "namespace").as_deref(),
+                api_client_id,
+            );
+            let key = resolved_string_field(input, "key")?;
+            matches!(
+                self.owner_metafield_resolution(&owner_id, &namespace, &key),
+                OwnerMetafieldResolution::Unresolved
+            )
+            .then_some((index, owner_id, namespace, key))
+        })
     }
 
     pub(in crate::proxy) fn should_handle_owner_metafields_read(
@@ -630,7 +741,8 @@ impl DraftProxy {
                 }
             }
             match field.name.as_str() {
-                "collection" | "customer" | "order" | "company" => {
+                "collection" | "customer" | "order" | "company" | "location" | "page"
+                | "article" | "market" => {
                     has_non_product_owner_read = true;
                 }
                 "shop" => {
@@ -684,6 +796,20 @@ impl DraftProxy {
         self.execution_session
             .owner_metafield_read_ids
             .extend(requested_owner_ids);
+        let needs_hydration = fields.iter().any(|field| {
+            if !Self::owner_field_selects_metafields_at_root(&field.name, &field.selection) {
+                return false;
+            }
+            let owner_id = self.owner_field_id(field, variables);
+            self.owner_needs_metafield_hydration(&field.name, &owner_id)
+                || (field.name == "product"
+                    && !self
+                        .owner_variant_ids_for_hydration(&field.selection, &owner_id)
+                        .is_empty())
+        });
+        if !needs_hydration {
+            return;
+        }
         // A read operation already contains the exact aliases, arguments, and
         // windows needed to hydrate its owner fields. Execute that document
         // once through the request cache instead of synthesizing a second
@@ -761,7 +887,12 @@ impl DraftProxy {
             .iter()
             .filter_map(|input| {
                 let owner_id = resolved_string_field(input, "ownerId")?;
-                shopify_gid_resource_type(&owner_id)?;
+                if !self.owner_metafield_owner_supported(request, &owner_id) {
+                    return None;
+                }
+                if is_synthetic_gid(&owner_id) {
+                    return None;
+                }
                 let namespace = canonical_app_metafield_namespace(
                     resolved_string_field(input, "namespace").as_deref(),
                     api_client_id,
@@ -800,12 +931,20 @@ impl DraftProxy {
         let ids = ids
             .into_iter()
             .filter(|id| {
-                !self
+                shape.metafields.iter().any(|field| {
+                    !self
+                        .execution_session
+                        .owner_metafield_resolved_keys
+                        .contains(&(id.clone(), field.namespace.clone(), field.key.clone()))
+                }) || !self
                     .execution_session
                     .owner_metafield_hydrated_ids
                     .contains(id)
             })
             .collect::<Vec<_>>();
+        if ids.is_empty() {
+            return;
+        }
         let Some((query, variables)) = owner_metafield_hydrate_request(ids.clone(), &shape) else {
             return;
         };
@@ -821,10 +960,54 @@ impl DraftProxy {
             return;
         }
         if let Some(nodes) = response.body["data"]["nodes"].as_array() {
-            self.execution_session
-                .owner_metafield_hydrated_ids
-                .extend(ids);
-            for node in nodes {
+            for (index, owner_id) in ids.iter().enumerate() {
+                let Some(node) = nodes.get(index) else {
+                    continue;
+                };
+                if node.is_null() {
+                    self.execution_session
+                        .owner_metafield_missing_ids
+                        .insert(owner_id.clone());
+                    for field in &shape.metafields {
+                        self.execution_session
+                            .owner_metafield_resolved_keys
+                            .insert((owner_id.clone(), field.namespace.clone(), field.key.clone()));
+                    }
+                    self.execution_session
+                        .owner_metafield_hydrated_ids
+                        .insert(owner_id.clone());
+                    continue;
+                }
+                for (field_index, field) in shape.metafields.iter().enumerate() {
+                    if owner_metafield_hydration_target_is_resolved(
+                        node,
+                        field_index,
+                        &field.namespace,
+                        &field.key,
+                    ) {
+                        self.execution_session
+                            .owner_metafield_resolved_keys
+                            .insert((owner_id.clone(), field.namespace.clone(), field.key.clone()));
+                    }
+                }
+                let resolved_connections =
+                    shape
+                        .connections
+                        .iter()
+                        .enumerate()
+                        .all(|(connection_index, _)| {
+                            node.get(format!("metafields{connection_index}")).is_some()
+                        });
+                let resolved_fields = shape.metafields.iter().all(|field| {
+                    self.execution_session
+                        .owner_metafield_resolved_keys
+                        .contains(&(owner_id.clone(), field.namespace.clone(), field.key.clone()))
+                });
+                if resolved_fields && resolved_connections {
+                    self.execution_session
+                        .owner_metafield_hydrated_ids
+                        .insert(owner_id.clone());
+                }
                 self.stage_observed_owner_metafield_node(node);
             }
         }
@@ -993,6 +1176,9 @@ impl DraftProxy {
         if owner_id.is_empty() || is_synthetic_gid(owner_id) {
             return false;
         }
+        if self.owner_has_metafield_local_effects(owner_id) {
+            return false;
+        }
         match root_field {
             // A partially observed entity is not proof that the metafield
             // selection requested by this operation is authoritative. Real
@@ -1002,6 +1188,18 @@ impl DraftProxy {
             "collection" => !self.store.collection_is_deleted(owner_id),
             "customer" => !self.store.staged.customers.is_tombstoned(owner_id),
             "order" => !self.store.staged.orders.is_tombstoned(owner_id),
+            "location" => !self.store.staged.locations.is_tombstoned(owner_id),
+            "page" => !self
+                .store
+                .staged
+                .deleted_online_store_page_ids
+                .contains(owner_id),
+            "article" => !self
+                .store
+                .staged
+                .deleted_online_store_article_ids
+                .contains(owner_id),
+            "market" => !self.store.staged.deleted_market_ids.contains(owner_id),
             "company" | "shop" => true,
             _ => false,
         }
@@ -1048,6 +1246,68 @@ impl DraftProxy {
             Some("Shop") => {
                 self.store.base.shop =
                     shallow_merged_object(self.store.base.shop.clone(), node.clone());
+            }
+            Some("Location") => {
+                self.store
+                    .staged
+                    .locations
+                    .insert(owner_id.clone(), node.clone());
+            }
+            Some("Market") => {
+                if !self.store.staged.deleted_market_ids.contains(&owner_id) {
+                    let record = self
+                        .store
+                        .staged
+                        .markets
+                        .get(&owner_id)
+                        .cloned()
+                        .map(|existing| shallow_merged_object(existing, node.clone()))
+                        .unwrap_or_else(|| node.clone());
+                    self.store.staged.markets.insert(owner_id.clone(), record);
+                }
+            }
+            Some("Page") => {
+                if !self
+                    .store
+                    .staged
+                    .deleted_online_store_page_ids
+                    .contains(&owner_id)
+                {
+                    if !self.store.staged.online_store_pages.contains_key(&owner_id) {
+                        self.store
+                            .staged
+                            .online_store_page_order
+                            .push(owner_id.clone());
+                    }
+                    self.store
+                        .staged
+                        .online_store_pages
+                        .insert(owner_id.clone(), node.clone());
+                }
+            }
+            Some("Article") => {
+                if !self
+                    .store
+                    .staged
+                    .deleted_online_store_article_ids
+                    .contains(&owner_id)
+                {
+                    if !self
+                        .store
+                        .staged
+                        .online_store_articles
+                        .contains_key(&owner_id)
+                    {
+                        self.store
+                            .staged
+                            .online_store_article_order
+                            .push(owner_id.clone());
+                    }
+                    self.store
+                        .staged
+                        .online_store_articles
+                        .insert(owner_id.clone(), node.clone());
+                }
             }
             _ => {}
         }
@@ -1180,7 +1440,13 @@ impl DraftProxy {
                 record["compareDigest"] = json!(metafield_compare_digest(value));
             }
         }
-        record["definition"] = self.owner_metafield_definition_value(owner_id, &namespace, &key);
+        if let Some(definition) =
+            self.owner_metafield_definition(&owner_type_from_gid(owner_id), &namespace, &key)
+        {
+            record["definition"] = definition;
+        } else if record.get("definition").is_none() {
+            record["definition"] = Value::Null;
+        }
         let owner_metafields = self
             .store
             .staged
@@ -1277,6 +1543,10 @@ impl DraftProxy {
             .or_else(|| resolved_string_field(variables, "customerId"))
             .or_else(|| resolved_string_field(variables, "orderId"))
             .or_else(|| resolved_string_field(variables, "companyId"))
+            .or_else(|| resolved_string_field(variables, "locationId"))
+            .or_else(|| resolved_string_field(variables, "pageId"))
+            .or_else(|| resolved_string_field(variables, "articleId"))
+            .or_else(|| resolved_string_field(variables, "marketId"))
             .unwrap_or_default()
     }
 
@@ -1307,7 +1577,12 @@ impl DraftProxy {
             })
     }
 
-    fn owner_metafield(&self, owner_id: &str, namespace: &str, key: &str) -> Option<Value> {
+    pub(in crate::proxy) fn owner_metafield(
+        &self,
+        owner_id: &str,
+        namespace: &str,
+        key: &str,
+    ) -> Option<Value> {
         if self.store.staged.deleted_owner_metafields.contains(&(
             owner_id.to_string(),
             namespace.to_string(),
@@ -1326,6 +1601,29 @@ impl DraftProxy {
             })
             .cloned()
             .map(|metafield| self.owner_metafield_with_effective_definition(owner_id, metafield))
+    }
+
+    fn owner_metafield_resolution(
+        &self,
+        owner_id: &str,
+        namespace: &str,
+        key: &str,
+    ) -> OwnerMetafieldResolution {
+        if let Some(metafield) = self.owner_metafield(owner_id, namespace, key) {
+            return OwnerMetafieldResolution::Present(metafield);
+        }
+        if self.owner_metafield_has_local_effect(owner_id, namespace, key)
+            || self.config.read_mode != ReadMode::LiveHybrid
+            || is_synthetic_gid(owner_id)
+            || self
+                .execution_session
+                .owner_metafield_resolved_keys
+                .contains(&(owner_id.to_string(), namespace.to_string(), key.to_string()))
+        {
+            OwnerMetafieldResolution::Absent
+        } else {
+            OwnerMetafieldResolution::Unresolved
+        }
     }
 
     fn owner_metafield_has_local_effect(&self, owner_id: &str, namespace: &str, key: &str) -> bool {
@@ -1695,8 +1993,13 @@ impl DraftProxy {
             .and_then(Value::as_str)
             .map(str::to_string);
         if let (Some(namespace), Some(key)) = (namespace, key) {
-            metafield["definition"] =
-                self.owner_metafield_definition_value(owner_id, &namespace, &key);
+            if let Some(definition) =
+                self.owner_metafield_definition(&owner_type_from_gid(owner_id), &namespace, &key)
+            {
+                metafield["definition"] = definition;
+            } else if metafield.get("definition").is_none() {
+                metafield["definition"] = Value::Null;
+            }
         } else if metafield.get("definition").is_none() {
             metafield["definition"] = Value::Null;
         }
@@ -1792,6 +2095,32 @@ impl DraftProxy {
     }
 }
 
+fn owner_metafield_hydration_target_is_resolved(
+    node: &Value,
+    field_index: usize,
+    namespace: &str,
+    key: &str,
+) -> bool {
+    if node.get(format!("metafield{field_index}")).is_some() {
+        return true;
+    }
+
+    let Some(connection) = node.get("metafields") else {
+        return false;
+    };
+    if connection_nodes(connection).iter().any(|metafield| {
+        metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
+            && metafield.get("key").and_then(Value::as_str) == Some(key)
+    }) {
+        return true;
+    }
+
+    connection.get("pageInfo").is_some_and(|page_info| {
+        page_info.get("hasNextPage").and_then(Value::as_bool) == Some(false)
+            && page_info.get("hasPreviousPage").and_then(Value::as_bool) == Some(false)
+    })
+}
+
 impl DraftProxy {
     fn next_owner_metafield_index(&self, pending_offset: usize) -> usize {
         self.store
@@ -1838,11 +2167,21 @@ fn owner_metafield_record(
         .unwrap_or(&timestamp);
     let updated_at = existing
         .filter(|metafield| {
-            metafield.get("value").and_then(Value::as_str) == Some(normalized_value.as_str())
+            metafield.get("type").and_then(Value::as_str) == Some(metafield_type)
+                && metafield.get("value").and_then(Value::as_str) == Some(normalized_value.as_str())
         })
         .and_then(|metafield| metafield.get("updatedAt"))
         .and_then(Value::as_str)
         .unwrap_or(&timestamp);
+    let compare_digest = existing
+        .filter(|metafield| {
+            metafield.get("type").and_then(Value::as_str) == Some(metafield_type)
+                && metafield.get("value").and_then(Value::as_str) == Some(normalized_value.as_str())
+        })
+        .and_then(|metafield| metafield.get("compareDigest"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| metafield_compare_digest(&normalized_value));
     let mut record = json!({
         "id": existing
             .and_then(|metafield| metafield.get("id"))
@@ -1854,7 +2193,7 @@ fn owner_metafield_record(
         "type": metafield_type,
         "value": normalized_value,
         "jsonValue": metafield_json_value(metafield_type, &normalized_value),
-        "compareDigest": metafield_compare_digest(&normalized_value),
+        "compareDigest": compare_digest,
         "createdAt": created_at,
         "updatedAt": updated_at,
         "ownerType": owner_type_from_gid(owner_id),
@@ -2152,6 +2491,425 @@ mod tests {
             headers: BTreeMap::new(),
             body: json!({ "query": query, "variables": variables }).to_string(),
         }
+    }
+
+    fn owner_hydration_proxy(
+        calls: Arc<Mutex<Vec<Value>>>,
+        include_targeted_metafield: bool,
+    ) -> DraftProxy {
+        DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            calls.lock().unwrap().push(body.clone());
+            let nodes = body["variables"]["ids"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|id| {
+                    let id = id.as_str().unwrap();
+                    let resource_type = shopify_gid_resource_type(id).unwrap();
+                    let index = resource_id_tail(id).parse::<usize>().unwrap();
+                    let value = format!("before-{resource_type}");
+                    let mut node = json!({
+                        "__typename": resource_type,
+                        "id": id,
+                        "title": format!("{resource_type} title"),
+                    });
+                    if include_targeted_metafield {
+                        node["metafield0"] = json!({
+                            "id": shopify_gid("Metafield", 1_000 + index),
+                            "namespace": "custom",
+                            "key": "owner_state",
+                            "type": "single_line_text_field",
+                            "value": value,
+                            "jsonValue": value,
+                            "compareDigest": format!("opaque-digest-{resource_type}"),
+                            "createdAt": "2026-01-01T00:00:00Z",
+                            "updatedAt": "2026-01-02T00:00:00Z",
+                            "ownerType": resource_type.to_ascii_uppercase(),
+                            "definition": {
+                                "id": shopify_gid("MetafieldDefinition", 2_000 + index),
+                                "name": format!("{resource_type} owner state"),
+                                "namespace": "custom",
+                                "key": "owner_state",
+                                "ownerType": resource_type.to_ascii_uppercase(),
+                                "type": {
+                                    "name": "single_line_text_field",
+                                    "category": "TEXT"
+                                },
+                                "description": "Hydrated owner state",
+                                "validations": [],
+                                "pinnedPosition": null,
+                                "validationStatus": "ALL_VALID"
+                            }
+                        });
+                    }
+                    node
+                })
+                .collect::<Vec<_>>();
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: json!({ "data": { "nodes": nodes } }),
+            }
+        })
+    }
+
+    fn mixed_owner_set_variables(stale_market_digest: bool) -> Value {
+        let owners = [("Location", 1), ("Page", 2), ("Article", 3), ("Market", 4)];
+        json!({
+            "metafields": owners
+                .into_iter()
+                .map(|(resource_type, index)| {
+                    let value = format!("before-{resource_type}");
+                    json!({
+                        "ownerId": shopify_gid(resource_type, index),
+                        "namespace": "custom",
+                        "key": "owner_state",
+                        "value": value,
+                        "compareDigest": if stale_market_digest && resource_type == "Market" {
+                            "stale-digest".to_string()
+                        } else {
+                            format!("opaque-digest-{resource_type}")
+                        }
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+    }
+
+    const MIXED_OWNER_SET: &str = r#"
+        mutation MixedOwnerMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields {
+              id namespace key type value compareDigest createdAt updatedAt
+              definition { id name }
+            }
+            userErrors { field message code elementIndex }
+          }
+        }
+    "#;
+
+    const MIXED_OWNER_READ: &str = r#"
+        query MixedOwnerMetafieldsRead(
+          $locationId: ID!
+          $pageId: ID!
+          $articleId: ID!
+          $marketId: ID!
+        ) {
+          location(id: $locationId) {
+            id
+            metafield(namespace: "custom", key: "owner_state") { id value definition { id name } }
+          }
+          page(id: $pageId) {
+            id
+            metafield(namespace: "custom", key: "owner_state") { id value definition { id name } }
+          }
+          article(id: $articleId) {
+            id
+            metafield(namespace: "custom", key: "owner_state") { id value definition { id name } }
+          }
+          market(id: $marketId) {
+            id
+            metafield(namespace: "custom", key: "owner_state") { id value definition { id name } }
+          }
+        }
+    "#;
+
+    fn mixed_owner_read_variables() -> Value {
+        json!({
+            "locationId": shopify_gid("Location", 1),
+            "pageId": shopify_gid("Page", 2),
+            "articleId": shopify_gid("Article", 3),
+            "marketId": shopify_gid("Market", 4),
+        })
+    }
+
+    #[test]
+    fn mutation_hydration_uses_has_metafields_for_every_accepted_owner() {
+        let mut shape = OwnerMetafieldHydrationShape::default();
+        shape.push_metafield("custom".to_string(), "owner_state".to_string());
+
+        let (query, variables) = owner_metafield_hydrate_request(
+            vec![
+                "gid://shopify/Location/1".to_string(),
+                "gid://shopify/Page/2".to_string(),
+                "gid://shopify/Article/3".to_string(),
+                "gid://shopify/Market/4".to_string(),
+            ],
+            &shape,
+        )
+        .expect("targeted metafield hydration query");
+
+        assert!(
+            query.contains("... on HasMetafields"),
+            "hydration must select targeted metafields through Shopify's shared owner interface: {query}"
+        );
+        assert_eq!(
+            variables["ids"],
+            json!([
+                "gid://shopify/Location/1",
+                "gid://shopify/Page/2",
+                "gid://shopify/Article/3",
+                "gid://shopify/Market/4",
+            ])
+        );
+    }
+
+    #[test]
+    fn mixed_owner_cas_preserves_hydrated_records_and_reads_through_public_roots() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let mut proxy = owner_hydration_proxy(calls.clone(), true);
+
+        let set = proxy.process_request(graphql_request(
+            MIXED_OWNER_SET,
+            mixed_owner_set_variables(false),
+        ));
+        assert_eq!(set.status, 200);
+        assert!(set.body.get("errors").is_none(), "{:#?}", set.body);
+        assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+        let metafields = set.body["data"]["metafieldsSet"]["metafields"]
+            .as_array()
+            .unwrap();
+        assert_eq!(metafields.len(), 4);
+        for (index, metafield) in metafields.iter().enumerate() {
+            assert_eq!(
+                metafield["id"],
+                json!(shopify_gid("Metafield", 1_001 + index))
+            );
+            assert_eq!(metafield["type"], "single_line_text_field");
+            assert_eq!(metafield["createdAt"], "2026-01-01T00:00:00Z");
+            assert_eq!(metafield["updatedAt"], "2026-01-02T00:00:00Z");
+            assert_eq!(
+                metafield["compareDigest"],
+                json!(format!(
+                    "opaque-digest-{}",
+                    ["Location", "Page", "Article", "Market"][index]
+                ))
+            );
+            assert_eq!(
+                metafield["definition"]["id"],
+                json!(shopify_gid("MetafieldDefinition", 2_001 + index))
+            );
+        }
+
+        let read = proxy.process_request(graphql_request(
+            MIXED_OWNER_READ,
+            mixed_owner_read_variables(),
+        ));
+        assert_eq!(read.status, 200);
+        assert!(read.body.get("errors").is_none(), "{:#?}", read.body);
+        for (root, resource_type) in [
+            ("location", "Location"),
+            ("page", "Page"),
+            ("article", "Article"),
+            ("market", "Market"),
+        ] {
+            assert_eq!(
+                read.body["data"][root]["metafield"]["value"],
+                json!(format!("before-{resource_type}"))
+            );
+            assert!(read.body["data"][root]["metafield"]["definition"]["id"]
+                .as_str()
+                .is_some());
+        }
+
+        let calls = calls.lock().unwrap();
+        assert_eq!(
+            calls.len(),
+            1,
+            "read-after-write unexpectedly hydrated: {calls:#?}"
+        );
+        assert_eq!(
+            calls[0]["operationName"], "OwnerMetafieldsHydrateNodes",
+            "the supported write itself must never be forwarded upstream"
+        );
+        assert!(calls[0]["query"]
+            .as_str()
+            .unwrap()
+            .contains("... on HasMetafields"));
+    }
+
+    #[test]
+    fn mixed_owner_stale_digest_is_atomic_and_delete_reads_back_absence() {
+        let stale_calls = Arc::new(Mutex::new(Vec::new()));
+        let mut stale_proxy = owner_hydration_proxy(stale_calls, true);
+        let stale = stale_proxy.process_request(graphql_request(
+            MIXED_OWNER_SET,
+            mixed_owner_set_variables(true),
+        ));
+        assert_eq!(stale.status, 200);
+        assert_eq!(stale.body["data"]["metafieldsSet"]["metafields"], json!([]));
+        assert_eq!(
+            stale.body["data"]["metafieldsSet"]["userErrors"][0]["field"],
+            json!(["metafields", "3"])
+        );
+        assert_eq!(
+            stale.body["data"]["metafieldsSet"]["userErrors"][0]["code"],
+            "STALE_OBJECT"
+        );
+
+        let stale_read = stale_proxy.process_request(graphql_request(
+            MIXED_OWNER_READ,
+            mixed_owner_read_variables(),
+        ));
+        for (root, resource_type) in [
+            ("location", "Location"),
+            ("page", "Page"),
+            ("article", "Article"),
+            ("market", "Market"),
+        ] {
+            assert_eq!(
+                stale_read.body["data"][root]["metafield"]["value"],
+                json!(format!("before-{resource_type}")),
+                "stale mixed batch changed {root}"
+            );
+        }
+
+        let delete_calls = Arc::new(Mutex::new(Vec::new()));
+        let mut delete_proxy = owner_hydration_proxy(delete_calls.clone(), true);
+        let metafields = ["Location", "Page", "Article", "Market"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, resource_type)| {
+                json!({
+                    "ownerId": shopify_gid(resource_type, index + 1),
+                    "namespace": "custom",
+                    "key": "owner_state"
+                })
+            })
+            .collect::<Vec<_>>();
+        let delete = delete_proxy.process_request(graphql_request(
+            r#"
+            mutation MixedOwnerMetafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
+              metafieldsDelete(metafields: $metafields) {
+                deletedMetafields { ownerId namespace key }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "metafields": metafields }),
+        ));
+        assert_eq!(delete.status, 200);
+        assert_eq!(
+            delete.body["data"]["metafieldsDelete"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            delete.body["data"]["metafieldsDelete"]["deletedMetafields"]
+                .as_array()
+                .unwrap()
+                .len(),
+            4
+        );
+        let read = delete_proxy.process_request(graphql_request(
+            MIXED_OWNER_READ,
+            mixed_owner_read_variables(),
+        ));
+        for root in ["location", "page", "article", "market"] {
+            assert!(
+                read.body["data"][root]["metafield"].is_null(),
+                "{:#?}",
+                read.body
+            );
+        }
+        assert_eq!(delete_calls.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn unresolved_hydration_aborts_set_and_delete_without_staging_absence() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let mut proxy = owner_hydration_proxy(calls.clone(), false);
+        let owner_id = shopify_gid("Location", 1);
+        let set = proxy.process_request(graphql_request(
+            MIXED_OWNER_SET,
+            json!({
+                "metafields": [{
+                    "ownerId": owner_id,
+                    "namespace": "custom",
+                    "key": "owner_state",
+                    "type": "single_line_text_field",
+                    "value": "new"
+                }]
+            }),
+        ));
+        assert!(
+            set.body["data"]["metafieldsSet"].is_null(),
+            "{:#?}",
+            set.body
+        );
+        assert!(set.body["errors"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Could not resolve owner metafield state"));
+        assert!(proxy
+            .owner_metafield(&owner_id, "custom", "owner_state")
+            .is_none());
+
+        let delete = proxy.process_request(graphql_request(
+            r#"
+            mutation DeleteUnresolved($metafields: [MetafieldIdentifierInput!]!) {
+              metafieldsDelete(metafields: $metafields) {
+                deletedMetafields { ownerId namespace key }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "metafields": [{
+                    "ownerId": owner_id,
+                    "namespace": "custom",
+                    "key": "owner_state"
+                }]
+            }),
+        ));
+        assert!(
+            delete.body["data"]["metafieldsDelete"].is_null(),
+            "{:#?}",
+            delete.body
+        );
+        assert!(!proxy.store.staged.deleted_owner_metafields.contains(&(
+            owner_id,
+            "custom".to_string(),
+            "owner_state".to_string(),
+        )));
+        assert_eq!(calls.lock().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn unsupported_has_metafields_owner_is_rejected_before_hydration() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let mut proxy = owner_hydration_proxy(calls.clone(), true);
+        let owner_id = shopify_gid("DraftOrder", 1);
+        let set = proxy.process_request(graphql_request(
+            MIXED_OWNER_SET,
+            json!({
+                "metafields": [{
+                    "ownerId": owner_id,
+                    "namespace": "custom",
+                    "key": "owner_state",
+                    "type": "single_line_text_field",
+                    "value": "new"
+                }]
+            }),
+        ));
+        assert_eq!(
+            set.body["data"]["metafieldsSet"]["userErrors"][0]["field"],
+            json!(["metafields", "0", "ownerId"])
+        );
+        assert_eq!(
+            set.body["data"]["metafieldsSet"]["userErrors"][0]["message"],
+            "Owner is invalid"
+        );
+        assert!(calls.lock().unwrap().is_empty());
     }
 
     #[test]
