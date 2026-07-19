@@ -1445,17 +1445,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'product-handle-dedup',
     scriptPath: 'scripts/capture-product-handle-dedup-conformance.mts',
     purpose:
-      'Generated productCreate, productDuplicate, and collectionCreate handle de-duplication with incrementing numeric suffixes.',
+      'Product create, update, productSet, and duplicate handle normalization, sticky updates, collision errors, and generated suffix reservation.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-handle-dedup-parity.json`,
       'config/parity-specs/products/productCreate-handle-dedup.json',
       'config/parity-requests/products/productCreate-handle-dedup.graphql',
+      'config/parity-requests/products/productUpdate-handle-dedup.graphql',
+      'config/parity-requests/products/productSet-handle-dedup.graphql',
       'config/parity-requests/products/productDuplicate-handle-dedup.graphql',
-      'config/parity-requests/products/collectionCreate-handle-dedup.graphql',
     ],
     cleanupBehavior:
-      'Creates disposable products, one synchronous duplicate, and disposable collections, then deletes them in best-effort cleanup.',
+      'Creates disposable products through productCreate, productSet, and productDuplicate, then deletes them in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
