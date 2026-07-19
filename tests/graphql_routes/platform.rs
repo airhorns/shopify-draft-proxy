@@ -6474,6 +6474,70 @@ fn shop_policy_update_stages_policy_and_downstream_reads_locally() {
 }
 
 #[test]
+fn shop_policy_update_timestamps_follow_injectable_mutation_clock() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_209_600)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+    let query = r#"
+        mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) {
+          shopPolicyUpdate(shopPolicy: $shopPolicy) {
+            shopPolicy { id type body createdAt updatedAt }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let first = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "shopPolicy": { "type": "PRIVACY_POLICY", "body": "<p>First</p>" } }),
+    ));
+    assert_eq!(first.status, 200);
+    assert_eq!(
+        first.body["data"]["shopPolicyUpdate"]["userErrors"],
+        json!([])
+    );
+    let first_policy = &first.body["data"]["shopPolicyUpdate"]["shopPolicy"];
+    assert_eq!(
+        first_policy["createdAt"],
+        json!("2026-07-05T00:00:00Z")
+    );
+    assert_eq!(
+        first_policy["updatedAt"],
+        json!("2026-07-05T00:00:00Z")
+    );
+
+    set_clock(&clock, 1_783_209_660);
+    let second = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "shopPolicy": { "type": "PRIVACY_POLICY", "body": "<p>Second</p>" } }),
+    ));
+    assert_eq!(second.status, 200);
+    let second_policy = &second.body["data"]["shopPolicyUpdate"]["shopPolicy"];
+    assert_eq!(second_policy["createdAt"], first_policy["createdAt"]);
+    assert_eq!(
+        second_policy["updatedAt"],
+        json!("2026-07-05T00:01:00Z")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ShopPolicyTimestampRead {
+          shop { shopPolicies { type body createdAt updatedAt } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["shop"]["shopPolicies"],
+        json!([{
+            "type": "PRIVACY_POLICY",
+            "body": "<p>Second</p>",
+            "createdAt": "2026-07-05T00:00:00Z",
+            "updatedAt": "2026-07-05T00:01:00Z"
+        }])
+    );
+}
+
+#[test]
 fn shop_policy_update_overlays_restored_base_shop_policies() {
     let mut proxy = snapshot_proxy();
     let restore = proxy.process_request(Request {

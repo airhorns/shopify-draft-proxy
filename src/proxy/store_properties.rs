@@ -2,7 +2,6 @@ use super::*;
 use std::sync::OnceLock;
 
 const SHOP_POLICY_BODY_MAX_BYTES: usize = 524_287;
-const SHOP_POLICY_TIMESTAMP: &str = "2024-01-01T00:00:00.000Z";
 const SHOP_POLICY_TYPE_VALUES: &[&str] = &[
     "REFUND_POLICY",
     "SHIPPING_POLICY",
@@ -147,6 +146,7 @@ impl DraftProxy {
         }
 
         self.hydrate_shop_policy_base(request);
+        let mutation_timestamp = self.next_mutation_timestamp();
         let existing = self.store.shop_policy_by_type(&policy_type).cloned();
         let id = existing
             .as_ref()
@@ -155,7 +155,7 @@ impl DraftProxy {
         let created_at = existing
             .as_ref()
             .map(|policy| policy.created_at.clone())
-            .unwrap_or_else(|| SHOP_POLICY_TIMESTAMP.to_string());
+            .unwrap_or_else(|| mutation_timestamp.clone());
         let url = self.shop_policy_url_for_id(&id);
         let policy = ShopPolicyRecord {
             id,
@@ -166,7 +166,7 @@ impl DraftProxy {
             body,
             url,
             created_at,
-            updated_at: SHOP_POLICY_TIMESTAMP.to_string(),
+            updated_at: mutation_timestamp,
             translations: existing
                 .map(|policy| policy.translations)
                 .unwrap_or_default(),
@@ -405,12 +405,12 @@ fn shop_policy_record_from_json(value: &Value) -> Option<ShopPolicyRecord> {
         created_at: value
             .get("createdAt")
             .and_then(Value::as_str)
-            .unwrap_or(SHOP_POLICY_TIMESTAMP)
+            .unwrap_or_default()
             .to_string(),
         updated_at: value
             .get("updatedAt")
             .and_then(Value::as_str)
-            .unwrap_or(SHOP_POLICY_TIMESTAMP)
+            .unwrap_or_default()
             .to_string(),
         translations: value
             .get("translations")
