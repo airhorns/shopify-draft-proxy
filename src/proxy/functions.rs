@@ -1,6 +1,10 @@
 use super::*;
 
 pub(in crate::proxy) const MODELED_FUNCTION_APP_ID: &str = "347082227713";
+const LOCAL_FUNCTION_APP_ID: &str = "gid://shopify/App/expected";
+const LOCAL_FUNCTION_APP_API_KEY: &str = "shopify-draft-proxy";
+const FULFILLMENT_CONSTRAINT_RULE_ALL_DELIVERY_METHOD_TYPES: &[&str] =
+    &["SHIPPING", "LOCAL", "PICK_UP"];
 
 impl DraftProxy {
     pub(in crate::proxy) fn functions_metadata_mutation_data(
@@ -299,6 +303,7 @@ fn function_catalog() -> Vec<Value> {
             "createGuardrailCode": "FUNCTION_IS_PLUS_ONLY",
             "createGuardrailMessage": "Shop must be on a Shopify Plus plan to activate this function."
         }),
+        functions_cross_app_fulfillment_constraint_rule_function(),
     ]
 }
 
@@ -795,6 +800,13 @@ fn fulfillment_constraint_rule_delivery_method_types(field: &RootFieldSelection)
     }
 }
 
+fn fulfillment_constraint_rule_all_delivery_method_types() -> Vec<String> {
+    FULFILLMENT_CONSTRAINT_RULE_ALL_DELIVERY_METHOD_TYPES
+        .iter()
+        .map(|value| (*value).to_string())
+        .collect()
+}
+
 fn fulfillment_constraint_rule_delivery_method_error(
     delivery_method_types: &[String],
 ) -> Option<Value> {
@@ -808,6 +820,17 @@ fn fulfillment_constraint_rule_delivery_method_error(
         ))
     } else {
         None
+    }
+}
+
+fn fulfillment_constraint_rule_update_delivery_method_types(
+    field: &RootFieldSelection,
+) -> Vec<String> {
+    let delivery_method_types = fulfillment_constraint_rule_delivery_method_types(field);
+    if delivery_method_types.is_empty() {
+        fulfillment_constraint_rule_all_delivery_method_types()
+    } else {
+        delivery_method_types
     }
 }
 
@@ -869,6 +892,44 @@ fn fulfillment_constraint_rule_function_resolution_payload(
         ));
     }
     Ok(function)
+}
+
+fn function_owner_app_key(function: &Value) -> Option<&str> {
+    function["appKey"]
+        .as_str()
+        .or_else(|| function["app"]["apiKey"].as_str())
+}
+
+fn function_owner_app_id(function: &Value) -> Option<&str> {
+    function["app"]["id"].as_str()
+}
+
+fn function_owner_matches_current_app(function: &Value) -> Option<bool> {
+    if function_owner_app_id(function) == Some(LOCAL_FUNCTION_APP_ID)
+        || function_owner_app_key(function) == Some(LOCAL_FUNCTION_APP_API_KEY)
+    {
+        return Some(true);
+    }
+    if function_owner_app_id(function).is_some() || function_owner_app_key(function).is_some() {
+        return Some(false);
+    }
+    None
+}
+
+fn fulfillment_constraint_rule_owner_authorized(rule: &Value) -> bool {
+    let function = rule
+        .get("shopifyFunction")
+        .or_else(|| rule.get("function"))
+        .unwrap_or(&Value::Null);
+    function_owner_matches_current_app(function).unwrap_or(true)
+}
+
+fn fulfillment_constraint_rule_unauthorized_scope_error() -> Value {
+    function_user_error(
+        vec![json!("base")],
+        "Permission denied. Unauthorized app scopes.",
+        Some("UNAUTHORIZED_APP_SCOPE"),
+    )
 }
 
 fn fulfillment_constraint_rule_metafields_from_field(
@@ -1263,21 +1324,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_field_string_arg(field, "id").unwrap_or_default();
-        let function_id = resolved_field_string_arg(field, "functionId");
-        let function_handle = resolved_field_string_arg(field, "functionHandle");
-        if function_id.is_some() || function_handle.is_some() {
-            if let Some(payload) =
-                fulfillment_constraint_rule_identifier_error(&function_id, &function_handle)
-            {
-                return payload;
-            }
-        }
-        let delivery_method_types = fulfillment_constraint_rule_delivery_method_types(field);
-        if let Some(payload) =
-            fulfillment_constraint_rule_delivery_method_error(&delivery_method_types)
-        {
-            return payload;
-        }
+        let delivery_method_types = fulfillment_constraint_rule_update_delivery_method_types(field);
         let Some(mut rule) = self
             .store
             .staged
@@ -1291,18 +1338,10 @@ impl DraftProxy {
                 Some("NOT_FOUND"),
             ));
         };
-        if function_id.is_some() || function_handle.is_some() {
-            let function = match fulfillment_constraint_rule_function_resolution_payload(
-                &function_id,
-                &function_handle,
-            ) {
-                Ok(function) => function,
-                Err(payload) => return payload,
-            };
-            rule["functionId"] = function["id"].clone();
-            rule["functionHandle"] = function["handle"].clone();
-            rule["function"] = function.clone();
-            rule["shopifyFunction"] = function;
+        if !fulfillment_constraint_rule_owner_authorized(&rule) {
+            return fulfillment_constraint_rule_payload_error(
+                fulfillment_constraint_rule_unauthorized_scope_error(),
+            );
         }
         rule["deliveryMethodTypes"] = json!(delivery_method_types);
         self.stage_function_fulfillment_constraint_rule(rule.clone());
@@ -1314,6 +1353,28 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let Some(rule) = self
+            .store
+            .staged
+            .function_fulfillment_constraint_rules
+            .get(&id)
+            .cloned()
+        else {
+            return json!({
+                "success": false,
+                "userErrors": [{
+                    "field": ["id"],
+                    "message": format!("Could not find FulfillmentConstraintRule with id: {id}"),
+                    "code": "NOT_FOUND"
+                }]
+            });
+        };
+        if !fulfillment_constraint_rule_owner_authorized(&rule) {
+            return json!({
+                "success": false,
+                "userErrors": [fulfillment_constraint_rule_unauthorized_scope_error()]
+            });
+        }
         if self
             .store
             .staged
@@ -1327,14 +1388,7 @@ impl DraftProxy {
                 .retain(|ordered_id| ordered_id != &id);
             json!({ "success": true, "userErrors": [] })
         } else {
-            json!({
-                "success": false,
-                "userErrors": [{
-                    "field": ["id"],
-                    "message": format!("Could not find FulfillmentConstraintRule with id: {id}"),
-                    "code": "NOT_FOUND"
-                }]
-            })
+            json!({ "success": false, "userErrors": [] })
         }
     }
 
@@ -1431,6 +1485,24 @@ pub(in crate::proxy) fn local_fulfillment_constraint_rule_function() -> Value {
         "title": "Fulfillment Constraint Local",
         "handle": "fulfillment-constraint-local",
         "apiType": "FULFILLMENT_CONSTRAINT_RULE"
+    })
+}
+
+pub(in crate::proxy) fn functions_cross_app_fulfillment_constraint_rule_function() -> Value {
+    json!({
+        "id": "gid://shopify/ShopifyFunction/fulfillment-constraint-other-app",
+        "title": "Other App Fulfillment Constraint",
+        "handle": "fulfillment-constraint-other-app",
+        "apiType": "FULFILLMENT_CONSTRAINT_RULE",
+        "description": "Fulfillment constraint Function metadata captured from a different app",
+        "appKey": "other-fulfillment-app-key",
+        "app": {
+            "__typename": "App",
+            "id": "gid://shopify/App/other-fulfillment-app",
+            "title": "Other Fulfillment App",
+            "handle": "other-fulfillment-app",
+            "apiKey": "other-fulfillment-app-key"
+        }
     })
 }
 

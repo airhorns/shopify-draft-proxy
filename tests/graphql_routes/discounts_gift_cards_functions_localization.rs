@@ -2326,6 +2326,29 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
         })
     );
 
+    let empty_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateFulfillmentConstraintRuleToAllMethods($id: ID!) {
+          fulfillmentConstraintRuleUpdate(id: $id, deliveryMethodTypes: []) {
+            fulfillmentConstraintRule { id deliveryMethodTypes function { handle } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/FulfillmentConstraintRule/1" }),
+    ));
+    assert_eq!(
+        empty_update.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": {
+                "id": "gid://shopify/FulfillmentConstraintRule/1",
+                "deliveryMethodTypes": ["SHIPPING", "LOCAL", "PICK_UP"],
+                "function": { "handle": "fulfillment-constraint-local" }
+            },
+            "userErrors": []
+        })
+    );
+
     let delete = proxy.process_request(json_graphql_request(
         r#"
         mutation DeleteFulfillmentConstraintRule($id: ID!) {
@@ -2356,7 +2379,7 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
             .as_array()
             .unwrap()
             .len(),
-        3
+        4
     );
 }
 
@@ -2488,7 +2511,7 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
 }
 
 #[test]
-fn functions_fulfillment_constraint_rule_update_rejects_unknown_function_identifiers() {
+fn functions_fulfillment_constraint_rule_update_rejects_function_rebind_arguments() {
     let mut proxy = snapshot_proxy();
 
     let create = proxy.process_request(json_graphql_request(
@@ -2517,8 +2540,8 @@ fn functions_fulfillment_constraint_rule_update_rejects_unknown_function_identif
 
     let update = proxy.process_request(json_graphql_request(
         r#"
-        mutation FulfillmentConstraintRuleUpdateUnknownFunction($id: ID!) {
-          unknownId: fulfillmentConstraintRuleUpdate(
+        mutation FulfillmentConstraintRuleUpdateRejectsFunctionRebind($id: ID!) {
+          rejectedId: fulfillmentConstraintRuleUpdate(
             id: $id
             functionId: "gid://shopify/ShopifyFunction/999999999999"
             deliveryMethodTypes: [SHIPPING]
@@ -2526,7 +2549,7 @@ fn functions_fulfillment_constraint_rule_update_rejects_unknown_function_identif
             fulfillmentConstraintRule { id }
             userErrors { code field message }
           }
-          unknownHandle: fulfillmentConstraintRuleUpdate(
+          rejectedHandle: fulfillmentConstraintRuleUpdate(
             id: $id
             functionHandle: "definitely-missing-fulfillment-constraint"
             deliveryMethodTypes: [SHIPPING]
@@ -2539,30 +2562,28 @@ fn functions_fulfillment_constraint_rule_update_rejects_unknown_function_identif
         json!({ "id": rule_id }),
     ));
 
+    assert!(update.body.get("data").is_none());
+    let errors = update.body["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 2);
     assert_eq!(
-        update.body["data"],
-        json!({
-            "unknownId": {
-                "fulfillmentConstraintRule": null,
-                "userErrors": [{
-                    "code": "FUNCTION_NOT_FOUND",
-                    "field": ["functionId"],
-                    "message": "Function gid://shopify/ShopifyFunction/999999999999 not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
-                }]
-            },
-            "unknownHandle": {
-                "fulfillmentConstraintRule": null,
-                "userErrors": [{
-                    "code": "FUNCTION_NOT_FOUND",
-                    "field": ["functionHandle"],
-                    "message": "Function definitely-missing-fulfillment-constraint not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
-                }]
-            }
-        })
+        errors[0]["extensions"]["code"],
+        json!("argumentNotAccepted")
+    );
+    assert_eq!(
+        errors[0]["message"],
+        json!("Field 'fulfillmentConstraintRuleUpdate' doesn't accept argument 'functionId'")
+    );
+    assert_eq!(
+        errors[1]["extensions"]["code"],
+        json!("argumentNotAccepted")
+    );
+    assert_eq!(
+        errors[1]["message"],
+        json!("Field 'fulfillmentConstraintRuleUpdate' doesn't accept argument 'functionHandle'")
     );
 
     let read = proxy.process_request(json_graphql_request(
-        r#"query FulfillmentConstraintRuleAfterUnknownFunctionUpdate { fulfillmentConstraintRules { id deliveryMethodTypes function { handle } } }"#,
+        r#"query FulfillmentConstraintRuleAfterRejectedFunctionRebind { fulfillmentConstraintRules { id deliveryMethodTypes function { handle } } }"#,
         json!({}),
     ));
     assert_eq!(
@@ -2571,6 +2592,103 @@ fn functions_fulfillment_constraint_rule_update_rejects_unknown_function_identif
             "id": rule_id,
             "deliveryMethodTypes": ["SHIPPING"],
             "function": { "handle": "fulfillment-constraint-local" }
+        }])
+    );
+}
+
+#[test]
+fn functions_fulfillment_constraint_rule_update_delete_check_function_owner_metadata() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageCrossAppFulfillmentConstraintRule {
+          fulfillmentConstraintRuleCreate(
+            functionHandle: "fulfillment-constraint-other-app"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule {
+              id
+              deliveryMethodTypes
+              function { handle appKey app { id apiKey } }
+            }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["fulfillmentConstraintRuleCreate"]["userErrors"],
+        json!([])
+    );
+    let rule_id = create.body["data"]["fulfillmentConstraintRuleCreate"]
+        ["fulfillmentConstraintRule"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"]["fulfillmentConstraintRuleCreate"]["fulfillmentConstraintRule"]
+            ["function"]["app"]["id"],
+        json!("gid://shopify/App/other-fulfillment-app")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateCrossAppFulfillmentConstraintRule($id: ID!) {
+          fulfillmentConstraintRuleUpdate(id: $id, deliveryMethodTypes: [LOCAL]) {
+            fulfillmentConstraintRule { id deliveryMethodTypes }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({ "id": rule_id }),
+    ));
+    assert_eq!(
+        update.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": null,
+            "userErrors": [{
+                "code": "UNAUTHORIZED_APP_SCOPE",
+                "field": ["base"],
+                "message": "Permission denied. Unauthorized app scopes."
+            }]
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteCrossAppFulfillmentConstraintRule($id: ID!) {
+          fulfillmentConstraintRuleDelete(id: $id) {
+            success
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({ "id": rule_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["fulfillmentConstraintRuleDelete"],
+        json!({
+            "success": false,
+            "userErrors": [{
+                "code": "UNAUTHORIZED_APP_SCOPE",
+                "field": ["base"],
+                "message": "Permission denied. Unauthorized app scopes."
+            }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query FulfillmentConstraintRuleAfterUnauthorizedOwnerWrite { fulfillmentConstraintRules { id deliveryMethodTypes function { handle } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["fulfillmentConstraintRules"],
+        json!([{
+            "id": create.body["data"]["fulfillmentConstraintRuleCreate"]["fulfillmentConstraintRule"]["id"],
+            "deliveryMethodTypes": ["SHIPPING"],
+            "function": { "handle": "fulfillment-constraint-other-app" }
         }])
     );
 }

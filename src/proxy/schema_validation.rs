@@ -3009,6 +3009,20 @@ fn extend_functions_input_schema(schema: &mut AdminInputSchema) {
             ),
         ]),
     );
+    // fulfillmentConstraintRuleUpdate is not a function-rebind surface: public
+    // Admin GraphQL accepts only the rule id and delivery method types. The
+    // create-only functionId/functionHandle arguments must fail as GraphQL
+    // argument validation errors before the local mutation handler runs.
+    schema.mutation_fields.insert(
+        "fulfillmentConstraintRuleUpdate".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "deliveryMethodTypes".to_string(),
+                mutation_arg(non_null_list_of_non_null("DeliveryMethodType")),
+            ),
+        ]),
+    );
 }
 
 fn extend_online_store_input_schema(schema: &mut AdminInputSchema) {
