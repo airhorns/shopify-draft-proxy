@@ -2886,7 +2886,9 @@ impl DraftProxy {
                 query,
                 "Fulfillment order must be scheduled.",
             ),
-            "fulfillmentOrdersReroute" => self.fulfillment_orders_reroute_guardrail_response(query),
+            "fulfillmentOrdersReroute" => {
+                self.fulfillment_orders_reroute_store_backed(query, variables, request)
+            }
             // Request-lifecycle transitions, split, and merge stage against the
             // shared staged.orders fulfillment-order engine.
             "fulfillmentOrderSubmitFulfillmentRequest"
@@ -2926,7 +2928,9 @@ impl DraftProxy {
         // mutation upstream and return the authentic recorded response. If the
         // upstream has nothing recorded for this request (a genuine invalid id),
         // keep the locally-computed not-found instead.
-        if fulfillment_order_response_is_unresolved(&response.body) {
+        if root_field != "fulfillmentOrdersReroute"
+            && fulfillment_order_response_is_unresolved(&response.body)
+        {
             let forwarded = (self.upstream_transport)(request.clone());
             if forwarded.status < 400
                 && forwarded
@@ -3817,6 +3821,177 @@ impl DraftProxy {
         }))
     }
 
+    fn fulfillment_orders_reroute_store_backed(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let (response_key, payload_selection, arguments) =
+            Self::fulfillment_order_store_backed_parts(
+                "fulfillmentOrdersReroute",
+                query,
+                variables,
+            );
+        let ids = resolved_string_list_field_unsorted(&arguments, "fulfillmentOrderIds");
+        if ids.is_empty() {
+            return self.fulfillment_orders_reroute_error_response(
+                response_key,
+                payload_selection,
+                "At least one fulfillment order must be provided.",
+                "NO_FULFILLMENT_ORDER_IDS",
+            );
+        }
+
+        for id in &ids {
+            self.ensure_shipping_fulfillment_order_hydrated(request, id);
+        }
+
+        let mut locations = Vec::new();
+        for id in &ids {
+            let Some((order_id, index)) = self.shipping_fulfillment_order_location(id) else {
+                return self.fulfillment_orders_reroute_error_response(
+                    response_key,
+                    payload_selection,
+                    "Fulfillment order not found.",
+                    "FULFILLMENT_ORDER_NOT_FOUND",
+                );
+            };
+            locations.push((id.clone(), order_id, index));
+        }
+
+        let first_order_id = &locations[0].1;
+        if locations
+            .iter()
+            .any(|(_, order_id, _)| order_id != first_order_id)
+        {
+            return self.fulfillment_orders_reroute_error_response(
+                response_key,
+                payload_selection,
+                "Fulfillment orders must be from the same order.",
+                "FULFILLMENT_ORDERS_NOT_FROM_THE_SAME_ORDER",
+            );
+        }
+
+        let mut current_location_id = String::new();
+        for (id, _, _) in &locations {
+            let Some(fulfillment_order) = self.shipping_fulfillment_order_by_id(id) else {
+                return self.fulfillment_orders_reroute_error_response(
+                    response_key,
+                    payload_selection,
+                    "Fulfillment order not found.",
+                    "FULFILLMENT_ORDER_NOT_FOUND",
+                );
+            };
+            let status = fulfillment_order["status"].as_str().unwrap_or_default();
+            let request_status = fulfillment_order["requestStatus"]
+                .as_str()
+                .unwrap_or_default();
+            if status != "OPEN" || request_status != "UNSUBMITTED" {
+                return self.fulfillment_orders_reroute_error_response(
+                    response_key,
+                    payload_selection,
+                    "Fulfillment order state is not supported for rerouting.",
+                    "FULFILLMENT_ORDERS_STATE_NOT_SUPPORTED",
+                );
+            }
+            let Some(location_id) = fulfillment_order_assigned_location_id(&fulfillment_order)
+            else {
+                return self.fulfillment_orders_reroute_error_response(
+                    response_key,
+                    payload_selection,
+                    "Fulfillment orders cannot be reassigned to another location.",
+                    "CANNOT_REASSIGN_LOCATION_FOR_FULFILLMENT_ORDERS",
+                );
+            };
+            if current_location_id.is_empty() {
+                current_location_id = location_id;
+            } else if current_location_id != location_id {
+                return self.fulfillment_orders_reroute_error_response(
+                    response_key,
+                    payload_selection,
+                    "Fulfillment orders must belong to the same location.",
+                    "FULFILLMENT_ORDERS_MUST_BELONG_TO_SAME_LOCATION",
+                );
+            }
+        }
+
+        let included_location_ids =
+            resolved_string_list_field_unsorted(&arguments, "includedLocationIds");
+        let excluded_location_ids =
+            resolved_string_list_field_unsorted(&arguments, "excludedLocationIds")
+                .into_iter()
+                .collect::<BTreeSet<_>>();
+        let Some(destination_location_id) = self.shipping_fulfillment_reroute_destination(
+            &current_location_id,
+            &included_location_ids,
+            &excluded_location_ids,
+        ) else {
+            let known_location_count = self.shipping_known_location_ids().len();
+            let (message, code) = if known_location_count <= 1 {
+                (
+                    "Fulfillment orders cannot be rerouted on a single-location shop.",
+                    "SINGLE_LOCATION_SHOP_NOT_SUPPORTED",
+                )
+            } else {
+                (
+                    "Fulfillment orders cannot be reassigned to another location.",
+                    "CANNOT_REASSIGN_LOCATION_FOR_FULFILLMENT_ORDERS",
+                )
+            };
+            return self.fulfillment_orders_reroute_error_response(
+                response_key,
+                payload_selection,
+                message,
+                code,
+            );
+        };
+
+        let timestamp = self.next_shipping_fulfillment_timestamp();
+        let assigned_location = self.shipping_assigned_location(&destination_location_id);
+        let mut moved_orders = Vec::new();
+        for (_, order_id, index) in &locations {
+            if let Some(order) = self.store.staged.orders.get_mut(order_id) {
+                if let Some(nodes) = fulfillment_order_nodes_mut(order) {
+                    if let Some(node) = nodes.get_mut(*index) {
+                        node["assignedLocation"] = assigned_location.clone();
+                        node["updatedAt"] = json!(timestamp.clone());
+                        moved_orders.push(node.clone());
+                    }
+                }
+                update_order_display_fulfillment_status(order);
+            }
+        }
+        self.record_mutation_log_entry(request, query, variables, "fulfillmentOrdersReroute", ids);
+        ok_json(json!({
+            "data": {
+                response_key: fulfillment_orders_reroute_payload_json(
+                    moved_orders,
+                    &payload_selection,
+                    vec![]
+                )
+            }
+        }))
+    }
+
+    fn fulfillment_orders_reroute_error_response(
+        &self,
+        response_key: String,
+        payload_selection: Vec<SelectedField>,
+        message: &str,
+        code: &str,
+    ) -> Response {
+        ok_json(json!({
+            "data": {
+                response_key: fulfillment_orders_reroute_payload_json(
+                    Vec::new(),
+                    &payload_selection,
+                    vec![user_error(["fulfillmentOrderIds"], message, Some(code))]
+                )
+            }
+        }))
+    }
+
     fn fulfillment_order_guardrail_response(
         &self,
         root_field: &str,
@@ -3831,26 +4006,6 @@ impl DraftProxy {
                     Value::Null,
                     &payload_selection,
                     vec![user_error(Value::Null, message, None)]
-                )
-            }
-        }))
-    }
-
-    fn fulfillment_orders_reroute_guardrail_response(&self, query: &str) -> Response {
-        let (response_key, payload_selection) =
-            primary_root_response_selection(query, &BTreeMap::new(), || {
-                "fulfillmentOrdersReroute".to_string()
-            });
-        ok_json(json!({
-            "data": {
-                response_key: fulfillment_orders_reroute_payload_json(
-                    Vec::new(),
-                    &payload_selection,
-                    vec![json!({
-                        "field": null,
-                        "message": "Fulfillment orders could not be rerouted locally.",
-                        "code": "NOT_IMPLEMENTED"
-                    })]
                 )
             }
         }))
@@ -4066,6 +4221,12 @@ impl DraftProxy {
             .staged
             .locations
             .get(location_id)
+            .or_else(|| {
+                self.store
+                    .staged
+                    .observed_shipping_locations
+                    .get(location_id)
+            })
             .and_then(|location| location["name"].as_str())
             .unwrap_or_else(|| {
                 if location_id.contains("106318430514") {
@@ -4078,6 +4239,64 @@ impl DraftProxy {
             "name": name,
             "location": { "id": location_id, "name": name }
         })
+    }
+
+    fn shipping_known_location_ids(&self) -> Vec<String> {
+        let mut seen = BTreeSet::new();
+        let mut ids = Vec::new();
+        for id in &self.store.staged.locations.order {
+            if self.store.staged.locations.contains_key(id) && seen.insert(id.clone()) {
+                ids.push(id.clone());
+            }
+        }
+        for id in self.store.staged.locations.records.keys() {
+            if self.store.staged.locations.contains_key(id) && seen.insert(id.clone()) {
+                ids.push(id.clone());
+            }
+        }
+        for id in &self.store.staged.observed_shipping_location_order {
+            if self
+                .store
+                .staged
+                .observed_shipping_locations
+                .contains_key(id)
+                && seen.insert(id.clone())
+            {
+                ids.push(id.clone());
+            }
+        }
+        for id in self.store.staged.observed_shipping_locations.keys() {
+            if seen.insert(id.clone()) {
+                ids.push(id.clone());
+            }
+        }
+        for fulfillment_order in self.shipping_fulfillment_orders() {
+            if let Some(id) = fulfillment_order_assigned_location_id(&fulfillment_order) {
+                if seen.insert(id.clone()) {
+                    ids.push(id);
+                }
+            }
+        }
+        ids
+    }
+
+    fn shipping_fulfillment_reroute_destination(
+        &self,
+        current_location_id: &str,
+        included_location_ids: &[String],
+        excluded_location_ids: &BTreeSet<String>,
+    ) -> Option<String> {
+        if !included_location_ids.is_empty() {
+            return included_location_ids
+                .iter()
+                .find(|id| {
+                    id.as_str() != current_location_id && !excluded_location_ids.contains(*id)
+                })
+                .cloned();
+        }
+        self.shipping_known_location_ids()
+            .into_iter()
+            .find(|id| id != current_location_id && !excluded_location_ids.contains(id))
     }
 
     fn shipping_fulfillment_hold_from_input(
@@ -7782,6 +8001,12 @@ fn fulfillment_order_line_item_quantities(
             Some((id, quantity))
         })
         .collect()
+}
+
+fn fulfillment_order_assigned_location_id(order: &Value) -> Option<String> {
+    order["assignedLocation"]["location"]["id"]
+        .as_str()
+        .map(str::to_string)
 }
 
 /// True when a fulfillment-order mutation response indicates the local engine

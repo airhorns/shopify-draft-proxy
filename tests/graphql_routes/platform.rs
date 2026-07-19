@@ -3678,7 +3678,7 @@ fn fulfillment_order_close_stages_after_accepted_request_passthrough_observation
 }
 
 #[test]
-fn fulfillment_order_close_reschedule_and_reroute_return_guardrail_payloads() {
+fn fulfillment_order_close_and_reschedule_return_guardrail_payloads() {
     let mut proxy = snapshot_proxy();
 
     let close = proxy.process_request(json_graphql_request(
@@ -3713,25 +3713,231 @@ fn fulfillment_order_close_reschedule_and_reroute_return_guardrail_payloads() {
         reschedule.body["data"]["fulfillmentOrderReschedule"]["userErrors"][0]["message"],
         json!("Fulfillment order must be scheduled.")
     );
+}
+
+#[test]
+fn fulfillment_orders_reroute_stages_moved_orders_and_downstream_reads() {
+    let order_id = "gid://shopify/Order/7007001";
+    let fulfillment_order_id = "gid://shopify/FulfillmentOrder/7234567890";
+    let mut proxy =
+        snapshot_proxy().with_upstream_transport(fulfillment_order_hydrate_transport(vec![
+            fulfillment_order_order_fixture(
+                order_id,
+                "#7007",
+                fulfillment_order_id,
+                "gid://shopify/FulfillmentOrderLineItem/8233445500",
+                2,
+                "OPEN",
+            ),
+        ]));
 
     let reroute = proxy.process_request(json_graphql_request(
         r#"
         mutation RerouteNumericFulfillmentOrder($fulfillmentOrderIds: [ID!]!) {
           fulfillmentOrdersReroute(fulfillmentOrderIds: $fulfillmentOrderIds, includedLocationIds: ["gid://shopify/Location/55"]) {
-            movedFulfillmentOrders { id }
+            movedFulfillmentOrders {
+              id
+              status
+              requestStatus
+              updatedAt
+              assignedLocation { name location { id name } }
+            }
             userErrors { field message code }
           }
         }
         "#,
-        json!({ "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/3234567890"] }),
+        json!({ "fulfillmentOrderIds": [fulfillment_order_id] }),
+    ));
+    let reroute_payload = &reroute.body["data"]["fulfillmentOrdersReroute"];
+    assert_eq!(reroute_payload["userErrors"], json!([]));
+    assert_eq!(
+        reroute_payload["movedFulfillmentOrders"][0]["id"],
+        json!(fulfillment_order_id)
+    );
+    assert_eq!(
+        reroute_payload["movedFulfillmentOrders"][0]["assignedLocation"]["location"]["id"],
+        json!("gid://shopify/Location/55")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadReroutedFulfillmentOrder($fulfillmentOrderId: ID!) {
+          fulfillmentOrder(id: $fulfillmentOrderId) {
+            id
+            assignedLocation { location { id } }
+          }
+          fulfillmentOrders(first: 5) {
+            nodes { id assignedLocation { location { id } } }
+          }
+        }
+        "#,
+        json!({ "fulfillmentOrderId": fulfillment_order_id }),
     ));
     assert_eq!(
-        reroute.body["data"]["fulfillmentOrdersReroute"]["movedFulfillmentOrders"],
+        read.body["data"]["fulfillmentOrder"]["assignedLocation"]["location"]["id"],
+        json!("gid://shopify/Location/55")
+    );
+    assert_eq!(
+        read.body["data"]["fulfillmentOrders"]["nodes"][0]["assignedLocation"]["location"]["id"],
+        json!("gid://shopify/Location/55")
+    );
+    assert_eq!(
+        read.body["data"]["fulfillmentOrders"]["nodes"][0]["assignedLocation"]["location"]["id"],
+        json!("gid://shopify/Location/55")
+    );
+
+    let nested_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadReroutedOrderFulfillmentOrders($orderId: ID!) {
+          order(id: $orderId) {
+            fulfillmentOrders(first: 5) {
+              nodes { id assignedLocation { location { id } } }
+            }
+          }
+        }
+        "#,
+        json!({ "orderId": order_id }),
+    ));
+    assert_eq!(
+        nested_read.body["data"]["order"]["fulfillmentOrders"]["nodes"][0]["assignedLocation"]
+            ["location"]["id"],
+        json!("gid://shopify/Location/55")
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("fulfillmentOrdersReroute")
+    );
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("RerouteNumericFulfillmentOrder"));
+}
+
+#[test]
+fn fulfillment_orders_reroute_rejects_invalid_inputs_without_mutating_state() {
+    let order_id = "gid://shopify/Order/7007002";
+    let fulfillment_order_id = "gid://shopify/FulfillmentOrder/7234567891";
+    let mut proxy =
+        snapshot_proxy().with_upstream_transport(fulfillment_order_hydrate_transport(vec![
+            fulfillment_order_order_fixture(
+                order_id,
+                "#7008",
+                fulfillment_order_id,
+                "gid://shopify/FulfillmentOrderLineItem/8233445501",
+                2,
+                "OPEN",
+            ),
+        ]));
+    let query = r#"
+        mutation RerouteValidation($fulfillmentOrderIds: [ID!]!, $includedLocationIds: [ID!]) {
+          fulfillmentOrdersReroute(
+            fulfillmentOrderIds: $fulfillmentOrderIds
+            includedLocationIds: $includedLocationIds
+          ) {
+            movedFulfillmentOrders { id assignedLocation { location { id } } }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let empty = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "fulfillmentOrderIds": [],
+            "includedLocationIds": ["gid://shopify/Location/55"]
+        }),
+    ));
+    assert_eq!(
+        empty.body["data"]["fulfillmentOrdersReroute"]["userErrors"][0]["field"],
+        json!(["fulfillmentOrderIds"])
+    );
+    assert_eq!(
+        empty.body["data"]["fulfillmentOrdersReroute"]["userErrors"][0]["code"],
+        json!("NO_FULFILLMENT_ORDER_IDS")
+    );
+
+    let unknown = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/999999999"],
+            "includedLocationIds": ["gid://shopify/Location/55"]
+        }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["fulfillmentOrdersReroute"]["userErrors"][0]["code"],
+        json!("FULFILLMENT_ORDER_NOT_FOUND")
+    );
+
+    let single_location = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "fulfillmentOrderIds": [fulfillment_order_id],
+            "includedLocationIds": null
+        }),
+    ));
+    assert_eq!(
+        single_location.body["data"]["fulfillmentOrdersReroute"]["movedFulfillmentOrders"],
         json!([])
     );
     assert_eq!(
-        reroute.body["data"]["fulfillmentOrdersReroute"]["userErrors"][0]["code"],
-        json!("NOT_IMPLEMENTED")
+        single_location.body["data"]["fulfillmentOrdersReroute"]["userErrors"][0]["field"],
+        json!(["fulfillmentOrderIds"])
+    );
+    assert_eq!(
+        single_location.body["data"]["fulfillmentOrdersReroute"]["userErrors"][0]["code"],
+        json!("SINGLE_LOCATION_SHOP_NOT_SUPPORTED")
+    );
+
+    let after_rejections = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadRerouteRejectedFulfillmentOrder($id: ID!) {
+          fulfillmentOrder(id: $id) { assignedLocation { location { id } } }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        after_rejections.body["data"]["fulfillmentOrder"]["assignedLocation"]["location"]["id"],
+        json!("gid://shopify/Location/44")
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+
+    let non_reroutable_id = "gid://shopify/FulfillmentOrder/7234567892";
+    let mut non_reroutable_proxy =
+        snapshot_proxy().with_upstream_transport(fulfillment_order_hydrate_transport(vec![
+            fulfillment_order_order_fixture(
+                "gid://shopify/Order/7007003",
+                "#7009",
+                non_reroutable_id,
+                "gid://shopify/FulfillmentOrderLineItem/8233445502",
+                2,
+                "IN_PROGRESS",
+            ),
+        ]));
+    let non_reroutable = non_reroutable_proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "fulfillmentOrderIds": [non_reroutable_id],
+            "includedLocationIds": ["gid://shopify/Location/55"]
+        }),
+    ));
+    assert_eq!(
+        non_reroutable.body["data"]["fulfillmentOrdersReroute"]["userErrors"][0]["code"],
+        json!("FULFILLMENT_ORDERS_STATE_NOT_SUPPORTED")
+    );
+    let after_non_reroutable = non_reroutable_proxy.process_request(json_graphql_request(
+        r#"
+        query ReadNonReroutableFulfillmentOrder($id: ID!) {
+          fulfillmentOrder(id: $id) { assignedLocation { location { id } } }
+        }
+        "#,
+        json!({ "id": non_reroutable_id }),
+    ));
+    assert_eq!(
+        after_non_reroutable.body["data"]["fulfillmentOrder"]["assignedLocation"]["location"]["id"],
+        json!("gid://shopify/Location/44")
     );
 }
 
