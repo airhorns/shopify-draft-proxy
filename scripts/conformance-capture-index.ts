@@ -7929,6 +7929,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'payments',
+    captureId: 'customer-payment-method-create-missing-customer',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-customer-payment-method-create-missing-customer-conformance.ts',
+    purpose:
+      'customerPaymentMethodCreditCardCreate and customerPaymentMethodRemoteCreate missing-customer validation order and payload shapes.',
+    requiredAuthScopes: ['write_customer_payment_methods', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-payment-method-create-missing-customer.json`,
+      'config/parity-specs/payments/customer-payment-method-create-missing-customer.json',
+      'config/parity-requests/payments/customer-payment-method-credit-card-create-missing-customer.graphql',
+      'config/parity-requests/payments/customer-payment-method-remote-create-missing-customer.graphql',
+    ],
+    cleanupBehavior:
+      'Uses fixed never-created Customer GIDs only; Shopify rejects before vaulting or staging a remote payment method, so no cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'orders',
     captureId: 'order-payment-local-runtime-robustness',
     scriptPath: 'scripts/capture-transaction-void-codes-conformance.ts',

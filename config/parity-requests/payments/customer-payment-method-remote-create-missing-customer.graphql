@@ -1,0 +1,15 @@
+mutation CustomerPaymentMethodRemoteCreateMissingCustomer {
+  customerPaymentMethodRemoteCreate(
+    customerId: "gid://shopify/Customer/999999999999999"
+    remoteReference: { stripePaymentMethod: { customerId: "cus_x", paymentMethodId: "pm_x" } }
+  ) {
+    customerPaymentMethod {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

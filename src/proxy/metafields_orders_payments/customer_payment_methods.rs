@@ -127,7 +127,8 @@ impl DraftProxy {
                 "customer" => self.customer_payment_method_customer_read(&field),
                 "customerPaymentMethod" => self.customer_payment_method_read(&field),
                 "customerPaymentMethodCreditCardCreate" => {
-                    let (payload, id) = self.customer_payment_method_credit_card_create(&field);
+                    let (payload, id) =
+                        self.customer_payment_method_credit_card_create(request, &field);
                     if let Some(id) = id {
                         staged_ids.push(id);
                     }
@@ -137,7 +138,8 @@ impl DraftProxy {
                     self.customer_payment_method_credit_card_update(&field)
                 }
                 "customerPaymentMethodRemoteCreate" => {
-                    let (payload, id) = self.customer_payment_method_remote_create(&field);
+                    let (payload, id) =
+                        self.customer_payment_method_remote_create(request, &field);
                     if let Some(id) = id {
                         staged_ids.push(id);
                     }
@@ -390,9 +392,25 @@ impl DraftProxy {
 
     fn customer_payment_method_credit_card_create(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
     ) -> (Value, Option<String>) {
         let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        if !self.customer_payment_method_customer_exists(&customer_id, request) {
+            return (
+                self.customer_payment_method_payload(
+                    &field.selection,
+                    Value::Null,
+                    Some(false),
+                    vec![user_error_omit_code(
+                        ["customerId"],
+                        "Customer does not exist",
+                        None,
+                    )],
+                ),
+                None,
+            );
+        }
         let billing_address =
             resolved_object_field(&field.arguments, "billingAddress").unwrap_or_default();
         let session_id = resolved_string_arg(&field.arguments, "sessionId").unwrap_or_default();
@@ -495,9 +513,21 @@ impl DraftProxy {
 
     fn customer_payment_method_remote_create(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
     ) -> (Value, Option<String>) {
         let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        if !self.customer_payment_method_customer_exists(&customer_id, request) {
+            return (
+                self.customer_payment_method_payload(
+                    &field.selection,
+                    Value::Null,
+                    None,
+                    vec![user_error(["customerId"], "is invalid", Some("INVALID"))],
+                ),
+                None,
+            );
+        }
         let remote_reference =
             resolved_object_field(&field.arguments, "remoteReference").unwrap_or_default();
         let has_paypal = remote_reference.contains_key("paypalPaymentMethod");
@@ -574,6 +604,23 @@ impl DraftProxy {
             self.customer_payment_method_payload(&field.selection, record, None, Vec::new()),
             Some(id),
         )
+    }
+
+    fn customer_payment_method_customer_exists(&mut self, id: &str, request: &Request) -> bool {
+        if id.is_empty() || self.store.staged.customers.is_tombstoned(id) {
+            return false;
+        }
+        if self.store.staged.customers.contains_key(id)
+            || self
+                .store
+                .staged
+                .customer_payment_method_customer_index
+                .contains_key(id)
+        {
+            return true;
+        }
+        self.taggable_resource_staged_or_hydrated("Customer", id, request)
+            .is_some()
     }
 
     fn customer_payment_method_paypal_create(

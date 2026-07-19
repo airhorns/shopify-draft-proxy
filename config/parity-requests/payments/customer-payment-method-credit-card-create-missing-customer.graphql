@@ -1,0 +1,22 @@
+mutation CustomerPaymentMethodCreditCardCreateMissingCustomer {
+  customerPaymentMethodCreditCardCreate(
+    customerId: "gid://shopify/Customer/999999999999999"
+    sessionId: "sess_missing_customer"
+    billingAddress: {
+      address1: "1 St"
+      city: "Ottawa"
+      zip: "K1A0A1"
+      countryCode: CA
+      provinceCode: "ON"
+    }
+  ) {
+    customerPaymentMethod {
+      id
+    }
+    processing
+    userErrors {
+      field
+      message
+    }
+  }
+}

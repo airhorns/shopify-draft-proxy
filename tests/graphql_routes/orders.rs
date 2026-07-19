@@ -7350,6 +7350,98 @@ fn customer_payment_methods_replay_shop_pay_guard_shapes() {
     assert_eq!(response.body, fixture["expected"]["primary"]);
 }
 
+fn assert_no_new_customer_payment_methods_staged(proxy: &mut DraftProxy) {
+    let log = proxy.process_request(request_with_body("GET", "/__meta/log", ""));
+    assert_eq!(log.body["entries"], json!([]));
+
+    let state = proxy.process_request(request_with_body("GET", "/__meta/state", ""));
+    let methods = state.body["stagedState"]["customerPaymentMethods"]
+        .as_object()
+        .expect("customer payment methods should be serialized as an object");
+    assert!(!methods.contains_key("gid://shopify/CustomerPaymentMethod/1"));
+    assert!(!methods.contains_key("gid://shopify/CustomerPaymentMethod/2"));
+    assert!(state.body["stagedState"]["nextCustomerPaymentMethodId"].is_null());
+}
+
+#[test]
+fn customer_payment_method_credit_card_create_rejects_missing_customer_before_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingCustomerCreditCard {
+          customerPaymentMethodCreditCardCreate(
+            customerId: "gid://shopify/Customer/999999999"
+            sessionId: "sess_valid"
+            billingAddress: {
+              address1: "1 St"
+              city: "Ottawa"
+              zip: "K1A0A1"
+              countryCode: CA
+              provinceCode: "ON"
+            }
+          ) {
+            customerPaymentMethod { id }
+            processing
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["customerPaymentMethodCreditCardCreate"],
+        json!({
+            "customerPaymentMethod": Value::Null,
+            "processing": false,
+            "userErrors": [{
+                "field": ["customerId"],
+                "message": "Customer does not exist"
+            }]
+        })
+    );
+    assert_no_new_customer_payment_methods_staged(&mut proxy);
+}
+
+#[test]
+fn customer_payment_method_remote_create_rejects_missing_customer_before_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingCustomerRemote {
+          customerPaymentMethodRemoteCreate(
+            customerId: "gid://shopify/Customer/999999999"
+            remoteReference: {
+              stripePaymentMethod: {
+                customerId: "cus_x"
+                remotePaymentMethodId: "pm_x"
+              }
+            }
+          ) {
+            customerPaymentMethod { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["customerPaymentMethodRemoteCreate"],
+        json!({
+            "customerPaymentMethod": Value::Null,
+            "userErrors": [{
+                "field": ["customerId"],
+                "message": "is invalid",
+                "code": "INVALID"
+            }]
+        })
+    );
+    assert_no_new_customer_payment_methods_staged(&mut proxy);
+}
+
 #[test]
 fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
     let lifecycle: Value = serde_json::from_str(include_str!(
