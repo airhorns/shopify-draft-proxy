@@ -172,6 +172,19 @@ const errorShapeDocument = `mutation FulfillmentConstraintRuleErrorShape {
       message
     }
   }
+  updateUnknown: fulfillmentConstraintRuleUpdate(
+    id: "gid://shopify/FulfillmentConstraintRule/999999999999"
+    deliveryMethodTypes: [SHIPPING]
+  ) {
+    fulfillmentConstraintRule {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
 }
 `;
 
@@ -254,6 +267,11 @@ assertPayloadUserError(errorShape, 'emptyDelivery', {
   message: 'Delivery method types cannot be empty.',
 });
 assertDeleteUnknown(errorShape);
+assertPayloadUserError(errorShape, 'updateUnknown', {
+  code: 'NOT_FOUND',
+  field: ['id'],
+  message: 'Could not find FulfillmentConstraintRule with id: gid://shopify/FulfillmentConstraintRule/999999999999',
+});
 
 const capturePayload = {
   scenarioId: 'functions-fulfillment-constraint-rule-errors',
@@ -262,7 +280,7 @@ const capturePayload = {
   storeDomain,
   apiVersion,
   summary:
-    'fulfillmentConstraintRuleCreate deterministic userErrors, fulfillmentConstraintRuleDelete unknown-id shape, and empty fulfillmentConstraintRules read.',
+    'fulfillmentConstraintRuleCreate deterministic userErrors, fulfillmentConstraintRuleUpdate/Delete unknown-id shapes, and empty fulfillmentConstraintRules read.',
   setupBlocker:
     'The conformance app currently has no released FULFILLMENT_CONSTRAINT_RULE Function, so live success-path, wrong-API-type, and read-after-created-rule capture require releasing a purchase.fulfillment-constraint-rule.run or cart.fulfillment-constraints.generate.run Function in the installed conformance app with read/write fulfillment constraint rule scopes.',
   schemaFindings: {

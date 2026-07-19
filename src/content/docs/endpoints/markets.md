@@ -231,7 +231,11 @@ limited to the observed set; unrelated staged market, catalog, price-list, or
 web-presence state does not force a local empty resource connection.
 Successful `marketLocalizationsRegister` rows use the proxy's mutation clock for
 their staged `updatedAt` values, and validation failures that return user errors
-leave any existing staged market-localization timestamps unchanged.
+leave any existing staged market-localization timestamps unchanged. Register and
+remove requests append their original raw mutation for commit replay only when
+at least one localization row is staged or removed. All-error results and the
+captured empty-key, unknown-key, and unmatched-market removal no-ops append no
+replay entry.
 
 `marketsResolvedValues` and market/catalog/price-list reads have fixture-backed
 empty, fallback, and buyer-country behavior where captured. Resolved value

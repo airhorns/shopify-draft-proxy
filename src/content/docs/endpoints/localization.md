@@ -40,8 +40,10 @@ locale state plus staged shop-locale rows; plain catalog reads are not selected
 by document name. The runtime stages selected `shopLocaleEnable`,
 `shopLocaleUpdate`, and `shopLocaleDisable` requests locally, and exposes
 downstream `shopLocales` read-after-write behavior for the staged locale rows.
-Supported staged shop-locale mutations append replay-ready mutation-log entries
-with the original raw GraphQL request.
+Shop-locale mutations append a replay-ready mutation-log entry with the
+original raw GraphQL request only when they change staged locale state.
+Validation-only payloads and accepted primary-locale no-stage updates do not
+enter commit replay.
 
 The staged shop-locale slice rejects primary-locale mutation attempts,
 unsupported locale codes, duplicate enables, missing locales whenever
@@ -85,11 +87,15 @@ removed rows. Staged `Translation` rows include a synthetic DateTime-shaped
 `updatedAt` value from the proxy's mutation clock in the `translationsRegister`
 echo and in downstream `translatableResource(...).translations` reads;
 re-registering an existing row refreshes that timestamp. Validation failures
-that do not stage rows leave existing staged timestamps unchanged.
+that do not stage rows leave existing staged timestamps unchanged and append no
+mutation-log entry. A partially successful `translationsRegister` call appends
+one replay entry when at least one row stages, even when other rows return
+`userErrors`.
 `translationsRemove` removes every requested
 translation-key/locale/market combination that exists in staged state. An empty
 `translationKeys` list matches no rows and returns Shopify's no-op
-`translations: null, userErrors: []` payload.
+`translations: null, userErrors: []` payload without entering commit replay;
+other unmatched filters follow the same no-stage rule.
 For `handle` translations, normalization lowercases ASCII alphanumerics,
 collapses separators to single dashes, trims edge dashes, and uses a
 deterministic `localized-<hash>` fallback derived from the submitted value when
