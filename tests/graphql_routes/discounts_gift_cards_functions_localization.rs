@@ -6043,7 +6043,7 @@ fn localization_shop_locale_lifecycle_uses_observed_primary_locale() {
               name
               primary
               published
-              marketWebPresences { id __typename defaultLocale { locale } }
+              marketWebPresences { id __typename defaultLocale { locale name primary published } }
             }
             userErrors { field message }
           }
@@ -6061,7 +6061,12 @@ fn localization_shop_locale_lifecycle_uses_observed_primary_locale() {
                 "marketWebPresences": [{
                     "id": web_presence_id,
                     "__typename": "MarketWebPresence",
-                    "defaultLocale": { "locale": "fr" }
+                    "defaultLocale": {
+                        "locale": "fr",
+                        "name": "French",
+                        "primary": true,
+                        "published": true
+                    }
                 }]
             },
             "userErrors": []

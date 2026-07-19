@@ -1,0 +1,43 @@
+{
+  "scenarioId": "localization-shop-locale-non-english-default-web-presence",
+  "operationNames": ["shopLocaleEnable", "shopLocales", "webPresences"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "localization-web-presence-sync"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-shop-locale-non-english-default-web-presence.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-shop-locale-non-english-default-web-presence-setup.graphql",
+    "variablesCapturePath": "$.setup.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "shop-locale-enable-preserves-non-english-default-market-web-presence",
+        "capturePath": "$.enable.response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-non-english-default-web-presence-enable.graphql",
+          "variablesCapturePath": "$.enable.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "shop-locales-read-after-enable-preserves-non-english-default-market-web-presence",
+        "capturePath": "$.readAfterEnable.response.data.shopLocales",
+        "proxyPath": "$.data.shopLocales",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-non-english-default-web-presence-read.graphql",
+          "variablesCapturePath": "$.readAfterEnable.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture creates a disposable Italian-default WebPresence, associates French through shopLocaleEnable, and compares the mutation payload plus downstream shopLocales read. This specifically guards shopLocale.marketWebPresences.defaultLocale against falling back to English and guards default-locale published/primary metadata when those fields are selected."
+}

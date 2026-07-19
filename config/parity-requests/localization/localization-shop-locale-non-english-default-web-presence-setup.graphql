@@ -1,0 +1,47 @@
+query LocalizationShopLocaleNonEnglishDefaultWebPresenceSetup($first: Int!) {
+  webPresences(first: $first) {
+    nodes {
+      id
+      subfolderSuffix
+      domain {
+        id
+        host
+        url
+        sslEnabled
+      }
+      defaultLocale {
+        locale
+        name
+        primary
+        published
+      }
+      alternateLocales {
+        locale
+        name
+        primary
+        published
+      }
+      rootUrls {
+        locale
+        url
+      }
+    }
+  }
+  shopLocales {
+    locale
+    name
+    primary
+    published
+    marketWebPresences {
+      id
+      __typename
+      subfolderSuffix
+      defaultLocale {
+        locale
+        name
+        primary
+        published
+      }
+    }
+  }
+}

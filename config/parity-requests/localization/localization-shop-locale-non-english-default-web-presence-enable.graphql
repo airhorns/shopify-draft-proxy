@@ -1,0 +1,28 @@
+mutation LocalizationShopLocaleNonEnglishDefaultWebPresenceEnable(
+  $locale: String!
+  $marketWebPresenceIds: [ID!]
+) {
+  shopLocaleEnable(locale: $locale, marketWebPresenceIds: $marketWebPresenceIds) {
+    shopLocale {
+      locale
+      name
+      primary
+      published
+      marketWebPresences {
+        id
+        __typename
+        subfolderSuffix
+        defaultLocale {
+          locale
+          name
+          primary
+          published
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

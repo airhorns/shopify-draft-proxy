@@ -1,0 +1,19 @@
+query LocalizationShopLocaleNonEnglishDefaultWebPresenceRead {
+  shopLocales {
+    locale
+    name
+    primary
+    published
+    marketWebPresences {
+      id
+      __typename
+      subfolderSuffix
+      defaultLocale {
+        locale
+        name
+        primary
+        published
+      }
+    }
+  }
+}

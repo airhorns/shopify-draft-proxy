@@ -1749,10 +1749,9 @@ pub(in crate::proxy) fn shop_locale_market_web_presence_record(
 ) -> Value {
     let default_locale = web_presence
         .and_then(|record| record.get("defaultLocale"))
-        .and_then(|locale| locale.get("locale"))
-        .and_then(Value::as_str)
-        .map(str::to_string)
-        .unwrap_or_else(|| fallback_default_locale.to_string());
+        .filter(|locale| locale.is_object())
+        .cloned()
+        .unwrap_or_else(|| locale_record(fallback_default_locale, true, true));
     json!({
         "id": id,
         "__typename": "MarketWebPresence",
@@ -1764,7 +1763,7 @@ pub(in crate::proxy) fn shop_locale_market_web_presence_record(
             .and_then(|record| record.get("domain"))
             .cloned()
             .unwrap_or(Value::Null),
-        "defaultLocale": { "locale": default_locale }
+        "defaultLocale": default_locale
     })
 }
 

@@ -4975,6 +4975,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-shop-locale-non-english-default-web-presence',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-shop-locale-non-english-default-web-presence-conformance.mts',
+    purpose:
+      'ShopLocale marketWebPresences preserve the referenced WebPresence defaultLocale when the default locale is not English, including selected primary/published metadata.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_locales', 'write_locales'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-shop-locale-non-english-default-web-presence.json`,
+      'config/parity-specs/localization/localization-shop-locale-non-english-default-web-presence.json',
+      'config/parity-requests/localization/localization-shop-locale-non-english-default-web-presence-setup.graphql',
+      'config/parity-requests/localization/localization-shop-locale-non-english-default-web-presence-enable.graphql',
+      'config/parity-requests/localization/localization-shop-locale-non-english-default-web-presence-read.graphql',
+    ],
+    cleanupBehavior:
+      'Temporarily enables Italian when absent, creates a disposable Italian-default WebPresence, enables French against that WebPresence, disables French, deletes the WebPresence, then restores or removes touched locales to their pre-capture state.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-translations-unknown-resource',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-translations-unknown-resource-conformance.mts',
