@@ -3649,6 +3649,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'saved-searches',
+    captureId: 'saved-search-mutation-first-hydration',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-mutation-first-hydration-conformance.ts',
+    purpose:
+      'Mutation-first SavedSearch update/delete hydration for arbitrary persisted and ID-specific missing targets.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-mutation-first-hydration.json`,
+      'config/parity-specs/saved-searches/saved-search-mutation-first-hydration.json',
+      'config/parity-requests/saved-searches/saved-search-mutation-first-update.graphql',
+      'config/parity-requests/saved-searches/saved-search-mutation-first-delete.graphql',
+      'config/parity-requests/saved-searches/saved-search-mutation-first-node-read.graphql',
+      'config/parity-requests/saved-searches/saved-search-mutation-first-list-read.graphql',
+    ],
+    cleanupBehavior: 'Restores the persistent update target and recreates the persistent delete target after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'saved-searches',
     captureId: 'saved-search-query-grammar',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-query-grammar-conformance.ts',

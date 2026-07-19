@@ -1291,10 +1291,19 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     ],
                     "savedSearches": {
                         "gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic": {
+                            "apiClientId": "shopify-draft-proxy-local-app",
+                            "filters": [
+                                {
+                                    "key": "tag",
+                                    "value": "promo"
+                                }
+                            ],
                             "id": "gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic",
+                            "legacyResourceId": "4",
                             "name": "Promo products",
                             "query": "tag:promo",
-                            "resourceType": "PRODUCT"
+                            "resourceType": "PRODUCT",
+                            "searchTerms": ""
                         }
                     },
                     "segmentOrder": [],

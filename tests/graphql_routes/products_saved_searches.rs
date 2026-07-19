@@ -11710,6 +11710,545 @@ fn saved_search_live_hybrid_overlay_windows_a_complete_opaque_baseline() {
 }
 
 #[test]
+fn saved_search_update_live_hybrid_hydrates_a_mutation_first_target_by_id() {
+    let saved_search_id = "gid://shopify/SavedSearch/424242";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            let data = if query.contains("SavedSearchMutationTargetHydrate") {
+                json!({
+                    "node": {
+                        "__typename": "SavedSearch",
+                        "id": saved_search_id,
+                        "legacyResourceId": "424242",
+                        "name": "Authoritative products",
+                        "query": "vendor:Acme tag:featured",
+                        "resourceType": "PRODUCT",
+                        "searchTerms": "",
+                        "filters": [
+                            { "key": "vendor", "value": "Acme" },
+                            { "key": "tag", "value": "featured" }
+                        ]
+                    }
+                })
+            } else if query.contains("SavedSearchConnectionBaseline") {
+                json!({
+                    "savedSearchBaseline": {
+                        "edges": [
+                            {
+                                "cursor": "authoritative-products",
+                                "node": {
+                                    "id": saved_search_id,
+                                    "name": "Authoritative products",
+                                    "query": "vendor:Acme tag:featured",
+                                    "resourceType": "PRODUCT"
+                                }
+                            },
+                            {
+                                "cursor": "untouched-products",
+                                "node": {
+                                    "id": "gid://shopify/SavedSearch/434343",
+                                    "name": "Untouched products",
+                                    "query": "tag:untouched",
+                                    "resourceType": "PRODUCT"
+                                }
+                            }
+                        ],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "authoritative-products",
+                            "endCursor": "untouched-products"
+                        }
+                    }
+                })
+            } else if query.contains("productSavedSearches") {
+                json!({
+                    "productSavedSearches": {
+                        "nodes": [
+                            {
+                                "id": saved_search_id,
+                                "name": "Authoritative products",
+                                "query": "vendor:Acme tag:featured",
+                                "resourceType": "PRODUCT"
+                            },
+                            {
+                                "id": "gid://shopify/SavedSearch/434343",
+                                "name": "Untouched products",
+                                "query": "tag:untouched",
+                                "resourceType": "PRODUCT"
+                            }
+                        ],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }
+                })
+            } else if query.contains("ReadUpdatedSavedSearch") {
+                json!({
+                    "node": {
+                        "__typename": "SavedSearch",
+                        "id": saved_search_id,
+                        "name": "Authoritative products",
+                        "query": "vendor:Acme tag:featured",
+                        "resourceType": "PRODUCT"
+                    }
+                })
+            } else if body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("node(id: $id)"))
+            {
+                json!({
+                    "node": {
+                        "__typename": "SavedSearch",
+                        "id": saved_search_id,
+                        "legacyResourceId": "424242",
+                        "name": "Authoritative products",
+                        "query": "vendor:Acme tag:featured",
+                        "resourceType": "PRODUCT",
+                        "searchTerms": "",
+                        "filters": [
+                            { "key": "vendor", "value": "Acme" },
+                            { "key": "tag", "value": "featured" }
+                        ]
+                    }
+                })
+            } else {
+                json!({
+                    "productSavedSearches": {
+                        "nodes": [],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateColdSavedSearch($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch {
+              id
+              legacyResourceId
+              name
+              query
+              resourceType
+              searchTerms
+              filters { key value }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": saved_search_id, "name": "Locally renamed" } }),
+    ));
+
+    assert_eq!(update.status, 200, "{}", update.body);
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"],
+        json!({
+            "savedSearch": {
+                "id": saved_search_id,
+                "legacyResourceId": "424242",
+                "name": "Locally renamed",
+                "query": "vendor:Acme tag:featured",
+                "resourceType": "PRODUCT",
+                "searchTerms": "",
+                "filters": [
+                    { "key": "vendor", "value": "Acme" },
+                    { "key": "tag", "value": "featured" }
+                ]
+            },
+            "userErrors": []
+        })
+    );
+
+    let singular_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadUpdatedSavedSearch($id: ID!) {
+          node(id: $id) {
+            ... on SavedSearch { id name query resourceType filters { key value } }
+          }
+        }
+        "#,
+        json!({ "id": saved_search_id }),
+    ));
+    assert_eq!(
+        singular_read.body["data"]["node"],
+        json!({
+            "id": saved_search_id,
+            "name": "Locally renamed",
+            "query": "vendor:Acme tag:featured",
+            "resourceType": "PRODUCT",
+            "filters": [
+                { "key": "vendor", "value": "Acme" },
+                { "key": "tag", "value": "featured" }
+            ]
+        })
+    );
+
+    let list_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadUpdatedSavedSearchList {
+          productSavedSearches(first: 10) { nodes { id name query resourceType } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        list_read.body["data"]["productSavedSearches"]["nodes"],
+        json!([
+            {
+                "id": saved_search_id,
+                "name": "Locally renamed",
+                "query": "vendor:Acme tag:featured",
+                "resourceType": "PRODUCT"
+            },
+            {
+                "id": "gid://shopify/SavedSearch/434343",
+                "name": "Untouched products",
+                "query": "tag:untouched",
+                "resourceType": "PRODUCT"
+            }
+        ])
+    );
+
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(
+        bodies.len(),
+        3,
+        "cold mutation hydrates once, singular readback stays local, and list overlay fetches a complete baseline"
+    );
+    assert_eq!(bodies[0]["variables"], json!({ "id": saved_search_id }));
+    assert!(bodies.iter().all(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query "))));
+}
+
+#[test]
+fn saved_search_delete_live_hybrid_hydrates_then_tombstones_singular_and_list_reads() {
+    let saved_search_id = "gid://shopify/SavedSearch/525252";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            let data = if query.contains("SavedSearchMutationTargetHydrate") {
+                json!({
+                    "node": {
+                        "__typename": "SavedSearch",
+                        "id": saved_search_id,
+                        "legacyResourceId": "525252",
+                        "name": "Delete target",
+                        "query": "tag:delete-me",
+                        "resourceType": "PRODUCT",
+                        "searchTerms": "",
+                        "filters": [{ "key": "tag", "value": "delete-me" }]
+                    }
+                })
+            } else if query.contains("SavedSearchConnectionBaseline") {
+                json!({
+                    "savedSearchBaseline": {
+                        "edges": [
+                            {
+                                "cursor": "delete-target",
+                                "node": {
+                                    "id": saved_search_id,
+                                    "name": "Delete target",
+                                    "query": "tag:delete-me",
+                                    "resourceType": "PRODUCT"
+                                }
+                            },
+                            {
+                                "cursor": "keep-target",
+                                "node": {
+                                    "id": "gid://shopify/SavedSearch/535353",
+                                    "name": "Keep target",
+                                    "query": "tag:keep-me",
+                                    "resourceType": "PRODUCT"
+                                }
+                            }
+                        ],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "delete-target",
+                            "endCursor": "keep-target"
+                        }
+                    }
+                })
+            } else if query.contains("productSavedSearches") {
+                json!({
+                    "productSavedSearches": {
+                        "nodes": [
+                            {
+                                "id": saved_search_id,
+                                "name": "Delete target",
+                                "query": "tag:delete-me",
+                                "resourceType": "PRODUCT"
+                            },
+                            {
+                                "id": "gid://shopify/SavedSearch/535353",
+                                "name": "Keep target",
+                                "query": "tag:keep-me",
+                                "resourceType": "PRODUCT"
+                            }
+                        ]
+                    }
+                })
+            } else {
+                json!({
+                    "node": {
+                        "__typename": "SavedSearch",
+                        "id": saved_search_id,
+                        "name": "Delete target"
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteColdSavedSearch($input: SavedSearchDeleteInput!) {
+          savedSearchDelete(input: $input) { deletedSavedSearchId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": saved_search_id } }),
+    ));
+    assert_eq!(
+        delete.body["data"]["savedSearchDelete"],
+        json!({ "deletedSavedSearchId": saved_search_id, "userErrors": [] })
+    );
+
+    let singular_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDeletedSavedSearch($id: ID!) {
+          node(id: $id) { ... on SavedSearch { id name } }
+        }
+        "#,
+        json!({ "id": saved_search_id }),
+    ));
+    assert_eq!(singular_read.body["data"]["node"], Value::Null);
+
+    let list_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadSavedSearchListAfterDelete {
+          productSavedSearches(first: 10) { nodes { id name } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        list_read.body["data"]["productSavedSearches"]["nodes"],
+        json!([{
+            "id": "gid://shopify/SavedSearch/535353",
+            "name": "Keep target"
+        }])
+    );
+
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(
+        bodies.len(),
+        3,
+        "delete hydration and complete list baseline are reads; tombstoned singular read stays local"
+    );
+    assert!(bodies.iter().all(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query "))));
+}
+
+#[test]
+fn saved_search_mutations_live_hybrid_hydrate_truly_missing_ids_before_not_found() {
+    let missing_id = "gid://shopify/SavedSearch/626262";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "node": null } }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateMissingSavedSearch($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": missing_id, "name": "Still missing" } }),
+    ));
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteMissingSavedSearch($input: SavedSearchDeleteInput!) {
+          savedSearchDelete(input: $input) { deletedSavedSearchId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": missing_id } }),
+    ));
+    let missing_error = json!([{
+        "field": ["input", "id"],
+        "message": "Saved Search does not exist"
+    }]);
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"]["savedSearch"],
+        Value::Null
+    );
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"]["userErrors"],
+        missing_error
+    );
+    assert_eq!(
+        delete.body["data"]["savedSearchDelete"]["deletedSavedSearchId"],
+        Value::Null
+    );
+    assert_eq!(
+        delete.body["data"]["savedSearchDelete"]["userErrors"],
+        missing_error
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(
+        bodies.len(),
+        2,
+        "each mutation must prove the ID-specific miss"
+    );
+    assert!(bodies.iter().all(|body| {
+        body["query"]
+            .as_str()
+            .is_some_and(|query| query.contains("SavedSearchMutationTargetHydrate"))
+            && body["variables"] == json!({ "id": missing_id })
+    }));
+}
+
+#[test]
+fn partial_saved_search_page_does_not_prove_an_unseen_mutation_target_missing() {
+    let visible_id = "gid://shopify/SavedSearch/717171";
+    let unseen_id = "gid://shopify/SavedSearch/727272";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            let data = if query.contains("SavedSearchMutationTargetHydrate") {
+                json!({
+                    "node": {
+                        "__typename": "SavedSearch",
+                        "id": unseen_id,
+                        "legacyResourceId": "727272",
+                        "name": "Outside first page",
+                        "query": "tag:outside",
+                        "resourceType": "PRODUCT",
+                        "searchTerms": "",
+                        "filters": [{ "key": "tag", "value": "outside" }]
+                    }
+                })
+            } else {
+                json!({
+                    "productSavedSearches": {
+                        "nodes": [{
+                            "id": visible_id,
+                            "name": "First page only",
+                            "query": "tag:first",
+                            "resourceType": "PRODUCT"
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "first",
+                            "endCursor": "first"
+                        }
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        });
+
+    let page = proxy.process_request(json_graphql_request(
+        r#"
+        query PartialSavedSearchPage {
+          productSavedSearches(first: 1) {
+            nodes { id name query resourceType }
+            pageInfo { hasNextPage }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        page.body["data"]["productSavedSearches"]["nodes"],
+        json!([{
+            "id": visible_id,
+            "name": "First page only",
+            "query": "tag:first",
+            "resourceType": "PRODUCT"
+        }])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateUnseenSavedSearch($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id name query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": unseen_id, "name": "Found outside page" } }),
+    ));
+    assert_eq!(
+        update.body["data"]["savedSearchUpdate"],
+        json!({
+            "savedSearch": {
+                "id": unseen_id,
+                "name": "Found outside page",
+                "query": "tag:outside",
+                "resourceType": "PRODUCT"
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(upstream_bodies.lock().unwrap().len(), 2);
+}
+
+#[test]
 fn staged_segment_reads_preserve_upstream_catalog_roots() {
     let real_segment = json!({
         "id": "gid://shopify/Segment/1000",

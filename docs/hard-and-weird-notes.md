@@ -4469,3 +4469,20 @@ Practical rule:
 - leave absent required Storefront Order values unknown so GraphQL applies its
   schema error and null-propagation behavior; do not substitute zero money,
   `USD`, `UNFULFILLED`, an epoch timestamp, or order number zero
+
+## 106. A saved-search page is not an absence proof for mutation targets
+
+Saved-search connections are paginated, so observing one upstream page cannot
+prove that an arbitrary SavedSearch ID does not exist. Mutation-first
+`savedSearchUpdate` and `savedSearchDelete` therefore use an ID-specific
+read-only `node(id:)` hydration before returning Shopify's not-found userError.
+Only a staged tombstone or the ID-specific null result makes absence
+authoritative for that request; supported mutations still stage locally.
+
+The public SavedSearch type exposes identity, name, query, resource type,
+legacy ID, search terms, and filters. It does not expose created/updated
+timestamps in the captured Admin schemas, so the proxy preserves every public
+authoritative field and the request app identity without inventing timestamp or
+ownership values that Shopify did not return. Staged records and tombstones are
+also registered with generic Node loading so singular and list readback share
+the same effective state.
