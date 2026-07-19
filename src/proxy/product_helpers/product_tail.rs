@@ -12,7 +12,10 @@ impl DraftProxy {
             && self.store.product_feed_by_id(&id).is_none()
             && !self.store.product_feed_is_tombstoned(&id)
         {
-            return self.forward_upstream_root_outcome(invocation.request, invocation.response_key);
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
         }
         ResolverOutcome::value(
             self.product_feed_canonical_value(&id)
@@ -26,7 +29,10 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         if self.config.read_mode != ReadMode::Snapshot && self.store.product_feeds().is_empty() {
-            return self.forward_upstream_root_outcome(invocation.request, invocation.response_key);
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
         }
         ResolverOutcome::value(connection_value_with_args(
             self.store.product_feeds(),

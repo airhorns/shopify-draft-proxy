@@ -98,17 +98,20 @@ impl DraftProxy {
             || root_field == "publishableUnpublishToCurrentChannel";
         let publish = root_field == "publishablePublish"
             || root_field == "publishablePublishToCurrentChannel";
+        let mut hydrated_publishable = None;
 
         if requests_shop
             && (self.store.base.publication_count.is_none() || !self.shop_has_observed_identity())
         {
-            self.hydrate_publishable_payload_shop(&resource_id, request);
+            hydrated_publishable = self.hydrate_publishable_payload_shop(&resource_id, request);
         }
         if requests_publishable_details
             && is_shopify_gid_of_type(&resource_id, "Collection")
             && self.store.collection_by_id(&resource_id).is_none()
         {
-            self.hydrate_publishable_payload_shop(&resource_id, request);
+            hydrated_publishable = self
+                .hydrate_publishable_payload_shop(&resource_id, request)
+                .or(hydrated_publishable);
             if self.store.collection_by_id(&resource_id).is_none() {
                 self.hydrate_publishable_resource(&resource_id, request);
             }
@@ -136,7 +139,9 @@ impl DraftProxy {
             {
                 self.hydrate_publishable_publication_catalog(request);
             } else {
-                self.hydrate_publishable_payload_shop(&resource_id, request);
+                hydrated_publishable = self
+                    .hydrate_publishable_payload_shop(&resource_id, request)
+                    .or(hydrated_publishable);
             }
         }
         user_errors
@@ -191,7 +196,12 @@ impl DraftProxy {
         }) {
             Value::Null
         } else {
-            self.publishable_resource_canonical_value(&resource_id)
+            let canonical = self.publishable_resource_canonical_value(&resource_id);
+            if canonical.is_null() {
+                hydrated_publishable.unwrap_or(Value::Null)
+            } else {
+                canonical
+            }
         };
         let success = user_errors.is_empty();
         let payload = json!({
@@ -211,9 +221,9 @@ impl DraftProxy {
         &mut self,
         publishable_id: &str,
         request: &Request,
-    ) {
+    ) -> Option<Value> {
         if self.config.read_mode == ReadMode::Snapshot {
-            return;
+            return None;
         }
         let response = self.upstream_post(
             request,
@@ -223,11 +233,12 @@ impl DraftProxy {
             }),
         );
         if !(200..300).contains(&response.status) {
-            return;
+            return None;
         }
-        if let Some(id) = response
-            .body
-            .pointer("/data/publishable/id")
+        let publishable = response.body.pointer("/data/publishable").cloned();
+        if let Some(id) = publishable
+            .as_ref()
+            .and_then(|value| value.get("id"))
             .and_then(Value::as_str)
         {
             self.store
@@ -237,6 +248,7 @@ impl DraftProxy {
                 .or_default();
         }
         self.hydrate_shop_state_from_response_data(&response.body["data"]);
+        publishable
     }
 
     fn hydrate_publishable_publication_catalog(&mut self, request: &Request) {

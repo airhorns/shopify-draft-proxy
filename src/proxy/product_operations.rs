@@ -274,7 +274,7 @@ impl DraftProxy {
         // Stage `metafields` supplied on the input so the mutation payload and the
         // downstream `product`/`metafield(s)` reads resolve them. Shopify allocates the
         // metafield GIDs independently, so the parity spec matches `id` via `shopify-gid`.
-        let metafield_nodes = self.product_set_input_metafield_nodes(&input);
+        let metafield_nodes = self.stage_product_set_input_metafields(&product_id, &input);
         if !metafield_nodes.is_empty() {
             product.extra_fields.insert(
                 "metafields".to_string(),
@@ -351,8 +351,9 @@ impl DraftProxy {
     /// Each gets a locally allocated synthetic Metafield GID; namespace/key/type/value are
     /// echoed verbatim from the input so downstream reads resolve the same values Shopify
     /// would persist. Entries without a namespace and key are skipped.
-    fn product_set_input_metafield_nodes(
+    fn stage_product_set_input_metafields(
         &mut self,
+        product_id: &str,
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Vec<Value> {
         let mut nodes = Vec::new();
@@ -365,14 +366,13 @@ impl DraftProxy {
             let metafield_type = resolved_string_field(&metafield, "type")
                 .unwrap_or_else(|| "single_line_text_field".to_string());
             let value = resolved_string_field(&metafield, "value").unwrap_or_default();
-            let id = self.next_proxy_synthetic_gid("Metafield");
-            nodes.push(json!({
-                "id": id,
-                "namespace": namespace,
-                "key": key,
-                "type": metafield_type,
-                "value": value,
-            }));
+            nodes.push(self.stage_owner_metafield_value(
+                product_id,
+                &namespace,
+                &key,
+                &metafield_type,
+                &value,
+            ));
         }
         nodes
     }
@@ -451,8 +451,19 @@ impl DraftProxy {
             return ResolverOutcome::value(payload);
         };
 
-        let duplicate = self.duplicate_product_record(&source, &new_title, new_status.as_deref());
+        let mut duplicate =
+            self.duplicate_product_record(&source, &new_title, new_status.as_deref());
         let duplicate_id = duplicate.id.clone();
+        let duplicate_metafields = self.stage_duplicate_product_metafields(&source, &duplicate_id);
+        if !duplicate_metafields.is_empty() {
+            duplicate.extra_fields.insert(
+                "metafields".to_string(),
+                connection_json(duplicate_metafields.clone()),
+            );
+            duplicate
+                .extra_fields
+                .insert("metafield".to_string(), duplicate_metafields[0].clone());
+        }
         self.stage_duplicate_variants(&source.id, &duplicate_id);
         self.store.stage_product(duplicate.clone());
 
@@ -772,6 +783,47 @@ impl DraftProxy {
         // downstream read right after) expose an empty media connection.
         duplicate.media = Vec::new();
         duplicate
+    }
+
+    fn stage_duplicate_product_metafields(
+        &mut self,
+        source: &ProductRecord,
+        duplicate_id: &str,
+    ) -> Vec<Value> {
+        let mut source_metafields = self.owner_metafields(&source.id, None, None);
+        if source_metafields.is_empty() {
+            source_metafields = source
+                .extra_fields
+                .get("metafields")
+                .map(connection_nodes)
+                .unwrap_or_default();
+        }
+        let mut seen = BTreeSet::new();
+        source_metafields
+            .into_iter()
+            .filter_map(|metafield| {
+                let namespace = metafield.get("namespace")?.as_str()?;
+                let key = metafield.get("key")?.as_str()?;
+                if !seen.insert((namespace.to_string(), key.to_string())) {
+                    return None;
+                }
+                let metafield_type = metafield
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .unwrap_or("single_line_text_field");
+                let value = metafield
+                    .get("value")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                Some(self.stage_owner_metafield_value(
+                    duplicate_id,
+                    namespace,
+                    key,
+                    metafield_type,
+                    value,
+                ))
+            })
+            .collect()
     }
 
     fn stage_duplicate_variants(&mut self, source_id: &str, duplicate_id: &str) {

@@ -848,7 +848,10 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         if self.config.read_mode != ReadMode::Snapshot {
-            return self.forward_upstream_root_outcome(invocation.request, invocation.response_key);
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
         }
         let arguments = invocation
             .arguments
@@ -875,7 +878,10 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         if self.config.read_mode != ReadMode::Snapshot {
-            return self.forward_upstream_root_outcome(invocation.request, invocation.response_key);
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
         }
         let arguments = invocation
             .arguments
@@ -914,7 +920,10 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Live
             || (self.config.read_mode == ReadMode::LiveHybrid && !has_local_answer)
         {
-            return self.forward_upstream_root_outcome(invocation.request, invocation.response_key);
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
         }
         ResolverOutcome::value(
             product
@@ -932,9 +941,23 @@ impl DraftProxy {
             .get("id")
             .and_then(Value::as_str)
             .unwrap_or_default();
+        let owner_metafield_catalog_active = self
+            .store
+            .staged
+            .owner_metafields
+            .keys()
+            .any(|owner_id| shopify_gid_resource_type(owner_id) == Some("ProductVariant"));
+        let owner_read_fallback = owner_metafield_catalog_active
+            && self.execution_session.owner_metafield_read_ids.contains(id);
+        let owner_known_missing = self
+            .execution_session
+            .owner_metafield_missing_ids
+            .contains(id);
         let has_local_answer = self.store.product_variant_by_id(id).is_some()
             || self.store.product_variants.staged.is_tombstoned(id)
             || self.owner_has_metafield_local_effects(id)
+            || owner_read_fallback
+            || owner_known_missing
             || self
                 .execution_session
                 .owner_metafield_hydrated_ids
@@ -942,15 +965,12 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Live
             || (self.config.read_mode == ReadMode::LiveHybrid && !has_local_answer)
         {
-            return self.forward_upstream_root_outcome(invocation.request, invocation.response_key);
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
         }
-        let variant_owner_catalog_active = self
-            .store
-            .staged
-            .owner_metafields
-            .keys()
-            .any(|owner_id| shopify_gid_resource_type(owner_id) == Some("ProductVariant"));
-        let value = if self.store.product_variants.staged.is_tombstoned(id) {
+        let value = if self.store.product_variants.staged.is_tombstoned(id) || owner_known_missing {
             Value::Null
         } else {
             self.store
@@ -959,7 +979,8 @@ impl DraftProxy {
                 .or_else(|| {
                     (self.owner_has_metafield_local_effects(id)
                         || (self.config.read_mode == ReadMode::Snapshot
-                            && variant_owner_catalog_active))
+                            && owner_metafield_catalog_active)
+                        || owner_read_fallback)
                         .then(|| json!({ "id": id }))
                 })
                 .unwrap_or(Value::Null)
@@ -976,9 +997,23 @@ impl DraftProxy {
             .get("id")
             .and_then(Value::as_str)
             .unwrap_or_default();
+        let owner_metafield_catalog_active = self
+            .store
+            .staged
+            .owner_metafields
+            .keys()
+            .any(|owner_id| shopify_gid_resource_type(owner_id) == Some("Product"));
+        let owner_read_fallback = owner_metafield_catalog_active
+            && self.execution_session.owner_metafield_read_ids.contains(id);
+        let owner_known_missing = self
+            .execution_session
+            .owner_metafield_missing_ids
+            .contains(id);
         let has_local_answer = self.store.has_product(id)
             || self.store.product_is_tombstoned(id)
             || self.owner_has_metafield_local_effects(id)
+            || owner_read_fallback
+            || owner_known_missing
             || self
                 .execution_session
                 .owner_metafield_hydrated_ids
@@ -986,15 +1021,12 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Live
             || (self.config.read_mode == ReadMode::LiveHybrid && !has_local_answer)
         {
-            return self.forward_upstream_root_outcome(invocation.request, invocation.response_key);
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
         }
-        let owner_metafield_catalog_active = self
-            .store
-            .staged
-            .owner_metafields
-            .keys()
-            .any(|owner_id| shopify_gid_resource_type(owner_id) == Some("Product"));
-        let value = if self.store.product_is_tombstoned(id) {
+        let value = if self.store.product_is_tombstoned(id) || owner_known_missing {
             Value::Null
         } else {
             self.store
@@ -1003,7 +1035,8 @@ impl DraftProxy {
                 .or_else(|| {
                     (self.owner_has_metafield_local_effects(id)
                         || (self.config.read_mode == ReadMode::Snapshot
-                            && owner_metafield_catalog_active))
+                            && owner_metafield_catalog_active)
+                        || owner_read_fallback)
                         .then(|| json!({ "id": id }))
                 })
                 .unwrap_or(Value::Null)
@@ -1084,7 +1117,14 @@ impl DraftProxy {
                     json!(variants.len())
                 },
             ),
-            ("templateSuffix".to_string(), json!(product.template_suffix)),
+            (
+                "templateSuffix".to_string(),
+                if product.template_suffix.is_empty() {
+                    Value::Null
+                } else {
+                    json!(product.template_suffix)
+                },
+            ),
             (
                 "seo".to_string(),
                 product.extra_fields.get("seo").cloned().unwrap_or_else(|| {
@@ -1365,12 +1405,21 @@ fn product_metafield_field(
     request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    let Some(owner_id) = invocation.parent.get("id").and_then(Value::as_str) else {
+    if invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .is_none()
+    {
         return Ok(Value::Null);
-    };
+    }
     let arguments = product_field_arguments(invocation);
     let api_client_id = request_app_namespace_api_client_id(request);
-    Ok(proxy.canonical_owner_metafield_value(owner_id, &arguments, api_client_id.as_deref()))
+    Ok(proxy.canonical_embedded_or_owner_metafield_value(
+        invocation.parent,
+        &arguments,
+        api_client_id.as_deref(),
+    ))
 }
 
 fn product_metafields_field(
@@ -1378,16 +1427,23 @@ fn product_metafields_field(
     request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    let Some(owner_id) = invocation.parent.get("id").and_then(Value::as_str) else {
+    if invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .is_none()
+    {
         return Ok(connection_json(Vec::new()));
-    };
+    }
     let arguments = product_field_arguments(invocation);
     let api_client_id = request_app_namespace_api_client_id(request);
-    Ok(proxy.canonical_owner_metafields_connection_value(
-        owner_id,
-        &arguments,
-        api_client_id.as_deref(),
-    ))
+    Ok(
+        proxy.canonical_embedded_or_owner_metafields_connection_value(
+            invocation.parent,
+            &arguments,
+            api_client_id.as_deref(),
+        ),
+    )
 }
 
 fn product_variant_record(
@@ -1453,12 +1509,21 @@ fn product_variant_metafield_field(
     request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    let Some(owner_id) = invocation.parent.get("id").and_then(Value::as_str) else {
+    if invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .is_none()
+    {
         return Ok(Value::Null);
-    };
+    }
     let arguments = product_field_arguments(invocation);
     let api_client_id = request_app_namespace_api_client_id(request);
-    Ok(proxy.canonical_owner_metafield_value(owner_id, &arguments, api_client_id.as_deref()))
+    Ok(proxy.canonical_embedded_or_owner_metafield_value(
+        invocation.parent,
+        &arguments,
+        api_client_id.as_deref(),
+    ))
 }
 
 fn product_variant_metafields_field(
@@ -1466,16 +1531,23 @@ fn product_variant_metafields_field(
     request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    let Some(owner_id) = invocation.parent.get("id").and_then(Value::as_str) else {
+    if invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .is_none()
+    {
         return Ok(connection_json(Vec::new()));
-    };
+    }
     let arguments = product_field_arguments(invocation);
     let api_client_id = request_app_namespace_api_client_id(request);
-    Ok(proxy.canonical_owner_metafields_connection_value(
-        owner_id,
-        &arguments,
-        api_client_id.as_deref(),
-    ))
+    Ok(
+        proxy.canonical_embedded_or_owner_metafields_connection_value(
+            invocation.parent,
+            &arguments,
+            api_client_id.as_deref(),
+        ),
+    )
 }
 
 fn product_variant_published_on_current_publication_field(
@@ -1880,6 +1952,7 @@ pub(in crate::proxy) fn product_publication_state_known(product: &ProductRecord)
     let resource_nodes = product
         .extra_fields
         .get("resourcePublicationsV2")
+        .or_else(|| product.extra_fields.get("resourcePublications"))
         .and_then(|connection| connection.get("nodes"))
         .and_then(Value::as_array);
     if resource_nodes.is_some_and(|nodes| !nodes.is_empty()) {
@@ -1924,6 +1997,7 @@ pub(in crate::proxy) fn product_publication_entries(
     product
         .extra_fields
         .get("resourcePublicationsV2")
+        .or_else(|| product.extra_fields.get("resourcePublications"))
         .and_then(|connection| connection.get("nodes"))
         .and_then(Value::as_array)
         .into_iter()
@@ -2108,7 +2182,10 @@ impl DraftProxy {
             }
         };
         let Some(payload) = payload else {
-            return self.forward_upstream_root_outcome(invocation.request, invocation.response_key);
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
         };
         ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
             invocation.root_name,
@@ -3166,27 +3243,52 @@ fn product_variant_connection_with_fallback_value(
     fallback_variants: &[Value],
     arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
-    let variants = sorted_product_variant_records_for_connection(variants.to_vec(), arguments);
-    let (variant_records, page_info) =
-        connection_window(&variants, arguments, |variant| variant.id.clone());
-    let variant_nodes = variant_records
+    // The embedded product connection owns the observed order. A separately
+    // hydrated/staged variant is an overlay for its existing slot, not a new
+    // record to move to the end of the connection.
+    let mut sort_arguments = arguments.clone();
+    sort_arguments.remove("reverse");
+    let variants =
+        sorted_product_variant_records_for_connection(variants.to_vec(), &sort_arguments);
+    let variants_by_id = variants
         .iter()
-        .map(product_variant_state_json)
-        .collect::<Vec<_>>();
-    let variant_ids = variant_records
+        .map(|variant| (variant.id.as_str(), variant))
+        .collect::<BTreeMap<_, _>>();
+    let fallback_ids = fallback_variants
         .iter()
-        .map(|variant| variant.id.as_str())
+        .filter_map(|variant| variant.get("id").and_then(Value::as_str))
         .collect::<BTreeSet<_>>();
-    let mut nodes = Vec::new();
-    for fallback in fallback_variants {
-        let fallback_id = fallback.get("id").and_then(Value::as_str);
-        if fallback_id.is_some_and(|id| variant_ids.contains(id)) {
-            continue;
-        }
-        nodes.push(fallback.clone());
+    let typed_order_is_authoritative = !fallback_ids.is_empty()
+        && variants
+            .iter()
+            .all(|variant| product_variant_position(variant).is_some())
+        && fallback_ids
+            .iter()
+            .all(|id| variants_by_id.contains_key(*id));
+    let mut nodes: Vec<Value> = if typed_order_is_authoritative {
+        variants.iter().map(product_variant_state_json).collect()
+    } else {
+        fallback_variants
+            .iter()
+            .map(|fallback| {
+                fallback
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .and_then(|id| variants_by_id.get(id))
+                    .map(|variant| product_variant_state_json(variant))
+                    .unwrap_or_else(|| fallback.clone())
+            })
+            .collect()
+    };
+    if !typed_order_is_authoritative {
+        nodes.extend(
+            variants
+                .iter()
+                .filter(|variant| !fallback_ids.contains(variant.id.as_str()))
+                .map(product_variant_state_json),
+        );
     }
-    nodes.extend(variant_nodes);
-    connection_json_with_cursor(nodes, |_, node| value_id_cursor(node), page_info)
+    connection_value_with_args(nodes, arguments, value_id_cursor)
 }
 
 fn sorted_product_variant_records_for_connection(
@@ -5018,4 +5120,97 @@ pub(in crate::proxy) fn variant_media_ids_from_json(value: &Value) -> Vec<String
             }
             ids
         })
+}
+
+#[cfg(test)]
+mod product_variant_connection_tests {
+    use super::*;
+
+    #[test]
+    fn staged_variant_overlays_its_observed_connection_position() {
+        let product_id = "gid://shopify/Product/1";
+        let variant_ids = [
+            "gid://shopify/ProductVariant/1",
+            "gid://shopify/ProductVariant/2",
+            "gid://shopify/ProductVariant/3",
+        ];
+        let fallback = variant_ids
+            .iter()
+            .enumerate()
+            .map(|(index, id)| {
+                json!({
+                    "id": id,
+                    "title": format!("Variant {}", index + 1),
+                    "sku": format!("SKU-{}", index + 1),
+                    "price": format!("{}.00", index + 1),
+                })
+            })
+            .collect::<Vec<_>>();
+        let staged = product_variant_state_from_observed_json(&json!({
+            "id": variant_ids[1],
+            "title": "Updated variant 2",
+            "sku": "SKU-2",
+            "price": "22.00",
+            "product": { "id": product_id },
+        }))
+        .expect("observed variant should normalize");
+
+        let connection =
+            product_variant_connection_with_fallback_value(&[staged], &fallback, &BTreeMap::new());
+        let nodes = connection["nodes"]
+            .as_array()
+            .expect("connection should have nodes");
+        assert_eq!(
+            nodes
+                .iter()
+                .filter_map(|node| node["id"].as_str())
+                .collect::<Vec<_>>(),
+            variant_ids
+        );
+        assert_eq!(nodes[1]["title"], json!("Updated variant 2"));
+        assert_eq!(nodes[1]["price"], json!("22.00"));
+    }
+
+    #[test]
+    fn complete_positioned_variant_state_replaces_stale_embedded_order() {
+        let product_id = "gid://shopify/Product/1";
+        let first_id = "gid://shopify/ProductVariant/1";
+        let second_id = "gid://shopify/ProductVariant/2";
+        let fallback = vec![
+            json!({ "id": first_id, "title": "Red", "price": "1.00" }),
+            json!({ "id": second_id, "title": "Green", "price": "2.00" }),
+        ];
+        let reordered = [
+            json!({
+                "id": second_id,
+                "title": "Small / Green",
+                "price": "2.00",
+                "position": 1,
+                "product": { "id": product_id },
+            }),
+            json!({
+                "id": first_id,
+                "title": "Small / Red",
+                "price": "1.00",
+                "position": 2,
+                "product": { "id": product_id },
+            }),
+        ]
+        .iter()
+        .map(product_variant_state_from_observed_json)
+        .collect::<Option<Vec<_>>>()
+        .expect("positioned variants should normalize");
+
+        let connection =
+            product_variant_connection_with_fallback_value(&reordered, &fallback, &BTreeMap::new());
+        assert_eq!(
+            connection["nodes"]
+                .as_array()
+                .expect("connection should have nodes")
+                .iter()
+                .filter_map(|node| node["id"].as_str())
+                .collect::<Vec<_>>(),
+            vec![second_id, first_id]
+        );
+    }
 }

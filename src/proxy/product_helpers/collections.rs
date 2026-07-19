@@ -275,6 +275,17 @@ pub(in crate::proxy) fn collection_products_field(
 ) -> Result<Value, String> {
     let arguments = resolved_arguments_from_json(&invocation.arguments);
     let (collection, entries) = collection_field_product_entries(proxy, invocation);
+    if collection
+        .get(OBSERVED_COLLECTION_BASELINE_FIELD)
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        if let Some(connection) = collection.get("products") {
+            return Ok(observed_collection_products_connection(
+                proxy, connection, &arguments,
+            ));
+        }
+    }
     let products = sorted_collection_product_entries(&collection, entries, &arguments);
     let (products, page_info) = connection_window(&products, &arguments, collection_product_cursor);
     Ok(typed_connection_value(
@@ -307,6 +318,15 @@ pub(in crate::proxy) fn collection_products_count_field(
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     let (collection, entries) = collection_field_product_entries(proxy, invocation);
+    if collection
+        .get(OBSERVED_COLLECTION_BASELINE_FIELD)
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        if let Some(count) = collection.get("productsCount") {
+            return Ok(count.clone());
+        }
+    }
     if collection_is_smart(&collection) {
         return Ok(count_object(entries.len()));
     }
@@ -325,6 +345,38 @@ pub(in crate::proxy) fn collection_products_count_field(
                     .unwrap_or(0),
             )
         }))
+}
+
+fn observed_collection_products_connection(
+    proxy: &DraftProxy,
+    connection: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let mut connection = seeded_connection_value(connection, arguments);
+    if let Some(nodes) = connection.get_mut("nodes").and_then(Value::as_array_mut) {
+        for node in nodes {
+            replace_observed_collection_product_node(proxy, node);
+        }
+    }
+    if let Some(edges) = connection.get_mut("edges").and_then(Value::as_array_mut) {
+        for edge in edges {
+            if let Some(node) = edge.get_mut("node") {
+                replace_observed_collection_product_node(proxy, node);
+            }
+        }
+    }
+    connection
+}
+
+fn replace_observed_collection_product_node(proxy: &DraftProxy, node: &mut Value) {
+    let Some(product) = node
+        .get("id")
+        .and_then(Value::as_str)
+        .and_then(|id| proxy.store.product_by_id(id))
+    else {
+        return;
+    };
+    *node = proxy.product_canonical_value(product);
 }
 
 fn collection_parent_id(invocation: &crate::admin_graphql::FieldResolverInvocation<'_>) -> String {
@@ -619,7 +671,10 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Live
             || (self.config.read_mode != ReadMode::Snapshot && !self.store.has_collection_state())
         {
-            return self.forward_upstream_root_outcome(invocation.request, invocation.response_key);
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
         }
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         if self.config.read_mode == ReadMode::LiveHybrid {
@@ -641,7 +696,10 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Live
             || (self.config.read_mode != ReadMode::Snapshot && !self.store.has_collection_state())
         {
-            return self.forward_upstream_root_outcome(invocation.request, invocation.response_key);
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
         }
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         if self.config.read_mode == ReadMode::LiveHybrid {
@@ -925,7 +983,10 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         if !self.publication_engine_active() {
-            return self.forward_upstream_root_outcome(invocation.request, invocation.response_key);
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
         }
         let id = invocation
             .arguments
@@ -947,7 +1008,10 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         if !self.publication_engine_active() {
-            return self.forward_upstream_root_outcome(invocation.request, invocation.response_key);
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
         }
         let id = invocation
             .arguments
@@ -967,7 +1031,10 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         if !self.publication_engine_active() {
-            return self.forward_upstream_root_outcome(invocation.request, invocation.response_key);
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
         }
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let mut channels = self
@@ -998,7 +1065,10 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         if !self.publication_engine_active() {
-            return self.forward_upstream_root_outcome(invocation.request, invocation.response_key);
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
         }
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         ResolverOutcome::value(snapshot_count_with_limit_precision(
@@ -1012,7 +1082,10 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         if !self.publication_engine_active() {
-            return self.forward_upstream_root_outcome(invocation.request, invocation.response_key);
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
         }
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let publication_id = resolved_string_field(&arguments, "publicationId");
@@ -1362,7 +1435,7 @@ impl DraftProxy {
             && is_shopify_gid_of_type(&resource_id, "Collection")
             && self.store.collection_by_id(&resource_id).is_none()
         {
-            self.hydrate_publishable_payload_shop(&resource_id, invocation.request);
+            let _ = self.hydrate_publishable_payload_shop(&resource_id, invocation.request);
         }
         let mut user_errors = Vec::new();
         let resource_exists = self.publishable_resource_exists(&resource_id, invocation.request);
@@ -1381,7 +1454,7 @@ impl DraftProxy {
                 self.store.has_known_publication_ids(),
             )
         {
-            self.hydrate_publishable_payload_shop(&resource_id, invocation.request);
+            let _ = self.hydrate_publishable_payload_shop(&resource_id, invocation.request);
         }
         user_errors
             .extend(self.publishable_publication_input_errors(arguments.get("input"), to_current));
@@ -1438,7 +1511,7 @@ impl DraftProxy {
             .iter()
             .any(|path| path.first().is_some_and(|field| field == "shop"));
         if requests_shop && self.store.base.publication_count.is_none() {
-            self.hydrate_publishable_payload_shop(&resource_id, invocation.request);
+            let _ = self.hydrate_publishable_payload_shop(&resource_id, invocation.request);
         }
         let publishable = if user_errors.iter().any(|error| {
             error
@@ -1616,7 +1689,16 @@ impl DraftProxy {
         {
             return;
         }
-        let collection = self.observed_collection_for_staging(collection);
+        let mut collection = self.observed_collection_for_staging(collection);
+        if !collection
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(is_synthetic_gid)
+        {
+            if let Some(object) = collection.as_object_mut() {
+                object.insert(OBSERVED_COLLECTION_BASELINE_FIELD.to_string(), json!(true));
+            }
+        }
         let products = collection
             .get("products")
             .map(connection_nodes)
@@ -1865,6 +1947,7 @@ impl DraftProxy {
             }
             if let Some(sort_order) = resolved_string_field(&input, "sortOrder") {
                 object.insert("sortOrder".to_string(), json!(sort_order));
+                object.remove(OBSERVED_COLLECTION_BASELINE_FIELD);
             }
             if input.contains_key("ruleSet") {
                 object.insert(
@@ -1873,6 +1956,7 @@ impl DraftProxy {
                         .map(collection_rule_set_json)
                         .unwrap_or(Value::Null),
                 );
+                object.remove(OBSERVED_COLLECTION_BASELINE_FIELD);
             }
             if let Some(description) = resolved_string_field(&input, "descriptionHtml") {
                 object.insert("descriptionHtml".to_string(), json!(description));
@@ -2228,16 +2312,15 @@ impl DraftProxy {
         self.store
             .collection_by_id(collection_id)
             .and_then(|collection| collection.get("products"))
-            .and_then(|connection| connection.get("nodes"))
-            .and_then(Value::as_array)
+            .map(connection_nodes)
+            .unwrap_or_default()
             .into_iter()
-            .flatten()
             .filter_map(|product| {
                 product
                     .get("id")
                     .and_then(Value::as_str)
                     .and_then(|id| self.store.product_by_id(id).cloned())
-                    .or_else(|| product_state_from_json(product))
+                    .or_else(|| product_state_from_json(&product))
             })
             .collect()
     }
@@ -2246,7 +2329,11 @@ impl DraftProxy {
         &self,
         collection: &Value,
     ) -> Vec<CollectionProductEntry> {
-        if collection_is_smart(collection) {
+        let has_observed_baseline = collection
+            .get(OBSERVED_COLLECTION_BASELINE_FIELD)
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        if collection_is_smart(collection) && !has_observed_baseline {
             return self.smart_collection_product_entries(collection);
         }
         self.explicit_collection_product_entries(collection)
@@ -2258,10 +2345,9 @@ impl DraftProxy {
     ) -> Vec<CollectionProductEntry> {
         collection
             .get("products")
-            .and_then(|connection| connection.get("nodes"))
-            .and_then(Value::as_array)
+            .map(connection_nodes)
+            .unwrap_or_default()
             .into_iter()
-            .flatten()
             .enumerate()
             .filter_map(|(position, product)| {
                 let id = product.get("id").and_then(Value::as_str)?;
@@ -2272,7 +2358,7 @@ impl DraftProxy {
                     .get("id")
                     .and_then(Value::as_str)
                     .and_then(|id| self.store.product_by_id(id).cloned())
-                    .or_else(|| product_state_from_json(product))?;
+                    .or_else(|| product_state_from_json(&product))?;
                 let variants = self.store.product_variants_for_product(&product.id);
                 Some(CollectionProductEntry {
                     position,
@@ -2832,6 +2918,7 @@ fn apply_collection_products(collection: &mut Value, products: &[ProductRecord])
         .map(product_summary_json)
         .collect::<Vec<_>>();
     if let Some(object) = collection.as_object_mut() {
+        object.remove(OBSERVED_COLLECTION_BASELINE_FIELD);
         object.insert(
             "products".to_string(),
             connection_json(product_nodes.clone()),

@@ -17,6 +17,12 @@ pub(in crate::proxy) fn localization_field_resolver_registrations() -> Vec<Field
         ),
         FieldResolverRegistration::explicit(
             ApiSurface::Admin,
+            "TranslatableResource",
+            "nestedTranslatableResources",
+            translatable_resource_nested_resources_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
             "MarketLocalizableResource",
             "marketLocalizations",
             market_localizable_resource_localizations_field,
@@ -78,6 +84,19 @@ fn translatable_resource_translations_field(
         locale.as_deref(),
         market_id.as_deref(),
     )))
+}
+
+fn translatable_resource_nested_resources_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    Ok(invocation
+        .parent
+        .get("nestedTranslatableResources")
+        .map(|connection| seeded_connection_value(connection, &arguments))
+        .unwrap_or_else(|| connection_json(Vec::new())))
 }
 
 /// Engine-coerced input for one localization mutation root. Selection and
@@ -145,13 +164,15 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::LiveHybrid
             && self.localization_should_fetch_upstream(root_name)
         {
-            let outcome = self.forward_upstream_root_outcome(request, response_key);
-            if outcome.errors.is_empty() {
-                self.hydrate_localization_from_upstream(&json!({
-                    "data": { (response_key): outcome.value.clone() }
-                }));
+            // A localization document commonly selects several same-domain
+            // roots. Hydrate from one request-scoped execution of the complete
+            // document so sibling resolvers do not each consume the same
+            // upstream call and so aliases are observed together.
+            let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+            if result.transport_succeeded && result.outcome.errors.is_empty() {
+                self.hydrate_localization_from_upstream(&json!({ "data": result.data }));
             }
-            return outcome;
+            return result.outcome;
         }
         ResolverOutcome::value(self.localization_query_value(
             root_name,
@@ -1104,7 +1125,22 @@ impl DraftProxy {
         &self,
         resource_id: &str,
     ) -> Value {
-        json!({"resourceId": resource_id})
+        let nested_resources = match shopify_gid_resource_type(resource_id) {
+            Some("Product") => self
+                .store
+                .product_by_id(resource_id)
+                .and_then(|product| product.extra_fields.get("nestedTranslatableResources")),
+            Some("Collection") => self
+                .store
+                .collection_by_id(resource_id)
+                .and_then(|collection| collection.get("nestedTranslatableResources")),
+            _ => None,
+        };
+        let mut value = json!({"resourceId": resource_id});
+        if let Some(nested_resources) = nested_resources {
+            value["nestedTranslatableResources"] = nested_resources.clone();
+        }
+        value
     }
 
     pub(in crate::proxy) fn localization_translatable_resources_connection(
@@ -1413,7 +1449,12 @@ impl DraftProxy {
                             self.store
                                 .base
                                 .shop_locales
-                                .insert(code.to_string(), item.clone());
+                                .entry(code.to_string())
+                                .and_modify(|existing| {
+                                    *existing =
+                                        shallow_merged_object(existing.clone(), item.clone());
+                                })
+                                .or_insert_with(|| item.clone());
                         }
                     }
                 }
@@ -1465,6 +1506,13 @@ impl DraftProxy {
                 ..ProductRecord::default()
             });
         let mut observed = false;
+        if let Some(nested_resources) = resource.get("nestedTranslatableResources") {
+            product.extra_fields.insert(
+                "nestedTranslatableResources".to_string(),
+                nested_resources.clone(),
+            );
+            observed = true;
+        }
         for entry in content {
             let Some(key) = entry.get("key").and_then(Value::as_str) else {
                 continue;
@@ -1510,6 +1558,13 @@ impl DraftProxy {
             return;
         };
         let mut observed = false;
+        if let Some(nested_resources) = resource.get("nestedTranslatableResources") {
+            object.insert(
+                "nestedTranslatableResources".to_string(),
+                nested_resources.clone(),
+            );
+            observed = true;
+        }
         for entry in content {
             let Some(key) = entry.get("key").and_then(Value::as_str) else {
                 continue;

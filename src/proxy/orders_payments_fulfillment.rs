@@ -13,6 +13,7 @@ pub(in crate::proxy) use self::payments::*;
 pub(in crate::proxy) fn orders_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
     let mut registrations = Vec::new();
     for (parent_type, field_name) in [
+        ("CalculatedOrder", "addedLineItems"),
         ("CalculatedOrder", "lineItems"),
         ("DraftOrder", "lineItems"),
         ("Fulfillment", "events"),
@@ -22,6 +23,8 @@ pub(in crate::proxy) fn orders_field_resolver_registrations() -> Vec<FieldResolv
         ("Order", "events"),
         ("Order", "fulfillmentOrders"),
         ("Order", "lineItems"),
+        ("Order", "localizationExtensions"),
+        ("Order", "localizedFields"),
         ("Order", "returns"),
         ("Order", "shippingLines"),
         ("Refund", "refundLineItems"),
@@ -226,16 +229,74 @@ fn orders_field_nodes(
     let Some(value) = orders_parent_field_value(parent, invocation) else {
         return Vec::new();
     };
+    orders_nodes_from_value(&value)
+}
+
+fn orders_nodes_from_value(value: &Value) -> Vec<Value> {
     if let Some(values) = value.as_array() {
         return values.clone();
     }
-    connection_nodes(&value)
+    if let Some(edges) = value.get("edges").and_then(Value::as_array) {
+        let nodes = edges
+            .iter()
+            .filter_map(|edge| {
+                let mut node = edge.get("node")?.clone();
+                if let (Some(object), Some(cursor)) = (
+                    node.as_object_mut(),
+                    edge.get("cursor").and_then(Value::as_str),
+                ) {
+                    object.insert("__draftProxyCursor".to_string(), json!(cursor));
+                }
+                Some(node)
+            })
+            .collect::<Vec<_>>();
+        if !nodes.is_empty() {
+            return nodes;
+        }
+    }
+    connection_nodes(value)
+}
+
+fn preserve_source_connection_boundary_cursors(
+    connection: &mut Value,
+    source: &Value,
+    source_nodes: &[Value],
+) {
+    let result_nodes = connection_nodes(connection);
+    let result_first_id = result_nodes
+        .first()
+        .and_then(|node| node.get("id"))
+        .and_then(Value::as_str);
+    let result_last_id = result_nodes
+        .last()
+        .and_then(|node| node.get("id"))
+        .and_then(Value::as_str);
+    let source_first_id = source_nodes
+        .first()
+        .and_then(|node| node.get("id"))
+        .and_then(Value::as_str);
+    let source_last_id = source_nodes
+        .last()
+        .and_then(|node| node.get("id"))
+        .and_then(Value::as_str);
+    if result_first_id.is_some() && result_first_id == source_first_id {
+        if let Some(cursor) = source.pointer("/pageInfo/startCursor").cloned() {
+            connection["pageInfo"]["startCursor"] = cursor;
+        }
+    }
+    if result_last_id.is_some() && result_last_id == source_last_id {
+        if let Some(cursor) = source.pointer("/pageInfo/endCursor").cloned() {
+            connection["pageInfo"]["endCursor"] = cursor;
+        }
+    }
 }
 
 fn orders_field_cursor(value: &Value) -> String {
     value
-        .get("id")
+        .get("__draftProxyCursor")
         .and_then(Value::as_str)
+        .or_else(|| value.get("cursor").and_then(Value::as_str))
+        .or_else(|| value.get("id").and_then(Value::as_str))
         .or_else(|| {
             value
                 .pointer("/fulfillmentLineItem/id")
@@ -257,17 +318,22 @@ fn orders_connection_field(
     if invocation.parent_type == "Order" && invocation.field_name == "returns" {
         return Ok(proxy.order_returns_connection_value(&parent, &arguments));
     }
-    let mut nodes = orders_field_nodes(&parent, invocation);
+    let source = orders_parent_field_value(&parent, invocation);
+    let mut nodes = source
+        .as_ref()
+        .map(orders_nodes_from_value)
+        .unwrap_or_default();
+    let source_nodes = nodes.clone();
     if invocation.parent_type == "FulfillmentOrder" && invocation.field_name == "merchantRequests" {
         if let Some(kind) = invocation.arguments.get("kind").and_then(Value::as_str) {
             nodes.retain(|request| request.get("kind").and_then(Value::as_str) == Some(kind));
         }
     }
-    Ok(connection_value_with_args(
-        nodes,
-        &arguments,
-        orders_field_cursor,
-    ))
+    let mut connection = connection_value_with_args(nodes, &arguments, orders_field_cursor);
+    if let Some(source) = source.as_ref() {
+        preserve_source_connection_boundary_cursors(&mut connection, source, &source_nodes);
+    }
+    Ok(connection)
 }
 
 fn orders_list_field(
@@ -275,7 +341,18 @@ fn orders_list_field(
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    let parent = canonical_orders_field_parent(proxy, invocation);
+    // A line item's tax lines are already carried by the canonical parent
+    // supplied by the GraphQL engine. Do not rediscover that parent by ID:
+    // older staged data can contain repeated synthetic LineItem IDs, and an
+    // unrelated order must never replace the value currently being resolved.
+    let parent = if invocation.parent_type == "LineItem"
+        && invocation.field_name == "taxLines"
+        && invocation.parent.get("taxLines").is_some()
+    {
+        invocation.parent.clone()
+    } else {
+        canonical_orders_field_parent(proxy, invocation)
+    };
     let mut values = orders_field_nodes(&parent, invocation);
     if invocation.field_name == "transactions" {
         for argument in ["capturable", "manuallyResolvable"] {
@@ -421,6 +498,20 @@ impl DraftProxy {
                 )
             });
         if shared_catalog_read {
+            let arguments = resolved_arguments_from_json(&invocation.arguments);
+            let has_local_overlay = match invocation.root_name {
+                "order" => resolved_string_field(&arguments, "id").is_some_and(|id| {
+                    self.store.staged.orders.contains_key(&id)
+                        || self.store.staged.orders.is_tombstoned(&id)
+                }),
+                "orders" | "ordersCount" => !self.store.staged.orders.is_empty(),
+                "draftOrder" => resolved_string_field(&arguments, "id").is_some_and(|id| {
+                    self.store.staged.draft_orders.contains_key(&id)
+                        || self.store.staged.draft_orders.is_tombstoned(&id)
+                }),
+                "draftOrders" | "draftOrdersCount" => !self.store.staged.draft_orders.is_empty(),
+                _ => false,
+            };
             let result = self.cached_or_forward_upstream_graphql_result(
                 invocation.request,
                 invocation.response_key,
@@ -430,6 +521,9 @@ impl DraftProxy {
             }
             self.observe_order_read_data(invocation.request, &result.data);
             self.observe_draft_order_read_data(invocation.request, &result.data);
+            if !has_local_overlay {
+                return result.outcome;
+            }
         }
         let RootInvocation {
             response_key,

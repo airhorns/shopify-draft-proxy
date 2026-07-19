@@ -238,6 +238,19 @@ fn web_presence_markets_field(
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
+    let cursors_by_id = invocation
+        .parent
+        .pointer("/markets/edges")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|edge| {
+            Some((
+                edge.pointer("/node/id")?.as_str()?.to_string(),
+                edge.get("cursor")?.as_str()?.to_string(),
+            ))
+        })
+        .collect::<BTreeMap<_, _>>();
     Ok(connection_value_with_args(
         related_markets(
             proxy,
@@ -245,7 +258,13 @@ fn web_presence_markets_field(
             web_presence_market_ids(invocation.parent),
         ),
         &field_arguments(invocation),
-        value_id_cursor,
+        |market| {
+            market
+                .get("id")
+                .and_then(Value::as_str)
+                .and_then(|id| cursors_by_id.get(id).cloned())
+                .unwrap_or_else(|| value_id_cursor(market))
+        },
     ))
 }
 

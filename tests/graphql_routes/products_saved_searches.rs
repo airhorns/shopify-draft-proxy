@@ -8607,7 +8607,14 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
         r#"
         mutation PublishablePayloadShopHydrate($id: ID!, $input: [PublicationInput!]!) {
           publishablePublish(id: $id, input: $input) {
-            publishable { ... on Product { id } }
+            publishable {
+              ... on Product {
+                id
+                publishedOnCurrentPublication
+                availablePublicationsCount { count precision }
+                resourcePublicationsCount { count precision }
+              }
+            }
             shop { id name myshopifyDomain currencyCode publicationCount }
             userErrors { field message }
           }
@@ -8620,6 +8627,15 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
     ));
 
     assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["publishablePublish"]["publishable"],
+        json!({
+            "id": "gid://shopify/Product/10172067414322",
+            "publishedOnCurrentPublication": false,
+            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+        })
+    );
     assert_eq!(
         response.body["data"]["publishablePublish"]["shop"],
         json!({

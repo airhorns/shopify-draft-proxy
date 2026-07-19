@@ -1,17 +1,6 @@
 use super::*;
 
 impl DraftProxy {
-    pub(crate) fn web_presences_query_root(
-        &mut self,
-        invocation: RootInvocation<'_>,
-    ) -> ResolverOutcome<Value> {
-        ResolverOutcome::value(connection_value_with_args(
-            self.store.staged.web_presences.values().cloned().collect(),
-            &resolved_arguments_from_json(&invocation.arguments),
-            value_id_cursor,
-        ))
-    }
-
     /// Hydrate the staged store from a cassette-backed preflight before applying a
     /// web-presence mutation on a cold store, mirroring `fixed_price_mutation_preflight`.
     /// Gated on LiveHybrid so other read modes are untouched, and on a cold markets

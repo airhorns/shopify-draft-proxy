@@ -295,6 +295,18 @@ impl DraftProxy {
 
 fn saved_search_full_value(record: &SavedSearchRecord, api_client_id: &str) -> Value {
     let query = saved_search_read_query_for_api_client(&record.query, api_client_id);
+    saved_search_value_with_query(record, query, api_client_id)
+}
+
+fn saved_search_mutation_value(record: &SavedSearchRecord, api_client_id: &str) -> Value {
+    saved_search_value_with_query(record, record.query.clone(), api_client_id)
+}
+
+fn saved_search_value_with_query(
+    record: &SavedSearchRecord,
+    query: String,
+    api_client_id: &str,
+) -> Value {
     json!({
         "id": record.id,
         "name": record.name,
@@ -417,7 +429,7 @@ fn saved_search_full_mutation_payload(
     user_errors: Vec<Value>,
 ) -> Value {
     json!({
-        "savedSearch": record.map(|record| saved_search_full_value(record, api_client_id)),
+        "savedSearch": record.map(|record| saved_search_mutation_value(record, api_client_id)),
         "userErrors": user_errors
     })
 }

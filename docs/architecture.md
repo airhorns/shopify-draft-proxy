@@ -91,13 +91,19 @@ compatibility paths retain the parsed operation. Multi-root
 mutations containing both local and passthrough roots are rejected before
 execution because splitting would change atomicity and could leak a supported
 write upstream. A fully passthrough document is forwarded once, not once per
-selected root. Overlay reads can cache the caller's complete upstream response
-for reuse by sibling resolvers, while several compatibility paths still use
-root-specific hydration reads. Request setup also retains explicit preflight
-planning for discounts, owner metafields, localization/markets, and generic
-nodes. Consolidating those paths behind one request-scoped upstream snapshot is
-a remaining architectural improvement. Alias canonicalization for observed
-upstream values stays at the GraphQL runtime boundary.
+selected root. Live-hybrid queries that need upstream evidence execute the
+caller's complete document through one request-scoped cache, so mixed
+local/passthrough roots and sibling overlays consume the same Shopify response.
+The runtime keeps the raw, alias-shaped transport value separate from a
+canonicalized observation copy: untouched upstream values bypass local
+child-field resolution, while a value replaced by a store overlay or derived
+fallback is explicitly marked local and continues through the field-resolver
+registry. Request setup retains explicit preflight planning for discounts,
+owner metafields, localization/markets, and generic nodes, but those reads reuse
+the cached complete response when the caller selected the required evidence.
+Narrow secondary hydration documents remain only for data that the caller's
+operation cannot supply, especially mutation prerequisites and relationship
+lookups.
 
 ## GraphQL schema and resolver boundaries
 

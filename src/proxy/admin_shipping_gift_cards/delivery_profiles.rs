@@ -55,9 +55,7 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         let mut arguments = resolved_arguments_from_json(&invocation.arguments);
-        if self.config.read_mode != ReadMode::Snapshot
-            && self.store.staged.observed_shipping_locations.is_empty()
-        {
+        if self.config.read_mode != ReadMode::Snapshot {
             if self.store.staged.locations.is_empty() {
                 let result = self.cached_or_forward_upstream_graphql_result(
                     invocation.request,
@@ -68,7 +66,9 @@ impl DraftProxy {
                 }
                 return result.outcome;
             }
-            self.hydrate_delivery_profile_locations_baseline(invocation.request);
+            if self.store.staged.observed_shipping_locations.is_empty() {
+                self.hydrate_delivery_profile_locations_baseline(invocation.request);
+            }
         }
         arguments
             .entry("sortKey".to_string())

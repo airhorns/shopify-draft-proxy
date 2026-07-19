@@ -447,10 +447,42 @@ impl DraftProxy {
                         | "codeDiscountNode"
                         | "automaticDiscountNode"
                         | "codeDiscountNodeByCode"
+                        | "discountNodes"
+                        | "discountNodesCount"
+                        | "automaticDiscountNodes"
+                        | "codeDiscountNodes"
                         | "discountRedeemCodeBulkCreation"
                 )
             })
         {
+            return false;
+        }
+        let has_connection_root = roots.iter().any(|root| {
+            matches!(
+                root.name.as_str(),
+                "discountNodes" | "automaticDiscountNodes" | "codeDiscountNodes"
+            )
+        });
+        let has_authoritative_tombstone = roots.iter().any(|root| match root.name.as_str() {
+            "discountNode" | "codeDiscountNode" | "automaticDiscountNode" => root
+                .arguments
+                .get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| self.store.staged.discounts.is_tombstoned(id)),
+            "codeDiscountNodeByCode" => root
+                .arguments
+                .get("code")
+                .and_then(Value::as_str)
+                .is_some_and(|code| self.discount_tombstone_matches_code(code)),
+            _ => false,
+        });
+        // A list connection mixed with a cold singular read still needs the
+        // shared upstream snapshot unless an explicit local tombstone makes
+        // the document authoritative. Counts remain eligible for mixed-local
+        // execution: unlike a list they do not need upstream rows to render,
+        // and forwarding their sibling synthetic IDs would leak local identity
+        // into an upstream request.
+        if has_connection_root && !has_authoritative_tombstone {
             return false;
         }
         let cold = roots

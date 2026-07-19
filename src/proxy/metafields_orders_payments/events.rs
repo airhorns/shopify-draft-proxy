@@ -60,7 +60,7 @@ impl DraftProxy {
             ..
         } = invocation;
         if self.config.read_mode == ReadMode::LiveHybrid {
-            return self.forward_upstream_root_outcome(request, response_key);
+            return self.cached_or_forward_upstream_root_outcome(request, response_key);
         }
         ResolverOutcome::value(match root_name {
             "event" => Value::Null,

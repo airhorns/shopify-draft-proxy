@@ -515,10 +515,26 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
         if !self.store.base.bulk_operations_observed {
-            return true;
-        }
-        if !self.store.staged.bulk_operations.is_empty() {
-            return false;
+            let requested = arguments
+                .get("first")
+                .and_then(|value| match value {
+                    ResolvedValue::Int(first) => Some(*first),
+                    _ => None,
+                })
+                .filter(|first| *first >= 0)
+                .map(|first| first as usize);
+            let matching_staged = self
+                .store
+                .staged
+                .bulk_operations
+                .values()
+                .filter(|operation| bulk_operation_matches_query(operation, arguments))
+                .count();
+            // A bounded window that can be filled entirely from locally staged
+            // operations is authoritative. Larger or unbounded windows still
+            // need the upstream catalog so staging one operation does not hide
+            // all pre-existing operations.
+            return requested.is_none_or(|requested| matching_staged < requested);
         }
         let sort_key = bulk_operation_connection_sort_key(arguments);
         self.store
@@ -983,6 +999,8 @@ impl DraftProxy {
         mutation_text: &str,
         jsonl: &str,
     ) -> String {
+        let api_version = crate::admin_graphql::AdminApiVersion::from_route(&request.path)
+            .unwrap_or(crate::admin_graphql::AdminApiVersion::DEFAULT);
         let mut rows = Vec::new();
         for (line_number, line) in jsonl.lines().enumerate() {
             if line.trim().is_empty() {
@@ -1015,7 +1033,12 @@ impl DraftProxy {
                 })
                 .to_string(),
             };
-            let mut row = self.resolve_nested_graphql_request(&row_request).body;
+            let mut row = bulk_project_mutation_response(
+                self.resolve_nested_graphql_request(&row_request).body,
+                mutation_text,
+                &variables,
+                api_version,
+            );
             if let Some(object) = row.as_object_mut() {
                 object.insert("__lineNumber".to_string(), json!(line_number));
             } else {
@@ -1116,6 +1139,48 @@ impl DraftProxy {
                 .insert(id.to_string(), operation);
         }
     }
+}
+
+/// Bulk mutation result rows are GraphQL-as-data in the same way as bulk query
+/// JSONL. The nested compatibility executor intentionally returns canonical
+/// resolver values, so this boundary must apply the selection from the mutation
+/// document before persisting the result artifact.
+fn bulk_project_mutation_response(
+    mut response: Value,
+    mutation_text: &str,
+    variables: &Value,
+    api_version: crate::admin_graphql::AdminApiVersion,
+) -> Value {
+    let variables = variables
+        .as_object()
+        .map(|variables| {
+            variables
+                .iter()
+                .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+                .collect()
+        })
+        .unwrap_or_default();
+    let variables =
+        variables_with_operation_defaults(mutation_text, &variables, None).unwrap_or(variables);
+    let Some(root) = parsed_document(mutation_text, &variables)
+        .and_then(|document| document.root_fields.into_iter().next())
+    else {
+        return response;
+    };
+    let Some(data) = response.get_mut("data").and_then(Value::as_object_mut) else {
+        return response;
+    };
+    let Some(value) = data
+        .get(&root.response_key)
+        .or_else(|| data.get(&root.name))
+        .cloned()
+    else {
+        return response;
+    };
+    let value = bulk_project_value(&value, &root.selection, api_version);
+    data.clear();
+    data.insert(root.response_key, value);
+    response
 }
 
 fn bulk_operation_record_value(spec: BulkOperationRecordSpec<'_>, artifact_url: String) -> Value {

@@ -1,7 +1,7 @@
 //! Storefront request bridge for the independent executable Storefront schema.
 
 use super::graphql_error_compat::shopify_storefront_engine_response;
-use super::graphql_runtime::with_request_owned_proxy;
+use super::graphql_runtime::{resolver_value_for_engine, with_request_owned_proxy};
 use super::storefront::{
     storefront_discovery_argument_error, storefront_request_context,
     StorefrontCustomerAuthLogDetails, STOREFRONT_CART_MUTATION_ROOTS,
@@ -195,7 +195,7 @@ impl StorefrontRootExecutor {
                 },
             )
             .collect();
-        let outcome = handler(
+        let mut outcome = handler(
             &mut proxy,
             RootInvocation {
                 api_surface: ApiSurface::Storefront,
@@ -219,6 +219,8 @@ impl StorefrontRootExecutor {
                 mode: LocalResolverMode::from_execution(registration.execution),
             },
         );
+        outcome.value =
+            resolver_value_for_engine(&outcome.value, &call.field.selection, outcome.value_source);
         for draft in outcome.log_drafts {
             proxy.record_mutation_log_draft(&call.request, &call.query, &call.variables, draft);
         }
@@ -539,7 +541,7 @@ impl DraftProxy {
             _ => StorefrontExecutionMode::Passthrough,
         };
 
-        let engine_query = storefront_engine_query(&graphql_request.query);
+        let engine_query = storefront_engine_query(&graphql_request.query, schema);
         let engine_variables = resolved_variables_json(&graphql_request.variables);
         let engine_operation_name = graphql_request.operation_name;
         let calls = prepared
@@ -726,7 +728,7 @@ fn storefront_root_result(
 /// resolver from the original document, so remove that one directive from the
 /// engine-only copy and remove variables that were used only by it. Every
 /// other directive remains under normal engine validation.
-fn storefront_engine_query(query: &str) -> String {
+fn storefront_engine_query(query: &str, schema: &async_graphql::dynamic::Schema) -> String {
     let Ok(mut document) = parse_query::<String>(query) else {
         return query.to_string();
     };
@@ -763,7 +765,10 @@ fn storefront_engine_query(query: &str) -> String {
         definitions
             .retain(|definition| variable_occurrences(&without_context, &definition.name) > 1);
     }
-    document.format(&Style::default())
+    storefront_graphql::expand_dynamic_union_fragment_spreads(
+        schema,
+        &document.format(&Style::default()),
+    )
 }
 
 fn variable_occurrences(query: &str, variable_name: &str) -> usize {
@@ -782,6 +787,7 @@ fn variable_occurrences(query: &str, variable_name: &str) -> usize {
 #[cfg(test)]
 mod tests {
     use super::storefront_engine_query;
+    use crate::storefront_graphql::{schema, StorefrontApiVersion};
 
     #[test]
     fn engine_copy_removes_in_context_and_its_exclusive_variables() {
@@ -791,7 +797,8 @@ mod tests {
               shop { name @include(if: $include) }
             }
         "#;
-        let engine_query = storefront_engine_query(query);
+        let engine_query =
+            storefront_engine_query(query, schema(StorefrontApiVersion::V2026_04).unwrap());
         assert!(!engine_query.contains("@inContext"));
         assert!(!engine_query.contains("$country"));
         assert!(!engine_query.contains("$language"));

@@ -166,13 +166,15 @@ fn online_store_blog_articles_count_field(
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     let blog_id = online_store_parent_id(invocation, "Blog")?;
-    Ok(count_object(
-        proxy
-            .online_store_records(OnlineStoreKind::Article)
-            .iter()
-            .filter(|article| article["blogId"].as_str() == Some(blog_id))
-            .count(),
-    ))
+    let known_articles = proxy
+        .online_store_records(OnlineStoreKind::Article)
+        .into_iter()
+        .filter(|article| article["blogId"].as_str() == Some(blog_id))
+        .collect::<Vec<_>>();
+    Ok(count_object(proxy.online_store_blog_articles_count(
+        invocation.parent,
+        &known_articles,
+    )))
 }
 
 fn online_store_comment_article_field(
@@ -461,33 +463,53 @@ impl DraftProxy {
                 if let Some(id) = object.get("id").and_then(Value::as_str) {
                     match shopify_gid_resource_type(id) {
                         Some("Blog") if should_stage_observed_blog(node) => {
+                            let node = self.merge_online_store_observation(
+                                OnlineStoreKind::Blog,
+                                id,
+                                node,
+                            );
                             self.stage_online_store_record(
                                 OnlineStoreKind::Blog,
                                 id.to_string(),
-                                normalize_observed_blog(node),
+                                normalize_observed_blog(&node),
                             );
                             next_parent_blog_id = Some(id.to_string());
                         }
                         Some("Page") if should_stage_observed_page(node) => {
+                            let node = self.merge_online_store_observation(
+                                OnlineStoreKind::Page,
+                                id,
+                                node,
+                            );
                             self.stage_online_store_record(
                                 OnlineStoreKind::Page,
                                 id.to_string(),
-                                normalize_observed_page(node),
+                                normalize_observed_page(&node),
                             );
                         }
                         Some("Article") if should_stage_observed_article(node) => {
+                            let node = self.merge_online_store_observation(
+                                OnlineStoreKind::Article,
+                                id,
+                                node,
+                            );
                             self.stage_online_store_record(
                                 OnlineStoreKind::Article,
                                 id.to_string(),
-                                normalize_observed_article(node, parent_blog_id.as_deref()),
+                                normalize_observed_article(&node, parent_blog_id.as_deref()),
                             );
                             next_parent_article_id = Some(id.to_string());
                         }
                         Some("Comment") if should_stage_observed_comment(node) => {
+                            let node = self.merge_online_store_observation(
+                                OnlineStoreKind::Comment,
+                                id,
+                                node,
+                            );
                             self.stage_online_store_record(
                                 OnlineStoreKind::Comment,
                                 id.to_string(),
-                                normalize_observed_comment(node, parent_article_id.as_deref()),
+                                normalize_observed_comment(&node, parent_article_id.as_deref()),
                             );
                         }
                         _ => {}
@@ -503,6 +525,22 @@ impl DraftProxy {
             }
             _ => {}
         }
+    }
+
+    /// A single GraphQL document can observe the same resource through several
+    /// roots with different selections. Preserve fields learned from an earlier,
+    /// richer occurrence when a later occurrence only contains an ID or another
+    /// partial slice of the object.
+    fn merge_online_store_observation(
+        &self,
+        kind: OnlineStoreKind,
+        id: &str,
+        observed: &Value,
+    ) -> Value {
+        kind.records(&self.store.staged)
+            .get(id)
+            .map(|existing| merge_online_store_observed_values(existing, observed))
+            .unwrap_or_else(|| observed.clone())
     }
 
     fn online_store_blog_create(
@@ -1064,7 +1102,8 @@ impl DraftProxy {
             .filter(|article| article["blogId"].as_str() == Some(id))
             .map(|article| self.enriched_article_record(&article))
             .collect::<Vec<_>>();
-        record["articlesCount"] = count_object(articles.len());
+        record["articlesCount"] =
+            count_object(self.online_store_blog_articles_count(&record, &articles));
         record["articles"] = connection_json(articles);
         record
     }
@@ -1077,9 +1116,53 @@ impl DraftProxy {
             .into_iter()
             .filter(|article| article["blogId"].as_str() == Some(id))
             .collect::<Vec<_>>();
-        record["articlesCount"] = count_object(articles.len());
+        record["articlesCount"] =
+            count_object(self.online_store_blog_articles_count(&record, &articles));
         record["articles"] = connection_json(articles);
         record
+    }
+
+    fn online_store_blog_articles_count(&self, blog: &Value, known_articles: &[Value]) -> usize {
+        let Some(blog_id) = blog.get("id").and_then(Value::as_str) else {
+            return known_articles.len();
+        };
+        if is_synthetic_gid(blog_id) {
+            return known_articles.len();
+        }
+
+        let Some(baseline) = blog
+            .get(OBSERVED_BLOG_ARTICLES_COUNT_FIELD)
+            .and_then(Value::as_u64)
+            .or_else(|| blog.pointer("/articlesCount/count").and_then(Value::as_u64))
+            .map(|count| count as usize)
+        else {
+            return known_articles.len();
+        };
+        let synthetic_additions = known_articles
+            .iter()
+            .filter_map(|article| article.get("id").and_then(Value::as_str))
+            .filter(|id| is_synthetic_gid(id))
+            .count();
+        let deleted_baseline = self
+            .store
+            .staged
+            .deleted_online_store_article_ids
+            .iter()
+            .filter(|id| !is_synthetic_gid(id))
+            .filter(|id| {
+                self.store
+                    .staged
+                    .online_store_articles
+                    .get(*id)
+                    .and_then(|article| article.get("blogId"))
+                    .and_then(Value::as_str)
+                    == Some(blog_id)
+            })
+            .count();
+        baseline
+            .saturating_sub(deleted_baseline)
+            .saturating_add(synthetic_additions)
+            .max(known_articles.len())
     }
 
     fn enriched_article_record(&self, record: &Value) -> Value {
@@ -1813,6 +1896,21 @@ fn should_stage_observed_comment(record: &Value) -> bool {
         || record.get("article").is_some()
 }
 
+fn merge_online_store_observed_values(existing: &Value, observed: &Value) -> Value {
+    let (Some(existing), Some(observed)) = (existing.as_object(), observed.as_object()) else {
+        return observed.clone();
+    };
+    let mut merged = existing.clone();
+    for (key, value) in observed {
+        let value = merged
+            .get(key)
+            .map(|current| merge_online_store_observed_values(current, value))
+            .unwrap_or_else(|| value.clone());
+        merged.insert(key.clone(), value);
+    }
+    Value::Object(merged)
+}
+
 fn string_value(record: &Value, key: &str) -> Option<String> {
     record.get(key).and_then(Value::as_str).map(str::to_string)
 }
@@ -1845,6 +1943,16 @@ fn normalize_observed_blog(record: &Value) -> Value {
     }
     if record.get("articlesCount").is_none() {
         record["articlesCount"] = count_object(articles.len());
+    }
+    if let Some(count) = record
+        .pointer("/articlesCount/count")
+        .and_then(Value::as_u64)
+    {
+        let previous = record
+            .get(OBSERVED_BLOG_ARTICLES_COUNT_FIELD)
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        record[OBSERVED_BLOG_ARTICLES_COUNT_FIELD] = json!(previous.max(count));
     }
     if record.get("articles").is_none() {
         record["articles"] = connection_json(Vec::new());

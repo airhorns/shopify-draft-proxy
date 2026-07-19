@@ -79,17 +79,20 @@ impl DraftProxy {
         if self.store.staged.segments.is_empty() {
             // With no local segment lifecycle effects, Shopify owns the
             // catalog, count, detail, cursors, and suggestion taxonomy.
-            return self.forward_upstream_root_outcome(request, response_key);
+            return self
+                .cached_or_forward_upstream_graphql_result(request, response_key)
+                .outcome;
         }
         let mut upstream_body = None;
         if self.segment_read_needs_upstream_data(fields) {
-            let outcome = self.forward_upstream_root_outcome(request, response_key);
-            if !outcome.errors.is_empty() {
-                return outcome;
+            // Segment reads frequently repeat the same public root under several
+            // aliases with different filters. Reuse one execution of the caller's
+            // complete document so each alias observes its own upstream window.
+            let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+            if !result.outcome.errors.is_empty() {
+                return result.outcome;
             }
-            let body = json!({
-                "data": { (response_key): outcome.value }
-            });
+            let body = json!({ "data": result.data });
             self.observe_upstream_segment_read_data(fields, &body);
             upstream_body = Some(body);
         }

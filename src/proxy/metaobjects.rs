@@ -75,9 +75,6 @@ fn metaobject_field_by_key(
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    if let Some(value) = materialized_metaobject_field(invocation) {
-        return Ok(value);
-    }
     let arguments = metaobject_field_arguments(invocation);
     let key = resolved_string_field(&arguments, "key").unwrap_or_default();
     Ok(invocation
@@ -3239,9 +3236,11 @@ impl DraftProxy {
         let Some(data) = result.data.as_object_mut() else {
             return result.outcome;
         };
+        let mut canonical_fallback = None;
         if !data.contains_key(&field.response_key) {
             if let Some(value) = data.get(&field.name).cloned() {
                 data.insert(field.response_key.clone(), value);
+                canonical_fallback = data.get(&field.response_key).cloned();
             }
         }
         let upstream_nodes = metaobject_nodes_from_upstream_data(data);
@@ -3274,14 +3273,22 @@ impl DraftProxy {
                 _ => Value::Null,
             };
             data.insert(field.response_key.clone(), fallback);
+            canonical_fallback = data.get(&field.response_key).cloned();
         }
         if let Some(value) = self.metaobject_live_hybrid_overlay_value(field, request, data) {
-            data.insert(field.response_key.clone(), value);
+            data.insert(field.response_key.clone(), value.clone());
+            // The overlay is a canonical domain value, even when it was merged
+            // with an upstream connection. Nested argument-bearing fields must
+            // therefore continue through the local field resolver registry.
+            result.outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
+            result.outcome.value = value;
+        } else if let Some(value) = canonical_fallback {
+            // Some hydration transports return a canonical root key or only a
+            // sibling `nodes` payload. That derived value is local resolver
+            // input, not an alias-shaped Shopify transport result.
+            result.outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
+            result.outcome.value = value;
         }
-        result.outcome.value = data
-            .get(&field.response_key)
-            .cloned()
-            .unwrap_or(Value::Null);
         result.outcome
     }
 
@@ -5258,6 +5265,7 @@ impl DraftProxy {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Mutex};
 
     fn test_proxy() -> DraftProxy {
         DraftProxy::new(Config {
@@ -5352,6 +5360,63 @@ mod tests {
 
     fn canonical_gid(id: &Value) -> String {
         id.as_str().unwrap().split('?').next().unwrap().to_string()
+    }
+
+    #[test]
+    fn live_hybrid_metaobject_preserves_repeated_upstream_field_aliases() {
+        let calls = Arc::new(Mutex::new(0));
+        let observed_calls = Arc::clone(&calls);
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_upstream_transport(move |_| {
+            *observed_calls.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: json!({
+                    "data": {
+                        "parent": {
+                            "fields": [
+                                {"key": "single_ref", "value": "single"},
+                                {"key": "list_ref", "value": "list"}
+                            ],
+                            "singleRef": {"key": "single_ref", "value": "single"},
+                            "listRef": {"key": "list_ref", "value": "list"}
+                        }
+                    }
+                }),
+            }
+        });
+
+        let response = proxy.process_request(graphql_request(
+            r#"
+            query MetaobjectAliases($id: ID!) {
+              parent: metaobject(id: $id) {
+                fields { key value }
+                singleRef: field(key: "single_ref") { key value }
+                listRef: field(key: "list_ref") { key value }
+              }
+            }
+            "#,
+            json!({"id": "gid://shopify/Metaobject/1"}),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(*calls.lock().unwrap(), 1);
+        assert_eq!(
+            response.body["data"]["parent"]["singleRef"],
+            json!({"key": "single_ref", "value": "single"})
+        );
+        assert_eq!(
+            response.body["data"]["parent"]["listRef"],
+            json!({"key": "list_ref", "value": "list"})
+        );
     }
 
     #[test]

@@ -30,6 +30,7 @@ pub(in crate::proxy) const METAFIELDS_SET_INPUT_LIMIT: usize = 25;
 pub(in crate::proxy) const API_CLIENT_ID_HEADER: &str = "x-shopify-draft-proxy-api-client-id";
 pub(in crate::proxy) const ACCESS_SCOPES_HEADER: &str = "x-shopify-draft-proxy-access-scopes";
 const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
+const OBSERVED_COLLECTION_BASELINE_FIELD: &str = "__shopifyDraftProxyObservedCollectionBaseline";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReadMode {
@@ -1846,6 +1847,13 @@ impl Store {
     }
 
     fn stage_observed_product(&mut self, product: ProductRecord) {
+        // Upstream reads describe base state and must never resurrect a local
+        // read-after-delete tombstone. This guard belongs at the observation
+        // boundary so every hydration path preserves staged deletion
+        // precedence, even when a mixed node batch has not cached this ID yet.
+        if self.product_is_tombstoned(&product.id) {
+            return;
+        }
         let merged = match self.product_by_id(&product.id).cloned() {
             Some(existing) => merge_observed_product(existing, product),
             None => product,
@@ -1877,6 +1885,11 @@ impl Store {
             .iter()
             .map(product_summary_json)
             .collect::<Vec<_>>();
+        let preserve_observed_products = collection
+            .get(OBSERVED_COLLECTION_BASELINE_FIELD)
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+            && collection.get("products").is_some();
         let mut collection_record = self
             .staged
             .collections
@@ -1899,7 +1912,9 @@ impl Store {
                 collection_record.insert(key.clone(), value.clone());
             }
         }
-        if !product_nodes.is_empty() || !collection_record.contains_key("products") {
+        if !preserve_observed_products
+            && (!product_nodes.is_empty() || !collection_record.contains_key("products"))
+        {
             collection_record.insert(
                 "products".to_string(),
                 connection_json(product_nodes.clone()),
@@ -1911,10 +1926,12 @@ impl Store {
         collection_record
             .entry("manualProducts".to_string())
             .or_insert_with(|| connection_json(product_nodes));
-        collection_record.insert(
-            "productsCount".to_string(),
-            count_object(normalized_products.len()),
-        );
+        if !preserve_observed_products || !collection_record.contains_key("productsCount") {
+            collection_record.insert(
+                "productsCount".to_string(),
+                count_object(normalized_products.len()),
+            );
+        }
         self.staged
             .collections
             .insert(collection_id, Value::Object(collection_record));
@@ -2483,6 +2500,8 @@ struct ExecutionSession {
     localization_context_preflighted: bool,
     markets_query_preflighted: bool,
     node_hydration: Option<RequestNodeHydration>,
+    owner_metafield_read_ids: BTreeSet<String>,
+    owner_metafield_missing_ids: BTreeSet<String>,
     entity_cache: RequestEntityCache,
 }
 

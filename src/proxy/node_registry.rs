@@ -85,6 +85,11 @@ impl DraftProxy {
                 &outcome.value,
                 invocation.request,
             );
+            // The node loader has overlaid canonical local entities onto the
+            // transport result. Keep those entities on the local resolver path
+            // so domain fields such as InventoryItem.variant can resolve from
+            // the store instead of being mistaken for absent upstream keys.
+            outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
             return outcome;
         }
 
@@ -103,12 +108,23 @@ impl DraftProxy {
                 invocation.response_key,
             );
             if result.transport_succeeded {
+                if let Some(value) = result
+                    .data
+                    .get(invocation.response_key)
+                    .or_else(|| result.data.get(invocation.root_name))
+                    .cloned()
+                {
+                    self.observe_nodes_data(&json!({
+                        "data": { invocation.root_name: value }
+                    }));
+                }
                 result.outcome.value = self.node_value_with_upstream_fallback(
                     invocation.root_name,
                     &arguments,
                     &result.outcome.value,
                     invocation.request,
                 );
+                result.outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
             }
             return result.outcome;
         }

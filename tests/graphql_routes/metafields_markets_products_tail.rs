@@ -8743,6 +8743,114 @@ fn markets_live_hybrid_merges_cold_family_baseline_with_staged_delta() {
 }
 
 #[test]
+fn market_web_presence_node_preserves_observed_nested_market_cursor() {
+    let market_id = "gid://shopify/Market/35532308713";
+    let presence_id = "gid://shopify/MarketWebPresence/33131921641";
+    let opaque_cursor = "opaque-shopify-market-cursor";
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *calls.lock().unwrap() += 1;
+            let request_body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let market = json!({
+                "__typename": "Market",
+                "id": market_id,
+                "name": "Observed market",
+                "handle": "observed-market",
+                "status": "ACTIVE",
+                "type": "REGION"
+            });
+            let markets = json!({
+                "nodes": [market.clone()],
+                "edges": [{ "cursor": opaque_cursor, "node": market }],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": opaque_cursor,
+                    "endCursor": opaque_cursor
+                }
+            });
+            let presence = json!({
+                "__typename": "MarketWebPresence",
+                "id": presence_id,
+                "subfolderSuffix": null,
+                "domain": null,
+                "rootUrls": [],
+                "defaultLocale": null,
+                "alternateLocales": [],
+                "markets": markets
+            });
+            let data = if request_body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("nodes(ids:"))
+            {
+                json!({ "nodes": [presence] })
+            } else {
+                json!({
+                    "webPresences": {
+                        "nodes": [presence.clone()],
+                        "edges": [{ "cursor": "presence-cursor", "node": presence }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "presence-cursor",
+                            "endCursor": "presence-cursor"
+                        }
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        "query HydratePresence { webPresences(first: 1) { nodes { id } } }",
+        json!({}),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(
+        hydrate.body["data"]["webPresences"]["nodes"][0]["id"],
+        presence_id
+    );
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadHydratedPresenceNode($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on MarketWebPresence {
+              markets(first: 5) {
+                edges { cursor node { id } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "ids": [presence_id] }),
+    ));
+    assert_eq!(node.status, 200);
+    assert_eq!(node.body.get("errors"), None, "{}", node.body);
+    assert_eq!(
+        node.body["data"]["nodes"][0]["markets"],
+        json!({
+            "edges": [{ "cursor": opaque_cursor, "node": { "id": market_id } }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": opaque_cursor,
+                "endCursor": opaque_cursor
+            }
+        })
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 2);
+}
+
+#[test]
 fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,

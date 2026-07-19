@@ -483,7 +483,24 @@ pub(in crate::proxy) fn storefront_field_resolver_registrations() -> Vec<FieldRe
                 "zip",
             ],
         ),
-        ("Order", &["email", "id", "name"]),
+        (
+            "Order",
+            &[
+                "currencyCode",
+                "customerUrl",
+                "email",
+                "financialStatus",
+                "fulfillmentStatus",
+                "id",
+                "name",
+                "orderNumber",
+                "phone",
+                "processedAt",
+                "subtotalPriceV2",
+                "totalPrice",
+                "totalPriceV2",
+            ],
+        ),
         (
             "Product",
             &[
@@ -1190,7 +1207,17 @@ pub(in crate::proxy) fn storefront_mailing_address_formatted_field(
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    let mut lines = Vec::new();
+    let mut lines = invocation
+        .parent
+        .get("formatted")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_else(|| {
+            storefront_formatted_address_lines(invocation.parent)
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+        });
     if invocation
         .arguments
         .get("withName")
@@ -1198,8 +1225,8 @@ pub(in crate::proxy) fn storefront_mailing_address_formatted_field(
         .unwrap_or(false)
     {
         if let Some(name) = invocation.parent.get("name").and_then(Value::as_str) {
-            if !name.is_empty() {
-                lines.push(json!(name));
+            if !name.is_empty() && lines.first().and_then(Value::as_str) != Some(name) {
+                lines.insert(0, json!(name));
             }
         }
     }
@@ -1210,18 +1237,18 @@ pub(in crate::proxy) fn storefront_mailing_address_formatted_field(
         .unwrap_or(true)
     {
         if let Some(company) = invocation.parent.get("company").and_then(Value::as_str) {
-            if !company.is_empty() {
-                lines.push(json!(company));
+            if !company.is_empty() && !lines.iter().any(|line| line.as_str() == Some(company)) {
+                let index = usize::from(
+                    invocation
+                        .arguments
+                        .get("withName")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
+                );
+                lines.insert(index.min(lines.len()), json!(company));
             }
         }
     }
-    lines.extend(
-        storefront_formatted_address_lines(invocation.parent)
-            .as_array()
-            .into_iter()
-            .flatten()
-            .cloned(),
-    );
     Ok(Value::Array(lines))
 }
 
@@ -1347,15 +1374,7 @@ fn storefront_variant_image_field(
     Ok(proxy
         .store
         .product_by_id(&variant.product_id)
-        .and_then(|product| {
-            variant.media_ids.iter().find_map(|media_id| {
-                product
-                    .media
-                    .iter()
-                    .find(|media| media.get("id").and_then(Value::as_str) == Some(media_id))
-                    .and_then(storefront_product_image_value_from_media)
-            })
-        })
+        .map(|product| storefront_variant_image_value(variant, product))
         .unwrap_or(Value::Null))
 }
 
@@ -6212,15 +6231,7 @@ pub(in crate::proxy) fn storefront_product_variant_value(
         pricing.currency_code = currency_code.to_string();
     }
     let image = product
-        .and_then(|product| {
-            variant.media_ids.iter().find_map(|media_id| {
-                product
-                    .media
-                    .iter()
-                    .find(|media| media.get("id").and_then(Value::as_str) == Some(media_id))
-                    .and_then(storefront_product_image_value_from_media)
-            })
-        })
+        .map(|product| storefront_variant_image_value(variant, product))
         .unwrap_or(Value::Null);
     let empty_connection = || connection_json(Vec::new());
     json!({
@@ -6263,6 +6274,31 @@ pub(in crate::proxy) fn storefront_product_variant_value(
         "weight": variant.extra_fields.get("weight").cloned().unwrap_or(Value::Null),
         "weightUnit": variant.extra_fields.get("weightUnit").cloned().unwrap_or_else(|| json!("KILOGRAMS")),
     })
+}
+
+fn storefront_variant_image_value(
+    variant: &ProductVariantRecord,
+    product: &ProductRecord,
+) -> Value {
+    variant
+        .media_ids
+        .iter()
+        .find_map(|media_id| {
+            product
+                .media
+                .iter()
+                .find(|media| media.get("id").and_then(Value::as_str) == Some(media_id))
+                .and_then(storefront_product_image_value_from_media)
+        })
+        // Shopify's Storefront ProductVariant.image falls back to the
+        // product image when the variant has no explicitly attached image.
+        .or_else(|| {
+            product
+                .media
+                .iter()
+                .find_map(storefront_product_image_value_from_media)
+        })
+        .unwrap_or(Value::Null)
 }
 
 fn storefront_variant_matching_json_options<'a>(

@@ -8,9 +8,11 @@ pub(in crate::proxy) fn owner_metafield_field_resolver_registrations(
         "DeliveryCustomization",
         "FulfillmentConstraintRule",
         "Location",
+        "Order",
         "PaymentCustomization",
         "Shop",
         "Validation",
+        "Company",
     ]
     .into_iter()
     .flat_map(|parent_type| {
@@ -671,6 +673,60 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
+        let requested_owner_ids = fields
+            .iter()
+            .filter(|field| {
+                Self::owner_field_selects_metafields_at_root(&field.name, &field.selection)
+            })
+            .map(|field| self.owner_field_id(field, variables))
+            .filter(|owner_id| !owner_id.is_empty())
+            .collect::<Vec<_>>();
+        self.execution_session
+            .owner_metafield_read_ids
+            .extend(requested_owner_ids);
+        // A read operation already contains the exact aliases, arguments, and
+        // windows needed to hydrate its owner fields. Execute that document
+        // once through the request cache instead of synthesizing a second
+        // query, then observe each canonical owner before the engine resolves
+        // local overlays.
+        let response = self.cached_or_forward_upstream_response(request);
+        if (200..300).contains(&response.status) {
+            let observed = fields
+                .iter()
+                .filter(|field| {
+                    Self::owner_field_selects_metafields_at_root(&field.name, &field.selection)
+                })
+                .filter_map(|field| {
+                    let owner_id = self.owner_field_id(field, variables);
+                    let node = response
+                        .body
+                        .get("data")
+                        .and_then(Value::as_object)
+                        .and_then(|data| data.get(&field.response_key))?;
+                    Some((owner_id, node.clone()))
+                })
+                .collect::<Vec<_>>();
+            for (owner_id, node) in observed {
+                if !owner_id.is_empty() {
+                    self.execution_session
+                        .owner_metafield_hydrated_ids
+                        .insert(owner_id.clone());
+                    if node.is_null() {
+                        self.execution_session
+                            .owner_metafield_missing_ids
+                            .insert(owner_id);
+                        continue;
+                    }
+                }
+                if node.is_object() {
+                    self.stage_observed_owner_metafield_node(&node);
+                }
+            }
+            return;
+        }
+
+        // Preserve the narrow hydration fallback for transports that cannot
+        // execute the complete read document.
         let api_client_id = request_app_namespace_api_client_id(request);
         let mut shape = OwnerMetafieldHydrationShape::default();
         let ids = fields
@@ -934,18 +990,19 @@ impl DraftProxy {
         {
             return false;
         }
+        if owner_id.is_empty() || is_synthetic_gid(owner_id) {
+            return false;
+        }
         match root_field {
-            "product" => self.store.product_by_id(owner_id).is_none(),
-            "productVariant" => self.store.product_variant_by_id(owner_id).is_none(),
-            "collection" => !self.store.staged.collections.contains_key(owner_id),
-            "customer" => !self.store.staged.customers.contains_key(owner_id),
-            "order" => !self.store.staged.orders.contains_key(owner_id),
-            "company" => !self.store.staged.b2b_companies.contains_key(owner_id),
-            "shop" => {
-                !owner_id.is_empty()
-                    && !self.owner_has_metafield_local_effects(owner_id)
-                    && self.store.base.shop.get("id").and_then(Value::as_str) != Some(owner_id)
-            }
+            // A partially observed entity is not proof that the metafield
+            // selection requested by this operation is authoritative. Real
+            // Shopify IDs remain hydratable; local tombstones still win.
+            "product" => !self.store.product_is_tombstoned(owner_id),
+            "productVariant" => !self.store.product_variants.staged.is_tombstoned(owner_id),
+            "collection" => !self.store.collection_is_deleted(owner_id),
+            "customer" => !self.store.staged.customers.is_tombstoned(owner_id),
+            "order" => !self.store.staged.orders.is_tombstoned(owner_id),
+            "company" | "shop" => true,
             _ => false,
         }
     }
@@ -1413,6 +1470,16 @@ impl DraftProxy {
         if namespace.is_empty() || key.is_empty() {
             return Value::Null;
         }
+        let owner_id = parent.get("id").and_then(Value::as_str);
+        if owner_id.is_some_and(|owner_id| {
+            self.owner_metafield_has_local_effect(owner_id, &namespace, &key)
+        }) {
+            return self.canonical_owner_metafield_value(
+                owner_id.unwrap_or_default(),
+                arguments,
+                api_client_id,
+            );
+        }
         let embedded = parent["metafields"]
             .as_array()
             .cloned()
@@ -1431,9 +1498,7 @@ impl DraftProxy {
         if let Some(metafield) = embedded {
             return metafield;
         }
-        parent
-            .get("id")
-            .and_then(Value::as_str)
+        owner_id
             .map(|owner_id| {
                 self.canonical_owner_metafield_value(owner_id, arguments, api_client_id)
             })
@@ -1479,59 +1544,72 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         api_client_id: Option<&str>,
     ) -> Value {
-        if parent.get("metafields").is_none() {
-            return parent
-                .get("id")
-                .and_then(Value::as_str)
-                .map(|owner_id| {
-                    self.canonical_owner_metafields_connection_value(
-                        owner_id,
-                        arguments,
-                        api_client_id,
-                    )
+        let owner_id = parent.get("id").and_then(Value::as_str);
+        if let Some(owner_id) = owner_id {
+            if self.owner_has_metafield_local_effects(owner_id) {
+                return self.canonical_owner_metafields_connection_value(
+                    owner_id,
+                    arguments,
+                    api_client_id,
+                );
+            }
+        }
+        if let Some(connection) = parent.get("metafields").filter(|value| value.is_object()) {
+            // With no local overlay, the observed connection is authoritative
+            // for its exact arguments, cursors, and pageInfo. Let the GraphQL
+            // engine project it without rebuilding transport metadata.
+            return connection.clone();
+        }
+        if let Some(records) = parent.get("metafields").and_then(Value::as_array) {
+            // Local mutation payloads commonly retain relationship source data
+            // as a canonical record list. Normalize that list to the schema's
+            // connection type; only upstream connection objects are safe to
+            // return verbatim.
+            let namespace = owner_metafields_connection_namespace(arguments, api_client_id);
+            let keys =
+                owner_metafields_connection_keys_with_app_namespace(arguments, api_client_id);
+            let mut records = records
+                .iter()
+                .filter(|metafield| {
+                    namespace.as_deref().is_none_or(|namespace| {
+                        metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
+                    })
                 })
-                .unwrap_or_else(|| connection_json(Vec::new()));
-        }
-
-        let namespace = owner_metafields_connection_namespace(arguments, api_client_id);
-        let keys = owner_metafields_connection_keys_with_app_namespace(arguments, api_client_id);
-        let mut records = parent["metafields"]
-            .as_array()
-            .cloned()
-            .unwrap_or_else(|| connection_nodes(&parent["metafields"]))
-            .into_iter()
-            .filter(|metafield| {
-                namespace.as_deref().is_none_or(|namespace| {
-                    metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
+                .filter(|metafield| {
+                    keys.as_deref().is_none_or(|keys| {
+                        owner_metafield_key_position(metafield, keys) != usize::MAX
+                    })
                 })
-            })
-            .filter(|metafield| {
-                keys.as_deref()
-                    .is_none_or(|keys| owner_metafield_key_position(metafield, keys) != usize::MAX)
-            })
-            .collect::<Vec<_>>();
-        if let Some(keys) = keys.as_deref() {
-            records.sort_by_key(|metafield| owner_metafield_key_position(metafield, keys));
+                .cloned()
+                .collect::<Vec<_>>();
+            if let Some(keys) = keys.as_deref() {
+                records.sort_by_key(|metafield| owner_metafield_key_position(metafield, keys));
+            }
+            if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+                records.reverse();
+            }
+            let (records, page_info) = connection_window(&records, arguments, |metafield| {
+                metafield_cursor(metafield).unwrap_or_default()
+            });
+            let records = if keys.is_some() {
+                records
+                    .into_iter()
+                    .map(owner_metafield_with_connection_key)
+                    .collect()
+            } else {
+                records
+            };
+            return connection_json_with_cursor(
+                records,
+                |_, metafield| metafield_cursor(metafield).unwrap_or_default(),
+                page_info,
+            );
         }
-        if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
-            records.reverse();
-        }
-        let (records, page_info) = connection_window(&records, arguments, |metafield| {
-            metafield_cursor(metafield).unwrap_or_default()
-        });
-        let records = if keys.is_some() {
-            records
-                .into_iter()
-                .map(owner_metafield_with_connection_key)
-                .collect()
-        } else {
-            records
-        };
-        connection_json_with_cursor(
-            records,
-            |_, metafield| metafield_cursor(metafield).unwrap_or_default(),
-            page_info,
-        )
+        owner_id
+            .map(|owner_id| {
+                self.canonical_owner_metafields_connection_value(owner_id, arguments, api_client_id)
+            })
+            .unwrap_or_else(|| connection_json(Vec::new()))
     }
 
     pub(in crate::proxy) fn canonical_metafield_reference_value(
@@ -2040,14 +2118,29 @@ mod tests {
             snapshot_path: None,
         })
         .with_upstream_transport(move |request| {
-            calls
-                .lock()
-                .unwrap()
-                .push(serde_json::from_str(&request.body).unwrap());
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let product_id = body["variables"]["productId"].clone();
+            let collection_id = body["variables"]["collectionId"].clone();
+            calls.lock().unwrap().push(body);
             Response {
                 status: 200,
                 headers: BTreeMap::new(),
-                body: json!({"data": {"nodes": []}}),
+                body: json!({
+                    "data": {
+                        "firstProduct": {
+                            "id": product_id,
+                            "metafields": { "nodes": [] }
+                        },
+                        "repeatedProduct": {
+                            "id": product_id,
+                            "metafield": null
+                        },
+                        "collection": {
+                            "id": collection_id,
+                            "metafield": null
+                        }
+                    }
+                }),
             }
         })
     }
@@ -2090,27 +2183,17 @@ mod tests {
 
         assert_eq!(response.status, 200);
         let calls = calls.lock().unwrap();
-        assert_eq!(calls.len(), 1);
+        assert_eq!(calls.len(), 1, "unexpected upstream calls: {calls:#?}");
         let body = &calls[0];
-        assert_eq!(body["operationName"], "OwnerMetafieldsHydrateNodes");
         assert_eq!(
-            body["variables"]["ids"],
-            json!([collection_id, product_id]),
-            "duplicate owner ids should be removed before hydration"
+            body["variables"],
+            json!({"productId": product_id, "collectionId": collection_id})
         );
-        assert_eq!(body["variables"]["metafields0First"], json!(2));
-        assert_eq!(body["variables"]["metafields0Namespace"], json!("custom"));
-        assert_eq!(body["variables"]["metafield0Namespace"], json!("custom"));
-        assert_eq!(body["variables"]["metafield0Key"], json!("color"));
-        assert_eq!(body["variables"]["metafield1Key"], json!("featured"));
+        assert!(body.get("operationName").is_none());
         let query = body["query"].as_str().unwrap();
-        assert!(query.contains(
-            "metafields0: metafields(first: $metafields0First, namespace: $metafields0Namespace)"
-        ));
-        assert!(query.contains(
-            "metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key)"
-        ));
-        assert!(!query.contains("first: 250"));
-        assert!(!query.contains("variants("));
+        assert!(query.contains("query ReadOwnerMetafields"));
+        assert!(query.contains("metafields(first: 2, namespace: \"custom\")"));
+        assert!(query.contains("metafield(namespace: \"custom\", key: \"color\")"));
+        assert!(query.contains("metafield(namespace: \"custom\", key: \"featured\")"));
     }
 }

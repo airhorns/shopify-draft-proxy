@@ -16,10 +16,10 @@ use crate::resolver_registry::{
     FieldResolverImplementation, GraphqlApiVersion, LocalResolverMode, ResolverOutcome,
 };
 
-/// Normalize an upstream value back to schema field names before domain code
-/// observes it. Aliases belong to the caller-facing transport response; the
-/// request cache and stores own canonical entity values.
-fn canonicalize_upstream_value(value: &Value, selections: &[SelectedField]) -> Value {
+/// Normalize a resolver value back to schema field names. Aliases belong to
+/// the caller-facing GraphQL response; domain values, request caches, and
+/// stores own canonical entity values.
+fn canonicalize_resolver_value(value: &Value, selections: &[SelectedField]) -> Value {
     if value.is_null() || selections.is_empty() {
         return value.clone();
     }
@@ -27,21 +27,25 @@ fn canonicalize_upstream_value(value: &Value, selections: &[SelectedField]) -> V
         return Value::Array(
             values
                 .iter()
-                .map(|value| canonicalize_upstream_value(value, selections))
+                .map(|value| canonicalize_resolver_value(value, selections))
                 .collect(),
         );
     }
     let Some(object) = value.as_object() else {
         return value.clone();
     };
+    let canonical_field_names = selections
+        .iter()
+        .map(|selection| selection.name.as_str())
+        .collect::<BTreeSet<_>>();
     // Preserve extra canonical fields supplied by internal/test transports.
     // Shopify itself only returns selected fields, but a hydration transport
     // may deliberately provide a richer record for the store to observe.
     let mut canonical = object.clone();
     for selection in selections {
         let Some(selected) = object
-            .get(&selection.response_key)
-            .or_else(|| object.get(&selection.name))
+            .get(&selection.name)
+            .or_else(|| object.get(&selection.response_key))
         else {
             continue;
         };
@@ -51,18 +55,34 @@ fn canonicalize_upstream_value(value: &Value, selections: &[SelectedField]) -> V
             Value::Array(
                 values
                     .iter()
-                    .map(|value| canonicalize_upstream_value(value, &selection.selection))
+                    .map(|value| canonicalize_resolver_value(value, &selection.selection))
                     .collect(),
             )
         } else {
-            canonicalize_upstream_value(selected, &selection.selection)
+            canonicalize_resolver_value(selected, &selection.selection)
         };
-        if selection.response_key != selection.name {
+        if selection.response_key != selection.name
+            && !canonical_field_names.contains(selection.response_key.as_str())
+        {
             canonical.remove(&selection.response_key);
         }
         canonical.insert(selection.name.clone(), selected);
     }
     Value::Object(canonical)
+}
+
+/// Keep transport values alias-shaped so repeated fields with different
+/// arguments remain distinct. Only locally produced domain values cross the
+/// canonicalization boundary before the GraphQL engine projects them.
+pub(in crate::proxy) fn resolver_value_for_engine(
+    value: &Value,
+    selections: &[SelectedField],
+    source: ResolverValueSource,
+) -> Value {
+    match source {
+        ResolverValueSource::Local => canonicalize_resolver_value(value, selections),
+        ResolverValueSource::Upstream => value.clone(),
+    }
 }
 
 /// Keep caller-facing root response keys so upstream outcomes can still be
@@ -80,7 +100,7 @@ fn canonicalize_upstream_data(
             .map(|(response_key, value)| {
                 let value = selections.get(response_key).map_or_else(
                     || value.clone(),
-                    |selections| canonicalize_upstream_value(value, selections),
+                    |selections| canonicalize_resolver_value(value, selections),
                 );
                 (response_key.clone(), value)
             })
@@ -301,12 +321,19 @@ impl RootFieldExecutor for ProxyRootExecutor {
                     }
                     *cached = Some(outcomes);
                 }
-                let outcome = cached
+                let mut outcome = cached
                     .as_ref()
                     .expect("delivery-promise outcomes should be cached")
                     .get(&response_key)
                     .cloned()
                     .unwrap_or_else(|| ResolverOutcome::value(Value::Null));
+                if let Some(call) = self.root_calls.get(&response_key) {
+                    outcome.value = resolver_value_for_engine(
+                        &outcome.value,
+                        &call.field.selection,
+                        outcome.value_source,
+                    );
+                }
                 self.resolved_responses
                     .lock()
                     .map_err(|_| "Admin GraphQL resolved response lock was poisoned".to_string())?
@@ -430,12 +457,14 @@ impl RootFieldExecutor for ProxyRootExecutor {
                     },
                 );
                 let ResolverOutcome {
-                    value,
+                    value: raw_value,
                     mut errors,
                     extensions,
                     log_drafts,
                     value_source,
                 } = outcome;
+                let value =
+                    resolver_value_for_engine(&raw_value, &call.field.selection, value_source);
                 if let Some(location) = self.root_locations.get(&response_key) {
                     for error in &mut errors {
                         if error
@@ -461,14 +490,28 @@ impl RootFieldExecutor for ProxyRootExecutor {
                         draft,
                     );
                 }
+                let resolved_response = if value_source == ResolverValueSource::Upstream {
+                    proxy
+                        .execution_session
+                        .upstream_query_response
+                        .clone()
+                        .unwrap_or_else(|| {
+                            resolver_outcome_wire_response(
+                                &response_key,
+                                &value,
+                                &errors,
+                                &extensions,
+                            )
+                        })
+                } else {
+                    resolver_outcome_wire_response(&response_key, &value, &errors, &extensions)
+                };
                 drop(proxy);
                 self.resolved_responses
                     .lock()
                     .map_err(|_| "Admin GraphQL resolved response lock was poisoned".to_string())?
                     .entry(response_key.clone())
-                    .or_insert_with(|| {
-                        resolver_outcome_wire_response(&response_key, &value, &errors, &extensions)
-                    });
+                    .or_insert(resolved_response);
                 self.resolved_extensions
                     .lock()
                     .map_err(|_| "Admin GraphQL resolver extensions lock was poisoned".to_string())?
@@ -483,7 +526,18 @@ impl RootFieldExecutor for ProxyRootExecutor {
                 .proxy
                 .lock()
                 .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
-            proxy.resolve_prevalidated_graphql_root_call(&call)
+            if call.operation.operation_type == OperationType::Query
+                && proxy.config.read_mode != ReadMode::Snapshot
+            {
+                // A mixed query may combine locally registered overlays with
+                // unsupported Shopify roots. Execute the caller's complete
+                // document once and let every root consume its slice from the
+                // request cache; isolated fallback documents lose sibling
+                // aliases, shared errors, and exact cassette identity.
+                proxy.cached_or_forward_upstream_response(&self.original_request)
+            } else {
+                proxy.resolve_prevalidated_graphql_root_call(&call)
+            }
         };
         self.resolved_responses
             .lock()
@@ -1757,20 +1811,6 @@ fn root_field_errors_from_json_with_default_path(
 }
 
 impl DraftProxy {
-    /// Forward one cold locally-registered read at the transport boundary and
-    /// expose only its GraphQL result to the domain resolver. Domain code must
-    /// not traffic in the proxy's HTTP `Response` type.
-    pub(in crate::proxy) fn forward_upstream_root_outcome(
-        &self,
-        request: &Request,
-        response_key: &str,
-    ) -> ResolverOutcome<Value> {
-        resolver_outcome_from_upstream_response(
-            (self.upstream_transport)(request.clone()),
-            response_key,
-        )
-    }
-
     /// Reuse the request-scoped upstream response when the executor already
     /// fetched the complete operation; otherwise perform the cold read once.
     pub(in crate::proxy) fn cached_or_forward_upstream_root_outcome(
@@ -1802,7 +1842,10 @@ impl DraftProxy {
     /// roots decide whether they need upstream evidence; the request session
     /// owns transport coalescing so those decisions never require a central
     /// domain predicate matrix or per-root query reconstruction.
-    fn cached_or_forward_upstream_response(&mut self, request: &Request) -> Response {
+    pub(in crate::proxy) fn cached_or_forward_upstream_response(
+        &mut self,
+        request: &Request,
+    ) -> Response {
         if let Some(response) = &self.execution_session.upstream_query_response {
             return response.clone();
         }
@@ -2406,10 +2449,72 @@ fn quote_graphql_string(value: &str) -> String {
 
 #[cfg(test)]
 mod graphql_runtime_tests {
-    use super::{expand_bare_store_credit_origin_selections, with_request_owned_proxy};
+    use super::{
+        expand_bare_store_credit_origin_selections, resolver_value_for_engine,
+        with_request_owned_proxy,
+    };
+    use crate::admin_graphql::ResolverValueSource;
+    use crate::graphql::{SelectedField, SourceLocation};
     use crate::operation_registry::{default_executable_registry, default_registry};
     use crate::proxy::{Config, DraftProxy};
     use crate::resolver_registry::ResolverRegistry;
+    use serde_json::json;
+
+    fn selected_field(name: &str, response_key: &str) -> SelectedField {
+        SelectedField {
+            name: name.to_string(),
+            response_key: response_key.to_string(),
+            location: SourceLocation { line: 1, column: 1 },
+            arguments: Default::default(),
+            selection: Vec::new(),
+            type_condition: None,
+        }
+    }
+
+    #[test]
+    fn canonicalizes_only_local_resolver_values() {
+        let selection = [selected_field("title", "aliasedTitle")];
+        let local = json!({ "title": "canonical", "aliasedTitle": "transport" });
+        assert_eq!(
+            resolver_value_for_engine(&local, &selection, ResolverValueSource::Local),
+            json!({ "title": "canonical" })
+        );
+
+        let upstream = json!({ "first": [1], "second": [1, 2] });
+        let repeated_selection = [
+            selected_field("items", "first"),
+            selected_field("items", "second"),
+        ];
+        assert_eq!(
+            resolver_value_for_engine(
+                &upstream,
+                &repeated_selection,
+                ResolverValueSource::Upstream,
+            ),
+            upstream,
+            "upstream aliases can represent distinct argument sets and must remain transport-shaped"
+        );
+    }
+
+    #[test]
+    fn canonicalization_preserves_fields_that_collide_with_sibling_aliases() {
+        let mut aliased_page_info = selected_field("pageInfo", "nodes");
+        aliased_page_info.selection = vec![selected_field("hasNextPage", "next")];
+        let mut connection = selected_field("products", "products");
+        connection.selection = vec![selected_field("nodes", "items"), aliased_page_info];
+
+        let value = json!({
+            "products": {
+                "nodes": [],
+                "pageInfo": { "hasNextPage": false }
+            }
+        });
+        assert_eq!(
+            resolver_value_for_engine(&value, &[connection], ResolverValueSource::Local,),
+            value,
+            "an alias must not remove a canonical field selected by its sibling"
+        );
+    }
 
     #[test]
     fn registered_roots_use_their_direct_callbacks() {

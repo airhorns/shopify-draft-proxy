@@ -712,7 +712,7 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("quantityPricingByVariantUpdate", Mutation, Markets, DraftProxy::quantity_pricing_by_variant_update_root, []),
         entry!("quantityRulesAdd", Mutation, Markets, DraftProxy::quantity_rules_mutation_root, []),
         entry!("quantityRulesDelete", Mutation, Markets, DraftProxy::quantity_rules_mutation_root, []),
-        entry!("webPresences", Query, Markets, DraftProxy::web_presences_query_root, []),
+        entry!("webPresences", Query, Markets, DraftProxy::markets_query_root, []),
         entry!("marketsResolvedValues", Query, Markets, DraftProxy::markets_query_root, []),
         entry!("marketLocalizableResource", Query, Markets, DraftProxy::markets_query_root, []),
         entry!("marketLocalizableResources", Query, Markets, DraftProxy::markets_query_root, []),

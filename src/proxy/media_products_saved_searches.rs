@@ -2375,7 +2375,7 @@ impl DraftProxy {
 
         let targets = product_publication_input_entries(&input);
         if !self.store.has_known_publication_catalog() {
-            self.hydrate_publishable_payload_shop(&product_id, request);
+            let _ = self.hydrate_publishable_payload_shop(&product_id, request);
         }
         let user_errors = self.product_publication_user_errors(
             root_field,

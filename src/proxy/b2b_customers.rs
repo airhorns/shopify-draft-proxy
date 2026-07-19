@@ -174,10 +174,14 @@ impl DraftProxy {
                 invocation.request,
                 invocation.response_key,
             );
-            if !upstream.errors.is_empty() {
-                return upstream;
+            // This is best-effort overlay hydration, not a passthrough root.
+            // Preserve the staged customer result when the live catalog cannot
+            // be fetched; the legacy overlay path likewise treated an
+            // unsuccessful hydrate as an empty baseline rather than replacing
+            // authoritative local state with an upstream transport error.
+            if upstream.errors.is_empty() {
+                upstream_value = Some(upstream.value);
             }
-            upstream_value = Some(upstream.value);
         }
         let value = if handle_customers {
             self.customer_overlay_read_value(

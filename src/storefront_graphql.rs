@@ -6,9 +6,20 @@
 //! module renders that immutable type graph to SDL once and passes it through
 //! the same dynamic-schema builder used by Admin.
 
-use std::{fmt::Write as _, sync::OnceLock};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Write as _,
+    sync::OnceLock,
+};
 
 use async_graphql::dynamic::Schema;
+use graphql_parser::{
+    query::{
+        parse_query, Definition, FragmentDefinition, InlineFragment, OperationDefinition,
+        Selection, SelectionSet, TypeCondition,
+    },
+    Style,
+};
 use serde_json::Value;
 
 use crate::{
@@ -75,6 +86,225 @@ pub(crate) fn root_field_names(
         .and_then(async_graphql::registry::MetaType::fields)
         .map(|fields| fields.keys().cloned().collect())
         .unwrap_or_default()
+}
+
+/// Work around async-graphql dynamic-schema execution dropping named fragment
+/// spreads whose type condition is a union. Validation understands these
+/// spreads, but the dynamic executor only recognizes concrete types and
+/// implemented interfaces while collecting fields. Inline the selection set
+/// for valid union spreads so the engine can still own concrete fragment
+/// selection, directives, aliases, and output projection.
+pub(crate) fn expand_dynamic_union_fragment_spreads(schema: &Schema, query: &str) -> String {
+    let Ok(mut document) = parse_query::<String>(query) else {
+        return query.to_string();
+    };
+    let fragments = document
+        .definitions
+        .iter()
+        .filter_map(|definition| match definition {
+            Definition::Fragment(fragment) => Some((fragment.name.clone(), fragment.clone())),
+            Definition::Operation(_) => None,
+        })
+        .collect::<BTreeMap<_, _>>();
+    let union_fragments = fragments
+        .iter()
+        .filter_map(|(name, fragment)| {
+            let type_name = type_condition_name(&fragment.type_condition);
+            matches!(
+                schema.registry().types.get(type_name),
+                Some(async_graphql::registry::MetaType::Union { .. })
+            )
+            .then(|| name.clone())
+        })
+        .collect::<BTreeSet<_>>();
+    if union_fragments.is_empty() {
+        return query.to_string();
+    }
+
+    let mut expanded_fragments = BTreeSet::new();
+    let mut active_fragments = BTreeSet::new();
+    for definition in &mut document.definitions {
+        let (parent_type, selection_set) = match definition {
+            Definition::Operation(OperationDefinition::SelectionSet(selection_set)) => {
+                (schema.registry().query_type.clone(), selection_set)
+            }
+            Definition::Operation(OperationDefinition::Query(query)) => (
+                schema.registry().query_type.clone(),
+                &mut query.selection_set,
+            ),
+            Definition::Operation(OperationDefinition::Mutation(mutation)) => {
+                let Some(parent_type) = schema.registry().mutation_type.clone() else {
+                    continue;
+                };
+                (parent_type, &mut mutation.selection_set)
+            }
+            Definition::Operation(OperationDefinition::Subscription(subscription)) => {
+                let Some(parent_type) = schema.registry().subscription_type.clone() else {
+                    continue;
+                };
+                (parent_type, &mut subscription.selection_set)
+            }
+            Definition::Fragment(fragment) => {
+                if union_fragments.contains(&fragment.name) {
+                    continue;
+                }
+                (
+                    type_condition_name(&fragment.type_condition).to_string(),
+                    &mut fragment.selection_set,
+                )
+            }
+        };
+        if expand_union_spreads_in_selection_set(
+            schema,
+            selection_set,
+            &parent_type,
+            &fragments,
+            &union_fragments,
+            &mut active_fragments,
+            &mut expanded_fragments,
+        )
+        .is_err()
+        {
+            // Preserve the original invalid document so the GraphQL engine can
+            // report fragment-cycle validation errors normally.
+            return query.to_string();
+        }
+    }
+    document.definitions.retain(|definition| {
+        !matches!(definition, Definition::Fragment(fragment) if expanded_fragments.contains(&fragment.name))
+    });
+    document.format(&Style::default())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn expand_union_spreads_in_selection_set<'a>(
+    schema: &Schema,
+    selection_set: &mut SelectionSet<'a, String>,
+    parent_type: &str,
+    fragments: &BTreeMap<String, FragmentDefinition<'a, String>>,
+    union_fragments: &BTreeSet<String>,
+    active_fragments: &mut BTreeSet<String>,
+    expanded_fragments: &mut BTreeSet<String>,
+) -> Result<(), ()> {
+    let mut expanded = Vec::new();
+    for selection in std::mem::take(&mut selection_set.items) {
+        match selection {
+            Selection::Field(mut field) => {
+                if let Some(child_type) = schema
+                    .registry()
+                    .types
+                    .get(parent_type)
+                    .and_then(|parent| parent.field_by_name(&field.name))
+                    .and_then(|field| named_type_from_display(&field.ty))
+                {
+                    expand_union_spreads_in_selection_set(
+                        schema,
+                        &mut field.selection_set,
+                        &child_type,
+                        fragments,
+                        union_fragments,
+                        active_fragments,
+                        expanded_fragments,
+                    )?;
+                }
+                expanded.push(Selection::Field(field));
+            }
+            Selection::InlineFragment(mut fragment) => {
+                let fragment_parent = fragment
+                    .type_condition
+                    .as_ref()
+                    .map(type_condition_name)
+                    .unwrap_or(parent_type)
+                    .to_string();
+                expand_union_spreads_in_selection_set(
+                    schema,
+                    &mut fragment.selection_set,
+                    &fragment_parent,
+                    fragments,
+                    union_fragments,
+                    active_fragments,
+                    expanded_fragments,
+                )?;
+                expanded.push(Selection::InlineFragment(fragment));
+            }
+            Selection::FragmentSpread(spread)
+                if union_fragments.contains(&spread.fragment_name) =>
+            {
+                let Some(fragment) = fragments.get(&spread.fragment_name) else {
+                    expanded.push(Selection::FragmentSpread(spread));
+                    continue;
+                };
+                let union_type = type_condition_name(&fragment.type_condition);
+                if !output_types_overlap(schema, parent_type, union_type) {
+                    // Leave impossible spreads intact for normal GraphQL
+                    // validation instead of broadening their applicability.
+                    expanded.push(Selection::FragmentSpread(spread));
+                    continue;
+                }
+                if !active_fragments.insert(spread.fragment_name.clone()) {
+                    return Err(());
+                }
+                let mut fragment_selection = fragment.selection_set.clone();
+                expand_union_spreads_in_selection_set(
+                    schema,
+                    &mut fragment_selection,
+                    parent_type,
+                    fragments,
+                    union_fragments,
+                    active_fragments,
+                    expanded_fragments,
+                )?;
+                active_fragments.remove(&spread.fragment_name);
+                expanded_fragments.insert(spread.fragment_name.clone());
+
+                let mut replacement = Selection::InlineFragment(InlineFragment {
+                    position: fragment.position,
+                    type_condition: None,
+                    directives: fragment.directives.clone(),
+                    selection_set: fragment_selection,
+                });
+                if !spread.directives.is_empty() {
+                    replacement = Selection::InlineFragment(InlineFragment {
+                        position: spread.position,
+                        type_condition: None,
+                        directives: spread.directives,
+                        selection_set: SelectionSet {
+                            span: selection_set.span,
+                            items: vec![replacement],
+                        },
+                    });
+                }
+                expanded.push(replacement);
+            }
+            selection => expanded.push(selection),
+        }
+    }
+    selection_set.items = expanded;
+    Ok(())
+}
+
+fn type_condition_name<'document, 'borrow>(
+    type_condition: &'borrow TypeCondition<'document, String>,
+) -> &'borrow str {
+    match type_condition {
+        TypeCondition::On(name) => name,
+    }
+}
+
+fn output_types_overlap(schema: &Schema, left: &str, right: &str) -> bool {
+    let concrete_types = |name: &str| match schema.registry().types.get(name) {
+        Some(async_graphql::registry::MetaType::Object { .. }) => {
+            BTreeSet::from([name.to_string()])
+        }
+        Some(
+            async_graphql::registry::MetaType::Interface { possible_types, .. }
+            | async_graphql::registry::MetaType::Union { possible_types, .. },
+        ) => possible_types.iter().cloned().collect(),
+        _ => BTreeSet::new(),
+    };
+    let left = concrete_types(left);
+    let right = concrete_types(right);
+    left.iter().any(|name| right.contains(name))
 }
 
 fn schema_sdl(version: StorefrontApiVersion) -> Result<&'static str, SchemaBuildError> {
@@ -353,6 +583,17 @@ mod tests {
                     errors: Vec::new(),
                     value_source: crate::admin_graphql::ResolverValueSource::Local,
                 }),
+                "search" => Ok(RootFieldResult {
+                    value: serde_json::json!({
+                        "nodes": [{
+                            "__typename": "Product",
+                            "id": "gid://shopify/Product/1",
+                            "title": "Search result product"
+                        }]
+                    }),
+                    errors: Vec::new(),
+                    value_source: crate::admin_graphql::ResolverValueSource::Local,
+                }),
                 root => Err(format!(
                     "Storefront root `{root}` is not implemented locally"
                 )),
@@ -399,5 +640,41 @@ mod tests {
             .errors
             .iter()
             .any(|error| error.message.contains("Unknown field \"productsCount\"")));
+    }
+
+    #[test]
+    fn storefront_schema_projects_concrete_fragments_from_search_result_union() {
+        let schema = schema(StorefrontApiVersion::V2026_04).unwrap();
+        let query = r#"
+            {
+              search(first: 1, query: "product") {
+                nodes {
+                  ...SearchResultFields
+                }
+              }
+            }
+
+            fragment SearchResultFields on SearchResultItem {
+              __typename
+              ... on Product { id title }
+            }
+            "#;
+        let request =
+            async_graphql::Request::new(expand_dynamic_union_fragment_spreads(schema, query))
+                .data(RootExecutionContext::new(Arc::new(StaticExecutor)));
+        let response = futures_executor::block_on(schema.execute(request));
+        assert!(response.errors.is_empty(), "{:?}", response.errors);
+        assert_eq!(
+            response.data.into_json().unwrap(),
+            serde_json::json!({
+                "search": {
+                    "nodes": [{
+                        "__typename": "Product",
+                        "id": "gid://shopify/Product/1",
+                        "title": "Search result product"
+                    }]
+                }
+            })
+        );
     }
 }
