@@ -73,88 +73,338 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        if self.config.read_mode == ReadMode::LiveHybrid && !self.has_delivery_promise_state() {
-            let result = self.cached_or_forward_upstream_graphql_result(
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && self.delivery_promise_root_needs_upstream(invocation.root_name, &arguments)
+        {
+            let mut result = self.cached_or_forward_upstream_graphql_result(
                 invocation.request,
                 invocation.response_key,
             );
-            if result.transport_succeeded {
-                self.observe_delivery_promise_data(&result.data);
+            if result.transport_succeeded && result.outcome.errors.is_empty() {
+                self.observe_delivery_promise_root_value(
+                    invocation.root_name,
+                    &arguments,
+                    &result.outcome.value,
+                );
+                if invocation.root_name == "deliveryPromiseParticipants"
+                    && self.delivery_promise_participant_scope_has_staged_overlay(&arguments)
+                    && self.delivery_promise_participant_scope_complete(&arguments)
+                {
+                    result.outcome.value =
+                        self.delivery_promise_read_value(invocation.root_name, &arguments);
+                    result.outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
+                }
             }
             return result.outcome;
         }
-        ResolverOutcome::value(self.delivery_promise_read_value(
-            invocation.root_name,
-            &resolved_arguments_from_json(&invocation.arguments),
-        ))
+        ResolverOutcome::value(self.delivery_promise_read_value(invocation.root_name, &arguments))
     }
 
-    fn has_delivery_promise_state(&self) -> bool {
-        !self
+    fn delivery_promise_root_needs_upstream(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        match root_name {
+            "deliveryPromiseProvider" => {
+                let location_id =
+                    resolved_string_field(arguments, "locationId").unwrap_or_default();
+                !self.delivery_promise_provider_location_is_authoritative(&location_id)
+            }
+            "deliveryPromiseParticipants" => {
+                !self.delivery_promise_participant_scope_complete(arguments)
+            }
+            _ => false,
+        }
+    }
+
+    fn delivery_promise_provider_location_is_authoritative(&self, location_id: &str) -> bool {
+        if self
             .store
+            .base
+            .delivery_promise_provider_complete_location_ids
+            .contains(location_id)
+            || self
+                .store
+                .staged
+                .delivery_promise_providers
+                .values()
+                .any(|provider| {
+                    delivery_promise_provider_location_id(provider) == Some(location_id)
+                })
+        {
+            return true;
+        }
+        self.store
             .base
             .delivery_promise_providers
             .records
-            .is_empty()
-            || !self
-                .store
-                .base
-                .delivery_promise_participants
-                .records
-                .is_empty()
-            || !self.store.staged.delivery_promise_providers.is_empty()
-            || !self
-                .store
-                .staged
-                .delivery_promise_providers
-                .order
-                .is_empty()
-            || !self
-                .store
-                .staged
-                .delivery_promise_providers
-                .tombstones
-                .is_empty()
-            || !self.store.staged.delivery_promise_participants.is_empty()
-            || !self
-                .store
-                .staged
-                .delivery_promise_participants
-                .order
-                .is_empty()
-            || !self
-                .store
-                .staged
-                .delivery_promise_participants
-                .tombstones
-                .is_empty()
+            .values()
+            .find(|provider| delivery_promise_provider_location_id(provider) == Some(location_id))
+            .and_then(|provider| provider.get("id").and_then(Value::as_str))
+            .is_some_and(|id| {
+                self.store
+                    .staged
+                    .delivery_promise_providers
+                    .is_tombstoned(id)
+            })
     }
 
-    fn observe_delivery_promise_data(&mut self, data: &Value) {
-        let mut providers = Vec::new();
-        let mut participants = Vec::new();
-        collect_delivery_promise_response_values(data, &mut providers, &mut participants);
-        for provider in providers {
-            if let Some(provider) = normalized_delivery_promise_provider_read_model(provider) {
-                if let Some(id) = provider.get("id").and_then(Value::as_str) {
+    fn observe_delivery_promise_root_value(
+        &mut self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        value: &Value,
+    ) {
+        match root_name {
+            "deliveryPromiseProvider" => {
+                let location_id =
+                    resolved_string_field(arguments, "locationId").unwrap_or_default();
+                if value.is_null() {
                     self.store
                         .base
-                        .delivery_promise_providers
-                        .insert(id.to_string(), provider);
+                        .delivery_promise_provider_complete_location_ids
+                        .insert(location_id);
+                    return;
+                }
+                let Some(provider) = normalized_delivery_promise_provider_read_model(value) else {
+                    return;
+                };
+                let Some(id) = provider
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                else {
+                    return;
+                };
+                self.store
+                    .base
+                    .delivery_promise_providers
+                    .insert(id.clone(), provider);
+                self.store
+                    .base
+                    .delivery_promise_provider_complete_location_ids
+                    .insert(location_id);
+                self.store
+                    .base
+                    .delivery_promise_complete_node_ids
+                    .insert(id);
+            }
+            "deliveryPromiseParticipants" => {
+                self.observe_delivery_promise_participant_connection(arguments, value);
+            }
+            _ => {}
+        }
+    }
+
+    fn observe_delivery_promise_participant_connection(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        value: &Value,
+    ) {
+        if value.get("nodes").is_none() && value.get("edges").is_none() {
+            return;
+        }
+        let nodes = connection_nodes(value);
+        let branded_promise_handle =
+            resolved_string_field(arguments, "brandedPromiseHandle").unwrap_or_default();
+        let normalized = nodes
+            .iter()
+            .map(|participant| {
+                normalized_delivery_promise_participant_read_model(
+                    participant,
+                    Some(&branded_promise_handle),
+                )
+            })
+            .collect::<Option<Vec<_>>>();
+        let Some(normalized) = normalized else {
+            return;
+        };
+        let ids = normalized
+            .iter()
+            .filter_map(|participant| {
+                participant
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .collect::<Vec<_>>();
+        for participant in normalized {
+            let Some(id) = participant
+                .get("id")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+            else {
+                continue;
+            };
+            self.store
+                .base
+                .delivery_promise_participants
+                .insert(id.clone(), participant);
+            self.store
+                .base
+                .delivery_promise_complete_node_ids
+                .insert(id);
+        }
+
+        let scope = delivery_promise_participant_scope_key(arguments);
+        let after = resolved_string_field(arguments, "after");
+        let before = resolved_string_field(arguments, "before");
+        let backwards = before.is_some() || resolved_int_field(arguments, "last").is_some();
+        let page_cursor = if backwards { &before } else { &after };
+        let has_opposite_boundary = if backwards {
+            after.is_some()
+        } else {
+            before.is_some()
+        };
+        let expected_cursors = if backwards {
+            &self
+                .store
+                .base
+                .delivery_promise_participant_previous_cursors
+        } else {
+            &self.store.base.delivery_promise_participant_next_cursors
+        };
+        let continues_baseline = !has_opposite_boundary
+            && match page_cursor.as_deref() {
+                None => true,
+                Some(cursor) => expected_cursors
+                    .get(&scope)
+                    .is_some_and(|expected| expected == cursor),
+            };
+        if !continues_baseline {
+            return;
+        }
+        if page_cursor.is_none() {
+            self.store
+                .base
+                .delivery_promise_participant_next_cursors
+                .remove(&scope);
+            self.store
+                .base
+                .delivery_promise_participant_previous_cursors
+                .remove(&scope);
+            self.store
+                .base
+                .delivery_promise_participant_cursor_ids
+                .remove(&scope);
+        }
+
+        let page_info = value.get("pageInfo").and_then(Value::as_object);
+        let mut cursor_ids = value
+            .get("edges")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|edge| {
+                let cursor = edge.get("cursor").and_then(Value::as_str)?;
+                let id = edge
+                    .get("node")
+                    .and_then(|node| node.get("id"))
+                    .and_then(Value::as_str)?;
+                ids.iter()
+                    .any(|candidate| candidate == id)
+                    .then(|| (cursor.to_string(), id.to_string()))
+            })
+            .collect::<BTreeMap<_, _>>();
+        if let (Some(cursor), Some(id)) = (
+            page_info
+                .and_then(|page_info| page_info.get("startCursor"))
+                .and_then(Value::as_str),
+            ids.first(),
+        ) {
+            cursor_ids.insert(cursor.to_string(), id.clone());
+        }
+        if let (Some(cursor), Some(id)) = (
+            page_info
+                .and_then(|page_info| page_info.get("endCursor"))
+                .and_then(Value::as_str),
+            ids.last(),
+        ) {
+            cursor_ids.insert(cursor.to_string(), id.clone());
+        }
+        self.store
+            .base
+            .delivery_promise_participant_cursor_ids
+            .entry(scope.clone())
+            .or_default()
+            .extend(cursor_ids);
+
+        let order = self
+            .store
+            .base
+            .delivery_promise_participant_baseline_orders
+            .entry(scope.clone())
+            .or_default();
+        if page_cursor.is_none() {
+            order.clear();
+        }
+        if backwards && page_cursor.is_some() {
+            for id in ids.into_iter().rev() {
+                if !order.contains(&id) {
+                    order.insert(0, id);
+                }
+            }
+        } else {
+            for id in ids {
+                if !order.contains(&id) {
+                    order.push(id);
                 }
             }
         }
-        for participant in participants {
-            if let Some(participant) =
-                normalized_delivery_promise_participant_read_model(participant)
-            {
-                if let Some(id) = participant.get("id").and_then(Value::as_str) {
-                    self.store
-                        .base
-                        .delivery_promise_participants
-                        .insert(id.to_string(), participant);
+        let has_more = page_info
+            .and_then(|page_info| {
+                page_info.get(if backwards {
+                    "hasPreviousPage"
+                } else {
+                    "hasNextPage"
+                })
+            })
+            .and_then(Value::as_bool);
+        match has_more {
+            Some(true) => {
+                if let Some(boundary_cursor) = page_info
+                    .and_then(|page_info| {
+                        page_info.get(if backwards {
+                            "startCursor"
+                        } else {
+                            "endCursor"
+                        })
+                    })
+                    .and_then(Value::as_str)
+                {
+                    if backwards {
+                        self.store
+                            .base
+                            .delivery_promise_participant_previous_cursors
+                            .insert(scope, boundary_cursor.to_string());
+                    } else {
+                        self.store
+                            .base
+                            .delivery_promise_participant_next_cursors
+                            .insert(scope, boundary_cursor.to_string());
+                    }
                 }
             }
+            Some(false) => {
+                if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+                    order.reverse();
+                }
+                self.store
+                    .base
+                    .delivery_promise_participant_next_cursors
+                    .remove(&scope);
+                self.store
+                    .base
+                    .delivery_promise_participant_previous_cursors
+                    .remove(&scope);
+                self.store
+                    .base
+                    .delivery_promise_participant_complete_scopes
+                    .insert(scope);
+            }
+            None => {}
         }
     }
 
@@ -574,19 +824,129 @@ impl DraftProxy {
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let branded_promise_handle =
-            resolved_string_field(arguments, "brandedPromiseHandle").unwrap_or_default();
-        let owner_ids = resolved_string_list_arg(arguments, "ownerIds");
-        let mut participants = self.delivery_promise_participants_for_handle(
-            &branded_promise_handle,
-            (!owner_ids.is_empty()).then_some(owner_ids.as_slice()),
-        );
+        let mut participants = self.delivery_promise_participants_for_connection(arguments);
         if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
             participants.reverse();
         }
+        let connection_arguments =
+            self.delivery_promise_participant_connection_arguments(arguments);
         let (participants, page_info) =
-            connection_window(&participants, arguments, value_id_cursor);
+            connection_window(&participants, &connection_arguments, value_id_cursor);
         typed_connection_value(&participants, Value::clone, value_id_cursor, page_info)
+    }
+
+    fn delivery_promise_participant_connection_arguments(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> BTreeMap<String, ResolvedValue> {
+        let mut connection_arguments = arguments.clone();
+        let scope = delivery_promise_participant_scope_key(arguments);
+        let Some(cursor_ids) = self
+            .store
+            .base
+            .delivery_promise_participant_cursor_ids
+            .get(&scope)
+        else {
+            return connection_arguments;
+        };
+        for argument_name in ["after", "before"] {
+            let Some(cursor) = resolved_string_field(arguments, argument_name) else {
+                continue;
+            };
+            let Some(id) = cursor_ids.get(&cursor) else {
+                continue;
+            };
+            connection_arguments
+                .insert(argument_name.to_string(), ResolvedValue::String(id.clone()));
+        }
+        connection_arguments
+    }
+
+    fn delivery_promise_participant_scope_complete(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        self.store
+            .base
+            .delivery_promise_participant_complete_scopes
+            .contains(&delivery_promise_participant_scope_key(arguments))
+    }
+
+    fn delivery_promise_participant_scope_has_staged_overlay(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        self.store
+            .staged
+            .delivery_promise_participants
+            .values()
+            .any(|participant| {
+                delivery_promise_participant_matches_arguments(participant, arguments)
+            })
+            || self
+                .store
+                .staged
+                .delivery_promise_participants
+                .tombstones
+                .iter()
+                .filter_map(|id| self.store.base.delivery_promise_participants.get(id))
+                .any(|participant| {
+                    delivery_promise_participant_matches_arguments(participant, arguments)
+                })
+    }
+
+    fn delivery_promise_participants_for_connection(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Vec<Value> {
+        let scope = delivery_promise_participant_scope_key(arguments);
+        let Some(baseline_order) = self
+            .store
+            .base
+            .delivery_promise_participant_baseline_orders
+            .get(&scope)
+        else {
+            let branded_promise_handle =
+                resolved_string_field(arguments, "brandedPromiseHandle").unwrap_or_default();
+            let owner_ids = resolved_string_list_arg(arguments, "ownerIds");
+            return self.delivery_promise_participants_for_handle(
+                &branded_promise_handle,
+                (!owner_ids.is_empty()).then_some(owner_ids.as_slice()),
+            );
+        };
+
+        let mut seen = BTreeSet::new();
+        let mut participants = baseline_order
+            .iter()
+            .filter_map(|id| {
+                effective_get(
+                    &self.store.base.delivery_promise_participants,
+                    &self.store.staged.delivery_promise_participants,
+                    id,
+                )
+            })
+            .filter(|participant| {
+                delivery_promise_participant_matches_arguments(participant, arguments)
+            })
+            .filter_map(|participant| {
+                let id = participant.get("id").and_then(Value::as_str)?;
+                seen.insert(id.to_string()).then(|| participant.clone())
+            })
+            .collect::<Vec<_>>();
+        participants.extend(
+            self.store
+                .staged
+                .delivery_promise_participants
+                .values()
+                .filter(|participant| {
+                    delivery_promise_participant_matches_arguments(participant, arguments)
+                })
+                .filter_map(|participant| {
+                    let id = participant.get("id").and_then(Value::as_str)?;
+                    seen.insert(id.to_string()).then(|| participant.clone())
+                }),
+        );
+        participants
     }
 
     fn delivery_promise_participants_for_handle(
@@ -662,17 +1022,108 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn delivery_promise_node_value_by_id(&self, id: &str) -> Option<Value> {
-        match shopify_gid_resource_type(id) {
-            Some("DeliveryPromiseProvider") => Some(
+        let value = match shopify_gid_resource_type(id) {
+            Some("DeliveryPromiseProvider") => {
+                if self
+                    .store
+                    .staged
+                    .delivery_promise_providers
+                    .is_tombstoned(id)
+                {
+                    return Some(Value::Null);
+                }
                 self.delivery_promise_provider_by_id(id)
-                    .unwrap_or(Value::Null),
-            ),
-            Some("DeliveryPromiseParticipant") => Some(
+            }
+            Some("DeliveryPromiseParticipant") => {
+                if self
+                    .store
+                    .staged
+                    .delivery_promise_participants
+                    .is_tombstoned(id)
+                {
+                    return Some(Value::Null);
+                }
                 self.delivery_promise_participant_by_id(id)
-                    .unwrap_or(Value::Null),
-            ),
-            _ => None,
+            }
+            _ => return None,
+        };
+        value.or_else(|| {
+            self.store
+                .base
+                .delivery_promise_complete_node_ids
+                .contains(id)
+                .then_some(Value::Null)
+        })
+    }
+
+    pub(in crate::proxy) fn observe_delivery_promise_node_root_value(
+        &mut self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        value: &Value,
+    ) {
+        match root_name {
+            "node" => {
+                if let Some(id) = resolved_string_field(arguments, "id") {
+                    self.observe_delivery_promise_node_value(&id, value);
+                }
+            }
+            "nodes" => {
+                let ids = arguments
+                    .get("ids")
+                    .map(resolved_string_list)
+                    .unwrap_or_default();
+                if let Some(values) = value.as_array() {
+                    for (id, value) in ids.iter().zip(values) {
+                        self.observe_delivery_promise_node_value(id, value);
+                    }
+                }
+            }
+            _ => {}
         }
+    }
+
+    pub(in crate::proxy) fn observe_delivery_promise_node_value(
+        &mut self,
+        id: &str,
+        value: &Value,
+    ) {
+        let normalized = match shopify_gid_resource_type(id) {
+            Some("DeliveryPromiseProvider") => {
+                normalized_delivery_promise_provider_read_model(value)
+            }
+            Some("DeliveryPromiseParticipant") => {
+                normalized_delivery_promise_participant_read_model(value, None)
+            }
+            _ => return,
+        };
+        if value.is_null() {
+            self.store
+                .base
+                .delivery_promise_complete_node_ids
+                .insert(id.to_string());
+            return;
+        }
+        let Some(normalized) = normalized else {
+            return;
+        };
+        match shopify_gid_resource_type(id) {
+            Some("DeliveryPromiseProvider") => self
+                .store
+                .base
+                .delivery_promise_providers
+                .insert(id.to_string(), normalized),
+            Some("DeliveryPromiseParticipant") => self
+                .store
+                .base
+                .delivery_promise_participants
+                .insert(id.to_string(), normalized),
+            _ => return,
+        }
+        self.store
+            .base
+            .delivery_promise_complete_node_ids
+            .insert(id.to_string());
     }
 }
 
@@ -730,6 +1181,37 @@ fn delivery_promise_participant_owner_id(participant: &Value) -> Option<&str> {
         })
 }
 
+fn delivery_promise_participant_scope_key(arguments: &BTreeMap<String, ResolvedValue>) -> String {
+    let mut owner_ids = resolved_string_list_arg(arguments, "ownerIds");
+    owner_ids.sort();
+    owner_ids.dedup();
+    json!({
+        "brandedPromiseHandle": resolved_string_field(arguments, "brandedPromiseHandle")
+            .unwrap_or_default(),
+        "ownerIds": owner_ids,
+    })
+    .to_string()
+}
+
+fn delivery_promise_participant_matches_arguments(
+    participant: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    let branded_promise_handle =
+        resolved_string_field(arguments, "brandedPromiseHandle").unwrap_or_default();
+    if participant
+        .get("brandedPromiseHandle")
+        .and_then(Value::as_str)
+        != Some(branded_promise_handle.as_str())
+    {
+        return false;
+    }
+    let owner_ids = resolved_string_list_arg(arguments, "ownerIds");
+    owner_ids.is_empty()
+        || delivery_promise_participant_owner_id(participant)
+            .is_some_and(|owner_id| owner_ids.iter().any(|candidate| candidate == owner_id))
+}
+
 fn location_belongs_to_app(location: &Value) -> bool {
     location
         .get("isFulfillmentService")
@@ -772,17 +1254,26 @@ fn normalized_delivery_promise_provider_read_model(provider: &Value) -> Option<V
     }
     let location = provider.get("location").filter(|value| value.is_object())?;
     location.get("id").and_then(Value::as_str)?;
+    let active = provider.get("active").and_then(Value::as_bool)?;
+    let fulfillment_delay = provider.get("fulfillmentDelay")?;
+    if !fulfillment_delay.is_null() && fulfillment_delay.as_i64().is_none() {
+        return None;
+    }
+    let time_zone = provider.get("timeZone").and_then(Value::as_str)?;
     Some(json!({
         "__typename": "DeliveryPromiseProvider",
         "id": id,
-        "active": provider.get("active").and_then(Value::as_bool).unwrap_or(false),
-        "fulfillmentDelay": provider.get("fulfillmentDelay").and_then(Value::as_i64).unwrap_or(0),
-        "timeZone": provider.get("timeZone").and_then(Value::as_str).unwrap_or("Etc/UTC"),
+        "active": active,
+        "fulfillmentDelay": fulfillment_delay,
+        "timeZone": time_zone,
         "location": location
     }))
 }
 
-fn normalized_delivery_promise_participant_read_model(participant: &Value) -> Option<Value> {
+fn normalized_delivery_promise_participant_read_model(
+    participant: &Value,
+    fallback_handle: Option<&str>,
+) -> Option<Value> {
     if participant.is_null() {
         return None;
     }
@@ -793,44 +1284,12 @@ fn normalized_delivery_promise_participant_read_model(participant: &Value) -> Op
     let owner_id = delivery_promise_participant_owner_id(participant)?;
     let branded_promise_handle = participant
         .get("brandedPromiseHandle")
-        .and_then(Value::as_str)?;
+        .and_then(Value::as_str)
+        .or(fallback_handle)
+        .unwrap_or_default();
     Some(delivery_promise_participant_record(
         id,
         branded_promise_handle,
         owner_id,
     ))
-}
-
-fn collect_delivery_promise_response_values<'a>(
-    value: &'a Value,
-    providers: &mut Vec<&'a Value>,
-    participants: &mut Vec<&'a Value>,
-) {
-    match value {
-        Value::Object(object) => {
-            if value.get("__typename").and_then(Value::as_str) == Some("DeliveryPromiseProvider")
-                || (value.get("id").and_then(Value::as_str).is_some_and(|id| {
-                    shopify_gid_resource_type(id) == Some("DeliveryPromiseProvider")
-                }))
-            {
-                providers.push(value);
-            }
-            if value.get("__typename").and_then(Value::as_str) == Some("DeliveryPromiseParticipant")
-                || (value.get("id").and_then(Value::as_str).is_some_and(|id| {
-                    shopify_gid_resource_type(id) == Some("DeliveryPromiseParticipant")
-                }))
-            {
-                participants.push(value);
-            }
-            for child in object.values() {
-                collect_delivery_promise_response_values(child, providers, participants);
-            }
-        }
-        Value::Array(values) => {
-            for child in values {
-                collect_delivery_promise_response_values(child, providers, participants);
-            }
-        }
-        _ => {}
-    }
 }

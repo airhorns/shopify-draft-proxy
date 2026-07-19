@@ -1,22 +1,18 @@
-mutation StorefrontCustomerAdminOrderCreate($order: OrderCreateOrderInput!) {
-  orderCreate(order: $order) {
+mutation StorefrontCustomerAdminOrderUpdate($input: OrderInput!) {
+  orderUpdate(input: $input) {
     order {
       id
       name
       email
       phone
       currencyCode
-      customer {
-        id
-        email
-      }
-      currentTotalPriceSet {
+      currentSubtotalPriceSet {
         shopMoney {
           amount
           currencyCode
         }
       }
-      currentSubtotalPriceSet {
+      currentTotalPriceSet {
         shopMoney {
           amount
           currencyCode
@@ -29,7 +25,6 @@ mutation StorefrontCustomerAdminOrderCreate($order: OrderCreateOrderInput!) {
     userErrors {
       field
       message
-      code
     }
   }
 }

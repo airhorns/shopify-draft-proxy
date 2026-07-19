@@ -1,5 +1,5 @@
-mutation ProductHandleLifecycleCreate($product: ProductCreateInput!) {
-  productCreate(product: $product) {
+mutation ProductHandleLifecycleUpdate($product: ProductUpdateInput!) {
+  productUpdate(product: $product) {
     product {
       id
       title

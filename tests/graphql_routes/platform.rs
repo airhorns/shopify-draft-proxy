@@ -6627,8 +6627,17 @@ fn location_deactivate_recomputes_inventory_for_hydrated_base_location() {
     );
 
     let calls = upstream_calls.lock().unwrap();
-    assert_eq!(calls.len(), 1);
+    assert_eq!(calls.len(), 2, "unexpected upstream calls: {calls:#?}");
     assert_eq!(calls[0]["variables"], json!({ "ids": [location_id] }));
+    assert!(calls[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("ProductsHydrateNodes"));
+    assert_eq!(calls[1]["variables"], json!({ "id": location_id }));
+    assert!(calls[1]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("StorePropertiesLocationHydrate"));
 }
 
 #[test]

@@ -1,0 +1,6 @@
+mutation ConnectionOverlayFileCreate($files: [FileCreateInput!]!) {
+  fileCreate(files: $files) {
+    files { __typename id alt }
+    userErrors { field message code }
+  }
+}

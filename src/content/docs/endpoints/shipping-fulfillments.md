@@ -273,11 +273,18 @@ generic `node(id:)` / `nodes(ids:)` read from the same effective delivery-promis
 state, apply selected fields, aliases, inline fragments, `ownerIds`, `reverse`,
 and cursor windows, preserve `nodes(ids:)` input order and duplicates, and return
 `null` / empty connections for missing, removed, or unsupported IDs. In
-LiveHybrid mode, cold provider/participant reads forward upstream until local
-delivery-promise state exists; staged overlays serve immediate read-after-write
-behavior. Live Shopify parity capture for these roots currently requires
-delivery-promise app scopes, so the local contract is covered by focused Rust
-runtime tests until those scopes are available.
+LiveHybrid mode, provider reads hydrate independently per `locationId`, generic
+Node reads hydrate independently per delivery-promise ID, and participant reads
+hydrate independently per branded-promise handle and `ownerIds` filter. A
+paginated participant baseline remains partial until a complete cursor traversal
+reaches its terminal page, so one provider, participant page, or filter never suppresses an
+unrelated upstream read. Complete baselines overlay staged upserts, membership
+changes, and tombstones before applying local cursor windows. Dump/restore keeps
+selector completeness and partial participant page progress without treating a
+partially observed domain as a complete catalog. Live Shopify parity capture
+for these roots currently requires delivery-promise app scopes, so the local
+contract is covered by focused Rust runtime tests until those scopes are
+available.
 
 Delivery profiles have fixture-backed read and bounded write slices for
 create/update/remove, validation, variant dissociation, async removal payloads,
