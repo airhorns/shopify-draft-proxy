@@ -2335,7 +2335,7 @@ fn serialize_raw_directive(directive: &DirectiveSelection) -> String {
     )
 }
 
-fn serialize_selected_field(field: &SelectedField) -> String {
+pub(in crate::proxy) fn serialize_selected_field(field: &SelectedField) -> String {
     let mut output = String::new();
     if field.response_key != field.name {
         output.push_str(&field.response_key);
@@ -2425,7 +2425,7 @@ fn serialize_raw_object(fields: &BTreeMap<String, RawArgumentValue>) -> String {
     )
 }
 
-fn serialize_resolved_value(value: &ResolvedValue) -> String {
+pub(in crate::proxy) fn serialize_resolved_value(value: &ResolvedValue) -> String {
     match value {
         ResolvedValue::String(value) => quote_graphql_string(value),
         ResolvedValue::Int(value) => value.to_string(),

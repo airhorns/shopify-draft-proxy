@@ -1662,6 +1662,9 @@ fn bulk_operation_run_query_allows_five_query_operations_before_2026_04_throttle
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
         |request: Request| {
             let parsed: Value = serde_json::from_str(&request.body).unwrap_or_default();
+            if parsed["operationName"] == json!("BulkProductsCatalogHydrate") {
+                return empty_bulk_products_catalog_hydration_response();
+            }
             let id = parsed["variables"]["id"]
                 .as_str()
                 .unwrap_or_default()
@@ -3049,7 +3052,14 @@ fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
             "2023-12-31T23:59:59.000Z",
             "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}",
         );
-        move |_request| bulk_operation_hydrate_response(operation.clone())
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap_or_default();
+            if body["operationName"] == json!("BulkProductsCatalogHydrate") {
+                empty_bulk_products_catalog_hydration_response()
+            } else {
+                bulk_operation_hydrate_response(operation.clone())
+            }
+        }
     });
     let run = proxy.process_request(json_graphql_request(
         r#"
@@ -3446,7 +3456,11 @@ fn bulk_operation_overlay_preserves_observed_page_info_cursor_for_base_rows() {
     let captured = Arc::clone(&forwarded);
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap_or_default();
             captured.lock().unwrap().push(request);
+            if body["operationName"] == json!("BulkProductsCatalogHydrate") {
+                return empty_bulk_products_catalog_hydration_response();
+            }
             shopify_draft_proxy::proxy::Response {
                 status: 200,
                 headers: Default::default(),
@@ -3520,7 +3534,7 @@ fn bulk_operation_overlay_preserves_observed_page_info_cursor_for_base_rows() {
     ));
 
     assert_eq!(overlay.status, 200);
-    assert_eq!(forwarded.lock().unwrap().len(), 1);
+    assert_eq!(forwarded.lock().unwrap().len(), 2);
     assert_eq!(
         overlay.body["data"]["bulkOperations"]["nodes"],
         json!([{ "id": real_id }])
@@ -13830,6 +13844,24 @@ fn bulk_operation_hydrate_response(operation: Value) -> shopify_draft_proxy::pro
         status: 200,
         headers: Default::default(),
         body: json!({ "data": { "bulkOperation": operation } }),
+    }
+}
+
+fn empty_bulk_products_catalog_hydration_response() -> shopify_draft_proxy::proxy::Response {
+    shopify_draft_proxy::proxy::Response {
+        status: 200,
+        headers: Default::default(),
+        body: json!({
+            "data": {
+                "products": {
+                    "nodes": [],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "endCursor": null
+                    }
+                }
+            }
+        }),
     }
 }
 
