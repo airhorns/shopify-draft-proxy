@@ -4054,6 +4054,245 @@ fn online_store_pixel_endpoint_edges_ported_from_gleam() {
 }
 
 #[test]
+fn online_store_integration_deletes_return_payloads_and_remove_staged_records() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OnlineStoreIntegrationDeleteCreate {
+          web: webPixelCreate(webPixel: {}) {
+            webPixel { id status settings }
+            userErrors { __typename code field message }
+          }
+          server: serverPixelCreate {
+            serverPixel { id status webhookEndpointAddress }
+            userErrors { __typename code field message }
+          }
+          token: storefrontAccessTokenCreate(input: { title: "Headless preview" }) {
+            storefrontAccessToken { id title accessToken accessScopes { handle } }
+            userErrors { code field message }
+          }
+          mobile: mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.android", appLinksEnabled: true, sha256CertFingerprints: ["AA:BB"] } }) {
+            mobilePlatformApplication { __typename ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    let web_id = create.body["data"]["web"]["webPixel"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let server_id = create.body["data"]["server"]["serverPixel"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let token_id = create.body["data"]["token"]["storefrontAccessToken"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let mobile_id = create.body["data"]["mobile"]["mobilePlatformApplication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read_before_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query OnlineStoreIntegrationDeleteReadBefore($mobileId: ID!) {
+          webPixel { id status }
+          serverPixel { id status }
+          mobilePlatformApplication(id: $mobileId) { __typename ... on AndroidApplication { id applicationId } }
+          shop {
+            storefrontAccessTokens(first: 5) {
+              nodes { id title accessToken accessScopes { handle } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"mobileId": mobile_id}),
+    ));
+    assert_eq!(
+        read_before_delete.body["data"]["webPixel"]["id"],
+        json!(web_id)
+    );
+    assert_eq!(
+        read_before_delete.body["data"]["serverPixel"]["id"],
+        json!(server_id)
+    );
+    assert_eq!(
+        read_before_delete.body["data"]["shop"]["storefrontAccessTokens"]["nodes"][0]["id"],
+        json!(token_id)
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OnlineStoreIntegrationDeleteSuccess($webId: ID!, $tokenInput: StorefrontAccessTokenDeleteInput!, $mobileId: ID!) {
+          web: webPixelDelete(id: $webId) {
+            deletedWebPixelId
+            userErrors { __typename code field message }
+          }
+          server: serverPixelDelete {
+            deletedServerPixelId
+            userErrors { __typename code field message }
+          }
+          token: storefrontAccessTokenDelete(input: $tokenInput) {
+            deletedStorefrontAccessTokenId
+            userErrors { code field message }
+          }
+          mobile: mobilePlatformApplicationDelete(id: $mobileId) {
+            deletedMobilePlatformApplicationId
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({
+            "webId": web_id,
+            "tokenInput": {"id": token_id},
+            "mobileId": mobile_id
+        }),
+    ));
+
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"],
+        json!({
+            "web": {"deletedWebPixelId": web_id, "userErrors": []},
+            "server": {"deletedServerPixelId": server_id, "userErrors": []},
+            "token": {"deletedStorefrontAccessTokenId": token_id, "userErrors": []},
+            "mobile": {"deletedMobilePlatformApplicationId": mobile_id, "userErrors": []}
+        })
+    );
+
+    let read_after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query OnlineStoreIntegrationDeleteReadAfter($mobileId: ID!) {
+          webPixel { id status }
+          serverPixel { id status }
+          mobilePlatformApplication(id: $mobileId) { __typename ... on AndroidApplication { id applicationId } }
+          mobilePlatformApplications(first: 10) { nodes { __typename ... on AndroidApplication { id applicationId } } }
+          shop {
+            storefrontAccessTokens(first: 5) {
+              nodes { id title accessToken accessScopes { handle } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"mobileId": mobile_id}),
+    ));
+    assert_eq!(read_after_delete.body["data"]["webPixel"], Value::Null);
+    assert_eq!(read_after_delete.body["data"]["serverPixel"], Value::Null);
+    assert_eq!(
+        read_after_delete.body["data"]["mobilePlatformApplication"],
+        Value::Null
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["mobilePlatformApplications"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["shop"]["storefrontAccessTokens"],
+        json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+}
+
+#[test]
+fn online_store_integration_deletes_return_not_found_payloads() {
+    let mut proxy = snapshot_proxy();
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OnlineStoreIntegrationDeleteNotFound($tokenInput: StorefrontAccessTokenDeleteInput!) {
+          web: webPixelDelete(id: "gid://shopify/WebPixel/9999999999") {
+            deletedWebPixelId
+            userErrors { __typename code field message }
+          }
+          server: serverPixelDelete {
+            deletedServerPixelId
+            userErrors { __typename code field message }
+          }
+          token: storefrontAccessTokenDelete(input: $tokenInput) {
+            deletedStorefrontAccessTokenId
+            userErrors { code field message }
+          }
+          mobile: mobilePlatformApplicationDelete(id: "gid://shopify/MobilePlatformApplication/9999999999") {
+            deletedMobilePlatformApplicationId
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({"tokenInput": {"id": "gid://shopify/StorefrontAccessToken/9999999999"}}),
+    ));
+
+    assert_eq!(missing.status, 200);
+    assert_eq!(
+        missing.body["data"],
+        json!({
+            "web": {
+                "deletedWebPixelId": null,
+                "userErrors": [{"__typename": "WebPixelUserError", "code": "NOT_FOUND", "field": ["id"], "message": "Pixel not found"}]
+            },
+            "server": {
+                "deletedServerPixelId": null,
+                "userErrors": [{"__typename": "ServerPixelUserError", "code": "NOT_FOUND", "field": ["id"], "message": "Server pixel not found"}]
+            },
+            "token": {
+                "deletedStorefrontAccessTokenId": null,
+                "userErrors": [{"code": "NOT_FOUND", "field": ["input", "id"], "message": "Storefront access token not found"}]
+            },
+            "mobile": {
+                "deletedMobilePlatformApplicationId": null,
+                "userErrors": [{"code": "NOT_FOUND", "field": ["id"], "message": "Mobile platform application not found"}]
+            }
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+}
+
+#[test]
+fn online_store_stage_locally_roots_without_handlers_fail_visibly() {
+    let mut proxy = snapshot_proxy().with_registry(vec![OperationRegistryEntry {
+        name: "themeDuplicate".to_string(),
+        operation_type: OperationType::Mutation,
+        domain: CapabilityDomain::OnlineStore,
+        execution: CapabilityExecution::StageLocally,
+        implemented: true,
+        match_names: vec!["themeDuplicate".to_string()],
+        runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
+        support_notes: None,
+    }]);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OnlineStoreUnhandledLocalRoot {
+          themeDuplicate(id: "gid://shopify/OnlineStoreTheme/9999999999", name: "Copy") {
+            theme { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 501);
+    assert_eq!(
+        response.body,
+        json!({ "errors": [{ "message": "No Rust online-store dispatcher implemented for root field: themeDuplicate" }] })
+    );
+}
+
+#[test]
 fn webhook_eventbridge_arn_validation_uses_shopify_partner_shape_and_fields() {
     let mut proxy = snapshot_proxy();
     let create_mutation = r#"

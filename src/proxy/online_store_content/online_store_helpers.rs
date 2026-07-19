@@ -33,6 +33,14 @@ pub(in crate::proxy) fn is_storefront_access_token_record(record: &Value) -> boo
     record_matches_type(record, "StorefrontAccessToken")
 }
 
+pub(in crate::proxy) fn storefront_access_token_read_record(record: &Value) -> Value {
+    let mut token = record.clone();
+    if token.get("accessToken").is_some() {
+        token["accessToken"] = json!("shpat_redacted");
+    }
+    token
+}
+
 pub(in crate::proxy) fn web_pixel_settings_from_resolved(value: &ResolvedValue) -> Option<Value> {
     match value {
         ResolvedValue::String(raw) => serde_json::from_str::<Value>(raw).ok(),

@@ -232,7 +232,7 @@ impl DraftProxy {
             || !self.store.staged.shop_policies.tombstones.is_empty()
     }
 
-    fn shop_json(&self, shop: &Value, selection: &[SelectedField]) -> Value {
+    pub(in crate::proxy) fn shop_json(&self, shop: &Value, selection: &[SelectedField]) -> Value {
         selected_payload_json(selection, |selection| match selection.name.as_str() {
             "shopPolicies" => Some(Value::Array(
                 self.store
@@ -241,6 +241,23 @@ impl DraftProxy {
                     .map(|policy| shop_policy_json(&policy, &selection.selection))
                     .collect(),
             )),
+            "storefrontAccessTokens" => {
+                let mut records: Vec<Value> = self
+                    .store
+                    .staged
+                    .online_store_integrations
+                    .values()
+                    .filter(|record| is_storefront_access_token_record(record))
+                    .map(storefront_access_token_read_record)
+                    .collect();
+                records.sort_by_key(value_id_cursor);
+                Some(selected_connection_json_with_args(
+                    records,
+                    &selection.arguments,
+                    &selection.selection,
+                    value_id_cursor,
+                ))
+            }
             _ => shop
                 .get(&selection.name)
                 .map(|value| nullable_selected_json(value, &selection.selection)),

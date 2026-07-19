@@ -24,12 +24,23 @@ impl DraftProxy {
                 value
             } else {
                 match field.name.as_str() {
-                    "mobilePlatformApplication"
-                    | "scriptTag"
-                    | "webPixel"
-                    | "serverPixel"
-                    | "urlRedirect"
-                    | "theme" => {
+                    "webPixel" => self
+                        .store
+                        .staged
+                        .online_store_integrations
+                        .values()
+                        .find(|record| is_web_pixel_record(record))
+                        .map(|record| selected_json(record, &field.selection))
+                        .unwrap_or(Value::Null),
+                    "serverPixel" => self
+                        .store
+                        .staged
+                        .online_store_integrations
+                        .values()
+                        .find(|record| is_server_pixel_record(record))
+                        .map(|record| selected_json(record, &field.selection))
+                        .unwrap_or(Value::Null),
+                    "mobilePlatformApplication" | "scriptTag" | "urlRedirect" | "theme" => {
                         if field.name == "urlRedirect" {
                             self.url_redirect_query_data(std::slice::from_ref(field))
                                 .get(&field.response_key)
@@ -114,6 +125,7 @@ impl DraftProxy {
                             value_id_cursor,
                         )
                     }
+                    "shop" => self.shop_json(&self.store.effective_shop(), &field.selection),
                     _ => Value::Null,
                 }
             };
@@ -169,7 +181,9 @@ impl DraftProxy {
                             .is_some_and(|id| id.contains(SYNTHETIC_MARKER));
                         self.web_pixel_update(field, allow_missing_upsert, &mut staged_ids)
                     }
+                    "webPixelDelete" => self.web_pixel_delete(field, &mut staged_ids),
                     "serverPixelCreate" => self.server_pixel_create(field, &mut staged_ids),
+                    "serverPixelDelete" => self.server_pixel_delete(field, &mut staged_ids),
                     "eventBridgeServerPixelUpdate" => {
                         self.server_pixel_endpoint_update(field, "arn")
                     }
@@ -177,7 +191,21 @@ impl DraftProxy {
                     "storefrontAccessTokenCreate" => {
                         self.storefront_access_token_create(field, request, &mut staged_ids)
                     }
-                    _ => Value::Null,
+                    "storefrontAccessTokenDelete" => {
+                        self.storefront_access_token_delete(field, &mut staged_ids)
+                    }
+                    "mobilePlatformApplicationDelete" => {
+                        self.mobile_platform_application_delete(field, &mut staged_ids)
+                    }
+                    _ => {
+                        return json_error(
+                            501,
+                            &format!(
+                                "No Rust online-store dispatcher implemented for root field: {}",
+                                field.name
+                            ),
+                        )
+                    }
                 }
             };
             data.insert(field.response_key.clone(), value);
@@ -485,6 +513,44 @@ impl DraftProxy {
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
         mobile_app_payload(&field.selection, Some(record), Vec::new())
+    }
+
+    pub(in crate::proxy) fn mobile_platform_application_delete(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let is_staged_mobile_app = self
+            .store
+            .staged
+            .online_store_integrations
+            .get(&id)
+            .is_some_and(|record| {
+                matches!(
+                    record.get("__typename").and_then(Value::as_str),
+                    Some("AppleApplication" | "AndroidApplication")
+                )
+            });
+        if !is_staged_mobile_app {
+            return selected_json(
+                &json!({
+                    "deletedMobilePlatformApplicationId": Value::Null,
+                    "userErrors": [{
+                        "code": "NOT_FOUND",
+                        "field": ["id"],
+                        "message": "Mobile platform application not found"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+        self.store.staged.online_store_integrations.remove(&id);
+        staged_ids.push(id.clone());
+        selected_json(
+            &json!({"deletedMobilePlatformApplicationId": id, "userErrors": []}),
+            &field.selection,
+        )
     }
 
     pub(in crate::proxy) fn script_tag_create(
@@ -1118,6 +1184,40 @@ impl DraftProxy {
         )
     }
 
+    pub(in crate::proxy) fn web_pixel_delete(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if !self
+            .store
+            .staged
+            .online_store_integrations
+            .get(&id)
+            .is_some_and(is_web_pixel_record)
+        {
+            return selected_json(
+                &json!({
+                    "deletedWebPixelId": Value::Null,
+                    "userErrors": [{
+                        "__typename": "WebPixelUserError",
+                        "code": "NOT_FOUND",
+                        "field": ["id"],
+                        "message": "Pixel not found"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+        self.store.staged.online_store_integrations.remove(&id);
+        staged_ids.push(id.clone());
+        selected_json(
+            &json!({"deletedWebPixelId": id, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
     pub(in crate::proxy) fn server_pixel_create(
         &mut self,
         field: &RootFieldSelection,
@@ -1132,6 +1232,40 @@ impl DraftProxy {
         staged_ids.push(id);
         selected_json(
             &json!({"serverPixel": record, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    pub(in crate::proxy) fn server_pixel_delete(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
+        let Some(id) = self
+            .store
+            .staged
+            .online_store_integrations
+            .iter()
+            .find(|(_, record)| is_server_pixel_record(record))
+            .map(|(id, _)| id.clone())
+        else {
+            return selected_json(
+                &json!({
+                    "deletedServerPixelId": Value::Null,
+                    "userErrors": [{
+                        "__typename": "ServerPixelUserError",
+                        "code": "NOT_FOUND",
+                        "field": ["id"],
+                        "message": "Server pixel not found"
+                    }]
+                }),
+                &field.selection,
+            );
+        };
+        self.store.staged.online_store_integrations.remove(&id);
+        staged_ids.push(id.clone());
+        selected_json(
+            &json!({"deletedServerPixelId": id, "userErrors": []}),
             &field.selection,
         )
     }
@@ -1253,6 +1387,46 @@ impl DraftProxy {
         staged_ids.push(id);
         selected_json(
             &json!({"storefrontAccessToken": record, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    pub(in crate::proxy) fn storefront_access_token_delete(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
+        let id = field
+            .arguments
+            .get("input")
+            .and_then(|value| match value {
+                ResolvedValue::Object(input) => resolved_string_field(input, "id"),
+                _ => None,
+            })
+            .unwrap_or_default();
+        if !self
+            .store
+            .staged
+            .online_store_integrations
+            .get(&id)
+            .is_some_and(is_storefront_access_token_record)
+        {
+            return selected_json(
+                &json!({
+                    "deletedStorefrontAccessTokenId": Value::Null,
+                    "userErrors": [{
+                        "code": "NOT_FOUND",
+                        "field": ["input", "id"],
+                        "message": "Storefront access token not found"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+        self.store.staged.online_store_integrations.remove(&id);
+        staged_ids.push(id.clone());
+        selected_json(
+            &json!({"deletedStorefrontAccessTokenId": id, "userErrors": []}),
             &field.selection,
         )
     }
