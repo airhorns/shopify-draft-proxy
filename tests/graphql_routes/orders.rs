@@ -15494,7 +15494,7 @@ fn money_bag_order_create_uses_hydrated_shop_currency_without_input_currency() {
         json!({
             "order": {
                 "lineItems": [{
-                    "variantId": "gid://shopify/ProductVariant/424242",
+                    "title": "Currency-default line",
                     "quantity": 1
                 }]
             }
@@ -15560,7 +15560,7 @@ fn payment_terms_order_create_uses_hydrated_shop_currency_without_input_currency
         json!({
             "order": {
                 "lineItems": [{
-                    "variantId": "gid://shopify/ProductVariant/424242",
+                    "title": "Payment-terms currency-default line",
                     "quantity": 1
                 }]
             }

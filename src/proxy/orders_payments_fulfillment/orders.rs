@@ -6,6 +6,16 @@ use self::order_customer_paths::*;
 use self::order_edit::*;
 use crate::proxy::storefront::storefront_customer_email_key;
 
+const ORDER_CREATE_INVENTORY_PREFLIGHT_QUERY: &str =
+    include_str!("../../../config/parity-requests/orders/order-create-inventory-preflight.graphql");
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OrderCreateInventoryEffect {
+    inventory_item_id: String,
+    location_id: String,
+    quantity: i64,
+}
+
 fn order_edit_error_payload(errors: Vec<Value>) -> Value {
     oe_error_payload(errors)
 }
@@ -20,6 +30,26 @@ pub(in crate::proxy) fn order_create_inventory_behaviour(
     resolved_object_field(arguments, "options")
         .and_then(|options| resolved_string_field(&options, "inventoryBehaviour"))
         .unwrap_or_else(|| "DECREMENT_IGNORING_POLICY".to_string())
+}
+
+fn order_create_unresolved_variant_payload() -> Value {
+    json!({
+        "order": Value::Null,
+        "userErrors": [
+            {
+                "field": ["order"],
+                "message": "Order Line items is invalid"
+            },
+            {
+                "field": ["order", "lineItems"],
+                "message": "Line items Name can't be blank"
+            },
+            {
+                "field": ["order", "lineItems"],
+                "message": "Line items Title can't be blank"
+            }
+        ]
+    })
 }
 
 fn order_create_input_needs_shop_currency_default(
@@ -1531,17 +1561,146 @@ impl DraftProxy {
         shopify_gid("OrderTransaction", number)
     }
 
-    fn order_line_inventory_item_id(
-        &self,
-        line_item: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<String> {
-        resolved_string_field(line_item, "inventoryItemId").or_else(|| {
-            let variant_id = resolved_string_field(line_item, "variantId")?;
-            self.store
-                .product_variant_by_id(&variant_id)
-                .map(|variant| variant.inventory_item.id.clone())
-                .or_else(|| Some(shopify_gid("InventoryItem", resource_id_tail(&variant_id))))
-        })
+    fn hydrate_order_create_inventory_variants(
+        &mut self,
+        request: &Request,
+        variant_ids: &[String],
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid || variant_ids.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": ORDER_CREATE_INVENTORY_PREFLIGHT_QUERY.trim_end(),
+                "operationName": "OrdersOrderCreateInventoryPreflight",
+                "variables": { "ids": variant_ids }
+            }),
+        );
+        if !response_is_success(&response) {
+            return;
+        }
+        let requested = variant_ids
+            .iter()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        for variant in response.body["data"]["nodes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
+            let Some(variant_id) = variant.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            if !requested.contains(variant_id)
+                || variant.get("__typename").and_then(Value::as_str) != Some("ProductVariant")
+            {
+                continue;
+            }
+            let Some(mut inventory_item) = variant.get("inventoryItem").cloned() else {
+                continue;
+            };
+            let relationship_is_complete = inventory_item
+                .get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| is_shopify_gid_of_type(id, "InventoryItem"))
+                && inventory_item
+                    .get("inventoryLevels")
+                    .and_then(|connection| connection.get("nodes"))
+                    .is_some_and(Value::is_array);
+            if !relationship_is_complete {
+                continue;
+            }
+            inventory_item["variant"] = variant.clone();
+            self.observe_inventory_item_node(&inventory_item);
+        }
+    }
+
+    fn order_create_inventory_effects(
+        &mut self,
+        request: &Request,
+        order_input: &BTreeMap<String, ResolvedValue>,
+    ) -> Result<Vec<OrderCreateInventoryEffect>, Value> {
+        let line_items = resolved_object_list_field(order_input, "lineItems");
+        let mut seen_variant_ids = BTreeSet::new();
+        let variant_ids = line_items
+            .iter()
+            .filter_map(|line_item| resolved_string_field(line_item, "variantId"))
+            .filter(|variant_id| seen_variant_ids.insert(variant_id.clone()))
+            .collect::<Vec<_>>();
+        let variants_to_hydrate = variant_ids
+            .iter()
+            .filter(|variant_id| {
+                if is_synthetic_gid(variant_id) {
+                    return false;
+                }
+                self.store
+                    .product_variant_by_id(variant_id)
+                    .is_none_or(|variant| {
+                        !is_shopify_gid_of_type(&variant.inventory_item.id, "InventoryItem")
+                            || self
+                                .inventory_levels_for_item(&variant.inventory_item.id)
+                                .is_empty()
+                    })
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        self.hydrate_order_create_inventory_variants(request, &variants_to_hydrate);
+
+        if variant_ids
+            .iter()
+            .any(|variant_id| self.store.product_variant_by_id(variant_id).is_none())
+        {
+            return Err(order_create_unresolved_variant_payload());
+        }
+
+        let mut quantities_by_item = BTreeMap::<String, i64>::new();
+        for line_item in line_items {
+            let quantity = resolved_int_field(&line_item, "quantity").unwrap_or(1);
+            if quantity <= 0 {
+                continue;
+            }
+            let inventory_item_id =
+                if let Some(variant_id) = resolved_string_field(&line_item, "variantId") {
+                    let variant = self.store.product_variant_by_id(&variant_id).expect(
+                        "all order variants were resolved before planning inventory effects",
+                    );
+                    if !variant.inventory_item.tracked {
+                        continue;
+                    }
+                    variant.inventory_item.id.clone()
+                } else if let Some(inventory_item_id) =
+                    resolved_string_field(&line_item, "inventoryItemId")
+                {
+                    if self
+                        .store
+                        .product_variant_by_inventory_item_id(&inventory_item_id)
+                        .is_none()
+                    {
+                        continue;
+                    }
+                    inventory_item_id
+                } else {
+                    continue;
+                };
+            if !is_shopify_gid_of_type(&inventory_item_id, "InventoryItem") {
+                return Err(order_create_unresolved_variant_payload());
+            }
+            *quantities_by_item.entry(inventory_item_id).or_default() += quantity;
+        }
+
+        Ok(quantities_by_item
+            .into_iter()
+            .filter_map(|(inventory_item_id, quantity)| {
+                let location_id =
+                    self.inventory_item_decrement_location(&inventory_item_id, quantity)?;
+                Some(OrderCreateInventoryEffect {
+                    inventory_item_id,
+                    location_id,
+                    quantity,
+                })
+            })
+            .collect())
     }
 
     pub(in crate::proxy) fn order_create_local_outcome(
@@ -1863,11 +2022,17 @@ impl DraftProxy {
             self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
         if order_create_inventory_behaviour(arguments) != "BYPASS" {
-            for line_item in resolved_object_list_field(&order_input, "lineItems") {
-                if let Some(inventory_item_id) = self.order_line_inventory_item_id(&line_item) {
-                    let quantity = resolved_int_field(&line_item, "quantity").unwrap_or(1);
-                    self.decrement_inventory_item_available(&inventory_item_id, quantity);
-                }
+            let inventory_effects = match self.order_create_inventory_effects(request, &order_input)
+            {
+                Ok(effects) => effects,
+                Err(payload) => return payload,
+            };
+            for effect in inventory_effects {
+                self.decrement_inventory_item_available_at_location(
+                    &effect.inventory_item_id,
+                    &effect.location_id,
+                    effect.quantity,
+                );
             }
         }
 

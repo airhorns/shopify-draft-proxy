@@ -130,6 +130,31 @@ mutation payloads and downstream reads after processed quantities change, and
 so the aggregate becomes `RETURNED`. The checked-in anchor is
 `config/parity-specs/orders/order-return-status-lifecycle.json`.
 
+## Current: orderCreate inventory identity and location sourcing are independent
+
+Shopify assigns ProductVariant and InventoryItem IDs independently. A live
+2025-01 `orderCreate` capture used a variant and item with deliberately different
+numeric tails, then showed that a fake ProductVariant whose tail matched the real
+InventoryItem did not resolve. Shopify rejected that order with invalid
+line-item errors and left the real item's inventory unchanged.
+
+The same capture exposed a location-selection trap. The hydrated item had three
+active inventory levels in order: the shop default with zero available, an
+origin with five available, and a destination with zero available. Creating an
+order for quantity two decremented the stocked origin to three instead of
+driving the first/default level negative. `on_hand` stayed five while only
+`available` changed, and the variant aggregate became three. The immediate
+`product(id:)` read retained its observed `totalInventory: 0` baseline even
+though its variant reported `inventoryQuantity: 3`; do not overwrite a cold
+hydrated product aggregate with a locally recomputed sum in this branch.
+
+Practical rule: hydrate and retain the actual ProductVariant → InventoryItem →
+inventory-level graph before applying order effects. Aggregate repeated lines by
+item, prefer an adequately stocked active level, preserve `on_hand`, and reject
+an unresolved variant atomically. Never infer a cross-resource relationship
+from similar GID tails. The checked-in anchor is
+`config/parity-specs/products/inventory-default-location-carrier-connection.json`.
+
 ## Current: Variant fixed-price duplicate inputs are last-write-wins
 
 Admin GraphQL 2026-04 `priceListFixedPricesAdd` and `priceListFixedPricesUpdate`

@@ -275,6 +275,9 @@ impl DraftProxy {
             &self.store.product_variants.staged,
         ) {
             let inventory_item_id = variant.inventory_item.id;
+            if !is_shopify_gid_of_type(&inventory_item_id, "InventoryItem") {
+                continue;
+            }
             if seen.insert(inventory_item_id.clone()) {
                 item_ids.push(inventory_item_id);
             }
@@ -813,7 +816,7 @@ impl DraftProxy {
         })
     }
 
-    pub(super) fn inventory_levels_for_item(
+    pub(in crate::proxy) fn inventory_levels_for_item(
         &self,
         inventory_item_id: &str,
     ) -> Vec<(String, BTreeMap<String, i64>)> {
@@ -1486,6 +1489,21 @@ impl DraftProxy {
             .collect()
     }
 
+    pub(in crate::proxy) fn inventory_item_decrement_location(
+        &self,
+        inventory_item_id: &str,
+        quantity: i64,
+    ) -> Option<String> {
+        let levels = self.active_inventory_levels_for_item(inventory_item_id);
+        levels
+            .iter()
+            .find(|(_, quantities)| {
+                quantities.get("available").copied().unwrap_or_default() >= quantity
+            })
+            .or_else(|| levels.first())
+            .map(|(location_id, _)| location_id.clone())
+    }
+
     pub(in crate::proxy) fn inventory_total(&self, inventory_item_id: &str, name: &str) -> i64 {
         self.inventory_levels_for_item(inventory_item_id)
             .into_iter()
@@ -1552,32 +1570,29 @@ impl DraftProxy {
         );
     }
 
-    pub(in crate::proxy) fn decrement_inventory_item_available(
+    pub(in crate::proxy) fn decrement_inventory_item_available_at_location(
         &mut self,
         inventory_item_id: &str,
+        location_id: &str,
         quantity: i64,
     ) {
         if quantity <= 0 {
             return;
         }
-        let location_id = self
-            .active_inventory_levels_for_item(inventory_item_id)
-            .first()
-            .map(|(location_id, _)| location_id.clone())
-            .or_else(|| {
-                self.store
-                    .staged
-                    .inventory_levels
-                    .keys()
-                    .find(|(item_id, _)| item_id == inventory_item_id)
-                    .map(|(_, location_id)| location_id.clone())
-            })
-            .or_else(|| self.default_inventory_location_id());
-        let Some(location_id) = location_id else {
-            return;
-        };
+        let sync_product_aggregate = self
+            .store
+            .product_variant_by_inventory_item_id(inventory_item_id)
+            .is_some_and(|variant| {
+                is_synthetic_gid(&variant.product_id)
+                    || self
+                        .store
+                        .products
+                        .staged
+                        .records
+                        .contains_key(&variant.product_id)
+            });
         let updated_at = self.next_inventory_quantity_timestamp();
-        let key = (inventory_item_id.to_string(), location_id.clone());
+        let key = (inventory_item_id.to_string(), location_id.to_string());
         self.stage_inventory_level_for_write(&key);
         {
             let level = self.store.staged.inventory_levels.entry(key).or_default();
@@ -1585,7 +1600,12 @@ impl DraftProxy {
             level.entry("on_hand".to_string()).or_insert(0);
             level.entry("damaged".to_string()).or_insert(0);
         }
-        self.stamp_inventory_quantity(inventory_item_id, &location_id, "available", &updated_at);
+        self.stamp_inventory_quantity(inventory_item_id, location_id, "available", &updated_at);
+        self.sync_variant_available_quantity(
+            inventory_item_id,
+            "available",
+            sync_product_aggregate,
+        );
     }
 
     fn hydrate_inventory_quantity_rows(

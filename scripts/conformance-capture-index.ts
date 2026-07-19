@@ -2626,7 +2626,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-inventory-default-location-carrier-conformance.ts',
     purpose:
-      'InventoryItems staged readback, explicit order inventory decrement at the real default location, and inventoryShipmentCreate accepting a non-frozen tracking company label.',
+      'InventoryItems staged readback, explicit order inventory decrement at the real default location, cold variant-to-inventory-item preflight across multiple locations, and inventoryShipmentCreate accepting a non-frozen tracking company label.',
     requiredAuthScopes: [
       'read_products',
       'write_products',
@@ -2646,12 +2646,15 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/inventory-items-by-query.graphql',
       'config/parity-requests/products/inventory-default-location-order-create.graphql',
       'config/parity-requests/products/inventory-default-location-item-read.graphql',
+      'config/parity-requests/products/inventory-cold-variant-order-read.graphql',
+      'config/parity-requests/products/inventory-cold-variant-product-read.graphql',
+      'config/parity-requests/orders/order-create-inventory-preflight.graphql',
       'config/parity-requests/products/inventory-shipment-create-carrier.graphql',
       'config/parity-requests/products/inventory-shipment-create-in-transit.graphql',
       'config/parity-requests/products/inventory-transfer-read-after-shipment.graphql',
     ],
     cleanupBehavior:
-      'Creates two disposable tracked products and two disposable locations, records item update/readback, order default-location decrement, transfer ready state, draft and in-transit shipment tracking, and transfer readback after shipment consumption, then cancels/deletes the created order, shipments, transfer, products, and locations.',
+      'Creates two disposable tracked products, two disposable locations, and two orders; records item update/readback, warm and cold order default-location decrements, transfer ready state, draft and in-transit shipment tracking, and transfer readback after shipment consumption, then cancels/deletes the created orders, shipments, transfer, products, and locations.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

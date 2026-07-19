@@ -158,17 +158,31 @@ Local staged mutations:
 - Shipping refunds staged through `refundCreate(input.shipping)` are retained on the refund record and rolled into downstream `Order.totalRefundedShippingSet`; the broader refund amount still follows the captured transaction total / line-item plus shipping fallback behavior.
 - Order shipping-line tax lines contribute to total tax calculations for staged `orderCreate`, and staged shipping lines remain visible through downstream `Order.shippingLines` reads.
 - Direct `orderCreate` line items preserve expanded staged field data for `properties`/`customAttributes`, shipping/taxable flags, gift-card/internal fulfillment/weight fields, vendor/product linkage, canonical `priceSet`, and line-level applied discounts. Locally created order display names allocate from a session-owned monotonic order-number counter that advances past existing staged/hydrated order names, so deletes do not cause later local order numbers to be reused. The live 2025-01 `order-create-line-item-fields` parity slice strictly covers the publicly selectable subset (`customAttributes`, `requiresShipping`, `taxable`, `vendor`, `product`, `originalUnitPriceSet`, empty `discountAllocations`) through the mutation payload and immediate downstream `order(id:)` read; focused runtime tests cover internal/offline-import fields that are not selectable in the current public Admin schema.
-- Direct `orderCreate` with variant-backed lines now stages a local order and
-  applies the same product-backed inventory graph used by `inventoryItem` /
-  `inventoryLevel` reads. When `options.inventoryBehaviour` is omitted or set
-  to Shopify's decrementing modes such as `DECREMENT_IGNORING_POLICY`, the
-  selected line quantity is subtracted from the first effective inventory level's
-  `available` and mirrored `on_hand` quantities. Explicit
-  `inventoryBehaviour: BYPASS` stages the order without changing inventory.
-  This is intentionally not full order/inventory lifecycle parity: multi-location
-  sourcing, oversell policy validation, fulfillment reservations, checkout
-  flows, and committed/restock quantity families remain outside the local
-  direct-order slice until captured and modeled.
+- Direct `orderCreate` with variant-backed lines stages a local order and uses
+  the same normalized product/inventory graph as `inventoryItem`,
+  `inventoryLevel`, product-variant, and downstream order reads. Before a
+  decrementing inventory mode applies any effect, the proxy resolves every
+  referenced ProductVariant to its authoritative InventoryItem and inventory
+  levels from staged/base state or one batched read-only LiveHybrid hydrate.
+  ProductVariant and InventoryItem GIDs are independent identities; the proxy
+  never derives one resource ID from the other's numeric tail. If any referenced
+  variant remains unresolved, the mutation returns Shopify's captured invalid
+  line-item errors without staging an order, inventory change, or mutation-log
+  entry.
+- Inventory effects aggregate quantities by InventoryItem before staging. The
+  local source selection prefers the first active level with enough `available`
+  quantity for the aggregated decrement and otherwise falls back to the first
+  active level for Shopify's ignoring-policy oversell behavior. It decrements
+  only `available`, preserves `on_hand`, and recomputes the variant's aggregate
+  `inventoryQuantity`. A cold hydrated product retains its observed
+  `totalInventory` baseline on the immediate product read, matching Shopify's
+  captured response even when the nested variant quantity changes. An
+  authoritative item with no inventory-level relationship produces no
+  inventory effect. Explicit
+  `inventoryBehaviour: BYPASS` stages the order without inventory hydration or
+  quantity changes. Fulfillment reservations, checkout sourcing, policy-aware
+  oversell rejection, and committed/restock quantity families remain outside
+  this direct-order slice.
 - State-specific lifecycle/customer validation is modeled locally for the staged order roots. Redundant `orderClose` and `orderOpen` return Shopify's silent-success payload (`userErrors: []`) without changing `closedAt`/`updatedAt`, consuming a synthetic timestamp, staging local state, or appending a mutation-log entry. Other repeated or invalid lifecycle/customer branches such as `orderOpen` after cancellation, repeated `orderMarkAsPaid`, unknown or duplicate `orderCustomerSet`, empty `orderCustomerRemove`, and repeated `orderCancel` return concrete `userErrors` and do not mutate downstream order reads, meta state, or the mutation log. Successful local `orderCancel` returns a synthetic async `Job` when selected, with `done: false`, matching the captured shape used by Shopify cleanup flows while keeping the actual cancellation state local.
 - `orderCustomerSet` and `orderCustomerRemove` own the order-domain relationship on `OrderRecord.customer`. Customer reads consume that normalized relationship only for the immediate `Customer.orders` connection; captured evidence showed the customer-owned `numberOfOrders`, `amountSpent`, and `lastOrder` fields do not update in the immediate read-after-set/remove slice.
 - `orderCustomerSet` returns field-specific error codes for relationship failures: missing orders return `NOT_FOUND` on `orderId`, missing customers return `NOT_FOUND` on `customerId`, and B2B contacts without an ordering role return `NOT_PERMITTED` on `customerId` with Shopify's translated message `Customer does not have the permissions to place this order`. `orderCustomerRemove` returns missing-order `NOT_FOUND` on `orderId`, permits cancelled non-B2B orders, and refuses B2B orders with `INVALID` on `orderId` / `Action not permitted on B2B Orders` without staging a relationship change.
