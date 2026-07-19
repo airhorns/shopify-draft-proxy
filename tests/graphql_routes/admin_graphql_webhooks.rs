@@ -1,6 +1,34 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
 
+fn webhook_subscription_fixture(id: &str, uri: &str, topic: &str) -> Value {
+    json!({
+        "id": id,
+        "legacyResourceId": id.rsplit('/').next().unwrap_or_default(),
+        "apiVersion": {
+            "displayName": "2026-04",
+            "handle": "2026-04",
+            "supported": true
+        },
+        "topic": topic,
+        "format": "JSON",
+        "uri": uri,
+        "callbackUrl": uri,
+        "name": Value::Null,
+        "apiPermissionId": Value::Null,
+        "includeFields": [],
+        "metafieldNamespaces": [],
+        "metafields": [],
+        "filter": Value::Null,
+        "createdAt": "2025-06-01T00:00:00.000Z",
+        "updatedAt": "2025-06-01T00:00:00.000Z",
+        "endpoint": {
+            "__typename": "WebhookHttpEndpoint",
+            "callbackUrl": uri
+        }
+    })
+}
+
 #[test]
 fn event_empty_read_shapes_match_current_behavior() {
     let mut proxy = snapshot_proxy();
@@ -3140,6 +3168,353 @@ fn dedicated_pubsub_webhook_update_uses_captured_field_path_errors() {
                 "message": "Google Cloud Pub/Sub topic ID is not valid"
             }]
         })
+    );
+}
+
+#[test]
+fn live_hybrid_existing_webhook_subscription_lifecycle_merges_base_and_staged_state() {
+    let existing_id = "gid://shopify/WebhookSubscription/424242";
+    let original_uri = "https://existing-webhook.example.com/original";
+    let updated_uri = "https://existing-webhook.example.com/updated";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let upstream_id = existing_id.to_string();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_calls.lock().unwrap().push(request.clone());
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or_else(|_| json!({}));
+            let query = body["query"].as_str().unwrap_or_default();
+            let record = webhook_subscription_fixture(
+                &upstream_id,
+                "https://existing-webhook.example.com/original",
+                "ORDERS_CREATE",
+            );
+            let connection = json!({
+                "nodes": [record.clone()],
+                "edges": [{
+                    "cursor": "opaque-upstream-cursor",
+                    "node": record.clone()
+                }],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "opaque-upstream-cursor",
+                    "endCursor": "opaque-upstream-cursor"
+                }
+            });
+            if query.contains("ColdExistingWebhookRead") {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "existing": {
+                                "id": upstream_id,
+                                "topic": "ORDERS_CREATE",
+                                "uri": "https://existing-webhook.example.com/original",
+                                "callbackUrl": "https://existing-webhook.example.com/original",
+                                "format": "JSON",
+                                "endpoint": {
+                                    "__typename": "WebhookHttpEndpoint",
+                                    "callbackUrl": "https://existing-webhook.example.com/original"
+                                }
+                            },
+                            "hooks": {
+                                "nodes": [{
+                                    "id": upstream_id,
+                                    "topic": "ORDERS_CREATE",
+                                    "uri": "https://existing-webhook.example.com/original"
+                                }],
+                                "edges": [{
+                                    "cursor": "opaque-upstream-cursor",
+                                    "node": { "id": upstream_id }
+                                }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": "opaque-upstream-cursor",
+                                    "endCursor": "opaque-upstream-cursor"
+                                }
+                            },
+                            "hookCount": {
+                                "count": 1,
+                                "precision": "EXACT"
+                            }
+                        }
+                    }),
+                }
+            } else {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "webhookSubscription": record,
+                            "webhookSubscriptions": connection,
+                            "webhookSubscriptionsCount": {
+                                "count": 1,
+                                "precision": "EXACT"
+                            }
+                        }
+                    }),
+                }
+            }
+        });
+
+    let cold_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdExistingWebhookRead($id: ID!, $uri: String!) {
+          existing: webhookSubscription(id: $id) {
+            id
+            topic
+            uri
+            callbackUrl
+            format
+            endpoint {
+              __typename
+              ... on WebhookHttpEndpoint { callbackUrl }
+            }
+          }
+          hooks: webhookSubscriptions(first: 5, uri: $uri, sortKey: ID) {
+            nodes { id topic uri }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          hookCount: webhookSubscriptionsCount(query: "uri:existing-webhook", limit: 10) {
+            count
+            precision
+          }
+        }
+        "#,
+        json!({ "id": existing_id, "uri": original_uri }),
+    ));
+
+    assert_eq!(cold_read.status, 200);
+    assert_eq!(cold_read.body["data"]["existing"]["id"], json!(existing_id));
+    assert_eq!(
+        cold_read.body["data"]["hooks"]["nodes"],
+        json!([{ "id": existing_id, "topic": "ORDERS_CREATE", "uri": original_uri }])
+    );
+    assert_eq!(
+        cold_read.body["data"]["hookCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateExistingWebhook($id: ID!) {
+          webhookSubscriptionUpdate(
+            id: $id
+            webhookSubscription: { uri: "https://existing-webhook.example.com/updated", format: JSON }
+          ) {
+            webhookSubscription {
+              id
+              topic
+              uri
+              callbackUrl
+              format
+              endpoint {
+                __typename
+                ... on WebhookHttpEndpoint { callbackUrl }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": existing_id }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["webhookSubscriptionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["webhookSubscriptionUpdate"]["webhookSubscription"]["uri"],
+        json!(updated_uri)
+    );
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateAdditionalWebhook {
+          webhookSubscriptionCreate(
+            topic: PRODUCTS_CREATE
+            webhookSubscription: { uri: "https://existing-webhook.example.com/new", format: JSON }
+          ) {
+            webhookSubscription { id topic uri }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        created.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let created_id = created.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let merged_after_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadWebhookAfterUpdate($id: ID!) {
+          webhookSubscription(id: $id) { id topic uri }
+          webhookSubscriptions(first: 10, query: "uri:existing-webhook", sortKey: ID) {
+            nodes { id topic uri }
+          }
+          webhookSubscriptionsCount(query: "uri:existing-webhook") { count precision }
+        }
+        "#,
+        json!({ "id": existing_id }),
+    ));
+    assert_eq!(
+        merged_after_update.body["data"]["webhookSubscription"],
+        json!({ "id": existing_id, "topic": "ORDERS_CREATE", "uri": updated_uri })
+    );
+    assert_eq!(
+        merged_after_update.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([
+            {
+                "id": created_id,
+                "topic": "PRODUCTS_CREATE",
+                "uri": "https://existing-webhook.example.com/new"
+            },
+            { "id": existing_id, "topic": "ORDERS_CREATE", "uri": updated_uri }
+        ])
+    );
+    assert_eq!(
+        merged_after_update.body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteExistingWebhook($id: ID!) {
+          webhookSubscriptionDelete(id: $id) {
+            deletedWebhookSubscriptionId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": existing_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["webhookSubscriptionDelete"],
+        json!({
+            "deletedWebhookSubscriptionId": existing_id,
+            "userErrors": []
+        })
+    );
+
+    let read_after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadWebhookAfterDelete($id: ID!) {
+          webhookSubscription(id: $id) { id }
+          webhookSubscriptions(first: 10, query: "uri:existing-webhook", sortKey: ID) {
+            nodes { id topic uri }
+          }
+          webhookSubscriptionsCount(query: "uri:existing-webhook") { count precision }
+        }
+        "#,
+        json!({ "id": existing_id }),
+    ));
+    assert_eq!(
+        read_after_delete.body["data"]["webhookSubscription"],
+        Value::Null
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([{
+            "id": created_id,
+            "topic": "PRODUCTS_CREATE",
+            "uri": "https://existing-webhook.example.com/new"
+        }])
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let upstream_calls = upstream_calls.lock().unwrap();
+    assert!(
+        upstream_calls.iter().all(|request| {
+            serde_json::from_str::<Value>(&request.body)
+                .ok()
+                .and_then(|body| body["query"].as_str().map(str::to_string))
+                .is_none_or(|query| !query.trim_start().starts_with("mutation"))
+        }),
+        "webhook update/delete/create should stage locally without forwarding caller mutations"
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        3,
+        "update, create, and delete should each record one staged mutation"
+    );
+}
+
+#[test]
+fn live_hybrid_webhook_update_hydrates_existing_target_with_read_only_upstream_call() {
+    let existing_id = "gid://shopify/WebhookSubscription/515151";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let upstream_id = existing_id.to_string();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_calls.lock().unwrap().push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "webhookSubscription": webhook_subscription_fixture(
+                            &upstream_id,
+                            "https://hydrate-existing.example.com/original",
+                            "ORDERS_CREATE"
+                        )
+                    }
+                }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateColdExistingWebhook($id: ID!) {
+          webhookSubscriptionUpdate(
+            id: $id
+            webhookSubscription: { uri: "https://hydrate-existing.example.com/updated", format: JSON }
+          ) {
+            webhookSubscription { id topic uri }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": existing_id }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["webhookSubscriptionUpdate"],
+        json!({
+            "webhookSubscription": {
+                "id": existing_id,
+                "topic": "ORDERS_CREATE",
+                "uri": "https://hydrate-existing.example.com/updated"
+            },
+            "userErrors": []
+        })
+    );
+    let upstream_calls = upstream_calls.lock().unwrap();
+    assert_eq!(upstream_calls.len(), 1);
+    let upstream_body = serde_json::from_str::<Value>(&upstream_calls[0].body).unwrap();
+    assert!(
+        upstream_body["query"]
+            .as_str()
+            .unwrap_or_default()
+            .trim_start()
+            .starts_with("query"),
+        "existing target discovery should use a read-only hydration query"
     );
 }
 

@@ -445,8 +445,183 @@ fn webhook_subscription_matches_datetime_comparator(
 }
 
 const WEBHOOK_FILTER_MAX_BYTE_SIZE: usize = 65_535;
+const WEBHOOK_SUBSCRIPTION_HYDRATE_QUERY: &str = r#"
+query ShopifyDraftProxyWebhookSubscriptionHydrate($id: ID!) {
+  webhookSubscription(id: $id) {
+    id
+    legacyResourceId
+    apiVersion { displayName handle supported }
+    topic
+    format
+    uri
+    callbackUrl
+    name
+    apiPermissionId
+    includeFields
+    metafieldNamespaces
+    metafields { namespace key }
+    filter
+    createdAt
+    updatedAt
+    endpoint {
+      __typename
+      ... on WebhookHttpEndpoint { callbackUrl }
+      ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic }
+      ... on WebhookEventBridgeEndpoint { arn }
+    }
+  }
+}
+"#;
+
+fn webhook_subscription_upstream_records(value: &Value, records: &mut Vec<Value>) {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                webhook_subscription_upstream_records(item, records);
+            }
+        }
+        Value::Object(object) => {
+            if value
+                .get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| id.starts_with("gid://shopify/WebhookSubscription/"))
+            {
+                records.push(normalize_webhook_subscription_upstream_record(
+                    value.clone(),
+                ));
+            }
+            for child in object.values() {
+                webhook_subscription_upstream_records(child, records);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn normalize_webhook_subscription_upstream_record(mut record: Value) -> Value {
+    let Some(object) = record.as_object_mut() else {
+        return record;
+    };
+    let id = object
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    if !id.is_empty() && !object.contains_key("legacyResourceId") {
+        object.insert(
+            "legacyResourceId".to_string(),
+            json!(webhook_subscription_legacy_id(&id)),
+        );
+    }
+    let uri = object
+        .get("uri")
+        .and_then(Value::as_str)
+        .or_else(|| object.get("callbackUrl").and_then(Value::as_str))
+        .map(str::to_string);
+    if !object.contains_key("uri") {
+        if let Some(uri) = &uri {
+            object.insert("uri".to_string(), json!(uri));
+        }
+    }
+    if !object.contains_key("callbackUrl") {
+        if let Some(uri) = uri
+            .as_deref()
+            .and_then(webhook_subscription_callback_url)
+            .map(str::to_string)
+        {
+            object.insert("callbackUrl".to_string(), json!(uri));
+        }
+    }
+    if !object.contains_key("endpoint") {
+        if let Some(uri) = &uri {
+            object.insert("endpoint".to_string(), webhook_endpoint(uri));
+        }
+    }
+    for list_key in ["includeFields", "metafieldNamespaces", "metafields"] {
+        object
+            .entry(list_key.to_string())
+            .or_insert_with(|| json!([]));
+    }
+    record
+}
+
+fn merge_webhook_subscription_records(existing: Option<&Value>, observed: Value) -> Value {
+    let Some(existing_object) = existing.and_then(Value::as_object) else {
+        return observed;
+    };
+    let Some(observed_object) = observed.as_object() else {
+        return observed;
+    };
+    let mut merged = existing_object.clone();
+    for (key, value) in observed_object {
+        merged.insert(key.clone(), value.clone());
+    }
+    Value::Object(merged)
+}
 
 impl DraftProxy {
+    pub(in crate::proxy) fn hydrate_webhook_subscriptions_from_upstream(&mut self, body: &Value) {
+        let Some(data) = body.get("data") else {
+            return;
+        };
+        let mut records = Vec::new();
+        webhook_subscription_upstream_records(data, &mut records);
+        for record in records {
+            let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) else {
+                continue;
+            };
+            let merged = merge_webhook_subscription_records(
+                self.store.base.webhook_subscriptions.get(&id),
+                record,
+            );
+            self.store.base.webhook_subscriptions.insert(id, merged);
+        }
+    }
+
+    fn hydrate_webhook_subscription_target_if_needed(&mut self, request: &Request, id: &str) {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || id.is_empty()
+            || self.webhook_subscription_effective_record(id).is_some()
+            || self.store.staged.webhook_subscriptions.is_tombstoned(id)
+        {
+            return;
+        }
+
+        let hydrate_request = Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": WEBHOOK_SUBSCRIPTION_HYDRATE_QUERY,
+                "variables": { "id": id }
+            })
+            .to_string(),
+        };
+        let response = (self.upstream_transport)(hydrate_request);
+        if response.status < 400 {
+            self.hydrate_webhook_subscriptions_from_upstream(&response.body);
+        }
+    }
+
+    fn webhook_subscription_effective_record(&self, id: &str) -> Option<&Value> {
+        effective_get(
+            &self.store.base.webhook_subscriptions,
+            &self.store.staged.webhook_subscriptions,
+            id,
+        )
+    }
+
+    fn webhook_subscription_effective_records(&self) -> Vec<Value> {
+        effective_records(
+            &self.store.base.webhook_subscriptions,
+            &self.store.staged.webhook_subscriptions,
+        )
+    }
+
+    pub(in crate::proxy) fn webhook_subscription_has_any_staged_overlay(&self) -> bool {
+        !self.store.staged.webhook_subscriptions.is_empty()
+    }
+
     pub(in crate::proxy) fn webhook_subscriptions_query_data(
         &self,
         fields: &[RootFieldSelection],
@@ -457,7 +632,7 @@ impl DraftProxy {
                     .arguments
                     .get("id")
                     .and_then(resolved_value_string)
-                    .and_then(|id| self.store.staged.webhook_subscriptions.get(&id))
+                    .and_then(|id| self.webhook_subscription_effective_record(&id))
                     .map(|record| selected_json(record, &field.selection))
                     .unwrap_or(Value::Null),
                 "webhookSubscriptions" => self.webhook_subscription_connection_field(field),
@@ -500,12 +675,9 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> Vec<Value> {
-        self.store
-            .staged
-            .webhook_subscriptions
-            .values()
+        self.webhook_subscription_effective_records()
+            .into_iter()
             .filter(|record| webhook_subscription_matches_field_args(record, &field.arguments))
-            .cloned()
             .collect()
     }
 
@@ -599,7 +771,7 @@ impl DraftProxy {
         self.store
             .staged
             .webhook_subscriptions
-            .insert(id.clone(), record.clone());
+            .stage(id.clone(), record.clone());
         self.record_mutation_log_entry(request, query, variables, &field.name, vec![id]);
         self.webhook_subscription_payload(record, field.selection.clone(), Vec::new())
     }
@@ -612,7 +784,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let Some(existing) = self.store.staged.webhook_subscriptions.get(&id).cloned() else {
+        self.hydrate_webhook_subscription_target_if_needed(request, &id);
+        let Some(existing) = self.webhook_subscription_effective_record(&id).cloned() else {
             return self.webhook_subscription_payload(
                 Value::Null,
                 field.selection.clone(),
@@ -640,7 +813,7 @@ impl DraftProxy {
         self.store
             .staged
             .webhook_subscriptions
-            .insert(id.clone(), record.clone());
+            .stage(id.clone(), record.clone());
         self.record_mutation_log_entry(request, query, variables, &field.name, vec![id]);
         self.webhook_subscription_payload(record, field.selection.clone(), Vec::new())
     }
@@ -653,13 +826,12 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let deleted_id = if self
-            .store
-            .staged
-            .webhook_subscriptions
-            .remove(&id)
-            .is_some()
-        {
+        self.hydrate_webhook_subscription_target_if_needed(request, &id);
+        let deleted_id = if self.webhook_subscription_effective_record(&id).is_some() {
+            self.store
+                .staged
+                .webhook_subscriptions
+                .tombstone(id.clone());
             json!(id.clone())
         } else {
             Value::Null
@@ -832,12 +1004,10 @@ impl DraftProxy {
             ));
         }
         if self
-            .store
-            .staged
-            .webhook_subscriptions
+            .webhook_subscription_effective_records()
             .iter()
-            .any(|(existing_id, existing)| {
-                existing_id != id
+            .any(|existing| {
+                existing["id"].as_str() != Some(id)
                     && existing["topic"].as_str() == Some(topic)
                     && existing["uri"]
                         .as_str()
@@ -872,12 +1042,10 @@ impl DraftProxy {
                 ));
             }
             if self
-                .store
-                .staged
-                .webhook_subscriptions
+                .webhook_subscription_effective_records()
                 .iter()
-                .any(|(existing_id, existing)| {
-                    existing_id != id
+                .any(|existing| {
+                    existing["id"].as_str() != Some(id)
                         && existing["name"]
                             .as_str()
                             .is_some_and(|existing_name| existing_name.eq_ignore_ascii_case(name))

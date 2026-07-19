@@ -1,3 +1,4 @@
+// Route tests are split into path modules to keep each Admin API area reviewable.
 #[path = "graphql_routes/admin_app.rs"]
 mod admin_app;
 #[path = "graphql_routes/admin_app_shipping.rs"]

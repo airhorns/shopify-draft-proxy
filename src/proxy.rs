@@ -279,6 +279,7 @@ struct BaseState {
     available_locales: BTreeMap<String, String>,
     shop_locales: BTreeMap<String, Value>,
     localization_product_ids: BTreeSet<String>,
+    webhook_subscriptions: OrderedRecords<Value>,
 }
 
 type MetafieldDefinitionKey = (String, String, String);
@@ -390,7 +391,7 @@ struct StagedState {
     localization_dirty: bool,
     marketing_activities: StagedRecords<Value>,
     marketing_delete_all_external: bool,
-    webhook_subscriptions: BTreeMap<String, Value>,
+    webhook_subscriptions: StagedRecords<Value>,
     b2b_companies: BTreeMap<String, Value>,
     b2b_locations: StagedRecords<Value>,
     b2b_contacts: BTreeMap<String, Value>,

@@ -355,6 +355,26 @@ impl DraftProxy {
             snapshot["stagedState"]["onlineStoreIntegrations"] =
                 json!(self.store.staged.online_store_integrations.clone());
         }
+        if !self.store.base.webhook_subscriptions.records.is_empty() {
+            snapshot["baseState"]["webhookSubscriptions"] =
+                json!(self.store.base.webhook_subscriptions.records.clone());
+            snapshot["baseState"]["webhookSubscriptionOrder"] =
+                json!(self.store.base.webhook_subscriptions.order.clone());
+        }
+        if !self.store.staged.webhook_subscriptions.is_empty() {
+            snapshot["stagedState"]["webhookSubscriptions"] =
+                json!(self.store.staged.webhook_subscriptions.records.clone());
+            snapshot["stagedState"]["webhookSubscriptionOrder"] =
+                json!(self.store.staged.webhook_subscriptions.order.clone());
+            snapshot["stagedState"]["deletedWebhookSubscriptionIds"] = json!(self
+                .store
+                .staged
+                .webhook_subscriptions
+                .tombstones
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.online_store_blogs.is_empty() {
             snapshot["stagedState"]["onlineStoreBlogs"] =
                 json!(self.store.staged.online_store_blogs.clone());
@@ -1122,6 +1142,17 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.base.webhook_subscriptions.replace_with_order(
+            value_map_from_json(state["baseState"].get("webhookSubscriptions")),
+            string_array_from_json(&state["baseState"]["webhookSubscriptionOrder"]),
+        );
+        replace_staged_value_records(
+            &mut self.store.staged.webhook_subscriptions,
+            &state["stagedState"],
+            "webhookSubscriptions",
+            Some("webhookSubscriptionOrder"),
+            Some("deletedWebhookSubscriptionIds"),
+        );
         self.store.staged.publication_ids =
             string_array_from_json(&state["stagedState"]["publicationIds"])
                 .into_iter()

@@ -2395,6 +2395,16 @@ impl DraftProxy {
                 if let Some(error) = webhook_subscription_sort_key_validation_error(&document) {
                     ok_json(json!({ "errors": [error] }))
                 } else {
+                    if self.config.read_mode == ReadMode::LiveHybrid {
+                        let response = (self.upstream_transport)(request.clone());
+                        if response.status >= 400 {
+                            return response;
+                        }
+                        self.hydrate_webhook_subscriptions_from_upstream(&response.body);
+                        if !self.webhook_subscription_has_any_staged_overlay() {
+                            return response;
+                        }
+                    }
                     ok_json(json!({
                         "data": self.webhook_subscriptions_query_data(&document.root_fields)
                     }))
