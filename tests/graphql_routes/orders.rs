@@ -5878,6 +5878,190 @@ fn draft_order_lifecycle_family_stages_and_reads_from_store() {
 }
 
 #[test]
+fn staged_draft_order_line_items_connection_honors_relay_arguments() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftWithLineWindows($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              firstLine: lineItems(first: 1) {
+                nodes { id title }
+                edges { cursor node { id title } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+              reverseLine: lineItems(first: 1, reverse: true) {
+                nodes { id title }
+                edges { cursor node { id title } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "lineItems": [
+                    { "title": "Relay line A", "quantity": 1, "originalUnitPrice": "1.00" },
+                    { "title": "Relay line B", "quantity": 1, "originalUnitPrice": "2.00" },
+                    { "title": "Relay line C", "quantity": 1, "originalUnitPrice": "3.00" }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let created = &create.body["data"]["draftOrderCreate"]["draftOrder"];
+    let draft_id = created["id"].clone();
+    let first_cursor = created["firstLine"]["nodes"][0]["id"].clone();
+    let last_cursor = created["reverseLine"]["nodes"][0]["id"].clone();
+    assert_eq!(
+        created["firstLine"],
+        json!({
+            "nodes": [{ "id": first_cursor.clone(), "title": "Relay line A" }],
+            "edges": [{
+                "cursor": first_cursor.clone(),
+                "node": { "id": first_cursor.clone(), "title": "Relay line A" }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_cursor.clone(),
+                "endCursor": first_cursor.clone()
+            }
+        })
+    );
+    assert_eq!(
+        created["reverseLine"],
+        json!({
+            "nodes": [{ "id": last_cursor.clone(), "title": "Relay line C" }],
+            "edges": [{
+                "cursor": last_cursor.clone(),
+                "node": { "id": last_cursor.clone(), "title": "Relay line C" }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": last_cursor.clone(),
+                "endCursor": last_cursor.clone()
+            }
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDraftLineWindows($id: ID!, $after: String!, $before: String!) {
+          draftOrder(id: $id) {
+            afterFirst: lineItems(first: 1, after: $after) {
+              nodes { id title }
+              edges { cursor node { id title } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          draftOrders(first: 1) {
+            nodes {
+              id
+              beforeLast: lineItems(last: 1, before: $before) {
+                nodes { id title }
+                edges { cursor node { id title } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+          }
+        }
+        "#,
+        json!({
+            "id": draft_id.clone(),
+            "after": first_cursor.clone(),
+            "before": last_cursor.clone()
+        }),
+    ));
+    let middle_from_singular = &read.body["data"]["draftOrder"]["afterFirst"];
+    let middle_cursor = middle_from_singular["nodes"][0]["id"].clone();
+    assert_eq!(
+        middle_from_singular,
+        &json!({
+            "nodes": [{ "id": middle_cursor.clone(), "title": "Relay line B" }],
+            "edges": [{
+                "cursor": middle_cursor.clone(),
+                "node": { "id": middle_cursor.clone(), "title": "Relay line B" }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": middle_cursor.clone(),
+                "endCursor": middle_cursor.clone()
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["draftOrders"]["nodes"][0]["beforeLast"],
+        *middle_from_singular
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReplaceDraftLines($id: ID!, $input: DraftOrderInput!) {
+          draftOrderUpdate(id: $id, input: $input) {
+            draftOrder {
+              lineItems(first: 10) {
+                nodes { id title }
+                edges { cursor node { id title } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+              reverseLine: lineItems(first: 1, reverse: true) {
+                nodes { id title }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": draft_id,
+            "input": {
+                "lineItems": [
+                    { "title": "Relay line A", "quantity": 1, "originalUnitPrice": "1.00" },
+                    { "title": "Relay line D", "quantity": 1, "originalUnitPrice": "4.00" }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["userErrors"],
+        json!([])
+    );
+    let updated = &update.body["data"]["draftOrderUpdate"]["draftOrder"];
+    assert_eq!(
+        updated["lineItems"]["nodes"][0],
+        json!({ "id": first_cursor, "title": "Relay line A" })
+    );
+    assert_eq!(
+        updated["lineItems"]["nodes"]
+            .as_array()
+            .expect("updated line nodes")
+            .len(),
+        2
+    );
+    assert_eq!(
+        updated["lineItems"]["nodes"][1]["title"],
+        json!("Relay line D")
+    );
+    assert_ne!(updated["lineItems"]["nodes"][1]["id"], middle_cursor);
+    assert_ne!(updated["lineItems"]["nodes"][1]["id"], last_cursor);
+    assert_eq!(
+        updated["reverseLine"]["nodes"],
+        json!([{ "id": updated["lineItems"]["nodes"][1]["id"].clone(), "title": "Relay line D" }])
+    );
+}
+
+#[test]
 fn draft_order_create_reserve_inventory_until_uses_proxy_clock_boundary() {
     let clock = Arc::new(Mutex::new(utc_time(1_783_382_400)));
     let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));

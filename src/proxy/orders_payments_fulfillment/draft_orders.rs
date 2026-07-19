@@ -20,13 +20,136 @@ fn draft_order_complete_payload(
     user_errors: Vec<Value>,
     selection: &[SelectedField],
 ) -> Value {
-    selected_json(
-        &json!({
-            "draftOrder": draft_order,
-            "userErrors": user_errors
-        }),
-        selection,
+    selected_draft_order_payload(draft_order, user_errors, selection)
+}
+
+fn selected_draft_order_payload(
+    draft_order: Value,
+    user_errors: Vec<Value>,
+    selection: &[SelectedField],
+) -> Value {
+    selected_payload_json(selection, |selection| match selection.name.as_str() {
+        "draftOrder" => Some(selected_draft_order_json(
+            &draft_order,
+            &selection.selection,
+        )),
+        "userErrors" => Some(selected_user_errors(&user_errors, &selection.selection)),
+        _ => None,
+    })
+}
+
+fn selected_draft_order_invoice_send_payload(
+    draft_order: Value,
+    user_errors: Vec<Value>,
+    invoice_errors: Vec<Value>,
+    selection: &[SelectedField],
+) -> Value {
+    selected_payload_json(selection, |selection| match selection.name.as_str() {
+        "draftOrder" => Some(selected_draft_order_json(
+            &draft_order,
+            &selection.selection,
+        )),
+        "userErrors" => Some(selected_user_errors(&user_errors, &selection.selection)),
+        "invoiceErrors" => Some(Value::Array(
+            invoice_errors
+                .iter()
+                .map(|error| selected_json(error, &selection.selection))
+                .collect(),
+        )),
+        _ => None,
+    })
+}
+
+fn selected_draft_order_json(draft_order: &Value, selection: &[SelectedField]) -> Value {
+    if draft_order.is_null() {
+        return Value::Null;
+    }
+    selected_payload_json(selection, |selection| match selection.name.as_str() {
+        "lineItems" => Some(selected_draft_order_line_items_connection(
+            draft_order,
+            selection,
+        )),
+        _ => selected_field_json(draft_order, selection),
+    })
+}
+
+fn selected_draft_order_line_items_connection(
+    draft_order: &Value,
+    selection: &SelectedField,
+) -> Value {
+    selected_connection_json_with_args(
+        draft_order_line_item_nodes_from_record(draft_order),
+        &selection.arguments,
+        &selection.selection,
+        value_id_cursor,
     )
+}
+
+fn draft_order_line_item_nodes_from_record(draft_order: &Value) -> Vec<Value> {
+    draft_order["__draftProxyLineItems"]
+        .as_array()
+        .cloned()
+        .unwrap_or_else(|| connection_nodes(&draft_order["lineItems"]))
+}
+
+fn draft_order_next_line_item_index(draft_order: &Value) -> usize {
+    draft_order["__draftProxyNextLineItemIndex"]
+        .as_u64()
+        .map(|index| index as usize)
+        .unwrap_or_else(|| draft_order_line_item_nodes_from_record(draft_order).len() + 1)
+        .max(1)
+}
+
+fn draft_order_next_line_item_id(draft_order_id: &str, next_index: &mut usize) -> Value {
+    let id = shopify_gid(
+        "DraftOrderLineItem",
+        format!("{}{}", resource_id_tail(draft_order_id), *next_index),
+    );
+    *next_index += 1;
+    json!(id)
+}
+
+fn draft_order_line_identity(line_item: &Value) -> Option<String> {
+    let mut identity = line_item.clone();
+    identity.as_object_mut()?.remove("id");
+    serde_json::to_string(&identity).ok()
+}
+
+fn draft_order_assign_line_item_ids(
+    line_items: &mut [Value],
+    draft_order_id: &str,
+    previous_line_items: &[Value],
+    next_index: &mut usize,
+) {
+    let previous_identities = previous_line_items
+        .iter()
+        .enumerate()
+        .filter_map(|(index, line_item)| {
+            Some((
+                index,
+                draft_order_line_identity(line_item)?,
+                line_item["id"].as_str()?.to_string(),
+            ))
+        })
+        .collect::<Vec<_>>();
+    let mut matched_previous = BTreeSet::new();
+
+    for line_item in line_items {
+        let matched_id = draft_order_line_identity(line_item).and_then(|identity| {
+            previous_identities
+                .iter()
+                .find(|(index, previous_identity, _)| {
+                    !matched_previous.contains(index) && previous_identity == &identity
+                })
+                .map(|(index, _, id)| {
+                    matched_previous.insert(*index);
+                    id.clone()
+                })
+        });
+        line_item["id"] = matched_id
+            .map(Value::String)
+            .unwrap_or_else(|| draft_order_next_line_item_id(draft_order_id, next_index));
+    }
 }
 
 fn draft_order_invoice_template_argument(field: &RootFieldSelection) -> Option<String> {
@@ -86,7 +209,8 @@ pub(in crate::proxy) fn draft_order_record_skeleton(
         "order": Value::Null,
         "orderId": Value::Null,
         "lineItems": order_connection(line_item_nodes.clone()),
-        "__draftProxyLineItems": line_item_nodes
+        "__draftProxyLineItems": line_item_nodes.clone(),
+        "__draftProxyNextLineItemIndex": line_item_nodes.len() + 1
     })
 }
 
@@ -321,13 +445,12 @@ pub(in crate::proxy) fn draft_order_reassign_line_item_ids(
     draft_order_id: &str,
 ) {
     if let Some(nodes) = draft_order["lineItems"]["nodes"].as_array_mut() {
-        for (index, line) in nodes.iter_mut().enumerate() {
-            line["id"] = json!(shopify_gid(
-                "DraftOrderLineItem",
-                format!("{}{}", resource_id_tail(draft_order_id), index + 1),
-            ));
+        let mut next_index = 1;
+        for line in nodes.iter_mut() {
+            line["id"] = draft_order_next_line_item_id(draft_order_id, &mut next_index);
         }
         draft_order["__draftProxyLineItems"] = Value::Array(nodes.clone());
+        draft_order["__draftProxyNextLineItemIndex"] = json!(next_index);
     }
 }
 
@@ -1452,10 +1575,7 @@ impl DraftProxy {
             "draftOrderCreate",
             vec![id],
         );
-        selected_json(
-            &json!({ "draftOrder": draft_order, "userErrors": [] }),
-            &field.selection,
-        )
+        selected_draft_order_payload(draft_order, Vec::new(), &field.selection)
     }
 
     pub(super) fn stage_draft_order_update(
@@ -1514,10 +1634,7 @@ impl DraftProxy {
             "draftOrderUpdate",
             vec![id],
         );
-        selected_json(
-            &json!({ "draftOrder": updated, "userErrors": [] }),
-            &field.selection,
-        )
+        selected_draft_order_payload(updated, Vec::new(), &field.selection)
     }
 
     pub(super) fn calculate_draft_order_payload(
@@ -1611,10 +1728,7 @@ impl DraftProxy {
             "draftOrderDuplicate",
             vec![new_id],
         );
-        selected_json(
-            &json!({ "draftOrder": duplicate, "userErrors": [] }),
-            &field.selection,
-        )
+        selected_draft_order_payload(duplicate, Vec::new(), &field.selection)
     }
 
     pub(super) fn stage_draft_order_delete(
@@ -1721,10 +1835,7 @@ impl DraftProxy {
             "draftOrderCreateFromOrder",
             vec![id],
         );
-        selected_json(
-            &json!({ "draftOrder": draft_order, "userErrors": [] }),
-            &field.selection,
-        )
+        selected_draft_order_payload(draft_order, Vec::new(), &field.selection)
     }
 
     pub(super) fn draft_order_invoice_preview_payload(
@@ -1779,7 +1890,7 @@ impl DraftProxy {
             .draft_orders
             .get(&id)
             .map(|draft_order| {
-                selected_json(
+                selected_draft_order_json(
                     &self.payment_terms_owner_record_with_effective_due(draft_order),
                     &field.selection,
                 )
@@ -1812,13 +1923,12 @@ impl DraftProxy {
             .iter()
             .map(|draft_order| self.payment_terms_owner_record_with_effective_due(draft_order))
             .collect::<Vec<_>>();
-        selected_json(
-            &connection_json_with_cursor(
-                records,
-                |_, node| value_id_cursor(node),
-                result.page_info,
-            ),
+        selected_typed_connection_with_page_info(
+            &records,
             &field.selection,
+            selected_draft_order_json,
+            value_id_cursor,
+            result.page_info,
         )
     }
 
@@ -2039,13 +2149,25 @@ impl DraftProxy {
                 order_create_address(resolved_object_field(input, "shippingAddress"));
         }
         if input.contains_key("lineItems") {
-            draft_order["lineItems"] = order_connection(draft_order_line_items(
+            let draft_order_id = draft_order["id"].as_str().unwrap_or_default().to_string();
+            let currency = draft_order_currency(&draft_order, &self.store.shop_currency_code());
+            let previous_line_items = draft_order_line_item_nodes_from_record(&draft_order);
+            let mut next_line_item_index = draft_order_next_line_item_index(&draft_order);
+            let mut line_items = draft_order_line_items(
                 &resolved_object_list_field(input, "lineItems"),
-                draft_order["id"].as_str().unwrap_or_default(),
-                &draft_order_currency(&draft_order, &self.store.shop_currency_code()),
+                &draft_order_id,
+                &currency,
                 variant_hydrations,
-            ));
-            draft_order["__draftProxyLineItems"] = draft_order["lineItems"]["nodes"].clone();
+            );
+            draft_order_assign_line_item_ids(
+                &mut line_items,
+                &draft_order_id,
+                &previous_line_items,
+                &mut next_line_item_index,
+            );
+            draft_order["lineItems"] = order_connection(line_items.clone());
+            draft_order["__draftProxyLineItems"] = Value::Array(line_items);
+            draft_order["__draftProxyNextLineItemIndex"] = json!(next_line_item_index);
         }
         if input.contains_key("appliedDiscount") {
             let line_items = connection_nodes(&draft_order["lineItems"]);
@@ -2479,12 +2601,10 @@ impl DraftProxy {
                     notes: "Locally handled draftOrderInvoiceSend safety validation.",
                 },
             });
-            return selected_json(
-                &json!({
-                    "draftOrder": draft_order,
-                    "userErrors": user_errors,
-                    "invoiceErrors": invoice_errors
-                }),
+            return selected_draft_order_invoice_send_payload(
+                draft_order,
+                user_errors,
+                invoice_errors,
                 &field.selection,
             );
         }
@@ -2511,14 +2631,7 @@ impl DraftProxy {
                 notes: "Locally handled draftOrderInvoiceSend safety validation.",
             },
         });
-        selected_json(
-            &json!({
-                "draftOrder": updated,
-                "userErrors": [],
-                "invoiceErrors": []
-            }),
-            &field.selection,
-        )
+        selected_draft_order_invoice_send_payload(updated, Vec::new(), Vec::new(), &field.selection)
     }
 
     pub(in crate::proxy) fn draft_order_bulk_tag_local_data(
