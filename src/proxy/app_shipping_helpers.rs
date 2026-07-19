@@ -2462,7 +2462,9 @@ impl DraftProxy {
             // existence check, mirroring Shopify's resolver order: an entry that
             // fails one of those reports only that error and never resolves (nor
             // forwards a lookup for) its product.
-            if resource_feedback_validation_error(input, None).is_some() {
+            if resource_feedback_validation_error(input, None, ResourceFeedbackScope::Product)
+                .is_some()
+            {
                 continue;
             }
             let Some(id) = resolved_string_field(input, "productId") else {
@@ -2631,7 +2633,9 @@ pub(in crate::proxy) fn product_tail_resource_feedback_payload(
         let mut feedback = Vec::new();
         let mut user_errors = Vec::new();
         for (index, input) in inputs.iter().enumerate() {
-            if let Some(error) = resource_feedback_validation_error(input, Some(index)) {
+            if let Some(error) =
+                resource_feedback_validation_error(input, Some(index), ResourceFeedbackScope::Product)
+            {
                 user_errors.push(error);
                 continue;
             }
@@ -2653,7 +2657,9 @@ pub(in crate::proxy) fn product_tail_resource_feedback_payload(
 
 pub(in crate::proxy) fn product_tail_shop_feedback_payload(field: &RootFieldSelection) -> Value {
     let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-    let payload = if let Some(error) = resource_feedback_validation_error(&input, None) {
+    let payload = if let Some(error) =
+        resource_feedback_validation_error(&input, None, ResourceFeedbackScope::Shop)
+    {
         json!({
             "feedback": null,
             "userErrors": [error]
@@ -2686,17 +2692,53 @@ fn shop_resource_feedback_json(input: &BTreeMap<String, ResolvedValue>) -> Value
     })
 }
 
+#[derive(Clone, Copy)]
+enum ResourceFeedbackScope {
+    Product,
+    Shop,
+}
+
+impl ResourceFeedbackScope {
+    fn message_limit(self) -> usize {
+        match self {
+            Self::Product => 10,
+            Self::Shop => 1,
+        }
+    }
+}
+
 fn resource_feedback_validation_error(
     input: &BTreeMap<String, ResolvedValue>,
     feedback_index: Option<usize>,
+    scope: ResourceFeedbackScope,
 ) -> Option<Value> {
+    let state = resolved_string_field(input, "state").unwrap_or_default();
     let messages = resolved_string_list_field_unsorted(input, "messages");
-    if messages.is_empty() {
-        return Some(resource_feedback_user_error(
-            feedback_field_path(feedback_index, "messages", None),
-            "Messages can't be blank",
-            "BLANK",
-        ));
+    if resource_feedback_state_is_success(&state) {
+        if !messages.is_empty() {
+            return Some(resource_feedback_user_error(
+                feedback_field_path(feedback_index, "messages", None),
+                "must not be present for state success",
+                "INVALID",
+            ));
+        }
+    } else {
+        if messages.is_empty() {
+            return Some(resource_feedback_user_error(
+                feedback_field_path(feedback_index, "messages", None),
+                "Messages can't be blank",
+                "BLANK",
+            ));
+        }
+
+        let message_limit = scope.message_limit();
+        if messages.len() > message_limit {
+            return Some(resource_feedback_user_error(
+                feedback_field_path(feedback_index, "messages", None),
+                &format!("no more than {message_limit} allowed"),
+                "TOO_LONG",
+            ));
+        }
     }
 
     let generated_at = resolved_string_field(input, "feedbackGeneratedAt").unwrap_or_default();
@@ -2714,10 +2756,14 @@ fn resource_feedback_validation_error(
         .map(|message_index| {
             resource_feedback_user_error(
                 feedback_field_path(feedback_index, "messages", Some(message_index)),
-                "Message is too long (maximum is 100 characters)",
+                "must have no more than 100 characters",
                 "TOO_LONG",
             )
         })
+}
+
+fn resource_feedback_state_is_success(state: &str) -> bool {
+    state == "ACCEPTED" || state.eq_ignore_ascii_case("success")
 }
 
 fn feedback_field_path(

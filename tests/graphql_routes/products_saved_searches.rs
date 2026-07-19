@@ -2224,7 +2224,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
         r#"
         mutation RustProductFeedbackValidationTailHelpers {{
           blankMessages: bulkProductResourceFeedbackCreate(feedbackInput: [{{ productId: "gid://shopify/Product/optioned", state: REQUIRES_ACTION, feedbackGeneratedAt: "2024-01-01T00:00:00Z", productUpdatedAt: "2024-01-01T00:00:00Z", messages: [] }}]) {{ feedback {{ productId }} userErrors {{ field message code }} }}
-          futureGeneratedAt: bulkProductResourceFeedbackCreate(feedbackInput: [{{ productId: "gid://shopify/Product/optioned", state: ACCEPTED, feedbackGeneratedAt: "2099-01-01T00:00:00Z", productUpdatedAt: "2024-01-01T00:00:00Z", messages: ["needs review"] }}]) {{ feedback {{ productId }} userErrors {{ field message code }} }}
+          futureGeneratedAt: bulkProductResourceFeedbackCreate(feedbackInput: [{{ productId: "gid://shopify/Product/optioned", state: ACCEPTED, feedbackGeneratedAt: "2099-01-01T00:00:00Z", productUpdatedAt: "2024-01-01T00:00:00Z", messages: [] }}]) {{ feedback {{ productId }} userErrors {{ field message code }} }}
           tooLongMessage: bulkProductResourceFeedbackCreate(feedbackInput: [{{ productId: "gid://shopify/Product/optioned", state: REQUIRES_ACTION, feedbackGeneratedAt: "2024-01-01T00:00:00Z", productUpdatedAt: "2024-01-01T00:00:00Z", messages: ["{too_long}"] }}]) {{ feedback {{ productId }} userErrors {{ field message code }} }}
           batchTooLong: bulkProductResourceFeedbackCreate(feedbackInput: [{batch_entries}]) {{ feedback {{ productId }} userErrors {{ field message code }} }}
         }}
@@ -2261,7 +2261,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
             "feedback": [],
             "userErrors": [{
                 "field": ["feedback", "0", "messages", "0"],
-                "message": "Message is too long (maximum is 100 characters)",
+                "message": "must have no more than 100 characters",
                 "code": "TOO_LONG"
             }]
         })
@@ -2283,7 +2283,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
             r#"
             mutation RustShopFeedbackValidationTailHelpers {{
               blankMessages: shopResourceFeedbackCreate(input: {{ state: REQUIRES_ACTION, feedbackGeneratedAt: "2024-01-01T00:00:00Z", messages: [] }}) {{ feedback {{ state }} userErrors {{ field message code }} }}
-              futureGeneratedAt: shopResourceFeedbackCreate(input: {{ state: ACCEPTED, feedbackGeneratedAt: "2099-01-01T00:00:00Z", messages: ["needs review"] }}) {{ feedback {{ state }} userErrors {{ field message code }} }}
+              futureGeneratedAt: shopResourceFeedbackCreate(input: {{ state: ACCEPTED, feedbackGeneratedAt: "2099-01-01T00:00:00Z", messages: [] }}) {{ feedback {{ state }} userErrors {{ field message code }} }}
               tooLongMessage: shopResourceFeedbackCreate(input: {{ state: REQUIRES_ACTION, feedbackGeneratedAt: "2024-01-01T00:00:00Z", messages: ["{too_long}"] }}) {{ feedback {{ state }} userErrors {{ field message code }} }}
             }}
             "#
@@ -2319,7 +2319,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
             "feedback": Value::Null,
             "userErrors": [{
                 "field": ["feedback", "messages", "0"],
-                "message": "Message is too long (maximum is 100 characters)",
+                "message": "must have no more than 100 characters",
                 "code": "TOO_LONG"
             }]
         })
@@ -2375,14 +2375,12 @@ fn product_resource_feedback_validates_mixed_batches_with_per_entry_errors() {
               state: ACCEPTED,
               feedbackGeneratedAt: "2024-01-01T00:00:00Z",
               productUpdatedAt: "2024-01-01T00:00:00Z",
-              messages: ["ready"]
             },
             {
               productId: "gid://shopify/Product/optioned",
               state: ACCEPTED,
               feedbackGeneratedAt: "2100-01-01T00:00:00Z",
-              productUpdatedAt: "2024-01-01T00:00:00Z",
-              messages: ["future"]
+              productUpdatedAt: "2024-01-01T00:00:00Z"
             },
             {
               productId: "gid://shopify/Product/optioned",
@@ -2403,8 +2401,7 @@ fn product_resource_feedback_validates_mixed_batches_with_per_entry_errors() {
           }
           shopFuture: shopResourceFeedbackCreate(input: {
             state: ACCEPTED,
-            feedbackGeneratedAt: "2100-01-01T00:00:00Z",
-            messages: ["future"]
+            feedbackGeneratedAt: "2100-01-01T00:00:00Z"
           }) {
             feedback { state }
             userErrors { field message code }
@@ -2412,7 +2409,7 @@ fn product_resource_feedback_validates_mixed_batches_with_per_entry_errors() {
           shopSecondMessageTooLong: shopResourceFeedbackCreate(input: {
             state: REQUIRES_ACTION,
             feedbackGeneratedAt: "2024-01-01T00:00:00Z",
-            messages: ["ok", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]
+            messages: ["xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]
           }) {
             feedback { state messages { message } feedbackGeneratedAt }
             userErrors { field message code }
@@ -2429,7 +2426,7 @@ fn product_resource_feedback_validates_mixed_batches_with_per_entry_errors() {
             "feedback": [{
                 "productId": "gid://shopify/Product/optioned",
                 "state": "ACCEPTED",
-                "messages": ["ready"],
+                "messages": [],
                 "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
                 "productUpdatedAt": "2024-01-01T00:00:00Z"
             }],
@@ -2463,8 +2460,188 @@ fn product_resource_feedback_validates_mixed_batches_with_per_entry_errors() {
         json!({
             "feedback": Value::Null,
             "userErrors": [{
-                "field": ["feedback", "messages", "1"],
-                "message": "Message is too long (maximum is 100 characters)",
+                "field": ["feedback", "messages", "0"],
+                "message": "must have no more than 100 characters",
+                "code": "TOO_LONG"
+            }]
+        })
+    );
+}
+
+#[test]
+fn resource_feedback_messages_validation_is_state_aware() {
+    let mut proxy = snapshot_proxy();
+    let too_long = "x".repeat(101);
+    let product_messages_over_limit = (0..11)
+        .map(|index| format!("\"Message {index}.\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let query = format!(
+        r#"
+        mutation RustResourceFeedbackStateAwareValidation {{
+          productAcceptedNoMessages: bulkProductResourceFeedbackCreate(feedbackInput: [{{
+            productId: "gid://shopify/Product/state-aware-accepted",
+            state: ACCEPTED,
+            feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+            productUpdatedAt: "2024-01-01T00:00:00Z"
+          }}]) {{
+            feedback {{ productId state messages feedbackGeneratedAt productUpdatedAt }}
+            userErrors {{ field message code }}
+          }}
+          productAcceptedWithMessages: bulkProductResourceFeedbackCreate(feedbackInput: [{{
+            productId: "gid://shopify/Product/state-aware-accepted",
+            state: ACCEPTED,
+            feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+            productUpdatedAt: "2024-01-01T00:00:00Z",
+            messages: ["Should not be present."]
+          }}]) {{
+            feedback {{ productId state messages }}
+            userErrors {{ field message code }}
+          }}
+          productRequiresActionLong: bulkProductResourceFeedbackCreate(feedbackInput: [{{
+            productId: "gid://shopify/Product/state-aware-requires-action",
+            state: REQUIRES_ACTION,
+            feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+            productUpdatedAt: "2024-01-01T00:00:00Z",
+            messages: ["{too_long}"]
+          }}]) {{
+            feedback {{ productId state messages }}
+            userErrors {{ field message code }}
+          }}
+          productRequiresActionTooMany: bulkProductResourceFeedbackCreate(feedbackInput: [{{
+            productId: "gid://shopify/Product/state-aware-requires-action",
+            state: REQUIRES_ACTION,
+            feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+            productUpdatedAt: "2024-01-01T00:00:00Z",
+            messages: [{product_messages_over_limit}]
+          }}]) {{
+            feedback {{ productId state messages }}
+            userErrors {{ field message code }}
+          }}
+          shopAcceptedNoMessages: shopResourceFeedbackCreate(input: {{
+            state: ACCEPTED,
+            feedbackGeneratedAt: "2024-01-01T00:00:00Z"
+          }}) {{
+            feedback {{ state feedbackGeneratedAt messages {{ message }} }}
+            userErrors {{ field message code }}
+          }}
+          shopAcceptedWithMessages: shopResourceFeedbackCreate(input: {{
+            state: ACCEPTED,
+            feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+            messages: ["Should not be present."]
+          }}) {{
+            feedback {{ state messages {{ message }} }}
+            userErrors {{ field message code }}
+          }}
+          shopRequiresActionLong: shopResourceFeedbackCreate(input: {{
+            state: REQUIRES_ACTION,
+            feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+            messages: ["{too_long}"]
+          }}) {{
+            feedback {{ state messages {{ message }} }}
+            userErrors {{ field message code }}
+          }}
+          shopRequiresActionTooMany: shopResourceFeedbackCreate(input: {{
+            state: REQUIRES_ACTION,
+            feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+            messages: ["One.", "Two."]
+          }}) {{
+            feedback {{ state messages {{ message }} }}
+            userErrors {{ field message code }}
+          }}
+        }}
+        "#
+    );
+
+    let response = proxy.process_request(json_graphql_request(&query, json!({})));
+
+    assert_eq!(response.status, 200, "response body: {}", response.body);
+    assert_eq!(
+        response.body["data"]["productAcceptedNoMessages"],
+        json!({
+            "feedback": [{
+                "productId": "gid://shopify/Product/state-aware-accepted",
+                "state": "ACCEPTED",
+                "messages": [],
+                "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+                "productUpdatedAt": "2024-01-01T00:00:00Z"
+            }],
+            "userErrors": []
+        })
+    );
+    assert_eq!(
+        response.body["data"]["productAcceptedWithMessages"],
+        json!({
+            "feedback": [],
+            "userErrors": [{
+                "field": ["feedback", "0", "messages"],
+                "message": "must not be present for state success",
+                "code": "INVALID"
+            }]
+        })
+    );
+    assert_eq!(
+        response.body["data"]["productRequiresActionLong"],
+        json!({
+            "feedback": [],
+            "userErrors": [{
+                "field": ["feedback", "0", "messages", "0"],
+                "message": "must have no more than 100 characters",
+                "code": "TOO_LONG"
+            }]
+        })
+    );
+    assert_eq!(
+        response.body["data"]["productRequiresActionTooMany"],
+        json!({
+            "feedback": [],
+            "userErrors": [{
+                "field": ["feedback", "0", "messages"],
+                "message": "no more than 10 allowed",
+                "code": "TOO_LONG"
+            }]
+        })
+    );
+    assert_eq!(
+        response.body["data"]["shopAcceptedNoMessages"],
+        json!({
+            "feedback": {
+                "state": "ACCEPTED",
+                "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+                "messages": []
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(
+        response.body["data"]["shopAcceptedWithMessages"],
+        json!({
+            "feedback": Value::Null,
+            "userErrors": [{
+                "field": ["feedback", "messages"],
+                "message": "must not be present for state success",
+                "code": "INVALID"
+            }]
+        })
+    );
+    assert_eq!(
+        response.body["data"]["shopRequiresActionLong"],
+        json!({
+            "feedback": Value::Null,
+            "userErrors": [{
+                "field": ["feedback", "messages", "0"],
+                "message": "must have no more than 100 characters",
+                "code": "TOO_LONG"
+            }]
+        })
+    );
+    assert_eq!(
+        response.body["data"]["shopRequiresActionTooMany"],
+        json!({
+            "feedback": Value::Null,
+            "userErrors": [{
+                "field": ["feedback", "messages"],
+                "message": "no more than 1 allowed",
                 "code": "TOO_LONG"
             }]
         })
