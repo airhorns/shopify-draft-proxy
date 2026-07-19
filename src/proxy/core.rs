@@ -493,6 +493,14 @@ impl DraftProxy {
                 "bulkOperationsObserved": self.store.base.bulk_operations_observed,
                 "locations": self.store.base.locations.records.clone(),
                 "locationOrder": self.store.base.locations.order,
+                "inventoryLevels": inventory_levels_json(&self.store.base.inventory_levels),
+                "inventoryLevelIds": inventory_level_ids_json(&self.store.base.inventory_level_ids),
+                "inventoryLevelOrder": inventory_level_order_json(&self.store.base.inventory_level_order),
+                "inventoryLevelCursors": self.store.base.inventory_level_cursors.clone(),
+                "inventoryItemCursors": self.store.base.inventory_item_cursors.clone(),
+                "inventoryItemsCatalogHydrated": self.store.base.inventory_items_catalog_hydrated,
+                "inactiveInventoryLevels": inactive_inventory_levels_json(&self.store.base.inactive_inventory_levels),
+                "inventoryQuantityUpdatedAt": inventory_quantity_updated_at_json(&self.store.base.inventory_quantity_updated_at),
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
                 "giftCardCompleteQueries": self.store.base.gift_card_complete_queries.iter().cloned().collect::<Vec<_>>(),
@@ -1046,6 +1054,10 @@ impl DraftProxy {
         if !self.store.staged.inactive_inventory_levels.is_empty() {
             snapshot["stagedState"]["inactiveInventoryLevels"] =
                 inactive_inventory_levels_json(&self.store.staged.inactive_inventory_levels);
+        }
+        if !self.store.staged.active_inventory_levels.is_empty() {
+            snapshot["stagedState"]["activeInventoryLevels"] =
+                inactive_inventory_levels_json(&self.store.staged.active_inventory_levels);
         }
         if !self.store.base.inventory_transfers.records.is_empty() {
             snapshot["baseState"]["inventoryTransfers"] =
@@ -1873,6 +1885,29 @@ impl DraftProxy {
             .base
             .locations
             .replace_with_order(base_locations, base_location_order);
+        self.store.base.inventory_levels =
+            inventory_levels_from_json(&state["baseState"]["inventoryLevels"]);
+        self.store.base.inventory_level_ids =
+            inventory_level_ids_from_json(&state["baseState"]["inventoryLevelIds"]);
+        self.store.base.inventory_level_order =
+            inventory_level_order_from_json(&state["baseState"]["inventoryLevelOrder"]);
+        self.store.base.inventory_level_cursors = state["baseState"]
+            .get("inventoryLevelCursors")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
+        self.store.base.inventory_item_cursors = state["baseState"]
+            .get("inventoryItemCursors")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
+        self.store.base.inventory_items_catalog_hydrated = state["baseState"]
+            ["inventoryItemsCatalogHydrated"]
+            .as_bool()
+            .unwrap_or(false);
+        self.store.base.inactive_inventory_levels =
+            inactive_inventory_levels_from_json(&state["baseState"]["inactiveInventoryLevels"]);
+        self.store.base.inventory_quantity_updated_at = inventory_quantity_updated_at_from_json(
+            &state["baseState"]["inventoryQuantityUpdatedAt"],
+        );
         self.store.base.shop = base_shop;
         self.store.base.publication_ids =
             string_array_from_json(&state["baseState"]["publicationIds"])
@@ -2493,6 +2528,8 @@ impl DraftProxy {
             .unwrap_or_default();
         self.store.staged.inactive_inventory_levels =
             inactive_inventory_levels_from_json(&state["stagedState"]["inactiveInventoryLevels"]);
+        self.store.staged.active_inventory_levels =
+            inactive_inventory_levels_from_json(&state["stagedState"]["activeInventoryLevels"]);
         self.store
             .staged
             .inventory_transfers
