@@ -4556,28 +4556,72 @@ pub(in crate::proxy) fn product_category_input_id(
 }
 
 impl DraftProxy {
-    /// Resolve a taxonomy category GID to a stable local category object. In live-hybrid
-    /// mode, prefer Shopify's taxonomy node data through the upstream/cassette read path.
-    /// When that source is unavailable, derive a deterministic fallback from the input
-    /// GID tail instead of collapsing valid-but-unknown taxonomy IDs to null.
-    pub(in crate::proxy) fn product_category_value_for_input(
+    pub(in crate::proxy) fn product_category_for_mutation_input(
+        &self,
+        request: &Request,
+        input: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
+        root_location: SourceLocation,
+    ) -> Result<Option<Value>, ResolverOutcome<Value>> {
+        let Some(category_id) = product_category_input_id(input) else {
+            return Ok(None);
+        };
+        match self.product_category_resolution_for_input(request, &category_id) {
+            ProductCategoryResolution::Found(category) => Ok(Some(category)),
+            ProductCategoryResolution::Malformed | ProductCategoryResolution::VerifiedAbsent => {
+                Err(graphql_error_outcome(
+                    vec![invalid_product_taxonomy_node_id_error(
+                        response_key,
+                        root_location,
+                    )],
+                    response_key,
+                ))
+            }
+            ProductCategoryResolution::Indeterminate => {
+                Err(indeterminate_product_taxonomy_category_outcome())
+            }
+        }
+    }
+
+    /// Resolve product category input from authoritative effective state or Shopify's
+    /// taxonomy node read. A well-formed GID proves only the resource type, never that the
+    /// category exists or that its path encodes hierarchy metadata.
+    pub(in crate::proxy) fn product_category_resolution_for_input(
         &self,
         request: &Request,
         id: &str,
-    ) -> Option<Value> {
-        let tail = taxonomy_category_tail(id)?;
-        if self.config.read_mode == ReadMode::LiveHybrid
-            && shopify_gid_tail_for_type(id, "TaxonomyCategory").is_some()
-        {
-            if let Some(category) = self.hydrate_taxonomy_category_value(request, id) {
-                return Some(category);
-            }
+    ) -> ProductCategoryResolution {
+        if !is_shopify_gid_of_type(id, "TaxonomyCategory") {
+            return ProductCategoryResolution::Malformed;
         }
 
-        Some(derived_product_category_value(id, tail))
+        if let Some(category) = self.product_category_value_from_effective_state(id) {
+            return ProductCategoryResolution::Found(category);
+        }
+
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return ProductCategoryResolution::Indeterminate;
+        }
+
+        self.hydrate_taxonomy_category_value(request, id)
     }
 
-    fn hydrate_taxonomy_category_value(&self, request: &Request, id: &str) -> Option<Value> {
+    fn product_category_value_from_effective_state(&self, id: &str) -> Option<Value> {
+        self.store
+            .products
+            .staged
+            .records
+            .values()
+            .chain(self.store.products.base.records.values())
+            .filter_map(|product| product.extra_fields.get("category"))
+            .find_map(|category| authoritative_product_category_value(category, id))
+    }
+
+    fn hydrate_taxonomy_category_value(
+        &self,
+        request: &Request,
+        id: &str,
+    ) -> ProductCategoryResolution {
         let response = self.upstream_post(
             request,
             json!({
@@ -4586,112 +4630,67 @@ impl DraftProxy {
                 "variables": { "id": id }
             }),
         );
-        if response.status != 200 || response.body.get("errors").is_some() {
-            return None;
+        if !(200..300).contains(&response.status)
+            || response
+                .body
+                .get("errors")
+                .and_then(Value::as_array)
+                .is_some_and(|errors| !errors.is_empty())
+        {
+            return ProductCategoryResolution::Indeterminate;
         }
-        let node = response.body.pointer("/data/node")?;
-        if node.get("__typename").and_then(Value::as_str) != Some("TaxonomyCategory") {
-            return None;
+        let Some(node) = response.body.pointer("/data/node") else {
+            return ProductCategoryResolution::Indeterminate;
+        };
+        if node.is_null() {
+            return ProductCategoryResolution::VerifiedAbsent;
         }
 
-        let fallback = taxonomy_category_tail(id)
-            .map(|tail| derived_product_category_value(id, tail))
-            .unwrap_or_else(|| json!({ "id": id, "fullName": null }));
-        Some(json!({
-            "id": id,
-            "fullName": category_field_or_fallback(node, &fallback, "fullName"),
-            "name": category_field_or_fallback(node, &fallback, "name"),
-            "isLeaf": category_field_or_fallback(node, &fallback, "isLeaf"),
-            "level": category_field_or_fallback(node, &fallback, "level"),
-            "parentId": category_field_or_fallback(node, &fallback, "parentId"),
-        }))
+        authoritative_product_category_value(node, id)
+            .map(ProductCategoryResolution::Found)
+            .unwrap_or(ProductCategoryResolution::Indeterminate)
     }
 }
 
-fn category_field_or_fallback(node: &Value, fallback: &Value, field: &str) -> Value {
-    node.get(field)
-        .filter(|value| !value.is_null())
-        .cloned()
-        .unwrap_or_else(|| fallback.get(field).cloned().unwrap_or(Value::Null))
+#[derive(Debug, Clone, PartialEq)]
+pub(in crate::proxy) enum ProductCategoryResolution {
+    Found(Value),
+    VerifiedAbsent,
+    Malformed,
+    Indeterminate,
 }
 
-fn taxonomy_category_tail(id: &str) -> Option<&str> {
-    let tail = shopify_gid_tail_for_type(id, "TaxonomyCategory")?;
-    let tail = tail.split('?').next().unwrap_or(tail);
-    if taxonomy_category_tail_is_valid(tail) {
-        Some(tail)
-    } else {
-        None
-    }
-}
-
-fn taxonomy_category_tail_is_valid(tail: &str) -> bool {
-    let segments: Vec<&str> = tail
-        .split('-')
-        .filter(|segment| !segment.is_empty())
-        .collect();
-    if segments.is_empty() {
-        return false;
-    }
-    if !segments[0]
-        .chars()
-        .all(|character| character.is_ascii_lowercase())
+fn authoritative_product_category_value(category: &Value, requested_id: &str) -> Option<Value> {
+    if category.get("__typename").is_some()
+        && category.get("__typename").and_then(Value::as_str) != Some("TaxonomyCategory")
     {
-        return false;
+        return None;
     }
-    segments[1..]
-        .iter()
-        .all(|segment| segment.chars().all(|character| character.is_ascii_digit()))
-}
+    if category.get("id").and_then(Value::as_str) != Some(requested_id) {
+        return None;
+    }
+    let name = category.get("name")?.as_str()?;
+    let full_name = category.get("fullName")?.as_str()?;
+    let is_leaf = category.get("isLeaf")?.as_bool()?;
+    let level = category.get("level")?.as_u64()?;
+    let parent_id = category.get("parentId")?;
+    if !parent_id.is_null() && parent_id.as_str().is_none() {
+        return None;
+    }
 
-fn derived_product_category_value(id: &str, tail: &str) -> Value {
-    let segments: Vec<&str> = tail
-        .split('-')
-        .filter(|segment| !segment.is_empty())
-        .collect();
-    let labels = segments
-        .iter()
-        .map(|segment| taxonomy_category_tail_label(segment))
-        .collect::<Vec<_>>();
-    let name = labels.last().cloned().unwrap_or_default();
-    let full_name = labels.join(" > ");
-    let parent_id = if segments.len() > 1 {
-        let parent_tail = segments[..segments.len() - 1].join("-");
-        Value::String(shopify_gid("TaxonomyCategory", parent_tail))
-    } else {
-        Value::Null
-    };
-
-    json!({
-        "id": id,
+    Some(json!({
+        "id": requested_id,
         "fullName": full_name,
         "name": name,
-        "isLeaf": true,
-        "level": segments.len(),
+        "isLeaf": is_leaf,
+        "level": level,
         "parentId": parent_id
-    })
+    }))
 }
 
-fn taxonomy_category_tail_label(segment: &str) -> String {
-    if segment.chars().all(|character| character.is_ascii_digit()) {
-        return segment.to_string();
-    }
-
-    segment
-        .split('_')
-        .flat_map(|part| part.split_whitespace())
-        .filter(|part| !part.is_empty())
-        .map(|part| {
-            let mut chars = part.chars();
-            match chars.next() {
-                Some(first) => {
-                    first.to_ascii_uppercase().to_string() + &chars.as_str().to_ascii_lowercase()
-                }
-                None => String::new(),
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+pub(in crate::proxy) fn indeterminate_product_taxonomy_category_outcome() -> ResolverOutcome<Value>
+{
+    ResolverOutcome::error("Unable to verify product taxonomy category")
 }
 
 pub(in crate::proxy) fn invalid_product_taxonomy_node_id_error(

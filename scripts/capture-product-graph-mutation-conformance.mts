@@ -24,6 +24,10 @@ const { runGraphql } = createAdminGraphqlClient({
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
 
+const productSetTaxonomyCategoryId = 'gid://shopify/TaxonomyCategory/aa-1-1';
+const taxonomyCategoryHydrateQuery =
+  'query ProductTaxonomyCategoryHydrate($id: ID!) { node(id: $id) { __typename id ... on TaxonomyCategory { name fullName isLeaf level parentId } } }';
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -34,6 +38,26 @@ function expectNoUserErrors(pathLabel, userErrors) {
   }
 
   throw new Error(`${pathLabel} returned userErrors: ${JSON.stringify(userErrors ?? null, null, 2)}`);
+}
+
+function expectAuthoritativeTaxonomyCategory(pathLabel, response, expectedId) {
+  const node = response?.data?.node;
+  const hasCompleteHierarchy =
+    node?.__typename === 'TaxonomyCategory' &&
+    node?.id === expectedId &&
+    typeof node?.name === 'string' &&
+    typeof node?.fullName === 'string' &&
+    typeof node?.isLeaf === 'boolean' &&
+    typeof node?.level === 'number' &&
+    Object.prototype.hasOwnProperty.call(node, 'parentId') &&
+    (node.parentId === null || typeof node.parentId === 'string');
+  if (hasCompleteHierarchy) {
+    return;
+  }
+
+  throw new Error(
+    `${pathLabel} did not return complete authoritative taxonomy metadata: ${JSON.stringify(response ?? null)}`,
+  );
 }
 
 const productSetMutation = readFileSync(
@@ -295,7 +319,7 @@ function buildProductSetVariables(runId, locations) {
       status: 'DRAFT',
       vendor: 'HERMES',
       productType: 'SNOWBOARD',
-      category: 'gid://shopify/TaxonomyCategory/aa-1-1',
+      category: productSetTaxonomyCategoryId,
       tags: ['conformance', 'product-graph', runId],
       productOptions: [
         {
@@ -343,7 +367,7 @@ function selectProductSetLocations(locations) {
       selectedLocations.push(location);
     }
   }
-  return selectedLocations;
+  return selectedLocations.sort((left, right) => left.id.localeCompare(right.id));
 }
 
 function readProductSetVariantRefs(productSetResponse) {
@@ -568,6 +592,16 @@ try {
   }
 
   const productSetVariables = buildProductSetVariables(runId, productSetLocations);
+  const productSetTaxonomyCategoryHydrateVariables = { id: productSetTaxonomyCategoryId };
+  const productSetTaxonomyCategoryHydrateResponse = await runGraphql(
+    taxonomyCategoryHydrateQuery,
+    productSetTaxonomyCategoryHydrateVariables,
+  );
+  expectAuthoritativeTaxonomyCategory(
+    'productSet taxonomy category hydrate',
+    productSetTaxonomyCategoryHydrateResponse,
+    productSetTaxonomyCategoryId,
+  );
   const productSetResponse = await runGraphql(productSetMutation, productSetVariables);
   expectNoUserErrors('productSet', productSetResponse.data?.productSet?.userErrors);
   sourceProductId = productSetResponse.data?.productSet?.product?.id ?? null;
@@ -689,6 +723,15 @@ try {
   const captures = {
     'product-set-parity.json': {
       upstreamCalls: [
+        {
+          operationName: 'ProductTaxonomyCategoryHydrate',
+          query: taxonomyCategoryHydrateQuery,
+          variables: productSetTaxonomyCategoryHydrateVariables,
+          response: {
+            status: 200,
+            body: productSetTaxonomyCategoryHydrateResponse,
+          },
+        },
         ...productSetLocationHydrates.map((hydrate) => ({
           operationName: 'StorePropertiesLocationHydrate',
           query: locationHydrateQuery,
