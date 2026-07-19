@@ -518,7 +518,7 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
             DraftProxy::fulfillment_order_mutation_root,
             ["tests/graphql_routes/platform.rs"]
         ),
-        entry!("fulfillmentOrderMerge", Mutation, ShippingFulfillments, DraftProxy::fulfillment_order_mutation_root, []),
+        entry!("fulfillmentOrderMerge", Mutation, ShippingFulfillments, DraftProxy::fulfillment_order_mutation_root, ["tests/graphql_routes/platform.rs"]),
         entry!("fulfillmentOrderMove", Mutation, ShippingFulfillments, DraftProxy::fulfillment_order_mutation_root, []),
         entry!("fulfillmentOrderOpen", Mutation, ShippingFulfillments, DraftProxy::fulfillment_order_mutation_root, []),
         entry!("fulfillmentOrderRejectCancellationRequest", Mutation, ShippingFulfillments, DraftProxy::fulfillment_order_mutation_root, []),
@@ -528,7 +528,7 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("fulfillmentOrderReschedule", Mutation, ShippingFulfillments, DraftProxy::fulfillment_order_mutation_root, []),
         entry!("fulfillmentOrdersReroute", Mutation, ShippingFulfillments, DraftProxy::fulfillment_order_mutation_root, []),
         entry!("fulfillmentOrdersSetFulfillmentDeadline", Mutation, ShippingFulfillments, DraftProxy::fulfillment_order_mutation_root, []),
-        entry!("fulfillmentOrderSplit", Mutation, ShippingFulfillments, DraftProxy::fulfillment_order_mutation_root, []),
+        entry!("fulfillmentOrderSplit", Mutation, ShippingFulfillments, DraftProxy::fulfillment_order_mutation_root, ["tests/graphql_routes/platform.rs"]),
         entry!("fulfillmentOrderSubmitCancellationRequest", Mutation, ShippingFulfillments, DraftProxy::fulfillment_order_mutation_root, []),
         entry!("fulfillmentOrderSubmitFulfillmentRequest", Mutation, ShippingFulfillments, DraftProxy::fulfillment_order_mutation_root, []),
         entry!("fulfillmentService", Query, ShippingFulfillments, DraftProxy::fulfillment_service_query_root, []),

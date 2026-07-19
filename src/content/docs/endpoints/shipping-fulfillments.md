@@ -192,6 +192,17 @@ fulfillment orders are recomputed from current status and assignment: terminal
 Split fulfillment orders preserve fulfillment-service actions observed on the
 source order, while merge recomputes peer-sensitive actions so `MERGE` is absent
 when no compatible open peer remains.
+Split and merge input batches are atomic across the local order graph. If any
+input fails validation, the mutation returns a null result list with Shopify's
+captured `userErrors` and preserves every fulfillment order, owning-order
+projection, supported-action list, timestamp cursor, synthetic identity
+counter, and mutation log exactly as they were before the batch. A fully valid
+multi-input batch stages every result in input order and retains one original
+raw mutation for commit replay. In LiveHybrid mode, split hydrates each cold
+source fulfillment order through query-only reads; merge performs one
+deduplicated `nodes(ids:)` hydration for all cold merge intents so sibling
+orders are validated from one bounded upstream request. Neither supported
+mutation sends its write upstream before explicit commit.
 `fulfillmentOrderLineItemsPreparedForPickup` stages pickup preparation for
 selected order-backed fulfillment orders that resolve from staged, observed, or
 LiveHybrid-hydrated order state. The local branch validates every requested

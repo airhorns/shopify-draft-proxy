@@ -12864,6 +12864,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-batch-atomicity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-batch-atomicity-conformance.ts',
+    purpose:
+      'fulfillmentOrderSplit and fulfillmentOrderMerge valid-first/invalid-second batch rollback with full downstream order reads.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-batch-atomicity.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-split-batch-atomicity.json',
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-merge-batch-atomicity.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-batch-atomicity-orders.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-split-batch-atomicity.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-merge-batch-atomicity.graphql',
+    ],
+    cleanupBehavior:
+      'Creates four disposable orders, splits two into mergeable pairs, asserts both rejected batches preserve full order state, then cancels every order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'shipping-service-mutation-first-hydration',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-shipping-service-mutation-first-hydration-conformance.ts',

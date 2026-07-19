@@ -1007,7 +1007,38 @@ impl DraftProxy {
         user_error(field, message, Some(code))
     }
 
+    fn stage_fulfillment_order_batch_transactionally(
+        &mut self,
+        stage: impl FnOnce(&mut Self) -> Value,
+    ) -> Value {
+        let mut transaction = self.clone();
+        let payload = stage(&mut transaction);
+        let succeeded = payload
+            .get("userErrors")
+            .and_then(Value::as_array)
+            .is_some_and(Vec::is_empty);
+        if succeeded {
+            *self = transaction;
+        }
+        payload
+    }
+
     pub(super) fn stage_fulfillment_order_split(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        self.stage_fulfillment_order_batch_transactionally(|transaction| {
+            transaction.stage_fulfillment_order_split_transaction(
+                request, query, variables, root_field, arguments,
+            )
+        })
+    }
+
+    fn stage_fulfillment_order_split_transaction(
         &mut self,
         request: &Request,
         query: &str,
@@ -1213,7 +1244,28 @@ impl DraftProxy {
         root_field: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
+        self.stage_fulfillment_order_batch_transactionally(|transaction| {
+            transaction.stage_fulfillment_order_merge_transaction(
+                request, query, variables, root_field, arguments,
+            )
+        })
+    }
+
+    fn stage_fulfillment_order_merge_transaction(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
         let merge_inputs = resolved_object_list_field(arguments, "fulfillmentOrderMergeInputs");
+        let fulfillment_order_ids = merge_inputs
+            .iter()
+            .flat_map(|input| resolved_object_list_field(input, "mergeIntents"))
+            .filter_map(|intent| resolved_string_field(&intent, "fulfillmentOrderId"))
+            .collect::<Vec<_>>();
+        self.hydrate_orders_for_fulfillment_order_merge(&fulfillment_order_ids, request);
         let mut merge_results = Vec::new();
         let mut staged_ids = Vec::new();
         let assigned_location = self.default_fulfillment_assigned_location();
@@ -1225,7 +1277,7 @@ impl DraftProxy {
             };
             let target_id =
                 resolved_string_field(first_intent, "fulfillmentOrderId").unwrap_or_default();
-            let Some(order_id) = self.order_id_for_fulfillment_order(&target_id, request) else {
+            let Some(order_id) = self.staged_order_id_for_fulfillment_order(&target_id) else {
                 return self.fulfillment_order_not_found_payload(root_field);
             };
             let Some(mut order) = self.store.staged.orders.get(&order_id).cloned() else {
