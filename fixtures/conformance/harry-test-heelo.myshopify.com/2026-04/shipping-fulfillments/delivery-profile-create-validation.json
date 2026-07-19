@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-30T14:28:18.471Z",
+  "capturedAt": "2026-07-05T07:03:53.919Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "evidence": {
@@ -70,7 +70,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1979,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -111,7 +111,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1978,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -157,7 +157,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1980,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }

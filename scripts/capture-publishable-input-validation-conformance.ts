@@ -10,7 +10,6 @@ import {
   type ConformanceGraphqlResult,
 } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
-import type { RecordedUpstreamCall } from './parity-cassette.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
@@ -63,7 +62,7 @@ type PublishableVariables = {
 };
 
 type ValidationCase = {
-  variables: PublishableVariables;
+  variables: Record<string, unknown>;
   response: ConformanceGraphqlResult;
 };
 
@@ -130,6 +129,54 @@ const publishablePublishMutation = `#graphql
 const publishableUnpublishMutation = `#graphql
   mutation PublishableInputValidationUnpublish($id: ID!, $input: [PublicationInput!]!) {
     publishableUnpublish(id: $id, input: $input) {
+      publishable {
+        ... on Product {
+          id
+          publishedOnCurrentPublication
+          resourcePublicationsCount {
+            count
+            precision
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const publishablePublishInlineEmptyStringMutation = `#graphql
+  mutation PublishableInputValidationPublishInlineEmpty($id: ID!) {
+    publishablePublish(
+      id: $id
+      input: [{ publicationId: "gid://shopify/Publication/1" }, { publicationId: "" }]
+    ) {
+      publishable {
+        ... on Product {
+          id
+          publishedOnCurrentPublication
+          resourcePublicationsCount {
+            count
+            precision
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const publishableUnpublishInlineEmptyStringMutation = `#graphql
+  mutation PublishableInputValidationUnpublishInlineEmpty($id: ID!) {
+    publishableUnpublish(
+      id: $id
+      input: [{ publicationId: "gid://shopify/Publication/1" }, { publicationId: "" }]
+    ) {
       publishable {
         ... on Product {
           id
@@ -218,38 +265,10 @@ function validationVariables(productId: string, input: PublicationInput[]): Publ
   return { id: productId, input };
 }
 
-async function captureCase(query: string, variables: PublishableVariables): Promise<ValidationCase> {
+async function captureCase(query: string, variables: Record<string, unknown>): Promise<ValidationCase> {
   return {
     variables,
     response: await runGraphqlRaw(query, variables),
-  };
-}
-
-async function capturePublicationResourceHydrate(resourceId: string): Promise<RecordedUpstreamCall> {
-  const variables = { ids: [resourceId] };
-  const response = await runGraphqlRaw(publicationResourceHydrateQuery, variables);
-  return {
-    operationName: 'PublicationResourceHydrate',
-    variables,
-    query: publicationResourceHydrateQuery,
-    response: {
-      status: response.status,
-      body: response.payload,
-    },
-  };
-}
-
-async function captureCurrentAppPublicationHydrate(): Promise<RecordedUpstreamCall> {
-  const variables = {};
-  const response = await runGraphqlRaw(currentAppPublicationHydrateQuery, variables);
-  return {
-    operationName: 'StorePropertiesCurrentAppPublicationHydrate',
-    variables,
-    query: currentAppPublicationHydrateQuery,
-    response: {
-      status: response.status,
-      body: response.payload,
-    },
   };
 }
 
@@ -260,8 +279,8 @@ let productId: string | null = null;
 let setup: ConformanceGraphqlPayload<ProductCreateData> | null = null;
 let cleanup: ConformanceGraphqlResult<ProductDeleteData> | null = null;
 let hydrateResponse: ConformanceGraphqlResult | null = null;
-let publicationResourceHydrate: RecordedUpstreamCall | null = null;
-let currentAppPublicationHydrate: RecordedUpstreamCall | null = null;
+let resourceHydrateResponse: ConformanceGraphqlResult | null = null;
+let currentAppPublicationResponse: ConformanceGraphqlResult | null = null;
 let publicationsResponse: ConformanceGraphqlPayload<PublicationsData> | null = null;
 const cases: Record<string, ValidationCase> = {};
 
@@ -282,11 +301,14 @@ try {
   if (!publicationId) {
     throw new Error('Publishable input validation capture needs at least one shop publication.');
   }
+  resourceHydrateResponse = await runGraphqlRaw(publicationResourceHydrateQuery, { ids: [productId] });
+  currentAppPublicationResponse = await runGraphqlRaw(currentAppPublicationHydrateQuery, {});
 
   const duplicateInput = [{ publicationId }, { publicationId }];
   const pastDateInput = [{ publicationId, publishDate: '1900-01-01T00:00:00Z' }];
   const blankInput = [{}];
   const emptyStringInput = [{ publicationId: '' }];
+  const emptyStringAtIndexOneInput = [{ publicationId }, { publicationId: '' }];
   const unknownInput = [{ publicationId: 'gid://shopify/Publication/424242424242' }];
 
   cases['publishDuplicate'] = await captureCase(
@@ -304,6 +326,14 @@ try {
   cases['publishEmptyStringPublication'] = await captureCase(
     publishablePublishMutation,
     validationVariables(productId, emptyStringInput),
+  );
+  cases['publishEmptyStringPublicationAtIndexOne'] = await captureCase(
+    publishablePublishMutation,
+    validationVariables(productId, emptyStringAtIndexOneInput),
+  );
+  cases['publishInlineEmptyStringPublicationAtIndexOne'] = await captureCase(
+    publishablePublishInlineEmptyStringMutation,
+    { id: productId },
   );
   cases['publishUnknownPublication'] = await captureCase(
     publishablePublishMutation,
@@ -325,6 +355,14 @@ try {
     publishableUnpublishMutation,
     validationVariables(productId, emptyStringInput),
   );
+  cases['unpublishEmptyStringPublicationAtIndexOne'] = await captureCase(
+    publishableUnpublishMutation,
+    validationVariables(productId, emptyStringAtIndexOneInput),
+  );
+  cases['unpublishInlineEmptyStringPublicationAtIndexOne'] = await captureCase(
+    publishableUnpublishInlineEmptyStringMutation,
+    { id: productId },
+  );
   cases['unpublishUnknownPublication'] = await captureCase(
     publishableUnpublishMutation,
     validationVariables(productId, unknownInput),
@@ -341,8 +379,6 @@ try {
   };
 
   hydrateResponse = await runGraphqlRaw(publishableHydrateQuery, { id: productId });
-  publicationResourceHydrate = await capturePublicationResourceHydrate(productId);
-  currentAppPublicationHydrate = await captureCurrentAppPublicationHydrate();
 } finally {
   if (productId) {
     try {
@@ -370,8 +406,8 @@ if (
   !productId ||
   !setup ||
   !hydrateResponse ||
-  !publicationResourceHydrate ||
-  !currentAppPublicationHydrate ||
+  !resourceHydrateResponse ||
+  !currentAppPublicationResponse ||
   !publicationsResponse ||
   Object.keys(cases).length === 0
 ) {
@@ -394,13 +430,20 @@ await writeFile(
       cleanup,
       notes: [
         'Live Admin API validation for generic publishable PublicationInput branches.',
-        'Replay records the production PublicationResourceHydrate upstream call before cleanup so the proxy observes the disposable publishable through the same public GraphQL path.',
-        'Replay records the current-app publication hydrate used by current-channel publishable siblings.',
+        'Non-zero empty-string publicationId cases capture both variable-bound INVALID_VARIABLE and inline literal argumentLiteralsIncompatible coercion behavior.',
+        'Unknown-publication cases use an arbitrary non-sentinel well-formed Publication GID.',
         'Current-channel publishable siblings are captured with their schema-supported id-only shape.',
       ],
       upstreamCalls: [
-        publicationResourceHydrate,
-        currentAppPublicationHydrate,
+        {
+          operationName: 'PublicationResourceHydrate',
+          variables: { ids: [productId] },
+          query: publicationResourceHydrateQuery,
+          response: {
+            status: resourceHydrateResponse.status,
+            body: resourceHydrateResponse.payload,
+          },
+        },
         {
           operationName: 'StorePropertiesPublishablePublishHydrate',
           variables: { id: productId },
@@ -426,6 +469,15 @@ await writeFile(
           response: {
             status: hydrateResponse.status,
             body: hydrateResponse.payload,
+          },
+        },
+        {
+          operationName: 'StorePropertiesCurrentAppPublicationHydrate',
+          variables: {},
+          query: currentAppPublicationHydrateQuery,
+          response: {
+            status: currentAppPublicationResponse.status,
+            body: currentAppPublicationResponse.payload,
           },
         },
         {

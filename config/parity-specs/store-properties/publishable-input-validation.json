@@ -18,7 +18,7 @@
     "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live 2025-01 generic publishable PublicationInput validation capture for duplicate publicationId, pre-1970 publishDate, omitted publicationId blank validation, empty-string publicationId INVALID_VARIABLE evidence, arbitrary non-sentinel unknown publicationId, and current-channel id-only sibling behavior. Rust runtime tests cover the local handler path for these captured cases.",
+  "notes": "Live 2025-01 generic publishable PublicationInput validation capture for duplicate publicationId, pre-1970 publishDate, omitted publicationId blank validation, empty-string publicationId INVALID_VARIABLE evidence including a non-zero offending index, inline literal empty-string publicationId coercion, arbitrary non-sentinel unknown publicationId, and current-channel id-only sibling behavior. Rust runtime tests cover the local handler path for these captured cases.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -61,6 +61,40 @@
           "$[0].extensions.code",
           "$[0].extensions.problems[0].path",
           "$[0].extensions.problems[0].message"
+        ]
+      },
+      {
+        "name": "publish empty string publication variable error index one",
+        "capturePath": "$.cases.publishEmptyStringPublicationAtIndexOne.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation.graphql",
+          "variablesCapturePath": "$.cases.publishEmptyStringPublicationAtIndexOne.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$[0].message",
+          "$[0].locations",
+          "$[0].extensions.code",
+          "$[0].extensions.problems[0].path",
+          "$[0].extensions.problems[0].message"
+        ]
+      },
+      {
+        "name": "publish inline empty string publication literal error index one",
+        "capturePath": "$.cases.publishInlineEmptyStringPublicationAtIndexOne.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation-inline-empty.graphql",
+          "variablesCapturePath": "$.cases.publishInlineEmptyStringPublicationAtIndexOne.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$[0].message",
+          "$[0].locations",
+          "$[0].path",
+          "$[0].extensions.code",
+          "$[0].extensions.typeName"
         ]
       },
       {
@@ -116,6 +150,40 @@
           "$[0].extensions.code",
           "$[0].extensions.problems[0].path",
           "$[0].extensions.problems[0].message"
+        ]
+      },
+      {
+        "name": "unpublish empty string publication variable error index one",
+        "capturePath": "$.cases.unpublishEmptyStringPublicationAtIndexOne.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation-unpublish.graphql",
+          "variablesCapturePath": "$.cases.unpublishEmptyStringPublicationAtIndexOne.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$[0].message",
+          "$[0].locations",
+          "$[0].extensions.code",
+          "$[0].extensions.problems[0].path",
+          "$[0].extensions.problems[0].message"
+        ]
+      },
+      {
+        "name": "unpublish inline empty string publication literal error index one",
+        "capturePath": "$.cases.unpublishInlineEmptyStringPublicationAtIndexOne.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-input-validation-unpublish-inline-empty.graphql",
+          "variablesCapturePath": "$.cases.unpublishInlineEmptyStringPublicationAtIndexOne.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$[0].message",
+          "$[0].locations",
+          "$[0].path",
+          "$[0].extensions.code",
+          "$[0].extensions.typeName"
         ]
       },
       {

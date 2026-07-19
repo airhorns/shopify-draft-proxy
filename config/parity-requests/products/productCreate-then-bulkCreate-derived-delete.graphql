@@ -1,0 +1,37 @@
+mutation ProductDerivedFieldsBulkDelete($productId: ID!, $variantsIds: [ID!]!) {
+  productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+    product {
+      id
+      priceRangeV2 {
+        minVariantPrice {
+          amount
+          currencyCode
+        }
+        maxVariantPrice {
+          amount
+          currencyCode
+        }
+      }
+      variantsCount {
+        count
+        precision
+      }
+      compareAtPriceRange {
+        minVariantCompareAtPrice {
+          amount
+          currencyCode
+        }
+        maxVariantCompareAtPrice {
+          amount
+          currencyCode
+        }
+      }
+      totalVariants
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

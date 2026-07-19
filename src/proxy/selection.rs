@@ -55,6 +55,25 @@ pub(in crate::proxy) fn selected_user_errors_field(
     Some(selected_user_errors(errors, &selection.selection))
 }
 
+pub(in crate::proxy) fn selected_field_json(
+    record: &Value,
+    field: &SelectedField,
+) -> Option<Value> {
+    selected_json(record, std::slice::from_ref(field))
+        .as_object()
+        .and_then(|object| object.get(&field.response_key).cloned())
+}
+
+pub(in crate::proxy) fn selection_contains_any(
+    selections: &[SelectedField],
+    names: &[&str],
+) -> bool {
+    selections.iter().any(|selection| {
+        names.contains(&selection.name.as_str())
+            || selection_contains_any(&selection.selection, names)
+    })
+}
+
 pub(in crate::proxy) trait DispatchField {
     fn response_key(&self) -> &str;
 }

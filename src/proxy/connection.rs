@@ -121,7 +121,17 @@ pub(in crate::proxy) fn value_id_cursor(record: &Value) -> String {
 }
 
 pub(in crate::proxy) fn connection_nodes(connection: &Value) -> Vec<Value> {
-    connection["nodes"].as_array().cloned().unwrap_or_default()
+    let nodes = connection["nodes"].as_array().cloned().unwrap_or_default();
+    if !nodes.is_empty() {
+        return nodes;
+    }
+    connection
+        .get("edges")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|edge| edge.get("node").cloned())
+        .collect()
 }
 
 pub(in crate::proxy) fn connection_json_with_cursor<F>(
@@ -147,6 +157,21 @@ where
 
 pub(in crate::proxy) fn connection_json_with_empty_edges(nodes: Vec<Value>) -> Value {
     json!({ "nodes": nodes, "edges": [], "pageInfo": empty_page_info() })
+}
+
+pub(in crate::proxy) fn connection_json_with_boundary_cursors<F>(
+    nodes: Vec<Value>,
+    mut cursor_for: F,
+) -> Value
+where
+    F: FnMut(&Value) -> Option<String>,
+{
+    let start_cursor = nodes.first().and_then(&mut cursor_for);
+    let end_cursor = nodes.last().and_then(&mut cursor_for);
+    json!({
+        "nodes": nodes,
+        "pageInfo": connection_page_info(false, false, start_cursor, end_cursor)
+    })
 }
 
 pub(in crate::proxy) fn connection_json(nodes: Vec<Value>) -> Value {
@@ -277,6 +302,28 @@ pub(in crate::proxy) enum StagedSortValue {
 }
 
 pub(in crate::proxy) type StagedSortKey = Vec<StagedSortValue>;
+
+pub(in crate::proxy) fn sorted_indexed_records<T, SortKey, Cursor>(
+    records: Vec<T>,
+    reverse: bool,
+    sort_key: SortKey,
+    cursor: Cursor,
+) -> Vec<T>
+where
+    SortKey: Fn(&T, usize) -> StagedSortKey,
+    Cursor: Fn(&T) -> String,
+{
+    let mut indexed = records.into_iter().enumerate().collect::<Vec<_>>();
+    indexed.sort_by(|left, right| {
+        sort_key(&left.1, left.0)
+            .cmp(&sort_key(&right.1, right.0))
+            .then_with(|| cursor(&left.1).cmp(&cursor(&right.1)))
+    });
+    if reverse {
+        indexed.reverse();
+    }
+    indexed.into_iter().map(|(_, record)| record).collect()
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(in crate::proxy) enum StagedSearchDecision {

@@ -15,7 +15,12 @@
   "proxyRequest": {
     "documentPath": "config/parity-requests/marketing/marketing-activity-create-external-read-after-write.graphql",
     "variablesCapturePath": "$.operations.primary.variables",
-    "apiVersion": "2026-04"
+    "apiVersion": "2026-04",
+    "headers": {
+      "x-shopify-draft-proxy-api-client-id": "347082227713",
+      "x-shopify-draft-proxy-app-handle": "hermes-conformance-products",
+      "x-shopify-draft-proxy-app-title": "hermes-conformance-products"
+    }
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -47,6 +52,16 @@
         ]
       },
       {
+        "name": "create-app-node-title",
+        "capturePath": "$.operations.primary.response.payload.data.createExternal.marketingActivity.app",
+        "proxyPath": "$.data.createExternal.marketingActivity.app"
+      },
+      {
+        "name": "update-app-node-title",
+        "capturePath": "$.operations.primary.response.payload.data.updateExternal.marketingActivity.app",
+        "proxyPath": "$.data.updateExternal.marketingActivity.app"
+      },
+      {
         "name": "singular-read-after-update",
         "capturePath": "$.operations.readAfterUpdate.response.payload.data.marketingActivity",
         "proxyPath": "$.data.marketingActivity",
@@ -61,6 +76,32 @@
                 "fromCapturePath": "$.operations.primary.variables.remoteId"
               }
             ]
+          },
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "singular-read-after-update-app-node-title",
+        "capturePath": "$.operations.readAfterUpdate.response.payload.data.marketingActivity.app",
+        "proxyPath": "$.data.marketingActivity.app",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-create-external-read-after-write-read.graphql",
+          "variables": {
+            "activityId": {
+              "fromPrimaryProxyPath": "$.data.updateExternal.marketingActivity.id"
+            },
+            "remoteIds": [
+              {
+                "fromCapturePath": "$.operations.primary.variables.remoteId"
+              }
+            ]
+          },
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
           },
           "apiVersion": "2026-04"
         },
@@ -82,11 +123,37 @@
               }
             ]
           },
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "connection-read-after-update-app-node-title",
+        "capturePath": "$.operations.readAfterUpdate.response.payload.data.marketingActivities.nodes[0].app",
+        "proxyPath": "$.data.marketingActivities.nodes[0].app",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-create-external-read-after-write-read.graphql",
+          "variables": {
+            "activityId": {
+              "fromPrimaryProxyPath": "$.data.updateExternal.marketingActivity.id"
+            },
+            "remoteIds": [
+              {
+                "fromCapturePath": "$.operations.primary.variables.remoteId"
+              }
+            ]
+          },
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          },
           "apiVersion": "2026-04"
         },
         "expectedDifferences": []
       }
     ]
   },
-  "notes": "Captured against Admin GraphQL 2026-04 with create input adSpend, scheduledStart, scheduledEnd, and referringDomain followed by an update omitting those fields. The public MarketingActivity type exposes adSpend, and the nested MarketingEvent exposes scheduledToEndAt; live introspection on this API version does not expose MarketingActivity.scheduledToStartAt, MarketingActivity.scheduledToEndAt, or MarketingActivity.referringDomain, so focused Rust route tests cover local staging/preservation for those stored fields while parity asserts the public read-back surface Shopify currently permits."
+  "notes": "Captured against Admin GraphQL 2026-04 with create input adSpend, scheduledStart, scheduledEnd, and referringDomain followed by an update omitting those fields. The refreshed capture also asserts that MarketingActivity.app returns the conformance app GID and display title rather than the numeric API client ID. The public MarketingActivity type exposes adSpend, and the nested MarketingEvent exposes scheduledToEndAt; live introspection on this API version does not expose MarketingActivity.scheduledToStartAt, MarketingActivity.scheduledToEndAt, or MarketingActivity.referringDomain, so focused Rust route tests cover local staging/preservation for those stored fields while parity asserts the public read-back surface Shopify currently permits."
 }

@@ -45,18 +45,21 @@ impl DraftProxy {
             return self
                 .publishable_publish_with_publications(root_field, query, variables, request);
         }
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(document) = parsed_document(query, variables) else {
             return json_error(400, "Unable to parse publishable mutation");
         };
+        let operation_path = document.operation_path.clone();
         let mut data = serde_json::Map::new();
-        for field in fields {
+        for field in document.root_fields {
             if field.name != root_field {
                 continue;
             }
             let Some(resource_id) = resolved_string_field(&field.arguments, "id") else {
                 continue;
             };
-            if let Some(response) = publishable_empty_string_publication_error(root_field, &field) {
+            if let Some(response) =
+                publishable_empty_string_publication_error(query, &operation_path, &field)
+            {
                 return response;
             }
             if self.config.read_mode != ReadMode::Snapshot
@@ -108,6 +111,16 @@ impl DraftProxy {
                     "Resource does not exist",
                     Some("RESOURCE_DOES_NOT_EXIST"),
                 ));
+            }
+            if resource_exists
+                && is_shopify_gid_of_type(&resource_id, "Product")
+                && publishable_input_needs_publication_catalog_hydration(
+                    field.arguments.get("input"),
+                    to_current,
+                    self.store.has_known_publication_ids(),
+                )
+            {
+                self.hydrate_publishable_payload_shop(&resource_id, request);
             }
             user_errors.extend(
                 self.publishable_publication_input_errors(field.arguments.get("input"), to_current),
@@ -246,7 +259,7 @@ impl DraftProxy {
                 .get("id")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            if id.starts_with("gid://shopify/Collection/") {
+            if is_shopify_gid_of_type(id, "Collection") {
                 self.store.stage_collection(publishable.clone());
             }
         }
@@ -283,6 +296,27 @@ fn publishable_selection_field_applies(field: &SelectedField, resource_type: &st
         .type_condition
         .as_deref()
         .is_none_or(|condition| condition == resource_type || condition == "Node")
+}
+
+pub(in crate::proxy) fn publishable_input_needs_publication_catalog_hydration(
+    input: Option<&ResolvedValue>,
+    current_channel_root: bool,
+    has_known_publication_ids: bool,
+) -> bool {
+    if current_channel_root || has_known_publication_ids {
+        return false;
+    }
+    let Some(ResolvedValue::List(publications)) = input else {
+        return false;
+    };
+    publications.iter().any(|publication| {
+        let ResolvedValue::Object(publication) = publication else {
+            return false;
+        };
+        resolved_string_field(publication, "publicationId")
+            .as_deref()
+            .is_some_and(|id| !id.is_empty())
+    })
 }
 
 /// The publication gids named in a `publishablePublish`/`publishableUnpublish`
@@ -383,40 +417,55 @@ fn publishable_publish_date_is_before_1970(value: &str) -> bool {
 }
 
 pub(in crate::proxy) fn publishable_empty_string_publication_error(
-    root_field: &str,
+    query: &str,
+    operation_path: &str,
     field: &RootFieldSelection,
 ) -> Option<Response> {
     let input = field.arguments.get("input")?;
     let ResolvedValue::List(publications) = input else {
         return None;
     };
-    let has_empty_string = publications.iter().any(|publication| {
+    let (index, _) = publications.iter().enumerate().find(|(_, publication)| {
         let ResolvedValue::Object(publication) = publication else {
             return false;
         };
         resolved_string_field(publication, "publicationId").as_deref() == Some("")
-    });
-    if !has_empty_string {
-        return None;
+    })?;
+
+    if let Some(RawArgumentValue::Variable { name, value }) = field.raw_arguments.get("input") {
+        let variable_definition = variable_definition_info(query, name)?;
+        let variable_value = value.as_ref().unwrap_or(input);
+        let explanation = "Invalid global id ''";
+        let path_display = format!("{index}.publicationId");
+        let problem = json!({
+            "path": [index, "publicationId"],
+            "explanation": explanation,
+            "message": explanation,
+        });
+        let message = format!(
+            "Variable ${name} of type {} was provided invalid value for {path_display} ({explanation})",
+            variable_definition.type_display
+        );
+        return Some(ok_json(json!({
+            "errors": [invalid_variable_error_envelope(
+                message,
+                variable_definition.location,
+                resolved_values::resolved_value_json(variable_value),
+                json!([problem]),
+            )]
+        })));
     }
 
-    let column = match root_field {
-        "publishableUnpublish" => 58,
-        _ => 56,
-    };
-    let message = "Variable $input of type [PublicationInput!]! was provided invalid value for 0.publicationId (Invalid global id '')";
+    let location = inline_argument_list_item_object_location(query, field, "input", index)
+        .unwrap_or(field.location);
     Some(ok_json(json!({
         "errors": [{
-            "message": message,
-            "locations": [{ "line": field.location.line, "column": column }],
+            "message": "Invalid global id ''",
+            "locations": [{ "line": location.line, "column": location.column }],
+            "path": [operation_path, field.response_key, "input", index, "publicationId"],
             "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": resolved_values::resolved_value_json(input),
-                "problems": [{
-                    "path": [0, "publicationId"],
-                    "explanation": "Invalid global id ''",
-                    "message": "Invalid global id ''"
-                }]
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "CoercionError"
             }
         }]
     })))

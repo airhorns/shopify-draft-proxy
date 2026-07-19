@@ -353,7 +353,7 @@ try {
   const createSetup = await capture(validationCreateDocument, {
     validation: {
       ...baseValidation,
-      metafields: [{ namespace: 'custom', key: 'mode', type: 'single_line_text_field', value: 'strict' }],
+      metafields: [{ namespace: 'custom', key: 'enabled', type: 'boolean', value: 'true' }],
     },
   });
   assertNoTopLevelErrors(createSetup, 'validationCreate setup');
@@ -436,7 +436,7 @@ try {
     storeDomain,
     apiVersion,
     summary:
-      'validationCreate and validationUpdate metafield input rejection branches with per-index userErrors and atomic no-write behavior.',
+      'validationCreate accepts a boolean validation metafield and validationCreate/validationUpdate reject invalid metafield branches with per-index userErrors and atomic no-write behavior.',
     conformanceApp: {
       validationFunctionHandle,
       validationFunction,
@@ -464,7 +464,7 @@ try {
     ],
     notes: {
       lifecycle:
-        'The script creates one disposable validation with a valid metafield, rejects an invalid validationUpdate metafield payload, verifies the original metafield is still readable, records validationCreate rejection branches, and deletes the disposable validation.',
+        'The script creates one disposable validation with a valid boolean metafield, rejects an invalid validationUpdate metafield payload, verifies the original metafield is still readable, records validationCreate rejection branches, and deletes the disposable validation.',
       upstreamHydration:
         'The upstream call is the exact ShopifyFunction lookup the proxy sends when it needs to hydrate Function metadata for local validationCreate staging.',
     },

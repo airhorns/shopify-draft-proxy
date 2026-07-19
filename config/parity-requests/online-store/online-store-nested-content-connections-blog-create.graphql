@@ -1,0 +1,19 @@
+mutation OnlineStoreNestedContentConnectionsBlogCreate($blog: BlogCreateInput!) {
+  blogCreate(blog: $blog) {
+    blog {
+      id
+      title
+      handle
+      commentPolicy
+      articlesCount {
+        count
+        precision
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -318,6 +318,47 @@ const mediaReadQuery = `#graphql
           }
         }
       }
+      images(first: 10) {
+        nodes {
+          id
+          url
+          altText
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      featuredImage {
+        id
+        url
+        altText
+      }
+      featuredMedia {
+        __typename
+        ... on MediaImage {
+          id
+          alt
+          mediaContentType
+          status
+          image {
+            id
+            url
+            altText
+            width
+            height
+          }
+          preview {
+            image {
+              url
+              width
+              height
+            }
+          }
+        }
+      }
     }
   }
 `;
@@ -767,6 +808,23 @@ try {
       },
       downstreamRead: postCreateRead,
       readyRead,
+      upstreamCalls: [
+        {
+          operationName: 'ProductsHydrateNodes',
+          variables: {
+            ids: [productId],
+          },
+          query: productsHydrateNodesObservationQuery,
+          response: {
+            status: initialProductHydrateResponse.status,
+            body: {
+              data: {
+                nodes: [initialHydratedProduct],
+              },
+            },
+          },
+        },
+      ],
     },
     'product-update-media-parity.json': {
       setup: {

@@ -1,8 +1,13 @@
 {
   "scenarioId": "product-create-then-bulk-create-price-range-parity",
-  "operationNames": ["productCreate", "productVariantsBulkUpdate", "productVariantsBulkCreate"],
+  "operationNames": [
+    "productCreate",
+    "productVariantsBulkUpdate",
+    "productVariantsBulkCreate",
+    "productVariantsBulkDelete"
+  ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "assertionKinds": ["payload-shape", "mutation-payload-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-then-bulk-create-price-range-parity.json"
   ],
@@ -11,7 +16,7 @@
     "variablesCapturePath": "$.shop.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable parity for product-level derived fields after `productVariantsBulkCreate`. The live Shopify schema does not accept variants on `ProductCreateInput`, so this scenario first reads the shop currency through GraphQL, creates the option-backed product, sets the initial Red variant price to 10.00 with `productVariantsBulkUpdate`, bulk-creates Blue and Green variants at 5.00 and 20.00, then verifies immediate product aggregate reads.",
+  "notes": "Executable parity for product-level derived fields after variant update, bulk create, and bulk delete. The live Shopify schema does not accept variants on `ProductCreateInput`, so this scenario first reads the shop currency through GraphQL, creates the option-backed product, sets the initial Red variant price/compareAtPrice with `productVariantsBulkUpdate`, bulk-creates Blue and Green variants with price/compareAtPrice, verifies immediate aggregate reads, deletes Blue, and verifies the count and compare-at range recompute.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -29,6 +34,8 @@
         "selectedPaths": [
           "$.productCreate.product.priceRangeV2",
           "$.productCreate.product.priceRange",
+          "$.productCreate.product.variantsCount",
+          "$.productCreate.product.compareAtPriceRange",
           "$.productCreate.userErrors"
         ],
         "proxyRequest": {
@@ -37,9 +44,16 @@
         }
       },
       {
-        "name": "initial-price-update-user-errors",
-        "capturePath": "$.priceUpdate.response.data.productVariantsBulkUpdate.userErrors",
-        "proxyPath": "$.data.productVariantsBulkUpdate.userErrors",
+        "name": "initial-price-update-count-and-compare-at-range",
+        "capturePath": "$.priceUpdate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.productVariantsBulkUpdate.product.priceRangeV2",
+          "$.productVariantsBulkUpdate.product.variantsCount",
+          "$.productVariantsBulkUpdate.product.compareAtPriceRange",
+          "$.productVariantsBulkUpdate.product.totalVariants",
+          "$.productVariantsBulkUpdate.userErrors"
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/productCreate-then-bulkCreate-derived-price-update.graphql",
           "variables": {
@@ -53,7 +67,8 @@
                   "fromProxyResponse": "product-create",
                   "path": "$.data.productCreate.product.variants.nodes[0].id"
                 },
-                "price": "10.00"
+                "price": "10.00",
+                "compareAtPrice": "15.00"
               }
             ]
           }
@@ -66,6 +81,8 @@
         "selectedPaths": [
           "$.productVariantsBulkCreate.product.priceRangeV2",
           "$.productVariantsBulkCreate.product.priceRange",
+          "$.productVariantsBulkCreate.product.variantsCount",
+          "$.productVariantsBulkCreate.product.compareAtPriceRange",
           "$.productVariantsBulkCreate.product.totalVariants",
           "$.productVariantsBulkCreate.product.hasOnlyDefaultVariant",
           "$.productVariantsBulkCreate.product.hasOutOfStockVariants",
@@ -88,7 +105,8 @@
                     "name": "Blue"
                   }
                 ],
-                "price": "5.00"
+                "price": "5.00",
+                "compareAtPrice": "9.00"
               },
               {
                 "optionValues": [
@@ -97,7 +115,8 @@
                     "name": "Green"
                   }
                 ],
-                "price": "20.00"
+                "price": "20.00",
+                "compareAtPrice": "30.00"
               }
             ]
           }
@@ -110,6 +129,60 @@
         "selectedPaths": [
           "$.product.priceRangeV2",
           "$.product.priceRange",
+          "$.product.variantsCount",
+          "$.product.compareAtPriceRange",
+          "$.product.totalVariants",
+          "$.product.hasOnlyDefaultVariant",
+          "$.product.hasOutOfStockVariants",
+          "$.product.tracksInventory",
+          "$.product.totalInventory"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-then-bulkCreate-derived-downstream.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "product-create",
+              "path": "$.data.productCreate.product.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "bulk-delete-count-and-compare-at-range",
+        "capturePath": "$.bulkDelete.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.productVariantsBulkDelete.product.priceRangeV2",
+          "$.productVariantsBulkDelete.product.variantsCount",
+          "$.productVariantsBulkDelete.product.compareAtPriceRange",
+          "$.productVariantsBulkDelete.product.totalVariants",
+          "$.productVariantsBulkDelete.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-then-bulkCreate-derived-delete.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variantsIds": [
+              {
+                "fromProxyResponse": "bulk-create-derived-fields",
+                "path": "$.data.productVariantsBulkCreate.productVariants[0].id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "post-delete-downstream-count-and-compare-at-range",
+        "capturePath": "$.postDeleteDownstreamRead.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.product.priceRangeV2",
+          "$.product.priceRange",
+          "$.product.variantsCount",
+          "$.product.compareAtPriceRange",
           "$.product.totalVariants",
           "$.product.hasOnlyDefaultVariant",
           "$.product.hasOutOfStockVariants",

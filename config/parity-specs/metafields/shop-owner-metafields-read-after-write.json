@@ -1,0 +1,53 @@
+{
+  "scenarioId": "shop-owner-metafields-read-after-write",
+  "operationNames": ["metafieldsSet", "metafieldsDelete", "shop"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "delete-tombstone"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/shop-owner-metafields-read-after-write.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/shop-owner-metafields-set.graphql",
+    "variablesCapturePath": "$.set.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured live Shopify evidence that shop-owner metafieldsSet is reflected by immediate shop.metafield and shop.metafields reads, and that metafieldsDelete tombstones remove the staged value from both shop owner read paths.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "set-payload",
+        "capturePath": "$.set.response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet"
+      },
+      {
+        "name": "read-after-set-shop-metafields",
+        "capturePath": "$.readAfterSet.response.data.shop",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/shop-owner-metafields-read.graphql",
+          "variablesCapturePath": "$.readAfterSet.variables"
+        },
+        "proxyPath": "$.data.shop"
+      },
+      {
+        "name": "delete-payload",
+        "capturePath": "$.delete.response.data.metafieldsDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/shop-owner-metafields-delete.graphql",
+          "variablesCapturePath": "$.delete.variables"
+        },
+        "proxyPath": "$.data.metafieldsDelete"
+      },
+      {
+        "name": "post-delete-shop-metafields-empty",
+        "capturePath": "$.readAfterDelete.response.data.shop",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/shop-owner-metafields-read.graphql",
+          "variablesCapturePath": "$.readAfterDelete.variables"
+        },
+        "proxyPath": "$.data.shop"
+      }
+    ]
+  }
+}

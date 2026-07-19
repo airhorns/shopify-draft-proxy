@@ -2,10 +2,10 @@
   "precondition": {
     "variables": {
       "input": {
-        "email": "hermes-tax-exemptions-1782102035139@example.com",
+        "email": "hermes-tax-exemptions-1783222455485@example.com",
         "firstName": "Hermes",
         "lastName": "Tax",
-        "tags": ["parity", "tax-exemptions-1782102035139"],
+        "tags": ["parity", "tax-exemptions-1783222455485"],
         "taxExempt": false
       }
     },
@@ -13,19 +13,19 @@
       "data": {
         "customerCreate": {
           "customer": {
-            "id": "gid://shopify/Customer/10820165075250",
+            "id": "gid://shopify/Customer/10899940671794",
             "firstName": "Hermes",
             "lastName": "Tax",
             "displayName": "Hermes Tax",
-            "email": "hermes-tax-exemptions-1782102035139@example.com",
+            "email": "hermes-tax-exemptions-1783222455485@example.com",
             "taxExempt": false,
             "taxExemptions": [],
-            "tags": ["parity", "tax-exemptions-1782102035139"],
+            "tags": ["parity", "tax-exemptions-1783222455485"],
             "defaultEmailAddress": {
-              "emailAddress": "hermes-tax-exemptions-1782102035139@example.com"
+              "emailAddress": "hermes-tax-exemptions-1783222455485@example.com"
             },
-            "createdAt": "2026-06-22T04:20:35Z",
-            "updatedAt": "2026-06-22T04:20:35Z"
+            "createdAt": "2026-07-05T03:34:15Z",
+            "updatedAt": "2026-07-05T03:34:15Z"
           },
           "userErrors": []
         }
@@ -45,26 +45,26 @@
   },
   "mutation": {
     "variables": {
-      "customerId": "gid://shopify/Customer/10820165075250",
+      "customerId": "gid://shopify/Customer/10899940671794",
       "taxExemptions": ["CA_BC_RESELLER_EXEMPTION", "US_CA_RESELLER_EXEMPTION"]
     },
     "response": {
       "data": {
         "customerAddTaxExemptions": {
           "customer": {
-            "id": "gid://shopify/Customer/10820165075250",
+            "id": "gid://shopify/Customer/10899940671794",
             "firstName": "Hermes",
             "lastName": "Tax",
             "displayName": "Hermes Tax",
-            "email": "hermes-tax-exemptions-1782102035139@example.com",
+            "email": "hermes-tax-exemptions-1783222455485@example.com",
             "taxExempt": false,
             "taxExemptions": ["CA_BC_RESELLER_EXEMPTION", "US_CA_RESELLER_EXEMPTION"],
-            "tags": ["parity", "tax-exemptions-1782102035139"],
+            "tags": ["parity", "tax-exemptions-1783222455485"],
             "defaultEmailAddress": {
-              "emailAddress": "hermes-tax-exemptions-1782102035139@example.com"
+              "emailAddress": "hermes-tax-exemptions-1783222455485@example.com"
             },
-            "createdAt": "2026-06-22T04:20:35Z",
-            "updatedAt": "2026-06-22T04:20:35Z"
+            "createdAt": "2026-07-05T03:34:15Z",
+            "updatedAt": "2026-07-05T03:34:15Z"
           },
           "userErrors": []
         }
@@ -75,7 +75,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1980,
+            "currentlyAvailable": 1968,
             "restoreRate": 100
           }
         }
@@ -84,44 +84,44 @@
   },
   "downstreamRead": {
     "variables": {
-      "id": "gid://shopify/Customer/10820165075250",
+      "id": "gid://shopify/Customer/10899940671794",
       "identifier": {
-        "id": "gid://shopify/Customer/10820165075250"
+        "id": "gid://shopify/Customer/10899940671794"
       },
-      "query": "email:hermes-tax-exemptions-1782102035139@example.com",
+      "query": "email:hermes-tax-exemptions-1783222455485@example.com",
       "first": 5
     },
     "response": {
       "data": {
         "customer": {
-          "id": "gid://shopify/Customer/10820165075250",
+          "id": "gid://shopify/Customer/10899940671794",
           "firstName": "Hermes",
           "lastName": "Tax",
           "displayName": "Hermes Tax",
-          "email": "hermes-tax-exemptions-1782102035139@example.com",
+          "email": "hermes-tax-exemptions-1783222455485@example.com",
           "taxExempt": false,
           "taxExemptions": ["CA_BC_RESELLER_EXEMPTION", "US_CA_RESELLER_EXEMPTION"],
-          "tags": ["parity", "tax-exemptions-1782102035139"],
+          "tags": ["parity", "tax-exemptions-1783222455485"],
           "defaultEmailAddress": {
-            "emailAddress": "hermes-tax-exemptions-1782102035139@example.com"
+            "emailAddress": "hermes-tax-exemptions-1783222455485@example.com"
           },
-          "createdAt": "2026-06-22T04:20:35Z",
-          "updatedAt": "2026-06-22T04:20:35Z"
+          "createdAt": "2026-07-05T03:34:15Z",
+          "updatedAt": "2026-07-05T03:34:15Z"
         },
         "customerByIdentifier": {
-          "id": "gid://shopify/Customer/10820165075250",
+          "id": "gid://shopify/Customer/10899940671794",
           "firstName": "Hermes",
           "lastName": "Tax",
           "displayName": "Hermes Tax",
-          "email": "hermes-tax-exemptions-1782102035139@example.com",
+          "email": "hermes-tax-exemptions-1783222455485@example.com",
           "taxExempt": false,
           "taxExemptions": ["CA_BC_RESELLER_EXEMPTION", "US_CA_RESELLER_EXEMPTION"],
-          "tags": ["parity", "tax-exemptions-1782102035139"],
+          "tags": ["parity", "tax-exemptions-1783222455485"],
           "defaultEmailAddress": {
-            "emailAddress": "hermes-tax-exemptions-1782102035139@example.com"
+            "emailAddress": "hermes-tax-exemptions-1783222455485@example.com"
           },
-          "createdAt": "2026-06-22T04:20:35Z",
-          "updatedAt": "2026-06-22T04:20:35Z"
+          "createdAt": "2026-07-05T03:34:15Z",
+          "updatedAt": "2026-07-05T03:34:15Z"
         },
         "customers": {
           "nodes": [],
@@ -131,7 +131,7 @@
           }
         },
         "customersCount": {
-          "count": 948,
+          "count": 1309,
           "precision": "EXACT"
         }
       },
@@ -141,7 +141,7 @@
           "actualQueryCost": 19,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1981,
+            "currentlyAvailable": 1962,
             "restoreRate": 100
           }
         }
@@ -172,7 +172,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1966,
               "restoreRate": 100
             }
           }
@@ -181,26 +181,26 @@
     },
     "emptyList": {
       "variables": {
-        "customerId": "gid://shopify/Customer/10820165075250",
+        "customerId": "gid://shopify/Customer/10899940671794",
         "taxExemptions": []
       },
       "response": {
         "data": {
           "customerAddTaxExemptions": {
             "customer": {
-              "id": "gid://shopify/Customer/10820165075250",
+              "id": "gid://shopify/Customer/10899940671794",
               "firstName": "Hermes",
               "lastName": "Tax",
               "displayName": "Hermes Tax",
-              "email": "hermes-tax-exemptions-1782102035139@example.com",
+              "email": "hermes-tax-exemptions-1783222455485@example.com",
               "taxExempt": false,
               "taxExemptions": ["CA_BC_RESELLER_EXEMPTION", "US_CA_RESELLER_EXEMPTION"],
-              "tags": ["parity", "tax-exemptions-1782102035139"],
+              "tags": ["parity", "tax-exemptions-1783222455485"],
               "defaultEmailAddress": {
-                "emailAddress": "hermes-tax-exemptions-1782102035139@example.com"
+                "emailAddress": "hermes-tax-exemptions-1783222455485@example.com"
               },
-              "createdAt": "2026-06-22T04:20:35Z",
-              "updatedAt": "2026-06-22T04:20:35Z"
+              "createdAt": "2026-07-05T03:34:15Z",
+              "updatedAt": "2026-07-05T03:34:15Z"
             },
             "userErrors": []
           }
@@ -211,7 +211,7 @@
             "actualQueryCost": 11,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1963,
               "restoreRate": 100
             }
           }
@@ -220,26 +220,26 @@
     },
     "duplicateInput": {
       "variables": {
-        "customerId": "gid://shopify/Customer/10820165075250",
+        "customerId": "gid://shopify/Customer/10899940671794",
         "taxExemptions": ["CA_BC_RESELLER_EXEMPTION", "CA_BC_RESELLER_EXEMPTION"]
       },
       "response": {
         "data": {
           "customerAddTaxExemptions": {
             "customer": {
-              "id": "gid://shopify/Customer/10820165075250",
+              "id": "gid://shopify/Customer/10899940671794",
               "firstName": "Hermes",
               "lastName": "Tax",
               "displayName": "Hermes Tax",
-              "email": "hermes-tax-exemptions-1782102035139@example.com",
+              "email": "hermes-tax-exemptions-1783222455485@example.com",
               "taxExempt": false,
               "taxExemptions": ["CA_BC_RESELLER_EXEMPTION", "US_CA_RESELLER_EXEMPTION"],
-              "tags": ["parity", "tax-exemptions-1782102035139"],
+              "tags": ["parity", "tax-exemptions-1783222455485"],
               "defaultEmailAddress": {
-                "emailAddress": "hermes-tax-exemptions-1782102035139@example.com"
+                "emailAddress": "hermes-tax-exemptions-1783222455485@example.com"
               },
-              "createdAt": "2026-06-22T04:20:35Z",
-              "updatedAt": "2026-06-22T04:20:35Z"
+              "createdAt": "2026-07-05T03:34:15Z",
+              "updatedAt": "2026-07-05T03:34:15Z"
             },
             "userErrors": []
           }
@@ -250,7 +250,7 @@
             "actualQueryCost": 11,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1961,
               "restoreRate": 100
             }
           }
@@ -259,7 +259,7 @@
     },
     "invalidEnumVariable": {
       "variables": {
-        "customerId": "gid://shopify/Customer/10820165075250",
+        "customerId": "gid://shopify/Customer/10899940671794",
         "taxExemptions": ["NOT_A_TAX_EXEMPTION"]
       },
       "response": {
@@ -285,13 +285,37 @@
           }
         ]
       }
+    },
+    "invalidEnumLiteral": {
+      "variables": {
+        "customerId": "gid://shopify/Customer/10899940671794"
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'taxExemptions' on Field 'customerAddTaxExemptions' has an invalid value ([FOO_BAR]). Expected type '[TaxExemption!]!'.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "path": ["mutation CustomerAddTaxExemptionsInlineInvalidEnum", "customerAddTaxExemptions", "taxExemptions"],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "Field",
+              "argumentName": "taxExemptions"
+            }
+          }
+        ]
+      }
     }
   },
   "upstreamCalls": [
     {
       "operationName": "CustomerHydrate",
       "variables": {
-        "id": "gid://shopify/Customer/10820165075250"
+        "id": "gid://shopify/Customer/10899940671794"
       },
       "query": "query CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id firstName lastName displayName email legacyResourceId locale note\n    canDelete verifiedEmail dataSaleOptOut taxExempt taxExemptions state tags\n    numberOfOrders createdAt updatedAt\n    amountSpent { amount currencyCode }\n    defaultEmailAddress { emailAddress marketingState marketingOptInLevel marketingUpdatedAt }\n    defaultPhoneNumber { phoneNumber marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }\n    emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt }\n    smsMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt consentCollectedFrom }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n    metafields(first: 250) { nodes { id namespace key type value compareDigest createdAt updatedAt } }\n    orders(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id name email createdAt currentTotalPriceSet { shopMoney { amount currencyCode } } } pageInfo { startCursor endCursor } }\n    storeCreditAccounts(first: 50) { nodes { id balance { amount currencyCode } } }\n  }\n}\n",
       "response": {
@@ -299,12 +323,12 @@
         "body": {
           "data": {
             "customer": {
-              "id": "gid://shopify/Customer/10820165075250",
+              "id": "gid://shopify/Customer/10899940671794",
               "firstName": "Hermes",
               "lastName": "Tax",
               "displayName": "Hermes Tax",
-              "email": "hermes-tax-exemptions-1782102035139@example.com",
-              "legacyResourceId": "10820165075250",
+              "email": "hermes-tax-exemptions-1783222455485@example.com",
+              "legacyResourceId": "10899940671794",
               "locale": "en",
               "note": null,
               "canDelete": true,
@@ -313,16 +337,16 @@
               "taxExempt": false,
               "taxExemptions": [],
               "state": "DISABLED",
-              "tags": ["parity", "tax-exemptions-1782102035139"],
+              "tags": ["parity", "tax-exemptions-1783222455485"],
               "numberOfOrders": "0",
-              "createdAt": "2026-06-22T04:20:35Z",
-              "updatedAt": "2026-06-22T04:20:35Z",
+              "createdAt": "2026-07-05T03:34:15Z",
+              "updatedAt": "2026-07-05T03:34:15Z",
               "amountSpent": {
                 "amount": "0.0",
                 "currencyCode": "CAD"
               },
               "defaultEmailAddress": {
-                "emailAddress": "hermes-tax-exemptions-1782102035139@example.com",
+                "emailAddress": "hermes-tax-exemptions-1783222455485@example.com",
                 "marketingState": "NOT_SUBSCRIBED",
                 "marketingOptInLevel": "SINGLE_OPT_IN",
                 "marketingUpdatedAt": null
@@ -376,7 +400,7 @@
         "body": {
           "data": {
             "customersCount": {
-              "count": 948,
+              "count": 1309,
               "precision": "EXACT"
             }
           }
@@ -401,7 +425,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1976,
+                "currentlyAvailable": 1969,
                 "restoreRate": 100
               }
             }
