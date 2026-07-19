@@ -35,11 +35,6 @@
         "reason": "Product option value IDs are allocated independently by Shopify and the local staging identity registry."
       },
       {
-        "path": "$.productSet.product.category.fullName",
-        "matcher": "any-string",
-        "reason": "The refreshed live capture exposes an existing taxonomy display-name gap: without a recorded taxonomy hydrate cassette, the proxy falls back to deterministic local taxonomy labels while preserving the category id."
-      },
-      {
         "path": "$.productSet.product.variants.nodes[0].id",
         "matcher": "shopify-gid:ProductVariant",
         "reason": "Product variant IDs are allocated independently by Shopify and the local staging identity registry."
@@ -83,11 +78,6 @@
         "path": "$.product.onlineStorePreviewUrl",
         "matcher": "non-empty-string",
         "reason": "Shopify returns a store-specific signed preview URL; the proxy returns a stable synthetic local preview URL for staged local-only products."
-      },
-      {
-        "path": "$.product.category.fullName",
-        "matcher": "any-string",
-        "reason": "The refreshed live capture exposes an existing taxonomy display-name gap on downstream product reads; the proxy preserves the category id but may derive the display label locally."
       },
       {
         "path": "$.product.options[0].id",
