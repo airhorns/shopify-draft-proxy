@@ -70,12 +70,12 @@ describe('parity runner API version routing', () => {
 });
 
 async function runCorepackPnpm(args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync('corepack', ['pnpm', ...args], {
+  const { stdout, stderr } = await execFileAsync('corepack', ['pnpm', ...args], {
     cwd: repoRoot,
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
   });
-  return stdout.toString();
+  return `${stdout}${stderr}`;
 }
 
 function countParitySpecs(directory: URL): number {
@@ -466,6 +466,36 @@ describe('Rust parity runner CLI', () => {
         'config/parity-specs/products/collectionCreate-and-add-products-parity.json',
       ]);
       expect(output).toContain('collectionCreate-and-add-products-parity.json passed');
+    },
+    parityCliTimeoutMs,
+  );
+
+  it(
+    'hydrates captured setup products through the public node query before ordinary metafieldsSet targets',
+    async () => {
+      const output = await runCorepackPnpm([
+        'parity',
+        '--',
+        '--spec',
+        'config/parity-specs/metafields/metafieldsSet-type-from-definition.json',
+      ]);
+      expect(output).toContain('metafieldsSet-type-from-definition.json passed');
+    },
+    parityCliTimeoutMs,
+  );
+
+  it(
+    'hydrates a captured setup product identity before metafieldsSet validation targets',
+    async () => {
+      const output = await runCorepackPnpm([
+        'parity',
+        '--',
+        '--spec',
+        'config/parity-specs/metafields/metafields-set-input-validation.json',
+        '--allow-failures',
+      ]);
+      expect(output).toContain('[invalid-value-money-userErrors]');
+      expect(output).not.toContain('Owner does not exist.');
     },
     parityCliTimeoutMs,
   );

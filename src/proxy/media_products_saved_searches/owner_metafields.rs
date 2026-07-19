@@ -853,6 +853,9 @@ impl DraftProxy {
         {
             return Some(false);
         }
+        if self.store.staged.metafield_reference_ids.contains(owner_id) {
+            return Some(true);
+        }
         match self.request_entity_load_state(ApiSurface::Admin, owner_id, request) {
             crate::node_resolver_inventory::NodeLoadState::Found(_) => return Some(true),
             crate::node_resolver_inventory::NodeLoadState::KnownMissing => return Some(false),

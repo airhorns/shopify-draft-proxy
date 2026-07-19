@@ -2574,6 +2574,70 @@ fn metafields_set_accepts_shopify_date_time_offsets_and_fractional_seconds() {
 }
 
 #[test]
+fn metafields_set_accepts_an_owner_observed_through_a_public_nodes_read() {
+    let owner_id = "gid://shopify/Page/1004";
+    let seen_upstream_documents = Arc::new(Mutex::new(Vec::new()));
+    let transport_seen_documents = Arc::clone(&seen_upstream_documents);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            transport_seen_documents.lock().unwrap().push(body.clone());
+            assert!(query.contains("ObserveMetafieldOwner"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [{"__typename": "Page", "id": owner_id}]
+                    }
+                }),
+            }
+        });
+
+    let observed = proxy.process_request(json_graphql_request(
+        r#"
+        query ObserveMetafieldOwner($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            id
+            ... on Product { title }
+            ... on Location { name }
+          }
+        }
+        "#,
+        json!({"ids": [owner_id]}),
+    ));
+    assert_eq!(observed.body["data"]["nodes"][0]["id"], json!(owner_id));
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ObservedOwnerMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key ownerType owner { __typename ... on Node { id } } }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{
+            "ownerId": owner_id,
+            "namespace": "owner_existence",
+            "key": "observed",
+            "type": "single_line_text_field",
+            "value": "accepted"
+        }]}),
+    ));
+
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"][0]["owner"],
+        json!({"__typename": "Page", "id": owner_id})
+    );
+    assert_eq!(seen_upstream_documents.lock().unwrap().len(), 1);
+}
+
+#[test]
 fn metafields_set_accepts_staged_and_hydrated_owners_without_forwarding_the_write() {
     let hydrated_page_id = "gid://shopify/Page/1003";
     let seen_upstream_documents = Arc::new(Mutex::new(Vec::new()));
