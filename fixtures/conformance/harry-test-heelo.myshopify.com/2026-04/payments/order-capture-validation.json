@@ -1,6 +1,6 @@
 {
   "scenarioId": "order_capture_validation",
-  "capturedAt": "2026-06-25T01:41:43.870Z",
+  "capturedAt": "2026-07-09T01:33:16.688Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "operations": {
@@ -8,15 +8,18 @@
       "query": "mutation OrderCaptureValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      presentmentCurrencyCode\n      displayFinancialStatus\n      capturable\n      totalCapturable\n      totalCapturableSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalOutstandingSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalReceivedSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      netPaymentSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      paymentGatewayNames\n      transactions {\n        id\n        kind\n        status\n        gateway\n        amountSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        parentTransaction {\n          id\n          kind\n          status\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "order": {
-          "email": "order-capture-validation-1782351693532@example.com",
-          "note": "orderCapture validation live capture 1782351693532",
-          "tags": ["order-capture-validation", "conformance"],
+          "email": "order-capture-validation-1783560786657@example.com",
+          "note": "orderCapture validation live capture 1783560786657",
+          "tags": [
+            "order-capture-validation",
+            "conformance"
+          ],
           "test": true,
           "currency": "CAD",
           "presentmentCurrency": "USD",
           "lineItems": [
             {
-              "title": "Order capture validation item 1782351693532",
+              "title": "Order capture validation item 1783560786657",
               "quantity": 1,
               "priceSet": {
                 "shopMoney": {
@@ -30,7 +33,7 @@
               },
               "requiresShipping": false,
               "taxable": false,
-              "sku": "order-capture-validation-1782351693532"
+              "sku": "order-capture-validation-1783560786657"
             }
           ],
           "transactions": [
@@ -58,8 +61,8 @@
         "data": {
           "orderCreate": {
             "order": {
-              "id": "gid://shopify/Order/8857465946418",
-              "name": "#1571",
+              "id": "gid://shopify/Order/8918328639794",
+              "name": "#1764",
               "presentmentCurrencyCode": "USD",
               "displayFinancialStatus": "AUTHORIZED",
               "capturable": true,
@@ -104,10 +107,12 @@
                   "currencyCode": "USD"
                 }
               },
-              "paymentGatewayNames": ["manual"],
+              "paymentGatewayNames": [
+                "manual"
+              ],
               "transactions": [
                 {
-                  "id": "gid://shopify/OrderTransaction/10593308803378",
+                  "id": "gid://shopify/OrderTransaction/10667900797234",
                   "kind": "AUTHORIZATION",
                   "status": "SUCCESS",
                   "gateway": "manual",
@@ -145,8 +150,8 @@
       "query": "mutation OrderCaptureValidation($input: OrderCaptureInput!) {\n  orderCapture(input: $input) {\n    transaction {\n      id\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      parentTransaction {\n        id\n        kind\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "input": {
-          "id": "gid://shopify/Order/8857465946418",
-          "parentTransactionId": "gid://shopify/OrderTransaction/10593308803378",
+          "id": "gid://shopify/Order/8918328639794",
+          "parentTransactionId": "gid://shopify/OrderTransaction/10667900797234",
           "amount": "5.00"
         }
       },
@@ -156,7 +161,9 @@
             "transaction": null,
             "userErrors": [
               {
-                "field": ["currency"],
+                "field": [
+                  "currency"
+                ],
                 "message": "Currency Currency must match parent transaction USD"
               }
             ]
@@ -179,8 +186,8 @@
       "query": "mutation OrderCaptureValidation($input: OrderCaptureInput!) {\n  orderCapture(input: $input) {\n    transaction {\n      id\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      parentTransaction {\n        id\n        kind\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "input": {
-          "id": "gid://shopify/Order/8857465946418",
-          "parentTransactionId": "gid://shopify/OrderTransaction/10593308803378",
+          "id": "gid://shopify/Order/8918328639794",
+          "parentTransactionId": "gid://shopify/OrderTransaction/10667900797234",
           "amount": "5.00",
           "currency": "CAD"
         }
@@ -191,7 +198,9 @@
             "transaction": null,
             "userErrors": [
               {
-                "field": ["currency"],
+                "field": [
+                  "currency"
+                ],
                 "message": "Currency Currency must match parent transaction USD"
               }
             ]
@@ -214,7 +223,7 @@
       "query": "mutation OrderCaptureValidation($input: OrderCaptureInput!) {\n  orderCapture(input: $input) {\n    transaction {\n      id\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      parentTransaction {\n        id\n        kind\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "input": {
-          "id": "gid://shopify/Order/8857465946418",
+          "id": "gid://shopify/Order/8918328639794",
           "parentTransactionId": "gid://shopify/OrderTransaction/999999999999999999",
           "amount": "5.00",
           "currency": "USD"
@@ -238,7 +247,7 @@
             "actualQueryCost": 20,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1963,
+              "currentlyAvailable": 1965,
               "restoreRate": 100
             }
           }
@@ -249,8 +258,8 @@
       "query": "mutation OrderCaptureValidation($input: OrderCaptureInput!) {\n  orderCapture(input: $input) {\n    transaction {\n      id\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      parentTransaction {\n        id\n        kind\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "input": {
-          "id": "gid://shopify/Order/8857465946418",
-          "parentTransactionId": "gid://shopify/OrderTransaction/10593308803378",
+          "id": "gid://shopify/Order/8918328639794",
+          "parentTransactionId": "gid://shopify/OrderTransaction/10667900797234",
           "amount": "0.00",
           "currency": "USD"
         }
@@ -273,7 +282,7 @@
             "actualQueryCost": 20,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1954,
+              "currentlyAvailable": 1956,
               "restoreRate": 100
             }
           }
@@ -284,8 +293,8 @@
       "query": "mutation OrderCaptureValidation($input: OrderCaptureInput!) {\n  orderCapture(input: $input) {\n    transaction {\n      id\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      parentTransaction {\n        id\n        kind\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "input": {
-          "id": "gid://shopify/Order/8857465946418",
-          "parentTransactionId": "gid://shopify/OrderTransaction/10593308803378",
+          "id": "gid://shopify/Order/8918328639794",
+          "parentTransactionId": "gid://shopify/OrderTransaction/10667900797234",
           "amount": "99.99",
           "currency": "USD"
         }
@@ -319,8 +328,8 @@
       "query": "mutation OrderCaptureValidation($input: OrderCaptureInput!) {\n  orderCapture(input: $input) {\n    transaction {\n      id\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      parentTransaction {\n        id\n        kind\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "input": {
-          "id": "gid://shopify/Order/8857465946418",
-          "parentTransactionId": "gid://shopify/OrderTransaction/10593308803378",
+          "id": "gid://shopify/Order/8918328639794",
+          "parentTransactionId": "gid://shopify/OrderTransaction/10667900797234",
           "amount": "5.00",
           "currency": "USD",
           "finalCapture": true
@@ -344,7 +353,7 @@
             "actualQueryCost": 20,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1944,
+              "currentlyAvailable": 1942,
               "restoreRate": 100
             }
           }
@@ -355,8 +364,8 @@
       "query": "mutation OrderCaptureValidation($input: OrderCaptureInput!) {\n  orderCapture(input: $input) {\n    transaction {\n      id\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      parentTransaction {\n        id\n        kind\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "input": {
-          "id": "gid://shopify/Order/8857465946418",
-          "parentTransactionId": "gid://shopify/OrderTransaction/10593308803378",
+          "id": "gid://shopify/Order/8918328639794",
+          "parentTransactionId": "gid://shopify/OrderTransaction/10667900797234",
           "amount": "1.00",
           "currency": "USD"
         }
@@ -365,7 +374,7 @@
         "data": {
           "orderCapture": {
             "transaction": {
-              "id": "gid://shopify/OrderTransaction/10593308934450",
+              "id": "gid://shopify/OrderTransaction/10667900895538",
               "kind": "CAPTURE",
               "status": "SUCCESS",
               "gateway": "manual",
@@ -380,7 +389,7 @@
                 }
               },
               "parentTransaction": {
-                "id": "gid://shopify/OrderTransaction/10593308803378",
+                "id": "gid://shopify/OrderTransaction/10667900797234",
                 "kind": "AUTHORIZATION",
                 "status": "SUCCESS"
               }
@@ -394,7 +403,7 @@
             "actualQueryCost": 21,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1940,
+              "currentlyAvailable": 1934,
               "restoreRate": 100
             }
           }
@@ -405,15 +414,19 @@
       "query": "mutation OrderCaptureValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      presentmentCurrencyCode\n      displayFinancialStatus\n      capturable\n      totalCapturable\n      totalCapturableSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalOutstandingSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalReceivedSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      netPaymentSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      paymentGatewayNames\n      transactions {\n        id\n        kind\n        status\n        gateway\n        amountSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        parentTransaction {\n          id\n          kind\n          status\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "order": {
-          "email": "order-capture-single-currency-omitted-currency-1782351693532@example.com",
-          "note": "orderCapture single-currency-omitted-currency live capture 1782351693532",
-          "tags": ["order-capture-validation", "conformance", "single-currency-omitted-currency"],
+          "email": "order-capture-single-currency-omitted-currency-1783560786657@example.com",
+          "note": "orderCapture single-currency-omitted-currency live capture 1783560786657",
+          "tags": [
+            "order-capture-validation",
+            "conformance",
+            "single-currency-omitted-currency"
+          ],
           "test": true,
           "currency": "CAD",
           "presentmentCurrency": "CAD",
           "lineItems": [
             {
-              "title": "Order capture single-currency-omitted-currency item 1782351693532",
+              "title": "Order capture single-currency-omitted-currency item 1783560786657",
               "quantity": 1,
               "priceSet": {
                 "shopMoney": {
@@ -427,7 +440,7 @@
               },
               "requiresShipping": false,
               "taxable": false,
-              "sku": "order-capture-single-currency-omitted-currency-1782351693532"
+              "sku": "order-capture-single-currency-omitted-currency-1783560786657"
             }
           ],
           "transactions": [
@@ -455,8 +468,8 @@
         "data": {
           "orderCreate": {
             "order": {
-              "id": "gid://shopify/Order/8857466044722",
-              "name": "#1572",
+              "id": "gid://shopify/Order/8918328672562",
+              "name": "#1765",
               "presentmentCurrencyCode": "CAD",
               "displayFinancialStatus": "AUTHORIZED",
               "capturable": true,
@@ -501,10 +514,12 @@
                   "currencyCode": "CAD"
                 }
               },
-              "paymentGatewayNames": ["manual"],
+              "paymentGatewayNames": [
+                "manual"
+              ],
               "transactions": [
                 {
-                  "id": "gid://shopify/OrderTransaction/10593308967218",
+                  "id": "gid://shopify/OrderTransaction/10667900928306",
                   "kind": "AUTHORIZATION",
                   "status": "SUCCESS",
                   "gateway": "manual",
@@ -531,7 +546,7 @@
             "actualQueryCost": 12,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1952,
+              "currentlyAvailable": 1945,
               "restoreRate": 100
             }
           }
@@ -542,8 +557,8 @@
       "query": "mutation OrderCaptureValidation($input: OrderCaptureInput!) {\n  orderCapture(input: $input) {\n    transaction {\n      id\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      parentTransaction {\n        id\n        kind\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "input": {
-          "id": "gid://shopify/Order/8857466044722",
-          "parentTransactionId": "gid://shopify/OrderTransaction/10593308967218",
+          "id": "gid://shopify/Order/8918328672562",
+          "parentTransactionId": "gid://shopify/OrderTransaction/10667900928306",
           "amount": "5.00"
         }
       },
@@ -551,7 +566,7 @@
         "data": {
           "orderCapture": {
             "transaction": {
-              "id": "gid://shopify/OrderTransaction/10593309032754",
+              "id": "gid://shopify/OrderTransaction/10667900961074",
               "kind": "CAPTURE",
               "status": "SUCCESS",
               "gateway": "manual",
@@ -566,7 +581,7 @@
                 }
               },
               "parentTransaction": {
-                "id": "gid://shopify/OrderTransaction/10593308967218",
+                "id": "gid://shopify/OrderTransaction/10667900928306",
                 "kind": "AUTHORIZATION",
                 "status": "SUCCESS"
               }
@@ -587,19 +602,90 @@
         }
       }
     },
+    "singleCurrencyReadAfterPartialCapture": {
+      "query": "query OrderCaptureValidationOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    displayFinancialStatus\n    capturable\n    totalCapturable\n    totalCapturableSet {\n      shopMoney { amount currencyCode }\n      presentmentMoney { amount currencyCode }\n    }\n    totalOutstandingSet {\n      shopMoney { amount currencyCode }\n      presentmentMoney { amount currencyCode }\n    }\n    totalReceivedSet {\n      shopMoney { amount currencyCode }\n      presentmentMoney { amount currencyCode }\n    }\n    netPaymentSet {\n      shopMoney { amount currencyCode }\n      presentmentMoney { amount currencyCode }\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/Order/8918328672562"
+      },
+      "response": {
+        "data": {
+          "order": {
+            "id": "gid://shopify/Order/8918328672562",
+            "displayFinancialStatus": "PARTIALLY_PAID",
+            "capturable": false,
+            "totalCapturable": "0.00",
+            "totalCapturableSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalOutstandingSet": {
+              "shopMoney": {
+                "amount": "7.5",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "7.5",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalReceivedSet": {
+              "shopMoney": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "netPaymentSet": {
+              "shopMoney": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
     "createSingleCurrencyZeroAmountOrder": {
       "query": "mutation OrderCaptureValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      presentmentCurrencyCode\n      displayFinancialStatus\n      capturable\n      totalCapturable\n      totalCapturableSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalOutstandingSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalReceivedSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      netPaymentSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      paymentGatewayNames\n      transactions {\n        id\n        kind\n        status\n        gateway\n        amountSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        parentTransaction {\n          id\n          kind\n          status\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "order": {
-          "email": "order-capture-single-currency-zero-amount-1782351693532@example.com",
-          "note": "orderCapture single-currency-zero-amount live capture 1782351693532",
-          "tags": ["order-capture-validation", "conformance", "single-currency-zero-amount"],
+          "email": "order-capture-single-currency-zero-amount-1783560786657@example.com",
+          "note": "orderCapture single-currency-zero-amount live capture 1783560786657",
+          "tags": [
+            "order-capture-validation",
+            "conformance",
+            "single-currency-zero-amount"
+          ],
           "test": true,
           "currency": "CAD",
           "presentmentCurrency": "CAD",
           "lineItems": [
             {
-              "title": "Order capture single-currency-zero-amount item 1782351693532",
+              "title": "Order capture single-currency-zero-amount item 1783560786657",
               "quantity": 1,
               "priceSet": {
                 "shopMoney": {
@@ -613,7 +699,7 @@
               },
               "requiresShipping": false,
               "taxable": false,
-              "sku": "order-capture-single-currency-zero-amount-1782351693532"
+              "sku": "order-capture-single-currency-zero-amount-1783560786657"
             }
           ],
           "transactions": [
@@ -641,8 +727,8 @@
         "data": {
           "orderCreate": {
             "order": {
-              "id": "gid://shopify/Order/8857466143026",
-              "name": "#1573",
+              "id": "gid://shopify/Order/8918328803634",
+              "name": "#1766",
               "presentmentCurrencyCode": "CAD",
               "displayFinancialStatus": "AUTHORIZED",
               "capturable": true,
@@ -687,10 +773,12 @@
                   "currencyCode": "CAD"
                 }
               },
-              "paymentGatewayNames": ["manual"],
+              "paymentGatewayNames": [
+                "manual"
+              ],
               "transactions": [
                 {
-                  "id": "gid://shopify/OrderTransaction/10593309065522",
+                  "id": "gid://shopify/OrderTransaction/10667901059378",
                   "kind": "AUTHORIZATION",
                   "status": "SUCCESS",
                   "gateway": "manual",
@@ -728,8 +816,8 @@
       "query": "mutation OrderCaptureValidation($input: OrderCaptureInput!) {\n  orderCapture(input: $input) {\n    transaction {\n      id\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      parentTransaction {\n        id\n        kind\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "input": {
-          "id": "gid://shopify/Order/8857466143026",
-          "parentTransactionId": "gid://shopify/OrderTransaction/10593309065522",
+          "id": "gid://shopify/Order/8918328803634",
+          "parentTransactionId": "gid://shopify/OrderTransaction/10667901059378",
           "amount": "0.00"
         }
       },
@@ -760,10 +848,10 @@
     }
   },
   "cleanup": {
-    "gid://shopify/Order/8857466143026": {
+    "gid://shopify/Order/8918328803634": {
       "query": "mutation OrderCaptureValidationCleanup(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
-        "orderId": "gid://shopify/Order/8857466143026",
+        "orderId": "gid://shopify/Order/8918328803634",
         "reason": "OTHER",
         "notifyCustomer": false,
         "restock": true
@@ -772,7 +860,7 @@
         "data": {
           "orderCancel": {
             "job": {
-              "id": "gid://shopify/Job/da63e10d-a3a0-4698-a3c2-1583fd345e00",
+              "id": "gid://shopify/Job/33efe473-21f1-4395-afa0-b21f5d04d17d",
               "done": false
             },
             "userErrors": []
@@ -784,17 +872,17 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1985,
+              "currentlyAvailable": 1983,
               "restoreRate": 100
             }
           }
         }
       }
     },
-    "gid://shopify/Order/8857466044722": {
+    "gid://shopify/Order/8918328672562": {
       "query": "mutation OrderCaptureValidationCleanup(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
-        "orderId": "gid://shopify/Order/8857466044722",
+        "orderId": "gid://shopify/Order/8918328672562",
         "reason": "OTHER",
         "notifyCustomer": false,
         "restock": true
@@ -803,7 +891,7 @@
         "data": {
           "orderCancel": {
             "job": {
-              "id": "gid://shopify/Job/da63e10d-a3a0-4698-a3c2-1583fd345e00",
+              "id": "gid://shopify/Job/fcc37a2f-7fe4-4d57-9036-4b11fa42606e",
               "done": false
             },
             "userErrors": []
@@ -815,17 +903,17 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
         }
       }
     },
-    "gid://shopify/Order/8857465946418": {
+    "gid://shopify/Order/8918328639794": {
       "query": "mutation OrderCaptureValidationCleanup(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
-        "orderId": "gid://shopify/Order/8857465946418",
+        "orderId": "gid://shopify/Order/8918328639794",
         "reason": "OTHER",
         "notifyCustomer": false,
         "restock": true
@@ -834,7 +922,7 @@
         "data": {
           "orderCancel": {
             "job": {
-              "id": "gid://shopify/Job/da63e10d-a3a0-4698-a3c2-1583fd345e00",
+              "id": "gid://shopify/Job/2809fe03-2e89-40f6-b95e-01fe38122b4f",
               "done": false
             },
             "userErrors": []

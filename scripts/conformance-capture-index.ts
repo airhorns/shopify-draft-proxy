@@ -10410,6 +10410,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/payments/order_capture_validation.json',
       'config/parity-requests/payments/order-capture-validation-order-capture.graphql',
       'config/parity-requests/payments/order-capture-validation-order-create.graphql',
+      'config/parity-requests/payments/order-capture-validation-order-read.graphql',
     ],
     cleanupBehavior:
       'Creates one disposable multi-currency authorization order and two disposable single-currency authorization orders, records validation and capture branches, then cancels the orders during cleanup.',

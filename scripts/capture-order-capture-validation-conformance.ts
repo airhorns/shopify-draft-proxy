@@ -42,6 +42,12 @@ const captureRequestPath = path.join(
   'payments',
   'order-capture-validation-order-capture.graphql',
 );
+const readRequestPath = path.join(
+  'config',
+  'parity-requests',
+  'payments',
+  'order-capture-validation-order-read.graphql',
+);
 
 const orderCreateDocument = `
 mutation OrderCaptureValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
@@ -115,6 +121,33 @@ mutation OrderCaptureValidation($input: OrderCaptureInput!) {
     userErrors {
       field
       message
+    }
+  }
+}
+`.trim();
+
+const orderReadDocument = `
+query OrderCaptureValidationOrderRead($id: ID!) {
+  order(id: $id) {
+    id
+    displayFinancialStatus
+    capturable
+    totalCapturable
+    totalCapturableSet {
+      shopMoney { amount currencyCode }
+      presentmentMoney { amount currencyCode }
+    }
+    totalOutstandingSet {
+      shopMoney { amount currencyCode }
+      presentmentMoney { amount currencyCode }
+    }
+    totalReceivedSet {
+      shopMoney { amount currencyCode }
+      presentmentMoney { amount currencyCode }
+    }
+    netPaymentSet {
+      shopMoney { amount currencyCode }
+      presentmentMoney { amount currencyCode }
     }
   }
 }
@@ -454,6 +487,11 @@ try {
     'single-currency orderCapture omitted currency',
   );
   assertOrderCaptureSucceeded(singleCurrencyOmittedCurrency, 'single-currency orderCapture omitted currency');
+  const singleCurrencyReadAfterPartialCapture = await runCapture(
+    orderReadDocument,
+    { id: singleCurrencyOrderId },
+    'single-currency order read after partial capture',
+  );
 
   const createSingleCurrencyZeroAmountOrder = await runCapture(
     orderCreateDocument,
@@ -477,6 +515,7 @@ try {
 
   await writeText(createRequestPath, orderCreateDocument);
   await writeText(captureRequestPath, orderCaptureDocument);
+  await writeText(readRequestPath, orderReadDocument);
   await writeJson(fixturePath, {
     scenarioId: 'order_capture_validation',
     capturedAt: new Date().toISOString(),
@@ -493,6 +532,7 @@ try {
       postFinalCapture,
       createSingleCurrencyAuthorizationOrder,
       singleCurrencyOmittedCurrency,
+      singleCurrencyReadAfterPartialCapture,
       createSingleCurrencyZeroAmountOrder,
       singleCurrencyZeroAmount,
     },
@@ -501,9 +541,15 @@ try {
   });
   await writeJson(specPath, {
     scenarioId: 'order_capture_validation',
-    operationNames: ['orderCreate', 'orderCapture'],
+    operationNames: ['orderCreate', 'orderCapture', 'order'],
     scenarioStatus: 'captured',
-    assertionKinds: ['user-errors-parity', 'payment-transaction-validation', 'no-upstream-passthrough'],
+    assertionKinds: [
+      'user-errors-parity',
+      'payment-transaction-validation',
+      'downstream-read-parity',
+      'money-totals-parity',
+      'no-upstream-passthrough',
+    ],
     liveCaptureFiles: [fixturePath],
     proxyRequest: {
       documentPath: createRequestPath,
@@ -608,6 +654,30 @@ try {
                   path: '$.data.orderCreate.order.transactions[0].id',
                 },
                 amount: '5.00',
+              },
+            },
+            apiVersion,
+          },
+        },
+        {
+          name: 'single-currency-partial-capture-order-read',
+          capturePath: '$.operations.singleCurrencyReadAfterPartialCapture.response.data.order',
+          proxyPath: '$.data.order',
+          selectedPaths: [
+            '$.displayFinancialStatus',
+            '$.capturable',
+            '$.totalCapturable',
+            '$.totalCapturableSet',
+            '$.totalOutstandingSet',
+            '$.totalReceivedSet',
+            '$.netPaymentSet',
+          ],
+          proxyRequest: {
+            documentPath: readRequestPath,
+            variables: {
+              id: {
+                fromProxyResponse: 'single-currency-authorization-order',
+                path: '$.data.orderCreate.order.id',
               },
             },
             apiVersion,
@@ -733,7 +803,7 @@ try {
       ],
     },
     notes:
-      'Live 2026-04 public Admin API capture for orderCapture validation against disposable multi-currency and single-currency authorization orders. Public OrderCapturePayload.userErrors exposes plain UserError field/message only; HAR-915 live introspection across currently supported public versions and unstable also found no selectable code field, no OrderCaptureUserError type, and no payload order field. This public fixture therefore compares only public selectable shape and transaction effects. Focused runtime tests cover the draft proxy local/internal code projection for currency, parent transaction, amount, and final-capture validation. The fixture records Shopify rejecting finalCapture: true for the manual gateway before a follow-up capture succeeds, so final-capture lock behavior remains runtime-test-backed until a live gateway that supports finalCapture is available. The single-currency branches prove omitted currency succeeds and zero-amount behavior is replayed from Shopify evidence rather than local invented validation.',
+      'Live 2026-04 public Admin API capture for orderCapture validation against disposable multi-currency and single-currency authorization orders. Public OrderCapturePayload.userErrors exposes plain UserError field/message only; HAR-915 live introspection across currently supported public versions and unstable also found no selectable code field, no OrderCaptureUserError type, and no payload order field. This public fixture therefore compares public selectable orderCapture shape, transaction effects, and an immediate downstream single-currency order(id:) money read. Focused runtime tests cover the draft proxy local/internal code projection for currency, parent transaction, amount, and final-capture validation. The fixture records Shopify rejecting finalCapture: true for the manual gateway before a follow-up capture succeeds, so final-capture lock behavior remains runtime-test-backed until a live gateway that supports finalCapture is available. The single-currency branches prove omitted currency succeeds, zero-amount behavior is replayed from Shopify evidence rather than local invented validation, and a partially captured authorized order keeps totalOutstandingSet at zero while totalCapturableSet keeps the uncaptured authorized remainder.',
   });
 
   console.log(
@@ -742,7 +812,7 @@ try {
         ok: true,
         fixturePath,
         specPath,
-        requestPaths: [createRequestPath, captureRequestPath],
+        requestPaths: [createRequestPath, captureRequestPath, readRequestPath],
         orderId,
         authorizationId,
       },

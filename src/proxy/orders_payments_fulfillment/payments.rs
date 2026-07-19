@@ -608,7 +608,7 @@ pub(in crate::proxy) fn payment_money_set_for_order_totals(
     } else {
         (
             money_set(&format_money_amount(remaining_amount), &shop_currency),
-            money_set(&format_money_amount(remaining_amount), &shop_currency),
+            money_set("0.0", &shop_currency),
             money_set(&format_money_amount(received_amount), &shop_currency),
         )
     }

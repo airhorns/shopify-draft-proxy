@@ -9961,6 +9961,41 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
         first_capture.body["data"]["orderCapture"]["order"]["totalCapturable"],
         json!("15.0")
     );
+    assert_eq!(
+        first_capture.body["data"]["orderCapture"]["order"]["totalCapturableSet"]["shopMoney"],
+        json!({ "amount": "15.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        first_capture.body["data"]["orderCapture"]["order"]["totalOutstandingSet"]["shopMoney"],
+        json!({ "amount": "0.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        first_capture.body["data"]["orderCapture"]["order"]["totalReceivedSet"]["shopMoney"],
+        json!({ "amount": "10.0", "currencyCode": "CAD" })
+    );
+
+    let read_after_partial = capture_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-read-local-staging.graphql"
+        ),
+        json!({"id": create.body["data"]["orderCreate"]["order"]["id"].clone()}),
+    ));
+    assert_eq!(
+        read_after_partial.body["data"]["order"]["displayFinancialStatus"],
+        json!("PARTIALLY_PAID")
+    );
+    assert_eq!(
+        read_after_partial.body["data"]["order"]["totalCapturableSet"]["shopMoney"],
+        json!({ "amount": "15.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        read_after_partial.body["data"]["order"]["totalOutstandingSet"]["shopMoney"],
+        json!({ "amount": "0.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        read_after_partial.body["data"]["order"]["totalReceivedSet"]["shopMoney"],
+        json!({ "amount": "10.0", "currencyCode": "CAD" })
+    );
 
     let final_capture = capture_proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"),
