@@ -6855,16 +6855,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'segments',
     captureId: 'segment-live-hybrid-overlay',
     scriptPath: 'scripts/capture-segment-live-hybrid-overlay-conformance.ts',
-    purpose: 'LiveHybrid segment(id), segments, and segmentsCount overlay evidence after local segmentCreate staging.',
+    purpose:
+      'LiveHybrid segment(id), segments, and segmentsCount overlay evidence after local segmentCreate staging, plus mutation-first segmentUpdate/segmentDelete hydration from fresh proxy sessions.',
     requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}segment-live-hybrid-overlay.json`,
+      `${CAPTURE_ROOT}segment-mutation-first-hydration.json`,
       'config/parity-specs/segments/segment-live-hybrid-overlay.json',
+      'config/parity-specs/segments/segment-mutation-first-hydration.json',
       'config/parity-requests/segments/segment-live-hybrid-overlay-create.graphql',
       'config/parity-requests/segments/segment-live-hybrid-overlay-read.graphql',
+      'config/parity-requests/segments/segment-mutation-target-hydrate.graphql',
+      'config/parity-requests/segments/segment-mutation-first-update.graphql',
+      'config/parity-requests/segments/segment-mutation-first-update-read.graphql',
+      'config/parity-requests/segments/segment-mutation-first-delete.graphql',
+      'config/parity-requests/segments/segment-mutation-first-delete-read.graphql',
     ],
     cleanupBehavior:
-      'Creates two disposable segments, records a base-only read before the second segment exists, records the final read after the second segment exists, then deletes both segments.',
+      'Creates disposable overlay/update/delete segments, records pre-mutation hydration/read baselines and post-mutation detail/list/count reads, then deletes every remaining segment.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
