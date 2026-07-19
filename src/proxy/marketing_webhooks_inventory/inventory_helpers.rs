@@ -806,7 +806,54 @@ const INVENTORY_VALID_COUNTRY_CODES: &[&str] = &[
     "UA", "UG", "UM", "US", "UY", "UZ", "VA", "VC", "VE", "VG", "VN", "VU", "WF", "WS", "XK", "YE",
     "YT", "ZA", "ZM", "ZW",
 ];
-const INVENTORY_TRANSFER_HYDRATE_NODES_QUERY: &str = include_str!(concat!(
+// Keep this legacy document byte-for-byte stable: existing captured scenarios
+// contain its exact upstream request as their general inventory hydration
+// cassette. Lifecycle hydration below uses the registered formatted document.
+const INVENTORY_TRANSFER_HYDRATE_NODES_QUERY: &str = r#"#graphql
+  query ProductsHydrateNodes($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      __typename
+      id
+      ... on InventoryItem {
+        tracked
+        requiresShipping
+        measurement { weight { unit value } }
+        variant {
+          id
+          title
+          inventoryQuantity
+          selectedOptions { name value }
+          product {
+            id
+            title
+            handle
+            status
+            totalInventory
+            tracksInventory
+          }
+        }
+        inventoryLevels(first: 50) {
+          nodes {
+            id
+            location { id name }
+            quantities(names: ["available", "on_hand", "committed", "incoming", "reserved", "damaged", "quality_control", "safety_stock"]) {
+              name
+              quantity
+              updatedAt
+            }
+          }
+        }
+      }
+      ... on Location {
+        id
+        name
+        isActive
+      }
+    }
+  }
+"#;
+
+const INVENTORY_LIFECYCLE_REFERENCE_HYDRATE_NODES_QUERY: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/config/parity-requests/products/inventory-transfer-reference-hydrate.graphql"
 ));
@@ -1119,7 +1166,7 @@ impl DraftProxy {
         let response = self.upstream_post(
             request,
             json!({
-                "query": INVENTORY_TRANSFER_HYDRATE_NODES_QUERY,
+                "query": INVENTORY_LIFECYCLE_REFERENCE_HYDRATE_NODES_QUERY,
                 "variables": { "ids": ids }
             }),
         );
