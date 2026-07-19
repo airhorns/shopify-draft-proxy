@@ -129,36 +129,38 @@ const ruleUnknownUpdateDocument = `mutation FulfillmentConstraintHydratedUnknown
 }
 `;
 
-const ruleHydrateDocument = `query FunctionFulfillmentConstraintRulesHydrate {
-  fulfillmentConstraintRules {
-    id
-    deliveryMethodTypes
-    function {
+const ruleHydrateDocument = `query FunctionFulfillmentConstraintRuleHydrateById($id: ID!) {
+  node(id: $id) {
+    ... on FulfillmentConstraintRule {
       id
-      title
-      handle
-      apiType
-      description
-      appKey
-      app {
-        __typename
+      deliveryMethodTypes
+      function {
         id
         title
         handle
-        apiKey
+        apiType
+        description
+        appKey
+        app {
+          __typename
+          id
+          title
+          handle
+          apiKey
+        }
       }
-    }
-    metafields(first: 100) {
-      nodes {
-        id
-        namespace
-        key
-        type
-        value
-        compareDigest
-        ownerType
-        createdAt
-        updatedAt
+      metafields(first: 100) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          compareDigest
+          ownerType
+          createdAt
+          updatedAt
+        }
       }
     }
   }
@@ -191,11 +193,11 @@ try {
   );
   if (!ruleId) throw new Error('Rule setup returned no id');
 
-  const hydrate = await capture(ruleHydrateDocument);
-  assertNoTopLevelErrors(hydrate, 'Rule catalog hydrate');
-  const hydratedRules = readArray(readPath(hydrate.response.payload, ['data', 'fulfillmentConstraintRules']));
-  if (hydratedRules.length !== 1 || readRecord(hydratedRules[0])['id'] !== ruleId) {
-    throw new Error(`Expected hydrated rule ${ruleId}: ${JSON.stringify(hydratedRules, null, 2)}`);
+  const hydrate = await capture(ruleHydrateDocument, { id: ruleId });
+  assertNoTopLevelErrors(hydrate, 'Rule ID hydrate');
+  const hydratedRule = readRecord(readPath(hydrate.response.payload, ['data', 'node']));
+  if (hydratedRule['id'] !== ruleId) {
+    throw new Error(`Expected hydrated rule ${ruleId}: ${JSON.stringify(hydratedRule, null, 2)}`);
   }
 
   const update = await capture(ruleUpdateDocument, { id: ruleId });
@@ -204,6 +206,14 @@ try {
   const deleteRule = await capture(ruleDeleteDocument, { id: ruleId });
   assertNoUserErrors(deleteRule, 'fulfillmentConstraintRuleDelete', 'Hydrated rule delete');
   ruleId = null;
+
+  const missingHydrate = await capture(ruleHydrateDocument, { id: missingRuleId });
+  assertNoTopLevelErrors(missingHydrate, 'Unknown rule ID hydrate');
+  if (readPath(missingHydrate.response.payload, ['data', 'node']) !== null) {
+    throw new Error(
+      `Expected unknown rule hydrate to return null: ${JSON.stringify(missingHydrate.response, null, 2)}`,
+    );
+  }
 
   const unknownUpdate = await capture(ruleUnknownUpdateDocument, { id: missingRuleId });
   assertNotFound(unknownUpdate, 'fulfillmentConstraintRuleUpdate');
@@ -223,19 +233,26 @@ try {
     hydrate,
     update,
     deleteRule,
+    missingHydrate,
     unknownUpdate,
     cleanupAfter,
     upstreamCalls: [
       {
-        operationName: 'FunctionFulfillmentConstraintRulesHydrate',
-        variables: {},
+        operationName: 'FunctionFulfillmentConstraintRuleHydrateById',
+        variables: hydrate.variables,
         query: hydrate.query,
         response: { status: hydrate.response.status, body: hydrate.response.payload },
+      },
+      {
+        operationName: 'FunctionFulfillmentConstraintRuleHydrateById',
+        variables: missingHydrate.variables,
+        query: missingHydrate.query,
+        response: { status: missingHydrate.response.status, body: missingHydrate.response.payload },
       },
     ],
     notes: {
       hydration:
-        'Proxy replay receives only the update/delete caller mutation and must resolve the pre-existing target through the exact read-only catalog cassette.',
+        'Proxy replay receives only the update/delete caller mutation and resolves the pre-existing target through the exact read-only Node cassette.',
       cleanup:
         'The disposable live rule is deleted during the recorded lifecycle and the finally block retries cleanup after failures.',
     },

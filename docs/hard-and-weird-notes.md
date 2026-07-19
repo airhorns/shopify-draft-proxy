@@ -4442,7 +4442,7 @@ Practical rule:
 - derive blog tags from known child articles and touch the appropriate parent or
   destination blog when staging article writes
 
-## 105. Function lifecycle limits require authoritative catalogs, and their payloads are asymmetric
+## 105. Function lifecycle decisions need authoritative evidence, not full object catalogs
 
 Admin GraphQL 2026-04 capture with 25 active validations and one cart transform
 settled three preflight details that cannot be inferred from partial Function
@@ -4458,16 +4458,22 @@ metadata:
 
 A separate live rule lifecycle proved that direct
 `fulfillmentConstraintRuleUpdate` and `fulfillmentConstraintRuleDelete` can
-target a real rule that the caller has not read first. The public API exposes
-only the complete `fulfillmentConstraintRules` list for this hydration; there
-is no singular rule query root.
+target a real rule that the caller has not read first. There is no singular
+rule query root, but `FulfillmentConstraintRule` implements `Node`, so an exact
+`node(id:)` read can hydrate only the requested target.
 
 Practical rule:
 
 - never treat a caller-bounded validation/cart-transform read or partial
   Function metadata as proof that a lifecycle catalog is complete
-- hydrate complete validation and cart-transform catalogs before global
-  reuse/count decisions, and derive a hydrated validation's internal Function
-  ID from `shopifyFunction.id`
-- hydrate the fulfillment-rule list before returning `NOT_FOUND` for a direct
-  update/delete target, while keeping local tombstones authoritative
+- for the active-validation cap, request only `id`, `enabled`, and
+  `shopifyFunction.id`; stop after 25 effective active rows or connection end,
+  and keep those private decision facts separate from public validation rows
+- for cart-transform uniqueness, resolve the requested Function exactly, scan
+  validation registrations only when the wrong-API precedence needs it, and
+  use a first-record transform lookup for global presence
+- hydrate a direct fulfillment-rule update/delete target with `node(id:)`
+  before returning `NOT_FOUND`, while keeping local tombstones authoritative
+- fail these mutation preconditions closed when the required read is
+  unavailable; an upstream transport error is not authoritative evidence that
+  a limit is clear or that a target does not exist

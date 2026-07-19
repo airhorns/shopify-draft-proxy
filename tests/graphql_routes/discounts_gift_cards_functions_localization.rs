@@ -783,6 +783,9 @@ fn function_metadata_proxy_with_hits(hits: Arc<Mutex<Vec<Value>>>) -> DraftProxy
         let operation_name = body["operationName"].as_str().unwrap_or_default();
         let query = body["query"].as_str().unwrap_or_default();
         let response_body = match operation_name {
+            "FunctionFulfillmentConstraintRuleHydrateById" => {
+                json!({ "data": { "node": null } })
+            }
             "FunctionHydrateById" => {
                 let id = body["variables"]["id"].as_str().unwrap_or_default();
                 json!({
@@ -802,7 +805,14 @@ fn function_metadata_proxy_with_hits(hits: Arc<Mutex<Vec<Value>>>) -> DraftProxy
                 json!({ "data": { "cartTransforms": { "nodes": [] } } })
             }
             _ if query.contains("validations") => {
-                json!({ "data": { "validations": { "nodes": [] } } })
+                json!({
+                    "data": {
+                        "validations": {
+                            "nodes": [],
+                            "pageInfo": { "hasNextPage": false, "endCursor": null }
+                        }
+                    }
+                })
             }
             _ if query.contains("fulfillmentConstraintRules") => {
                 json!({ "data": { "fulfillmentConstraintRules": [] } })
@@ -860,6 +870,15 @@ fn function_fulfillment_constraint_rule_proxy_with_hits(
         let operation_name = body["operationName"].as_str().unwrap_or_default();
         let query = body["query"].as_str().unwrap_or_default();
         let response_body = match operation_name {
+            "FunctionFulfillmentConstraintRuleHydrateById" => {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                let node = if upstream_rule["id"].as_str() == Some(id) {
+                    upstream_rule.clone()
+                } else {
+                    Value::Null
+                };
+                json!({ "data": { "node": node } })
+            }
             "FunctionHydrateByHandle" => {
                 let handle = body["variables"]["handle"].as_str().unwrap_or_default();
                 let nodes = test_function_metadata_by_id_or_handle(None, Some(handle))
@@ -878,7 +897,14 @@ fn function_fulfillment_constraint_rule_proxy_with_hits(
                 json!({ "data": { "shopifyFunction": function } })
             }
             _ if query.contains("validations") => {
-                json!({ "data": { "validations": { "nodes": [] } } })
+                json!({
+                    "data": {
+                        "validations": {
+                            "nodes": [],
+                            "pageInfo": { "hasNextPage": false, "endCursor": null }
+                        }
+                    }
+                })
             }
             _ if query.contains("cartTransforms") => {
                 json!({ "data": { "cartTransforms": { "nodes": [] } } })
@@ -6413,7 +6439,7 @@ fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
             serde_json::from_str(&request.body).expect("cold function read body should parse");
         captured_hits.lock().unwrap().push(body.clone());
         let response_body = match body["operationName"].as_str() {
-            Some("FunctionValidationsHydrate") => json!({
+            Some("FunctionValidationDecisionPreflight") => json!({
                 "data": {
                     "validations": {
                         "nodes": [],
@@ -6506,13 +6532,17 @@ fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
             .contains("shopifyFunctions(first: 5, apiType: \"VALIDATION\")"));
         let validation_preflight = hits
             .iter()
-            .find(|body| body["operationName"] == "FunctionValidationsHydrate")
-            .expect("enabled create should hydrate the complete validation lifecycle catalog");
+            .find(|body| body["operationName"] == "FunctionValidationDecisionPreflight")
+            .expect("enabled create should obtain a bounded active-validation decision");
         assert_eq!(validation_preflight["variables"], json!({ "after": null }));
         assert!(validation_preflight["query"]
             .as_str()
             .unwrap_or_default()
-            .contains("validations(first: 100, after: $after)"));
+            .contains("validations(first: 250, after: $after)"));
+        assert!(!validation_preflight["query"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("metafields"));
     }
 
     let local_read = proxy.process_request(json_graphql_request(
@@ -6924,6 +6954,20 @@ fn functions_live_hybrid_reads_merge_upstream_records_after_one_local_validation
             "FunctionValidationHydrateById" => {
                 json!({ "data": { "validation": upstream_validation.clone() } })
             }
+            "FunctionValidationDecisionPreflight" => json!({
+                "data": {
+                    "validations": {
+                        "nodes": [{
+                            "id": upstream_validation["id"].clone(),
+                            "enabled": upstream_validation["enabled"].clone(),
+                            "shopifyFunction": {
+                                "id": upstream_validation_function["id"].clone()
+                            }
+                        }],
+                        "pageInfo": { "hasNextPage": false, "endCursor": null }
+                    }
+                }
+            }),
             _ if query.contains("validations") => json!({
                 "data": { "validations": { "nodes": [upstream_validation.clone()] } }
             }),
@@ -7658,7 +7702,7 @@ fn functions_validation_max_cap_update_defaults_and_metafield_rejection_preserve
 }
 
 #[test]
-fn functions_validation_create_hydrates_complete_catalog_after_partial_read_before_cap_check() {
+fn functions_validation_create_uses_bounded_decision_preflight_after_partial_read() {
     let validation_function = function_metadata_record(
         "gid://shopify/ShopifyFunction/validation-cap",
         "Validation Cap",
@@ -7679,7 +7723,7 @@ fn functions_validation_create_hydrates_complete_catalog_after_partial_read_befo
             })
         })
         .collect::<Vec<_>>();
-    let partial_validation = upstream_validations[0].clone();
+    let partial_validation = json!({ "id": upstream_validations[0]["id"].clone() });
     let hits = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_hits = Arc::clone(&hits);
     let mut proxy = configured_proxy(
@@ -7691,33 +7735,24 @@ fn functions_validation_create_hydrates_complete_catalog_after_partial_read_befo
             serde_json::from_str(&request.body).expect("validation catalog request should parse");
         captured_hits.lock().unwrap().push(body.clone());
         let response_body = match body["operationName"].as_str() {
-            Some("FunctionValidationsHydrate") => {
-                if body["variables"]["after"].is_null() {
-                    json!({
-                        "data": {
-                            "validations": {
-                                "nodes": upstream_validations[..24].to_vec(),
-                                "pageInfo": {
-                                    "hasNextPage": true,
-                                    "endCursor": "validation-catalog-page-1"
-                                }
-                            }
+            Some("FunctionValidationDecisionPreflight") => json!({
+                "data": {
+                    "validations": {
+                        "nodes": upstream_validations.iter().map(|validation| json!({
+                            "id": validation["id"].clone(),
+                            "enabled": true,
+                            "shopifyFunction": { "id": validation_function["id"].clone() }
+                        })).collect::<Vec<_>>(),
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "endCursor": "more-disabled-validations-exist"
                         }
-                    })
-                } else {
-                    json!({
-                        "data": {
-                            "validations": {
-                                "nodes": [upstream_validations[24].clone()],
-                                "pageInfo": {
-                                    "hasNextPage": false,
-                                    "endCursor": "validation-catalog-end"
-                                }
-                            }
-                        }
-                    })
+                    }
                 }
-            }
+            }),
+            Some("FunctionHydrateByHandle") => json!({
+                "data": { "shopifyFunctions": { "nodes": [validation_function.clone()] } }
+            }),
             _ if body["query"]
                 .as_str()
                 .unwrap_or_default()
@@ -7748,7 +7783,7 @@ fn functions_validation_create_hydrates_complete_catalog_after_partial_read_befo
         r#"
         query PartialValidationCatalogRead {
           validations(first: 1) {
-            nodes { id enabled shopifyFunction { id handle apiType } }
+            nodes { id }
           }
         }
         "#,
@@ -7788,12 +7823,31 @@ fn functions_validation_create_hydrates_complete_catalog_after_partial_read_befo
     );
 
     let hits = hits.lock().unwrap();
+    let decision_preflights = hits
+        .iter()
+        .filter(|body| body["operationName"] == "FunctionValidationDecisionPreflight")
+        .collect::<Vec<_>>();
+    assert_eq!(decision_preflights.len(), 1);
+    assert_eq!(
+        decision_preflights[0]["variables"],
+        json!({ "after": null })
+    );
+    let decision_query = decision_preflights[0]["query"].as_str().unwrap_or_default();
+    assert!(decision_query.contains("validations(first: 250, after: $after)"));
+    assert!(decision_query.contains("enabled"));
+    assert!(decision_query.contains("shopifyFunction {"));
+    for forbidden_field in ["title", "blockOnFailure", "metafields"] {
+        assert!(
+            !decision_query.contains(forbidden_field),
+            "mutation decision preflight must not hydrate {forbidden_field}"
+        );
+    }
     assert_eq!(
         hits.iter()
             .filter(|body| body["operationName"] == "FunctionValidationsHydrate")
             .count(),
-        2,
-        "the partial caller read must not suppress a complete paginated preflight catalog hydrate"
+        0,
+        "mutation decisions must not open the full lifecycle catalog"
     );
     let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 1);
@@ -7805,7 +7859,175 @@ fn functions_validation_create_hydrates_complete_catalog_after_partial_read_befo
 }
 
 #[test]
-fn functions_cart_transform_create_hydrates_lifecycle_catalogs_before_reuse_and_cap_checks() {
+fn functions_validation_decision_cursor_survives_dump_restore_and_resumes() {
+    let validation_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/validation-cursor",
+        "Validation Cursor",
+        "validation-cursor",
+        "VALIDATION",
+        "validation-cursor-key",
+        "validation-cursor-app",
+    );
+    let first_page = (1..=25)
+        .map(|index| {
+            json!({
+                "id": format!("gid://shopify/Validation/cursor-{index}"),
+                "enabled": true,
+                "shopifyFunction": { "id": validation_function["id"].clone() }
+            })
+        })
+        .collect::<Vec<_>>();
+    let initial_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_initial_hits = Arc::clone(&initial_hits);
+    let initial_function = validation_function.clone();
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        captured_initial_hits.lock().unwrap().push(body.clone());
+        let response_body = match body["operationName"].as_str() {
+            Some("FunctionValidationDecisionPreflight") => json!({
+                "data": {
+                    "validations": {
+                        "nodes": first_page.clone(),
+                        "pageInfo": { "hasNextPage": true, "endCursor": "validation-page-1" }
+                    }
+                }
+            }),
+            Some("FunctionHydrateByHandle") => json!({
+                "data": { "shopifyFunctions": { "nodes": [initial_function.clone()] } }
+            }),
+            _ => panic!("unexpected initial cursor request: {body}"),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
+
+    let initial_create = proxy.process_request(json_graphql_request(
+        r#"mutation InitialCursorCap {
+          validationCreate(validation: { functionHandle: "validation-cursor", enable: true }) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        initial_create.body["data"]["validationCreate"]["userErrors"][0]["code"],
+        json!("MAX_VALIDATIONS_ACTIVATED")
+    );
+    assert_eq!(initial_hits.lock().unwrap().len(), 2);
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["baseState"]["functionValidationDecisionNextCursor"],
+        json!("validation-page-1")
+    );
+    assert_eq!(
+        dump.body["state"]["baseState"]["functionValidationDecisionRecords"]
+            .as_object()
+            .unwrap()
+            .len(),
+        25
+    );
+    assert!(dump.body["state"]["baseState"]
+        .get("functionValidationDecisionCatalogComplete")
+        .is_none());
+    assert!(dump.body["state"]["baseState"]
+        .get("functionValidationsCatalogHydrated")
+        .is_none());
+
+    let restored_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_restored_hits = Arc::clone(&restored_hits);
+    let restored_function = validation_function.clone();
+    let mut restored = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        captured_restored_hits.lock().unwrap().push(body.clone());
+        let response_body = match body["operationName"].as_str() {
+            Some("FunctionValidationHydrateById") => json!({
+                "data": {
+                    "validation": {
+                        "id": "gid://shopify/Validation/cursor-1",
+                        "title": "Cursor one",
+                        "enabled": true,
+                        "blockOnFailure": false,
+                        "shopifyFunction": restored_function.clone(),
+                        "metafields": { "nodes": [] }
+                    }
+                }
+            }),
+            Some("FunctionValidationDecisionPreflight") => json!({
+                "data": {
+                    "validations": {
+                        "nodes": [{
+                            "id": "gid://shopify/Validation/cursor-26",
+                            "enabled": true,
+                            "shopifyFunction": { "id": restored_function["id"].clone() }
+                        }],
+                        "pageInfo": { "hasNextPage": false, "endCursor": "validation-page-2" }
+                    }
+                }
+            }),
+            _ => panic!("unexpected restored cursor request: {body}"),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let delete = restored.process_request(json_graphql_request(
+        r#"mutation DeleteDecisionRecord { validationDelete(id: "gid://shopify/Validation/cursor-1") { deletedId userErrors { code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        delete.body["data"]["validationDelete"]["deletedId"],
+        json!("gid://shopify/Validation/cursor-1")
+    );
+    let resumed_create = restored.process_request(json_graphql_request(
+        r#"mutation ResumedCursorCap {
+          validationCreate(validation: { functionHandle: "validation-cursor", enable: true }) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        resumed_create.body["data"]["validationCreate"]["userErrors"][0]["code"],
+        json!("MAX_VALIDATIONS_ACTIVATED")
+    );
+    let restored_hits = restored_hits.lock().unwrap();
+    assert_eq!(restored_hits.len(), 2);
+    let resumed_preflight = restored_hits
+        .iter()
+        .find(|body| body["operationName"] == "FunctionValidationDecisionPreflight")
+        .unwrap();
+    assert_eq!(
+        resumed_preflight["variables"],
+        json!({ "after": "validation-page-1" })
+    );
+}
+
+#[test]
+fn functions_cart_transform_create_uses_targeted_reuse_and_existence_preflights() {
     let registered_validation_function = function_metadata_record(
         "gid://shopify/ShopifyFunction/registered-validation",
         "Registered Validation",
@@ -7847,19 +8069,27 @@ fn functions_cart_transform_create_hydrates_lifecycle_catalogs_before_reuse_and_
             .expect("cart transform catalog request should parse");
         captured_hits.lock().unwrap().push(body.clone());
         let response_body = match body["operationName"].as_str() {
-            Some("FunctionValidationsHydrate") => json!({
+            Some("FunctionValidationDecisionPreflight") => json!({
                 "data": {
                     "validations": {
-                        "nodes": [upstream_validation.clone()],
+                        "nodes": [{
+                            "id": upstream_validation["id"].clone(),
+                            "enabled": false,
+                            "shopifyFunction": {
+                                "id": registered_validation_function["id"].clone()
+                            }
+                        }],
                         "pageInfo": { "hasNextPage": false, "endCursor": "validation-end" }
                     }
                 }
             }),
-            Some("FunctionCartTransformsHydrate") => json!({
+            Some("FunctionCartTransformDecisionPreflight") => json!({
                 "data": {
                     "cartTransforms": {
-                        "nodes": [upstream_cart_transform.clone()],
-                        "pageInfo": { "hasNextPage": false, "endCursor": "cart-end" }
+                        "nodes": [{
+                            "id": upstream_cart_transform["id"].clone(),
+                            "functionId": upstream_cart_transform["functionId"].clone()
+                        }]
                     }
                 }
             }),
@@ -7939,8 +8169,8 @@ fn functions_cart_transform_create_hydrates_lifecycle_catalogs_before_reuse_and_
 
     let hits = hits.lock().unwrap();
     for operation_name in [
-        "FunctionValidationsHydrate",
-        "FunctionCartTransformsHydrate",
+        "FunctionValidationDecisionPreflight",
+        "FunctionCartTransformDecisionPreflight",
     ] {
         assert_eq!(
             hits.iter()
@@ -7954,9 +8184,34 @@ fn functions_cart_transform_create_hydrates_lifecycle_catalogs_before_reuse_and_
         hits.iter()
             .filter(|body| body["operationName"] == "FunctionHydrateById")
             .count(),
-        1,
-        "the registered validation Function should be resolved from the lifecycle catalog"
+        2,
+        "each cold Function should use one exact metadata lookup"
     );
+    let validation_query = hits
+        .iter()
+        .find(|body| body["operationName"] == "FunctionValidationDecisionPreflight")
+        .and_then(|body| body["query"].as_str())
+        .unwrap_or_default();
+    assert!(validation_query.contains("validations(first: 250, after: $after)"));
+    assert!(!validation_query.contains("metafields"));
+    let cart_query = hits
+        .iter()
+        .find(|body| body["operationName"] == "FunctionCartTransformDecisionPreflight")
+        .and_then(|body| body["query"].as_str())
+        .unwrap_or_default();
+    assert!(cart_query.contains("cartTransforms(first: 1)"));
+    assert!(!cart_query.contains("metafields"));
+    for full_catalog_operation in [
+        "FunctionValidationsHydrate",
+        "FunctionCartTransformsHydrate",
+    ] {
+        assert_eq!(
+            hits.iter()
+                .filter(|body| body["operationName"] == full_catalog_operation)
+                .count(),
+            0
+        );
+    }
     let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 2);
     assert!(log["entries"][0]["rawBody"]
@@ -8701,8 +8956,12 @@ fn functions_fulfillment_constraint_rule_update_and_delete_hydrate_unobserved_ta
     assert_eq!(update_hits.len(), 1);
     assert_eq!(
         update_hits[0]["operationName"],
-        json!("FunctionFulfillmentConstraintRulesHydrate")
+        json!("FunctionFulfillmentConstraintRuleHydrateById")
     );
+    assert!(update_hits[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("node(id: $id)"));
     drop(update_hits);
     let update_log = log_snapshot(&update_proxy);
     assert_eq!(update_log["entries"].as_array().unwrap().len(), 1);
@@ -8733,8 +8992,12 @@ fn functions_fulfillment_constraint_rule_update_and_delete_hydrate_unobserved_ta
     assert_eq!(delete_hits.len(), 1);
     assert_eq!(
         delete_hits[0]["operationName"],
-        json!("FunctionFulfillmentConstraintRulesHydrate")
+        json!("FunctionFulfillmentConstraintRuleHydrateById")
     );
+    assert!(delete_hits[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("node(id: $id)"));
     drop(delete_hits);
     let delete_log = log_snapshot(&delete_proxy);
     assert_eq!(delete_log["entries"].as_array().unwrap().len(), 1);
@@ -8742,6 +9005,240 @@ fn functions_fulfillment_constraint_rule_update_and_delete_hydrate_unobserved_ta
         delete_log["entries"][0]["rawBody"],
         json!(serde_json::to_string(&json!({ "query": delete_query, "variables": {} })).unwrap())
     );
+}
+
+#[test]
+fn functions_fulfillment_constraint_rule_not_found_uses_targeted_hydration() {
+    let missing_id = "gid://shopify/FulfillmentConstraintRule/999999999999";
+
+    let update_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut update_proxy =
+        function_fulfillment_constraint_rule_proxy_with_hits(Arc::clone(&update_hits));
+    let update_query = r#"
+        mutation UpdateUnknownFulfillmentConstraintRule($id: ID!) {
+          fulfillmentConstraintRuleUpdate(id: $id, deliveryMethodTypes: [LOCAL]) {
+            fulfillmentConstraintRule { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let update = update_proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": missing_id }),
+    ));
+    assert_eq!(
+        update.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": format!("Could not find FulfillmentConstraintRule with id: {missing_id}"),
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+    let update_hits = update_hits.lock().unwrap();
+    assert_eq!(update_hits.len(), 1);
+    assert_eq!(
+        update_hits[0]["operationName"],
+        json!("FunctionFulfillmentConstraintRuleHydrateById")
+    );
+    assert_eq!(update_hits[0]["variables"], json!({ "id": missing_id }));
+    assert!(update_hits[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("node(id: $id)"));
+    assert!(!update_hits[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("fulfillmentConstraintRules"));
+    drop(update_hits);
+    let update_log = log_snapshot(&update_proxy);
+    assert_eq!(update_log["entries"].as_array().unwrap().len(), 1);
+
+    let delete_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut delete_proxy =
+        function_fulfillment_constraint_rule_proxy_with_hits(Arc::clone(&delete_hits));
+    let delete_query = r#"
+        mutation DeleteUnknownFulfillmentConstraintRule($id: ID!) {
+          fulfillmentConstraintRuleDelete(id: $id) {
+            success
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let delete = delete_proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "id": missing_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["fulfillmentConstraintRuleDelete"],
+        json!({
+            "success": false,
+            "userErrors": [{
+                "field": ["id"],
+                "message": format!("Could not find FulfillmentConstraintRule with id: {missing_id}"),
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+    let delete_hits = delete_hits.lock().unwrap();
+    assert_eq!(delete_hits.len(), 1);
+    assert_eq!(
+        delete_hits[0]["operationName"],
+        json!("FunctionFulfillmentConstraintRuleHydrateById")
+    );
+    assert_eq!(delete_hits[0]["variables"], json!({ "id": missing_id }));
+    assert!(delete_hits[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("node(id: $id)"));
+    assert!(!delete_hits[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("fulfillmentConstraintRules"));
+    drop(delete_hits);
+    let delete_log = log_snapshot(&delete_proxy);
+    assert_eq!(delete_log["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn functions_authoritative_preflight_failures_do_not_stage_or_claim_not_found() {
+    let cart_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/cart-transform-unavailable-preflight",
+        "Cart Transform Unavailable Preflight",
+        "cart-transform-unavailable-preflight",
+        "CART_TRANSFORM",
+        "cart-unavailable-key",
+        "cart-unavailable-app",
+    );
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        let response_body = match body["operationName"].as_str() {
+            Some("FunctionHydrateById") => {
+                json!({ "data": { "shopifyFunction": cart_function.clone() } })
+            }
+            _ => json!({ "errors": [{ "message": "authoritative preflight unavailable" }] }),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
+
+    let validation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ValidationUnavailablePreflight {
+          validationCreate(validation: {
+            functionHandle: "validation-alpha"
+            enable: true
+          }) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        validation.body["data"]["validationCreate"],
+        json!({
+            "validation": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Unable to verify the authoritative Function lifecycle state.",
+                "code": null
+            }]
+        })
+    );
+
+    let cart_transform = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CartTransformUnavailablePreflight {
+          cartTransformCreate(
+            functionId: "gid://shopify/ShopifyFunction/cart-transform-unavailable-preflight"
+          ) {
+            cartTransform { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        cart_transform.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Unable to verify the authoritative Function lifecycle state.",
+                "code": null
+            }]
+        })
+    );
+
+    let missing_id = "gid://shopify/FulfillmentConstraintRule/unavailable-preflight";
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentConstraintUpdateUnavailablePreflight($id: ID!) {
+          fulfillmentConstraintRuleUpdate(id: $id, deliveryMethodTypes: [LOCAL]) {
+            fulfillmentConstraintRule { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": missing_id }),
+    ));
+    assert_eq!(
+        update.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Unable to resolve the FulfillmentConstraintRule from Shopify.",
+                "code": null
+            }]
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentConstraintDeleteUnavailablePreflight($id: ID!) {
+          fulfillmentConstraintRuleDelete(id: $id) {
+            success
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": missing_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["fulfillmentConstraintRuleDelete"],
+        json!({
+            "success": false,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Unable to resolve the FulfillmentConstraintRule from Shopify.",
+                "code": null
+            }]
+        })
+    );
+
+    let staged = state_snapshot(&proxy);
+    for key in [
+        "functionValidations",
+        "functionCartTransforms",
+        "functionFulfillmentConstraintRules",
+    ] {
+        let records = &staged["stagedState"][key];
+        assert!(records.is_null() || records.as_object().is_some_and(serde_json::Map::is_empty));
+    }
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 4);
 }
 
 #[test]

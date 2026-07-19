@@ -182,37 +182,13 @@ const preflightDocument = `mutation AuthoritativeLifecyclePreflight(
 }
 `;
 
-const functionValidationsHydrateDocument = `query FunctionValidationsHydrate($after: String) {
-  validations(first: 100, after: $after) {
+const functionValidationDecisionPreflightDocument = `query FunctionValidationDecisionPreflight($after: String) {
+  validations(first: 250, after: $after) {
     nodes {
       id
-      title
       enabled
-      blockOnFailure
       shopifyFunction {
         id
-        title
-        handle
-        apiType
-        description
-        appKey
-        app {
-          __typename
-          id
-          title
-          handle
-          apiKey
-        }
-      }
-      metafields(first: 100) {
-        nodes {
-          id
-          namespace
-          key
-          type
-          value
-          updatedAt
-        }
       }
     }
     pageInfo {
@@ -223,29 +199,11 @@ const functionValidationsHydrateDocument = `query FunctionValidationsHydrate($af
 }
 `;
 
-const functionCartTransformsHydrateDocument = `query FunctionCartTransformsHydrate($after: String) {
-  cartTransforms(first: 100, after: $after) {
+const functionCartTransformDecisionPreflightDocument = `query FunctionCartTransformDecisionPreflight {
+  cartTransforms(first: 1) {
     nodes {
       id
       functionId
-      blockOnFailure
-      metafields(first: 100) {
-        nodes {
-          id
-          namespace
-          key
-          type
-          value
-          compareDigest
-          ownerType
-          createdAt
-          updatedAt
-        }
-      }
-    }
-    pageInfo {
-      hasNextPage
-      endCursor
     }
   }
 }
@@ -322,17 +280,22 @@ try {
   );
   if (!cartTransformId) throw new Error('Cart transform setup returned no id');
 
-  const functionValidationsHydrate = await capture(functionValidationsHydrateDocument, { after: null });
-  assertNoTopLevelErrors(functionValidationsHydrate, 'Validation catalog cassette');
+  const functionValidationDecisionPreflight = await capture(functionValidationDecisionPreflightDocument, {
+    after: null,
+  });
+  assertNoTopLevelErrors(functionValidationDecisionPreflight, 'Validation decision cassette');
   const validationNodes = readArray(
-    readPath(functionValidationsHydrate.response.payload, ['data', 'validations', 'nodes']),
+    readPath(functionValidationDecisionPreflight.response.payload, ['data', 'validations', 'nodes']),
   );
   if (validationNodes.length !== 25) throw new Error(`Expected 25 validation nodes, got ${validationNodes.length}`);
 
-  const functionCartTransformsHydrate = await capture(functionCartTransformsHydrateDocument, { after: null });
-  assertNoTopLevelErrors(functionCartTransformsHydrate, 'Cart-transform catalog cassette');
+  const validationFunctionHydrate = await capture(functionHydrateByIdDocument, { id: validationFunctionId });
+  assertNoTopLevelErrors(validationFunctionHydrate, 'Validation Function cassette');
+
+  const functionCartTransformDecisionPreflight = await capture(functionCartTransformDecisionPreflightDocument);
+  assertNoTopLevelErrors(functionCartTransformDecisionPreflight, 'Cart-transform decision cassette');
   const cartNodes = readArray(
-    readPath(functionCartTransformsHydrate.response.payload, ['data', 'cartTransforms', 'nodes']),
+    readPath(functionCartTransformDecisionPreflight.response.payload, ['data', 'cartTransforms', 'nodes']),
   );
   if (cartNodes.length !== 1) throw new Error(`Expected one cart-transform node, got ${cartNodes.length}`);
 
@@ -369,28 +332,29 @@ try {
     cleanupBefore,
     validationSetup,
     cartSetup,
-    functionValidationsHydrate,
-    functionCartTransformsHydrate,
+    functionValidationDecisionPreflight,
+    validationFunctionHydrate,
+    functionCartTransformDecisionPreflight,
     secondCartFunctionHydrate,
     preflight,
     cleanupAfter,
     upstreamCalls: [
       {
-        operationName: 'FunctionValidationsHydrate',
-        variables: functionValidationsHydrate.variables,
-        query: functionValidationsHydrate.query,
+        operationName: 'FunctionValidationDecisionPreflight',
+        variables: functionValidationDecisionPreflight.variables,
+        query: functionValidationDecisionPreflight.query,
         response: {
-          status: functionValidationsHydrate.response.status,
-          body: functionValidationsHydrate.response.payload,
+          status: functionValidationDecisionPreflight.response.status,
+          body: functionValidationDecisionPreflight.response.payload,
         },
       },
       {
-        operationName: 'FunctionCartTransformsHydrate',
-        variables: functionCartTransformsHydrate.variables,
-        query: functionCartTransformsHydrate.query,
+        operationName: 'FunctionHydrateById',
+        variables: validationFunctionHydrate.variables,
+        query: validationFunctionHydrate.query,
         response: {
-          status: functionCartTransformsHydrate.response.status,
-          body: functionCartTransformsHydrate.response.payload,
+          status: validationFunctionHydrate.response.status,
+          body: validationFunctionHydrate.response.payload,
         },
       },
       {
@@ -402,10 +366,19 @@ try {
           body: secondCartFunctionHydrate.response.payload,
         },
       },
+      {
+        operationName: 'FunctionCartTransformDecisionPreflight',
+        variables: functionCartTransformDecisionPreflight.variables,
+        query: functionCartTransformDecisionPreflight.query,
+        response: {
+          status: functionCartTransformDecisionPreflight.response.status,
+          body: functionCartTransformDecisionPreflight.response.payload,
+        },
+      },
     ],
     notes: {
-      authoritativeCatalogs:
-        'The replay starts cold and can reach the three Shopify payloads only by consuming the exact complete validation and cart-transform catalog reads recorded in upstreamCalls.',
+      authoritativeDecisions:
+        'The replay starts cold and reaches the three Shopify payloads through a 25-active threshold page, two exact Function lookups, and a first-cart-transform existence probe without hydrating lifecycle objects.',
       cleanup:
         'The script clears the disposable lifecycle catalogs before setup and deletes every created Validation and CartTransform in finally.',
     },

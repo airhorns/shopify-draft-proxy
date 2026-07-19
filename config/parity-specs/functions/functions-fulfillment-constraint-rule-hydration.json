@@ -52,5 +52,5 @@
       }
     ]
   },
-  "notes": "Live Shopify 2026-04 evidence for direct update/delete of a real rule that a cold proxy has not observed. Replay must hydrate the complete read-only fulfillmentConstraintRules catalog before deciding target existence; an isolated unknown-id update proves the exact NOT_FOUND payload after authoritative hydration."
+  "notes": "Live Shopify 2026-04 evidence for direct update/delete of a real rule that a cold proxy has not observed. Replay resolves only the requested rule through an exact read-only Node cassette; an isolated unknown-id update proves the exact NOT_FOUND payload after targeted hydration."
 }
