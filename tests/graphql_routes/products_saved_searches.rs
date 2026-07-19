@@ -208,8 +208,31 @@ fn mutation_hydrate_variant(product_id: &str, index: usize) -> Value {
         "price": format!("{index}.00"),
         "compareAtPrice": Value::Null,
         "taxable": true,
+        "taxCode": "P0000000",
         "inventoryPolicy": "DENY",
         "inventoryQuantity": index as i64,
+        "requiresComponents": true,
+        "showUnitPrice": true,
+        "unitPriceMeasurement": {
+            "quantityValue": 2.5,
+            "quantityUnit": "L",
+            "referenceValue": 1.0,
+            "referenceUnit": "L"
+        },
+        "metafields": {
+            "nodes": [{
+                "id": format!("gid://shopify/Metafield/{index}"),
+                "namespace": "specs",
+                "key": "hydrated",
+                "type": "single_line_text_field",
+                "value": "preserved",
+                "compareDigest": Value::Null,
+                "jsonValue": "preserved",
+                "createdAt": "2024-02-03T04:05:06Z",
+                "updatedAt": "2024-03-04T05:06:07Z",
+                "ownerType": "PRODUCTVARIANT"
+            }]
+        },
         "selectedOptions": [
             { "name": "Color", "value": if index.is_multiple_of(2) { "Blue" } else { "Red" } },
             { "name": "Size", "value": if index.is_multiple_of(2) { "Large" } else { "Small" } }
@@ -217,7 +240,11 @@ fn mutation_hydrate_variant(product_id: &str, index: usize) -> Value {
         "inventoryItem": {
             "id": format!("gid://shopify/InventoryItem/{index}"),
             "tracked": true,
-            "requiresShipping": true
+            "requiresShipping": true,
+            "countryCodeOfOrigin": "US",
+            "provinceCodeOfOrigin": "CA",
+            "harmonizedSystemCode": "123456",
+            "measurement": { "weight": { "unit": "KILOGRAMS", "value": 0.5 } }
         },
         "position": index,
         "product": { "id": product_id }
@@ -359,6 +386,13 @@ fn mutation_hydrate_upstream_response(request: &Request, product_id: &str) -> Re
             "seo",
             "options",
             "variants(first: 250",
+            "taxCode",
+            "requiresComponents",
+            "showUnitPrice",
+            "unitPriceMeasurement",
+            "metafields(first: 250)",
+            "countryCodeOfOrigin",
+            "harmonizedSystemCode",
             "media(first: 250",
             "collections(first: 250",
             "pageInfo",
@@ -512,7 +546,14 @@ fn product_and_variant_mutations_hydrate_rich_products_through_the_last_variant_
         mutation UpdateHydratedLastVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
           productVariantsBulkUpdate(productId: $productId, variants: $variants) {
             product { id variants(first: 300) { nodes { id price } } }
-            productVariants { id price }
+            productVariants {
+              id price taxCode requiresComponents showUnitPrice
+              unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit }
+              inventoryItem {
+                id countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode
+                measurement { weight { unit value } }
+              }
+            }
             userErrors { field message code }
           }
         }
@@ -528,7 +569,26 @@ fn product_and_variant_mutations_hydrate_rich_products_through_the_last_variant_
     );
     assert_eq!(
         variant_update.body["data"]["productVariantsBulkUpdate"]["productVariants"][0],
-        json!({ "id": target_variant_id, "price": "999.00" })
+        json!({
+            "id": target_variant_id,
+            "price": "999.00",
+            "taxCode": "P0000000",
+            "requiresComponents": true,
+            "showUnitPrice": true,
+            "unitPriceMeasurement": {
+                "quantityValue": 2.5,
+                "quantityUnit": "L",
+                "referenceValue": 1.0,
+                "referenceUnit": "L"
+            },
+            "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/251",
+                "countryCodeOfOrigin": "US",
+                "provinceCodeOfOrigin": "CA",
+                "harmonizedSystemCode": "123456",
+                "measurement": { "weight": { "unit": "KILOGRAMS", "value": 0.5 } }
+            }
+        })
     );
     assert_eq!(
         variant_update.body["data"]["productVariantsBulkUpdate"]["product"]["variants"]["nodes"]

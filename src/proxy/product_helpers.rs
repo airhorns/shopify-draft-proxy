@@ -731,9 +731,12 @@ pub(in crate::proxy) fn product_field_resolver_registrations() -> Vec<FieldResol
         "requiresComponents",
         "selectedOptions",
         "sellableOnlineQuantity",
+        "showUnitPrice",
         "sku",
+        "taxCode",
         "taxable",
         "title",
+        "unitPriceMeasurement",
     ] {
         registrations.push(FieldResolverRegistration::property(
             ApiSurface::Admin,

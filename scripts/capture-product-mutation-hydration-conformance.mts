@@ -3,6 +3,7 @@ import 'dotenv/config';
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
@@ -146,17 +147,26 @@ async function captureHydrate(productId: string) {
     mediaAfter: null,
     collectionsAfter: null,
   };
-  const response = await runGraphqlRequest<JsonObject>(hydrateQuery, variables);
-  dataObject(response, 'product mutation preflight hydrate');
-  return {
-    operationName: 'ProductMutationPreflightHydrate',
-    query: hydrateQuery,
-    variables,
-    response: {
-      status: response.status,
-      body: response.payload,
-    },
-  };
+  for (let attempt = 1; attempt <= 30; attempt += 1) {
+    const response = await runGraphqlRequest<JsonObject>(hydrateQuery, variables);
+    const product = asObject(dataObject(response, 'product mutation preflight hydrate')['product'], 'product');
+    const media = nodesFrom(product['media'], 'hydrated product media');
+    if (media.every((node) => node['status'] === 'READY')) {
+      return {
+        operationName: 'ProductMutationPreflightHydrate',
+        query: hydrateQuery,
+        variables,
+        response: {
+          status: response.status,
+          body: response.payload,
+        },
+      };
+    }
+    if (attempt < 30) {
+      await delay(1_000);
+    }
+  }
+  throw new Error('Product mutation hydration media did not reach READY before capture.');
 }
 
 async function captureRead(productId: string) {

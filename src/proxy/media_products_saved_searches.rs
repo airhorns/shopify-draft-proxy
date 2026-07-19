@@ -1445,9 +1445,8 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let product_id = resolved_string_field(arguments, "productId").unwrap_or_default();
         let variant_ids = resolved_string_list_arg(arguments, "variantsIds");
-        // Hydrate the product together with the variants being deleted so a cold
-        // backend stages both before applying the delete, matching the node
-        // hydration recorded during capture.
+        // Hydrate the complete product catalog before applying the delete so a
+        // cold backend preserves every surviving variant and omitted product field.
         let Some(product) = self
             .product_for_bulk_variant_mutation_with_variant_ids(request, &product_id, &variant_ids)
             .cloned()
