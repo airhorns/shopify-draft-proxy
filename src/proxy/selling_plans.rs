@@ -16,7 +16,6 @@ query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
       options
       position
       createdAt
-      updatedAt
       products(first: 250) {
         edges {
           cursor
