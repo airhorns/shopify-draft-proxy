@@ -452,16 +452,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-cold-company-location-hydration-conformance.mts',
     purpose:
-      'Cold B2B companies passthrough plus real non-synthetic CompanyLocation hydration for companyLocationUpdate and companyLocationTaxSettingsUpdate.',
+      'Cold B2B catalog passthrough plus exact query-only mutation-first hydration for real Company, CompanyContact, and CompanyLocation updates and staged readback.',
     requiredAuthScopes: ['read_companies', 'write_companies'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-cold-company-location-hydration.json`,
       'config/parity-specs/b2b/b2b-cold-company-location-hydration.json',
       'config/parity-requests/b2b/b2b-cold-companies-read.graphql',
       'config/parity-requests/b2b/b2b-cold-company-location-update.graphql',
+      'config/parity-requests/b2b/b2b-mutation-first-company-update.graphql',
+      'config/parity-requests/b2b/b2b-mutation-first-contact-update.graphql',
+      'config/parity-requests/b2b/b2b-mutation-first-readback.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable B2B company/location, captures a cold companies read and hydrate-backed mutations, then deletes the company.',
+      'Creates one disposable B2B company/contact/location, captures cold catalog and mutation-first hydrate-backed updates/readback, then deletes the company.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
