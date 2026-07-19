@@ -159,7 +159,7 @@ fn apps_mutations_dispatch_by_root_field_for_ordinary_operation_names() {
     assert_eq!(
         usage.body["data"]["appUsageRecordCreate"],
         json!({
-            "appUsageRecord": { "id": "gid://shopify/AppUsageRecord/expected" },
+            "appUsageRecord": { "id": "gid://shopify/AppUsageRecord/1" },
             "userErrors": []
         })
     );
@@ -765,6 +765,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
           ) {
             appUsageRecord {
               id
+              createdAt
               description
               price { amount currencyCode }
               subscriptionLineItem { id plan { pricingDetails { __typename ... on AppUsagePricing { balanceUsed { amount currencyCode } } } } }
@@ -781,7 +782,8 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         success.body["data"]["appUsageRecordCreate"],
         json!({
             "appUsageRecord": {
-                "id": "gid://shopify/AppUsageRecord/expected",
+                "id": "gid://shopify/AppUsageRecord/1",
+                "createdAt": "2026-04-28T02:10:00.000Z",
                 "description": "first",
                 "price": { "amount": "3.0", "currencyCode": "USD" },
                 "subscriptionLineItem": {
@@ -903,9 +905,9 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
           currentAppInstallation {
             allSubscriptions(first: 5) {
               nodes {
-                lineItems {
+                  lineItems {
                   plan { pricingDetails { __typename ... on AppUsagePricing { balanceUsed { amount currencyCode } } } }
-                  usageRecords { nodes { id description price { amount currencyCode } } }
+                  usageRecords { nodes { id createdAt description price { amount currencyCode } } }
                 }
               }
             }
@@ -921,10 +923,154 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
                 "lineItems": [{
                     "plan": { "pricingDetails": { "__typename": "AppUsagePricing", "balanceUsed": { "amount": "3.0", "currencyCode": "USD" } } },
                     "usageRecords": { "nodes": [{
-                        "id": "gid://shopify/AppUsageRecord/expected",
+                        "id": "gid://shopify/AppUsageRecord/1",
+                        "createdAt": "2026-04-28T02:10:00.000Z",
                         "description": "first",
                         "price": { "amount": "3.0", "currencyCode": "USD" }
                     }] }
+                }]
+            }] }
+        })
+    );
+}
+
+#[test]
+fn app_usage_record_create_mints_distinct_records_and_reads_them_back() {
+    let mut proxy = snapshot_proxy();
+
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionCreateForUsageRecords($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(
+            name: "Usage records"
+            returnUrl: "https://app.example.test/return"
+            test: true
+            lineItems: $lineItems
+          ) {
+            appSubscription { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [{
+                "plan": { "appUsagePricingDetails": { "cappedAmount": { "amount": 100, "currencyCode": "USD" }, "terms": "usage terms" } }
+            }]
+        }),
+    ));
+
+    let create_usage = r#"
+        mutation AppUsageRecordCreateDistinct($id: ID!, $description: String!, $key: String!) {
+          appUsageRecordCreate(
+            subscriptionLineItemId: $id
+            price: { amount: "1.00", currencyCode: USD }
+            description: $description
+            idempotencyKey: $key
+          ) {
+            appUsageRecord { id createdAt description price { amount currencyCode } subscriptionLineItem { id } }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let first = proxy.process_request(json_graphql_request(
+        create_usage,
+        json!({
+            "id": "gid://shopify/AppSubscriptionLineItem/expected",
+            "description": "call A",
+            "key": "usage-distinct-a"
+        }),
+    ));
+    let second = proxy.process_request(json_graphql_request(
+        create_usage,
+        json!({
+            "id": "gid://shopify/AppSubscriptionLineItem/expected",
+            "description": "call B",
+            "key": "usage-distinct-b"
+        }),
+    ));
+    let duplicate = proxy.process_request(json_graphql_request(
+        create_usage,
+        json!({
+            "id": "gid://shopify/AppSubscriptionLineItem/expected",
+            "description": "call A duplicate",
+            "key": "usage-distinct-a"
+        }),
+    ));
+
+    let first_record = &first.body["data"]["appUsageRecordCreate"]["appUsageRecord"];
+    let second_record = &second.body["data"]["appUsageRecordCreate"]["appUsageRecord"];
+    let duplicate_record = &duplicate.body["data"]["appUsageRecordCreate"]["appUsageRecord"];
+    assert_eq!(
+        first.body["data"]["appUsageRecordCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        second.body["data"]["appUsageRecordCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        duplicate.body["data"]["appUsageRecordCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(first_record["id"], json!("gid://shopify/AppUsageRecord/1"));
+    assert_eq!(second_record["id"], json!("gid://shopify/AppUsageRecord/2"));
+    assert_ne!(first_record["id"], second_record["id"]);
+    assert_eq!(duplicate_record["id"], first_record["id"]);
+    assert_eq!(duplicate_record["description"], json!("call A"));
+    assert_eq!(
+        first_record["createdAt"],
+        json!("2026-04-28T02:10:00.000Z")
+    );
+    assert_eq!(
+        second_record["createdAt"],
+        json!("2026-04-28T02:10:00.000Z")
+    );
+
+    let first_id = first_record["id"].as_str().expect("first id").to_string();
+    let second_id = second_record["id"].as_str().expect("second id").to_string();
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query UsageRecordNodeRead($firstId: ID!, $secondId: ID!) {
+          first: node(id: $firstId) {
+            ... on AppUsageRecord { id createdAt description price { amount currencyCode } subscriptionLineItem { id } }
+          }
+          second: node(id: $secondId) {
+            ... on AppUsageRecord { id createdAt description price { amount currencyCode } subscriptionLineItem { id } }
+          }
+        }
+        "#,
+        json!({ "firstId": first_id, "secondId": second_id }),
+    ));
+    assert_eq!(node_read.body["data"]["first"], *first_record);
+    assert_eq!(node_read.body["data"]["second"], *second_record);
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query UsageRecordConnectionRead {
+          currentAppInstallation {
+            allSubscriptions(first: 5) {
+              nodes {
+                lineItems {
+                  plan { pricingDetails { __typename ... on AppUsagePricing { balanceUsed { amount currencyCode } } } }
+                  usageRecords(first: 5) { nodes { id createdAt description price { amount currencyCode } } }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"],
+        json!({
+            "allSubscriptions": { "nodes": [{
+                "lineItems": [{
+                    "plan": { "pricingDetails": { "__typename": "AppUsagePricing", "balanceUsed": { "amount": "2.0", "currencyCode": "USD" } } },
+                    "usageRecords": { "nodes": [
+                        { "id": "gid://shopify/AppUsageRecord/1", "createdAt": "2026-04-28T02:10:00.000Z", "description": "call A", "price": { "amount": "1.0", "currencyCode": "USD" } },
+                        { "id": "gid://shopify/AppUsageRecord/2", "createdAt": "2026-04-28T02:10:00.000Z", "description": "call B", "price": { "amount": "1.0", "currencyCode": "USD" } }
+                    ] }
                 }]
             }] }
         })
@@ -1009,7 +1155,7 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
         r#"
         mutation AppUsageRecordCreateLocalLifecycle($id: ID!) {
           appUsageRecordCreate(subscriptionLineItemId: $id, price: { amount: "12.5", currencyCode: USD }, description: "metered import", idempotencyKey: "usage-local-1") {
-            appUsageRecord { id description price { amount currencyCode } subscriptionLineItem { id } }
+            appUsageRecord { id createdAt description price { amount currencyCode } subscriptionLineItem { id } }
             userErrors { field message }
           }
         }
@@ -1019,7 +1165,8 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
     assert_eq!(
         usage.body["data"]["appUsageRecordCreate"]["appUsageRecord"],
         json!({
-            "id": "gid://shopify/AppUsageRecord/expected",
+            "id": "gid://shopify/AppUsageRecord/1",
+            "createdAt": "2026-04-28T02:10:00.000Z",
             "description": "metered import",
             "price": { "amount": "12.5", "currencyCode": "USD" },
             "subscriptionLineItem": { "id": "gid://shopify/AppSubscriptionLineItem/expected" }

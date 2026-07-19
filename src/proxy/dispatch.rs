@@ -584,14 +584,20 @@ impl DraftProxy {
                 })
                 .or_else(|| {
                     self.find_staged_app_usage_record(id).map(|usage_record| {
-                        selected_json(
-                            &usage_record,
-                            &selected_fields_named(
-                                selection,
-                                &["id", "description", "price", "subscriptionLineItem"],
-                            ),
-                        )
-                    })
+                            selected_json(
+                                &usage_record,
+                                &selected_fields_named(
+                                    selection,
+                                    &[
+                                        "id",
+                                        "createdAt",
+                                        "description",
+                                        "price",
+                                        "subscriptionLineItem",
+                                    ],
+                                ),
+                            )
+                        })
                 }),
         }
     }

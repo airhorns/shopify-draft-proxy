@@ -592,17 +592,16 @@ impl DraftProxy {
         } else if let Some((subscription_id, line_item_index)) =
             self.find_staged_app_subscription_line_item(&line_item_id)
         {
-            let subscription = self
+            let line_item_snapshot = self
                 .store
                 .staged
                 .app_subscriptions
-                .get_mut(&subscription_id)
-                .expect("located subscription must still exist");
-            let line_item = subscription["lineItems"]
-                .as_array_mut()
-                .and_then(|items| items.get_mut(line_item_index))
+                .get(&subscription_id)
+                .and_then(|subscription| subscription["lineItems"].as_array())
+                .and_then(|items| items.get(line_item_index))
+                .cloned()
                 .expect("located line item must still exist");
-            let pricing = &line_item["plan"]["pricingDetails"];
+            let pricing = &line_item_snapshot["plan"]["pricingDetails"];
             let existing_currency = pricing["cappedAmount"]["currencyCode"]
                 .as_str()
                 .unwrap_or("USD")
@@ -616,14 +615,15 @@ impl DraftProxy {
                 .and_then(|value| value.parse::<f64>().ok())
                 .unwrap_or(0.0);
             let requested_amount = amount.parse::<f64>().unwrap_or(0.0);
-            let existing = line_item["usageRecords"]["nodes"]
+            let api_client_id = request_api_client_id(request);
+            let existing = line_item_snapshot["usageRecords"]["nodes"]
                 .as_array()
                 .and_then(|records| {
                     records
                         .iter()
                         .find(|record| {
                             record["idempotencyKey"] == idempotency_key
-                                && record["apiClientId"] == request_api_client_id(request)
+                                && record["apiClientId"] == api_client_id
                         })
                         .cloned()
                 });
@@ -642,17 +642,29 @@ impl DraftProxy {
                 } else {
                     format_money_amount(current_balance + requested_amount)
                 };
+                let usage_record_id = self.next_synthetic_gid("AppUsageRecord");
+                let subscription = self
+                    .store
+                    .staged
+                    .app_subscriptions
+                    .get_mut(&subscription_id)
+                    .expect("located subscription must still exist");
+                let line_item = subscription["lineItems"]
+                    .as_array_mut()
+                    .and_then(|items| items.get_mut(line_item_index))
+                    .expect("located line item must still exist");
                 line_item["plan"]["pricingDetails"]["balanceUsed"] = json!({
                     "amount": new_balance,
                     "currencyCode": existing_currency
                 });
                 let subscription_line_item = line_item.clone();
                 usage_record = json!({
-                    "id": "gid://shopify/AppUsageRecord/expected",
+                    "id": usage_record_id,
+                    "createdAt": APP_DOMAIN_SYNTHETIC_NOW,
                     "description": description,
                     "price": money_value(&amount, &currency),
                     "idempotencyKey": idempotency_key,
-                    "apiClientId": request_api_client_id(request),
+                    "apiClientId": api_client_id,
                     "subscriptionLineItem": subscription_line_item
                 });
                 if !line_item["usageRecords"].is_object() {

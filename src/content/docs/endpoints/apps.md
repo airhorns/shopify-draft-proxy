@@ -52,7 +52,7 @@ Billing behavior:
 - `appSubscriptionCancel` stages cancellation only for cancellable subscription statuses. Non-cancellable and unknown subscriptions return Shopify-shaped userErrors without mutating local state.
 - `appSubscriptionLineItemUpdate` validates usage-pricing line items, rejects recurring/non-variable line items with the Core-source-derived base userError `field: null`, `message: "Only variable subscriptions can be updated."`, validates capped amount currency, increasing cap values, and approval behavior. Approval-required updates return a confirmation URL and keep downstream active line-item caps unchanged; internal/test callers can use the synchronous no-approval branch when explicitly modeled.
 - `appSubscriptionTrialExtend` validates the supported day range, subscription existence, active status, and active trial window before mutating `trialDays`.
-- `appUsageRecordCreate` stages usage records for usage-pricing line items, enforces idempotency-key length, currency compatibility, capped amount limits, and idempotent reuse for repeated keys.
+- `appUsageRecordCreate` stages usage records for usage-pricing line items, mints unique `gid://shopify/AppUsageRecord/<n>` IDs with the app-domain synthetic `createdAt` timestamp, enforces idempotency-key length, currency compatibility, capped amount limits, and idempotent reuse for repeated keys.
 
 Access and uninstall behavior:
 
