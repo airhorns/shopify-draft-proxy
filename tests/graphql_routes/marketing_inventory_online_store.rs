@@ -17928,7 +17928,7 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         r#"
         mutation AnotherUnrelatedOperationName($article: ArticleCreateInput!) {
           madeArticle: articleCreate(article: $article) {
-            article { id title handle body summary tags isPublished publishedAt createdAt updatedAt author { name } blog { id title handle } commentsCount { count precision } }
+            article { id title handle body summary tags isPublished publishedAt createdAt updatedAt author { name } blog { id title handle updatedAt } commentsCount { count precision } }
             userErrors { field message code }
           }
         }
@@ -17968,6 +17968,10 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         &article_create.body["data"]["madeArticle"]["article"]["publishedAt"],
         "articleCreate.publishedAt",
     );
+    let blog_updated_after_article_at = assert_online_store_operation_timestamp(
+        &article_create.body["data"]["madeArticle"]["article"]["blog"]["updatedAt"],
+        "articleCreate.article.blog.updatedAt",
+    );
     assert_eq!(article_created_at, article_updated_at);
     assert_eq!(article_created_at, article_published_at);
 
@@ -18006,7 +18010,7 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
     );
     assert_eq!(
         read.body["data"]["blog"]["updatedAt"],
-        json!(blog_updated_at)
+        json!(blog_updated_after_article_at)
     );
     assert_eq!(
         read.body["data"]["page"]["createdAt"],
@@ -18157,6 +18161,457 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         json!([])
     );
     assert_eq!(*upstream_calls.lock().unwrap(), 2);
+}
+
+#[test]
+fn online_store_article_create_and_move_hydrate_unobserved_blogs_with_queries_only() {
+    let first_blog_id = "gid://shopify/Blog/authoritative-create-target";
+    let second_blog_id = "gid://shopify/Blog/authoritative-move-target";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_requests = Arc::clone(&upstream_requests);
+        move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            upstream_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("OnlineStoreBlogMutationHydrate"),
+                "unexpected upstream document: {query}"
+            );
+            assert!(
+                !query.contains("mutation"),
+                "supported article writes must not reach upstream: {query}"
+            );
+            let id = body["variables"]["id"].as_str().unwrap_or_default();
+            let title = match id {
+                value if value == first_blog_id => "Authoritative create target",
+                value if value == second_blog_id => "Authoritative move target",
+                value => panic!("unexpected blog hydrate id: {value}"),
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "blog": {
+                            "__typename": "Blog",
+                            "id": id,
+                            "title": title,
+                            "handle": title.to_ascii_lowercase().replace(' ', "-"),
+                            "commentPolicy": "MODERATED",
+                            "tags": [],
+                            "templateSuffix": null,
+                            "createdAt": "2026-07-01T00:00:00Z",
+                            "updatedAt": "2026-07-01T00:00:00Z",
+                            "articlesCount": { "count": 0, "precision": "EXACT" },
+                            "metafields": {
+                                "nodes": [],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null,
+                                    "endCursor": null
+                                }
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateInUnobservedBlog($article: ArticleCreateInput!) {
+          articleCreate(article: $article) {
+            article { id title blog { id title handle commentPolicy } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"article": {
+            "title": "Mutation-first article",
+            "blogId": first_blog_id,
+            "author": { "name": "Mutation-first author" }
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["articleCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["articleCreate"]["article"]["blog"]["id"],
+        json!(first_blog_id)
+    );
+    let article_id = create.body["data"]["articleCreate"]["article"]["id"]
+        .as_str()
+        .expect("articleCreate returns an ID")
+        .to_string();
+
+    let move_article = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MoveToUnobservedBlog($id: ID!, $article: ArticleUpdateInput!) {
+          articleUpdate(id: $id, article: $article) {
+            article { id title blog { id title handle commentPolicy } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": article_id,
+            "article": { "blogId": second_blog_id }
+        }),
+    ));
+    assert_eq!(
+        move_article.body["data"]["articleUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        move_article.body["data"]["articleUpdate"]["article"]["blog"]["id"],
+        json!(second_blog_id)
+    );
+
+    let upstream_requests = upstream_requests.lock().unwrap();
+    assert_eq!(upstream_requests.len(), 2);
+    assert!(upstream_requests.iter().all(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query"))));
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+}
+
+#[test]
+fn online_store_narrow_updates_hydrate_complete_article_and_blog_with_metafield_pages() {
+    let partial_article_id = "gid://shopify/Article/partial-selected-empty";
+    let rich_article_id = "gid://shopify/Article/authoritative-rich";
+    let article_blog_id = "gid://shopify/Blog/authoritative-article-parent";
+    let rich_blog_id = "gid://shopify/Blog/authoritative-rich";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_requests = Arc::clone(&upstream_requests);
+        move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            upstream_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            let after = body["variables"]["after"].as_str();
+
+            let data = if query.contains("ObserveSelectedEmptyArticle") {
+                json!({
+                    "article": {
+                        "__typename": "Article",
+                        "id": partial_article_id,
+                        "title": "Partially selected article",
+                        "summary": null,
+                        "tags": []
+                    }
+                })
+            } else if query.contains("OnlineStoreArticleMutationHydrate") {
+                let metafields = if after.is_none() {
+                    json!({
+                        "nodes": [{
+                            "__typename": "Metafield",
+                            "id": "gid://shopify/Metafield/article-hero",
+                            "namespace": "authoritative",
+                            "key": "hero",
+                            "type": "single_line_text_field",
+                            "value": "hero value",
+                            "jsonValue": "hero value",
+                            "compareDigest": "article-hero-digest",
+                            "ownerType": "ARTICLE",
+                            "createdAt": "2026-07-01T00:00:00Z",
+                            "updatedAt": "2026-07-01T00:00:00Z"
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "article-first",
+                            "endCursor": "article-next"
+                        }
+                    })
+                } else {
+                    assert_eq!(after, Some("article-next"));
+                    json!({
+                        "nodes": [{
+                            "__typename": "Metafield",
+                            "id": "gid://shopify/Metafield/article-secondary",
+                            "namespace": "authoritative",
+                            "key": "secondary",
+                            "type": "single_line_text_field",
+                            "value": "secondary value",
+                            "jsonValue": "secondary value",
+                            "compareDigest": "article-secondary-digest",
+                            "ownerType": "ARTICLE",
+                            "createdAt": "2026-07-01T00:00:00Z",
+                            "updatedAt": "2026-07-01T00:00:00Z"
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": true,
+                            "startCursor": "article-second",
+                            "endCursor": "article-second"
+                        }
+                    })
+                };
+                json!({
+                    "article": {
+                        "__typename": "Article",
+                        "id": rich_article_id,
+                        "title": "Authoritative rich article",
+                        "handle": "authoritative-rich-article",
+                        "body": "<p>Authoritative body</p>",
+                        "summary": "<p>Authoritative summary</p>",
+                        "tags": ["authoritative", "rich"],
+                        "isPublished": true,
+                        "publishedAt": "2026-07-01T00:00:00Z",
+                        "createdAt": "2026-06-01T00:00:00Z",
+                        "updatedAt": "2026-07-01T00:00:00Z",
+                        "templateSuffix": "feature",
+                        "author": { "name": "Authoritative Author" },
+                        "image": {
+                            "altText": "Authoritative alt",
+                            "url": "https://cdn.example.com/authoritative.jpg",
+                            "width": 1200,
+                            "height": 800
+                        },
+                        "blog": {
+                            "__typename": "Blog",
+                            "id": article_blog_id,
+                            "title": "Authoritative article parent",
+                            "handle": "authoritative-article-parent",
+                            "commentPolicy": "CLOSED",
+                            "tags": [],
+                            "templateSuffix": null,
+                            "createdAt": "2026-01-01T00:00:00Z",
+                            "updatedAt": "2026-01-01T00:00:00Z",
+                            "articlesCount": { "count": 1, "precision": "EXACT" },
+                            "metafields": {
+                                "nodes": [],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null,
+                                    "endCursor": null
+                                }
+                            }
+                        },
+                        "metafields": metafields
+                    }
+                })
+            } else if query.contains("OnlineStoreBlogMutationHydrate") {
+                let metafields = if after.is_none() {
+                    json!({
+                        "nodes": [{
+                            "__typename": "Metafield",
+                            "id": "gid://shopify/Metafield/blog-hero",
+                            "namespace": "authoritative",
+                            "key": "hero",
+                            "type": "single_line_text_field",
+                            "value": "blog hero",
+                            "jsonValue": "blog hero",
+                            "compareDigest": "blog-hero-digest",
+                            "ownerType": "BLOG",
+                            "createdAt": "2026-07-01T00:00:00Z",
+                            "updatedAt": "2026-07-01T00:00:00Z"
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "blog-first",
+                            "endCursor": "blog-next"
+                        }
+                    })
+                } else {
+                    assert_eq!(after, Some("blog-next"));
+                    json!({
+                        "nodes": [{
+                            "__typename": "Metafield",
+                            "id": "gid://shopify/Metafield/blog-secondary",
+                            "namespace": "authoritative",
+                            "key": "secondary",
+                            "type": "single_line_text_field",
+                            "value": "blog secondary",
+                            "jsonValue": "blog secondary",
+                            "compareDigest": "blog-secondary-digest",
+                            "ownerType": "BLOG",
+                            "createdAt": "2026-07-01T00:00:00Z",
+                            "updatedAt": "2026-07-01T00:00:00Z"
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": true,
+                            "startCursor": "blog-second",
+                            "endCursor": "blog-second"
+                        }
+                    })
+                };
+                json!({
+                    "blog": {
+                        "__typename": "Blog",
+                        "id": rich_blog_id,
+                        "title": "Authoritative rich blog",
+                        "handle": "authoritative-rich-blog",
+                        "commentPolicy": "MODERATED",
+                        "tags": ["authoritative-blog"],
+                        "templateSuffix": "journal",
+                        "createdAt": "2026-06-01T00:00:00Z",
+                        "updatedAt": "2026-07-01T00:00:00Z",
+                        "articlesCount": { "count": 0, "precision": "EXACT" },
+                        "metafields": metafields
+                    }
+                })
+            } else {
+                panic!("unexpected upstream document: {query}");
+            };
+
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        }
+    });
+
+    let partial = proxy.process_request(json_graphql_request(
+        r#"
+        query ObserveSelectedEmptyArticle($id: ID!) {
+          article(id: $id) { id title summary tags }
+        }
+        "#,
+        json!({ "id": partial_article_id }),
+    ));
+    assert_eq!(partial.body["data"]["article"]["summary"], Value::Null);
+    assert_eq!(partial.body["data"]["article"]["tags"], json!([]));
+    let partial_state = state_snapshot(&proxy);
+    let partial_record = &partial_state["stagedState"]["onlineStoreArticles"][partial_article_id];
+    assert_eq!(partial_record.get("summary"), Some(&Value::Null));
+    assert_eq!(partial_record.get("tags"), Some(&json!([])));
+    assert!(
+        partial_record.get("body").is_none(),
+        "an unselected body must remain absent rather than normalize to an empty string"
+    );
+    assert!(
+        partial_record.get("metafields").is_none(),
+        "an unselected connection must remain absent rather than normalize to empty"
+    );
+
+    let article_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NarrowAuthoritativeArticleUpdate($id: ID!, $article: ArticleUpdateInput!) {
+          articleUpdate(id: $id, article: $article) {
+            article {
+              id title handle body summary tags isPublished publishedAt createdAt updatedAt templateSuffix
+              author { name }
+              image { altText url width height }
+              blog { id title handle commentPolicy }
+              metafields(first: 10) { nodes { id namespace key type value jsonValue ownerType } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": rich_article_id,
+            "article": { "title": "Narrowly renamed authoritative article" }
+        }),
+    ));
+    assert_eq!(
+        article_update.body["data"]["articleUpdate"]["userErrors"],
+        json!([])
+    );
+    let article = &article_update.body["data"]["articleUpdate"]["article"];
+    assert_eq!(
+        article["title"],
+        json!("Narrowly renamed authoritative article")
+    );
+    assert_eq!(article["handle"], json!("authoritative-rich-article"));
+    assert_eq!(article["body"], json!("<p>Authoritative body</p>"));
+    assert_eq!(article["summary"], json!("<p>Authoritative summary</p>"));
+    assert_eq!(article["tags"], json!(["authoritative", "rich"]));
+    assert_eq!(article["isPublished"], json!(true));
+    assert_eq!(article["publishedAt"], json!("2026-07-01T00:00:00Z"));
+    assert_eq!(article["templateSuffix"], json!("feature"));
+    assert_eq!(article["author"], json!({ "name": "Authoritative Author" }));
+    assert_eq!(
+        article["image"],
+        json!({
+            "altText": "Authoritative alt",
+            "url": "https://cdn.example.com/authoritative.jpg",
+            "width": 1200,
+            "height": 800
+        })
+    );
+    assert_eq!(
+        article["metafields"]["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| node["key"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!("hero"), json!("secondary")]
+    );
+
+    let blog_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NarrowAuthoritativeBlogUpdate($id: ID!, $blog: BlogUpdateInput!) {
+          blogUpdate(id: $id, blog: $blog) {
+            blog {
+              id title handle commentPolicy tags templateSuffix createdAt updatedAt
+              metafields(first: 10) { nodes { id namespace key type value jsonValue ownerType } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": rich_blog_id,
+            "blog": { "title": "Narrowly renamed authoritative blog" }
+        }),
+    ));
+    assert_eq!(
+        blog_update.body["data"]["blogUpdate"]["userErrors"],
+        json!([])
+    );
+    let blog = &blog_update.body["data"]["blogUpdate"]["blog"];
+    assert_eq!(blog["title"], json!("Narrowly renamed authoritative blog"));
+    assert_eq!(blog["handle"], json!("authoritative-rich-blog"));
+    assert_eq!(blog["commentPolicy"], json!("MODERATED"));
+    assert_eq!(blog["tags"], json!(["authoritative-blog"]));
+    assert_eq!(blog["templateSuffix"], json!("journal"));
+    assert_eq!(
+        blog["metafields"]["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| node["key"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!("hero"), json!("secondary")]
+    );
+
+    let upstream_requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        upstream_requests
+            .iter()
+            .filter(|body| body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("OnlineStoreArticleMutationHydrate")))
+            .count(),
+        2
+    );
+    assert_eq!(
+        upstream_requests
+            .iter()
+            .filter(|body| body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("OnlineStoreBlogMutationHydrate")))
+            .count(),
+        2
+    );
+    assert!(upstream_requests.iter().all(|body| {
+        body["query"]
+            .as_str()
+            .is_some_and(|query| !query.contains("mutation"))
+    }));
 }
 
 #[test]
@@ -18345,6 +18800,9 @@ fn online_store_content_back_references_project_full_parent_records() {
         article_create.body["data"]["articleCreate"]["userErrors"],
         json!([])
     );
+    let blog_updated_by_article_at =
+        article_create.body["data"]["articleCreate"]["article"]["blog"]["updatedAt"].clone();
+    assert_ne!(blog_updated_by_article_at, blog_updated_at);
     assert_eq!(
         article_create.body["data"]["articleCreate"]["article"]["blog"],
         json!({
@@ -18353,7 +18811,7 @@ fn online_store_content_back_references_project_full_parent_records() {
             "handle": "back-reference-blog",
             "commentPolicy": "MODERATED",
             "createdAt": blog_created_at,
-            "updatedAt": blog_updated_at
+            "updatedAt": blog_updated_by_article_at
         })
     );
     let article_id = article_create.body["data"]["articleCreate"]["article"]["id"]

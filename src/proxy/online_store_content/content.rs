@@ -14,12 +14,14 @@ pub(in crate::proxy) fn online_store_field_resolver_registrations() -> Vec<Field
             "commentsCount",
             online_store_article_comments_count_field,
         ),
-        ("Article", "metafield", online_store_article_metafield_field),
+        ("Article", "metafield", online_store_content_metafield_field),
         (
             "Article",
             "metafields",
-            online_store_article_metafields_field,
+            online_store_content_metafields_field,
         ),
+        ("Blog", "metafield", online_store_content_metafield_field),
+        ("Blog", "metafields", online_store_content_metafields_field),
         ("Comment", "article", online_store_comment_article_field),
         ("Blog", "articles", online_store_blog_articles_field),
         (
@@ -108,7 +110,7 @@ fn online_store_article_comments_count_field(
     ))
 }
 
-fn online_store_article_metafield_field(
+fn online_store_content_metafield_field(
     _proxy: &mut DraftProxy,
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
@@ -123,10 +125,10 @@ fn online_store_article_metafield_field(
         .get("key")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    Ok(article_metafield(invocation.parent, namespace, key).unwrap_or(Value::Null))
+    Ok(online_store_content_metafield(invocation.parent, namespace, key).unwrap_or(Value::Null))
 }
 
-fn online_store_article_metafields_field(
+fn online_store_content_metafields_field(
     _proxy: &mut DraftProxy,
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
@@ -136,7 +138,7 @@ fn online_store_article_metafields_field(
         .get("namespace")
         .and_then(Value::as_str);
     Ok(connection_value_with_args(
-        article_metafield_nodes(invocation.parent, namespace),
+        online_store_content_metafield_nodes(invocation.parent, namespace),
         &resolved_arguments_from_json(&invocation.arguments),
         value_id_cursor,
     ))
@@ -308,7 +310,7 @@ impl DraftProxy {
             "pageCreate" => Some(self.online_store_page_create(field, staged_ids)),
             "pageUpdate" => Some(self.online_store_page_update(field, request, staged_ids)),
             "pageDelete" => Some(self.online_store_page_delete(field, request, staged_ids)),
-            "articleCreate" => Some(self.online_store_article_create(field, staged_ids)),
+            "articleCreate" => Some(self.online_store_article_create(field, request, staged_ids)),
             "articleUpdate" => Some(self.online_store_article_update(field, request, staged_ids)),
             "articleDelete" => Some(self.online_store_article_delete(field, request, staged_ids)),
             "commentApprove" => Some(self.online_store_comment_moderate(
@@ -423,10 +425,109 @@ impl DraftProxy {
         kind: OnlineStoreKind,
         id: &str,
     ) -> Option<Value> {
-        if !kind.records(&self.store.staged).contains_key(id) {
+        if kind.deleted_ids(&self.store.staged).contains(id) {
+            return None;
+        }
+        let current = self.online_store_record(kind, id);
+        if kind.mutation_hydrate_query().is_some()
+            && current
+                .as_ref()
+                .is_none_or(|record| !kind.complete_for_mutation(record))
+        {
+            if !self.hydrate_online_store_mutation_record(request, kind, id) {
+                return None;
+            }
+        } else if current.is_none() {
             self.hydrate_online_store_content_from_upstream(request, id, kind.hydrate_query());
         }
         self.online_store_record(kind, id)
+    }
+
+    fn hydrate_online_store_mutation_record(
+        &mut self,
+        request: &Request,
+        kind: OnlineStoreKind,
+        id: &str,
+    ) -> bool {
+        let Some((query, operation_name)) = kind.mutation_hydrate_query() else {
+            return false;
+        };
+        if self.config.read_mode == ReadMode::Snapshot || id.is_empty() {
+            return false;
+        }
+
+        let mut record = self
+            .online_store_record(kind, id)
+            .unwrap_or_else(|| json!({}));
+        if let Some(object) = record.as_object_mut() {
+            object.remove("metafields");
+        }
+        let mut metafields = Vec::new();
+        let mut after = Value::Null;
+        for _ in 0..20 {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": query,
+                    "operationName": operation_name,
+                    "variables": { "id": id, "after": after.clone() }
+                }),
+            );
+            if !(200..300).contains(&response.status) {
+                return false;
+            }
+            let Some(observed) = response
+                .body
+                .get("data")
+                .and_then(|data| data.get(kind.resource_key()))
+                .filter(|observed| observed.is_object())
+                .cloned()
+            else {
+                return false;
+            };
+            if observed.get("id").and_then(Value::as_str) != Some(id) {
+                return false;
+            }
+
+            if kind == OnlineStoreKind::Article {
+                if let Some(blog) = observed.get("blog") {
+                    self.observe_online_store_content_node(blog, None, None);
+                }
+            }
+
+            let Some(connection) = observed.get("metafields").cloned() else {
+                return false;
+            };
+            metafields.extend(connection_nodes(&connection));
+            let mut observed_without_metafields = observed;
+            if let Some(object) = observed_without_metafields.as_object_mut() {
+                object.remove("metafields");
+            }
+            record = merge_online_store_observed_values(&record, &observed_without_metafields);
+
+            if connection
+                .pointer("/pageInfo/hasNextPage")
+                .and_then(Value::as_bool)
+                != Some(true)
+            {
+                record["metafields"] = connection_json(metafields);
+                let normalized = match kind {
+                    OnlineStoreKind::Blog => normalize_observed_blog(&record),
+                    OnlineStoreKind::Article => normalize_observed_article(&record, None),
+                    OnlineStoreKind::Page | OnlineStoreKind::Comment => return false,
+                };
+                self.stage_online_store_record(kind, id.to_string(), normalized);
+                return true;
+            }
+            let Some(end_cursor) = connection
+                .pointer("/pageInfo/endCursor")
+                .and_then(Value::as_str)
+            else {
+                return false;
+            };
+            after = json!(end_cursor);
+        }
+        false
     }
 
     fn guard_online_store_delete(
@@ -770,6 +871,7 @@ impl DraftProxy {
     fn online_store_article_create(
         &mut self,
         field: &OnlineStoreRootCall,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "article").unwrap_or_default();
@@ -807,7 +909,7 @@ impl DraftProxy {
         }
         let blog_id = if let Some(blog_id) = blog_id {
             if self
-                .online_store_record(OnlineStoreKind::Blog, &blog_id)
+                .load_online_store_record_for_update(request, OnlineStoreKind::Blog, &blog_id)
                 .is_none()
             {
                 return article_blog_not_found_payload("article");
@@ -839,6 +941,7 @@ impl DraftProxy {
         let id = self.next_online_store_id("Article");
         let record = article_record(&id, &blog_id, &input, None, &timestamp);
         self.stage_online_store_record(OnlineStoreKind::Article, id.clone(), record.clone());
+        self.touch_online_store_blog(&blog_id, &timestamp);
         staged_ids.push(id);
         self.online_store_article_payload(self.enriched_article_record(&record), Vec::new())
     }
@@ -879,7 +982,7 @@ impl DraftProxy {
         }
         if let Some(blog_id) = resolved_string_field(&input, "blogId") {
             if self
-                .online_store_record(OnlineStoreKind::Blog, &blog_id)
+                .load_online_store_record_for_update(request, OnlineStoreKind::Blog, &blog_id)
                 .is_none()
             {
                 return article_blog_not_found_payload("article");
@@ -895,6 +998,10 @@ impl DraftProxy {
         let timestamp = online_store_operation_timestamp();
         apply_article_input(&mut record, &input, &timestamp);
         self.stage_online_store_record(kind, id.clone(), record.clone());
+        if let Some(blog_id) = record["blogId"].as_str() {
+            let blog_id = blog_id.to_string();
+            self.touch_online_store_blog(&blog_id, &timestamp);
+        }
         staged_ids.push(id);
         self.online_store_article_payload(self.enriched_article_record(&record), Vec::new())
     }
@@ -1116,10 +1223,38 @@ impl DraftProxy {
             .into_iter()
             .filter(|article| article["blogId"].as_str() == Some(id))
             .collect::<Vec<_>>();
+        let mut tags = record
+            .get("tags")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(str::to_string)
+            .collect::<BTreeSet<_>>();
+        for article in &articles {
+            tags.extend(
+                article
+                    .get("tags")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string),
+            );
+        }
+        record["tags"] = json!(tags.into_iter().collect::<Vec<_>>());
         record["articlesCount"] =
             count_object(self.online_store_blog_articles_count(&record, &articles));
         record["articles"] = connection_json(articles);
         record
+    }
+
+    fn touch_online_store_blog(&mut self, id: &str, timestamp: &str) {
+        let Some(mut blog) = self.online_store_record(OnlineStoreKind::Blog, id) else {
+            return;
+        };
+        blog["updatedAt"] = json!(timestamp);
+        self.stage_online_store_record(OnlineStoreKind::Blog, id.to_string(), blog);
     }
 
     fn online_store_blog_articles_count(&self, blog: &Value, known_articles: &[Value]) -> usize {
@@ -1330,6 +1465,7 @@ fn blog_record(id: &str, input: &BTreeMap<String, ResolvedValue>, timestamp: &st
         "templateSuffix": optional_string_value(input, "templateSuffix"),
         "createdAt": timestamp,
         "updatedAt": timestamp,
+        "metafields": connection_json(Vec::new()),
         "articlesCount": count_object(0),
         "articles": connection_json(Vec::new())
     })
@@ -1421,7 +1557,7 @@ fn article_record(
         "commentsCount": count_object(0),
         "comments": connection_json(Vec::new())
     });
-    apply_article_metafields_input(&mut record, input, timestamp);
+    apply_online_store_metafields_input(&mut record, input, timestamp, "ARTICLE");
     record
 }
 
@@ -1447,7 +1583,7 @@ fn apply_article_input(
         record["image"] = article_image_json(input);
     }
     if input.contains_key("metafields") {
-        apply_article_metafields_input(record, input, timestamp);
+        apply_online_store_metafields_input(record, input, timestamp, "ARTICLE");
     }
     if input.contains_key("isPublished") || input.contains_key("publishDate") {
         let (is_published, published_at) = publication_state(input, Some(record), false, timestamp);
@@ -1717,13 +1853,13 @@ fn article_image_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
     })
 }
 
-fn article_metafield(record: &Value, namespace: &str, key: &str) -> Option<Value> {
-    article_metafield_nodes(record, Some(namespace))
+fn online_store_content_metafield(record: &Value, namespace: &str, key: &str) -> Option<Value> {
+    online_store_content_metafield_nodes(record, Some(namespace))
         .into_iter()
         .find(|metafield| metafield.get("key").and_then(Value::as_str) == Some(key))
 }
 
-fn article_metafield_nodes(record: &Value, namespace: Option<&str>) -> Vec<Value> {
+fn online_store_content_metafield_nodes(record: &Value, namespace: Option<&str>) -> Vec<Value> {
     let mut nodes = connection_nodes(&record["metafields"]);
     if let Some(metafield) = record.get("metafield").filter(|value| value.is_object()) {
         let duplicate = nodes.iter().any(|node| {
@@ -1747,12 +1883,13 @@ fn article_metafield_nodes(record: &Value, namespace: Option<&str>) -> Vec<Value
         .collect()
 }
 
-fn apply_article_metafields_input(
+fn apply_online_store_metafields_input(
     record: &mut Value,
     input: &BTreeMap<String, ResolvedValue>,
     timestamp: &str,
+    owner_type: &str,
 ) {
-    let article_id = record["id"].as_str().unwrap_or_default().to_string();
+    let owner_id = record["id"].as_str().unwrap_or_default().to_string();
     let mut records = connection_nodes(&record["metafields"]);
 
     for metafield in resolved_object_list_field(input, "metafields") {
@@ -1767,8 +1904,13 @@ fn apply_article_metafields_input(
                 && existing.get("key").and_then(Value::as_str) == Some(key.as_str())
         });
         let existing = position.map(|index| records[index].clone());
-        let metafield =
-            article_metafield_record(&article_id, &metafield, existing.as_ref(), timestamp);
+        let metafield = online_store_metafield_record(
+            &owner_id,
+            owner_type,
+            &metafield,
+            existing.as_ref(),
+            timestamp,
+        );
         match position {
             Some(index) => records[index] = metafield,
             None => records.push(metafield),
@@ -1778,8 +1920,9 @@ fn apply_article_metafields_input(
     record["metafields"] = connection_json(records);
 }
 
-fn article_metafield_record(
-    article_id: &str,
+fn online_store_metafield_record(
+    owner_id: &str,
+    owner_type: &str,
     input: &BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
     timestamp: &str,
@@ -1819,21 +1962,21 @@ fn article_metafield_record(
             .and_then(|metafield| metafield.get("id"))
             .and_then(Value::as_str)
             .map(str::to_string)
-            .unwrap_or_else(|| article_metafield_id(article_id, &namespace, &key)),
+            .unwrap_or_else(|| online_store_metafield_id(owner_id, &namespace, &key)),
         "namespace": namespace,
         "key": key,
         "type": metafield_type.clone(),
         "value": normalized_value.clone(),
         "jsonValue": metafield_json_value(&metafield_type, &raw_value),
         "compareDigest": metafield_compare_digest(&normalized_value),
-        "ownerType": "ARTICLE",
+        "ownerType": owner_type,
         "createdAt": created_at,
         "updatedAt": updated_at
     })
 }
 
-fn article_metafield_id(article_id: &str, namespace: &str, key: &str) -> String {
-    let digest = metafield_compare_digest(&format!("{article_id}\n{namespace}\n{key}"));
+fn online_store_metafield_id(owner_id: &str, namespace: &str, key: &str) -> String {
+    let digest = metafield_compare_digest(&format!("{owner_id}\n{namespace}\n{key}"));
     shopify_gid("Metafield", &digest[..16])
 }
 
@@ -1875,6 +2018,9 @@ fn should_stage_observed_blog(record: &Value) -> bool {
     record.get("title").is_some()
         || record.get("handle").is_some()
         || record.get("commentPolicy").is_some()
+        || record.get("tags").is_some()
+        || record.get("templateSuffix").is_some()
+        || record.get("metafields").is_some()
         || record.get("articles").is_some()
 }
 
@@ -1886,6 +2032,14 @@ fn should_stage_observed_article(record: &Value) -> bool {
     record.get("title").is_some()
         || record.get("handle").is_some()
         || record.get("body").is_some()
+        || record.get("summary").is_some()
+        || record.get("tags").is_some()
+        || record.get("isPublished").is_some()
+        || record.get("publishedAt").is_some()
+        || record.get("templateSuffix").is_some()
+        || record.get("author").is_some()
+        || record.get("image").is_some()
+        || record.get("metafields").is_some()
         || record.get("comments").is_some()
 }
 
@@ -1927,22 +2081,12 @@ fn observed_title_and_handle(record: &Value) -> (String, String) {
 
 fn normalize_observed_blog(record: &Value) -> Value {
     let mut record = record.clone();
-    let (title, handle) = observed_title_and_handle(&record);
-    let articles = connection_nodes(&record["articles"]);
+    let articles = record.get("articles").map(connection_nodes);
     record["__typename"] = json!("Blog");
-    record["title"] = json!(title);
-    record["handle"] = json!(handle);
-    if record.get("commentPolicy").is_none() {
-        record["commentPolicy"] = json!("CLOSED");
-    }
-    if record.get("tags").is_none() {
-        record["tags"] = json!([]);
-    }
-    if record.get("templateSuffix").is_none() {
-        record["templateSuffix"] = Value::Null;
-    }
     if record.get("articlesCount").is_none() {
-        record["articlesCount"] = count_object(articles.len());
+        if let Some(articles) = articles.as_ref() {
+            record["articlesCount"] = count_object(articles.len());
+        }
     }
     if let Some(count) = record
         .pointer("/articlesCount/count")
@@ -1953,9 +2097,6 @@ fn normalize_observed_blog(record: &Value) -> Value {
             .and_then(Value::as_u64)
             .unwrap_or(0);
         record[OBSERVED_BLOG_ARTICLES_COUNT_FIELD] = json!(previous.max(count));
-    }
-    if record.get("articles").is_none() {
-        record["articles"] = connection_json(Vec::new());
     }
     record
 }
@@ -1985,8 +2126,6 @@ fn normalize_observed_page(record: &Value) -> Value {
 
 fn normalize_observed_article(record: &Value, parent_blog_id: Option<&str>) -> Value {
     let mut record = record.clone();
-    let (title, handle) = observed_title_and_handle(&record);
-    let body = string_value(&record, "body").unwrap_or_default();
     let blog_id = string_value(&record, "blogId")
         .or_else(|| {
             record
@@ -1995,43 +2134,16 @@ fn normalize_observed_article(record: &Value, parent_blog_id: Option<&str>) -> V
                 .and_then(Value::as_str)
                 .map(str::to_string)
         })
-        .or_else(|| parent_blog_id.map(str::to_string))
-        .unwrap_or_default();
-    let comments = connection_nodes(&record["comments"]);
+        .or_else(|| parent_blog_id.map(str::to_string));
+    let comments = record.get("comments").map(connection_nodes);
     record["__typename"] = json!("Article");
-    record["blogId"] = json!(blog_id);
-    record["title"] = json!(title);
-    record["handle"] = json!(handle);
-    record["body"] = json!(body);
-    if record.get("summary").is_none() {
-        record["summary"] = Value::Null;
-    }
-    if record.get("tags").is_none() {
-        record["tags"] = json!([]);
-    }
-    if record.get("isPublished").is_none() {
-        record["isPublished"] = json!(false);
-    }
-    if record.get("publishedAt").is_none() {
-        record["publishedAt"] = Value::Null;
-    }
-    if record.get("templateSuffix").is_none() {
-        record["templateSuffix"] = Value::Null;
-    }
-    if record.get("author").is_none() {
-        record["author"] = Value::Null;
-    }
-    if record.get("image").is_none() {
-        record["image"] = Value::Null;
-    }
-    if record.get("metafields").is_none() {
-        record["metafields"] = connection_json(Vec::new());
+    if let Some(blog_id) = blog_id {
+        record["blogId"] = json!(blog_id);
     }
     if record.get("commentsCount").is_none() {
-        record["commentsCount"] = count_object(comments.len());
-    }
-    if record.get("comments").is_none() {
-        record["comments"] = connection_json(Vec::new());
+        if let Some(comments) = comments.as_ref() {
+            record["commentsCount"] = count_object(comments.len());
+        }
     }
     record
 }
