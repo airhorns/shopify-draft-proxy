@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -255,6 +255,8 @@ const FINANCE_RISK_ROOT_NAMES = new Set([
   'tenderTransactions',
 ]);
 
+const FINANCE_RISK_PARITY_DOCUMENT_PATH = 'config/parity-requests/payments/finance-risk-no-data-read.graphql';
+
 function pickRelevantRootFields(payload: unknown) {
   const data = (
     payload as {
@@ -325,6 +327,16 @@ const orderRiskAssessmentCreateUnknownOrder = await record(ORDER_RISK_ASSESSMENT
   },
 });
 const payoutAlternateCurrencyMissingCurrency = await record(PAYOUT_ALTERNATE_CURRENCY_MISSING_CURRENCY_MUTATION);
+const liveHybridVariables = {
+  cashId: 'gid://shopify/CashTrackingSession/0',
+  posId: 'gid://shopify/PointOfSaleDevice/0',
+  disputeId: 'gid://shopify/ShopifyPaymentsDispute/0',
+  evidenceId: 'gid://shopify/ShopifyPaymentsDisputeEvidence/0',
+  token: 'codex-missing-shop-pay-payment-request-receipt-token',
+  first: 1,
+};
+const liveHybridQuery = await readFile(FINANCE_RISK_PARITY_DOCUMENT_PATH, 'utf8');
+const liveHybridRead = await record(liveHybridQuery, liveHybridVariables);
 
 const fixture = {
   capturedAt: new Date().toISOString(),
@@ -358,6 +370,22 @@ const fixture = {
     orderRiskAssessmentCreateUnknownOrder,
     payoutAlternateCurrencyMissingCurrency,
   },
+  liveHybridRead,
+  upstreamCalls: [
+    {
+      method: 'POST',
+      path: `/admin/api/${apiVersion}/graphql.json`,
+      apiSurface: 'admin',
+      apiVersion,
+      operationName: 'FinanceRiskNoDataRead',
+      variables: liveHybridVariables,
+      query: liveHybridQuery,
+      response: {
+        status: liveHybridRead.status,
+        body: liveHybridRead.payload,
+      },
+    },
+  ],
 };
 
 const outputPath = path.join(
@@ -366,6 +394,7 @@ const outputPath = path.join(
   'conformance',
   storeDomain,
   apiVersion,
+  'payments',
   'finance-risk-access-read.json',
 );
 

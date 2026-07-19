@@ -989,6 +989,485 @@ query B2BCompanyLocationHydrate($id: ID!) {
   }
 }
 "#;
+const B2B_MUTATION_TARGETS_HYDRATE_QUERY: &str = r#"
+query B2BMutationTargetsHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    id
+    ... on Company {
+      ...B2BHydrateCompany
+    }
+    ... on CompanyLocation {
+      ...B2BHydrateLocation
+      company { ...B2BHydrateCompanyReference }
+    }
+    ... on CompanyContact {
+      ...B2BHydrateContact
+      company { ...B2BHydrateCompanyReference }
+    }
+    ... on CompanyContactRole {
+      ...B2BHydrateRole
+    }
+    ... on CompanyContactRoleAssignment {
+      ...B2BHydrateRoleAssignment
+      companyContact {
+        ...B2BHydrateContact
+        company { ...B2BHydrateCompanyReference }
+      }
+      companyLocation {
+        ...B2BHydrateLocation
+        company { ...B2BHydrateCompanyReference }
+      }
+    }
+    ... on CompanyLocationStaffMemberAssignment {
+      ...B2BHydrateStaffAssignment
+      companyLocation {
+        ...B2BHydrateLocation
+        company { ...B2BHydrateCompanyReference }
+      }
+    }
+    ... on CompanyAddress {
+      ...B2BHydrateAddress
+    }
+    ... on Customer {
+      ...B2BHydrateCustomer
+      companyContactProfiles {
+        ...B2BHydrateContact
+        company { ...B2BHydrateCompanyReference }
+      }
+    }
+    ... on StaffMember {
+      id
+    }
+  }
+}
+
+fragment B2BHydrateCompany on Company {
+  __typename
+  id
+  name
+  createdAt
+  customerSince
+  externalId
+  note
+  locations(first: 50) {
+    nodes { id name }
+    pageInfo { hasNextPage endCursor }
+  }
+  contacts(first: 50) {
+    nodes { id title isMainContact }
+    pageInfo { hasNextPage endCursor }
+  }
+  contactRoles(first: 50) {
+    nodes { ...B2BHydrateRole }
+    pageInfo { hasNextPage endCursor }
+  }
+  mainContact { ...B2BHydrateContact }
+}
+
+fragment B2BHydrateCompanyReference on Company {
+  __typename
+  id
+  name
+  mainContact { id title isMainContact }
+  locations(first: 50) {
+    nodes { id name }
+    pageInfo { hasNextPage endCursor }
+  }
+  contacts(first: 50) {
+    nodes { id title isMainContact }
+    pageInfo { hasNextPage endCursor }
+  }
+  contactRoles(first: 50) {
+    nodes { ...B2BHydrateRole }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+
+fragment B2BHydrateLocation on CompanyLocation {
+  __typename
+  id
+  name
+  externalId
+  note
+  locale
+  phone
+  currency
+  billingAddress { ...B2BHydrateAddress }
+  shippingAddress { ...B2BHydrateAddress }
+  taxSettings {
+    taxRegistrationId
+    taxExempt
+    taxExemptions
+  }
+  buyerExperienceConfiguration {
+    editableShippingAddress
+    checkoutToDraft
+    paymentTermsTemplate { id }
+    deposit { __typename }
+  }
+  company { id name }
+  roleAssignments(first: 50) {
+    nodes { ...B2BHydrateRoleAssignment }
+    pageInfo { hasNextPage endCursor }
+  }
+  staffMemberAssignments(first: 50) {
+    nodes { ...B2BHydrateStaffAssignment }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+
+fragment B2BHydrateContact on CompanyContact {
+  __typename
+  id
+  createdAt
+  title
+  locale
+  isMainContact
+  customer { ...B2BHydrateCustomer }
+  company { id name }
+  roleAssignments(first: 50) {
+    nodes { ...B2BHydrateRoleAssignment }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+
+fragment B2BHydrateCustomer on Customer {
+  __typename
+  id
+  firstName
+  lastName
+  displayName
+  email
+  phone
+  locale
+  defaultEmailAddress { emailAddress }
+  defaultPhoneNumber { phoneNumber }
+}
+
+fragment B2BHydrateRole on CompanyContactRole {
+  __typename
+  id
+  name
+  note
+}
+
+fragment B2BHydrateRoleAssignment on CompanyContactRoleAssignment {
+  __typename
+  id
+  companyContact { id title }
+  companyLocation { id name }
+  role { id name note }
+}
+
+fragment B2BHydrateStaffAssignment on CompanyLocationStaffMemberAssignment {
+  __typename
+  id
+  companyLocation { id name }
+  staffMember { id }
+}
+
+fragment B2BHydrateAddress on CompanyAddress {
+  __typename
+  id
+  address1
+  address2
+  city
+  companyName
+  country
+  countryCode
+  firstName
+  lastName
+  phone
+  province
+  recipient
+  zip
+  zoneCode
+}
+"#;
+const B2B_MUTATION_SEARCH_HYDRATE_QUERY: &str = r#"
+query B2BMutationSearchHydrate(
+  $includeCompanies: Boolean!
+  $includeLocations: Boolean!
+  $includeCustomers: Boolean!
+  $companyQuery: String
+  $locationQuery: String
+  $customerQuery: String
+) {
+  companies(first: 10, query: $companyQuery) @include(if: $includeCompanies) {
+    nodes { ...B2BSearchCompany }
+  }
+  companyLocations(first: 10, query: $locationQuery) @include(if: $includeLocations) {
+    nodes {
+      ...B2BSearchLocation
+      company { id name }
+    }
+  }
+  customers(first: 10, query: $customerQuery) @include(if: $includeCustomers) {
+    nodes {
+      ...B2BSearchCustomer
+      companyContactProfiles {
+        ...B2BSearchContact
+        company { id name }
+      }
+    }
+  }
+}
+
+fragment B2BSearchCompany on Company {
+  __typename
+  id
+  name
+  createdAt
+  customerSince
+  externalId
+  note
+}
+
+fragment B2BSearchLocation on CompanyLocation {
+  __typename
+  id
+  name
+  externalId
+  note
+  locale
+  phone
+  currency
+}
+
+fragment B2BSearchCustomer on Customer {
+  __typename
+  id
+  firstName
+  lastName
+  displayName
+  email
+  phone
+  locale
+  defaultEmailAddress { emailAddress }
+  defaultPhoneNumber { phoneNumber }
+}
+
+fragment B2BSearchContact on CompanyContact {
+  __typename
+  id
+  title
+  locale
+  isMainContact
+  customer { ...B2BSearchCustomer }
+}
+"#;
+const B2B_COMPANY_ADDRESS_OWNER_HYDRATE_QUERY: &str = r#"
+query B2BCompanyAddressOwnerHydrate($after: String) {
+  companyLocations(first: 50, after: $after) {
+    nodes {
+      __typename
+      id
+      name
+      billingAddress { ...B2BAddressOwnerAddress }
+      shippingAddress { ...B2BAddressOwnerAddress }
+      company { id name }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+
+fragment B2BAddressOwnerAddress on CompanyAddress {
+  __typename
+  id
+  address1
+  address2
+  city
+  companyName
+  country
+  countryCode
+  firstName
+  lastName
+  phone
+  province
+  recipient
+  zip
+  zoneCode
+}
+"#;
+const B2B_COMPANY_CATALOG_PAGE_HYDRATE_QUERY: &str = r#"
+query B2BCompanyCatalogPageHydrate(
+  $id: ID!
+  $includeLocations: Boolean!
+  $includeContacts: Boolean!
+  $includeContactRoles: Boolean!
+  $locationsAfter: String
+  $contactsAfter: String
+  $contactRolesAfter: String
+) {
+  company(id: $id) {
+    __typename
+    id
+    name
+    locations(first: 50, after: $locationsAfter) @include(if: $includeLocations) {
+      nodes { id name }
+      pageInfo { hasNextPage endCursor }
+    }
+    contacts(first: 50, after: $contactsAfter) @include(if: $includeContacts) {
+      nodes { id title isMainContact }
+      pageInfo { hasNextPage endCursor }
+    }
+    contactRoles(first: 50, after: $contactRolesAfter) @include(if: $includeContactRoles) {
+      nodes { ...B2BCompanyCatalogPageRole }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}
+
+fragment B2BCompanyCatalogPageRole on CompanyContactRole {
+  __typename
+  id
+  name
+  note
+}
+"#;
+const B2B_LOCATION_ASSIGNMENTS_PAGE_HYDRATE_QUERY: &str = r#"
+query B2BLocationAssignmentsPageHydrate(
+  $id: ID!
+  $includeRoleAssignments: Boolean!
+  $includeStaffAssignments: Boolean!
+  $roleAssignmentsAfter: String
+  $staffAssignmentsAfter: String
+) {
+  companyLocation(id: $id) {
+    __typename
+    id
+    roleAssignments(first: 50, after: $roleAssignmentsAfter) @include(if: $includeRoleAssignments) {
+      nodes { ...B2BLocationPageRoleAssignment }
+      pageInfo { hasNextPage endCursor }
+    }
+    staffMemberAssignments(first: 50, after: $staffAssignmentsAfter) @include(if: $includeStaffAssignments) {
+      nodes { ...B2BLocationPageStaffAssignment }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}
+
+fragment B2BLocationPageRoleAssignment on CompanyContactRoleAssignment {
+  __typename
+  id
+  companyContact { id title }
+  companyLocation { id name }
+  role { id name note }
+}
+
+fragment B2BLocationPageStaffAssignment on CompanyLocationStaffMemberAssignment {
+  __typename
+  id
+  companyLocation { id name }
+  staffMember { id }
+}
+"#;
+const B2B_CONTACT_ASSIGNMENTS_PAGE_HYDRATE_QUERY: &str = r#"
+query B2BContactAssignmentsPageHydrate($id: ID!, $after: String) {
+  companyContact(id: $id) {
+    __typename
+    id
+    roleAssignments(first: 50, after: $after) {
+      nodes { ...B2BContactPageRoleAssignment }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}
+
+fragment B2BContactPageRoleAssignment on CompanyContactRoleAssignment {
+  __typename
+  id
+  companyContact { id title }
+  companyLocation { id name }
+  role { id name note }
+}
+"#;
+
+fn b2b_collect_hydration_ids(value: &ResolvedValue, ids: &mut BTreeSet<String>) {
+    match value {
+        ResolvedValue::String(value) => {
+            if matches!(
+                shopify_gid_resource_type(value),
+                Some(
+                    "Company"
+                        | "CompanyLocation"
+                        | "CompanyContact"
+                        | "CompanyContactRole"
+                        | "CompanyContactRoleAssignment"
+                        | "CompanyLocationStaffMemberAssignment"
+                        | "CompanyAddress"
+                        | "Customer"
+                        | "StaffMember"
+                )
+            ) {
+                ids.insert(value.clone());
+            }
+        }
+        ResolvedValue::List(values) => {
+            for value in values {
+                b2b_collect_hydration_ids(value, ids);
+            }
+        }
+        ResolvedValue::Object(values) => {
+            for value in values.values() {
+                b2b_collect_hydration_ids(value, ids);
+            }
+        }
+        ResolvedValue::Int(_)
+        | ResolvedValue::Float(_)
+        | ResolvedValue::Bool(_)
+        | ResolvedValue::Null => {}
+    }
+}
+
+fn b2b_collect_typed_records(
+    value: &Value,
+    type_name: &str,
+    records: &mut BTreeMap<String, Value>,
+) {
+    match value {
+        Value::Array(values) => {
+            for value in values {
+                b2b_collect_typed_records(value, type_name, records);
+            }
+        }
+        Value::Object(object) => {
+            if object.get("__typename").and_then(Value::as_str) == Some(type_name) {
+                if let Some(id) = object.get("id").and_then(Value::as_str) {
+                    records
+                        .entry(id.to_string())
+                        .and_modify(|record| merge_json_values(record, value))
+                        .or_insert_with(|| value.clone());
+                }
+            }
+            for value in object.values() {
+                b2b_collect_typed_records(value, type_name, records);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn b2b_connection_next_cursor(connection: &Value) -> Option<String> {
+    connection["pageInfo"]["hasNextPage"]
+        .as_bool()
+        .unwrap_or(false)
+        .then(|| {
+            connection["pageInfo"]["endCursor"]
+                .as_str()
+                .map(str::to_string)
+        })
+        .flatten()
+}
+
+fn b2b_exact_search_query(value: &str) -> String {
+    format!("external_id:{}", b2b_search_value(value))
+}
+
+fn b2b_search_value(value: &str) -> String {
+    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
+}
 
 impl B2bCompanyLocationDeleteBlocker {
     fn bulk_message(&self, location_id: &str) -> String {
@@ -1174,31 +1653,19 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn b2b_location_buyer_experience_outcome(
         &mut self,
-        request: &Request,
+        _request: &Request,
         field: &B2bRootInput,
         operation_type: OperationType,
     ) -> Option<ResolverOutcome<Value>> {
         match operation_type {
             OperationType::Mutation if field.name == "companyLocationUpdate" => {
-                let (payload, status, staged_ids) =
-                    self.b2b_company_location_update_payload_with_hydrate(field, Some(request));
+                let (payload, status, staged_ids) = self.b2b_company_location_update_payload(field);
                 Some(b2b_resolver_outcome(
                     payload,
                     &field.name,
                     status,
                     staged_ids,
                 ))
-            }
-            OperationType::Query if field.name == "companyLocation" => {
-                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                let location = self
-                    .store
-                    .staged
-                    .b2b_locations
-                    .get(&id)
-                    .cloned()
-                    .unwrap_or(Value::Null);
-                Some(ResolverOutcome::value(location))
             }
             _ => None,
         }
@@ -1248,11 +1715,20 @@ impl DraftProxy {
         operation_type: OperationType,
         response_key: &str,
     ) -> Option<ResolverOutcome<Value>> {
-        if operation_type == OperationType::Query
-            && self.config.read_mode != ReadMode::Snapshot
-            && !self.b2b_root_has_staged_match(field)
-        {
-            return None;
+        if operation_type == OperationType::Query && !self.b2b_root_has_staged_match(field) {
+            let singular_root = matches!(
+                field.name.as_str(),
+                "company" | "companyContact" | "companyLocation"
+            );
+            if self.config.read_mode == ReadMode::LiveHybrid && singular_root {
+                let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+                if !result.transport_succeeded {
+                    return Some(result.outcome);
+                }
+                self.hydrate_b2b_base_from_root_data(field, &result.data);
+            } else if self.config.read_mode != ReadMode::Snapshot {
+                return None;
+            }
         }
 
         match operation_type {
@@ -1318,6 +1794,347 @@ impl DraftProxy {
                 Some(ResolverOutcome::value(value))
             }
             _ => None,
+        }
+    }
+
+    pub(in crate::proxy) fn hydrate_b2b_mutation_prerequisites(
+        &mut self,
+        request: &Request,
+        field: &B2bRootInput,
+    ) {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return;
+        }
+
+        let mut ids = BTreeSet::new();
+        for value in field.arguments.values() {
+            b2b_collect_hydration_ids(value, &mut ids);
+        }
+        let ids = ids
+            .into_iter()
+            .filter(|id| !is_synthetic_gid(id) && !self.b2b_staged_knows_id(id))
+            .collect::<Vec<_>>();
+        for chunk in ids.chunks(1) {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": B2B_MUTATION_TARGETS_HYDRATE_QUERY,
+                    "operationName": "B2BMutationTargetsHydrate",
+                    "variables": { "ids": chunk },
+                }),
+            );
+            if (200..300).contains(&response.status) {
+                self.observe_b2b_mutation_hydrate_data(&response.body["data"]);
+                self.hydrate_b2b_mutation_connection_pages(request, &response.body["data"]);
+            }
+        }
+
+        self.hydrate_b2b_mutation_searches(request, field);
+        if field.name == "companyAddressDelete" {
+            let address_id = resolved_string_field(&field.arguments, "addressId")
+                .or_else(|| resolved_string_field(&field.arguments, "id"))
+                .unwrap_or_default();
+            if !address_id.is_empty() && !self.b2b_staged_knows_id(&address_id) {
+                self.hydrate_b2b_company_address_owner(request);
+            }
+        }
+    }
+
+    fn b2b_staged_knows_id(&self, id: &str) -> bool {
+        match shopify_gid_resource_type(id) {
+            Some("Company") => {
+                self.store.staged.b2b_companies.contains_key(id)
+                    || self.store.staged.deleted_b2b_company_ids.contains(id)
+            }
+            Some("CompanyLocation") => {
+                self.store.staged.b2b_locations.contains_key(id)
+                    || self.store.staged.b2b_locations.is_tombstoned(id)
+            }
+            Some("CompanyContact") => {
+                self.store.staged.b2b_contacts.contains_key(id)
+                    || self.store.staged.deleted_b2b_contact_ids.contains(id)
+            }
+            Some("CompanyContactRole") => self.store.staged.b2b_contact_roles.contains_key(id),
+            Some("CompanyContactRoleAssignment") => {
+                self.store.staged.b2b_role_assignments.contains_key(id)
+                    || self
+                        .store
+                        .staged
+                        .deleted_b2b_contact_role_assignment_ids
+                        .contains(id)
+            }
+            Some("CompanyLocationStaffMemberAssignment") => {
+                self.store.staged.b2b_staff_assignments.contains_key(id)
+                    || self
+                        .store
+                        .staged
+                        .deleted_b2b_staff_assignment_ids
+                        .contains(id)
+            }
+            Some("CompanyAddress") => self.store.staged.b2b_locations.values().any(|location| {
+                location["billingAddress"]["id"].as_str() == Some(id)
+                    || location["shippingAddress"]["id"].as_str() == Some(id)
+            }),
+            Some("Customer") => {
+                self.store.staged.customers.contains_key(id)
+                    || self.store.staged.customers.is_tombstoned(id)
+            }
+            Some("StaffMember") => self.store.base.b2b_staff_member_ids.contains(id),
+            _ => true,
+        }
+    }
+
+    fn hydrate_b2b_mutation_searches(&mut self, request: &Request, field: &B2bRootInput) {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let (company_external_id, location_external_id, customer_email) = match field.name.as_str()
+        {
+            "companyCreate" => {
+                let company = resolved_object_field(&input, "company").unwrap_or_default();
+                let contact = resolved_object_field(&input, "companyContact").unwrap_or_default();
+                (
+                    resolved_string_field(&company, "externalId"),
+                    None,
+                    resolved_string_field(&contact, "email"),
+                )
+            }
+            "companyUpdate" => (resolved_string_field(&input, "externalId"), None, None),
+            "companyLocationCreate" | "companyLocationUpdate" => {
+                (None, resolved_string_field(&input, "externalId"), None)
+            }
+            "companyContactCreate" | "companyContactUpdate" => {
+                (None, None, resolved_string_field(&input, "email"))
+            }
+            _ => (None, None, None),
+        };
+        let include_companies = company_external_id.is_some();
+        let include_locations = location_external_id.is_some();
+        let include_customers = customer_email.is_some();
+        if !include_companies && !include_locations && !include_customers {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": B2B_MUTATION_SEARCH_HYDRATE_QUERY,
+                "operationName": "B2BMutationSearchHydrate",
+                "variables": {
+                    "includeCompanies": include_companies,
+                    "includeLocations": include_locations,
+                    "includeCustomers": include_customers,
+                    "companyQuery": company_external_id.as_deref().map(b2b_exact_search_query),
+                    "locationQuery": location_external_id.as_deref().map(b2b_exact_search_query),
+                    "customerQuery": customer_email.as_deref().map(|email| format!("email:{}", b2b_search_value(email))),
+                },
+            }),
+        );
+        if (200..300).contains(&response.status) {
+            self.observe_b2b_company_connection(&response.body["data"]["companies"]);
+            self.observe_b2b_location_connection(&response.body["data"]["companyLocations"], None);
+            for customer in connection_nodes(&response.body["data"]["customers"]) {
+                self.observe_b2b_customer_record(&customer);
+            }
+        }
+    }
+
+    fn hydrate_b2b_company_address_owner(&mut self, request: &Request) {
+        let mut after = Value::Null;
+        loop {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": B2B_COMPANY_ADDRESS_OWNER_HYDRATE_QUERY,
+                    "operationName": "B2BCompanyAddressOwnerHydrate",
+                    "variables": { "after": after },
+                }),
+            );
+            if !(200..300).contains(&response.status) {
+                return;
+            }
+            let connection = &response.body["data"]["companyLocations"];
+            self.observe_b2b_location_connection(connection, None);
+            if !connection["pageInfo"]["hasNextPage"]
+                .as_bool()
+                .unwrap_or(false)
+            {
+                return;
+            }
+            let Some(cursor) = connection["pageInfo"]["endCursor"].as_str() else {
+                return;
+            };
+            after = json!(cursor);
+        }
+    }
+
+    fn observe_b2b_mutation_hydrate_data(&mut self, data: &Value) {
+        for node in data["nodes"].as_array().into_iter().flatten() {
+            match node["__typename"].as_str() {
+                Some("Company") => {
+                    self.observe_b2b_company_record(node);
+                }
+                Some("CompanyLocation") => {
+                    self.observe_b2b_location_record(node, None);
+                }
+                Some("CompanyContact") => {
+                    self.observe_b2b_contact_record(node, None);
+                }
+                Some("CompanyContactRole") => {
+                    self.observe_b2b_contact_role_record(node, None);
+                }
+                Some("CompanyContactRoleAssignment") => {
+                    self.observe_b2b_role_assignment_record(node, None, None);
+                }
+                Some("CompanyLocationStaffMemberAssignment") => {
+                    self.observe_b2b_staff_assignment_record(node, None);
+                }
+                Some("Customer") => {
+                    self.observe_b2b_customer_record(node);
+                }
+                Some("StaffMember") => {
+                    if let Some(id) = node["id"].as_str() {
+                        self.store.base.b2b_staff_member_ids.insert(id.to_string());
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn hydrate_b2b_mutation_connection_pages(&mut self, request: &Request, data: &Value) {
+        let mut companies = BTreeMap::new();
+        b2b_collect_typed_records(data, "Company", &mut companies);
+        for company in companies.values() {
+            self.hydrate_b2b_company_catalog_pages(request, company);
+        }
+
+        let mut locations = BTreeMap::new();
+        b2b_collect_typed_records(data, "CompanyLocation", &mut locations);
+        for location in locations.values() {
+            self.hydrate_b2b_location_assignment_pages(request, location);
+        }
+
+        let mut contacts = BTreeMap::new();
+        b2b_collect_typed_records(data, "CompanyContact", &mut contacts);
+        for contact in contacts.values() {
+            self.hydrate_b2b_contact_assignment_pages(request, contact);
+        }
+    }
+
+    fn hydrate_b2b_company_catalog_pages(&mut self, request: &Request, company: &Value) {
+        let Some(company_id) = company["id"].as_str() else {
+            return;
+        };
+        let mut locations_after = b2b_connection_next_cursor(&company["locations"]);
+        let mut contacts_after = b2b_connection_next_cursor(&company["contacts"]);
+        let mut contact_roles_after = b2b_connection_next_cursor(&company["contactRoles"]);
+        while locations_after.is_some() || contacts_after.is_some() || contact_roles_after.is_some()
+        {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": B2B_COMPANY_CATALOG_PAGE_HYDRATE_QUERY,
+                    "operationName": "B2BCompanyCatalogPageHydrate",
+                    "variables": {
+                        "id": company_id,
+                        "includeLocations": locations_after.is_some(),
+                        "includeContacts": contacts_after.is_some(),
+                        "includeContactRoles": contact_roles_after.is_some(),
+                        "locationsAfter": locations_after,
+                        "contactsAfter": contacts_after,
+                        "contactRolesAfter": contact_roles_after,
+                    },
+                }),
+            );
+            if !(200..300).contains(&response.status) {
+                return;
+            }
+            let company = &response.body["data"]["company"];
+            if company.is_null() {
+                return;
+            }
+            locations_after = b2b_connection_next_cursor(&company["locations"]);
+            contacts_after = b2b_connection_next_cursor(&company["contacts"]);
+            contact_roles_after = b2b_connection_next_cursor(&company["contactRoles"]);
+            self.observe_b2b_company_record(company);
+        }
+    }
+
+    fn hydrate_b2b_location_assignment_pages(&mut self, request: &Request, location: &Value) {
+        let Some(location_id) = location["id"].as_str() else {
+            return;
+        };
+        let mut role_assignments_after = b2b_connection_next_cursor(&location["roleAssignments"]);
+        let mut staff_assignments_after =
+            b2b_connection_next_cursor(&location["staffMemberAssignments"]);
+        while role_assignments_after.is_some() || staff_assignments_after.is_some() {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": B2B_LOCATION_ASSIGNMENTS_PAGE_HYDRATE_QUERY,
+                    "operationName": "B2BLocationAssignmentsPageHydrate",
+                    "variables": {
+                        "id": location_id,
+                        "includeRoleAssignments": role_assignments_after.is_some(),
+                        "includeStaffAssignments": staff_assignments_after.is_some(),
+                        "roleAssignmentsAfter": role_assignments_after,
+                        "staffAssignmentsAfter": staff_assignments_after,
+                    },
+                }),
+            );
+            if !(200..300).contains(&response.status) {
+                return;
+            }
+            let location = &response.body["data"]["companyLocation"];
+            if location.is_null() {
+                return;
+            }
+            role_assignments_after = b2b_connection_next_cursor(&location["roleAssignments"]);
+            staff_assignments_after =
+                b2b_connection_next_cursor(&location["staffMemberAssignments"]);
+            self.observe_b2b_location_record(location, None);
+        }
+    }
+
+    fn hydrate_b2b_contact_assignment_pages(&mut self, request: &Request, contact: &Value) {
+        let Some(contact_id) = contact["id"].as_str() else {
+            return;
+        };
+        let mut after = b2b_connection_next_cursor(&contact["roleAssignments"]);
+        while after.is_some() {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": B2B_CONTACT_ASSIGNMENTS_PAGE_HYDRATE_QUERY,
+                    "operationName": "B2BContactAssignmentsPageHydrate",
+                    "variables": { "id": contact_id, "after": after },
+                }),
+            );
+            if !(200..300).contains(&response.status) {
+                return;
+            }
+            let contact = &response.body["data"]["companyContact"];
+            if contact.is_null() {
+                return;
+            }
+            after = b2b_connection_next_cursor(&contact["roleAssignments"]);
+            self.observe_b2b_contact_record(contact, None);
+        }
+    }
+
+    fn observe_b2b_customer_record(&mut self, customer: &Value) {
+        let Some(customer_id) = customer["id"].as_str().map(str::to_string) else {
+            return;
+        };
+        let mut record = customer.clone();
+        if let Some(object) = record.as_object_mut() {
+            object.remove("companyContactProfiles");
+        }
+        self.store.staged.customers.insert(customer_id, record);
+        for contact in customer["companyContactProfiles"]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
+            self.observe_b2b_contact_record(contact, None);
         }
     }
 
@@ -1426,9 +2243,12 @@ impl DraftProxy {
         }
         let already_contact = self
             .store
-            .staged
+            .base
             .b2b_contacts
-            .values()
+            .order
+            .iter()
+            .filter_map(|id| self.b2b_effective_contact(id))
+            .chain(self.store.staged.b2b_contacts.values().cloned())
             .any(|contact| contact["customerId"].as_str() == Some(customer_id.as_str()));
         if already_contact {
             let error = b2b_company_user_error(
@@ -3479,6 +4299,10 @@ impl DraftProxy {
             record["buyerExperienceConfiguration"] =
                 b2b_buyer_experience_configuration_json(&BTreeMap::new());
         }
+        let billing_address_id = record["billingAddress"]["id"].as_str();
+        let shipping_address_id = record["shippingAddress"]["id"].as_str();
+        record["billingSameAsShipping"] =
+            json!(billing_address_id.is_some() && billing_address_id == shipping_address_id);
         for assignment in connection_nodes(&location["roleAssignments"]) {
             if let Some(assignment_id) =
                 self.observe_b2b_role_assignment_record(&assignment, None, Some(&location_id))
@@ -3645,6 +4469,9 @@ impl DraftProxy {
         {
             return Some(assignment_id);
         }
+        assignment
+            .get("company")
+            .and_then(|company| self.observe_b2b_company_record(company));
         let contact_id = assignment
             .get("companyContactId")
             .and_then(Value::as_str)
@@ -3724,6 +4551,12 @@ impl DraftProxy {
             return None;
         }
         let assignment_id = assignment.get("id").and_then(Value::as_str)?.to_string();
+        if let Some(staff_id) = assignment["staffMember"]["id"].as_str() {
+            self.store
+                .base
+                .b2b_staff_member_ids
+                .insert(staff_id.to_string());
+        }
         let location_id = assignment
             .get("companyLocationId")
             .and_then(Value::as_str)
@@ -4665,18 +5498,19 @@ impl DraftProxy {
 
     fn b2b_valid_staff_member_id(&self, id: &str) -> bool {
         shopify_gid_resource_type(id) == Some("StaffMember")
-            && self
-                .store
-                .base
-                .b2b_staff_assignments
-                .order
-                .iter()
-                .filter_map(|assignment_id| self.b2b_effective_staff_assignment(assignment_id))
-                .chain(self.store.staged.b2b_staff_assignments.values().cloned())
-                .any(|assignment| {
-                    assignment["staffMemberId"].as_str() == Some(id)
-                        || assignment["staffMember"]["id"].as_str() == Some(id)
-                })
+            && (self.store.base.b2b_staff_member_ids.contains(id)
+                || self
+                    .store
+                    .base
+                    .b2b_staff_assignments
+                    .order
+                    .iter()
+                    .filter_map(|assignment_id| self.b2b_effective_staff_assignment(assignment_id))
+                    .chain(self.store.staged.b2b_staff_assignments.values().cloned())
+                    .any(|assignment| {
+                        assignment["staffMemberId"].as_str() == Some(id)
+                            || assignment["staffMember"]["id"].as_str() == Some(id)
+                    }))
     }
 
     fn b2b_role_assignment_for(

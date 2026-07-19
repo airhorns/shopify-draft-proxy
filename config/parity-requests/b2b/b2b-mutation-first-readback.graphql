@@ -1,0 +1,86 @@
+query B2BMutationFirstReadback($companyId: ID!, $companyContactId: ID!, $companyLocationId: ID!) {
+  company(id: $companyId) {
+    id
+    name
+    externalId
+    mainContact {
+      id
+      title
+    }
+    locations(first: 5) {
+      nodes {
+        id
+        name
+      }
+    }
+    contacts(first: 5) {
+      nodes {
+        id
+        title
+        isMainContact
+      }
+    }
+    contactRoles(first: 5) {
+      nodes {
+        id
+        name
+      }
+    }
+  }
+  companyContact(id: $companyContactId) {
+    id
+    title
+    isMainContact
+    company {
+      id
+      name
+    }
+    customer {
+      id
+      firstName
+      lastName
+      email
+    }
+    roleAssignments(first: 5) {
+      nodes {
+        id
+        companyLocation {
+          id
+        }
+        role {
+          id
+          name
+        }
+      }
+    }
+  }
+  companyLocation(id: $companyLocationId) {
+    id
+    name
+    billingAddress {
+      id
+      address1
+    }
+    taxSettings {
+      taxRegistrationId
+      taxExempt
+      taxExemptions
+    }
+    roleAssignments(first: 5) {
+      nodes {
+        id
+        companyContact {
+          id
+        }
+        role {
+          id
+          name
+        }
+      }
+    }
+    company {
+      id
+      name
+    }
+  }
+}

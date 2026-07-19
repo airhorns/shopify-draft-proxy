@@ -2465,6 +2465,134 @@ fn webhook_subscription_rejects_unknown_topic_before_staging() {
 }
 
 #[test]
+fn webhook_subscription_topic_coercion_uses_the_route_version_schema() {
+    let mut proxy = snapshot_proxy();
+    let create = |proxy: &mut DraftProxy, version: &str, query: &str, variables: Value| {
+        proxy.process_request(request_with_body(
+            "POST",
+            &format!("/admin/api/{version}/graphql.json"),
+            &json!({ "query": query, "variables": variables }).to_string(),
+        ))
+    };
+
+    let current_literal = create(
+        &mut proxy,
+        "2026-07",
+        r#"mutation VersionedWebhookTopic {
+  webhookSubscriptionCreate(
+    topic: CUSTOMERS_WHATS_APP_MARKETING_CONSENT_UPDATE
+    webhookSubscription: { uri: "https://hooks.example.com/whats-app", format: JSON }
+  ) {
+    webhookSubscription { id topic }
+    userErrors { field message }
+  }
+}"#,
+        json!({}),
+    );
+    assert_eq!(current_literal.status, 200);
+    assert!(current_literal.body.get("errors").is_none());
+    assert_eq!(
+        current_literal.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["topic"],
+        json!("CUSTOMERS_WHATS_APP_MARKETING_CONSENT_UPDATE")
+    );
+
+    let current_variable = create(
+        &mut proxy,
+        "2026-07",
+        r#"mutation VersionedWebhookTopic($topic: WebhookSubscriptionTopic!) {
+  webhookSubscriptionCreate(
+    topic: $topic
+    webhookSubscription: { uri: "https://hooks.example.com/inventory-transfer", format: JSON }
+  ) {
+    webhookSubscription { id topic }
+    userErrors { field message }
+  }
+}"#,
+        json!({ "topic": "INVENTORY_TRANSFERS_UPDATED" }),
+    );
+    assert_eq!(current_variable.status, 200);
+    assert!(current_variable.body.get("errors").is_none());
+    assert_eq!(
+        current_variable.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["topic"],
+        json!("INVENTORY_TRANSFERS_UPDATED")
+    );
+
+    let old_literal = create(
+        &mut proxy,
+        "2026-04",
+        r#"mutation VersionedWebhookTopic {
+  webhookSubscriptionCreate(
+    topic: CUSTOMERS_WHATS_APP_MARKETING_CONSENT_UPDATE
+    webhookSubscription: { uri: "https://hooks.example.com/old-literal", format: JSON }
+  ) {
+    webhookSubscription { id }
+  }
+}"#,
+        json!({}),
+    );
+    assert_eq!(
+        old_literal.body,
+        json!({
+            "errors": [{
+                "message": "Argument 'topic' on Field 'webhookSubscriptionCreate' has an invalid value (CUSTOMERS_WHATS_APP_MARKETING_CONSENT_UPDATE). Expected type 'WebhookSubscriptionTopic!'.",
+                "locations": [{ "line": 2, "column": 3 }],
+                "path": ["mutation VersionedWebhookTopic", "webhookSubscriptionCreate", "topic"],
+                "extensions": {
+                    "code": "argumentLiteralsIncompatible",
+                    "typeName": "Field",
+                    "argumentName": "topic"
+                }
+            }]
+        })
+    );
+
+    let old_variable = create(
+        &mut proxy,
+        "2026-04",
+        r#"mutation VersionedWebhookTopic($topic: WebhookSubscriptionTopic!) {
+  webhookSubscriptionCreate(
+    topic: $topic
+    webhookSubscription: { uri: "https://hooks.example.com/old-variable", format: JSON }
+  ) {
+    webhookSubscription { id }
+  }
+}"#,
+        json!({ "topic": "INVENTORY_TRANSFERS_UPDATED" }),
+    );
+    let variable_error = &old_variable.body["errors"][0];
+    assert_eq!(
+        variable_error["message"],
+        json!("Variable $topic of type WebhookSubscriptionTopic! was provided invalid value")
+    );
+    assert_eq!(
+        variable_error["locations"],
+        json!([{ "line": 1, "column": 32 }])
+    );
+    assert!(variable_error.get("path").is_none());
+    assert_eq!(
+        variable_error["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        variable_error["extensions"]["value"],
+        json!("INVENTORY_TRANSFERS_UPDATED")
+    );
+    assert_eq!(
+        variable_error["extensions"]["problems"][0]["path"],
+        json!([])
+    );
+    assert!(variable_error["extensions"]["problems"][0]["explanation"]
+        .as_str()
+        .is_some_and(|message| {
+            message.starts_with("Expected \"INVENTORY_TRANSFERS_UPDATED\" to be one of: ")
+                && message.contains("SHOP_UPDATE")
+                && !message.contains("CUSTOMERS_WHATS_APP_MARKETING_CONSENT_UPDATE")
+        }));
+
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+}
+
+#[test]
 fn webhook_subscription_duplicate_scope_includes_format_filter_and_api_permission() {
     let mut proxy = snapshot_proxy();
 

@@ -7,6 +7,10 @@ use shopify_draft_proxy::proxy::{
 };
 
 const COMMIT_GRAPHQL_PATH: &str = "/admin/api/2026-04/graphql.json";
+const SYNTHETIC_PRODUCT_VARIANT_ONE: &str =
+    "gid://shopify/ProductVariant/1?shopify-draft-proxy=synthetic";
+const SYNTHETIC_PRODUCT_VARIANT_TWO: &str =
+    "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic";
 const SYNTHETIC_SAVED_SEARCH_ONE: &str =
     "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic";
 const SYNTHETIC_SAVED_SEARCH_TWO: &str =
@@ -2473,7 +2477,21 @@ fn commit_replays_staged_mutations_in_order_and_marks_entries_committed() {
                     "status": "committed",
                     "request": { "method": "POST", "path": "/admin/api/2026-04/graphql.json" },
                     "response": { "status": 200, "body": { "data": { "ok": true } } },
-                    "mappedIds": {}
+                    "mappedIds": {},
+                    "unresolvedIds": [
+                        {
+                            "syntheticId": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                            "operation": "productCreate",
+                            "responsePath": ["product", "id"],
+                            "reason": "authoritative mutation payload was missing"
+                        },
+                        {
+                            "syntheticId": "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic",
+                            "operation": "productCreate",
+                            "responsePath": ["product", "variants", "nodes", "id"],
+                            "reason": "authoritative mutation payload was missing"
+                        }
+                    ]
                 },
                 {
                     "index": 1,
@@ -2598,6 +2616,316 @@ fn commit_rewrites_later_replay_bodies_with_authoritative_ids() {
 }
 
 #[test]
+fn commit_replay_maps_bulk_created_ids_from_the_created_payload_field() {
+    let replayed = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
+    let attempts = Arc::new(Mutex::new(0usize));
+    let attempts_for_transport = Arc::clone(&attempts);
+    let mut proxy = snapshot_proxy()
+        .with_base_products(vec![base_product()])
+        .with_commit_transport(move |request| {
+            replayed_for_transport.lock().unwrap().push(request);
+            let mut attempts = attempts_for_transport.lock().unwrap();
+            *attempts += 1;
+            if *attempts == 1 {
+                ok_transport_response(json!({
+                    "data": {
+                        "bulkAlias": {
+                            "aParent": {
+                                "aVariants": {
+                                    "aNodes": [
+                                        { "seenId": "gid://shopify/ProductVariant/700" },
+                                        { "seenId": "gid://shopify/ProductVariant/701" },
+                                        { "seenId": "gid://shopify/ProductVariant/702" }
+                                    ]
+                                }
+                            },
+                            "zCreated": [
+                                { "createdId": "gid://shopify/ProductVariant/701" },
+                                { "createdId": "gid://shopify/ProductVariant/702" }
+                            ],
+                            "userErrors": []
+                        }
+                    }
+                }))
+            } else {
+                ok_transport_response(json!({
+                    "data": {
+                        "updateAlias": {
+                            "updatedVariants": [
+                                { "id": "gid://shopify/ProductVariant/701" },
+                                { "id": "gid://shopify/ProductVariant/702" }
+                            ],
+                            "userErrors": []
+                        }
+                    }
+                }))
+            }
+        });
+
+    let create_query = r#"
+        mutation BulkCreateForCommit($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          bulkAlias: productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            aParent: product {
+              aVariants: variants(first: 10) {
+                aNodes: nodes { seenId: id }
+              }
+            }
+            zCreated: productVariants { createdId: id }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let create_body = json!({
+        "query": create_query,
+        "variables": {
+            "productId": "gid://shopify/Product/base",
+            "variants": [
+                {
+                    "price": "10.00",
+                    "optionValues": [{ "optionName": "Title", "name": "Blue" }]
+                },
+                {
+                    "price": "20.00",
+                    "optionValues": [{ "optionName": "Title", "name": "Green" }]
+                }
+            ]
+        }
+    })
+    .to_string();
+    let create = proxy.process_request(graphql_request(&create_body));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["bulkAlias"]["userErrors"], json!([]));
+    let synthetic_ids = create.body["data"]["bulkAlias"]["zCreated"]
+        .as_array()
+        .expect("bulk create should return created variants")
+        .iter()
+        .map(|variant| {
+            variant["createdId"]
+                .as_str()
+                .expect("created variant id should be selected")
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+
+    let update_query = r#"
+        mutation UpdateBulkCreatedForCommit($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          updateAlias: productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            updatedVariants: productVariants { id }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let update_body = json!({
+        "query": update_query,
+        "variables": {
+            "productId": "gid://shopify/Product/base",
+            "variants": [
+                { "id": synthetic_ids[0], "price": "11.00" },
+                { "id": synthetic_ids[1], "price": "21.00" }
+            ]
+        }
+    })
+    .to_string();
+    let update = proxy.process_request(graphql_request(&update_body));
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["updateAlias"]["userErrors"], json!([]));
+
+    let log_before_commit = proxy.process_request(request("GET", "/__meta/log"));
+    let commit = proxy.process_request(request("POST", "/__meta/commit"));
+    assert_eq!(commit.status, 200);
+    assert_eq!(
+        commit.body["attempts"][0]["mappedIds"],
+        json!({
+            synthetic_ids[0].clone(): "gid://shopify/ProductVariant/701",
+            synthetic_ids[1].clone(): "gid://shopify/ProductVariant/702"
+        })
+    );
+
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 2);
+    let update_replay = serde_json::from_str::<Value>(&replayed[1].body)
+        .expect("later bulk update replay should remain valid JSON");
+    assert_eq!(
+        update_replay["variables"]["variants"],
+        json!([
+            { "id": "gid://shopify/ProductVariant/701", "price": "11.00" },
+            { "id": "gid://shopify/ProductVariant/702", "price": "21.00" }
+        ])
+    );
+
+    let log_after_commit = proxy.process_request(request("GET", "/__meta/log"));
+    assert_eq!(
+        log_after_commit.body["entries"][0]["rawBody"],
+        log_before_commit.body["entries"][0]["rawBody"]
+    );
+    assert_eq!(
+        log_after_commit.body["entries"][1]["rawBody"],
+        log_before_commit.body["entries"][1]["rawBody"]
+    );
+    assert_eq!(
+        log_after_commit.body["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| entry["status"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!("committed"), json!("committed")]
+    );
+}
+
+#[test]
+fn commit_replay_reports_incomplete_bulk_create_id_mappings_without_guessing() {
+    let replayed = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
+    let attempts = Arc::new(Mutex::new(0usize));
+    let attempts_for_transport = Arc::clone(&attempts);
+    let mut proxy = snapshot_proxy().with_commit_transport(move |request| {
+        replayed_for_transport.lock().unwrap().push(request);
+        let mut attempts = attempts_for_transport.lock().unwrap();
+        *attempts += 1;
+        if *attempts == 1 {
+            ok_transport_response(json!({
+                "data": {
+                    "bulkAlias": {
+                        "createdVariants": [
+                            { "authoritativeId": "gid://shopify/ProductVariant/701" }
+                        ],
+                        "userErrors": []
+                    }
+                }
+            }))
+        } else {
+            ok_transport_response(json!({
+                "data": { "updateAlias": { "userErrors": [] } }
+            }))
+        }
+    });
+    let create_body = json!({
+        "query": r#"
+            mutation MissingBulkCreateIds(
+              $productId: ID!
+              $variants: [ProductVariantsBulkInput!]!
+            ) {
+              bulkAlias: productVariantsBulkCreate(
+                productId: $productId
+                variants: $variants
+              ) {
+                createdVariants: productVariants { authoritativeId: id }
+                userErrors { field message }
+              }
+            }
+        "#,
+        "variables": {
+            "productId": "gid://shopify/Product/base",
+            "variants": [
+                { "price": "10.00" },
+                { "price": "20.00" }
+            ]
+        }
+    })
+    .to_string();
+    let update_body = json!({
+        "query": r#"
+            mutation ReplayAfterMissingIds($variants: [ProductVariantsBulkInput!]!) {
+              updateAlias: productVariantsBulkUpdate(
+                productId: "gid://shopify/Product/base"
+                variants: $variants
+              ) {
+                userErrors { field message }
+              }
+            }
+        "#,
+        "variables": {
+            "variants": [
+                { "id": SYNTHETIC_PRODUCT_VARIANT_ONE, "price": "11.00" },
+                { "id": SYNTHETIC_PRODUCT_VARIANT_TWO, "price": "21.00" }
+            ]
+        }
+    })
+    .to_string();
+    restore_log_entries(
+        &mut proxy,
+        json!([
+            {
+                "id": "log-1",
+                "path": COMMIT_GRAPHQL_PATH,
+                "rawBody": create_body,
+                "stagedResourceIds": [
+                    SYNTHETIC_PRODUCT_VARIANT_ONE,
+                    SYNTHETIC_PRODUCT_VARIANT_TWO
+                ],
+                "status": "staged"
+            },
+            {
+                "id": "log-2",
+                "path": COMMIT_GRAPHQL_PATH,
+                "rawBody": update_body,
+                "stagedResourceIds": [],
+                "status": "staged"
+            }
+        ]),
+    );
+
+    let log_before_commit = proxy.process_request(request("GET", "/__meta/log"));
+    let commit = proxy.process_request(request("POST", "/__meta/commit"));
+    assert_eq!(commit.status, 200);
+    assert_eq!(commit.body["attempts"][0]["mappedIds"], json!({}));
+    assert_eq!(
+        commit.body["attempts"][0]["unresolvedIds"],
+        json!([
+            {
+                "syntheticId": SYNTHETIC_PRODUCT_VARIANT_ONE,
+                "operation": "productVariantsBulkCreate",
+                "responsePath": ["productVariants", "id"],
+                "reason": "authoritative response path did not contain one unambiguous ID per staged input"
+            },
+            {
+                "syntheticId": SYNTHETIC_PRODUCT_VARIANT_TWO,
+                "operation": "productVariantsBulkCreate",
+                "responsePath": ["productVariants", "id"],
+                "reason": "authoritative response path did not contain one unambiguous ID per staged input"
+            }
+        ])
+    );
+
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 2);
+    let update_replay = serde_json::from_str::<Value>(&replayed[1].body)
+        .expect("later replay should remain valid JSON");
+    assert_eq!(
+        update_replay["variables"]["variants"][0]["id"],
+        json!(SYNTHETIC_PRODUCT_VARIANT_ONE)
+    );
+    assert_eq!(
+        update_replay["variables"]["variants"][1]["id"],
+        json!(SYNTHETIC_PRODUCT_VARIANT_TWO)
+    );
+
+    let log_after_commit = proxy.process_request(request("GET", "/__meta/log"));
+    assert_eq!(
+        log_after_commit.body["entries"][0]["rawBody"],
+        log_before_commit.body["entries"][0]["rawBody"]
+    );
+    assert_eq!(
+        log_after_commit.body["entries"][1]["rawBody"],
+        log_before_commit.body["entries"][1]["rawBody"]
+    );
+    assert_eq!(
+        log_after_commit.body["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| (entry["id"].clone(), entry["status"].clone()))
+            .collect::<Vec<_>>(),
+        vec![
+            (json!("log-1"), json!("committed")),
+            (json!("log-2"), json!("committed"))
+        ]
+    );
+}
+
+#[test]
 fn commit_replay_raw_body_rewrites_all_mapped_synthetic_ids() {
     let replayed = Arc::new(Mutex::new(Vec::<Request>::new()));
     let replayed_for_transport = Arc::clone(&replayed);
@@ -2610,11 +2938,12 @@ fn commit_replay_raw_body_rewrites_all_mapped_synthetic_ids() {
         if *attempts == 1 {
             ok_transport_response(json!({
                 "data": {
-                    "savedSearchCreate": {
-                        "savedSearches": [
-                            { "id": AUTHORITATIVE_SAVED_SEARCH_ONE },
-                            { "id": AUTHORITATIVE_SAVED_SEARCH_TWO }
-                        ],
+                    "firstCreate": {
+                        "savedSearch": { "id": AUTHORITATIVE_SAVED_SEARCH_ONE },
+                        "userErrors": []
+                    },
+                    "secondCreate": {
+                        "savedSearch": { "id": AUTHORITATIVE_SAVED_SEARCH_TWO },
                         "userErrors": []
                     }
                 }
@@ -2635,7 +2964,7 @@ fn commit_replay_raw_body_rewrites_all_mapped_synthetic_ids() {
             {
                 "id": "log-1",
                 "path": COMMIT_GRAPHQL_PATH,
-                "rawBody": json!({ "query": "mutation { savedSearchCreate(input: { name: \"One\", query: \"status:open\" }) { savedSearch { id } } }" }).to_string(),
+                "rawBody": json!({ "query": "mutation { firstCreate: savedSearchCreate(input: { name: \"One\", query: \"status:open\" }) { savedSearch { id } } secondCreate: savedSearchCreate(input: { name: \"Two\", query: \"status:closed\" }) { savedSearch { id } } }" }).to_string(),
                 "stagedResourceIds": [
                     SYNTHETIC_SAVED_SEARCH_ONE,
                     { "nested": [SYNTHETIC_SAVED_SEARCH_TWO] }
@@ -2702,11 +3031,12 @@ fn commit_replay_rewrites_canonical_aliases_in_variables_and_inline_literals() {
         if *attempts == 1 {
             ok_transport_response(json!({
                 "data": {
-                    "savedSearchCreate": {
-                        "savedSearches": [
-                            { "id": AUTHORITATIVE_SAVED_SEARCH_ONE },
-                            { "id": AUTHORITATIVE_SAVED_SEARCH_TWO }
-                        ],
+                    "firstCreate": {
+                        "savedSearch": { "id": AUTHORITATIVE_SAVED_SEARCH_ONE },
+                        "userErrors": []
+                    },
+                    "secondCreate": {
+                        "savedSearch": { "id": AUTHORITATIVE_SAVED_SEARCH_TWO },
                         "userErrors": []
                     }
                 }
@@ -2737,7 +3067,7 @@ fn commit_replay_rewrites_canonical_aliases_in_variables_and_inline_literals() {
             {
                 "id": "log-1",
                 "path": COMMIT_GRAPHQL_PATH,
-                "rawBody": json!({ "query": "mutation { savedSearchCreate(input: { name: \"One\", query: \"status:open\" }) { savedSearch { id } } }" }).to_string(),
+                "rawBody": json!({ "query": "mutation { firstCreate: savedSearchCreate(input: { name: \"One\", query: \"status:open\" }) { savedSearch { id } } secondCreate: savedSearchCreate(input: { name: \"Two\", query: \"status:closed\" }) { savedSearch { id } } }" }).to_string(),
                 "stagedResourceIds": [SYNTHETIC_SAVED_SEARCH_ONE, SYNTHETIC_SAVED_SEARCH_TWO],
                 "status": "staged"
             },
@@ -2924,13 +3254,12 @@ fn commit_replay_maps_multiple_ids_and_keeps_existing_mapping() {
         if *attempts == 1 {
             ok_transport_response(json!({
                 "data": {
-                    "savedSearchCreate": {
-                        "savedSearches": [
-                            { "id": AUTHORITATIVE_SAVED_SEARCH_ONE },
-                            { "id": AUTHORITATIVE_SAVED_SEARCH_ONE },
-                            { "id": SYNTHETIC_SAVED_SEARCH_ONE },
-                            { "id": AUTHORITATIVE_SAVED_SEARCH_TWO }
-                        ],
+                    "firstCreate": {
+                        "savedSearch": { "id": AUTHORITATIVE_SAVED_SEARCH_ONE },
+                        "userErrors": []
+                    },
+                    "secondCreate": {
+                        "savedSearch": { "id": AUTHORITATIVE_SAVED_SEARCH_TWO },
                         "userErrors": []
                     }
                 }
@@ -2945,7 +3274,7 @@ fn commit_replay_maps_multiple_ids_and_keeps_existing_mapping() {
             {
                 "id": "log-1",
                 "path": COMMIT_GRAPHQL_PATH,
-                "rawBody": json!({ "query": "mutation { savedSearchCreate(input: { name: \"One\", query: \"status:open\" }) { savedSearch { id } } }" }).to_string(),
+                "rawBody": json!({ "query": "mutation { firstCreate: savedSearchCreate(input: { name: \"One\", query: \"status:open\" }) { savedSearch { id } } secondCreate: savedSearchCreate(input: { name: \"Two\", query: \"status:closed\" }) { savedSearch { id } } }" }).to_string(),
                 "stagedResourceIds": [
                     SYNTHETIC_SAVED_SEARCH_ONE,
                     { "nested": [SYNTHETIC_SAVED_SEARCH_TWO, "gid://shopify/SavedSearch/non-synthetic"] }
