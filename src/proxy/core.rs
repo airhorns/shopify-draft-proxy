@@ -734,6 +734,25 @@ impl DraftProxy {
         if self.store.base.function_validations_catalog_hydrated {
             snapshot["baseState"]["functionValidationsCatalogHydrated"] = json!(true);
         }
+        if !self
+            .store
+            .base
+            .function_validation_decision_records
+            .is_empty()
+        {
+            snapshot["baseState"]["functionValidationDecisionRecords"] =
+                json!(self.store.base.function_validation_decision_records.clone());
+        }
+        if let Some(cursor) = &self.store.base.function_validation_decision_next_cursor {
+            snapshot["baseState"]["functionValidationDecisionNextCursor"] = json!(cursor);
+        }
+        if self
+            .store
+            .base
+            .function_validation_decision_catalog_complete
+        {
+            snapshot["baseState"]["functionValidationDecisionCatalogComplete"] = json!(true);
+        }
         if !self.store.base.function_cart_transforms.is_empty() {
             snapshot["baseState"]["functionCartTransforms"] =
                 json!(self.store.base.function_cart_transforms.clone());
@@ -742,6 +761,12 @@ impl DraftProxy {
         }
         if self.store.base.function_cart_transforms_catalog_hydrated {
             snapshot["baseState"]["functionCartTransformsCatalogHydrated"] = json!(true);
+        }
+        if let Some(decision) = &self.store.base.function_cart_transform_decision {
+            snapshot["baseState"]["functionCartTransformDecision"] = decision.clone();
+        }
+        if self.store.base.function_cart_transform_decision_hydrated {
+            snapshot["baseState"]["functionCartTransformDecisionHydrated"] = json!(true);
         }
         if !self
             .store
@@ -1982,6 +2007,18 @@ impl DraftProxy {
             ["functionValidationsCatalogHydrated"]
             .as_bool()
             .unwrap_or(false);
+        self.store.base.function_validation_decision_records =
+            value_map_from_json(state["baseState"].get("functionValidationDecisionRecords"));
+        self.store.base.function_validation_decision_next_cursor = state["baseState"]
+            ["functionValidationDecisionNextCursor"]
+            .as_str()
+            .map(str::to_string);
+        self.store
+            .base
+            .function_validation_decision_catalog_complete = state["baseState"]
+            ["functionValidationDecisionCatalogComplete"]
+            .as_bool()
+            .unwrap_or(false);
         self.store.base.function_cart_transforms =
             value_map_from_json(state["baseState"].get("functionCartTransforms"));
         self.store.base.function_cart_transform_order = state["baseState"]
@@ -1997,6 +2034,14 @@ impl DraftProxy {
             });
         self.store.base.function_cart_transforms_catalog_hydrated = state["baseState"]
             ["functionCartTransformsCatalogHydrated"]
+            .as_bool()
+            .unwrap_or(false);
+        self.store.base.function_cart_transform_decision = state["baseState"]
+            .get("functionCartTransformDecision")
+            .filter(|value| value.is_object())
+            .cloned();
+        self.store.base.function_cart_transform_decision_hydrated = state["baseState"]
+            ["functionCartTransformDecisionHydrated"]
             .as_bool()
             .unwrap_or(false);
         self.store.base.function_fulfillment_constraint_rules =

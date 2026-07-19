@@ -11307,6 +11307,51 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'functions',
+    captureId: 'functions-authoritative-lifecycle-preflight',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-authoritative-lifecycle-preflight-conformance.ts',
+    purpose:
+      'validationCreate active-cap and cartTransformCreate registered-Function/global-cap precedence from complete live lifecycle catalogs.',
+    requiredAuthScopes: [
+      'read_validations and write_validations',
+      'read_cart_transforms and write_cart_transforms',
+      'released conformance-validation Function',
+      'two distinct released cart-transform Functions',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-authoritative-lifecycle-preflight.json`,
+      'config/parity-specs/functions/functions-authoritative-lifecycle-preflight.json',
+      'config/parity-requests/functions/functions-authoritative-lifecycle-preflight.graphql',
+    ],
+    cleanupBehavior:
+      'Clears the disposable validation/cart-transform catalogs, creates 25 active validations and one cart transform, captures the three rejected preflight branches, then deletes every created resource in finally.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
+    captureId: 'functions-fulfillment-constraint-rule-hydration',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-fulfillment-constraint-rule-hydration-conformance.ts',
+    purpose:
+      'Direct fulfillmentConstraintRuleUpdate/Delete of a real unobserved rule plus authoritative unknown-id NOT_FOUND behavior.',
+    requiredAuthScopes: [
+      'read_fulfillment_constraint_rules',
+      'write_fulfillment_constraint_rules',
+      'released conformance-fulfillment-constraint Function',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-fulfillment-constraint-rule-hydration.json`,
+      'config/parity-specs/functions/functions-fulfillment-constraint-rule-hydration.json',
+      'config/parity-requests/functions/functions-fulfillment-constraint-hydrated-update.graphql',
+      'config/parity-requests/functions/functions-fulfillment-constraint-hydrated-delete.graphql',
+      'config/parity-requests/functions/functions-fulfillment-constraint-hydrated-unknown-update.graphql',
+    ],
+    cleanupBehavior:
+      'Deletes existing disposable rules, creates one rule, records update/delete/unknown-id behavior, and retries deletion in finally after failures.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
     captureId: 'functions-fulfillment-constraint-rule-errors',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-fulfillment-constraint-rule-errors-conformance.ts',

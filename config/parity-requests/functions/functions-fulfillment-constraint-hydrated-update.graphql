@@ -1,0 +1,18 @@
+mutation FulfillmentConstraintHydratedUpdate($id: ID!) {
+  fulfillmentConstraintRuleUpdate(id: $id, deliveryMethodTypes: [LOCAL]) {
+    fulfillmentConstraintRule {
+      id
+      deliveryMethodTypes
+      function {
+        id
+        handle
+        apiType
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

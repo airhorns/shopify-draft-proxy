@@ -11,6 +11,12 @@ struct FunctionRootInput {
     arguments: BTreeMap<String, ResolvedValue>,
 }
 
+enum FunctionTargetHydration {
+    Found,
+    Missing,
+    Unavailable,
+}
+
 pub(in crate::proxy) fn function_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
     [
         "CartTransform",
@@ -34,11 +40,102 @@ pub(in crate::proxy) fn function_field_resolver_type_policies() -> Vec<FieldReso
 const FUNCTION_HYDRATE_BY_ID_QUERY: &str = "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n";
 const FUNCTION_HYDRATE_BY_HANDLE_QUERY: &str = "query FunctionHydrateByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
 const FUNCTION_METADATA_CATALOG_HYDRATE_QUERY: &str = "query FunctionMetadataCatalogHydrate {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
-const FUNCTION_VALIDATIONS_HYDRATE_QUERY: &str = "query FunctionValidationsHydrate {\n  validations(first: 100) {\n    nodes {\n      id\n      title\n      enabled\n      blockOnFailure\n      shopifyFunction {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          __typename\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
+const FUNCTION_VALIDATIONS_HYDRATE_QUERY: &str = r#"query FunctionValidationsHydrate($after: String) {
+  validations(first: 100, after: $after) {
+    nodes {
+      id
+      title
+      enabled
+      blockOnFailure
+      shopifyFunction {
+        id
+        title
+        handle
+        apiType
+        description
+        appKey
+        app {
+          __typename
+          id
+          title
+          handle
+          apiKey
+        }
+      }
+      metafields(first: 100) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          updatedAt
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+"#;
+const FUNCTION_VALIDATION_DECISION_PREFLIGHT_QUERY: &str = r#"query FunctionValidationDecisionPreflight($after: String) {
+  validations(first: 250, after: $after) {
+    nodes {
+      id
+      enabled
+      shopifyFunction {
+        id
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+"#;
 const FUNCTION_VALIDATION_HYDRATE_BY_ID_QUERY: &str = "query FunctionValidationHydrateById($id: ID!) {\n  validation(id: $id) {\n    id\n    title\n    enabled\n    blockOnFailure\n    shopifyFunction {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        updatedAt\n      }\n    }\n  }\n}\n";
-const FUNCTION_CART_TRANSFORMS_HYDRATE_QUERY: &str = "query FunctionCartTransformsHydrate {\n  cartTransforms(first: 100) {\n    nodes {\n      id\n      functionId\n      blockOnFailure\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
+const FUNCTION_CART_TRANSFORMS_HYDRATE_QUERY: &str = r#"query FunctionCartTransformsHydrate($after: String) {
+  cartTransforms(first: 100, after: $after) {
+    nodes {
+      id
+      functionId
+      blockOnFailure
+      metafields(first: 100) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          compareDigest
+          ownerType
+          createdAt
+          updatedAt
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+"#;
+const FUNCTION_CART_TRANSFORM_DECISION_PREFLIGHT_QUERY: &str = r#"query FunctionCartTransformDecisionPreflight {
+  cartTransforms(first: 1) {
+    nodes {
+      id
+      functionId
+    }
+  }
+}
+"#;
 const FUNCTION_CART_TRANSFORM_HYDRATE_BY_ID_QUERY: &str = "query FunctionCartTransformHydrateById($id: ID!) {\n  node(id: $id) {\n    ... on CartTransform {\n      id\n      functionId\n      blockOnFailure\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
 const FUNCTION_FULFILLMENT_CONSTRAINT_RULES_HYDRATE_QUERY: &str = "query FunctionFulfillmentConstraintRulesHydrate {\n  fulfillmentConstraintRules {\n    id\n    deliveryMethodTypes\n    function {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n";
+const FUNCTION_FULFILLMENT_CONSTRAINT_RULE_HYDRATE_BY_ID_QUERY: &str = "query FunctionFulfillmentConstraintRuleHydrateById($id: ID!) {\n  node(id: $id) {\n    ... on FulfillmentConstraintRule {\n      id\n      deliveryMethodTypes\n      function {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          __typename\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
 
 impl DraftProxy {
     pub(crate) fn functions_query_root(
@@ -139,7 +236,7 @@ impl DraftProxy {
                 self.function_fulfillment_constraint_rule_update_payload(request, field)
             }
             "fulfillmentConstraintRuleDelete" => {
-                self.function_fulfillment_constraint_rule_delete_payload(field)
+                self.function_fulfillment_constraint_rule_delete_payload(request, field)
             }
             "taxAppConfigure" => {
                 if tax_app_configure_has_authority(request) {
@@ -283,23 +380,84 @@ impl DraftProxy {
     }
 
     fn effective_active_validation_count(&self, exclude_id: Option<&str>) -> usize {
-        self.effective_function_validation_records()
-            .into_iter()
-            .filter(|record| {
-                record["id"].as_str() != exclude_id && record["enable"].as_bool() == Some(true)
-            })
-            .count()
+        let mut enabled_by_id = BTreeMap::new();
+        for (id, record) in &self.store.base.function_validation_decision_records {
+            enabled_by_id.insert(id.clone(), record["enabled"].as_bool() == Some(true));
+        }
+        for record in self.effective_function_validation_records() {
+            let Some(id) = record["id"].as_str() else {
+                continue;
+            };
+            if let Some(enabled) = record["enable"]
+                .as_bool()
+                .or_else(|| record["enabled"].as_bool())
+            {
+                enabled_by_id.insert(id.to_string(), enabled);
+            }
+        }
+        for id in &self.store.staged.deleted_function_validation_ids {
+            enabled_by_id.remove(id);
+        }
+        exclude_id.into_iter().for_each(|id| {
+            enabled_by_id.remove(id);
+        });
+        enabled_by_id.values().filter(|enabled| **enabled).count()
     }
 
     fn effective_cart_transform_count(&self) -> usize {
-        self.effective_function_cart_transform_records().len()
+        let mut ids = self
+            .effective_function_cart_transform_records()
+            .into_iter()
+            .filter_map(|record| record["id"].as_str().map(str::to_string))
+            .collect::<BTreeSet<_>>();
+        if let Some(id) = self
+            .store
+            .base
+            .function_cart_transform_decision
+            .as_ref()
+            .and_then(|record| record["id"].as_str())
+        {
+            ids.insert(id.to_string());
+        }
+        for id in &self.store.staged.deleted_function_cart_transform_ids {
+            ids.remove(id);
+        }
+        ids.len()
     }
 
     fn effective_function_id_in_use(&self, function_id: &str) -> bool {
-        self.effective_function_validation_records()
-            .into_iter()
-            .chain(self.effective_function_cart_transform_records())
-            .any(|record| record["functionId"].as_str() == Some(function_id))
+        self.store
+            .base
+            .function_validation_decision_records
+            .iter()
+            .any(|(id, record)| {
+                !self
+                    .store
+                    .staged
+                    .deleted_function_validation_ids
+                    .contains(id)
+                    && record["functionId"].as_str() == Some(function_id)
+            })
+            || self
+                .effective_function_validation_records()
+                .into_iter()
+                .chain(self.effective_function_cart_transform_records())
+                .any(|record| record["functionId"].as_str() == Some(function_id))
+            || self
+                .store
+                .base
+                .function_cart_transform_decision
+                .as_ref()
+                .is_some_and(|record| {
+                    record["functionId"].as_str() == Some(function_id)
+                        && record["id"].as_str().is_some_and(|id| {
+                            !self
+                                .store
+                                .staged
+                                .deleted_function_cart_transform_ids
+                                .contains(id)
+                        })
+                })
     }
 
     fn effective_function_validation_records(&self) -> Vec<&Value> {
@@ -739,24 +897,8 @@ impl DraftProxy {
         root_name: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) {
-        match root_name {
-            "validations" => {
-                self.store.base.function_validations_catalog_hydrated = true;
-            }
-            "cartTransforms" => {
-                self.store.base.function_cart_transforms_catalog_hydrated = true;
-            }
-            "fulfillmentConstraintRules" => {
-                self.store
-                    .base
-                    .function_fulfillment_constraint_rules_catalog_hydrated = true;
-            }
-            "shopifyFunctions" => {
-                self.mark_function_metadata_catalog_hydrated(requested_function_api_type(
-                    arguments,
-                ));
-            }
-            _ => {}
+        if root_name == "shopifyFunctions" {
+            self.mark_function_metadata_catalog_hydrated(requested_function_api_type(arguments));
         }
     }
 
@@ -846,18 +988,207 @@ impl DraftProxy {
         }
     }
 
-    fn hydrate_function_validation_catalog(&mut self, request: &Request) {
+    fn record_function_validation_decision(&mut self, validation: &Value) {
+        let Some(id) = validation["id"].as_str() else {
+            return;
+        };
+        let Some(enabled) = validation
+            .get("enabled")
+            .and_then(Value::as_bool)
+            .or_else(|| validation.get("enable").and_then(Value::as_bool))
+        else {
+            return;
+        };
+        let function_id = validation
+            .get("functionId")
+            .and_then(Value::as_str)
+            .or_else(|| validation["shopifyFunction"]["id"].as_str());
+        let mut decision = json!({
+            "id": id,
+            "enabled": enabled
+        });
+        if let Some(function_id) = function_id {
+            decision["functionId"] = json!(function_id);
+        }
+        self.store
+            .base
+            .function_validation_decision_records
+            .insert(id.to_string(), decision);
+    }
+
+    fn hydrate_next_function_validation_decision_page(&mut self, request: &Request) -> bool {
+        if self
+            .store
+            .base
+            .function_validation_decision_catalog_complete
+            || self.store.base.function_validations_catalog_hydrated
+        {
+            return false;
+        }
+        let after = self
+            .store
+            .base
+            .function_validation_decision_next_cursor
+            .clone();
         let response = self.upstream_post(
             request,
             json!({
-                "query": FUNCTION_VALIDATIONS_HYDRATE_QUERY,
-                "operationName": "FunctionValidationsHydrate",
+                "query": FUNCTION_VALIDATION_DECISION_PREFLIGHT_QUERY,
+                "operationName": "FunctionValidationDecisionPreflight",
+                "variables": { "after": after.clone() }
+            }),
+        );
+        let connection = &response.body["data"]["validations"];
+        let Some(nodes) = connection["nodes"].as_array() else {
+            return false;
+        };
+        if response.status != 200 || response.body.get("errors").is_some() {
+            return false;
+        }
+        for validation in nodes {
+            self.record_function_validation_decision(validation);
+        }
+        match connection["pageInfo"]["hasNextPage"].as_bool() {
+            Some(false) => {
+                self.store
+                    .base
+                    .function_validation_decision_catalog_complete = true;
+                self.store.base.function_validation_decision_next_cursor = None;
+                true
+            }
+            Some(true) => {
+                let Some(cursor) = connection["pageInfo"]["endCursor"].as_str() else {
+                    return false;
+                };
+                if after.as_deref() == Some(cursor) {
+                    return false;
+                }
+                self.store.base.function_validation_decision_next_cursor = Some(cursor.to_string());
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn ensure_function_validation_active_limit_decision(
+        &mut self,
+        request: &Request,
+        exclude_id: Option<&str>,
+    ) -> bool {
+        while self.effective_active_validation_count(exclude_id) < 25
+            && !self
+                .store
+                .base
+                .function_validation_decision_catalog_complete
+            && !self.store.base.function_validations_catalog_hydrated
+        {
+            if !self.hydrate_next_function_validation_decision_page(request) {
+                break;
+            }
+        }
+        self.effective_active_validation_count(exclude_id) >= 25
+            || self
+                .store
+                .base
+                .function_validation_decision_catalog_complete
+            || self.store.base.function_validations_catalog_hydrated
+    }
+
+    fn ensure_function_validation_registration_decision(
+        &mut self,
+        request: &Request,
+        function_id: &str,
+    ) -> bool {
+        while !self.effective_function_id_in_use(function_id)
+            && !self
+                .store
+                .base
+                .function_validation_decision_catalog_complete
+            && !self.store.base.function_validations_catalog_hydrated
+        {
+            if !self.hydrate_next_function_validation_decision_page(request) {
+                break;
+            }
+        }
+        self.effective_function_id_in_use(function_id)
+            || self
+                .store
+                .base
+                .function_validation_decision_catalog_complete
+            || self.store.base.function_validations_catalog_hydrated
+    }
+
+    fn hydrate_function_cart_transform_decision(&mut self, request: &Request) -> bool {
+        if self.store.base.function_cart_transform_decision_hydrated
+            || self.store.base.function_cart_transforms_catalog_hydrated
+        {
+            return true;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": FUNCTION_CART_TRANSFORM_DECISION_PREFLIGHT_QUERY,
+                "operationName": "FunctionCartTransformDecisionPreflight",
                 "variables": {}
             }),
         );
-        if response.status == 200 {
+        let Some(nodes) = response.body["data"]["cartTransforms"]["nodes"].as_array() else {
+            return false;
+        };
+        if response.status != 200 || response.body.get("errors").is_some() {
+            return false;
+        }
+        let decision = match nodes.first() {
+            Some(node)
+                if node["id"].is_string()
+                    && node.get("functionId").is_some_and(Value::is_string) =>
+            {
+                Some(node.clone())
+            }
+            Some(_) => return false,
+            None => None,
+        };
+        self.store.base.function_cart_transform_decision = decision;
+        self.store.base.function_cart_transform_decision_hydrated = true;
+        true
+    }
+
+    fn hydrate_function_validation_catalog(&mut self, request: &Request) {
+        let mut after = None;
+        loop {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": FUNCTION_VALIDATIONS_HYDRATE_QUERY,
+                    "operationName": "FunctionValidationsHydrate",
+                    "variables": { "after": after.clone() }
+                }),
+            );
+            let connection = &response.body["data"]["validations"];
+            if response.status != 200
+                || response.body.get("errors").is_some()
+                || !connection.is_object()
+            {
+                return;
+            }
             self.hydrate_function_metadata_from_response_data(&response.body["data"]);
-            self.store.base.function_validations_catalog_hydrated = true;
+            match connection["pageInfo"]["hasNextPage"].as_bool() {
+                Some(false) => {
+                    self.store.base.function_validations_catalog_hydrated = true;
+                    self.store
+                        .base
+                        .function_validation_decision_catalog_complete = true;
+                    self.store.base.function_validation_decision_next_cursor = None;
+                    return;
+                }
+                Some(true) => {
+                    let Some(cursor) = connection["pageInfo"]["endCursor"].as_str() else {
+                        return;
+                    };
+                    after = Some(cursor.to_string());
+                }
+                None => return,
+            }
         }
     }
 
@@ -888,17 +1219,38 @@ impl DraftProxy {
     }
 
     fn hydrate_function_cart_transform_catalog(&mut self, request: &Request) {
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": FUNCTION_CART_TRANSFORMS_HYDRATE_QUERY,
-                "operationName": "FunctionCartTransformsHydrate",
-                "variables": {}
-            }),
-        );
-        if response.status == 200 {
+        let mut after = None;
+        loop {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": FUNCTION_CART_TRANSFORMS_HYDRATE_QUERY,
+                    "operationName": "FunctionCartTransformsHydrate",
+                    "variables": { "after": after.clone() }
+                }),
+            );
+            let connection = &response.body["data"]["cartTransforms"];
+            if response.status != 200
+                || response.body.get("errors").is_some()
+                || !connection.is_object()
+            {
+                return;
+            }
             self.hydrate_function_metadata_from_response_data(&response.body["data"]);
-            self.store.base.function_cart_transforms_catalog_hydrated = true;
+            match connection["pageInfo"]["hasNextPage"].as_bool() {
+                Some(false) => {
+                    self.store.base.function_cart_transforms_catalog_hydrated = true;
+                    self.store.base.function_cart_transform_decision_hydrated = true;
+                    return;
+                }
+                Some(true) => {
+                    let Some(cursor) = connection["pageInfo"]["endCursor"].as_str() else {
+                        return;
+                    };
+                    after = Some(cursor.to_string());
+                }
+                None => return,
+            }
         }
     }
 
@@ -911,12 +1263,51 @@ impl DraftProxy {
                 "variables": {}
             }),
         );
-        if response.status == 200 {
+        if response.status == 200
+            && response.body.get("errors").is_none()
+            && response.body["data"]["fulfillmentConstraintRules"].is_array()
+        {
             self.hydrate_function_metadata_from_response_data(&response.body["data"]);
             self.store
                 .base
                 .function_fulfillment_constraint_rules_catalog_hydrated = true;
         }
+    }
+
+    fn hydrate_function_fulfillment_constraint_rule_by_id(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> FunctionTargetHydration {
+        if self
+            .store
+            .staged
+            .deleted_function_fulfillment_constraint_rule_ids
+            .contains(id)
+        {
+            return FunctionTargetHydration::Missing;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": FUNCTION_FULFILLMENT_CONSTRAINT_RULE_HYDRATE_BY_ID_QUERY,
+                "operationName": "FunctionFulfillmentConstraintRuleHydrateById",
+                "variables": { "id": id }
+            }),
+        );
+        if response.status != 200 || response.body.get("errors").is_some() {
+            return FunctionTargetHydration::Unavailable;
+        }
+        if response.body["data"]["node"].is_null() {
+            return FunctionTargetHydration::Missing;
+        }
+        let Some(rule) =
+            normalized_function_fulfillment_constraint_rule(response.body["data"]["node"].clone())
+        else {
+            return FunctionTargetHydration::Unavailable;
+        };
+        self.stage_base_function_fulfillment_constraint_rule(rule.clone());
+        FunctionTargetHydration::Found
     }
 
     fn hydrate_function_cart_transform_by_id(
@@ -958,6 +1349,8 @@ impl DraftProxy {
             .and_then(|function| normalized_function_metadata(function.clone()))
         {
             validation["shopifyFunction"] = function.clone();
+            validation["functionId"] = function["id"].clone();
+            validation["functionHandle"] = function["handle"].clone();
             self.stage_function_metadata(function);
         }
         if validation.get("enabled").is_none() {
@@ -973,6 +1366,7 @@ impl DraftProxy {
         if validation.get("metafields").is_none() {
             validation["metafields"] = json!({ "nodes": [] });
         }
+        self.record_function_validation_decision(&validation);
         if !self.store.base.function_validations.contains_key(&id) {
             self.store.base.function_validation_order.push(id.clone());
         }
@@ -995,6 +1389,11 @@ impl DraftProxy {
                 cart_transform["metafield"] = first;
             }
         }
+        self.store.base.function_cart_transform_decision = Some(json!({
+            "id": id,
+            "functionId": cart_transform["functionId"].clone()
+        }));
+        self.store.base.function_cart_transform_decision_hydrated = true;
         if !self.store.base.function_cart_transforms.contains_key(&id) {
             self.store
                 .base
@@ -1532,12 +1931,68 @@ const FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD: FunctionPayloadDescriptor =
     };
 
 fn maximum_cart_transforms_error() -> Value {
+    json!({
+        "cartTransform": null,
+        "userErrors": [{
+            "field": null,
+            "message": "An API client cannot have more than 1 cart transform functions per shop",
+            "code": null
+        }]
+    })
+}
+
+fn maximum_active_validations_error() -> Value {
+    json!({
+        "validation": null,
+        "userErrors": [{
+            "field": null,
+            "message": "Cannot have more than 25 active validation functions.",
+            "code": "MAX_VALIDATIONS_ACTIVATED"
+        }]
+    })
+}
+
+fn function_lifecycle_decision_unavailable_error(payload_key: &str) -> Value {
+    payload_user_error(
+        payload_key,
+        user_error(
+            Value::Null,
+            "Unable to verify the authoritative Function lifecycle state.",
+            None,
+        ),
+    )
+}
+
+fn fulfillment_constraint_rule_target_unavailable_error(payload_key: &str) -> Value {
+    payload_user_error(
+        payload_key,
+        user_error(
+            ["id"],
+            "Unable to resolve the FulfillmentConstraintRule from Shopify.",
+            None,
+        ),
+    )
+}
+
+fn fulfillment_constraint_rule_delete_target_unavailable_error() -> Value {
+    json!({
+        "success": false,
+        "userErrors": [user_error(
+            ["id"],
+            "Unable to resolve the FulfillmentConstraintRule from Shopify.",
+            None,
+        )]
+    })
+}
+
+fn function_already_registered_error(function_id: &Option<String>) -> Value {
+    let field_name = function_payload_identifier_field(function_id);
     payload_user_error(
         CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key,
         user_error(
-            ["base"],
-            "The maximum number of cart transforms per shop has been reached.",
-            Some("MAXIMUM_CART_TRANSFORMS"),
+            function_error_field(CART_TRANSFORM_FUNCTION_PAYLOAD, field_name),
+            "Could not enable cart transform because it is already registered",
+            Some("FUNCTION_ALREADY_REGISTERED"),
         ),
     )
 }
@@ -1645,6 +2100,21 @@ fn function_resolution_payload(
     function_id: &Option<String>,
     function_handle: &Option<String>,
 ) -> Result<Value, Value> {
+    let function =
+        function_metadata_resolution_payload(proxy, request, desc, function_id, function_handle)?;
+    if let Some(payload) = function_payload_validation_error(desc, function_id, &function) {
+        return Err(payload);
+    }
+    Ok(function)
+}
+
+fn function_metadata_resolution_payload(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    desc: FunctionPayloadDescriptor,
+    function_id: &Option<String>,
+    function_handle: &Option<String>,
+) -> Result<Value, Value> {
     if let Some(payload) = function_identifier_error(desc, function_id, function_handle) {
         return Err(payload);
     }
@@ -1666,13 +2136,22 @@ fn function_resolution_payload(
                 &current_app_id,
             )
         })?;
-    if !function_matches_canonical_api_type(&function, desc.expected_api_type) {
+    Ok(function)
+}
+
+fn function_payload_validation_error(
+    desc: FunctionPayloadDescriptor,
+    function_id: &Option<String>,
+    function: &Value,
+) -> Option<Value> {
+    let field_name = function_payload_identifier_field(function_id);
+    if !function_matches_canonical_api_type(function, desc.expected_api_type) {
         let code = if function_id.is_some() {
             desc.api_mismatch_id_code
         } else {
             desc.api_mismatch_handle_code
         };
-        return Err(payload_user_error(
+        return Some(payload_user_error(
             desc.payload_key,
             user_error(
                 function_error_field(desc, field_name),
@@ -1682,7 +2161,7 @@ fn function_resolution_payload(
         ));
     }
     if let Some(code) = function["createGuardrailCode"].as_str() {
-        return Err(payload_user_error(
+        return Some(payload_user_error(
             desc.payload_key,
             user_error(
                 function_error_field(desc, field_name),
@@ -1693,7 +2172,7 @@ fn function_resolution_payload(
             ),
         ));
     }
-    Ok(function)
+    None
 }
 
 fn metafield_input_error(
@@ -2143,6 +2622,20 @@ impl DraftProxy {
             }
         };
         let (function_id, function_handle) = function_identifier_input(input);
+        if let Some(payload) =
+            function_identifier_error(VALIDATION_FUNCTION_PAYLOAD, &function_id, &function_handle)
+        {
+            return payload;
+        }
+        let enable = resolved_bool_field(input, "enable").unwrap_or(false);
+        if enable
+            && self.config.read_mode != ReadMode::Snapshot
+            && !self.ensure_function_validation_active_limit_decision(request, None)
+        {
+            return function_lifecycle_decision_unavailable_error(
+                VALIDATION_FUNCTION_PAYLOAD.payload_key,
+            );
+        }
         let function = match function_resolution_payload(
             self,
             request,
@@ -2157,16 +2650,8 @@ impl DraftProxy {
         if !errors.is_empty() {
             return payload_error(VALIDATION_FUNCTION_PAYLOAD.payload_key, errors);
         }
-        let enable = resolved_bool_field(input, "enable").unwrap_or(false);
         if enable && self.effective_active_validation_count(None) >= 25 {
-            return payload_user_error(
-                VALIDATION_FUNCTION_PAYLOAD.payload_key,
-                user_error(
-                    Vec::<&str>::new(),
-                    "Cannot have more than 25 active validation functions.",
-                    Some("MAX_VALIDATIONS_ACTIVATED"),
-                ),
-            );
+            return maximum_active_validations_error();
         }
         let id = self.next_proxy_synthetic_gid("Validation");
         let timestamp = self.next_product_timestamp();
@@ -2236,15 +2721,16 @@ impl DraftProxy {
         let next_enable = resolved_bool_field(input, "enable")
             .or_else(|| resolved_bool_field(input, "enabled"))
             .unwrap_or(false);
-        if next_enable && self.effective_active_validation_count(Some(&id)) >= 25 {
-            return payload_user_error(
+        if next_enable
+            && self.config.read_mode != ReadMode::Snapshot
+            && !self.ensure_function_validation_active_limit_decision(request, Some(&id))
+        {
+            return function_lifecycle_decision_unavailable_error(
                 VALIDATION_FUNCTION_PAYLOAD.payload_key,
-                user_error(
-                    Vec::<&str>::new(),
-                    "Cannot have more than 25 active validation functions.",
-                    Some("MAX_VALIDATIONS_ACTIVATED"),
-                ),
             );
+        }
+        if next_enable && self.effective_active_validation_count(Some(&id)) >= 25 {
+            return maximum_active_validations_error();
         }
         if let Some(title) = resolved_string_field(input, "title") {
             validation["title"] = json!(title);
@@ -2316,19 +2802,7 @@ impl DraftProxy {
         ) {
             return payload;
         }
-        if let Some(function_id) = function_id.as_deref() {
-            if self.effective_function_id_in_use(function_id) {
-                return payload_user_error(
-                    CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key,
-                    user_error(
-                        ["functionId"],
-                        "Could not enable cart transform because it is already registered",
-                        Some("FUNCTION_ALREADY_REGISTERED"),
-                    ),
-                );
-            }
-        }
-        let function = match function_resolution_payload(
+        let function = match function_metadata_resolution_payload(
             self,
             request,
             CART_TRANSFORM_FUNCTION_PAYLOAD,
@@ -2338,6 +2812,44 @@ impl DraftProxy {
             Ok(function) => function,
             Err(payload) => return payload,
         };
+        let resolved_function_id = function["id"].as_str().unwrap_or_default().to_string();
+        if self.effective_function_id_in_use(&resolved_function_id) {
+            return function_already_registered_error(&function_id);
+        }
+        if self.config.read_mode != ReadMode::Snapshot
+            && !function_matches_canonical_api_type(
+                &function,
+                CART_TRANSFORM_FUNCTION_PAYLOAD.expected_api_type,
+            )
+        {
+            if !self
+                .ensure_function_validation_registration_decision(request, &resolved_function_id)
+            {
+                return function_lifecycle_decision_unavailable_error(
+                    CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key,
+                );
+            }
+            if self.effective_function_id_in_use(&resolved_function_id) {
+                return function_already_registered_error(&function_id);
+            }
+        }
+        if let Some(payload) = function_payload_validation_error(
+            CART_TRANSFORM_FUNCTION_PAYLOAD,
+            &function_id,
+            &function,
+        ) {
+            return payload;
+        }
+        if self.config.read_mode != ReadMode::Snapshot
+            && !self.hydrate_function_cart_transform_decision(request)
+        {
+            return function_lifecycle_decision_unavailable_error(
+                CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key,
+            );
+        }
+        if self.effective_function_id_in_use(&resolved_function_id) {
+            return function_already_registered_error(&function_id);
+        }
         if self.effective_cart_transform_count() > 0 {
             return maximum_cart_transforms_error();
         }
@@ -2525,11 +3037,52 @@ impl DraftProxy {
         {
             return payload;
         }
+        if self
+            .store
+            .staged
+            .deleted_function_fulfillment_constraint_rule_ids
+            .contains(&id)
+        {
+            return payload_user_error(
+                FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD.payload_key,
+                user_error(
+                    ["id"],
+                    &format!("Could not find FulfillmentConstraintRule with id: {id}"),
+                    Some("NOT_FOUND"),
+                ),
+            );
+        }
+        if !self
+            .store
+            .staged
+            .function_fulfillment_constraint_rules
+            .contains_key(&id)
+            && !self
+                .store
+                .base
+                .function_fulfillment_constraint_rules
+                .contains_key(&id)
+            && self.config.read_mode != ReadMode::Snapshot
+            && matches!(
+                self.hydrate_function_fulfillment_constraint_rule_by_id(request, &id),
+                FunctionTargetHydration::Unavailable
+            )
+        {
+            return fulfillment_constraint_rule_target_unavailable_error(
+                FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD.payload_key,
+            );
+        }
         let Some(mut rule) = self
             .store
             .staged
             .function_fulfillment_constraint_rules
             .get(&id)
+            .or_else(|| {
+                self.store
+                    .base
+                    .function_fulfillment_constraint_rules
+                    .get(&id)
+            })
             .cloned()
         else {
             return payload_user_error(
@@ -2564,9 +3117,33 @@ impl DraftProxy {
 
     fn function_fulfillment_constraint_rule_delete_payload(
         &mut self,
+        request: &Request,
         field: &FunctionRootInput,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        if !self
+            .store
+            .staged
+            .deleted_function_fulfillment_constraint_rule_ids
+            .contains(&id)
+            && !self
+                .store
+                .staged
+                .function_fulfillment_constraint_rules
+                .contains_key(&id)
+            && !self
+                .store
+                .base
+                .function_fulfillment_constraint_rules
+                .contains_key(&id)
+            && self.config.read_mode != ReadMode::Snapshot
+            && matches!(
+                self.hydrate_function_fulfillment_constraint_rule_by_id(request, &id),
+                FunctionTargetHydration::Unavailable
+            )
+        {
+            return fulfillment_constraint_rule_delete_target_unavailable_error();
+        }
         let (payload, deleted) = delete_staged_function_record(
             &mut self.store.staged.function_fulfillment_constraint_rules,
             &mut self.store.staged.function_fulfillment_constraint_rule_order,

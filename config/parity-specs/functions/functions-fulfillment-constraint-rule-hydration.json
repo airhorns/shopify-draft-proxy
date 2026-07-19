@@ -1,0 +1,56 @@
+{
+  "scenarioId": "functions-fulfillment-constraint-rule-hydration",
+  "operationNames": ["fulfillmentConstraintRuleUpdate", "fulfillmentConstraintRuleDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "live-capture",
+    "user-errors-parity",
+    "payload-shape",
+    "downstream-read-parity",
+    "side-effect-boundary"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-fulfillment-constraint-rule-hydration.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-fulfillment-constraint-hydrated-update.graphql",
+    "variablesCapturePath": "$.update.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "direct-update-hydrates-unobserved-rule",
+        "capturePath": "$.update.response.payload.data.fulfillmentConstraintRuleUpdate",
+        "proxyPath": "$.data.fulfillmentConstraintRuleUpdate"
+      },
+      {
+        "name": "direct-delete-hydrates-unobserved-rule",
+        "capturePath": "$.deleteRule.response.payload.data.fulfillmentConstraintRuleDelete",
+        "proxyPath": "$.data.fulfillmentConstraintRuleDelete",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-fulfillment-constraint-hydrated-delete.graphql",
+          "variablesCapturePath": "$.deleteRule.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "unknown-rule-update-not-found",
+        "capturePath": "$.unknownUpdate.response.payload.data.fulfillmentConstraintRuleUpdate",
+        "proxyPath": "$.data.fulfillmentConstraintRuleUpdate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-fulfillment-constraint-hydrated-unknown-update.graphql",
+          "variablesCapturePath": "$.unknownUpdate.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for direct update/delete of a real rule that a cold proxy has not observed. Replay resolves only the requested rule through an exact read-only Node cassette; an isolated unknown-id update proves the exact NOT_FOUND payload after targeted hydration."
+}

@@ -84,6 +84,7 @@ When a task asks for **parity**, **conformance**, **captured evidence**, or a sc
 - Do not add files to linter/formatter ignore lists just because formatting changes fixtures or parity requests. Format the files, then fix affected tests, captures, specs, or code.
 - In unattended or CI-like workspaces, prefer `corepack pnpm ...` for package scripts.
 - Before adding a resource-local parser, serializer, scalar reader, projection helper, or metafield/search/connection utility, read `docs/helpers.md` and search for an existing shared helper.
+- Before adding an upstream hydrate for a point existence, uniqueness, or limit decision, use the narrowest authoritative read available: prefer singular/`node(id:)` lookups, native counts, or field-minimal threshold scans that stop as soon as the answer is proven. Do not paginate and materialize a complete resource catalog merely to answer one mutation precondition. Cache partial decision facts separately from public resource records, and never let them mark a lifecycle catalog complete.
 - Do not hardcode captured Shopify resource IDs in runtime implementation to make one fixture pass. Fixture/shop IDs may appear in tests, docs, parity requests, and recorded evidence, but production handlers must derive IDs from request arguments, staged/base store state, observed upstream responses, or synthetic ID allocators.
 
 ## Verification loop

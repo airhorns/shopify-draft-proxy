@@ -15,6 +15,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'functions');
 const outputPath = path.join(outputDir, 'functions-fulfillment-constraint-rule-errors.json');
+const missingRuleId = 'gid://shopify/FulfillmentConstraintRule/999999999999';
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
@@ -95,13 +96,12 @@ function assertDeleteUnknown(captureResult: Capture): void {
   const branch = readRecord(readPath(captureResult.response.payload, ['data', 'deleteUnknown']));
   const userErrors = readArray(branch['userErrors']);
   const actual = readRecord(userErrors[0]);
-  const expectedId = 'gid://shopify/FulfillmentConstraintRule/999999999999';
   if (
     branch['success'] !== false ||
     userErrors.length !== 1 ||
     actual['code'] !== 'NOT_FOUND' ||
     JSON.stringify(actual['field']) !== JSON.stringify(['id']) ||
-    actual['message'] !== `Could not find FulfillmentConstraintRule with id: ${expectedId}`
+    actual['message'] !== `Could not find FulfillmentConstraintRule with id: ${missingRuleId}`
   ) {
     throw new Error(`deleteUnknown userError mismatch: ${JSON.stringify(branch, null, 2)}`);
   }
@@ -188,6 +188,44 @@ const readEmptyDocument = `query FulfillmentConstraintRulesEmptyRead {
 }
 `;
 
+const ruleHydrateDocument = `query FunctionFulfillmentConstraintRuleHydrateById($id: ID!) {
+  node(id: $id) {
+    ... on FulfillmentConstraintRule {
+      id
+      deliveryMethodTypes
+      function {
+        id
+        title
+        handle
+        apiType
+        description
+        appKey
+        app {
+          __typename
+          id
+          title
+          handle
+          apiKey
+        }
+      }
+      metafields(first: 100) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          compareDigest
+          ownerType
+          createdAt
+          updatedAt
+        }
+      }
+    }
+  }
+}
+`;
+
 const unknownFunctionDocument = `mutation FulfillmentConstraintRuleUnknownFunction {
   unknownId: fulfillmentConstraintRuleCreate(
     functionId: "gid://shopify/ShopifyFunction/999999999999"
@@ -232,12 +270,17 @@ const functionCatalogDocument = `query FulfillmentConstraintRuleFunctionCatalog 
 
 const schemaSnapshot = await capture(schemaIntrospectionDocument);
 const functionCatalog = await capture(functionCatalogDocument);
+const missingHydrate = await capture(ruleHydrateDocument, { id: missingRuleId });
 const errorShape = await capture(errorShapeDocument);
 const readEmpty = await capture(readEmptyDocument);
 const unknownFunction = await capture(unknownFunctionDocument);
 
 assertNoTopLevelErrors(errorShape, 'fulfillmentConstraintRule error shape');
 assertNoTopLevelErrors(readEmpty, 'fulfillmentConstraintRules empty read');
+assertNoTopLevelErrors(missingHydrate, 'unknown fulfillmentConstraintRule Node hydrate');
+if (readPath(missingHydrate.response.payload, ['data', 'node']) !== null) {
+  throw new Error(`Expected unknown rule hydrate to return null: ${JSON.stringify(missingHydrate.response, null, 2)}`);
+}
 assertPayloadUserError(errorShape, 'missing', {
   code: 'MISSING_FUNCTION_IDENTIFIER',
   field: ['functionHandle'],
@@ -271,10 +314,18 @@ const capturePayload = {
   },
   schemaSnapshot,
   functionCatalog,
+  missingHydrate,
   errorShape,
   readEmpty,
   unknownFunction,
-  upstreamCalls: [],
+  upstreamCalls: [
+    {
+      operationName: 'FunctionFulfillmentConstraintRuleHydrateById',
+      variables: missingHydrate.variables,
+      query: missingHydrate.query,
+      response: { status: missingHydrate.response.status, body: missingHydrate.response.payload },
+    },
+  ],
 };
 
 await mkdir(outputDir, { recursive: true });
