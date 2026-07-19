@@ -355,6 +355,34 @@ impl DraftProxy {
             snapshot["stagedState"]["onlineStoreIntegrations"] =
                 json!(self.store.staged.online_store_integrations.clone());
         }
+        if !self
+            .store
+            .staged
+            .deleted_online_store_integration_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["deletedOnlineStoreIntegrationIds"] = json!(self
+                .store
+                .staged
+                .deleted_online_store_integration_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self
+            .store
+            .staged
+            .online_store_sales_channel_baselines
+            .is_empty()
+        {
+            snapshot["stagedState"]["onlineStoreSalesChannelBaselines"] = json!(self
+                .store
+                .staged
+                .online_store_sales_channel_baselines
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.online_store_blogs.is_empty() {
             snapshot["stagedState"]["onlineStoreBlogs"] =
                 json!(self.store.staged.online_store_blogs.clone());
@@ -372,6 +400,15 @@ impl DraftProxy {
         }
         if let Some(count) = self.store.staged.online_store_blogs_count_base {
             snapshot["stagedState"]["onlineStoreBlogsCountBase"] = json!(count);
+        }
+        if !self.store.staged.online_store_content_baselines.is_empty() {
+            snapshot["stagedState"]["onlineStoreContentBaselines"] = json!(self
+                .store
+                .staged
+                .online_store_content_baselines
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
         }
         if !self.store.staged.online_store_pages.is_empty() {
             snapshot["stagedState"]["onlineStorePages"] =
@@ -624,6 +661,12 @@ impl DraftProxy {
                 json!(self.store.staged.url_redirects.clone());
             snapshot["stagedState"]["urlRedirectOrder"] =
                 json!(self.store.staged.url_redirect_order.clone());
+        }
+        if self.store.staged.url_redirects_baseline_loaded {
+            snapshot["stagedState"]["urlRedirectsBaselineLoaded"] = json!(true);
+        }
+        if let Some(count) = self.store.staged.url_redirects_count_base {
+            snapshot["stagedState"]["urlRedirectsCountBase"] = json!(count);
         }
         // Linked product-option metaobject entry sets feed DISPLAY_NAME_CONFLICT
         // detection on metaobjectUpdate/Upsert. The runner restores mainState
@@ -948,6 +991,18 @@ impl DraftProxy {
             value_map_from_json(state["stagedState"].get("delegatedAccessTokens"));
         self.store.staged.online_store_integrations =
             value_map_from_json(state["stagedState"].get("onlineStoreIntegrations"));
+        self.store.staged.deleted_online_store_integration_ids = state["stagedState"]
+            .get("deletedOnlineStoreIntegrationIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.online_store_sales_channel_baselines = state["stagedState"]
+            .get("onlineStoreSalesChannelBaselines")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.online_store_blogs =
             value_map_from_json(state["stagedState"].get("onlineStoreBlogs"));
         self.store.staged.online_store_blog_order = state["stagedState"]
@@ -964,6 +1019,12 @@ impl DraftProxy {
             .get("onlineStoreBlogsCountBase")
             .and_then(Value::as_u64)
             .map(|count| count as usize);
+        self.store.staged.online_store_content_baselines = state["stagedState"]
+            .get("onlineStoreContentBaselines")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.online_store_pages =
             value_map_from_json(state["stagedState"].get("onlineStorePages"));
         self.store.staged.online_store_page_order = state["stagedState"]
@@ -1540,6 +1601,14 @@ impl DraftProxy {
             .get("urlRedirectOrder")
             .map(string_array_from_json)
             .unwrap_or_else(|| self.store.staged.url_redirects.keys().cloned().collect());
+        self.store.staged.url_redirects_baseline_loaded = state["stagedState"]
+            .get("urlRedirectsBaselineLoaded")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        self.store.staged.url_redirects_count_base = state["stagedState"]
+            .get("urlRedirectsCountBase")
+            .and_then(Value::as_u64)
+            .map(|count| count as usize);
         self.store.staged.linked_product_option_metaobject_sets = state["stagedState"]
             .get("linkedProductOptionMetaobjectSets")
             .and_then(Value::as_array)

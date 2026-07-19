@@ -39,6 +39,15 @@ impl OnlineStoreKind {
         }
     }
 
+    fn baseline_key(self) -> &'static str {
+        match self {
+            Self::Blog => "blogs",
+            Self::Page => "pages",
+            Self::Article => "articles",
+            Self::Comment => "comments",
+        }
+    }
+
     fn deleted_key(self) -> &'static str {
         match self {
             Self::Blog => "deletedBlogId",

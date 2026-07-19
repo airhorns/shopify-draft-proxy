@@ -57,7 +57,7 @@ impl DraftProxy {
             let Some(fields) = crate::graphql::root_fields(query, variables) else {
                 return json_error(400, "Could not parse GraphQL operation");
             };
-            return ok_json(json!({ "data": self.url_redirect_query_data(&fields) }));
+            return self.online_store_query_response(request, &fields);
         }
         match operation_type {
             OperationType::Mutation

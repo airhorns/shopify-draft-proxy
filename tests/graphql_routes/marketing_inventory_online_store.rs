@@ -609,6 +609,170 @@ fn metaobject_url_redirects_stage_and_read_after_definition_url_handle_update() 
 }
 
 #[test]
+fn online_store_url_redirects_live_hybrid_merges_upstream_with_staged_redirects() {
+    let upstream_redirect_id = "gid://shopify/UrlRedirect/903";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream redirects read body parses");
+            upstream_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "allRedirects": {
+                            "nodes": [{
+                                "__typename": "UrlRedirect",
+                                "id": upstream_redirect_id,
+                                "path": "/upstream/source",
+                                "target": "/upstream/target"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": upstream_redirect_id,
+                                "endCursor": upstream_redirect_id
+                            }
+                        },
+                        "redirectCount": { "count": 1, "precision": "EXACT" }
+                    }
+                }),
+            }
+        }
+    });
+
+    let definition_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateRedirectMergeDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "redirect_merge_definition_test",
+            "name": "Redirect merge definition test",
+            "displayNameKey": "title",
+            "access": {"storefront": "PUBLIC_READ"},
+            "capabilities": {
+                "publishable": {"enabled": true},
+                "renderable": {"enabled": true, "data": {"metaTitleKey": "title"}},
+                "onlineStore": {"enabled": true, "data": {"urlHandle": "redirect-merge"}}
+            },
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition_create.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let entry_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateRedirectMergeEntry($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "redirect_merge_definition_test",
+            "handle": "local-old",
+            "capabilities": {
+                "publishable": {"status": "ACTIVE"},
+                "onlineStore": {"templateSuffix": ""}
+            },
+            "fields": [{"key": "title", "value": "Local redirect row"}]
+        }}),
+    ));
+    assert_eq!(
+        entry_create.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let entry_id = entry_create.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let handle_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateRedirectMergeHandle($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": entry_id,
+            "metaobject": {
+                "handle": "local-new",
+                "redirectNewHandle": true,
+                "fields": [{"key": "title", "value": "Local redirect row"}]
+            }
+        }),
+    ));
+    assert_eq!(
+        handle_update.body["data"]["metaobjectUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedRedirectRead {
+          allRedirects: urlRedirects(first: 10, sortKey: PATH) {
+            nodes { id path target }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          redirectCount: urlRedirectsCount { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        upstream_calls.lock().unwrap().len(),
+        1,
+        "a staged redirect must not make the full redirects catalog locally complete"
+    );
+    let redirect_nodes = read.body["data"]["allRedirects"]["nodes"]
+        .as_array()
+        .expect("redirect nodes should be an array");
+    assert_eq!(redirect_nodes.len(), 2);
+    assert!(redirect_nodes[0]["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/UrlRedirect/")));
+    assert_eq!(
+        redirect_nodes[0]["path"],
+        json!("/pages/redirect-merge/local-old")
+    );
+    assert_eq!(
+        redirect_nodes[0]["target"],
+        json!("/pages/redirect-merge/local-new")
+    );
+    assert_eq!(
+        redirect_nodes[1],
+        json!({
+            "id": upstream_redirect_id,
+            "path": "/upstream/source",
+            "target": "/upstream/target"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["redirectCount"],
+        json!({"count": 2, "precision": "EXACT"})
+    );
+}
+
+#[test]
 fn metaobject_definition_list_scalar_field_categories_follow_element_type() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -8388,6 +8552,192 @@ fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
 }
 
 #[test]
+fn online_store_content_live_hybrid_merges_unrelated_upstream_roots_after_local_write() {
+    let upstream_page_id = "gid://shopify/Page/901";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream content read body parses");
+            upstream_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "blogs": { "nodes": [] },
+                        "pages": {
+                            "nodes": [{
+                                "__typename": "Page",
+                                "id": upstream_page_id,
+                                "title": "Upstream page",
+                                "handle": "upstream-page",
+                                "isPublished": true
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": upstream_page_id,
+                                "endCursor": upstream_page_id
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageBlogForMixedContentRead {
+          blogCreate(blog: { title: "Local blog" }) {
+            blog { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["blogCreate"]["userErrors"], json!([]));
+    let local_blog_id = create.body["data"]["blogCreate"]["blog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedContentRead {
+          localBlogs: blogs(first: 10) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          upstreamPages: pages(first: 10) {
+            nodes { id title handle isPublished }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        upstream_calls.lock().unwrap().len(),
+        1,
+        "a staged blog must not make pages look locally complete"
+    );
+    assert_eq!(
+        read.body["data"]["localBlogs"]["nodes"],
+        json!([{ "id": local_blog_id, "title": "Local blog" }])
+    );
+    assert_eq!(
+        read.body["data"]["upstreamPages"]["nodes"],
+        json!([{
+            "id": upstream_page_id,
+            "title": "Upstream page",
+            "handle": "upstream-page",
+            "isPublished": true
+        }])
+    );
+}
+
+#[test]
+fn online_store_themes_live_hybrid_merges_upstream_main_with_local_theme() {
+    let upstream_theme_id = "gid://shopify/OnlineStoreTheme/902";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream themes read body parses");
+            upstream_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "mains": {
+                            "nodes": [{
+                                "__typename": "OnlineStoreTheme",
+                                "id": upstream_theme_id,
+                                "name": "Upstream main theme",
+                                "role": "MAIN"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": upstream_theme_id,
+                                "endCursor": upstream_theme_id
+                            }
+                        },
+                        "unpublished": {
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageUnpublishedTheme {
+          themeCreate(source: "https://example.com/local.zip", name: "Local unpublished theme", role: UNPUBLISHED) {
+            theme { id name role }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["themeCreate"]["userErrors"], json!([]));
+    let local_theme_id = create.body["data"]["themeCreate"]["theme"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedThemeRead {
+          mains: themes(first: 10, roles: [MAIN]) {
+            nodes { id name role }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          unpublished: themes(first: 10, roles: [UNPUBLISHED]) {
+            nodes { id name role }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        upstream_calls.lock().unwrap().len(),
+        1,
+        "a staged non-main theme must not make the MAIN theme list locally complete"
+    );
+    assert_eq!(
+        read.body["data"]["mains"]["nodes"],
+        json!([{ "id": upstream_theme_id, "name": "Upstream main theme", "role": "MAIN" }])
+    );
+    assert_eq!(
+        read.body["data"]["unpublished"]["nodes"],
+        json!([{ "id": local_theme_id, "name": "Local unpublished theme", "role": "UNPUBLISHED" }])
+    );
+}
+
+#[test]
 fn online_store_script_tag_update_unknown_id_returns_not_found() {
     let mut proxy = snapshot_proxy();
 
@@ -15201,7 +15551,11 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         read_after_delete.body["data"]["articles"]["nodes"],
         json!([])
     );
-    assert_eq!(*upstream_calls.lock().unwrap(), 2);
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "the combined read makes one baseline attempt, then falls back to local staged state"
+    );
 }
 
 #[test]

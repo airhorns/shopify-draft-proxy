@@ -26,11 +26,54 @@ impl DraftProxy {
                         url_redirect_sort_key,
                         value_id_cursor,
                     );
-                    selected_count_json(result.total_count, &field.selection)
+                    let count = if resolved_string_field(&field.arguments, "query")
+                        .is_none_or(|query| query.trim().is_empty())
+                    {
+                        self.store
+                            .staged
+                            .url_redirects_count_base
+                            .map(|base| base + self.synthetic_url_redirect_count())
+                            .unwrap_or(result.total_count)
+                    } else {
+                        result.total_count
+                    };
+                    selected_count_json(count, &field.selection)
                 }
                 _ => Value::Null,
             })
         })
+    }
+
+    pub(in crate::proxy) fn observe_url_redirect_response(
+        &mut self,
+        body: &Value,
+        fields: &[RootFieldSelection],
+    ) {
+        let Some(data) = body.get("data") else {
+            return;
+        };
+        for field in fields {
+            let Some(value) = data.get(&field.response_key) else {
+                continue;
+            };
+            match field.name.as_str() {
+                "urlRedirect" => self.observe_url_redirect_node(value),
+                "urlRedirects" => {
+                    self.observe_url_redirect_connection(value);
+                    self.store.staged.url_redirects_baseline_loaded = true;
+                }
+                "urlRedirectsCount" => {
+                    if resolved_string_field(&field.arguments, "query")
+                        .is_none_or(|query| query.trim().is_empty())
+                    {
+                        if let Some(count) = value.get("count").and_then(Value::as_u64) {
+                            self.store.staged.url_redirects_count_base = Some(count as usize);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 
     fn url_redirect_records(&self) -> Vec<Value> {
@@ -48,6 +91,46 @@ impl DraftProxy {
             }
         }
         records
+    }
+
+    fn synthetic_url_redirect_count(&self) -> usize {
+        self.store
+            .staged
+            .url_redirects
+            .keys()
+            .filter(|id| is_synthetic_gid(id))
+            .count()
+    }
+
+    fn observe_url_redirect_connection(&mut self, connection: &Value) {
+        if let Some(nodes) = connection.get("nodes").and_then(Value::as_array) {
+            for node in nodes {
+                self.observe_url_redirect_node(node);
+            }
+        }
+        if let Some(edges) = connection.get("edges").and_then(Value::as_array) {
+            for edge in edges {
+                if let Some(node) = edge.get("node") {
+                    self.observe_url_redirect_node(node);
+                }
+            }
+        }
+    }
+
+    fn observe_url_redirect_node(&mut self, node: &Value) {
+        let Some(id) = node.get("id").and_then(Value::as_str) else {
+            return;
+        };
+        if shopify_gid_resource_type(id) != Some("UrlRedirect")
+            || self.store.staged.url_redirects.contains_key(id)
+        {
+            return;
+        }
+        self.store.staged.url_redirect_order.push(id.to_string());
+        self.store
+            .staged
+            .url_redirects
+            .insert(id.to_string(), node.clone());
     }
 
     fn url_redirect_connection(&self, field: &RootFieldSelection) -> Value {

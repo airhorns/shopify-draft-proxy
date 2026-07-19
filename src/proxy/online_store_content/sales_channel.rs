@@ -8,13 +8,17 @@ impl DraftProxy {
         request: &Request,
         fields: &[RootFieldSelection],
     ) -> Response {
+        let render_effective_after_upstream = self.has_online_store_query_state();
         if self.online_store_content_query_needs_upstream(fields)
             || self.online_store_sales_channel_query_needs_upstream(fields)
         {
             let response = (self.upstream_transport)(request.clone());
             if response.status < 400 {
-                self.observe_online_store_content_response(&response.body);
-                self.observe_online_store_sales_channel_response(&response.body);
+                self.observe_online_store_content_query_response(&response.body, fields);
+                self.observe_online_store_sales_channel_response(&response.body, fields);
+            }
+            if render_effective_after_upstream {
+                return ok_json(json!({ "data": self.online_store_query_data(fields) }));
             }
             return response;
         }
@@ -187,36 +191,26 @@ impl DraftProxy {
         let has_sales_channel_root = fields
             .iter()
             .any(|field| is_online_store_sales_channel_query_root(&field.name));
-        let all_requested_sales_roots_need_upstream = fields
-            .iter()
-            .filter(|field| is_online_store_sales_channel_query_root(&field.name))
-            .all(|field| self.sales_channel_field_needs_upstream(field));
-        let has_local_integration_state = !self.store.staged.online_store_integrations.is_empty();
         has_sales_channel_root
             && fields.iter().all(|field| {
                 is_online_store_sales_channel_query_root(&field.name)
                     || is_online_store_content_query_root(&field.name)
             })
-            && (!fields
-                .iter()
-                .any(|field| is_online_store_content_query_root(&field.name))
-                || !self.has_online_store_content_state())
             && fields
                 .iter()
                 .any(|field| self.sales_channel_field_needs_upstream(field))
-            && (!has_local_integration_state || all_requested_sales_roots_need_upstream)
     }
 
     fn sales_channel_field_needs_upstream(&self, field: &RootFieldSelection) -> bool {
         match field.name.as_str() {
             "theme" => self
                 .singular_sales_channel_record_needs_upstream(field, is_online_store_theme_record),
-            "themes" => !self.any_sales_channel_record(is_online_store_theme_record),
+            "themes" => !self.online_store_sales_channel_baseline_loaded("themes"),
             "scriptTag" => self.singular_sales_channel_record_needs_upstream(
                 field,
                 is_online_store_script_tag_record,
             ),
-            "scriptTags" => !self.any_sales_channel_record(is_online_store_script_tag_record),
+            "scriptTags" => !self.online_store_sales_channel_baseline_loaded("scriptTags"),
             "webPixel" => {
                 self.singular_sales_channel_record_needs_upstream(field, is_web_pixel_record)
             }
@@ -228,13 +222,14 @@ impl DraftProxy {
                 is_mobile_platform_application_record,
             ),
             "mobilePlatformApplications" => {
-                !self.any_sales_channel_record(is_mobile_platform_application_record)
+                !self.online_store_sales_channel_baseline_loaded("mobilePlatformApplications")
             }
             "urlRedirect" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                id.is_empty() || !self.store.staged.url_redirects.contains_key(&id)
+                !id.is_empty() && !self.store.staged.url_redirects.contains_key(&id)
             }
-            "urlRedirects" | "urlRedirectsCount" => !self.has_staged_url_redirects(),
+            "urlRedirects" => !self.store.staged.url_redirects_baseline_loaded,
+            "urlRedirectsCount" => self.store.staged.url_redirects_count_base.is_none(),
             _ => false,
         }
     }
@@ -245,6 +240,15 @@ impl DraftProxy {
         predicate: fn(&Value) -> bool,
     ) -> bool {
         match resolved_string_field(&field.arguments, "id") {
+            Some(id)
+                if self
+                    .store
+                    .staged
+                    .deleted_online_store_integration_ids
+                    .contains(&id) =>
+            {
+                false
+            }
             Some(id) if !id.is_empty() => !self
                 .store
                 .staged
@@ -253,6 +257,31 @@ impl DraftProxy {
                 .is_some_and(predicate),
             _ => !self.any_sales_channel_record(predicate),
         }
+    }
+
+    fn online_store_sales_channel_baseline_loaded(&self, root: &str) -> bool {
+        self.store
+            .staged
+            .online_store_sales_channel_baselines
+            .contains(root)
+    }
+
+    fn has_online_store_query_state(&self) -> bool {
+        self.has_online_store_content_state()
+            || !self.store.staged.online_store_integrations.is_empty()
+            || !self
+                .store
+                .staged
+                .deleted_online_store_integration_ids
+                .is_empty()
+            || !self
+                .store
+                .staged
+                .online_store_sales_channel_baselines
+                .is_empty()
+            || self.has_staged_url_redirects()
+            || self.store.staged.url_redirects_baseline_loaded
+            || self.store.staged.url_redirects_count_base.is_some()
     }
 
     fn any_sales_channel_record(&self, predicate: fn(&Value) -> bool) -> bool {
@@ -322,11 +351,27 @@ impl DraftProxy {
         )
     }
 
-    fn observe_online_store_sales_channel_response(&mut self, body: &Value) {
+    fn observe_online_store_sales_channel_response(
+        &mut self,
+        body: &Value,
+        fields: &[RootFieldSelection],
+    ) {
         let Some(data) = body.get("data") else {
             return;
         };
         self.observe_online_store_sales_channel_node(data);
+        self.observe_url_redirect_response(body, fields);
+        for field in fields {
+            if matches!(
+                field.name.as_str(),
+                "themes" | "scriptTags" | "mobilePlatformApplications"
+            ) {
+                self.store
+                    .staged
+                    .online_store_sales_channel_baselines
+                    .insert(field.name.clone());
+            }
+        }
     }
 
     fn observe_online_store_sales_channel_node(&mut self, node: &Value) {
@@ -338,10 +383,22 @@ impl DraftProxy {
             }
             Value::Object(object) => {
                 if let Some((id, record)) = observed_sales_channel_record(node) {
-                    self.store
+                    if !self
+                        .store
                         .staged
-                        .online_store_integrations
-                        .insert(id, record);
+                        .deleted_online_store_integration_ids
+                        .contains(&id)
+                        && !self
+                            .store
+                            .staged
+                            .online_store_integrations
+                            .contains_key(&id)
+                    {
+                        self.store
+                            .staged
+                            .online_store_integrations
+                            .insert(id, record);
+                    }
                 }
                 for value in object.values() {
                     self.observe_online_store_sales_channel_node(value);
@@ -718,6 +775,10 @@ impl DraftProxy {
             );
         }
         self.store.staged.online_store_integrations.remove(&id);
+        self.store
+            .staged
+            .deleted_online_store_integration_ids
+            .insert(id.clone());
         staged_ids.push(id.clone());
         deleted_script_tag_payload(&field.selection, json!(id), Vec::new())
     }
@@ -916,6 +977,10 @@ impl DraftProxy {
             );
         }
         self.store.staged.online_store_integrations.remove(&id);
+        self.store
+            .staged
+            .deleted_online_store_integration_ids
+            .insert(id.clone());
         staged_ids.push(id.clone());
         deleted_theme_payload(&field.selection, json!(id), Vec::new())
     }

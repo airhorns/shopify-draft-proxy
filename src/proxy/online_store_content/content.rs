@@ -154,7 +154,9 @@ impl DraftProxy {
             && fields
                 .iter()
                 .all(|field| is_online_store_content_query_root(&field.name))
-            && !self.has_online_store_content_state()
+            && fields
+                .iter()
+                .any(|field| self.online_store_content_field_needs_upstream(field))
     }
 
     pub(in crate::proxy) fn observe_online_store_content_response(&mut self, body: &Value) {
@@ -173,6 +175,22 @@ impl DraftProxy {
             }
         }
         self.observe_online_store_content_node(data, None, None);
+    }
+
+    pub(in crate::proxy) fn observe_online_store_content_query_response(
+        &mut self,
+        body: &Value,
+        fields: &[RootFieldSelection],
+    ) {
+        self.observe_online_store_content_response(body);
+        for field in fields {
+            if let Some(kind) = online_store_content_connection_baseline_kind(&field.name) {
+                self.store
+                    .staged
+                    .online_store_content_baselines
+                    .insert(kind.baseline_key().to_string());
+            }
+        }
     }
 
     pub(super) fn has_online_store_content_state(&self) -> bool {
@@ -195,6 +213,51 @@ impl DraftProxy {
             || ONLINE_STORE_COUNT_ROOTS
                 .iter()
                 .any(|(_, kind, _)| kind.count_base(&self.store.staged).is_some())
+            || !self.store.staged.online_store_content_baselines.is_empty()
+    }
+
+    fn online_store_content_field_needs_upstream(&self, field: &RootFieldSelection) -> bool {
+        match field.name.as_str() {
+            "blog" => self.online_store_singular_field_needs_upstream(field, OnlineStoreKind::Blog),
+            "page" => self.online_store_singular_field_needs_upstream(field, OnlineStoreKind::Page),
+            "article" => {
+                self.online_store_singular_field_needs_upstream(field, OnlineStoreKind::Article)
+            }
+            "comment" => {
+                self.online_store_singular_field_needs_upstream(field, OnlineStoreKind::Comment)
+            }
+            "blogs" => !self.online_store_content_baseline_loaded(OnlineStoreKind::Blog),
+            "pages" => !self.online_store_content_baseline_loaded(OnlineStoreKind::Page),
+            "articles" | "articleAuthors" | "articleTags" => {
+                !self.online_store_content_baseline_loaded(OnlineStoreKind::Article)
+            }
+            "comments" => !self.online_store_content_baseline_loaded(OnlineStoreKind::Comment),
+            "blogsCount" => OnlineStoreKind::Blog
+                .count_base(&self.store.staged)
+                .is_none(),
+            "pagesCount" => OnlineStoreKind::Page
+                .count_base(&self.store.staged)
+                .is_none(),
+            _ => false,
+        }
+    }
+
+    fn online_store_singular_field_needs_upstream(
+        &self,
+        field: &RootFieldSelection,
+        kind: OnlineStoreKind,
+    ) -> bool {
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        !id.is_empty()
+            && !kind.deleted_ids(&self.store.staged).contains(&id)
+            && !kind.records(&self.store.staged).contains_key(&id)
+    }
+
+    fn online_store_content_baseline_loaded(&self, kind: OnlineStoreKind) -> bool {
+        self.store
+            .staged
+            .online_store_content_baselines
+            .contains(kind.baseline_key())
     }
 
     fn hydrate_online_store_content_from_upstream(
@@ -264,7 +327,7 @@ impl DraftProxy {
                 if let Some(id) = object.get("id").and_then(Value::as_str) {
                     match shopify_gid_resource_type(id) {
                         Some("Blog") if should_stage_observed_blog(node) => {
-                            self.stage_online_store_record(
+                            self.observe_online_store_record(
                                 OnlineStoreKind::Blog,
                                 id.to_string(),
                                 normalize_observed_blog(node),
@@ -272,14 +335,14 @@ impl DraftProxy {
                             next_parent_blog_id = Some(id.to_string());
                         }
                         Some("Page") if should_stage_observed_page(node) => {
-                            self.stage_online_store_record(
+                            self.observe_online_store_record(
                                 OnlineStoreKind::Page,
                                 id.to_string(),
                                 normalize_observed_page(node),
                             );
                         }
                         Some("Article") if should_stage_observed_article(node) => {
-                            self.stage_online_store_record(
+                            self.observe_online_store_record(
                                 OnlineStoreKind::Article,
                                 id.to_string(),
                                 normalize_observed_article(node, parent_blog_id.as_deref()),
@@ -287,7 +350,7 @@ impl DraftProxy {
                             next_parent_article_id = Some(id.to_string());
                         }
                         Some("Comment") if should_stage_observed_comment(node) => {
-                            self.stage_online_store_record(
+                            self.observe_online_store_record(
                                 OnlineStoreKind::Comment,
                                 id.to_string(),
                                 normalize_observed_comment(node, parent_article_id.as_deref()),
@@ -1069,6 +1132,16 @@ impl DraftProxy {
         if !kind.records(&self.store.staged).contains_key(&id) {
             kind.order_mut(&mut self.store.staged).push(id.clone());
         }
+        kind.records_mut(&mut self.store.staged).insert(id, record);
+    }
+
+    fn observe_online_store_record(&mut self, kind: OnlineStoreKind, id: String, record: Value) {
+        if kind.deleted_ids(&self.store.staged).contains(&id)
+            || kind.records(&self.store.staged).contains_key(&id)
+        {
+            return;
+        }
+        kind.order_mut(&mut self.store.staged).push(id.clone());
         kind.records_mut(&mut self.store.staged).insert(id, record);
     }
 
@@ -1975,6 +2048,16 @@ fn normalize_observed_comment(record: &Value, parent_article_id: Option<&str>) -
         record["publishedAt"] = Value::Null;
     }
     record
+}
+
+fn online_store_content_connection_baseline_kind(root: &str) -> Option<OnlineStoreKind> {
+    match root {
+        "blogs" => Some(OnlineStoreKind::Blog),
+        "pages" => Some(OnlineStoreKind::Page),
+        "articles" | "articleAuthors" | "articleTags" => Some(OnlineStoreKind::Article),
+        "comments" => Some(OnlineStoreKind::Comment),
+        _ => None,
+    }
 }
 
 fn comment_payload_selects_article(selection: &[SelectedField]) -> bool {
