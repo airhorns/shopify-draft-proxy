@@ -848,9 +848,7 @@ const INVENTORY_TRANSFER_HYDRATE_NODES_QUERY: &str = r#"#graphql
   }
 "#;
 
-const INVENTORY_REFERENCE_HYDRATE_NODES_QUERY: &str = r#"query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } } } }"#;
-
-const INVENTORY_LOCATION_HYDRATE_NODES_QUERY: &str = r#"query InventoryLocationsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Location { id name isActive } } }"#;
+const INVENTORY_RICH_REFERENCE_HYDRATE_NODES_QUERY: &str = r#"query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } } } }"#;
 
 const INVENTORY_ITEMS_CATALOG_HYDRATE_QUERY: &str = r#"#graphql
   query InventoryItemsCatalogHydrate($first: Int!, $after: String) {
@@ -941,6 +939,13 @@ impl DraftProxy {
             && !self.inventory_item_is_tombstoned(id)
         {
             let had_overlay = self.inventory_item_has_staged_overlay(id);
+            if had_overlay && self.inventory_item_has_authoritative_base(id) {
+                return ResolverOutcome::value(if self.inventory_item_exists(id) {
+                    self.inventory_item_canonical_value(id)
+                } else {
+                    Value::Null
+                });
+            }
             let result = self.cached_or_forward_upstream_graphql_result(
                 invocation.request,
                 invocation.response_key,
@@ -1007,6 +1012,9 @@ impl DraftProxy {
             .unwrap_or_default();
         if self.config.read_mode == ReadMode::LiveHybrid && !is_synthetic_gid(id) {
             let had_overlay = self.inventory_level_has_staged_overlay(id);
+            if had_overlay {
+                return ResolverOutcome::value(self.inventory_level_value_by_id(id));
+            }
             let result = self.cached_or_forward_upstream_graphql_result(
                 invocation.request,
                 invocation.response_key,

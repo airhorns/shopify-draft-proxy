@@ -96,6 +96,36 @@ impl DraftProxy {
                 .iter()
                 .chain(self.store.staged.active_inventory_levels.iter())
                 .any(|(item_id, _)| item_id == inventory_item_id)
+            || self
+                .store
+                .staged
+                .inventory_transfers
+                .records
+                .values()
+                .any(|transfer| {
+                    transfer
+                        .line_items
+                        .iter()
+                        .any(|line_item| line_item.inventory_item_id == inventory_item_id)
+                })
+    }
+
+    pub(in crate::proxy) fn inventory_item_has_authoritative_base(
+        &self,
+        inventory_item_id: &str,
+    ) -> bool {
+        self.store
+            .product_variants
+            .base
+            .records
+            .values()
+            .any(|variant| variant.inventory_item.id == inventory_item_id)
+            || self
+                .store
+                .base
+                .inventory_levels
+                .keys()
+                .any(|(item_id, _)| item_id == inventory_item_id)
     }
 
     pub(in crate::proxy) fn inventory_catalog_has_staged_overlay(&self) -> bool {
@@ -1604,23 +1634,47 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot || ids.is_empty() {
             return;
         }
-        let reference_ids = ids
+        let inventory_item_ids = ids
             .iter()
-            .filter(|id| {
-                if is_synthetic_gid(id) {
-                    return false;
-                }
-                is_shopify_gid_of_type(id, "InventoryItem")
-                    || is_shopify_gid_of_type(id, "InventoryLevel")
-            })
+            .filter(|id| !is_synthetic_gid(id) && is_shopify_gid_of_type(id, "InventoryItem"))
             .cloned()
             .collect::<Vec<_>>();
-        if !reference_ids.is_empty() {
+        let mut item_hydration_failed = false;
+        if !inventory_item_ids.is_empty() {
             let response = self.upstream_post(
                 request,
                 json!({
-                    "query": INVENTORY_REFERENCE_HYDRATE_NODES_QUERY,
-                    "variables": { "ids": reference_ids }
+                    "query": INVENTORY_RICH_REFERENCE_HYDRATE_NODES_QUERY,
+                    "variables": { "ids": inventory_item_ids }
+                }),
+            );
+            let has_graphql_errors = response
+                .body
+                .get("errors")
+                .and_then(Value::as_array)
+                .is_some_and(|errors| !errors.is_empty());
+            item_hydration_failed = response.status >= 400 || has_graphql_errors;
+            if !item_hydration_failed {
+                self.observe_inventory_transfer_hydration_response(&response.body);
+            }
+        }
+
+        let portable_ids = ids
+            .iter()
+            .filter(|id| {
+                !is_synthetic_gid(id)
+                    && ((item_hydration_failed && is_shopify_gid_of_type(id, "InventoryItem"))
+                        || (is_shopify_gid_of_type(id, "Location")
+                            && !self.inventory_location_exists(id)))
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        if !portable_ids.is_empty() {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": INVENTORY_TRANSFER_HYDRATE_NODES_QUERY,
+                    "variables": { "ids": portable_ids }
                 }),
             );
             if response.status < 400 {
@@ -1628,22 +1682,18 @@ impl DraftProxy {
             }
         }
 
-        let location_ids = ids
+        let inventory_level_ids = ids
             .into_iter()
-            .filter(|id| {
-                !is_synthetic_gid(id)
-                    && is_shopify_gid_of_type(id, "Location")
-                    && !self.inventory_location_exists(id)
-            })
+            .filter(|id| !is_synthetic_gid(id) && is_shopify_gid_of_type(id, "InventoryLevel"))
             .collect::<Vec<_>>();
-        if location_ids.is_empty() {
+        if inventory_level_ids.is_empty() {
             return;
         }
         let response = self.upstream_post(
             request,
             json!({
-                "query": INVENTORY_LOCATION_HYDRATE_NODES_QUERY,
-                "variables": { "ids": location_ids }
+                "query": INVENTORY_RICH_REFERENCE_HYDRATE_NODES_QUERY,
+                "variables": { "ids": inventory_level_ids }
             }),
         );
         if response.status < 400 {

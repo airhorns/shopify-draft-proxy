@@ -4904,30 +4904,20 @@ fn inventory_activate_hydrates_unobserved_targets_and_overlays_immediate_read() 
                 "supported inventory activation must never forward the caller mutation: {body}"
             );
             if query.contains("ProductsHydrateNodes") {
-                return Response {
-                    status: 200,
-                    headers: Default::default(),
-                    body: json!({
-                        "data": {
-                            "nodes": [authoritative_item.clone()]
-                        }
-                    }),
+                let nodes = if query.contains("includeInactive") {
+                    json!([authoritative_item.clone()])
+                } else {
+                    json!([{
+                        "__typename": "Location",
+                        "id": target_location_id,
+                        "name": "Target stockroom",
+                        "isActive": true
+                    }])
                 };
-            }
-            if query.contains("InventoryLocationsHydrateNodes") {
                 return Response {
                     status: 200,
                     headers: Default::default(),
-                    body: json!({
-                        "data": {
-                            "nodes": [{
-                                "__typename": "Location",
-                                "id": target_location_id,
-                                "name": "Target stockroom",
-                                "isActive": true
-                            }]
-                        }
-                    }),
+                    body: json!({ "data": { "nodes": nodes } }),
                 };
             }
             if query.contains("InventoryBeforeColdActivation") {
@@ -5052,11 +5042,19 @@ fn inventory_activate_hydrates_unobserved_targets_and_overlays_immediate_read() 
                 ])
     }));
     let requests = upstream_requests.lock().unwrap();
-    assert_eq!(requests.len(), 4);
+    assert_eq!(requests.len(), 3);
     assert!(requests.iter().any(|body| body["query"]
         .as_str()
         .unwrap_or_default()
         .contains("ProductsHydrateNodes")));
+    assert_eq!(
+        requests[1]["variables"],
+        json!({ "ids": [inventory_item_id] })
+    );
+    assert_eq!(
+        requests[2]["variables"],
+        json!({ "ids": [target_location_id] })
+    );
     assert!(
         requests.iter().all(|body| !body["query"]
             .as_str()

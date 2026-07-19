@@ -6483,7 +6483,7 @@ fn location_deactivate_recomputes_inventory_for_hydrated_base_location() {
     assert!(calls[0]["query"]
         .as_str()
         .unwrap_or_default()
-        .contains("InventoryLocationsHydrateNodes"));
+        .contains("ProductsHydrateNodes"));
     assert_eq!(calls[1]["variables"], json!({ "id": location_id }));
     assert!(calls[1]["query"]
         .as_str()
