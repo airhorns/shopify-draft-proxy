@@ -322,8 +322,15 @@ impl DraftProxy {
                 None
             };
             let explicit_preview = preview_source.or(source_as_preview);
-            if explicit_preview.is_some() {
+            if let Some(source) = &original_source {
+                file["originalSource"] = json!(source);
+            }
+            if let Some(source) = &explicit_preview {
+                file["previewImageSource"] = json!(source);
+            }
+            if explicit_preview.is_some() && content_type.as_deref() == Some("IMAGE") {
                 file["image"] = Value::Null;
+                self.store.staged.media_ready_on_read.insert(id.clone());
             }
             // GenericFile renders `url` from the accepted originalSource. Image-type files defer to async regeneration and keep their hydrated preview/url instead.
             if content_type.as_deref() == Some("FILE") {
@@ -979,11 +986,45 @@ impl DraftProxy {
             .iter()
             .cloned()
             .collect::<Vec<_>>();
+        self.promote_media_file_ids_to_ready(&ids);
+    }
+
+    pub(in crate::proxy) fn promote_media_file_node_reads_to_ready(
+        &mut self,
+        fields: &[RootFieldSelection],
+    ) {
+        let mut ids = Vec::new();
+        for field in fields {
+            match field.name.as_str() {
+                "node" => {
+                    if let Some(id) = resolved_string_field(&field.arguments, "id") {
+                        ids.push(id);
+                    }
+                }
+                "nodes" => {
+                    ids.extend(
+                        field
+                            .arguments
+                            .get("ids")
+                            .map(resolved_string_list)
+                            .unwrap_or_default(),
+                    );
+                }
+                _ => {}
+            }
+        }
+        self.promote_media_file_ids_to_ready(&ids);
+    }
+
+    pub(in crate::proxy) fn promote_media_file_ids_to_ready(&mut self, ids: &[String]) {
         let mut promoted = Vec::new();
         for id in ids {
-            if let Some(file) = self.store.staged.media_files.get_mut(&id) {
+            if !self.store.staged.media_ready_on_read.contains(id) {
+                continue;
+            }
+            if let Some(file) = self.store.staged.media_files.get_mut(id) {
                 promote_media_file_record_to_ready(file);
-                promoted.push(id);
+                promoted.push(id.clone());
             }
         }
         for id in promoted {
@@ -1622,6 +1663,7 @@ fn media_file_record(
         "updatedAt": timestamp,
         "fileStatus": file_status,
         "updateStatus": file_status,
+        "originalSource": original_source,
         "filename": filename,
         "displayName": filename,
         "fileErrors": [],
@@ -1969,6 +2011,9 @@ pub(super) fn media_file_record_from_node(node: &Value) -> Option<Value> {
     record["updatedAt"] = json!(updated_at);
     record["fileStatus"] = json!(file_status);
     record["updateStatus"] = json!(file_status);
+    if let Some(source_url) = &source_url {
+        record["originalSource"] = json!(source_url);
+    }
     record["fileErrors"] = json!([]);
     record["fileWarnings"] = json!([]);
     if let Some(filename) = &filename {
@@ -2013,6 +2058,24 @@ fn promote_media_file_record_to_ready(file: &mut Value) {
     if file.get("status").is_some() {
         file["status"] = json!("READY");
     }
+    if file.get("__typename").and_then(Value::as_str) == Some("MediaImage") {
+        if let Some(url) = media_file_ready_url(file) {
+            file["image"] = json!({"url": url, "width": Value::Null, "height": Value::Null});
+            file["preview"] = json!({
+                "image": {"url": url, "width": Value::Null, "height": Value::Null}
+            });
+        }
+    }
+}
+
+fn media_file_ready_url(file: &Value) -> Option<String> {
+    file.get("previewImageSource")
+        .and_then(Value::as_str)
+        .or_else(|| file.get("originalSource").and_then(Value::as_str))
+        .or_else(|| file.pointer("/image/url").and_then(Value::as_str))
+        .or_else(|| file.pointer("/preview/image/url").and_then(Value::as_str))
+        .or_else(|| file.get("url").and_then(Value::as_str))
+        .map(str::to_string)
 }
 
 // Files-connection cursors are the record gid prefixed with `cursor:`, distinct from the bare-id cursors other connections emit via value_id_cursor.

@@ -308,6 +308,7 @@ impl DraftProxy {
                 if !selection_errors.is_empty() {
                     return ok_json(json!({ "errors": selection_errors }));
                 }
+                self.promote_media_file_node_reads_to_ready(&fields);
                 if let Some(data) = self.local_node_query_data(&fields, false, Some(request)) {
                     ok_json(json!({ "data": data }))
                 } else if self.config.read_mode != ReadMode::Snapshot {
@@ -2157,6 +2158,7 @@ impl DraftProxy {
                     // / tombstoned policies); otherwise the live shop response is
                     // replayed verbatim so unrelated shop fields stay authentic.
                     if self.should_handle_shop_policy_query_locally() {
+                        self.promote_media_file_node_reads_to_ready(&fields);
                         if let Some(data) = self.shop_query_data(&fields, Some(request)) {
                             ok_json(json!({ "data": data }))
                         } else {

@@ -11027,6 +11027,234 @@ fn media_files_read_returns_staged_files_and_empty_file_saved_searches() {
 }
 
 #[test]
+fn media_file_node_reads_promote_staged_files_like_files_connection() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileNodeReadyCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id __typename fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {"alt": "Node image", "contentType": "IMAGE", "filename": "node-image.jpg", "originalSource": "https://cdn.example.com/node-image.jpg"},
+            {"alt": "Node generic", "contentType": "FILE", "filename": "node-generic.pdf", "originalSource": "https://cdn.example.com/node-generic.pdf"},
+            {"alt": "Node video", "contentType": "VIDEO", "filename": "node-video.mp4", "originalSource": "https://cdn.example.com/node-video.mp4"}
+        ]}),
+    ));
+    assert_eq!(create.body["data"]["fileCreate"]["userErrors"], json!([]));
+    let image_id = create.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let generic_id = create.body["data"]["fileCreate"]["files"][1]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let video_id = create.body["data"]["fileCreate"]["files"][2]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileNodeReadyRead($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            id
+            __typename
+            ... on MediaImage {
+              fileStatus
+              image { url width height }
+              preview { image { url } }
+            }
+            ... on GenericFile {
+              fileStatus
+              url
+            }
+            ... on Video {
+              fileStatus
+              status
+              preview { image { url } }
+            }
+          }
+        }
+        "#,
+        json!({"ids": [image_id, generic_id, video_id]}),
+    ));
+    assert_eq!(
+        node_read.body["data"]["nodes"],
+        json!([
+            {
+                "id": image_id,
+                "__typename": "MediaImage",
+                "fileStatus": "READY",
+                "image": {
+                    "url": "https://cdn.example.com/node-image.jpg",
+                    "width": null,
+                    "height": null
+                },
+                "preview": {
+                    "image": {
+                        "url": "https://cdn.example.com/node-image.jpg"
+                    }
+                }
+            },
+            {
+                "id": generic_id,
+                "__typename": "GenericFile",
+                "fileStatus": "READY",
+                "url": "https://cdn.example.com/node-generic.pdf"
+            },
+            {
+                "id": video_id,
+                "__typename": "Video",
+                "fileStatus": "READY",
+                "status": "READY",
+                "preview": {
+                    "image": null
+                }
+            }
+        ])
+    );
+
+    let files_read = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileNodeReadyFilesRead {
+          files(first: 10) {
+            nodes {
+              id
+              __typename
+              fileStatus
+              ... on MediaImage { image { url } preview { image { url } } }
+              ... on GenericFile { url }
+              ... on Video { status preview { image { url } } }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        files_read.body["data"]["files"]["nodes"],
+        json!([
+            {
+                "id": image_id,
+                "__typename": "MediaImage",
+                "fileStatus": "READY",
+                "image": {"url": "https://cdn.example.com/node-image.jpg"},
+                "preview": {"image": {"url": "https://cdn.example.com/node-image.jpg"}}
+            },
+            {
+                "id": generic_id,
+                "__typename": "GenericFile",
+                "fileStatus": "READY",
+                "url": "https://cdn.example.com/node-generic.pdf"
+            },
+            {
+                "id": video_id,
+                "__typename": "Video",
+                "fileStatus": "READY",
+                "status": "READY",
+                "preview": {"image": null}
+            }
+        ])
+    );
+}
+
+#[test]
+fn media_file_update_source_rehydrates_image_on_next_node_read() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileSourceRehydrateCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"alt": "Source rehydrate", "contentType": "IMAGE", "filename": "source-rehydrate.jpg", "originalSource": "https://cdn.example.com/source-rehydrate.jpg"}]}),
+    ));
+    assert_eq!(create.body["data"]["fileCreate"]["userErrors"], json!([]));
+    let file_id = create.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let ready_poll = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileSourceRehydrateReadyPoll {
+          files(first: 1) {
+            nodes { id fileStatus ... on MediaImage { image { url } preview { image { url } } } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        ready_poll.body["data"]["files"]["nodes"][0]["fileStatus"],
+        json!("READY")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileSourceRehydrateUpdate($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files { id fileStatus ... on MediaImage { image { url } preview { image { url } } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"id": file_id, "originalSource": "https://cdn.example.com/source-rehydrate-updated.jpg"}]}),
+    ));
+    assert_eq!(
+        update.body["data"]["fileUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileSourceRehydrateNodeRead($id: ID!) {
+          node(id: $id) {
+            id
+            __typename
+            ... on MediaImage {
+              fileStatus
+              image { url width height }
+              preview { image { url width height } }
+            }
+          }
+        }
+        "#,
+        json!({"id": file_id}),
+    ));
+    assert_eq!(
+        node_read.body["data"]["node"],
+        json!({
+            "id": file_id,
+            "__typename": "MediaImage",
+            "fileStatus": "READY",
+            "image": {
+                "url": "https://cdn.example.com/source-rehydrate-updated.jpg",
+                "width": null,
+                "height": null
+            },
+            "preview": {
+                "image": {
+                    "url": "https://cdn.example.com/source-rehydrate-updated.jpg",
+                    "width": null,
+                    "height": null
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn media_file_create_poll_ready_then_update_succeeds() {
     let mut proxy = snapshot_proxy();
 

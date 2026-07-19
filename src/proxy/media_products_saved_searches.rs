@@ -98,6 +98,7 @@ impl DraftProxy {
         root_fields: &[RootFieldSelection],
     ) -> Value {
         self.promote_product_media_ready_on_read(root_fields);
+        self.promote_media_file_node_reads_to_ready(root_fields);
         root_payload_json(root_fields, |field| match field.name.as_str() {
             "product" => Some(self.product_by_id_field(field)),
             "products" => Some(self.products_connection_field(field)),
