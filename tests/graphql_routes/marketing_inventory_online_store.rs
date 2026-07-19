@@ -10108,6 +10108,357 @@ fn metaobjects_read_empty_and_lifecycle_state_locally_for_arbitrary_documents() 
     assert_metaobject_reference_and_references_project_locally_staged_targets();
 }
 
+#[test]
+fn metaobject_live_hybrid_reads_overlay_upstream_and_staged_catalogs() {
+    let upstream_definition = json!({
+        "id": "gid://shopify/MetaobjectDefinition/9001",
+        "type": "hybrid_article",
+        "name": "Hybrid Article",
+        "description": null,
+        "displayNameKey": "title",
+        "access": {"admin": "MERCHANT_READ_WRITE", "storefront": "NONE"},
+        "capabilities": {
+            "publishable": {"enabled": false},
+            "translatable": {"enabled": false},
+            "renderable": {"enabled": false},
+            "onlineStore": {"enabled": false}
+        },
+        "fieldDefinitions": [{
+            "key": "title",
+            "name": "Title",
+            "description": null,
+            "required": true,
+            "type": {"name": "single_line_text_field", "category": "TEXT"},
+            "validations": []
+        }],
+        "hasThumbnailField": false,
+        "metaobjectsCount": 2,
+        "standardTemplate": null,
+        "createdAt": "2026-01-01T00:00:00Z",
+        "updatedAt": "2026-01-01T00:00:00Z"
+    });
+    let upstream_alpha = json!({
+        "id": "gid://shopify/Metaobject/9101",
+        "handle": "alpha-upstream",
+        "type": "hybrid_article",
+        "displayName": "Alpha Upstream",
+        "createdAt": "2026-01-01T00:00:00Z",
+        "updatedAt": "2026-01-01T00:00:00Z",
+        "capabilities": {"publishable": null, "onlineStore": null},
+        "fields": [{
+            "key": "title",
+            "type": "single_line_text_field",
+            "value": "Alpha Upstream",
+            "jsonValue": "Alpha Upstream",
+            "definition": {
+                "key": "title",
+                "name": "Title",
+                "required": true,
+                "type": {"name": "single_line_text_field", "category": "TEXT"}
+            }
+        }]
+    });
+    let upstream_bravo = json!({
+        "id": "gid://shopify/Metaobject/9102",
+        "handle": "bravo-upstream",
+        "type": "hybrid_article",
+        "displayName": "Bravo Upstream",
+        "createdAt": "2026-01-01T00:00:01Z",
+        "updatedAt": "2026-01-01T00:00:01Z",
+        "capabilities": {"publishable": null, "onlineStore": null},
+        "fields": [{
+            "key": "title",
+            "type": "single_line_text_field",
+            "value": "Bravo Upstream",
+            "jsonValue": "Bravo Upstream",
+            "definition": {
+                "key": "title",
+                "name": "Title",
+                "required": true,
+                "type": {"name": "single_line_text_field", "category": "TEXT"}
+            }
+        }]
+    });
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_definition = upstream_definition.clone();
+        let upstream_alpha = upstream_alpha.clone();
+        let upstream_bravo = upstream_bravo.clone();
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream request body should parse");
+            let query = body["query"].as_str().unwrap_or_default();
+            upstream_calls.lock().unwrap().push(query.to_string());
+            let variables = body["variables"].clone();
+            let requested_type = variables["type"].as_str().unwrap_or_default();
+            let requested_id = variables["id"].as_str().unwrap_or_default();
+
+            let data = if query.contains("MetaobjectDefinitionHydrateByType") {
+                json!({
+                    "metaobjectDefinitionByType": if requested_type == "hybrid_article" {
+                        upstream_definition.clone()
+                    } else {
+                        Value::Null
+                    }
+                })
+            } else if query.contains("MetaobjectDefinitionsHydrate") {
+                json!({
+                    "metaobjectDefinitions": {
+                        "nodes": []
+                    }
+                })
+            } else if query.contains("MetaobjectBulkDeleteHydrateByType") {
+                json!({
+                    "catalog": {
+                        "nodes": [upstream_alpha.clone(), upstream_bravo.clone()]
+                    },
+                    "definition": if requested_type == "hybrid_article" {
+                        upstream_definition.clone()
+                    } else {
+                        Value::Null
+                    }
+                })
+            } else if query.contains("MetaobjectHydrateById") {
+                json!({
+                    "node": if requested_id == "gid://shopify/Metaobject/9102" {
+                        json!({"__typename": "Metaobject"})
+                    } else {
+                        Value::Null
+                    },
+                    "metaobject": if requested_id == "gid://shopify/Metaobject/9102" {
+                        upstream_bravo.clone()
+                    } else {
+                        Value::Null
+                    }
+                })
+            } else if requested_type == "hybrid_article" {
+                json!({
+                    "aliasCatalog": {
+                        "nodes": [upstream_alpha.clone(), upstream_bravo.clone()],
+                        "edges": [
+                            {"cursor": "cursor:gid://shopify/Metaobject/9101", "node": upstream_alpha.clone()},
+                            {"cursor": "cursor:gid://shopify/Metaobject/9102", "node": upstream_bravo.clone()}
+                        ],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "cursor:gid://shopify/Metaobject/9101",
+                            "endCursor": "cursor:gid://shopify/Metaobject/9102"
+                        }
+                    },
+                    "aliasDefinition": upstream_definition.clone(),
+                    "upstreamAlpha": upstream_alpha.clone(),
+                    "upstreamHandle": upstream_alpha.clone()
+                })
+            } else {
+                json!({
+                    "localDefinition": null,
+                    "definitions": {
+                        "nodes": [],
+                        "edges": [],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": data}),
+            }
+        }
+    });
+
+    let local_definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id type metaobjectsCount }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "local_definition_only",
+            "name": "Local Definition Only",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        local_definition.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    let local_definition_read = proxy.process_request(json_graphql_request(
+        r#"
+        query LocalDefinitionOnlyRead($type: String!) {
+          localDefinition: metaobjectDefinitionByType(type: $type) { id type metaobjectsCount }
+          definitions: metaobjectDefinitions(first: 10) { nodes { id type metaobjectsCount } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+        }
+        "#,
+        json!({"type": "local_definition_only"}),
+    ));
+    assert_eq!(
+        local_definition_read.body["data"]["localDefinition"]["type"],
+        json!("local_definition_only")
+    );
+    assert_eq!(
+        local_definition_read.body["data"]["definitions"]["nodes"][0]["type"],
+        json!("local_definition_only")
+    );
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateHybridEntry($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle type displayName fields { key value jsonValue } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "hybrid_article",
+            "handle": "charlie-local",
+            "fields": [{"key": "title", "value": "Charlie Local"}]
+        }}),
+    ));
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let local_entry_id = created.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let mixed_read = proxy.process_request(json_graphql_request(
+        r#"
+        query HybridEffectiveRead($type: String!, $alpha: ID!, $local: ID!, $handle: MetaobjectHandleInput!) {
+          aliasCatalog: metaobjects(type: $type, first: 10, sortKey: DISPLAY_NAME) {
+            nodes { id handle displayName }
+            edges { cursor node { id handle displayName } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          aliasDefinition: metaobjectDefinitionByType(type: $type) {
+            id
+            type
+            metaobjectsCount
+            metaobjects(first: 10) { nodes { id handle displayName } }
+          }
+          upstreamAlpha: metaobject(id: $alpha) { id handle displayName }
+          localDetail: metaobject(id: $local) { id handle displayName }
+          upstreamHandle: metaobjectByHandle(handle: $handle) { id handle displayName }
+        }
+        "#,
+        json!({
+            "type": "hybrid_article",
+            "alpha": "gid://shopify/Metaobject/9101",
+            "local": local_entry_id,
+            "handle": {"type": "hybrid_article", "handle": "alpha-upstream"}
+        }),
+    ));
+    let catalog_handles = mixed_read.body["data"]["aliasCatalog"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|node| node["handle"].as_str().unwrap().to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        catalog_handles,
+        vec!["alpha-upstream", "bravo-upstream", "charlie-local"]
+    );
+    assert_eq!(
+        mixed_read.body["data"]["aliasDefinition"]["metaobjectsCount"],
+        json!(3)
+    );
+    assert_eq!(
+        mixed_read.body["data"]["upstreamAlpha"]["displayName"],
+        json!("Alpha Upstream")
+    );
+    assert_eq!(
+        mixed_read.body["data"]["localDetail"]["displayName"],
+        json!("Charlie Local")
+    );
+    assert_eq!(
+        mixed_read.body["data"]["upstreamHandle"]["id"],
+        json!("gid://shopify/Metaobject/9101")
+    );
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteUpstreamEntry($id: ID!) {
+          metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } }
+        }
+        "#,
+        json!({"id": "gid://shopify/Metaobject/9102"}),
+    ));
+    assert_eq!(
+        deleted.body["data"]["metaobjectDelete"]["deletedId"],
+        json!("gid://shopify/Metaobject/9102")
+    );
+
+    let updated = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateLocalEntry($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id handle displayName }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "id": local_entry_id,
+            "metaobject": {"fields": [{"key": "title", "value": "Delta Local"}]}
+        }),
+    ));
+    assert_eq!(
+        updated.body["data"]["metaobjectUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let paged = proxy.process_request(json_graphql_request(
+        r#"
+        query HybridFilteredWindow($type: String!, $query: String!) {
+          firstPage: metaobjects(type: $type, first: 1, sortKey: DISPLAY_NAME) {
+            nodes { id handle displayName }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          filtered: metaobjects(type: $type, first: 10, query: $query) {
+            nodes { id handle displayName }
+          }
+          definition: metaobjectDefinitionByType(type: $type) { metaobjectsCount }
+        }
+        "#,
+        json!({"type": "hybrid_article", "query": "display_name:Delta"}),
+    ));
+    assert_eq!(
+        paged.body["data"]["firstPage"]["nodes"][0]["handle"],
+        json!("alpha-upstream")
+    );
+    assert_eq!(
+        paged.body["data"]["firstPage"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    let filtered_handles = paged.body["data"]["filtered"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|node| node["handle"].as_str().unwrap().to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(filtered_handles, vec!["charlie-local"]);
+    assert_eq!(
+        paged.body["data"]["definition"]["metaobjectsCount"],
+        json!(2)
+    );
+}
+
 fn assert_metaobject_reference_and_references_project_locally_staged_targets() {
     let mut proxy = snapshot_proxy();
 

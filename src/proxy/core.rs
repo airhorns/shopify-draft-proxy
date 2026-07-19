@@ -249,6 +249,10 @@ impl DraftProxy {
                 "shopPolicyOrder": self.store.base.shop_policies.order,
                 "deliveryProfiles": self.store.base.delivery_profiles.records.clone(),
                 "deliveryProfileOrder": self.store.base.delivery_profiles.order,
+                "metaobjectDefinitions": self.store.base.metaobject_definitions.records.clone(),
+                "metaobjectDefinitionOrder": self.store.base.metaobject_definitions.order,
+                "metaobjects": self.store.base.metaobjects.records.clone(),
+                "metaobjectOrder": self.store.base.metaobjects.order,
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
                 "shop": self.store.base.shop.clone(),
@@ -1077,6 +1081,25 @@ impl DraftProxy {
             .base
             .delivery_profiles
             .replace_with_order(base_delivery_profiles, base_delivery_profile_order);
+        let base_metaobject_definitions =
+            value_map_from_json(state["baseState"].get("metaobjectDefinitions"));
+        let base_metaobject_definition_order = state["baseState"]
+            .get("metaobjectDefinitionOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| base_metaobject_definitions.keys().cloned().collect());
+        self.store.base.metaobject_definitions.replace_with_order(
+            base_metaobject_definitions,
+            base_metaobject_definition_order,
+        );
+        let base_metaobjects = value_map_from_json(state["baseState"].get("metaobjects"));
+        let base_metaobject_order = state["baseState"]
+            .get("metaobjectOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| base_metaobjects.keys().cloned().collect());
+        self.store
+            .base
+            .metaobjects
+            .replace_with_order(base_metaobjects, base_metaobject_order);
         self.store.base.shop = base_shop;
         self.store.base.publication_ids =
             string_array_from_json(&state["baseState"]["publicationIds"])

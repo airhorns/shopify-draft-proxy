@@ -2851,9 +2851,41 @@ fn metaobject_search_decision(record: &Value, query: Option<&str>) -> StagedSear
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn has_local_metaobject_entry_state(&self) -> bool {
-        !self.store.staged.metaobjects.is_empty()
-            || !self.store.staged.metaobjects.tombstones.is_empty()
+    fn has_local_metaobject_state(&self) -> bool {
+        !self.store.staged.metaobject_definitions.is_empty()
+            || !self.store.staged.metaobjects.is_empty()
+    }
+
+    fn effective_metaobject_records(&self) -> Vec<Value> {
+        effective_records(&self.store.base.metaobjects, &self.store.staged.metaobjects)
+    }
+
+    fn effective_metaobject_definition_records(&self) -> Vec<Value> {
+        effective_records(
+            &self.store.base.metaobject_definitions,
+            &self.store.staged.metaobject_definitions,
+        )
+    }
+
+    fn observe_base_metaobject_definition(&mut self, definition: Value) -> Option<Value> {
+        let id = definition.get("id").and_then(Value::as_str)?.to_string();
+        if id.is_empty() {
+            return Some(definition);
+        }
+        self.store
+            .base
+            .metaobject_definitions
+            .insert(id, definition.clone());
+        Some(definition)
+    }
+
+    fn observe_base_metaobject(&mut self, record: Value) -> Option<Value> {
+        let id = record.get("id").and_then(Value::as_str)?.to_string();
+        if id.is_empty() {
+            return Some(record);
+        }
+        self.store.base.metaobjects.insert(id, record.clone());
+        Some(record)
     }
 
     /// Decides whether a metaobject mutation request should be staged locally or
@@ -2932,6 +2964,11 @@ impl DraftProxy {
         request: &Request,
         fields: &[RootFieldSelection],
     ) -> Response {
+        if self.has_local_metaobject_state() {
+            self.hydrate_metaobject_live_hybrid_fields(request, fields);
+            return ok_json(json!({ "data": self.metaobject_query_data(fields, request) }));
+        }
+
         let mut response = (self.upstream_transport)(request.clone());
         let Some(data) = response.body.get_mut("data").and_then(Value::as_object_mut) else {
             return response;
@@ -2987,6 +3024,60 @@ impl DraftProxy {
             }
         }
         response
+    }
+
+    fn hydrate_metaobject_live_hybrid_fields(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) {
+        for field in fields {
+            match field.name.as_str() {
+                "metaobjects" => {
+                    let meta_type =
+                        resolved_string_field(&field.arguments, "type").unwrap_or_default();
+                    self.hydrate_metaobjects_by_type(request, &meta_type);
+                }
+                "metaobject" => {
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                    if !id.is_empty() && self.metaobject_by_id(&id).is_none() {
+                        self.hydrate_metaobject_by_id(request, &id);
+                    }
+                }
+                "metaobjectByHandle" => {
+                    if let Some(handle) = resolved_object_field(&field.arguments, "handle") {
+                        let meta_type = resolved_string_field(&handle, "type").unwrap_or_default();
+                        let meta_handle =
+                            resolved_string_field(&handle, "handle").unwrap_or_default();
+                        if self
+                            .metaobject_by_type_and_handle(&meta_type, &meta_handle)
+                            .is_none()
+                        {
+                            self.hydrate_metaobject_by_handle(request, &meta_type, &meta_handle);
+                        }
+                    }
+                }
+                "metaobjectDefinition" => {
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                    if !id.is_empty() && self.metaobject_definition_by_id(&id).is_none() {
+                        self.hydrate_metaobject_definition_by_id(request, &id);
+                    }
+                }
+                "metaobjectDefinitionByType" => {
+                    let meta_type = resolved_metaobject_definition_type_arg(
+                        field.arguments.get("type"),
+                        request,
+                    );
+                    if self.metaobject_definition_by_type(&meta_type).is_none() {
+                        self.hydrate_metaobject_definition_by_type(request, &meta_type);
+                    }
+                }
+                "metaobjectDefinitions" => {
+                    self.hydrate_metaobject_definitions(request);
+                }
+                _ => {}
+            }
+        }
     }
 
     pub(in crate::proxy) fn metaobject_mutation(
@@ -3051,7 +3142,12 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn metaobject_by_id(&self, id: &str) -> Option<Value> {
-        self.store.staged.metaobjects.get(id).cloned()
+        effective_get(
+            &self.store.base.metaobjects,
+            &self.store.staged.metaobjects,
+            id,
+        )
+        .cloned()
     }
 
     /// Resolve a linked metaobject reference (the gid stored in a product option's
@@ -3070,6 +3166,9 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot || id.is_empty() {
             return None;
         }
+        if self.store.staged.metaobjects.is_tombstoned(id) {
+            return None;
+        }
         let response = self.upstream_post(
             request,
             json!({
@@ -3081,11 +3180,7 @@ impl DraftProxy {
         if !record.is_object() {
             return None;
         }
-        self.store
-            .staged
-            .metaobjects
-            .insert(id.to_string(), record.clone());
-        Some(record)
+        self.observe_base_metaobject(record)
     }
 
     fn hydrate_metaobject_by_handle(
@@ -3117,12 +3212,7 @@ impl DraftProxy {
         {
             if let Some(definition_id) = definition.get("id").and_then(Value::as_str) {
                 self.store
-                    .staged
-                    .metaobject_definitions
-                    .tombstones
-                    .remove(definition_id);
-                self.store
-                    .staged
+                    .base
                     .metaobject_definitions
                     .insert(definition_id.to_string(), definition.clone());
             }
@@ -3138,7 +3228,10 @@ impl DraftProxy {
         if id.is_empty() {
             return Some(record);
         }
-        self.store.staged.metaobjects.insert(id, record.clone());
+        if self.store.staged.metaobjects.is_tombstoned(&id) {
+            return None;
+        }
+        self.store.base.metaobjects.insert(id, record.clone());
         Some(record)
     }
 
@@ -3245,12 +3338,7 @@ impl DraftProxy {
         {
             if let Some(id) = definition.get("id").and_then(Value::as_str) {
                 self.store
-                    .staged
-                    .metaobject_definitions
-                    .tombstones
-                    .remove(id);
-                self.store
-                    .staged
+                    .base
                     .metaobject_definitions
                     .insert(id.to_string(), definition);
             }
@@ -3265,7 +3353,7 @@ impl DraftProxy {
         for record in &nodes {
             if let Some(id) = record.get("id").and_then(Value::as_str) {
                 self.store
-                    .staged
+                    .base
                     .metaobjects
                     .insert(id.to_string(), record.clone());
             }
@@ -3290,40 +3378,28 @@ impl DraftProxy {
         meta_type: &str,
         meta_handle: &str,
     ) -> Option<Value> {
-        self.store
-            .staged
-            .metaobjects
-            .values()
-            .find(|record| {
+        effective_find(
+            &self.store.base.metaobjects,
+            &self.store.staged.metaobjects,
+            |record| {
                 record.get("type").and_then(Value::as_str) == Some(meta_type)
                     && record.get("handle").and_then(Value::as_str) == Some(meta_handle)
-                    && !self
-                        .store
-                        .staged
-                        .metaobjects
-                        .is_tombstoned(record.get("id").and_then(Value::as_str).unwrap_or_default())
-            })
-            .cloned()
+            },
+        )
+        .cloned()
     }
 
     pub(in crate::proxy) fn metaobject_connection(&self, field: &RootFieldSelection) -> Value {
         let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
-        let records: Vec<Value> =
-            self.store
-                .staged
-                .metaobjects
-                .values()
-                .filter(|record| {
-                    record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
-                        && !self.store.staged.metaobjects.is_tombstoned(
-                            record.get("id").and_then(Value::as_str).unwrap_or_default(),
-                        )
-                })
-                .map(|record| self.project_metaobject_against_definition(record))
-                // A row whose required display field has no value is not yet surfaced
-                // by the Admin search index that backs `metaobjects(type:)`.
-                .filter(|record| self.metaobject_visible_in_catalog(record))
-                .collect();
+        let records: Vec<Value> = self
+            .effective_metaobject_records()
+            .into_iter()
+            .filter(|record| record.get("type").and_then(Value::as_str) == Some(meta_type.as_str()))
+            .map(|record| self.project_metaobject_against_definition(&record))
+            // A row whose required display field has no value is not yet surfaced
+            // by the Admin search index that backs `metaobjects(type:)`.
+            .filter(|record| self.metaobject_visible_in_catalog(record))
+            .collect();
         selected_staged_connection_with_args(
             records,
             &field.arguments,
@@ -3499,23 +3575,21 @@ impl DraftProxy {
             .and_then(Value::as_str)
             .unwrap_or_default();
         let conflicts_linked_option_value = self
-            .store
-            .staged
-            .metaobjects
-            .values()
+            .effective_metaobject_records()
+            .into_iter()
             .filter(|record| {
                 record.get("id").and_then(Value::as_str) != Some(existing_id)
                     && record.get("type").and_then(Value::as_str) == Some(meta_type)
                     && record.get("displayName").and_then(Value::as_str)
                         == Some(display_name.as_str())
             })
-            .filter_map(|record| record.get("id").and_then(Value::as_str))
+            .filter_map(|record| record.get("id").and_then(Value::as_str).map(str::to_string))
             .any(|other_id| {
                 self.store
                     .staged
                     .linked_product_option_metaobject_sets
                     .iter()
-                    .any(|ids| ids.contains(existing_id) && ids.contains(other_id))
+                    .any(|ids| ids.contains(existing_id) && ids.contains(&other_id))
             });
         if !conflicts_linked_option_value {
             return Vec::new();
@@ -3930,15 +4004,10 @@ impl DraftProxy {
                 );
             }
             let ids_to_delete = self
-                .store
-                .staged
-                .metaobjects
-                .values()
+                .effective_metaobject_records()
+                .into_iter()
                 .filter(|record| {
                     record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
-                        && !self.store.staged.metaobjects.is_tombstoned(
-                            record.get("id").and_then(Value::as_str).unwrap_or_default(),
-                        )
                 })
                 .filter_map(|record| record.get("id").and_then(Value::as_str).map(str::to_string))
                 .collect::<Vec<_>>();
@@ -4181,13 +4250,7 @@ impl DraftProxy {
             );
         };
         let meta_type = metaobject_definition_type_from_input(&definition_input, request);
-        let existing_definitions = self
-            .store
-            .staged
-            .metaobject_definitions
-            .iter()
-            .filter(|(id, _)| !self.store.staged.metaobject_definitions.is_tombstoned(id))
-            .count();
+        let existing_definitions = self.effective_metaobject_definition_records().len();
         let validation_errors = if let Some(error) =
             metaobject_definition_type_identity_error(&definition_input, request)
         {
@@ -4320,10 +4383,8 @@ impl DraftProxy {
         {
             let old_url_handle = old_url_handle.unwrap_or_default();
             let new_url_handle = new_url_handle.unwrap_or_default();
-            self.store
-                .staged
-                .metaobjects
-                .values()
+            self.effective_metaobject_records()
+                .into_iter()
                 .filter(|record| {
                     record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
                         && metaobject_record_has_active_online_store(record)
@@ -4370,10 +4431,8 @@ impl DraftProxy {
         };
         let meta_type = definition["type"].as_str().unwrap_or_default().to_string();
         let ids_to_delete = self
-            .store
-            .staged
-            .metaobjects
-            .values()
+            .effective_metaobject_records()
+            .into_iter()
             .filter(|record| record.get("type").and_then(Value::as_str) == Some(meta_type.as_str()))
             .filter_map(|record| record.get("id").and_then(Value::as_str).map(str::to_string))
             .collect::<Vec<_>>();
@@ -4394,16 +4453,21 @@ impl DraftProxy {
     }
 
     fn metaobject_definition_by_id(&self, id: &str) -> Option<Value> {
-        self.store.staged.metaobject_definitions.get(id).cloned()
+        effective_get(
+            &self.store.base.metaobject_definitions,
+            &self.store.staged.metaobject_definitions,
+            id,
+        )
+        .cloned()
     }
 
     fn metaobject_definition_by_type(&self, meta_type: &str) -> Option<Value> {
-        self.store
-            .staged
-            .metaobject_definitions
-            .values()
-            .find(|definition| definition.get("type").and_then(Value::as_str) == Some(meta_type))
-            .cloned()
+        effective_find(
+            &self.store.base.metaobject_definitions,
+            &self.store.staged.metaobject_definitions,
+            |definition| definition.get("type").and_then(Value::as_str) == Some(meta_type),
+        )
+        .cloned()
     }
 
     fn metaobject_definition_with_derived_fields(&self, definition: &Value) -> Value {
@@ -4433,19 +4497,12 @@ impl DraftProxy {
             .get("type")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        let mut records =
-            self.store
-                .staged
-                .metaobjects
-                .values()
-                .filter(|record| {
-                    record.get("type").and_then(Value::as_str) == Some(meta_type)
-                        && !self.store.staged.metaobjects.is_tombstoned(
-                            record.get("id").and_then(Value::as_str).unwrap_or_default(),
-                        )
-                })
-                .map(|record| self.project_metaobject_against_definition(record))
-                .collect::<Vec<_>>();
+        let mut records = self
+            .effective_metaobject_records()
+            .into_iter()
+            .filter(|record| record.get("type").and_then(Value::as_str) == Some(meta_type))
+            .map(|record| self.project_metaobject_against_definition(&record))
+            .collect::<Vec<_>>();
         records.sort_by(|left, right| {
             metaobject_staged_sort_key(left, None)
                 .cmp(&metaobject_staged_sort_key(right, None))
@@ -4504,34 +4561,77 @@ impl DraftProxy {
         if id.is_empty() {
             return Some(definition);
         }
+        if self.store.staged.metaobject_definitions.is_tombstoned(&id) {
+            return None;
+        }
         self.store
-            .staged
-            .metaobject_definitions
-            .tombstones
-            .remove(&id);
-        self.store
-            .staged
+            .base
             .metaobject_definitions
             .insert(id, definition.clone());
         Some(definition)
     }
 
-    fn metaobject_definition_connection(&self, field: &RootFieldSelection) -> Value {
-        let mut records = self
-            .store
-            .staged
-            .metaobject_definitions
-            .values()
-            .filter(|definition| {
-                !self.store.staged.metaobject_definitions.is_tombstoned(
-                    definition
-                        .get("id")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default(),
-                )
-            })
+    fn hydrate_metaobject_definition_by_id(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> Option<Value> {
+        if self.config.read_mode == ReadMode::Snapshot || id.trim().is_empty() {
+            return None;
+        }
+        if self.store.staged.metaobject_definitions.is_tombstoned(id) {
+            return None;
+        }
+        let query = "query MetaobjectDefinitionHydrateById($id: ID!) { metaobjectDefinition(id: $id) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }";
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": query,
+                "variables": {"id": id}
+            }),
+        );
+        if response.status < 200 || response.status >= 300 {
+            return None;
+        }
+        let definition = response
+            .body
+            .get("data")
+            .and_then(|data| data.get("metaobjectDefinition"))
+            .filter(|definition| definition.is_object())?
+            .clone();
+        self.observe_base_metaobject_definition(definition)
+    }
+
+    fn hydrate_metaobject_definitions(&mut self, request: &Request) -> Vec<Value> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return Vec::new();
+        }
+        let query = "query MetaobjectDefinitionsHydrate { metaobjectDefinitions(first: 250) { nodes { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }";
+        let response = self.upstream_post(request, json!({ "query": query, "variables": {} }));
+        if response.status < 200 || response.status >= 300 {
+            return Vec::new();
+        }
+        let nodes = response
+            .body
+            .get("data")
+            .and_then(|data| data.get("metaobjectDefinitions"))
+            .and_then(|connection| connection.get("nodes"))
+            .and_then(Value::as_array)
             .cloned()
-            .collect::<Vec<_>>();
+            .unwrap_or_default();
+        for definition in &nodes {
+            if let Some(id) = definition.get("id").and_then(Value::as_str) {
+                self.store
+                    .base
+                    .metaobject_definitions
+                    .insert(id.to_string(), definition.clone());
+            }
+        }
+        nodes
+    }
+
+    fn metaobject_definition_connection(&self, field: &RootFieldSelection) -> Value {
+        let mut records = self.effective_metaobject_definition_records();
         records.sort_by(|left, right| {
             left.get("type")
                 .and_then(Value::as_str)
@@ -4556,14 +4656,16 @@ impl DraftProxy {
 
     fn increment_metaobject_definition_count(&mut self, meta_type: &str, delta: i64) {
         let Some((id, mut definition)) = self
-            .store
-            .staged
-            .metaobject_definitions
-            .iter()
-            .find(|(_, definition)| {
-                definition.get("type").and_then(Value::as_str) == Some(meta_type)
+            .effective_metaobject_definition_records()
+            .into_iter()
+            .find(|definition| definition.get("type").and_then(Value::as_str) == Some(meta_type))
+            .and_then(|definition| {
+                let id = definition
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)?;
+                Some((id, definition))
             })
-            .map(|(id, definition)| (id.clone(), definition.clone()))
         else {
             return;
         };
@@ -4658,19 +4760,16 @@ impl DraftProxy {
         handle: &str,
         current_id: &str,
     ) -> bool {
-        self.store.staged.metaobjects.values().any(|record| {
-            record.get("type").and_then(Value::as_str) == Some(meta_type)
-                && record
-                    .get("handle")
-                    .and_then(Value::as_str)
-                    .is_some_and(|candidate| candidate.eq_ignore_ascii_case(handle))
-                && record.get("id").and_then(Value::as_str) != Some(current_id)
-                && !self
-                    .store
-                    .staged
-                    .metaobjects
-                    .is_tombstoned(record.get("id").and_then(Value::as_str).unwrap_or_default())
-        })
+        self.effective_metaobject_records()
+            .into_iter()
+            .any(|record| {
+                record.get("type").and_then(Value::as_str) == Some(meta_type)
+                    && record
+                        .get("handle")
+                        .and_then(Value::as_str)
+                        .is_some_and(|candidate| candidate.eq_ignore_ascii_case(handle))
+                    && record.get("id").and_then(Value::as_str) != Some(current_id)
+            })
     }
 }
 
