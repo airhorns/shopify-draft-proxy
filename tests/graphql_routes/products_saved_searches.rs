@@ -14899,6 +14899,7 @@ fn implemented_registry_entry_without_direct_binding_fails_construction() {
             domain: CapabilityDomain::Products,
             implemented: true,
             runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
+            commit_id_mappings: Vec::new(),
         }])
     });
 
