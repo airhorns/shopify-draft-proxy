@@ -139,6 +139,7 @@ lookups.
 - isolate Shopify-specific parse/validation/coercion envelope translation in `graphql_error_compat.rs`; domain resolvers do not own top-level GraphQL error formatting
 - provide request-scoped Admin and Storefront root executors that serialize access to the instance-owned proxy, reuse grouped reads where necessary, and invoke domain-owned callbacks with one local-only context
 - preserve original multi-root mutation documents in the replay log while preventing mixed local/passthrough writes
+- preserve each locally executed `bulkOperationRunMutation` JSONL row as its own ordered replay entry instead of collapsing those entries into the outer job-submission document
 - wrap upstream transports with the stage-locally mutation guard while leaving query hydration and commit replay on their explicit transport paths
 - preserve `with_clock(...)`, `with_upstream_transport(...)`, and `with_commit_transport(...)` test seams so behavior stays deterministic
 

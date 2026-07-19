@@ -1,6 +1,15 @@
 {
   "scenarioId": "b2b-cold-company-location-hydration",
-  "operationNames": ["companies", "companyLocationUpdate", "companyLocationTaxSettingsUpdate"],
+  "operationNames": [
+    "companies",
+    "company",
+    "companyContact",
+    "companyLocation",
+    "companyUpdate",
+    "companyContactUpdate",
+    "companyLocationUpdate",
+    "companyLocationTaxSettingsUpdate"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["upstream-passthrough", "upstream-hydration-parity", "runtime-staging", "payload-shape"],
   "liveCaptureFiles": [
@@ -13,7 +22,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Regression coverage for cold B2B state. The first replay request is a companies(first:, query:) read before any staged B2B company exists, so the proxy must forward upstream instead of answering from an empty local graph. Later replay requests use a live-captured CompanyLocation ID, requiring the proxy to hydrate that location through the exact B2BCompanyLocationHydrate cassette before staging companyLocationUpdate and tax settings locally. Before this fix, the cold companies read returned an empty local connection and real non-synthetic company locations returned not-found userErrors.",
+  "notes": "Captured Shopify Admin GraphQL evidence for cold B2B state. Replay begins with a partial companies connection, then uses real Company, CompanyContact, and CompanyLocation IDs as mutation-first update targets. Each local mutation must issue the captured exact B2BMutationTargetsHydrate query, stage without sending a mutation upstream, preserve the partial catalog's unrelated relationship state, and serve the final company/contact/location readback from the hydrated baseline plus staged overlays.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -22,6 +31,36 @@
         "name": "cold-companies-read-data",
         "capturePath": "$.coldCompaniesRead.response.data",
         "proxyPath": "$.data"
+      },
+      {
+        "name": "cold-singular-company-contact-location-relationships",
+        "capturePath": "$.coldSingularRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-mutation-first-readback.graphql",
+          "variablesCapturePath": "$.coldSingularRead.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "mutation-first-company-update-data",
+        "capturePath": "$.companyUpdate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-mutation-first-company-update.graphql",
+          "variablesCapturePath": "$.companyUpdate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "mutation-first-contact-update-data",
+        "capturePath": "$.contactUpdate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-mutation-first-contact-update.graphql",
+          "variablesCapturePath": "$.contactUpdate.request.variables",
+          "apiVersion": "2026-04"
+        }
       },
       {
         "name": "cold-company-location-update-data",
@@ -40,6 +79,16 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-tax.graphql",
           "variablesCapturePath": "$.taxUpdate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "hydrated-baseline-with-staged-overlays-readback",
+        "capturePath": "$.readAfterMutationFirstUpdates.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-mutation-first-readback.graphql",
+          "variablesCapturePath": "$.readAfterMutationFirstUpdates.request.variables",
           "apiVersion": "2026-04"
         }
       }

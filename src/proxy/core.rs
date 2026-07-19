@@ -678,6 +678,15 @@ impl DraftProxy {
             snapshot["baseState"]["b2bStaffAssignmentOrder"] =
                 json!(self.store.base.b2b_staff_assignments.order.clone());
         }
+        if !self.store.base.b2b_staff_member_ids.is_empty() {
+            snapshot["baseState"]["b2bStaffMemberIds"] = json!(self
+                .store
+                .base
+                .b2b_staff_member_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.base.function_metadata.is_empty() {
             snapshot["baseState"]["functionMetadata"] =
                 json!(self.store.base.function_metadata.clone());
@@ -2001,6 +2010,12 @@ impl DraftProxy {
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
+        self.store.base.b2b_staff_member_ids = state["baseState"]
+            .get("b2bStaffMemberIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.publication_ids =
             string_array_from_json(&state["stagedState"]["publicationIds"])
                 .into_iter()

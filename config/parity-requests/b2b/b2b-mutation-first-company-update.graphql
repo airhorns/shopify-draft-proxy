@@ -1,0 +1,20 @@
+mutation B2BMutationFirstCompanyUpdate($companyId: ID!, $input: CompanyInput!) {
+  companyUpdate(companyId: $companyId, input: $input) {
+    company {
+      id
+      name
+      externalId
+      locations(first: 5) {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
