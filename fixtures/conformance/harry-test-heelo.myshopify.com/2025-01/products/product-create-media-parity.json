@@ -1,7 +1,7 @@
 {
   "mutation": {
     "variables": {
-      "productId": "gid://shopify/Product/10232069259570",
+      "productId": "gid://shopify/Product/10243947069746",
       "media": [
         {
           "mediaContentType": "IMAGE",
@@ -15,7 +15,7 @@
         "productCreateMedia": {
           "media": [
             {
-              "id": "gid://shopify/MediaImage/43997129343282",
+              "id": "gid://shopify/MediaImage/44070841549106",
               "alt": "Front view",
               "mediaContentType": "IMAGE",
               "status": "UPLOADED",
@@ -27,11 +27,11 @@
           ],
           "mediaUserErrors": [],
           "product": {
-            "id": "gid://shopify/Product/10232069259570",
+            "id": "gid://shopify/Product/10243947069746",
             "media": {
               "nodes": [
                 {
-                  "id": "gid://shopify/MediaImage/43997129343282",
+                  "id": "gid://shopify/MediaImage/44070841549106",
                   "alt": "Front view",
                   "mediaContentType": "IMAGE",
                   "status": "UPLOADED",
@@ -51,7 +51,7 @@
           "actualQueryCost": 28,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1963,
+            "currentlyAvailable": 1967,
             "restoreRate": 100
           }
         }
@@ -61,11 +61,11 @@
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10232069259570",
+        "id": "gid://shopify/Product/10243947069746",
         "media": {
           "nodes": [
             {
-              "id": "gid://shopify/MediaImage/43997129343282",
+              "id": "gid://shopify/MediaImage/44070841549106",
               "alt": "Front view",
               "mediaContentType": "IMAGE",
               "status": "PROCESSING",
@@ -95,7 +95,7 @@
         "actualQueryCost": 14,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1971,
+          "currentlyAvailable": 1978,
           "restoreRate": 100
         }
       }
@@ -104,21 +104,21 @@
   "readyRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10232069259570",
+        "id": "gid://shopify/Product/10243947069746",
         "media": {
           "nodes": [
             {
-              "id": "gid://shopify/MediaImage/43997129343282",
+              "id": "gid://shopify/MediaImage/44070841549106",
               "alt": "Front view",
               "mediaContentType": "IMAGE",
               "status": "READY",
               "preview": {
                 "image": {
-                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b0d19978-d718-498b-a8f8-9dd3469fef92.png?v=1783231920"
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_c96fea6a-1240-427b-8ecb-7f1568c0893c.png?v=1784476201"
                 }
               },
               "image": {
-                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b0d19978-d718-498b-a8f8-9dd3469fef92.png?v=1783231920"
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_c96fea6a-1240-427b-8ecb-7f1568c0893c.png?v=1784476201"
               }
             }
           ]
@@ -126,39 +126,39 @@
         "images": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductImage/53954520973618",
-              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b0d19978-d718-498b-a8f8-9dd3469fef92.png?v=1783231920",
+              "id": "gid://shopify/ProductImage/54030132248882",
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_c96fea6a-1240-427b-8ecb-7f1568c0893c.png?v=1784476201",
               "altText": "Front view"
             }
           ],
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0Mzk5NzEyOTM0MzI4MiwibGFzdF92YWx1ZSI6IjEifQ==",
-            "endCursor": "eyJsYXN0X2lkIjo0Mzk5NzEyOTM0MzI4MiwibGFzdF92YWx1ZSI6IjEifQ=="
+            "startCursor": "eyJsYXN0X2lkIjo0NDA3MDg0MTU0OTEwNiwibGFzdF92YWx1ZSI6IjEifQ==",
+            "endCursor": "eyJsYXN0X2lkIjo0NDA3MDg0MTU0OTEwNiwibGFzdF92YWx1ZSI6IjEifQ=="
           }
         },
         "featuredImage": {
-          "id": "gid://shopify/ProductImage/53954520973618",
-          "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b0d19978-d718-498b-a8f8-9dd3469fef92.png?v=1783231920",
+          "id": "gid://shopify/ProductImage/54030132248882",
+          "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_c96fea6a-1240-427b-8ecb-7f1568c0893c.png?v=1784476201",
           "altText": "Front view"
         },
         "featuredMedia": {
           "__typename": "MediaImage",
-          "id": "gid://shopify/MediaImage/43997129343282",
+          "id": "gid://shopify/MediaImage/44070841549106",
           "alt": "Front view",
           "mediaContentType": "IMAGE",
           "status": "READY",
           "image": {
-            "id": "gid://shopify/ImageSource/43997129343282",
-            "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b0d19978-d718-498b-a8f8-9dd3469fef92.png?v=1783231920",
+            "id": "gid://shopify/ImageSource/44070841549106",
+            "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_c96fea6a-1240-427b-8ecb-7f1568c0893c.png?v=1784476201",
             "altText": "Front view",
             "width": 600,
             "height": 400
           },
           "preview": {
             "image": {
-              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_b0d19978-d718-498b-a8f8-9dd3469fef92.png?v=1783231920",
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_c96fea6a-1240-427b-8ecb-7f1568c0893c.png?v=1784476201",
               "width": 600,
               "height": 400
             }
@@ -182,7 +182,7 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10232069259570"]
+        "ids": ["gid://shopify/Product/10243947069746"]
       },
       "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
@@ -191,16 +191,16 @@
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10232069259570",
-                "title": "Hermes Product Media Conformance 1783231918471",
-                "handle": "hermes-product-media-conformance-1783231918471",
+                "id": "gid://shopify/Product/10243947069746",
+                "title": "Hermes Product Media Conformance 1784476199106",
+                "handle": "hermes-product-media-conformance-1784476199106",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51425044103474",
+                      "id": "gid://shopify/ProductVariant/51488359776562",
                       "title": "Default Title",
                       "sku": null,
                       "barcode": null,
@@ -216,7 +216,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53530127565106",
+                        "id": "gid://shopify/InventoryItem/53593958187314",
                         "tracked": false,
                         "requiresShipping": true
                       }
