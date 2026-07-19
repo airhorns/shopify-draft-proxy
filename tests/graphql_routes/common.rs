@@ -244,5 +244,6 @@ pub(super) fn registry_entry(
         domain: CapabilityDomain::Products,
         implemented,
         runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
+        commit_id_mappings: Vec::new(),
     }
 }

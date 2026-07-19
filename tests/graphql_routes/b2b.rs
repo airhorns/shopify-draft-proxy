@@ -1860,6 +1860,558 @@ fn b2b_companies_cold_live_hybrid_read_forwards_upstream() {
 }
 
 #[test]
+fn b2b_company_location_cold_live_hybrid_read_hydrates_for_local_update() {
+    let location_id = "gid://shopify/CompanyLocation/880001";
+    let company_id = "gid://shopify/Company/780001";
+    let captured = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).expect("upstream body");
+            assert!(
+                !body["query"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("mutation"),
+                "supported B2B writes must not be forwarded upstream"
+            );
+            let mutation_hydrate =
+                body["operationName"].as_str() == Some("B2BMutationTargetsHydrate");
+            captured.lock().expect("captured upstream").push(body);
+            if mutation_hydrate {
+                b2b_mutation_targets_location_hydrate_response(
+                    location_id,
+                    "Cold Upstream HQ",
+                    company_id,
+                )
+            } else {
+                b2b_company_location_hydrate_response(location_id, "Cold Upstream HQ", company_id)
+            }
+        }
+    });
+
+    let cold_read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BColdCompanyLocation($id: ID!) {
+          companyLocation(id: $id) { id name company { id name } }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        cold_read.body["data"]["companyLocation"],
+        json!({
+            "id": location_id,
+            "name": "Cold Upstream HQ",
+            "company": { "id": company_id, "name": "Hydrated Company" }
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BUpdateColdCompanyLocation($id: ID!) {
+          companyLocationUpdate(companyLocationId: $id, input: { name: "Locally Updated HQ" }) {
+            companyLocation { id name company { id name } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        update.body["data"]["companyLocationUpdate"],
+        json!({
+            "companyLocation": {
+                "id": location_id,
+                "name": "Locally Updated HQ",
+                "company": { "id": company_id, "name": "Hydrated Company" }
+            },
+            "userErrors": []
+        })
+    );
+    let calls = captured.lock().expect("captured upstream");
+    assert_eq!(calls.len(), 2);
+    assert!(calls[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("query B2BColdCompanyLocation")));
+    assert_eq!(
+        calls[1]["operationName"],
+        json!("B2BMutationTargetsHydrate")
+    );
+}
+
+#[test]
+fn b2b_company_contact_cold_live_hybrid_read_forwards_authoritative_relationships() {
+    let captured = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).expect("upstream body");
+            captured.lock().expect("captured upstream").push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "companyContact": b2b_mutation_first_hydrate_test_contact()
+                    }
+                }),
+            }
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BColdCompanyContact($id: ID!) {
+          companyContact(id: $id) {
+            id
+            title
+            company { id name }
+            customer { id email }
+            roleAssignments(first: 5) {
+              nodes { id companyLocation { id } role { id } }
+            }
+          }
+        }
+        "#,
+        json!({ "id": B2B_HYDRATE_TEST_CONTACT_ID }),
+    ));
+    assert_eq!(
+        response.body["data"]["companyContact"]["company"],
+        json!({
+            "id": B2B_HYDRATE_TEST_COMPANY_ID,
+            "name": "Hydrated Buyer"
+        })
+    );
+    assert_eq!(
+        response.body["data"]["companyContact"]["customer"],
+        json!({
+            "id": B2B_HYDRATE_TEST_CUSTOMER_ID,
+            "email": "buyer@example.com"
+        })
+    );
+    assert_eq!(
+        response.body["data"]["companyContact"]["roleAssignments"]["nodes"][0]["id"],
+        json!(B2B_HYDRATE_TEST_ROLE_ASSIGNMENT_ID)
+    );
+    assert_eq!(captured.lock().expect("captured upstream").len(), 1);
+}
+
+#[test]
+fn b2b_company_update_hydrates_an_unseeded_target_and_keeps_unrelated_reads_visible() {
+    let company_id = "gid://shopify/Company/780010";
+    let unrelated_company_id = "gid://shopify/Company/780011";
+    let captured = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).expect("upstream body");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                !query.contains("mutation"),
+                "supported B2B writes must only issue query hydration"
+            );
+            captured
+                .lock()
+                .expect("captured upstream")
+                .push(body.clone());
+            if body["variables"]["id"] == json!(unrelated_company_id)
+                || body["variables"]["ids"]
+                    .as_array()
+                    .is_some_and(|ids| ids.iter().any(|id| id == unrelated_company_id))
+            {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "company": {
+                                "id": unrelated_company_id,
+                                "name": "Unrelated Upstream Company"
+                            }
+                        }
+                    }),
+                }
+            } else {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "companies": {
+                                "nodes": [{
+                                    "id": company_id,
+                                    "name": "Mutation First Company",
+                                    "externalId": "MUTATION-FIRST",
+                                    "locations": { "nodes": [] },
+                                    "contacts": { "nodes": [] },
+                                    "contactRoles": { "nodes": [] }
+                                }]
+                            },
+                            "nodes": [{
+                                "__typename": "Company",
+                                "id": company_id,
+                                "name": "Mutation First Company",
+                                "externalId": "MUTATION-FIRST",
+                                "locations": { "nodes": [] },
+                                "contacts": { "nodes": [] },
+                                "contactRoles": { "nodes": [] }
+                            }]
+                        }
+                    }),
+                }
+            }
+        }
+    });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BMutationFirstCompanyUpdate($companyId: ID!) {
+          companyUpdate(companyId: $companyId, input: { name: "Locally Updated Company" }) {
+            company { id name externalId }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id }),
+    ));
+    assert_eq!(
+        update.body["data"]["companyUpdate"],
+        json!({
+            "company": {
+                "id": company_id,
+                "name": "Locally Updated Company",
+                "externalId": "MUTATION-FIRST"
+            },
+            "userErrors": []
+        })
+    );
+
+    let unrelated = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BUnrelatedCompanyAfterMutationFirst($id: ID!) {
+          company(id: $id) { id name }
+        }
+        "#,
+        json!({ "id": unrelated_company_id }),
+    ));
+    assert_eq!(
+        unrelated.body["data"]["company"],
+        json!({
+            "id": unrelated_company_id,
+            "name": "Unrelated Upstream Company"
+        })
+    );
+    assert_eq!(captured.lock().expect("captured upstream").len(), 2);
+}
+
+#[test]
+fn b2b_mutation_first_hydrates_contact_role_staff_address_and_customer_relationships() {
+    let captured = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).expect("upstream body");
+            assert!(
+                !body["query"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("mutation"),
+                "supported B2B mutations must hydrate through queries only"
+            );
+            let response = b2b_mutation_first_hydrate_test_response(&body);
+            captured.lock().expect("captured upstream").push(body);
+            response
+        }
+    });
+
+    let contact_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BMutationFirstContactUpdate($id: ID!) {
+          companyContactUpdate(companyContactId: $id, input: { title: "Hydrated buyer" }) {
+            companyContact { id title company { id name } customer { id email } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": B2B_HYDRATE_TEST_CONTACT_ID }),
+    ));
+    assert_eq!(
+        contact_update.body["data"]["companyContactUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        contact_update.body["data"]["companyContactUpdate"]["companyContact"]["title"],
+        json!("Hydrated buyer")
+    );
+
+    let delete_address = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BMutationFirstAddressDelete($id: ID!) {
+          companyAddressDelete(addressId: $id) {
+            deletedAddressId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": B2B_HYDRATE_TEST_ADDRESS_ID }),
+    ));
+    assert_eq!(
+        delete_address.body["data"]["companyAddressDelete"],
+        json!({
+            "deletedAddressId": B2B_HYDRATE_TEST_ADDRESS_ID,
+            "userErrors": []
+        })
+    );
+
+    let revoke_role = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BMutationFirstRoleRevoke($contactId: ID!, $assignmentId: ID!) {
+          companyContactRevokeRole(
+            companyContactId: $contactId
+            companyContactRoleAssignmentId: $assignmentId
+          ) {
+            revokedCompanyContactRoleAssignmentId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "contactId": B2B_HYDRATE_TEST_CONTACT_ID,
+            "assignmentId": B2B_HYDRATE_TEST_ROLE_ASSIGNMENT_ID
+        }),
+    ));
+    assert_eq!(
+        revoke_role.body["data"]["companyContactRevokeRole"],
+        json!({
+            "revokedCompanyContactRoleAssignmentId": B2B_HYDRATE_TEST_ROLE_ASSIGNMENT_ID,
+            "userErrors": []
+        })
+    );
+
+    let remove_staff = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BMutationFirstStaffRemove($ids: [ID!]!) {
+          companyLocationRemoveStaffMembers(companyLocationStaffMemberAssignmentIds: $ids) {
+            deletedCompanyLocationStaffMemberAssignmentIds
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "ids": [B2B_HYDRATE_TEST_STAFF_ASSIGNMENT_ID] }),
+    ));
+    assert_eq!(
+        remove_staff.body["data"]["companyLocationRemoveStaffMembers"],
+        json!({
+            "deletedCompanyLocationStaffMemberAssignmentIds": [B2B_HYDRATE_TEST_STAFF_ASSIGNMENT_ID],
+            "userErrors": []
+        })
+    );
+
+    let assign_staff = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BMutationFirstStaffAssign($locationId: ID!, $staffIds: [ID!]!) {
+          companyLocationAssignStaffMembers(
+            companyLocationId: $locationId
+            staffMemberIds: $staffIds
+          ) {
+            companyLocationStaffMemberAssignments { staffMember { id } companyLocation { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "locationId": B2B_HYDRATE_TEST_LOCATION_ID,
+            "staffIds": [B2B_HYDRATE_TEST_STAFF_ID]
+        }),
+    ));
+    assert_eq!(
+        assign_staff.body["data"]["companyLocationAssignStaffMembers"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        assign_staff.body["data"]["companyLocationAssignStaffMembers"]
+            ["companyLocationStaffMemberAssignments"][0]["staffMember"]["id"],
+        json!(B2B_HYDRATE_TEST_STAFF_ID)
+    );
+
+    let assign_customer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BMutationFirstAssignCustomer($companyId: ID!, $customerId: ID!) {
+          companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {
+            companyContact { id company { id } customer { id email } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyId": B2B_HYDRATE_TEST_COMPANY_ID,
+            "customerId": B2B_HYDRATE_TEST_ASSIGNABLE_CUSTOMER_ID
+        }),
+    ));
+    assert_eq!(
+        assign_customer.body["data"]["companyAssignCustomerAsContact"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        assign_customer.body["data"]["companyAssignCustomerAsContact"]["companyContact"]
+            ["customer"]["id"],
+        json!(B2B_HYDRATE_TEST_ASSIGNABLE_CUSTOMER_ID)
+    );
+
+    let calls = captured.lock().expect("captured upstream");
+    assert!(calls.iter().all(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| !query.contains("mutation"))));
+    assert!(calls
+        .iter()
+        .any(|body| { body["operationName"] == json!("B2BCompanyAddressOwnerHydrate") }));
+    assert!(
+        calls
+            .iter()
+            .filter(|body| { body["operationName"] == json!("B2BMutationTargetsHydrate") })
+            .count()
+            >= 6
+    );
+}
+
+#[test]
+fn b2b_mutation_hydration_pages_partial_company_memberships_before_delete_decisions() {
+    let company_id = "gid://shopify/Company/991100";
+    let deleted_location_id = "gid://shopify/CompanyLocation/992100";
+    let sibling_location_id = "gid://shopify/CompanyLocation/992101";
+    let captured = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).expect("upstream body");
+            assert!(
+                !body["query"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("mutation"),
+                "membership hydration must stay query-only"
+            );
+            let operation_name = body["operationName"].as_str().unwrap_or_default();
+            let response = match operation_name {
+                "B2BMutationTargetsHydrate" => json!({
+                    "data": {
+                        "nodes": [{
+                            "__typename": "CompanyLocation",
+                            "id": deleted_location_id,
+                            "name": "Paged primary",
+                            "roleAssignments": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false, "endCursor": Value::Null }
+                            },
+                            "staffMemberAssignments": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false, "endCursor": Value::Null }
+                            },
+                            "company": {
+                                "__typename": "Company",
+                                "id": company_id,
+                                "name": "Paged company",
+                                "locations": {
+                                    "nodes": [{ "id": deleted_location_id, "name": "Paged primary" }],
+                                    "pageInfo": { "hasNextPage": true, "endCursor": "page-one" }
+                                },
+                                "contacts": {
+                                    "nodes": [],
+                                    "pageInfo": { "hasNextPage": false, "endCursor": Value::Null }
+                                },
+                                "contactRoles": {
+                                    "nodes": [],
+                                    "pageInfo": { "hasNextPage": false, "endCursor": Value::Null }
+                                },
+                                "mainContact": Value::Null
+                            }
+                        }]
+                    }
+                }),
+                "B2BCompanyCatalogPageHydrate" => json!({
+                    "data": {
+                        "company": {
+                            "__typename": "Company",
+                            "id": company_id,
+                            "name": "Paged company",
+                            "locations": {
+                                "nodes": [{ "id": sibling_location_id, "name": "Paged sibling" }],
+                                "pageInfo": { "hasNextPage": false, "endCursor": "page-two" }
+                            }
+                        }
+                    }
+                }),
+                _ => json!({
+                    "data": {
+                        "companyLocation": {
+                            "id": sibling_location_id,
+                            "name": "Paged sibling",
+                            "company": { "id": company_id, "name": "Paged company" }
+                        }
+                    }
+                }),
+            };
+            captured.lock().expect("captured upstream").push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: response,
+            }
+        }
+    });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BDeleteAfterMembershipPages($id: ID!) {
+          companyLocationDelete(companyLocationId: $id) {
+            deletedCompanyLocationId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": deleted_location_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["companyLocationDelete"],
+        json!({ "deletedCompanyLocationId": deleted_location_id, "userErrors": [] })
+    );
+
+    let deleted_read = proxy.process_request(json_graphql_request(
+        "query B2BDeletedPagedLocation($id: ID!) { companyLocation(id: $id) { id } }",
+        json!({ "id": deleted_location_id }),
+    ));
+    assert!(deleted_read.body["data"]["companyLocation"].is_null());
+
+    let sibling_read = proxy.process_request(json_graphql_request(
+        "query B2BSiblingPagedLocation($id: ID!) { companyLocation(id: $id) { id name company { id name } } }",
+        json!({ "id": sibling_location_id }),
+    ));
+    assert_eq!(
+        sibling_read.body["data"]["companyLocation"],
+        json!({
+            "id": sibling_location_id,
+            "name": "Paged sibling",
+            "company": { "id": company_id, "name": "Paged company" }
+        })
+    );
+
+    let calls = captured.lock().expect("captured upstream");
+    assert_eq!(calls.len(), 3);
+    assert_eq!(
+        calls[0]["operationName"],
+        json!("B2BMutationTargetsHydrate")
+    );
+    assert_eq!(
+        calls[1]["operationName"],
+        json!("B2BCompanyCatalogPageHydrate")
+    );
+    assert!(calls[2]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("query B2BSiblingPagedLocation")));
+}
+
+#[test]
 fn b2b_companies_count_uses_upstream_total_with_staged_delta() {
     let upstream_responses = Arc::new(Mutex::new(std::collections::VecDeque::from([
         json!({
@@ -2464,11 +3016,28 @@ fn b2b_live_hybrid_overlays_updates_and_deletes_on_hydrated_baseline() {
             "userErrors": []
         })
     );
+    let calls_after_mutations = captured.lock().expect("captured upstream");
+    assert_eq!(calls_after_mutations.len(), 7);
+    let operation_names = calls_after_mutations
+        .iter()
+        .filter_map(|call| serde_json::from_str::<Value>(&call.body).ok())
+        .filter_map(|body| body["operationName"].as_str().map(str::to_string))
+        .collect::<Vec<_>>();
     assert_eq!(
-        captured.lock().expect("captured upstream").len(),
-        1,
-        "baseline mutations should not call upstream after catalog hydration"
+        operation_names
+            .iter()
+            .filter(|name| name.as_str() == "B2BMutationTargetsHydrate")
+            .count(),
+        4
     );
+    assert_eq!(
+        operation_names
+            .iter()
+            .filter(|name| name.as_str() == "B2BMutationSearchHydrate")
+            .count(),
+        2
+    );
+    drop(calls_after_mutations);
 
     let read_after_mutations = proxy.process_request(json_graphql_request(
         r#"
@@ -2596,9 +3165,9 @@ fn b2b_live_hybrid_overlays_updates_and_deletes_on_hydrated_baseline() {
     );
 
     let calls = captured.lock().expect("captured upstream");
-    assert_eq!(calls.len(), 2);
+    assert_eq!(calls.len(), 8);
     assert!(calls[0].body.contains("query B2BHydrateBaselineCatalog"));
-    assert!(calls[1]
+    assert!(calls[7]
         .body
         .contains("query B2BBaselineOverlayReadAfterMutations"));
     assert!(calls.iter().all(|call| !call.body.contains("mutation")));
@@ -2606,13 +3175,33 @@ fn b2b_live_hybrid_overlays_updates_and_deletes_on_hydrated_baseline() {
 
 #[test]
 fn b2b_live_hybrid_stage_locally_roots_do_not_forward_mutations() {
-    let mut proxy =
-        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
-            panic!(
-                "B2B staged mutations and staged read-after-write should stay local: {}",
-                request.body
-            )
-        });
+    let captured = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).expect("upstream body");
+            assert!(
+                !body["query"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("mutation"),
+                "B2B staged mutations may issue only read-only prerequisite queries"
+            );
+            assert_eq!(body["operationName"], json!("B2BMutationSearchHydrate"));
+            captured.lock().expect("captured upstream").push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "companies": { "nodes": [] },
+                        "companyLocations": { "nodes": [] },
+                        "customers": { "nodes": [] }
+                    }
+                }),
+            }
+        }
+    });
 
     let company_id = create_b2b_company(&mut proxy, "Live Local B2B Co");
     let contact_id = create_b2b_company_contact(&mut proxy, &company_id, "Initial buyer");
@@ -2735,6 +3324,7 @@ fn b2b_live_hybrid_stage_locally_roots_do_not_forward_mutations() {
         delete_contact.body["data"]["companyContactDelete"],
         json!({ "deletedCompanyContactId": contact_id, "userErrors": [] })
     );
+    assert_eq!(captured.lock().expect("captured upstream").len(), 2);
 }
 
 #[test]
@@ -2749,7 +3339,7 @@ fn b2b_company_location_update_hydrates_real_upstream_location() {
                 .lock()
                 .expect("captured upstream")
                 .push(serde_json::from_str::<Value>(&request.body).expect("upstream body"));
-            b2b_company_location_hydrate_response(location_id, "Hydrated HQ", company_id)
+            b2b_mutation_targets_location_hydrate_response(location_id, "Hydrated HQ", company_id)
         }
     });
 
@@ -2837,11 +3427,11 @@ fn b2b_company_location_update_hydrates_real_upstream_location() {
     assert_eq!(calls.len(), 1);
     assert_eq!(
         calls[0]["operationName"],
-        json!("B2BCompanyLocationHydrate")
+        json!("B2BMutationTargetsHydrate")
     );
-    assert_eq!(calls[0]["variables"]["id"], json!(location_id));
+    assert_eq!(calls[0]["variables"]["ids"], json!([location_id]));
     let hydrate_query = calls[0]["query"].as_str().expect("hydrate query");
-    assert!(hydrate_query.contains("companyLocation(id: $id)"));
+    assert!(hydrate_query.contains("nodes(ids: $ids)"));
     assert!(!hydrate_query.contains("billingSameAsShipping"));
 }
 
@@ -2859,7 +3449,11 @@ fn b2b_tax_settings_and_store_credit_hydrate_real_company_locations() {
                 .lock()
                 .expect("captured tax upstream")
                 .push(serde_json::from_str::<Value>(&request.body).expect("upstream body"));
-            b2b_company_location_hydrate_response(tax_location_id, "Tax Hydrated", company_id)
+            b2b_mutation_targets_location_hydrate_response(
+                tax_location_id,
+                "Tax Hydrated",
+                company_id,
+            )
         }
     });
     let tax = tax_proxy.process_request(json_graphql_request(
@@ -6840,6 +7434,247 @@ fn b2b_bulk_action_size_cap_allows_fifty_entries_to_use_normal_validation() {
         .all(|error| error["code"] == json!("RESOURCE_NOT_FOUND")));
 }
 
+const B2B_HYDRATE_TEST_COMPANY_ID: &str = "gid://shopify/Company/991001";
+const B2B_HYDRATE_TEST_LOCATION_ID: &str = "gid://shopify/CompanyLocation/992001";
+const B2B_HYDRATE_TEST_SIBLING_LOCATION_ID: &str = "gid://shopify/CompanyLocation/992002";
+const B2B_HYDRATE_TEST_CONTACT_ID: &str = "gid://shopify/CompanyContact/993001";
+const B2B_HYDRATE_TEST_ROLE_ID: &str = "gid://shopify/CompanyContactRole/994001";
+const B2B_HYDRATE_TEST_ROLE_ASSIGNMENT_ID: &str =
+    "gid://shopify/CompanyContactRoleAssignment/995001";
+const B2B_HYDRATE_TEST_STAFF_ID: &str = "gid://shopify/StaffMember/996001";
+const B2B_HYDRATE_TEST_STAFF_ASSIGNMENT_ID: &str =
+    "gid://shopify/CompanyLocationStaffMemberAssignment/997001";
+const B2B_HYDRATE_TEST_CUSTOMER_ID: &str = "gid://shopify/Customer/998001";
+const B2B_HYDRATE_TEST_ASSIGNABLE_CUSTOMER_ID: &str = "gid://shopify/Customer/998002";
+const B2B_HYDRATE_TEST_ADDRESS_ID: &str = "gid://shopify/CompanyAddress/999001";
+
+fn b2b_mutation_first_hydrate_test_response(body: &Value) -> Response {
+    let data = match body["operationName"].as_str() {
+        Some("B2BMutationTargetsHydrate") => {
+            let nodes = body["variables"]["ids"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|id| {
+                    id.as_str()
+                        .map(b2b_mutation_first_hydrate_test_node)
+                        .unwrap_or(Value::Null)
+                })
+                .collect::<Vec<_>>();
+            json!({ "nodes": nodes })
+        }
+        Some("B2BMutationSearchHydrate") => json!({
+            "companies": { "nodes": [] },
+            "companyLocations": { "nodes": [] },
+            "customers": { "nodes": [] }
+        }),
+        Some("B2BCompanyAddressOwnerHydrate") => json!({
+            "companyLocations": {
+                "nodes": [b2b_mutation_first_hydrate_test_location()],
+                "pageInfo": { "hasNextPage": false, "endCursor": Value::Null }
+            }
+        }),
+        other => panic!("unexpected B2B hydrate test operation: {other:?}"),
+    };
+    Response {
+        status: 200,
+        headers: Default::default(),
+        body: json!({ "data": data }),
+    }
+}
+
+fn b2b_mutation_first_hydrate_test_node(id: &str) -> Value {
+    match id {
+        B2B_HYDRATE_TEST_COMPANY_ID => b2b_mutation_first_hydrate_test_company(),
+        B2B_HYDRATE_TEST_LOCATION_ID | B2B_HYDRATE_TEST_SIBLING_LOCATION_ID => {
+            let mut location = b2b_mutation_first_hydrate_test_location();
+            location["id"] = json!(id);
+            if id == B2B_HYDRATE_TEST_SIBLING_LOCATION_ID {
+                location["name"] = json!("Hydrated sibling");
+                location["billingAddress"] = Value::Null;
+                location["roleAssignments"] = json!({ "nodes": [] });
+                location["staffMemberAssignments"] = json!({ "nodes": [] });
+            }
+            location
+        }
+        B2B_HYDRATE_TEST_CONTACT_ID => b2b_mutation_first_hydrate_test_contact(),
+        B2B_HYDRATE_TEST_ROLE_ID => json!({
+            "__typename": "CompanyContactRole",
+            "id": B2B_HYDRATE_TEST_ROLE_ID,
+            "name": "Ordering only",
+            "note": Value::Null
+        }),
+        B2B_HYDRATE_TEST_ROLE_ASSIGNMENT_ID => json!({
+            "__typename": "CompanyContactRoleAssignment",
+            "id": B2B_HYDRATE_TEST_ROLE_ASSIGNMENT_ID,
+            "companyContact": b2b_mutation_first_hydrate_test_contact(),
+            "companyLocation": b2b_mutation_first_hydrate_test_location(),
+            "role": {
+                "__typename": "CompanyContactRole",
+                "id": B2B_HYDRATE_TEST_ROLE_ID,
+                "name": "Ordering only",
+                "note": Value::Null
+            }
+        }),
+        B2B_HYDRATE_TEST_STAFF_ID => json!({
+            "__typename": "StaffMember",
+            "id": B2B_HYDRATE_TEST_STAFF_ID
+        }),
+        B2B_HYDRATE_TEST_STAFF_ASSIGNMENT_ID => json!({
+            "__typename": "CompanyLocationStaffMemberAssignment",
+            "id": B2B_HYDRATE_TEST_STAFF_ASSIGNMENT_ID,
+            "companyLocation": b2b_mutation_first_hydrate_test_location(),
+            "staffMember": { "id": B2B_HYDRATE_TEST_STAFF_ID }
+        }),
+        B2B_HYDRATE_TEST_CUSTOMER_ID | B2B_HYDRATE_TEST_ASSIGNABLE_CUSTOMER_ID => json!({
+            "__typename": "Customer",
+            "id": id,
+            "firstName": "Hydrated",
+            "lastName": "Customer",
+            "displayName": "Hydrated Customer",
+            "email": if id == B2B_HYDRATE_TEST_ASSIGNABLE_CUSTOMER_ID {
+                "assignable@example.com"
+            } else {
+                "buyer@example.com"
+            },
+            "phone": Value::Null,
+            "locale": "en",
+            "defaultEmailAddress": {
+                "emailAddress": if id == B2B_HYDRATE_TEST_ASSIGNABLE_CUSTOMER_ID {
+                    "assignable@example.com"
+                } else {
+                    "buyer@example.com"
+                }
+            },
+            "defaultPhoneNumber": Value::Null,
+            "companyContactProfiles": if id == B2B_HYDRATE_TEST_ASSIGNABLE_CUSTOMER_ID {
+                json!([])
+            } else {
+                json!([b2b_mutation_first_hydrate_test_contact()])
+            }
+        }),
+        B2B_HYDRATE_TEST_ADDRESS_ID => json!({
+            "__typename": "CompanyAddress",
+            "id": B2B_HYDRATE_TEST_ADDRESS_ID,
+            "address1": "1 Hydration Way",
+            "city": "Toronto",
+            "countryCode": "CA"
+        }),
+        _ => Value::Null,
+    }
+}
+
+fn b2b_mutation_first_hydrate_test_company() -> Value {
+    json!({
+        "__typename": "Company",
+        "id": B2B_HYDRATE_TEST_COMPANY_ID,
+        "name": "Hydrated Buyer",
+        "externalId": "HYDRATED-BUYER",
+        "locations": {
+            "nodes": [
+                { "id": B2B_HYDRATE_TEST_LOCATION_ID, "name": "Hydrated HQ" },
+                { "id": B2B_HYDRATE_TEST_SIBLING_LOCATION_ID, "name": "Hydrated sibling" }
+            ],
+            "pageInfo": { "hasNextPage": false, "endCursor": Value::Null }
+        },
+        "contacts": {
+            "nodes": [{
+                "id": B2B_HYDRATE_TEST_CONTACT_ID,
+                "title": "Buyer",
+                "isMainContact": true
+            }],
+            "pageInfo": { "hasNextPage": false, "endCursor": Value::Null }
+        },
+        "contactRoles": {
+            "nodes": [{
+                "__typename": "CompanyContactRole",
+                "id": B2B_HYDRATE_TEST_ROLE_ID,
+                "name": "Ordering only",
+                "note": Value::Null
+            }],
+            "pageInfo": { "hasNextPage": false, "endCursor": Value::Null }
+        },
+        "mainContact": {
+            "id": B2B_HYDRATE_TEST_CONTACT_ID,
+            "title": "Buyer",
+            "isMainContact": true
+        }
+    })
+}
+
+fn b2b_mutation_first_hydrate_test_contact() -> Value {
+    json!({
+        "__typename": "CompanyContact",
+        "id": B2B_HYDRATE_TEST_CONTACT_ID,
+        "title": "Buyer",
+        "locale": "en",
+        "isMainContact": true,
+        "customer": {
+            "__typename": "Customer",
+            "id": B2B_HYDRATE_TEST_CUSTOMER_ID,
+            "firstName": "Hydrated",
+            "lastName": "Buyer",
+            "displayName": "Hydrated Buyer",
+            "email": "buyer@example.com",
+            "phone": Value::Null,
+            "locale": "en",
+            "defaultEmailAddress": { "emailAddress": "buyer@example.com" },
+            "defaultPhoneNumber": Value::Null
+        },
+        "company": b2b_mutation_first_hydrate_test_company(),
+        "roleAssignments": {
+            "nodes": [{
+                "__typename": "CompanyContactRoleAssignment",
+                "id": B2B_HYDRATE_TEST_ROLE_ASSIGNMENT_ID,
+                "companyContact": { "id": B2B_HYDRATE_TEST_CONTACT_ID, "title": "Buyer" },
+                "companyLocation": { "id": B2B_HYDRATE_TEST_LOCATION_ID, "name": "Hydrated HQ" },
+                "role": { "id": B2B_HYDRATE_TEST_ROLE_ID, "name": "Ordering only", "note": Value::Null }
+            }],
+            "pageInfo": { "hasNextPage": false, "endCursor": Value::Null }
+        }
+    })
+}
+
+fn b2b_mutation_first_hydrate_test_location() -> Value {
+    json!({
+        "__typename": "CompanyLocation",
+        "id": B2B_HYDRATE_TEST_LOCATION_ID,
+        "name": "Hydrated HQ",
+        "externalId": "HYDRATED-HQ",
+        "locale": "en",
+        "phone": Value::Null,
+        "billingAddress": {
+            "__typename": "CompanyAddress",
+            "id": B2B_HYDRATE_TEST_ADDRESS_ID,
+            "address1": "1 Hydration Way",
+            "city": "Toronto",
+            "countryCode": "CA"
+        },
+        "shippingAddress": Value::Null,
+        "taxSettings": { "taxRegistrationId": Value::Null, "taxExempt": false, "taxExemptions": [] },
+        "company": b2b_mutation_first_hydrate_test_company(),
+        "roleAssignments": {
+            "nodes": [{
+                "__typename": "CompanyContactRoleAssignment",
+                "id": B2B_HYDRATE_TEST_ROLE_ASSIGNMENT_ID,
+                "companyContact": { "id": B2B_HYDRATE_TEST_CONTACT_ID, "title": "Buyer" },
+                "companyLocation": { "id": B2B_HYDRATE_TEST_LOCATION_ID, "name": "Hydrated HQ" },
+                "role": { "id": B2B_HYDRATE_TEST_ROLE_ID, "name": "Ordering only", "note": Value::Null }
+            }],
+            "pageInfo": { "hasNextPage": false, "endCursor": Value::Null }
+        },
+        "staffMemberAssignments": {
+            "nodes": [{
+                "__typename": "CompanyLocationStaffMemberAssignment",
+                "id": B2B_HYDRATE_TEST_STAFF_ASSIGNMENT_ID,
+                "companyLocation": { "id": B2B_HYDRATE_TEST_LOCATION_ID, "name": "Hydrated HQ" },
+                "staffMember": { "id": B2B_HYDRATE_TEST_STAFF_ID }
+            }],
+            "pageInfo": { "hasNextPage": false, "endCursor": Value::Null }
+        }
+    })
+}
+
 fn create_b2b_company(proxy: &mut DraftProxy, name: &str) -> String {
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -6873,35 +7708,73 @@ fn b2b_company_location_hydrate_response(
         headers: Default::default(),
         body: json!({
             "data": {
-                "companyLocation": {
-                    "id": location_id,
-                    "name": location_name,
-                    "externalId": Value::Null,
-                    "note": Value::Null,
-                    "locale": "en",
-                    "phone": Value::Null,
-                    "billingAddress": { "id": "gid://shopify/CompanyAddress/200", "address1": "Upstream Billing" },
-                    "shippingAddress": { "id": "gid://shopify/CompanyAddress/201", "address1": "Upstream Shipping" },
-                    "taxSettings": {
-                        "taxRegistrationId": Value::Null,
-                        "taxExempt": false,
-                        "taxExemptions": ["US_CA_RESELLER_EXEMPTION"]
-                    },
-                    "buyerExperienceConfiguration": {
-                        "editableShippingAddress": false,
-                        "checkoutToDraft": false,
-                        "paymentTermsTemplate": Value::Null,
-                        "deposit": Value::Null
-                    },
-                    "company": {
-                        "id": company_id,
-                        "name": "Hydrated Company",
-                        "locations": { "nodes": [{ "id": location_id }] }
-                    }
-                }
+                "companyLocation": b2b_company_location_hydrate_record(
+                    location_id,
+                    location_name,
+                    company_id,
+                )
             }
         }),
     }
+}
+
+fn b2b_mutation_targets_location_hydrate_response(
+    location_id: &str,
+    location_name: &str,
+    company_id: &str,
+) -> Response {
+    Response {
+        status: 200,
+        headers: Default::default(),
+        body: json!({
+            "data": {
+                "nodes": [b2b_company_location_hydrate_record(
+                    location_id,
+                    location_name,
+                    company_id,
+                )]
+            }
+        }),
+    }
+}
+
+fn b2b_company_location_hydrate_record(
+    location_id: &str,
+    location_name: &str,
+    company_id: &str,
+) -> Value {
+    json!({
+        "__typename": "CompanyLocation",
+        "id": location_id,
+        "name": location_name,
+        "externalId": Value::Null,
+        "note": Value::Null,
+        "locale": "en",
+        "phone": Value::Null,
+        "billingAddress": { "id": "gid://shopify/CompanyAddress/200", "address1": "Upstream Billing" },
+        "shippingAddress": { "id": "gid://shopify/CompanyAddress/201", "address1": "Upstream Shipping" },
+        "taxSettings": {
+            "taxRegistrationId": Value::Null,
+            "taxExempt": false,
+            "taxExemptions": ["US_CA_RESELLER_EXEMPTION"]
+        },
+        "buyerExperienceConfiguration": {
+            "editableShippingAddress": false,
+            "checkoutToDraft": false,
+            "paymentTermsTemplate": Value::Null,
+            "deposit": Value::Null
+        },
+        "roleAssignments": { "nodes": [] },
+        "staffMemberAssignments": { "nodes": [] },
+        "company": {
+            "id": company_id,
+            "name": "Hydrated Company",
+            "locations": { "nodes": [{ "id": location_id, "name": location_name }] },
+            "contacts": { "nodes": [] },
+            "contactRoles": { "nodes": [] },
+            "mainContact": Value::Null
+        }
+    })
 }
 
 fn create_b2b_company_contact(proxy: &mut DraftProxy, company_id: &str, title: &str) -> String {

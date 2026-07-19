@@ -2796,9 +2796,9 @@ Captured shape for the first local slice:
 
 Practical rule:
 
-- local business entity snapshots can fixture safe account scalars only when they were explicitly captured
-- direct `shopifyPaymentsAccount` snapshot reads share the same normalized safe account fixture as `BusinessEntity.shopifyPaymentsAccount`; if no account fixture is present, the root returns `null` rather than inventing account data
-- `payouts`, `disputes`, and `balanceTransactions` are modeled only as empty no-data connections until non-empty Shopify Payments account activity is captured with account-level scopes
+- business entity snapshots may fixture safe account scalars only when they were explicitly captured and the business entity root has a real local model
+- direct `shopifyPaymentsAccount` reads remain authoritative passthrough in LiveHybrid and unsupported in Snapshot; an access-denied `null` is not evidence that the account is absent
+- do not model `payouts`, `disputes`, or `balanceTransactions` as empty account connections until no-data behavior is captured independently of account-level access denial
 - do not synthesize balances, bank accounts, statement descriptors, payout schedules, or account opener details from Store properties reads
 - order and market attribution should treat `BusinessEntity` as an identity link for now; do not model Markets assignment or order attribution rules until there is separate captured evidence for those domains
 
@@ -3604,7 +3604,8 @@ Captured facts:
 
 Practical rule:
 
-- captured no-data reads for `cashTrackingSession(s)`, `pointOfSaleDevice`, `dispute(s)`, and Shop Pay payment request receipt roots are safe to model as local empty/null overlay behavior and are enforced by `finance-risk-no-data-read`
+- captured no-data reads for `cashTrackingSession(s)`, `pointOfSaleDevice`, `dispute(s)`, and Shop Pay payment request receipt roots are safe Snapshot-only empty/null behavior; cold LiveHybrid reads remain authoritative upstream and are enforced by `finance-risk-no-data-read`
+- `disputeEvidence` and `shopifyPaymentsAccount` access-denied nulls are not no-data evidence; keep those roots unimplemented in Snapshot and preserve Shopify's full response in LiveHybrid
 - do not invent financial, KYC, dispute, POS cash, tender transaction, Shop Pay receipt, payout, or risk records
 - do not select or check in tender IDs, payment methods, amounts, remote references, user links, KYC details, dispute evidence content, or payout details unless the capture is intentionally scrubbed and justified
 - keep mutation roots scaffold-only until local staging preserves userErrors, downstream read-after-write effects, and original raw mutation commit replay without runtime Shopify writes
@@ -3914,6 +3915,14 @@ Observed behavior:
 - a name-input update against the shop default delivery profile returned empty
   `userErrors` and incremented `version`, but the selected public payload kept
   the default profile display name as `General profile`
+- the relationship-heavy default profile required the initial 250-item hydrate
+  plus five cursor pages to enumerate 1,458 `profileItems`; those rows contained
+  2,315 selected variants even though `productVariantsCount` remained capped at
+  `{ count: 500, precision: AT_LEAST }`
+- the whole selected delivery profile in the successful mutation payload
+  matched the immediate `deliveryProfile(id:)` readback, including profile
+  items, nested variants, location groups, selling-plan groups, unassigned
+  locations, and Count precision metadata
 
 Practical rule:
 
@@ -3924,6 +3933,11 @@ Practical rule:
 - do not reject default-profile updates just because the profile is default;
   for the public name-input branch, preserve the hydrated default display name
   while staging Shopify's accepted payload shape
+- update hydration must follow every relationship cursor before treating the
+  record as authoritative; a first-page-only record silently turns omitted
+  input into destructive relationship loss
+- scalar updates must preserve Shopify's authoritative Count values and
+  precision instead of recomputing a capped `AT_LEAST` count as an exact total
 
 ## 85. `orderDelete` is permissive for disposable Admin-created orders
 
@@ -4401,3 +4415,29 @@ Practical rule:
 - keep carrier callbacks and checkout navigation outside local delivery
   calculation; a local checkout URL is an opaque deterministic reference, not a
   claim that checkout can execute
+
+## 104. Narrow article writes require full authoritative hydration and touch their blog
+
+Admin GraphQL 2025-01 whole-resource capture showed that mutation-first Online
+Store writes cannot safely reuse the narrower article selection used by delete
+cascade discovery. A title-only article update retained the existing body,
+summary, tags, author, publication state, image, template suffix, blog, and all
+article-owned metafields. A title-only blog update likewise retained its comment
+policy, template suffix, and blog-owned metafields. Shopify metafield connections
+must therefore be hydrated through every page before the local replacement set
+is authoritative; an unselected field must remain distinguishable from a
+selected `null`, empty string, or empty list.
+
+The same capture exposed two parent-blog effects. Article create and update
+advanced the current blog's `updatedAt`, while an article move advanced the
+destination blog's timestamp. `Blog.tags` reflected the effective tags of its
+child articles, including the tag changes from the staged article write.
+
+Practical rule:
+
+- resolve unobserved target blogs with read-only hydration before returning
+  `NOT_FOUND`, but never send a supported mutation upstream during normal runtime
+- hydrate the complete mutation-preservation shape, including every owner
+  metafield page, before applying a narrow article or blog input
+- derive blog tags from known child articles and touch the appropriate parent or
+  destination blog when staging article writes

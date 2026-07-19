@@ -1,8 +1,8 @@
 {
   "scenarioId": "delivery-profile-default-update",
-  "operationNames": ["deliveryProfileUpdate"],
+  "operationNames": ["deliveryProfile", "deliveryProfileUpdate"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-log-parity"],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "mutation-log-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-default-update.json"
   ],
@@ -12,16 +12,27 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured Admin GraphQL 2026-04 evidence that a name-input deliveryProfileUpdate against the shop default profile succeeds. The public payload preserves the default display name while incrementing version and returning empty userErrors. The proxy hydrates the existing default profile through the recorded read cassette, stages the accepted update locally, and compares the selected public profile payload plus userErrors strictly.",
+  "notes": "Captured Admin GraphQL 2026-04 evidence that a name-input deliveryProfileUpdate against the shop default profile succeeds without changing authoritative relationships. The public payload preserves the default display name while incrementing version and returning empty userErrors. The proxy hydrates the complete existing profile through the recorded read cassette, stages the accepted update locally, and strictly compares the whole selected profile in both the mutation payload and downstream readback.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "default-profile-update-data",
+        "name": "default-profile-narrow-update-preserves-whole-resource",
         "capturePath": "$.mutation.result.payload.data",
         "proxyPath": "$.data",
         "upstreamCapturePath": null
+      },
+      {
+        "name": "default-profile-narrow-update-whole-resource-readback",
+        "capturePath": "$.readBack.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-default-update-read.graphql",
+          "variablesCapturePath": "$.readBack.variables"
+        }
       },
       {
         "name": "default-profile-update-log",

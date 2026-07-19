@@ -18,6 +18,9 @@
     "src/proxy/media_products_saved_searches/bulk_operations.rs",
     "tests/graphql_routes/admin_app_shipping.rs"
   ],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
   "proxyRequest": {
     "apiVersion": "2026-04",
     "documentPath": "config/parity-requests/bulk-operations/bulk-operation-root-count-product-create.graphql",

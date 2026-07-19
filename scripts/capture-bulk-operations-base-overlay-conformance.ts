@@ -109,6 +109,11 @@ mutation BulkOperationRunQueryBaseOverlay($query: String!) {
 
 const safeBulkQuery = '{ products { edges { node { id } } } }';
 
+// Keep this byte-identical to the production hydration document. The parity
+// cassette matches the exact GraphQL text and variables sent by the proxy.
+const productCatalogHydrationQuery =
+  'query BulkProductsCatalogHydrate($first: Int!, $after: String) { products(first: $first, after: $after) { nodes { id } pageInfo { hasNextPage endCursor } } }';
+
 function readPositiveIntegerEnv(name: string, fallback: number): number {
   const rawValue = process.env[name];
   if (!rawValue) {
@@ -145,6 +150,39 @@ async function capture(
 ): Promise<CapturedInteraction> {
   const result = await runGraphqlRequest(query, variables);
   return captureResult(operationName, query, variables, result);
+}
+
+async function captureProductCatalogPages(): Promise<CapturedInteraction[]> {
+  const pages: CapturedInteraction[] = [];
+  const seenCursors = new Set<string>();
+  let after: string | null = null;
+
+  for (let index = 0; index < 10_000; index += 1) {
+    const page = await capture('BulkProductsCatalogHydrate', productCatalogHydrationQuery, {
+      first: 250,
+      after,
+      nestedFirst: 250,
+      nestedAfter: null,
+    });
+    pages.push(page);
+    assertNoGraphqlErrors(`product catalog hydration page ${index + 1}`, page);
+    const connection = asRecord(dataRecord(page)?.['products']);
+    const pageInfo = asRecord(connection?.['pageInfo']);
+    if (!Array.isArray(connection?.['nodes']) || typeof pageInfo?.['hasNextPage'] !== 'boolean') {
+      throw new Error(`Product catalog hydration page was malformed: ${JSON.stringify(page.response)}`);
+    }
+    if (pageInfo['hasNextPage'] === false) {
+      return pages;
+    }
+    const endCursor = pageInfo['endCursor'];
+    if (typeof endCursor !== 'string' || seenCursors.has(endCursor)) {
+      throw new Error(`Product catalog hydration cursor did not prove progress: ${JSON.stringify(pageInfo)}`);
+    }
+    seenCursors.add(endCursor);
+    after = endCursor;
+  }
+
+  throw new Error('Product catalog hydration exceeded 10,000 pages.');
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -232,6 +270,7 @@ if (preRunNodes.length === 0) {
   throw new Error('Pre-run bulkOperations window is empty; cannot prove historical operations remain visible.');
 }
 
+const productCatalogHydrationPages = await captureProductCatalogPages();
 const run = await capture('BulkOperationRunQueryBaseOverlay', runQueryMutation, { query: safeBulkQuery });
 assertNoGraphqlErrors('bulkOperationRunQuery', run);
 const runOperation = readRunBulkOperation(run);
@@ -287,7 +326,7 @@ await writeFile(
       preRunWindow,
       run,
       postRunWindow,
-      upstreamCalls: [preRunWindow, postRunWindow],
+      upstreamCalls: [...productCatalogHydrationPages, preRunWindow, postRunWindow],
     },
     null,
     2,
@@ -313,6 +352,7 @@ function buildSpec(): Record<string, unknown> {
     assertionKinds: ['payload-shape', 'downstream-read-parity', 'live-hybrid-overlay-parity'],
     liveCaptureFiles: [outputPath],
     runtimeTestFiles: ['src/proxy/media_products_saved_searches/bulk_operations.rs'],
+    proxyConfig: { readMode: 'live-hybrid' },
     proxyRequest: {
       documentPath: runQueryDocumentPath,
       apiVersion,
