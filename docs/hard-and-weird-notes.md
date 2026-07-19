@@ -4447,3 +4447,26 @@ Practical rule:
   metafield page, before applying a narrow article or blog input
 - derive blog tags from known child articles and touch the appropriate parent or
   destination blog when staging article writes
+
+## 105. Storefront order numbers are independent of custom Admin order names
+
+Authenticated Admin plus Storefront GraphQL 2026-04 lifecycle capture created
+an order named `WEB-2026-#77-A`. Storefront returned that name unchanged while
+reporting an independently allocated numeric `orderNumber`; it did not parse or
+concatenate the digits in the name. The same projection returned the captured
+CAD subtotal and total, `AUTHORIZED` financial status, `UNFULFILLED`
+fulfillment status, and explicit processed timestamp. A later Admin
+`orderUpdate` changed email and phone while all of those other Storefront values
+remained stable. The checked-in anchor is
+`config/parity-specs/storefront/storefront-customer-profile-address-order-lifecycle.json`.
+
+Practical rule:
+
+- retain an explicit order number in shared order state and never derive it from
+  an arbitrary order name
+- project current Admin subtotal and total money sets ahead of original totals
+- overlay staged Admin lifecycle changes without replacing known Storefront
+  identity, money, status, or processed-time values
+- leave absent required Storefront Order values unknown so GraphQL applies its
+  schema error and null-propagation behavior; do not substitute zero money,
+  `USD`, `UNFULFILLED`, an epoch timestamp, or order number zero
