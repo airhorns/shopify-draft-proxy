@@ -9764,6 +9764,648 @@ fn delivery_promise_live_hybrid_cold_reads_forward_but_mutations_stay_local() {
         json!([])
     );
     assert_eq!(upstream_calls.lock().unwrap().len(), 0);
+
+    let unrelated_cold_read = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryPromiseUnrelatedColdRead($locationId: ID!) {
+          deliveryPromiseProvider(locationId: $locationId) { id }
+        }
+        "#,
+        json!({ "locationId": "gid://shopify/Location/unrelated-cold" }),
+    ));
+    assert_eq!(unrelated_cold_read.status, 200);
+    assert_eq!(
+        unrelated_cold_read.body["data"]["deliveryPromiseProvider"],
+        json!(null)
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn delivery_promise_live_hybrid_hydrates_each_provider_location() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            if let Some(id) = body["variables"]["id"].as_str() {
+                if id.ends_with("/missing") {
+                    return Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({ "data": { "node": null } }),
+                    };
+                }
+                let id_tail = id.rsplit('/').next().unwrap_or_default();
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "node": {
+                                "__typename": "DeliveryPromiseProvider",
+                                "id": id,
+                                "active": false,
+                                "fulfillmentDelay": 4,
+                                "timeZone": "Etc/UTC",
+                                "location": {
+                                    "id": format!("gid://shopify/Location/{id_tail}"),
+                                    "name": format!("Node location {id_tail}")
+                                }
+                            }
+                        }
+                    }),
+                };
+            }
+            let location_id = body["variables"]["locationId"].as_str().unwrap_or_default();
+            let location_tail = location_id.rsplit('/').next().unwrap_or_default();
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "deliveryPromiseProvider": {
+                            "__typename": "DeliveryPromiseProvider",
+                            "id": format!("gid://shopify/DeliveryPromiseProvider/{location_tail}"),
+                            "active": true,
+                            "fulfillmentDelay": 2,
+                            "timeZone": "Etc/UTC",
+                            "location": {
+                                "id": location_id,
+                                "name": format!("Location {location_tail}")
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let query = r#"
+      query DeliveryPromiseProviderByLocation($locationId: ID!) {
+        deliveryPromiseProvider(locationId: $locationId) {
+          id
+          active
+          fulfillmentDelay
+          timeZone
+          location { id name }
+        }
+      }
+    "#;
+    let location_a = "gid://shopify/Location/provider-a";
+    let location_b = "gid://shopify/Location/provider-b";
+
+    let provider_a = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "locationId": location_a }),
+    ));
+    let provider_b = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "locationId": location_b }),
+    ));
+
+    assert_eq!(provider_a.status, 200);
+    assert_eq!(provider_b.status, 200);
+    assert_eq!(
+        provider_a.body["data"]["deliveryPromiseProvider"]["location"]["id"],
+        json!(location_a)
+    );
+    assert_eq!(
+        provider_b.body["data"]["deliveryPromiseProvider"]["location"]["id"],
+        json!(location_b)
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 2);
+
+    let node_id = "gid://shopify/DeliveryPromiseProvider/node-cold";
+    let node_query = r#"
+      query DeliveryPromiseProviderNode($id: ID!) {
+        node(id: $id) {
+          __typename
+          ... on DeliveryPromiseProvider {
+            id active fulfillmentDelay timeZone location { id name }
+          }
+        }
+      }
+    "#;
+    let cold_node =
+        proxy.process_request(json_graphql_request(node_query, json!({ "id": node_id })));
+    assert_eq!(cold_node.body["data"]["node"]["id"], json!(node_id));
+    assert_eq!(upstream_calls.lock().unwrap().len(), 3);
+
+    let cached_node =
+        proxy.process_request(json_graphql_request(node_query, json!({ "id": node_id })));
+    assert_eq!(cached_node.body["data"]["node"]["id"], json!(node_id));
+    assert_eq!(upstream_calls.lock().unwrap().len(), 3);
+
+    let missing_node_id = "gid://shopify/DeliveryPromiseProvider/missing";
+    let missing_node = proxy.process_request(json_graphql_request(
+        node_query,
+        json!({ "id": missing_node_id }),
+    ));
+    assert_eq!(missing_node.body["data"]["node"], json!(null));
+    assert_eq!(upstream_calls.lock().unwrap().len(), 4);
+    let cached_missing_node = proxy.process_request(json_graphql_request(
+        node_query,
+        json!({ "id": missing_node_id }),
+    ));
+    assert_eq!(cached_missing_node.body["data"]["node"], json!(null));
+    assert_eq!(upstream_calls.lock().unwrap().len(), 4);
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    let restored_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_restored_calls = Arc::clone(&restored_calls);
+    let mut restored =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_restored_calls.lock().unwrap().push(body.clone());
+            let location_id = body["variables"]["locationId"].as_str().unwrap_or_default();
+            let location_tail = location_id.rsplit('/').next().unwrap_or_default();
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "deliveryPromiseProvider": {
+                            "__typename": "DeliveryPromiseProvider",
+                            "id": format!("gid://shopify/DeliveryPromiseProvider/{location_tail}"),
+                            "active": true,
+                            "fulfillmentDelay": 2,
+                            "timeZone": "Etc/UTC",
+                            "location": { "id": location_id, "name": "Restored cold location" }
+                        }
+                    }
+                }),
+            }
+        });
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let restored_warm = restored.process_request(json_graphql_request(
+        query,
+        json!({ "locationId": location_a }),
+    ));
+    assert_eq!(
+        restored_warm.body["data"]["deliveryPromiseProvider"]["location"]["id"],
+        json!(location_a)
+    );
+    assert!(restored_calls.lock().unwrap().is_empty());
+
+    let location_c = "gid://shopify/Location/provider-c";
+    let restored_cold = restored.process_request(json_graphql_request(
+        query,
+        json!({ "locationId": location_c }),
+    ));
+    assert_eq!(
+        restored_cold.body["data"]["deliveryPromiseProvider"]["location"]["id"],
+        json!(location_c)
+    );
+    assert_eq!(restored_calls.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn delivery_promise_live_hybrid_tracks_participant_scopes_pages_and_overlays() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            let handle = body["variables"]["handle"].as_str().unwrap_or_default();
+            let after = body["variables"]["after"].as_str();
+            let owner_ids = body["variables"]["ownerIds"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            let (id, owner_id, has_next_page, has_previous_page, end_cursor) =
+                match (handle, after, owner_ids.is_empty()) {
+                    ("alpha", None, true) => (
+                        "gid://shopify/DeliveryPromiseParticipant/alpha-a",
+                        "gid://shopify/ProductVariant/alpha-a",
+                        true,
+                        false,
+                        "cursor-alpha-a",
+                    ),
+                    ("alpha", Some("cursor-alpha-a"), true) => (
+                        "gid://shopify/DeliveryPromiseParticipant/alpha-b",
+                        "gid://shopify/ProductVariant/alpha-b",
+                        false,
+                        true,
+                        "cursor-alpha-b",
+                    ),
+                    ("alpha", None, false) => (
+                        "gid://shopify/DeliveryPromiseParticipant/alpha-b",
+                        "gid://shopify/ProductVariant/alpha-b",
+                        false,
+                        false,
+                        "cursor-alpha-b-filtered",
+                    ),
+                    ("beta", None, _) => (
+                        "gid://shopify/DeliveryPromiseParticipant/beta-a",
+                        "gid://shopify/ProductVariant/beta-a",
+                        false,
+                        false,
+                        "cursor-beta-a",
+                    ),
+                    ("bounded", Some("external-lower-bound"), true) => (
+                        "gid://shopify/DeliveryPromiseParticipant/bounded-a",
+                        "gid://shopify/ProductVariant/bounded-a",
+                        false,
+                        false,
+                        "cursor-bounded-a",
+                    ),
+                    unexpected => panic!("unexpected delivery-promise request: {unexpected:?}"),
+                };
+            let node = json!({
+                "__typename": "DeliveryPromiseParticipant",
+                "id": id,
+                "ownerType": "PRODUCTVARIANT",
+                "owner": { "__typename": "ProductVariant", "id": owner_id }
+            });
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "deliveryPromiseParticipants": {
+                            "nodes": [node.clone()],
+                            "edges": [{ "cursor": end_cursor, "node": node }],
+                            "pageInfo": {
+                                "hasNextPage": has_next_page,
+                                "hasPreviousPage": has_previous_page,
+                                "startCursor": end_cursor,
+                                "endCursor": end_cursor
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+    let staged_owner =
+        create_delivery_promise_variant(&mut proxy, "Promise staged participant", "PROMISE-STAGED");
+    let page_query = r#"
+      query DeliveryPromiseParticipantPage(
+        $handle: String!
+        $ownerIds: [ID!]
+        $after: String
+      ) {
+        deliveryPromiseParticipants(
+          brandedPromiseHandle: $handle
+          ownerIds: $ownerIds
+          first: 1
+          after: $after
+        ) {
+          nodes {
+            id ownerType
+            owner { ... on ProductVariant { id } }
+          }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+      }
+    "#;
+
+    let first_alpha = proxy.process_request(json_graphql_request(
+        page_query,
+        json!({ "handle": "alpha", "ownerIds": null, "after": null }),
+    ));
+    assert_eq!(
+        first_alpha.body["data"]["deliveryPromiseParticipants"]["nodes"][0]["id"],
+        json!("gid://shopify/DeliveryPromiseParticipant/alpha-a")
+    );
+    assert_eq!(
+        first_alpha.body["data"]["deliveryPromiseParticipants"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+
+    let second_alpha = proxy.process_request(json_graphql_request(
+        page_query,
+        json!({
+            "handle": "alpha",
+            "ownerIds": null,
+            "after": "cursor-alpha-a"
+        }),
+    ));
+    assert_eq!(
+        second_alpha.body["data"]["deliveryPromiseParticipants"]["nodes"][0]["id"],
+        json!("gid://shopify/DeliveryPromiseParticipant/alpha-b")
+    );
+
+    let beta = proxy.process_request(json_graphql_request(
+        page_query,
+        json!({ "handle": "beta", "ownerIds": null, "after": null }),
+    ));
+    assert_eq!(
+        beta.body["data"]["deliveryPromiseParticipants"]["nodes"][0]["id"],
+        json!("gid://shopify/DeliveryPromiseParticipant/beta-a")
+    );
+
+    let filtered_alpha = proxy.process_request(json_graphql_request(
+        page_query,
+        json!({
+            "handle": "alpha",
+            "ownerIds": ["gid://shopify/ProductVariant/alpha-b"],
+            "after": null
+        }),
+    ));
+    assert_eq!(
+        filtered_alpha.body["data"]["deliveryPromiseParticipants"]["nodes"][0]["id"],
+        json!("gid://shopify/DeliveryPromiseParticipant/alpha-b")
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 4);
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryPromiseParticipantOverlay($ownersToAdd: [ID!]) {
+          deliveryPromiseParticipantsUpdate(
+            brandedPromiseHandle: "alpha"
+            ownersToAdd: $ownersToAdd
+            ownersToRemove: ["gid://shopify/ProductVariant/alpha-a"]
+          ) {
+            promiseParticipants { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "ownersToAdd": [staged_owner] }),
+    ));
+    assert_eq!(
+        update.body["data"]["deliveryPromiseParticipantsUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let effective_alpha = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryPromiseParticipantEffective($handle: String!) {
+          deliveryPromiseParticipants(brandedPromiseHandle: $handle, first: 10) {
+            nodes { id owner { ... on ProductVariant { id } } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "handle": "alpha" }),
+    ));
+    let effective_owner_ids = effective_alpha.body["data"]["deliveryPromiseParticipants"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|participant| participant["owner"]["id"].as_str().unwrap().to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        effective_owner_ids,
+        vec![
+            "gid://shopify/ProductVariant/alpha-b".to_string(),
+            staged_owner.clone(),
+        ]
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 4);
+
+    let staged_cursor_page = proxy.process_request(json_graphql_request(
+        page_query,
+        json!({
+            "handle": "alpha",
+            "ownerIds": null,
+            "after": "cursor-alpha-b"
+        }),
+    ));
+    assert_eq!(
+        staged_cursor_page.body["data"]["deliveryPromiseParticipants"]["nodes"][0]["owner"]["id"],
+        json!(staged_owner)
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 4);
+
+    let removed_node = proxy.process_request(json_graphql_request(
+        r#"
+        query RemovedDeliveryPromiseParticipant($id: ID!) {
+          node(id: $id) { id }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DeliveryPromiseParticipant/alpha-a" }),
+    ));
+    assert_eq!(removed_node.body["data"]["node"], json!(null));
+    assert_eq!(upstream_calls.lock().unwrap().len(), 4);
+
+    let bounded_query = r#"
+      query DeliveryPromiseParticipantBoundedWindow($handle: String!, $after: String) {
+        deliveryPromiseParticipants(
+          brandedPromiseHandle: $handle
+          last: 1
+          after: $after
+        ) {
+          nodes { id ownerType owner { ... on ProductVariant { id } } }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+      }
+    "#;
+    for _ in 0..2 {
+        let bounded = proxy.process_request(json_graphql_request(
+            bounded_query,
+            json!({ "handle": "bounded", "after": "external-lower-bound" }),
+        ));
+        assert_eq!(
+            bounded.body["data"]["deliveryPromiseParticipants"]["nodes"][0]["id"],
+            json!("gid://shopify/DeliveryPromiseParticipant/bounded-a")
+        );
+    }
+    assert_eq!(upstream_calls.lock().unwrap().len(), 6);
+}
+
+#[test]
+fn delivery_promise_live_hybrid_tracks_backward_participant_pages() {
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *captured_calls.lock().unwrap() += 1;
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            let before = body["variables"]["before"].as_str();
+            let (suffix, has_previous_page) = if before.is_some() {
+                ("a", false)
+            } else {
+                ("b", true)
+            };
+            let id = format!("gid://shopify/DeliveryPromiseParticipant/backward-{suffix}");
+            let owner_id = format!("gid://shopify/ProductVariant/backward-{suffix}");
+            let cursor = format!("backward-cursor-{suffix}");
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "deliveryPromiseParticipants": {
+                            "nodes": [{
+                                "__typename": "DeliveryPromiseParticipant",
+                                "id": id,
+                                "ownerType": "PRODUCTVARIANT",
+                                "owner": { "__typename": "ProductVariant", "id": owner_id }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": has_previous_page,
+                                "startCursor": cursor,
+                                "endCursor": cursor
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+    let backward_query = r#"
+      query DeliveryPromiseParticipantBackward($before: String) {
+        deliveryPromiseParticipants(
+          brandedPromiseHandle: "backward-pages"
+          last: 1
+          before: $before
+        ) {
+          nodes { id ownerType owner { ... on ProductVariant { id } } }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+      }
+    "#;
+    let last_page = proxy.process_request(json_graphql_request(
+        backward_query,
+        json!({ "before": null }),
+    ));
+    assert_eq!(
+        last_page.body["data"]["deliveryPromiseParticipants"]["nodes"][0]["id"],
+        json!("gid://shopify/DeliveryPromiseParticipant/backward-b")
+    );
+    let first_page = proxy.process_request(json_graphql_request(
+        backward_query,
+        json!({ "before": "backward-cursor-b" }),
+    ));
+    assert_eq!(
+        first_page.body["data"]["deliveryPromiseParticipants"]["nodes"][0]["id"],
+        json!("gid://shopify/DeliveryPromiseParticipant/backward-a")
+    );
+
+    let complete = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryPromiseParticipantBackwardComplete {
+          deliveryPromiseParticipants(brandedPromiseHandle: "backward-pages", first: 10) {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        complete.body["data"]["deliveryPromiseParticipants"]["nodes"],
+        json!([
+            { "id": "gid://shopify/DeliveryPromiseParticipant/backward-a" },
+            { "id": "gid://shopify/DeliveryPromiseParticipant/backward-b" }
+        ])
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 2);
+}
+
+#[test]
+fn delivery_promise_partial_participant_baseline_survives_dump_restore() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "deliveryPromiseParticipants": {
+                        "nodes": [{
+                            "__typename": "DeliveryPromiseParticipant",
+                            "id": "gid://shopify/DeliveryPromiseParticipant/restore-a",
+                            "ownerType": "PRODUCTVARIANT",
+                            "owner": {
+                                "__typename": "ProductVariant",
+                                "id": "gid://shopify/ProductVariant/restore-a"
+                            }
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "restore-cursor-a",
+                            "endCursor": "restore-cursor-a"
+                        }
+                    }
+                }
+            }),
+        });
+    let query = r#"
+      query DeliveryPromiseRestorePage($after: String) {
+        deliveryPromiseParticipants(
+          brandedPromiseHandle: "restore-pages"
+          first: 1
+          after: $after
+        ) {
+          nodes {
+            id ownerType
+            owner { ... on ProductVariant { id } }
+          }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+      }
+    "#;
+    let first_page = proxy.process_request(json_graphql_request(query, json!({ "after": null })));
+    assert_eq!(
+        first_page.body["data"]["deliveryPromiseParticipants"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+
+    let restored_calls = Arc::new(Mutex::new(0usize));
+    let captured_calls = Arc::clone(&restored_calls);
+    let mut restored =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            *captured_calls.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "deliveryPromiseParticipants": {
+                            "nodes": [{
+                                "__typename": "DeliveryPromiseParticipant",
+                                "id": "gid://shopify/DeliveryPromiseParticipant/restore-b",
+                                "ownerType": "PRODUCTVARIANT",
+                                "owner": {
+                                    "__typename": "ProductVariant",
+                                    "id": "gid://shopify/ProductVariant/restore-b"
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": true,
+                                "startCursor": "restore-cursor-b",
+                                "endCursor": "restore-cursor-b"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let second_page = restored.process_request(json_graphql_request(
+        query,
+        json!({ "after": "restore-cursor-a" }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["deliveryPromiseParticipants"]["nodes"][0]["id"],
+        json!("gid://shopify/DeliveryPromiseParticipant/restore-b")
+    );
+    assert_eq!(*restored_calls.lock().unwrap(), 1);
+    let cached_second_page = restored.process_request(json_graphql_request(
+        query,
+        json!({ "after": "restore-cursor-a" }),
+    ));
+    assert_eq!(
+        cached_second_page.body["data"]["deliveryPromiseParticipants"]["nodes"][0]["id"],
+        json!("gid://shopify/DeliveryPromiseParticipant/restore-b")
+    );
+    assert_eq!(*restored_calls.lock().unwrap(), 1);
 }
 
 #[test]
