@@ -11587,6 +11587,181 @@ fn gift_card_credit_debit_preserve_optional_transaction_notes() {
 }
 
 #[test]
+fn gift_card_transactions_read_after_write_materializes_edges_nodes_and_paginates() {
+    let mut proxy = cad_snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"mutation IssueGiftCardForTransactionPagination {
+          giftCardCreate(input: { initialValue: "20.00", notify: false }) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["giftCardCreate"]["userErrors"],
+        json!([])
+    );
+    let gift_card_id = json_string(
+        &create.body["data"]["giftCardCreate"]["giftCard"]["id"],
+        "gift card id",
+    );
+
+    let transactions = proxy.process_request(json_graphql_request(
+        r#"mutation StageGiftCardTransactions($id: ID!) {
+          credit: giftCardCredit(id: $id, creditInput: { creditAmount: { amount: "5.00", currencyCode: CAD }, note: "first credit" }) {
+            giftCardCreditTransaction { id }
+            userErrors { field code message }
+          }
+          debit: giftCardDebit(id: $id, debitInput: { debitAmount: { amount: "2.00", currencyCode: CAD }, note: "second debit" }) {
+            giftCardDebitTransaction { id }
+            userErrors { field code message }
+          }
+          secondCredit: giftCardCredit(id: $id, creditInput: { creditAmount: { amount: "1.00", currencyCode: CAD }, note: "third credit" }) {
+            giftCardCreditTransaction { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": gift_card_id }),
+    ));
+    assert_eq!(transactions.status, 200);
+    assert_eq!(transactions.body["data"]["credit"]["userErrors"], json!([]));
+    assert_eq!(transactions.body["data"]["debit"]["userErrors"], json!([]));
+    assert_eq!(
+        transactions.body["data"]["secondCredit"]["userErrors"],
+        json!([])
+    );
+    let first_cursor = json_string(
+        &transactions.body["data"]["credit"]["giftCardCreditTransaction"]["id"],
+        "first transaction id",
+    );
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"query GiftCardTransactionsFirstPage($id: ID!) {
+          giftCard(id: $id) {
+            transactions(first: 1) {
+              nodes { id note amount { amount currencyCode } }
+              edges { cursor node { id note amount { amount currencyCode } } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }"#,
+        json!({ "id": gift_card_id }),
+    ));
+    assert_eq!(first_page.status, 200);
+    assert_eq!(
+        first_page.body["data"]["giftCard"]["transactions"],
+        json!({
+            "nodes": [{
+                "id": first_cursor,
+                "note": "first credit",
+                "amount": { "amount": "5.0", "currencyCode": "CAD" }
+            }],
+            "edges": [{
+                "cursor": first_cursor,
+                "node": {
+                    "id": first_cursor,
+                    "note": "first credit",
+                    "amount": { "amount": "5.0", "currencyCode": "CAD" }
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_cursor,
+                "endCursor": first_cursor
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"query GiftCardTransactionsAfterCursor($id: ID!, $after: String!) {
+          giftCard(id: $id) {
+            transactions(first: 1, after: $after) {
+              nodes { note amount { amount currencyCode } }
+              edges { cursor node { note amount { amount currencyCode } } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }"#,
+        json!({ "id": gift_card_id, "after": first_cursor }),
+    ));
+    assert_eq!(second_page.status, 200);
+    let second_transactions = &second_page.body["data"]["giftCard"]["transactions"];
+    assert_eq!(
+        second_transactions["nodes"],
+        json!([{
+            "note": "second debit",
+            "amount": { "amount": "-2.0", "currencyCode": "CAD" }
+        }])
+    );
+    assert_eq!(
+        second_transactions["edges"][0]["node"],
+        json!({
+            "note": "second debit",
+            "amount": { "amount": "-2.0", "currencyCode": "CAD" }
+        })
+    );
+    assert_eq!(
+        second_transactions["edges"][0]["cursor"],
+        second_transactions["pageInfo"]["startCursor"]
+    );
+    assert_eq!(
+        second_transactions["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": true,
+            "startCursor": second_transactions["edges"][0]["cursor"],
+            "endCursor": second_transactions["edges"][0]["cursor"]
+        })
+    );
+}
+
+#[test]
+fn gift_cards_updated_at_query_filters_staged_records() {
+    let mut proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut proxy);
+
+    restore_proxy_state(&mut proxy, |restored| {
+        let cards = restored["state"]["baseState"]["giftCards"]
+            .as_object_mut()
+            .expect("gift card fixtures should be restorable objects");
+        cards
+            .get_mut("gid://shopify/GiftCard/654773256498")
+            .expect("older gift card fixture")["updatedAt"] = json!("2026-04-20T00:00:00Z");
+        cards
+            .get_mut("gid://shopify/GiftCard/654865301810")
+            .expect("newer gift card fixture")["updatedAt"] = json!("2026-05-20T00:00:00Z");
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"query GiftCardsUpdatedAtFilter($query: String!) {
+          giftCards(first: 10, query: $query, sortKey: ID) {
+            nodes { id updatedAt }
+          }
+        }"#,
+        json!({ "query": "updated_at:>2026-05-01T00:00:00Z" }),
+    ));
+    assert_eq!(response.status, 200);
+    let ids = response.body["data"]["giftCards"]["nodes"]
+        .as_array()
+        .expect("giftCards nodes should be an array")
+        .iter()
+        .map(|node| json_string(&node["id"], "gift card id"))
+        .collect::<Vec<_>>();
+    assert!(
+        ids.contains(&"gid://shopify/GiftCard/654865301810".to_string()),
+        "newer updatedAt card should match, ids: {ids:?}"
+    );
+    assert!(
+        !ids.contains(&"gid://shopify/GiftCard/654773256498".to_string()),
+        "older updatedAt card should be filtered out, ids: {ids:?}"
+    );
+}
+
+#[test]
 fn gift_card_lifecycle_stages_update_transactions_deactivate_and_downstream_reads() {
     let mut proxy = snapshot_proxy();
     seed_legacy_gift_card_base_state(&mut proxy);

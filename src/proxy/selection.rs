@@ -64,6 +64,17 @@ pub(in crate::proxy) fn selected_field_json(
         .and_then(|object| object.get(&field.response_key).cloned())
 }
 
+pub(in crate::proxy) fn selected_field_type_condition_matches(
+    record: &Value,
+    selection: &SelectedField,
+) -> bool {
+    let Some(type_condition) = selection.type_condition.as_deref() else {
+        return true;
+    };
+    let typename = record.get("__typename").and_then(Value::as_str);
+    type_condition_matches(record, typename, type_condition)
+}
+
 pub(in crate::proxy) fn selection_contains_any(
     selections: &[SelectedField],
     names: &[&str],

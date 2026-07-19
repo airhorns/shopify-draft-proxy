@@ -130,32 +130,144 @@ fn gift_card_configuration_record(shop_currency_code: &str) -> Value {
     })
 }
 
+fn gift_card_transaction_connection(nodes: Vec<Value>) -> Value {
+    let page_info = connection_page_info(
+        false,
+        false,
+        nodes.first().map(value_id_cursor),
+        nodes.last().map(value_id_cursor),
+    );
+    connection_json_with_cursor(nodes, |_, node| value_id_cursor(node), page_info)
+}
+
 fn push_gift_card_transaction(card: &mut Value, transaction: Value) {
-    if !card.get("transactions").is_some_and(Value::is_object) {
-        card["transactions"] = connection_json(Vec::new());
-    } else {
-        if !card["transactions"]
-            .get("nodes")
-            .is_some_and(Value::is_array)
-        {
-            card["transactions"]["nodes"] = json!([]);
-        }
-        if !card["transactions"]
-            .get("edges")
-            .is_some_and(Value::is_array)
-        {
-            card["transactions"]["edges"] = json!([]);
-        }
-        if !card["transactions"]
-            .get("pageInfo")
-            .is_some_and(Value::is_object)
-        {
-            card["transactions"]["pageInfo"] = empty_page_info();
+    let mut nodes = card
+        .get("transactions")
+        .map(connection_nodes)
+        .unwrap_or_default();
+    nodes.push(transaction);
+    card["transactions"] = gift_card_transaction_connection(nodes);
+}
+
+fn selected_value_connection_json<NodeJson>(
+    records: &[Value],
+    page_info: Value,
+    selections: &[SelectedField],
+    node_json: NodeJson,
+) -> Value
+where
+    NodeJson: Fn(&Value, &[SelectedField]) -> Value,
+{
+    let mut connection = serde_json::Map::new();
+    for selection in selections {
+        let value = match selection.name.as_str() {
+            "nodes" => Some(Value::Array(
+                records
+                    .iter()
+                    .map(|record| node_json(record, &selection.selection))
+                    .collect(),
+            )),
+            "edges" => Some(Value::Array(
+                records
+                    .iter()
+                    .map(|record| {
+                        let mut edge = serde_json::Map::new();
+                        for edge_selection in &selection.selection {
+                            match edge_selection.name.as_str() {
+                                "cursor" => {
+                                    edge.insert(
+                                        edge_selection.response_key.clone(),
+                                        json!(value_id_cursor(record)),
+                                    );
+                                }
+                                "node" => {
+                                    edge.insert(
+                                        edge_selection.response_key.clone(),
+                                        node_json(record, &edge_selection.selection),
+                                    );
+                                }
+                                _ => {}
+                            }
+                        }
+                        Value::Object(edge)
+                    })
+                    .collect(),
+            )),
+            "pageInfo" => Some(selected_json(&page_info, &selection.selection)),
+            _ => None,
+        };
+        if let Some(value) = value {
+            connection.insert(selection.response_key.clone(), value);
         }
     }
-    if let Some(nodes) = card["transactions"]["nodes"].as_array_mut() {
-        nodes.push(transaction);
+    Value::Object(connection)
+}
+
+fn selected_gift_card_transactions_json(
+    card: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    let nodes = card
+        .get("transactions")
+        .map(connection_nodes)
+        .unwrap_or_default();
+    let (nodes, page_info) = connection_window(&nodes, arguments, value_id_cursor);
+    selected_value_connection_json(&nodes, page_info, selections, selected_json)
+}
+
+fn selected_gift_card_json(card: &Value, selections: &[SelectedField]) -> Value {
+    if card.is_null() {
+        return Value::Null;
     }
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        if !selected_field_type_condition_matches(card, selection) {
+            continue;
+        }
+        let value = match selection.name.as_str() {
+            "transactions" => Some(selected_gift_card_transactions_json(
+                card,
+                &selection.arguments,
+                &selection.selection,
+            )),
+            _ => selected_field_json(card, selection),
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
+fn selected_gift_card_transaction_json(transaction: &Value, selections: &[SelectedField]) -> Value {
+    if transaction.is_null() {
+        return Value::Null;
+    }
+    let mut fields = serde_json::Map::new();
+    for selection in selections {
+        if !selected_field_type_condition_matches(transaction, selection) {
+            continue;
+        }
+        let value = match selection.name.as_str() {
+            "giftCard" => transaction
+                .get("giftCard")
+                .map(|card| selected_gift_card_json(card, &selection.selection)),
+            _ => selected_field_json(transaction, selection),
+        };
+        if let Some(value) = value {
+            fields.insert(selection.response_key.clone(), value);
+        }
+    }
+    Value::Object(fields)
+}
+
+fn selected_gift_card_connection_json(
+    records: &[Value],
+    page_info: Value,
+    selections: &[SelectedField],
+) -> Value {
+    selected_value_connection_json(records, page_info, selections, selected_gift_card_json)
 }
 
 impl DraftProxy {
@@ -201,7 +313,7 @@ impl DraftProxy {
                 "giftCard" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.gift_card_effective_record(&id)
-                        .map(|card| selected_json(&card, &field.selection))
+                        .map(|card| selected_gift_card_json(&card, &field.selection))
                         .unwrap_or(Value::Null)
                 }
                 "giftCards" => self.gift_card_connection_field(field),
@@ -299,14 +411,7 @@ impl DraftProxy {
 
     fn gift_card_connection_field(&self, field: &RootFieldSelection) -> Value {
         let result = self.staged_gift_cards_query(&field.arguments);
-        selected_json(
-            &connection_json_with_cursor(
-                result.records,
-                |_, card| value_id_cursor(card),
-                result.page_info,
-            ),
-            &field.selection,
-        )
+        selected_gift_card_connection_json(&result.records, result.page_info, &field.selection)
     }
 
     fn gift_cards_count_field(&self, field: &RootFieldSelection) -> Value {
@@ -389,7 +494,7 @@ impl DraftProxy {
                 "giftCard" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     if let Some(card) = self.store.staged.gift_cards.get(&id) {
-                        data[&field.response_key] = selected_json(card, &field.selection);
+                        data[&field.response_key] = selected_gift_card_json(card, &field.selection);
                     }
                 }
                 "giftCards" => {
@@ -432,7 +537,7 @@ impl DraftProxy {
                 };
                 if let Some(card) = self.store.staged.gift_cards.get(&id) {
                     if gift_card_matches_search_query(card, &query) {
-                        *node = selected_json(card, &node_selection);
+                        *node = selected_gift_card_json(card, &node_selection);
                         seen_ids.insert(id);
                         true
                     } else {
@@ -455,7 +560,7 @@ impl DraftProxy {
                 };
                 if let Some(card) = self.store.staged.gift_cards.get(&id) {
                     if gift_card_matches_search_query(card, &query) {
-                        edge["node"] = selected_json(card, &edge_node_selection);
+                        edge["node"] = selected_gift_card_json(card, &edge_node_selection);
                         seen_ids.insert(id);
                         true
                     } else {
@@ -493,14 +598,8 @@ impl DraftProxy {
             },
             value_id_cursor,
         );
-        let local = selected_json(
-            &connection_json_with_cursor(
-                result.records,
-                |_, card| value_id_cursor(card),
-                result.page_info,
-            ),
-            selection,
-        );
+        let local =
+            selected_gift_card_connection_json(&result.records, result.page_info, selection);
         if let (Some(existing), Some(additional)) = (
             connection.get_mut("nodes").and_then(Value::as_array_mut),
             local.get("nodes").and_then(Value::as_array),
@@ -1770,7 +1869,10 @@ fn gift_card_matches_search_term(card: &Value, term: &str) -> bool {
             card.get("createdAt").and_then(Value::as_str),
             value,
         ),
-        "updated_at" => true,
+        "updated_at" => gift_card_matches_string_comparator(
+            card.get("updatedAt").and_then(Value::as_str),
+            value,
+        ),
         "expires_on" => gift_card_matches_string_comparator(
             card.get("expiresOn").and_then(Value::as_str),
             value,
@@ -1969,7 +2071,9 @@ pub(in crate::proxy) fn gift_card_transaction_payload(
 ) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         name if name == transaction_field => Some(match transaction.as_ref() {
-            Some(transaction) => selected_json(transaction, &selection.selection),
+            Some(transaction) => {
+                selected_gift_card_transaction_json(transaction, &selection.selection)
+            }
             None => Value::Null,
         }),
         "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
@@ -1984,7 +2088,7 @@ pub(in crate::proxy) fn gift_card_payload_json_nullable(
 ) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "giftCard" => Some(match gift_card {
-            Some(card) => selected_json(card, &selection.selection),
+            Some(card) => selected_gift_card_json(card, &selection.selection),
             None => Value::Null,
         }),
         "giftCardCode" => Some(
