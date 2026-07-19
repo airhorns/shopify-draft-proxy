@@ -1,0 +1,59 @@
+mutation OnlineStoreAuthoritativeArticleMove($id: ID!, $article: ArticleUpdateInput!) {
+  articleUpdate(id: $id, article: $article) {
+    article {
+      id
+      title
+      handle
+      body
+      summary
+      tags
+      isPublished
+      publishedAt
+      createdAt
+      updatedAt
+      templateSuffix
+      author {
+        name
+      }
+      image {
+        altText
+        url
+        width
+        height
+      }
+      blog {
+        id
+        title
+        handle
+        commentPolicy
+        tags
+        templateSuffix
+        createdAt
+        updatedAt
+        articlesCount {
+          count
+          precision
+        }
+      }
+      metafields(first: 250) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          jsonValue
+          compareDigest
+          ownerType
+          createdAt
+          updatedAt
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
