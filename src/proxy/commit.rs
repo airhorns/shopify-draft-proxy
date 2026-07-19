@@ -1,4 +1,8 @@
 use super::*;
+use crate::{
+    graphql::{parsed_document_with_operation_name, SelectedField},
+    operation_registry::{CommitIdInputOrder, CommitIdMappingSpec, OperationRegistryEntry},
+};
 
 impl DraftProxy {
     pub(in crate::proxy) fn commit_staged_mutations(
@@ -10,6 +14,7 @@ impl DraftProxy {
         let mut failed = 0usize;
         let mut attempts = Vec::new();
         let mut id_map = BTreeMap::new();
+        let registry = self.registry.entries().to_vec();
 
         for index in 0..self.log_entries.len() {
             if self.log_entries[index].get("status") != Some(&json!("staged")) {
@@ -59,14 +64,15 @@ impl DraftProxy {
                 };
             }
 
-            let mapped_ids = record_authoritative_id_mappings(
+            let id_mappings = record_authoritative_id_mappings(
                 &mut id_map,
                 &self.log_entries[index],
                 &outcome.body,
+                &registry,
             );
             committed += 1;
             set_log_status(&mut self.log_entries[index], "committed");
-            attempts.push(json!({
+            let mut attempt = json!({
                 "index": index,
                 "logId": log_id,
                 "status": "committed",
@@ -78,8 +84,12 @@ impl DraftProxy {
                     "status": outcome.status,
                     "body": outcome.body
                 },
-                "mappedIds": mapped_ids
-            }));
+                "mappedIds": id_mappings.mapped
+            });
+            if !id_mappings.unresolved.is_empty() {
+                attempt["unresolvedIds"] = Value::Array(id_mappings.unresolved);
+            }
+            attempts.push(attempt);
         }
 
         ok_json(json!({
@@ -358,28 +368,383 @@ fn record_authoritative_id_mappings(
     id_map: &mut BTreeMap<String, String>,
     entry: &Value,
     response_body: &Value,
-) -> Value {
+    registry: &[OperationRegistryEntry],
+) -> AuthoritativeIdMappings {
     let mut mapped = serde_json::Map::new();
-    for synthetic_id in staged_synthetic_ids(entry) {
-        if id_map.contains_key(&synthetic_id) {
-            continue;
-        }
-        let Some(resource_type) = shopify_gid_resource_type(&synthetic_id) else {
+    let mut unresolved = Vec::new();
+    let staged_ids = staged_synthetic_ids(entry);
+    let mut consumed = BTreeSet::new();
+    let Some((query, variables, operation_name)) = commit_graphql_request(entry) else {
+        record_undeclared_synthetic_ids(&staged_ids, id_map, &mut consumed, &mut unresolved, None);
+        return AuthoritativeIdMappings {
+            mapped: Value::Object(mapped),
+            unresolved,
+        };
+    };
+    let variables = crate::graphql::variables_with_operation_defaults(
+        &query,
+        &variables,
+        operation_name.as_deref(),
+    )
+    .unwrap_or(variables);
+    let Some(document) =
+        parsed_document_with_operation_name(&query, &variables, operation_name.as_deref())
+    else {
+        record_undeclared_synthetic_ids(&staged_ids, id_map, &mut consumed, &mut unresolved, None);
+        return AuthoritativeIdMappings {
+            mapped: Value::Object(mapped),
+            unresolved,
+        };
+    };
+
+    let selected_operation_name = document.operation_name.clone();
+    for root in document.root_fields {
+        let Some(registration) = registry.iter().find(|registration| {
+            registration.api_surface == ApiSurface::Admin
+                && registration.operation_type == OperationType::Mutation
+                && registration.name == root.name
+        }) else {
             continue;
         };
-        let mut authoritative_ids = Vec::new();
-        collect_ids_matching(response_body, &mut authoritative_ids, &|id| {
-            shopify_gid_resource_type(id) == Some(resource_type) && !is_synthetic_gid(id)
-        });
-        if let Some(authoritative_id) = authoritative_ids
-            .into_iter()
-            .find(|candidate| !id_map.values().any(|mapped_id| mapped_id == candidate))
-        {
-            id_map.insert(synthetic_id.clone(), authoritative_id.clone());
-            mapped.insert(synthetic_id, json!(authoritative_id));
+        let Some(root_response) = response_body
+            .get("data")
+            .and_then(Value::as_object)
+            .and_then(|data| data.get(&root.response_key))
+        else {
+            for spec in &registration.commit_id_mappings {
+                let expected_count = commit_mapping_expected_count(spec, &root.arguments);
+                let synthetic_ids = synthetic_ids_for_mapping(
+                    spec,
+                    expected_count,
+                    &[],
+                    &staged_ids,
+                    id_map,
+                    &consumed,
+                );
+                record_unresolved_mapping(
+                    &root.name,
+                    spec,
+                    synthetic_ids,
+                    "authoritative mutation payload was missing",
+                    &mut consumed,
+                    &mut unresolved,
+                );
+            }
+            continue;
+        };
+
+        for spec in &registration.commit_id_mappings {
+            let expected_count = commit_mapping_expected_count(spec, &root.arguments);
+            if expected_count == 0 {
+                continue;
+            }
+            let response_paths = selected_response_paths(&root.selection, &spec.response_path);
+            let candidate_sets = response_paths
+                .iter()
+                .filter_map(|path| authoritative_ids_at_path(root_response, path))
+                .collect::<BTreeSet<_>>();
+            let candidates = if candidate_sets.len() == 1 {
+                candidate_sets.iter().next().cloned().unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+            let synthetic_ids = synthetic_ids_for_mapping(
+                spec,
+                expected_count,
+                &candidates,
+                &staged_ids,
+                id_map,
+                &consumed,
+            );
+            let valid_candidates = candidate_sets.len() == 1
+                && candidates.len() == expected_count
+                && synthetic_ids.len() == expected_count
+                && authoritative_ids_match_synthetic_types(&synthetic_ids, &candidates)
+                && candidates.iter().collect::<BTreeSet<_>>().len() == candidates.len()
+                && candidates
+                    .iter()
+                    .all(|candidate| !id_map.values().any(|mapped| mapped == candidate));
+
+            if valid_candidates {
+                for (synthetic_id, authoritative_id) in synthetic_ids.into_iter().zip(candidates) {
+                    consumed.insert(synthetic_id.clone());
+                    id_map.insert(synthetic_id.clone(), authoritative_id.clone());
+                    mapped.insert(synthetic_id, json!(authoritative_id));
+                }
+            } else {
+                let reason = if response_paths.is_empty() {
+                    "authoritative ID field was not selected"
+                } else {
+                    "authoritative response path did not contain one unambiguous ID per staged input"
+                };
+                record_unresolved_mapping(
+                    &root.name,
+                    spec,
+                    synthetic_ids,
+                    reason,
+                    &mut consumed,
+                    &mut unresolved,
+                );
+            }
         }
     }
-    Value::Object(mapped)
+
+    record_undeclared_synthetic_ids(
+        &staged_ids,
+        id_map,
+        &mut consumed,
+        &mut unresolved,
+        selected_operation_name.as_deref(),
+    );
+    AuthoritativeIdMappings {
+        mapped: Value::Object(mapped),
+        unresolved,
+    }
+}
+
+struct AuthoritativeIdMappings {
+    mapped: Value,
+    unresolved: Vec<Value>,
+}
+
+fn commit_graphql_request(
+    entry: &Value,
+) -> Option<(String, BTreeMap<String, ResolvedValue>, Option<String>)> {
+    let raw_request = entry
+        .get("rawBody")
+        .and_then(Value::as_str)
+        .and_then(|body| serde_json::from_str::<Value>(body).ok());
+    let query = entry
+        .get("query")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            raw_request
+                .as_ref()
+                .and_then(|request| request.get("query"))
+                .and_then(Value::as_str)
+        })?
+        .to_string();
+    let variables = entry
+        .get("variables")
+        .or_else(|| {
+            raw_request
+                .as_ref()
+                .and_then(|request| request.get("variables"))
+        })
+        .and_then(Value::as_object)
+        .map(|variables| {
+            variables
+                .iter()
+                .map(|(name, value)| {
+                    (
+                        name.clone(),
+                        crate::proxy::routing::resolved_value_from_json(value),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let operation_name = entry
+        .get("operationName")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            raw_request
+                .as_ref()
+                .and_then(|request| request.get("operationName"))
+                .and_then(Value::as_str)
+        })
+        .map(str::to_string);
+    Some((query, variables, operation_name))
+}
+
+fn commit_mapping_expected_count(
+    spec: &CommitIdMappingSpec,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> usize {
+    match &spec.input_order {
+        CommitIdInputOrder::Single => 1,
+        CommitIdInputOrder::ArgumentList { path } => {
+            resolved_argument_list_len(arguments, path).unwrap_or(0)
+        }
+    }
+}
+
+fn resolved_argument_list_len(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    path: &[String],
+) -> Option<usize> {
+    let (first, remaining) = path.split_first()?;
+    resolved_value_list_len(arguments.get(first)?, remaining)
+}
+
+fn resolved_value_list_len(value: &ResolvedValue, path: &[String]) -> Option<usize> {
+    if path.is_empty() {
+        return match value {
+            ResolvedValue::List(values) => Some(values.len()),
+            _ => None,
+        };
+    }
+    let (first, remaining) = path.split_first()?;
+    match value {
+        ResolvedValue::Object(fields) => resolved_value_list_len(fields.get(first)?, remaining),
+        _ => None,
+    }
+}
+
+fn selected_response_paths(
+    selection: &[SelectedField],
+    canonical_path: &[String],
+) -> Vec<Vec<String>> {
+    let Some((field_name, remaining)) = canonical_path.split_first() else {
+        return vec![Vec::new()];
+    };
+    selection
+        .iter()
+        .filter(|field| field.name == *field_name)
+        .flat_map(|field| {
+            selected_response_paths(&field.selection, remaining)
+                .into_iter()
+                .map(|path| {
+                    let mut response_path = Vec::with_capacity(path.len() + 1);
+                    response_path.push(field.response_key.clone());
+                    response_path.extend(path);
+                    response_path
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+fn authoritative_ids_at_path(root_response: &Value, path: &[String]) -> Option<Vec<String>> {
+    let mut values = Vec::new();
+    collect_values_at_response_path(root_response, path, &mut values);
+    values
+        .into_iter()
+        .map(|value| {
+            let id = value.as_str()?;
+            shopify_gid_resource_type(id)
+                .filter(|_| !is_synthetic_gid(id))
+                .map(|_| id.to_string())
+        })
+        .collect()
+}
+
+fn collect_values_at_response_path<'a>(
+    value: &'a Value,
+    path: &[String],
+    values: &mut Vec<&'a Value>,
+) {
+    if path.is_empty() {
+        values.push(value);
+        return;
+    }
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                collect_values_at_response_path(item, path, values);
+            }
+        }
+        Value::Object(fields) => {
+            if let Some(next) = fields.get(&path[0]) {
+                collect_values_at_response_path(next, &path[1..], values);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn synthetic_ids_for_mapping(
+    spec: &CommitIdMappingSpec,
+    expected_count: usize,
+    authoritative_ids: &[String],
+    staged_ids: &[String],
+    id_map: &BTreeMap<String, String>,
+    consumed: &BTreeSet<String>,
+) -> Vec<String> {
+    let candidate_types = authoritative_ids
+        .iter()
+        .filter_map(|id| shopify_gid_resource_type(id))
+        .collect::<Vec<_>>();
+    let eligible = staged_ids.iter().filter(|id| {
+        if id_map.contains_key(*id) || consumed.contains(*id) {
+            return false;
+        }
+        let Some(resource_type) = shopify_gid_resource_type(id) else {
+            return false;
+        };
+        spec.resource_types.is_empty()
+            || spec
+                .resource_types
+                .iter()
+                .any(|expected| expected == resource_type)
+    });
+    if spec.resource_types.is_empty() && !candidate_types.is_empty() {
+        let mut eligible = eligible.cloned().collect::<Vec<_>>();
+        let mut selected = Vec::new();
+        for candidate_type in candidate_types.into_iter().take(expected_count) {
+            let Some(index) = eligible.iter().position(|id| {
+                shopify_gid_resource_type(id).is_some_and(|actual| actual == candidate_type)
+            }) else {
+                break;
+            };
+            selected.push(eligible.remove(index));
+        }
+        selected
+    } else {
+        eligible.take(expected_count).cloned().collect()
+    }
+}
+
+fn authoritative_ids_match_synthetic_types(
+    synthetic_ids: &[String],
+    authoritative_ids: &[String],
+) -> bool {
+    synthetic_ids
+        .iter()
+        .zip(authoritative_ids)
+        .all(|(synthetic, authoritative)| {
+            shopify_gid_resource_type(synthetic) == shopify_gid_resource_type(authoritative)
+        })
+}
+
+fn record_unresolved_mapping(
+    operation: &str,
+    spec: &CommitIdMappingSpec,
+    synthetic_ids: Vec<String>,
+    reason: &str,
+    consumed: &mut BTreeSet<String>,
+    unresolved: &mut Vec<Value>,
+) {
+    for synthetic_id in synthetic_ids {
+        consumed.insert(synthetic_id.clone());
+        unresolved.push(json!({
+            "syntheticId": synthetic_id,
+            "operation": operation,
+            "responsePath": spec.response_path,
+            "reason": reason,
+        }));
+    }
+}
+
+fn record_undeclared_synthetic_ids(
+    staged_ids: &[String],
+    id_map: &BTreeMap<String, String>,
+    consumed: &mut BTreeSet<String>,
+    unresolved: &mut Vec<Value>,
+    operation: Option<&str>,
+) {
+    for synthetic_id in staged_ids {
+        if id_map.contains_key(synthetic_id) || consumed.contains(synthetic_id) {
+            continue;
+        }
+        consumed.insert(synthetic_id.clone());
+        unresolved.push(json!({
+            "syntheticId": synthetic_id,
+            "operation": operation,
+            "responsePath": Value::Null,
+            "reason": "no authoritative response path was declared for this staged resource",
+        }));
+    }
 }
 
 fn staged_synthetic_ids(entry: &Value) -> Vec<String> {

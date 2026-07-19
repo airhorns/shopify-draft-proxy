@@ -39,7 +39,7 @@ Webhook subscription reads are backed by normalized `webhookSubscriptions` state
 
 Subscription lifecycle mutations stage locally and retain the original raw mutation for commit replay:
 
-- `webhookSubscriptionCreate` rejects blank or malformed `WebhookSubscriptionTopic` values before resolver side effects, but it does not freeze topic validation to a captured enum snapshot. Non-empty uppercase enum-shaped topic names stage a synthetic local `WebhookSubscription` record after address, format, name, duplicate, filter, and namespace validation passes.
+- `webhookSubscriptionCreate` topic literals and variables are coerced by the executable Admin schema selected from the request route. Topic availability therefore follows the requested API version; values absent from that version return Shopify-like top-level GraphQL errors before resolver side effects. Schema-valid topics stage a synthetic local `WebhookSubscription` record after address, format, name, duplicate, filter, and namespace validation passes.
 - `webhookSubscriptionUpdate` updates an existing staged or hydrated subscription in place, preserving `topic` and `createdAt` while replacing supported mutable fields.
 - `webhookSubscriptionDelete` records local deletion state. Downstream detail reads return `null`, and list/count reads omit deleted subscriptions.
 - `$app:<suffix>` `metafieldNamespaces` entries resolve through request-owned `x-shopify-draft-proxy-api-client-id` when available. Without a caller API client ID, the proxy preserves `$app:` input unchanged rather than fabricating an identity.
@@ -48,7 +48,7 @@ Subscription lifecycle mutations stage locally and retain the original raw mutat
 - Dedicated Pub/Sub create/update roots normalize `pubSubProject` plus `pubSubTopic` into the stored `pubsub://project:topic` URI while preserving dedicated validation field paths.
 - Pub/Sub GCP project validation accepts all-numeric project numbers in addition to lowercase alpha-start project IDs. Topic validation requires an ASCII letter first character and accepts literal percent signs when represented by a valid percent-encoded `%25` sequence; encoded invalid characters such as `%20` are rejected like Shopify.
 - Dedicated EventBridge create/update roots normalize `arn` into the stored URI/address while preserving dedicated validation field paths.
-- Commit replay replaces synthetic IDs with upstream IDs from prior successful replay attempts before replaying subsequent raw request bodies.
+- Commit replay replaces synthetic webhook IDs only from the create payload's declared `webhookSubscription.id` response path before replaying subsequent raw request bodies; missing or ambiguous IDs remain unresolved instead of being guessed from another payload node.
 
 Validation and no-side-effect behavior:
 

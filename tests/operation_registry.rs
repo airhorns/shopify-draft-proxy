@@ -34,6 +34,7 @@ fn sample_registry() -> Vec<OperationRegistryEntry> {
             domain: CapabilityDomain::Products,
             implemented: true,
             runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
+            commit_id_mappings: Vec::new(),
         },
         OperationRegistryEntry {
             api_surface: ApiSurface::Admin,
@@ -42,6 +43,7 @@ fn sample_registry() -> Vec<OperationRegistryEntry> {
             domain: CapabilityDomain::Products,
             implemented: true,
             runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
+            commit_id_mappings: Vec::new(),
         },
         OperationRegistryEntry {
             api_surface: ApiSurface::Admin,
@@ -50,6 +52,7 @@ fn sample_registry() -> Vec<OperationRegistryEntry> {
             domain: CapabilityDomain::Customers,
             implemented: true,
             runtime_tests: vec![],
+            commit_id_mappings: Vec::new(),
         },
         OperationRegistryEntry {
             api_surface: ApiSurface::Admin,
@@ -58,6 +61,7 @@ fn sample_registry() -> Vec<OperationRegistryEntry> {
             domain: CapabilityDomain::Apps,
             implemented: false,
             runtime_tests: vec![],
+            commit_id_mappings: Vec::new(),
         },
     ]
 }
@@ -124,6 +128,7 @@ fn operation_capability_returns_implemented_canonical_registry_matches_only() {
         domain: CapabilityDomain::Apps,
         implemented: true,
         runtime_tests: vec![],
+        commit_id_mappings: Vec::new(),
     });
 
     let product = operation_capability(&registry, OperationType::Query, Some("product"));
@@ -176,6 +181,7 @@ fn operation_capability_is_scoped_by_api_surface() {
             domain: CapabilityDomain::StoreProperties,
             implemented: true,
             runtime_tests: vec![],
+            commit_id_mappings: Vec::new(),
         },
         OperationRegistryEntry {
             api_surface: ApiSurface::Storefront,
@@ -184,6 +190,7 @@ fn operation_capability_is_scoped_by_api_surface() {
             domain: CapabilityDomain::Storefront,
             implemented: false,
             runtime_tests: vec![],
+            commit_id_mappings: Vec::new(),
         },
     ];
 

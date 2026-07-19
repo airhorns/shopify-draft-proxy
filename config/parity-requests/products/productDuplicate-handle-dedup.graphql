@@ -1,4 +1,4 @@
-mutation ProductDuplicateHandleDedup($productId: ID!, $newTitle: String!) {
+mutation ProductHandleLifecycleDuplicate($productId: ID!, $newTitle: String!) {
   productDuplicate(productId: $productId, newTitle: $newTitle) {
     newProduct {
       id

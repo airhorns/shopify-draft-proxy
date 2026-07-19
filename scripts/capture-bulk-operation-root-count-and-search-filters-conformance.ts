@@ -675,8 +675,106 @@ const bulkVariantQuery = `#graphql
   }
 }`;
 
+// Keep these byte-identical to the production hydration documents. The parity
+// cassette matches the exact GraphQL text and variables sent by the proxy.
+const productCatalogHydrationQuery =
+  'query BulkProductsCatalogHydrate($first: Int!, $after: String, $nestedFirst: Int!, $nestedAfter: String) { products(first: $first, after: $after) { nodes { id title bulkNested0: variants(first: $nestedFirst, after: $nestedAfter) { nodes { id title sku } pageInfo { hasNextPage endCursor } } bulkNested1: media(first: $nestedFirst, after: $nestedAfter) { nodes { id alt mediaContentType } pageInfo { hasNextPage endCursor } } bulkNested2: metafields(namespace: "custom", first: $nestedFirst, after: $nestedAfter) { nodes { id namespace key value } pageInfo { hasNextPage endCursor } } tags } pageInfo { hasNextPage endCursor } } }';
+const productVariantCatalogHydrationQuery =
+  'query BulkProductVariantsCatalogHydrate($first: Int!, $after: String, $nestedFirst: Int!, $nestedAfter: String) { productVariants(first: $first, after: $after) { nodes { id sku bulkNested0: media(first: $nestedFirst, after: $nestedAfter) { nodes { id alt mediaContentType } pageInfo { hasNextPage endCursor } } bulkNested1: metafields(namespace: "custom", first: $nestedFirst, after: $nestedAfter) { nodes { id namespace key value } pageInfo { hasNextPage endCursor } } product { id } } pageInfo { hasNextPage endCursor } } }';
+
+async function captureCatalogPage(
+  operationName: string,
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<CapturedInteraction> {
+  for (let attempt = 0; attempt < maxPolls; attempt += 1) {
+    const page = await capture(operationName, query, variables);
+    const response = asRecord(page.response);
+    const errors = response?.['errors'];
+    const throttled =
+      Array.isArray(errors) &&
+      errors.some((error) => asRecord(asRecord(error)?.['extensions'])?.['code'] === 'THROTTLED');
+    if (!throttled) return page;
+
+    const cost = asRecord(asRecord(response?.['extensions'])?.['cost']);
+    const throttleStatus = asRecord(cost?.['throttleStatus']);
+    const requested = typeof cost?.['requestedQueryCost'] === 'number' ? cost['requestedQueryCost'] : 350;
+    const available =
+      typeof throttleStatus?.['currentlyAvailable'] === 'number' ? throttleStatus['currentlyAvailable'] : 0;
+    const restoreRate = typeof throttleStatus?.['restoreRate'] === 'number' ? throttleStatus['restoreRate'] : 100;
+    const retryDelayMs = Math.max(1_000, Math.ceil(((requested - available) / restoreRate) * 1_000) + 250);
+    await sleep(retryDelayMs);
+  }
+
+  throw new Error(`${operationName} remained throttled after ${maxPolls} attempts.`);
+}
+
+async function captureCatalogPages(
+  operationName: string,
+  query: string,
+  rootName: 'products' | 'productVariants',
+): Promise<CapturedInteraction[]> {
+  const pages: CapturedInteraction[] = [];
+  const seenCursors = new Set<string>();
+  let after: string | null = null;
+
+  for (let index = 0; index < 10_000; index += 1) {
+    const page = await captureCatalogPage(operationName, query, {
+      first: 250,
+      after,
+      nestedFirst: 250,
+      nestedAfter: null,
+    });
+    pages.push(page);
+    const response = asRecord(page.response);
+    const errors = response?.['errors'];
+    const connection = asRecord(readData(page)?.[rootName]);
+    const nodes = connection?.['nodes'];
+    const pageInfo = asRecord(connection?.['pageInfo']);
+    if (
+      page.status >= 400 ||
+      (Array.isArray(errors) && errors.length > 0) ||
+      !Array.isArray(nodes) ||
+      typeof pageInfo?.['hasNextPage'] !== 'boolean'
+    ) {
+      throw new Error(`${rootName} catalog hydration page was malformed: ${JSON.stringify(page.response)}`);
+    }
+    for (const node of nodes) {
+      const record = asRecord(node);
+      for (const [key, value] of Object.entries(record ?? {})) {
+        if (!key.startsWith('bulkNested')) continue;
+        const nestedPageInfo = asRecord(asRecord(value)?.['pageInfo']);
+        if (nestedPageInfo?.['hasNextPage'] === true) {
+          throw new Error(`${rootName}.${key} exceeded the captured first 250 rows; nested-page capture is required.`);
+        }
+      }
+    }
+    if (pageInfo['hasNextPage'] === false) {
+      return pages;
+    }
+    const endCursor = pageInfo['endCursor'];
+    if (typeof endCursor !== 'string' || seenCursors.has(endCursor)) {
+      throw new Error(`${rootName} catalog hydration cursor did not prove progress: ${JSON.stringify(pageInfo)}`);
+    }
+    seenCursors.add(endCursor);
+    after = endCursor;
+  }
+
+  throw new Error(`${rootName} catalog hydration exceeded 10,000 pages.`);
+}
+
 let createdProductId: string | null = null;
 let cleanup: CapturedInteraction | null = null;
+const productCatalogHydrationPages = await captureCatalogPages(
+  'BulkProductsCatalogHydrate',
+  productCatalogHydrationQuery,
+  'products',
+);
+const productVariantCatalogHydrationPages = await captureCatalogPages(
+  'BulkProductVariantsCatalogHydrate',
+  productVariantCatalogHydrationQuery,
+  'productVariants',
+);
 
 try {
   const productCreate = await capture('BulkOperationRootCountProductCreate', productCreateMutation, productVariables);
@@ -824,6 +922,7 @@ try {
       createdBefore,
       unknown,
     },
+    upstreamCalls: [...productCatalogHydrationPages, ...productVariantCatalogHydrationPages],
     cleanup,
   };
 

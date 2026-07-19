@@ -1,0 +1,18 @@
+mutation ConnectionOverlayDelete(
+  $savedSearch: SavedSearchDeleteInput!
+  $fileIds: [ID!]!
+  $sellingPlanGroupId: ID!
+) {
+  savedSearchDelete(input: $savedSearch) {
+    deletedSavedSearchId
+    userErrors { field message }
+  }
+  fileDelete(fileIds: $fileIds) {
+    deletedFileIds
+    userErrors { field message code }
+  }
+  sellingPlanGroupDelete(id: $sellingPlanGroupId) {
+    deletedSellingPlanGroupId
+    userErrors { field message code }
+  }
+}

@@ -46,6 +46,48 @@ fn image_url_field(
 // cassette calls, and against a live backend they are ordinary GraphQL reads.
 const MEDIA_FILE_UPDATE_HYDRATE_QUERY: &str = "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}";
 const MEDIA_FILE_SAVED_SEARCH_HYDRATE_QUERY: &str = "query MediaFileSavedSearchHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on SavedSearch {\n      id\n      name\n      query\n      resourceType\n    }\n  }\n}";
+const MEDIA_FILES_CONNECTION_BASELINE_QUERY: &str = r#"
+query MediaFilesConnectionBaseline(
+  $first: Int!
+  $after: String
+  $query: String
+  $sortKey: FileSortKeys
+) {
+  filesBaseline: files(first: $first, after: $after, query: $query, sortKey: $sortKey) {
+    edges {
+      cursor
+      node {
+        __typename
+        id
+        alt
+        createdAt
+        updatedAt
+        fileStatus
+        ... on MediaImage {
+          image { url width height }
+          preview { image { url width height } }
+        }
+        ... on GenericFile { url }
+        ... on Video {
+          preview { image { url width height } }
+          sources { url mimeType format height width }
+        }
+        ... on ExternalVideo {
+          embeddedUrl
+          host
+          originUrl
+          preview { image { url width height } }
+        }
+        ... on Model3d {
+          preview { image { url width height } }
+          sources { url mimeType format filesize }
+        }
+      }
+    }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+}
+"#;
 pub(in crate::proxy) const MEDIA_PRODUCT_HYDRATE_QUERY: &str = "query MediaProductHydrate($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    status\n    media(first: 50) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n        preview { image { url width height } }\n        ... on MediaImage { image { url width height } }\n      }\n    }\n    variants(first: 50) {\n      nodes {\n        id\n        title\n        media(first: 10) { nodes { id } }\n      }\n    }\n  }\n}";
 const MEDIA_PRODUCTS_HYDRATE_QUERY: &str = "query MediaProductHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      media(first: 50) {\n        nodes {\n          id\n          alt\n          mediaContentType\n          status\n          preview { image { url width height } }\n          ... on MediaImage { image { url width height } }\n        }\n      }\n      variants(first: 50) {\n        nodes {\n          id\n          title\n          media(first: 10) { nodes { id } }\n        }\n      }\n    }\n  }\n}";
 // fileDelete / fileUpdate cascade clearing needs to know which products (and
@@ -208,6 +250,10 @@ impl DraftProxy {
                     &created_at,
                 );
                 self.store.staged.media_ready_on_read.insert(id.clone());
+                self.store
+                    .staged
+                    .locally_created_media_file_ids
+                    .insert(id.clone());
                 self.store.staged.media_files.insert(id, file.clone());
                 file
             })
@@ -216,6 +262,9 @@ impl DraftProxy {
             .iter()
             .filter_map(|file| file.get("id").and_then(Value::as_str).map(str::to_string))
             .collect::<Vec<_>>();
+        if !staged_ids.is_empty() {
+            self.store.staged.media_files_overlay_dirty = true;
+        }
         let payload = json!({"files": files, "userErrors": []});
         ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
             "fileCreate",
@@ -388,6 +437,9 @@ impl DraftProxy {
             .iter()
             .filter_map(|file| file.get("id").and_then(Value::as_str).map(str::to_string))
             .collect::<Vec<_>>();
+        if !staged_ids.is_empty() {
+            self.store.staged.media_files_overlay_dirty = true;
+        }
         let payload = json!({"files": updated_files, "userErrors": []});
         ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
             "fileUpdate",
@@ -420,6 +472,9 @@ impl DraftProxy {
         }
         for id in &ids {
             self.store.staged.media_files.tombstone_staged(id);
+        }
+        if !ids.is_empty() {
+            self.store.staged.media_files_overlay_dirty = true;
         }
         // Cascade: detach the deleted files from every product/variant that
         // referenced them, so subsequent product.media / variant.media reads no
@@ -881,9 +936,31 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::LiveHybrid {
             let mut outcome = self.cached_or_forward_upstream_root_outcome(request, response_key);
             if outcome.errors.is_empty() {
-                self.observe_media_files_connection(&outcome.value);
-                self.promote_polled_media_files_to_ready(root_name);
                 self.hydrate_media_file_saved_search_for_arguments(request, arguments);
+                if !self.store.staged.media_files_overlay_dirty {
+                    self.observe_media_files_connection(&outcome.value);
+                    return outcome;
+                }
+                let baseline_arguments =
+                    self.media_files_arguments_with_saved_search_query(arguments);
+                let baseline = self
+                    .complete_upstream_connection(
+                        request,
+                        MEDIA_FILES_CONNECTION_BASELINE_QUERY,
+                        "MediaFilesConnectionBaseline",
+                        media_files_baseline_variables(&baseline_arguments),
+                        "/data/filesBaseline",
+                        None,
+                    )
+                    .or_else(|| {
+                        upstream_page_is_complete_baseline(&outcome.value, arguments)
+                            .then(|| outcome.value.clone())
+                    });
+                let Some(baseline) = baseline else {
+                    return outcome;
+                };
+                self.observe_media_files_connection(&baseline);
+                self.promote_polled_media_files_to_ready(root_name);
                 if let Some(error) =
                     self.media_files_saved_search_error(arguments, root_location, response_key)
                 {
@@ -920,21 +997,29 @@ impl DraftProxy {
             .map(|(_, file)| file.clone())
             .collect::<Vec<_>>();
         let arguments = self.media_files_arguments_with_saved_search_query(arguments);
+        let cursors = &self.store.staged.media_file_cursors;
+        let locally_created_ids = &self.store.staged.locally_created_media_file_ids;
         staged_connection_value_with_args(
             files,
             &arguments,
             |file, query| self.media_file_search_decision(file, query),
-            media_file_staged_sort_key,
+            |file, sort_key| media_file_overlay_sort_key(file, sort_key, locally_created_ids),
             Value::clone,
-            media_file_cursor,
+            |file| authoritative_or_local_media_file_cursor(cursors, file),
         )
     }
 
     fn observe_media_files_connection(&mut self, connection: &Value) {
-        for node in connection_nodes(connection) {
-            if let Some(record) = media_file_record_from_node(&node) {
+        for row in observed_connection_rows(connection) {
+            if let Some(record) = media_file_record_from_node(&row.node) {
                 if let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) {
                     if !self.store.staged.media_files.is_tombstoned(&id) {
+                        if let Some(cursor) = row.cursor {
+                            self.store
+                                .staged
+                                .media_file_cursors
+                                .insert(id.clone(), cursor);
+                        }
                         self.store.staged.media_files.entry(id).or_insert(record);
                     }
                 }
@@ -1794,6 +1879,22 @@ fn media_file_staged_sort_key(file: &Value, sort_key: Option<&str>) -> StagedSor
     vec![primary, id]
 }
 
+fn media_file_overlay_sort_key(
+    file: &Value,
+    sort_key: Option<&str>,
+    locally_created_ids: &BTreeSet<String>,
+) -> StagedSortKey {
+    let mut key = media_file_staged_sort_key(file, sort_key);
+    if sort_key.unwrap_or("ID") == "ID" {
+        let is_local = file
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| locally_created_ids.contains(id));
+        key.insert(0, StagedSortValue::I64(i64::from(is_local)));
+    }
+    key
+}
+
 fn media_file_string_sort_value(file: &Value, field: &str) -> StagedSortValue {
     file.get(field)
         .and_then(Value::as_str)
@@ -2030,8 +2131,11 @@ pub(super) fn media_file_record_from_node(node: &Value) -> Option<Value> {
     let source_url = node
         .get("url")
         .and_then(Value::as_str)
+        .or_else(|| node.get("originUrl").and_then(Value::as_str))
+        .or_else(|| node.get("embeddedUrl").and_then(Value::as_str))
         .or_else(|| node.pointer("/image/url").and_then(Value::as_str))
         .or_else(|| node.pointer("/preview/image/url").and_then(Value::as_str))
+        .or_else(|| node.pointer("/sources/0/url").and_then(Value::as_str))
         .map(str::to_string);
     let filename = source_url.as_deref().map(filename_from_source);
 
@@ -2073,6 +2177,35 @@ fn promote_media_file_record_to_ready(file: &mut Value) {
 // Files-connection cursors are the record gid prefixed with `cursor:`, distinct from the bare-id cursors other connections emit via value_id_cursor.
 fn media_file_cursor(record: &Value) -> String {
     format!("cursor:{}", value_id_cursor(record))
+}
+
+fn authoritative_or_local_media_file_cursor(
+    cursors: &BTreeMap<String, String>,
+    record: &Value,
+) -> String {
+    record
+        .get("id")
+        .and_then(Value::as_str)
+        .and_then(|id| cursors.get(id))
+        .cloned()
+        .unwrap_or_else(|| media_file_cursor(record))
+}
+
+fn media_files_baseline_variables(
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> serde_json::Map<String, Value> {
+    let mut variables = serde_json::Map::from_iter([
+        ("first".to_string(), json!(250)),
+        ("after".to_string(), Value::Null),
+        ("query".to_string(), Value::Null),
+        ("sortKey".to_string(), Value::Null),
+    ]);
+    for name in ["query", "sortKey"] {
+        if let Some(value) = arguments.get(name) {
+            variables.insert(name.to_string(), resolved_value_json(value));
+        }
+    }
+    variables
 }
 
 fn media_file_gid_type(content_type: &str) -> &'static str {

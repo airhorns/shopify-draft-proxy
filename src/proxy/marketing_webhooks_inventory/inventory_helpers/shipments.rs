@@ -879,7 +879,8 @@ impl DraftProxy {
         };
         for line_item in &record.line_items {
             let key = (line_item.inventory_item_id.clone(), location_id.clone());
-            if self.store.staged.inventory_levels.contains_key(&key) {
+            if self.effective_inventory_level(&key).is_some() {
+                self.stage_inventory_level_for_write(&key);
                 continue;
             }
             // Seed a destination level only for product-backed movement shipments that
@@ -940,11 +941,13 @@ impl DraftProxy {
             return;
         }
         let updated_at = self.next_inventory_quantity_timestamp();
+        let key = (inventory_item_id.to_string(), location_id.to_string());
+        self.stage_inventory_level_for_write(&key);
         let level = self
             .store
             .staged
             .inventory_levels
-            .entry((inventory_item_id.to_string(), location_id.to_string()))
+            .entry(key)
             .or_insert_with(empty_inventory_quantities);
         *level.entry(name.to_string()).or_insert(0) += delta;
         self.stamp_inventory_quantity(inventory_item_id, location_id, name, &updated_at);

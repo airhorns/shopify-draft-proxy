@@ -1,0 +1,26 @@
+query ConnectionOverlayFullRead($fileQuery: String!, $groupQuery: String!) {
+  saved: productSavedSearches(first: 10) {
+    edges { cursor node { id name } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+  savedReverse: productSavedSearches(first: 1, reverse: true) {
+    edges { cursor node { id name } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+  files: files(first: 10, query: $fileQuery, sortKey: ID) {
+    edges { cursor node { __typename id alt } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+  filesReverse: files(first: 1, query: $fileQuery, sortKey: ID, reverse: true) {
+    edges { cursor node { __typename id alt } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+  groups: sellingPlanGroups(first: 10, query: $groupQuery, sortKey: ID) {
+    edges { cursor node { id name merchantCode } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+  groupsReverse: sellingPlanGroups(first: 1, query: $groupQuery, sortKey: ID, reverse: true) {
+    edges { cursor node { id name merchantCode } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+}

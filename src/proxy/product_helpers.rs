@@ -126,6 +126,136 @@ pub(in crate::proxy) use self::collections::*;
 pub(in crate::proxy) use self::saved_search::*;
 pub(in crate::proxy) use self::search::*;
 
+impl DraftProxy {
+    /// Resolve the effective handle for every product lifecycle mutation.
+    ///
+    /// Shopify treats nonblank merchant handles differently from generated handles:
+    /// normalized merchant collisions are rejected, while generated handles and the
+    /// punctuation-only `product` fallback reserve the next numeric suffix. An omitted
+    /// handle remains sticky when mutating an existing product, while a supplied blank
+    /// handle regenerates from the effective title.
+    pub(in crate::proxy) fn resolve_product_handle(
+        &self,
+        title: &str,
+        explicit_handle: Option<&str>,
+        existing: Option<&ProductRecord>,
+    ) -> Result<String, Value> {
+        let (candidate, reject_collision) = match explicit_handle {
+            Some(handle) => {
+                let normalized = normalize_product_handle(handle);
+                if normalized.is_empty() {
+                    if handle.trim().is_empty() {
+                        let generated = normalize_product_handle(title);
+                        (
+                            if generated.is_empty() {
+                                "untitled-product".to_string()
+                            } else {
+                                generated
+                            },
+                            false,
+                        )
+                    } else {
+                        ("product".to_string(), false)
+                    }
+                } else {
+                    (normalized, true)
+                }
+            }
+            None => {
+                if let Some(existing) = existing {
+                    return Ok(existing.handle.clone());
+                }
+                let generated = normalize_product_handle(title);
+                (
+                    if generated.is_empty() {
+                        "untitled-product".to_string()
+                    } else {
+                        generated
+                    },
+                    false,
+                )
+            }
+        };
+
+        let excluded_id = existing.map(|product| product.id.as_str());
+        let occupied = self
+            .store
+            .products()
+            .into_iter()
+            .filter(|product| Some(product.id.as_str()) != excluded_id)
+            .map(|product| product.handle)
+            .collect::<BTreeSet<_>>();
+        if !occupied.contains(&candidate) {
+            return Ok(candidate);
+        }
+        if reject_collision {
+            return Err(product_handle_collision_user_error(
+                explicit_handle.expect("collision-rejecting handles are explicit"),
+            ));
+        }
+
+        Ok(next_available_product_handle(&candidate, &occupied))
+    }
+}
+
+fn normalize_product_handle(value: &str) -> String {
+    let mut handle = String::new();
+    let mut pending_separator = false;
+    for character in value.chars().flat_map(char::to_lowercase) {
+        if character.is_alphanumeric() {
+            if pending_separator && !handle.is_empty() {
+                handle.push('-');
+            }
+            handle.push(character);
+            pending_separator = false;
+        } else if !handle.is_empty() {
+            pending_separator = true;
+        }
+    }
+    handle
+}
+
+fn next_available_product_handle(candidate: &str, occupied: &BTreeSet<String>) -> String {
+    let trailing_digit_count = candidate
+        .chars()
+        .rev()
+        .take_while(|character| character.is_ascii_digit())
+        .count();
+    let trailing_suffix = if trailing_digit_count > 0 {
+        let suffix_start = candidate.len() - trailing_digit_count;
+        candidate[suffix_start..]
+            .parse::<u128>()
+            .ok()
+            .and_then(|suffix| {
+                suffix
+                    .checked_add(1)
+                    .map(|next_suffix| (&candidate[..suffix_start], next_suffix))
+            })
+    } else {
+        None
+    };
+    let (prefix, separator, mut suffix) = trailing_suffix
+        .map(|(prefix, suffix)| (prefix, "", suffix))
+        .unwrap_or((candidate, "-", 1));
+    loop {
+        let handle = format!("{prefix}{separator}{suffix}");
+        if !occupied.contains(&handle) {
+            return handle;
+        }
+        suffix = suffix
+            .checked_add(1)
+            .expect("product handle suffix space should not be exhausted");
+    }
+}
+
+fn product_handle_collision_user_error(handle: &str) -> Value {
+    user_error_omit_code(
+        ["input", "handle"],
+        &format!("Handle '{handle}' already in use. Please provide a new handle."),
+        None,
+    )
+}
+
 pub(in crate::proxy) fn product_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
     let mut policies = vec![
         FieldResolverTypePolicy::unsupported_remaining(
@@ -5208,7 +5338,7 @@ pub(in crate::proxy) fn product_scalar_length_user_errors(
         && !input.contains_key("handle")
     {
         if let Some(title) = resolved_string_field(input, "title") {
-            let derived_handle = slugify_handle(&title);
+            let derived_handle = normalize_product_handle(&title);
             if derived_handle.chars().count() > PRODUCT_SCALAR_MAX_LENGTH {
                 errors.push(product_set_scalar_length_user_error(
                     ProductScalarLengthField::Handle,

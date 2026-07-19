@@ -27,9 +27,12 @@ Local staged mutations:
 ### Behavior notes
 
 - `files` reads serialize normalized `FileRecord` state in snapshot mode and
-  after local file mutations. In LiveHybrid mode, cold reads forward upstream,
-  hydrate observed real Files API records, then apply local staged overlays so
-  real store files are not hidden by an empty local session. The local
+  after local file mutations. In LiveHybrid mode, a page unaffected by staged
+  file mutations is returned from Shopify unchanged, including opaque edge
+  cursors and `pageInfo`. When a staged create, update, or deletion affects the
+  connection, the proxy reads the filtered/sorted upstream connection to
+  completion without the caller's window arguments, preserves authoritative
+  cursors, merges local effects, and applies the caller's window once. The local
   connection uses shared staged-connection helpers for filtering, sort-key
   ordering, `reverse`, cursor windows, and pageInfo, and omits files marked
   deleted by staged `fileDelete`. The local `files(query:)` path supports the

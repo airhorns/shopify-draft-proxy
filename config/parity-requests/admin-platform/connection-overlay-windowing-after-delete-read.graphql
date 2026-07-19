@@ -1,0 +1,14 @@
+query ConnectionOverlayAfterDeleteRead($fileQuery: String!, $groupQuery: String!) {
+  saved: productSavedSearches(first: 10) {
+    edges { cursor node { id name } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+  files: files(first: 10, query: $fileQuery, sortKey: ID) {
+    edges { cursor node { __typename id alt } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+  groups: sellingPlanGroups(first: 10, query: $groupQuery, sortKey: ID) {
+    edges { cursor node { id name merchantCode } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+}

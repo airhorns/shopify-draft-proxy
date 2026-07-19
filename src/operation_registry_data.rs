@@ -1,5 +1,7 @@
 use crate::graphql::OperationType;
-use crate::operation_registry::{ApiSurface, CapabilityDomain, OperationRegistryEntry};
+use crate::operation_registry::{
+    ApiSurface, CapabilityDomain, CommitIdInputOrder, CommitIdMappingSpec, OperationRegistryEntry,
+};
 use crate::proxy::DraftProxy;
 use crate::resolver_registry::{ExecutableRootRegistration, NativeResolverHandler};
 
@@ -142,8 +144,8 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("companyRevokeMainContact", Mutation, B2b, DraftProxy::b2b_mutation_root, []),
         entry!("companyUpdate", Mutation, B2b, DraftProxy::b2b_mutation_root, ["tests/graphql_routes.rs"]),
         unimplemented_entry!("cashManagementLocationSummary", Query, StoreProperties, []),
-        entry!("cashTrackingSession", Query, Payments, DraftProxy::finance_no_data_root, []),
-        entry!("cashTrackingSessions", Query, Payments, DraftProxy::finance_no_data_root, []),
+        entry!("cashTrackingSession", Query, Payments, DraftProxy::finance_query_root, ["tests/graphql_routes/platform.rs"]),
+        entry!("cashTrackingSessions", Query, Payments, DraftProxy::finance_query_root, ["tests/graphql_routes/platform.rs"]),
         entry!("customerPaymentMethod", Query, Payments, DraftProxy::customer_payment_method_root, []),
         unimplemented_entry!("orderPaymentStatus", Query, Payments, []),
         entry!("paymentCustomization", Query, Payments, DraftProxy::payment_customization_query_root, []),
@@ -156,13 +158,13 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("paymentTermsTemplates", Query, Payments, DraftProxy::payment_terms_templates_root, ["tests/graphql_routes/orders.rs"]),
         unimplemented_entry!("financeAppAccessPolicy", Query, Payments, []),
         unimplemented_entry!("financeKycInformation", Query, Payments, []),
-        entry!("pointOfSaleDevice", Query, Payments, DraftProxy::finance_no_data_root, []),
-        entry!("dispute", Query, Payments, DraftProxy::finance_no_data_root, []),
-        entry!("disputes", Query, Payments, DraftProxy::finance_no_data_root, []),
-        entry!("disputeEvidence", Query, Payments, DraftProxy::finance_no_data_root, []),
-        entry!("shopPayPaymentRequestReceipt", Query, Payments, DraftProxy::finance_no_data_root, []),
-        entry!("shopPayPaymentRequestReceipts", Query, Payments, DraftProxy::finance_no_data_root, []),
-        entry!("shopifyPaymentsAccount", Query, Payments, DraftProxy::finance_no_data_root, []),
+        entry!("pointOfSaleDevice", Query, Payments, DraftProxy::finance_query_root, ["tests/graphql_routes/platform.rs"]),
+        entry!("dispute", Query, Payments, DraftProxy::finance_query_root, ["tests/graphql_routes/platform.rs"]),
+        entry!("disputes", Query, Payments, DraftProxy::finance_query_root, ["tests/graphql_routes/platform.rs"]),
+        unimplemented_entry!("disputeEvidence", Query, Payments, []),
+        entry!("shopPayPaymentRequestReceipt", Query, Payments, DraftProxy::finance_query_root, ["tests/graphql_routes/platform.rs"]),
+        entry!("shopPayPaymentRequestReceipts", Query, Payments, DraftProxy::finance_query_root, ["tests/graphql_routes/platform.rs"]),
+        unimplemented_entry!("shopifyPaymentsAccount", Query, Payments, []),
         unimplemented_entry!("tenderTransactions", Query, Payments, []),
         entry!("channel", Query, Products, DraftProxy::channel_root, []),
         entry!("channels", Query, Products, DraftProxy::channels_root, []),
@@ -764,8 +766,305 @@ fn registry_entry(
             domain,
             implemented,
             runtime_tests: strings(runtime_tests),
+            commit_id_mappings: commit_id_mappings(name),
         },
         handler,
+    }
+}
+
+fn commit_id_mappings(name: &str) -> Vec<CommitIdMappingSpec> {
+    match name {
+        "productSet" => vec![single_commit_id_mapping(&["Product"], &["product", "id"])],
+        "productDuplicate" => vec![single_commit_id_mapping(
+            &["Product"],
+            &["newProduct", "id"],
+        )],
+        "productBundleCreate" => vec![single_commit_id_mapping(
+            &["Product"],
+            &["productBundleOperation", "product", "id"],
+        )],
+        "productCreate" => vec![
+            single_commit_id_mapping(&["Product"], &["product", "id"]),
+            single_commit_id_mapping(&["ProductVariant"], &["product", "variants", "nodes", "id"]),
+            argument_list_commit_id_mapping(
+                &["ExternalVideo", "MediaImage", "Model3d", "Video"],
+                &["product", "media", "nodes", "id"],
+                &["media"],
+            ),
+        ],
+        "productVariantsBulkCreate" => vec![argument_list_commit_id_mapping(
+            &["ProductVariant"],
+            &["productVariants", "id"],
+            &["variants"],
+        )],
+        "productCreateMedia" => vec![argument_list_commit_id_mapping(
+            &["ExternalVideo", "MediaImage", "Model3d", "Video"],
+            &["media", "id"],
+            &["media"],
+        )],
+        "fileCreate" => vec![argument_list_commit_id_mapping(
+            &[
+                "ExternalVideo",
+                "GenericFile",
+                "MediaImage",
+                "Model3d",
+                "Video",
+            ],
+            &["files", "id"],
+            &["files"],
+        )],
+        "productOptionsCreate" => vec![argument_list_commit_id_mapping(
+            &["ProductOption"],
+            &["product", "options", "id"],
+            &["options"],
+        )],
+        "appPurchaseOneTimeCreate" => vec![single_commit_id_mapping(
+            &["AppPurchaseOneTime"],
+            &["appPurchaseOneTime", "id"],
+        )],
+        "appSubscriptionCreate" => vec![single_commit_id_mapping(
+            &["AppSubscription"],
+            &["appSubscription", "id"],
+        )],
+        "appUsageRecordCreate" => vec![single_commit_id_mapping(
+            &["AppUsageRecord"],
+            &["appUsageRecord", "id"],
+        )],
+        "companyContactCreate" => vec![single_commit_id_mapping(
+            &["CompanyContact"],
+            &["companyContact", "id"],
+        )],
+        "companyCreate" => vec![single_commit_id_mapping(&["Company"], &["company", "id"])],
+        "companyLocationCreate" => vec![single_commit_id_mapping(
+            &["CompanyLocation"],
+            &["companyLocation", "id"],
+        )],
+        "customerCreate" | "customerSet" => {
+            vec![single_commit_id_mapping(&["Customer"], &["customer", "id"])]
+        }
+        "customerAddressCreate" => vec![single_commit_id_mapping(
+            &["MailingAddress"],
+            &["address", "id"],
+        )],
+        "sellingPlanGroupCreate" => vec![single_commit_id_mapping(
+            &["SellingPlanGroup"],
+            &["sellingPlanGroup", "id"],
+        )],
+        "productFeedCreate" => vec![single_commit_id_mapping(
+            &["ProductFeed"],
+            &["productFeed", "id"],
+        )],
+        "publicationCreate" => vec![single_commit_id_mapping(
+            &["Publication"],
+            &["publication", "id"],
+        )],
+        "locationAdd" => vec![single_commit_id_mapping(&["Location"], &["location", "id"])],
+        "savedSearchCreate" => vec![single_commit_id_mapping(
+            &["SavedSearch"],
+            &["savedSearch", "id"],
+        )],
+        "articleCreate" => vec![single_commit_id_mapping(&["Article"], &["article", "id"])],
+        "blogCreate" => vec![single_commit_id_mapping(&["Blog"], &["blog", "id"])],
+        "pageCreate" => vec![single_commit_id_mapping(&["Page"], &["page", "id"])],
+        "themeCreate" => vec![single_commit_id_mapping(
+            &["OnlineStoreTheme"],
+            &["theme", "id"],
+        )],
+        "scriptTagCreate" => vec![single_commit_id_mapping(
+            &["ScriptTag"],
+            &["scriptTag", "id"],
+        )],
+        "webPixelCreate" => vec![single_commit_id_mapping(&["WebPixel"], &["webPixel", "id"])],
+        "serverPixelCreate" => vec![single_commit_id_mapping(
+            &["ServerPixel"],
+            &["serverPixel", "id"],
+        )],
+        "mobilePlatformApplicationCreate" => vec![single_commit_id_mapping(
+            &["MobilePlatformApplication"],
+            &["mobilePlatformApplication", "id"],
+        )],
+        "storefrontAccessTokenCreate" => vec![single_commit_id_mapping(
+            &["StorefrontAccessToken"],
+            &["storefrontAccessToken", "id"],
+        )],
+        "inventoryTransferCreate"
+        | "inventoryTransferCreateAsReadyToShip"
+        | "inventoryTransferDuplicate" => {
+            vec![single_commit_id_mapping(
+                &["InventoryTransfer"],
+                &["inventoryTransfer", "id"],
+            )]
+        }
+        "inventoryShipmentCreate" | "inventoryShipmentCreateInTransit" => {
+            vec![single_commit_id_mapping(
+                &["InventoryShipment"],
+                &["inventoryShipment", "id"],
+            )]
+        }
+        "metafieldDefinitionCreate" | "standardMetafieldDefinitionEnable" => {
+            vec![single_commit_id_mapping(
+                &["MetafieldDefinition"],
+                &["createdDefinition", "id"],
+            )]
+        }
+        "metaobjectCreate" | "metaobjectUpsert" => vec![single_commit_id_mapping(
+            &["Metaobject"],
+            &["metaobject", "id"],
+        )],
+        "metaobjectDefinitionCreate" | "standardMetaobjectDefinitionEnable" => {
+            vec![single_commit_id_mapping(
+                &["MetaobjectDefinition"],
+                &["metaobjectDefinition", "id"],
+            )]
+        }
+        "collectionCreate" => vec![single_commit_id_mapping(
+            &["Collection"],
+            &["collection", "id"],
+        )],
+        "customerPaymentMethodCreateFromDuplicationData"
+        | "customerPaymentMethodCreditCardCreate"
+        | "customerPaymentMethodPaypalBillingAgreementCreate"
+        | "customerPaymentMethodRemoteCreate" => vec![single_commit_id_mapping(
+            &["CustomerPaymentMethod"],
+            &["customerPaymentMethod", "id"],
+        )],
+        "paymentCustomizationCreate" => vec![single_commit_id_mapping(
+            &["PaymentCustomization"],
+            &["paymentCustomization", "id"],
+        )],
+        "validationCreate" => vec![single_commit_id_mapping(
+            &["Validation"],
+            &["validation", "id"],
+        )],
+        "cartTransformCreate" => vec![single_commit_id_mapping(
+            &["CartTransform"],
+            &["cartTransform", "id"],
+        )],
+        "paymentTermsCreate" => vec![single_commit_id_mapping(
+            &["PaymentTerms"],
+            &["paymentTerms", "id"],
+        )],
+        "fulfillmentCreate" | "fulfillmentCreateV2" => vec![single_commit_id_mapping(
+            &["Fulfillment"],
+            &["fulfillment", "id"],
+        )],
+        "fulfillmentEventCreate" => vec![single_commit_id_mapping(
+            &["FulfillmentEvent"],
+            &["fulfillmentEvent", "id"],
+        )],
+        "fulfillmentServiceCreate" => vec![single_commit_id_mapping(
+            &["FulfillmentService"],
+            &["fulfillmentService", "id"],
+        )],
+        "carrierServiceCreate" => vec![single_commit_id_mapping(
+            &["DeliveryCarrierService"],
+            &["carrierService", "id"],
+        )],
+        "giftCardCreate" => vec![single_commit_id_mapping(&["GiftCard"], &["giftCard", "id"])],
+        "fulfillmentConstraintRuleCreate" => vec![single_commit_id_mapping(
+            &["FulfillmentConstraintRule"],
+            &["fulfillmentConstraintRule", "id"],
+        )],
+        "deliveryProfileCreate" => vec![single_commit_id_mapping(
+            &["DeliveryProfile"],
+            &["profile", "id"],
+        )],
+        "deliveryCustomizationCreate" => vec![single_commit_id_mapping(
+            &["DeliveryCustomization"],
+            &["deliveryCustomization", "id"],
+        )],
+        "deliveryPromiseProviderUpsert" => vec![single_commit_id_mapping(
+            &["DeliveryPromiseProvider"],
+            &["deliveryPromiseProvider", "id"],
+        )],
+        "orderCreate" => vec![single_commit_id_mapping(&["Order"], &["order", "id"])],
+        "refundCreate" => vec![single_commit_id_mapping(&["Refund"], &["refund", "id"])],
+        "returnCreate" => vec![single_commit_id_mapping(&["Return"], &["return", "id"])],
+        "reverseDeliveryCreateWithShipping" => vec![single_commit_id_mapping(
+            &["ReverseDelivery"],
+            &["reverseDelivery", "id"],
+        )],
+        "draftOrderCreate" | "draftOrderCreateFromOrder" | "draftOrderDuplicate" => {
+            vec![single_commit_id_mapping(
+                &["DraftOrder"],
+                &["draftOrder", "id"],
+            )]
+        }
+        "discountCodeBasicCreate" | "discountCodeBxgyCreate" | "discountCodeFreeShippingCreate" => {
+            vec![single_commit_id_mapping(&[], &["codeDiscountNode", "id"])]
+        }
+        "discountAutomaticBasicCreate"
+        | "discountAutomaticBxgyCreate"
+        | "discountAutomaticFreeShippingCreate" => vec![single_commit_id_mapping(
+            &[],
+            &["automaticDiscountNode", "id"],
+        )],
+        "discountCodeAppCreate" => vec![single_commit_id_mapping(&[], &["codeAppDiscount", "id"])],
+        "discountAutomaticAppCreate" => vec![single_commit_id_mapping(
+            &[],
+            &["automaticAppDiscount", "id"],
+        )],
+        "discountRedeemCodeBulkAdd" => vec![single_commit_id_mapping(
+            &["DiscountRedeemCodeBulkCreation"],
+            &["bulkCreation", "id"],
+        )],
+        "marketingActivityCreate" | "marketingActivityCreateExternal" => {
+            vec![single_commit_id_mapping(
+                &["MarketingActivity"],
+                &["marketingActivity", "id"],
+            )]
+        }
+        "marketingEngagementCreate" => vec![single_commit_id_mapping(
+            &["MarketingEngagement"],
+            &["marketingEngagement", "id"],
+        )],
+        "eventBridgeWebhookSubscriptionCreate"
+        | "pubSubWebhookSubscriptionCreate"
+        | "webhookSubscriptionCreate" => vec![single_commit_id_mapping(
+            &["WebhookSubscription"],
+            &["webhookSubscription", "id"],
+        )],
+        "customerSegmentMembersQueryCreate" => vec![single_commit_id_mapping(
+            &["CustomerSegmentMembersQuery"],
+            &["customerSegmentMembersQuery", "id"],
+        )],
+        "segmentCreate" => vec![single_commit_id_mapping(&["Segment"], &["segment", "id"])],
+        "priceListCreate" => vec![single_commit_id_mapping(
+            &["PriceList"],
+            &["priceList", "id"],
+        )],
+        "marketCreate" => vec![single_commit_id_mapping(&["Market"], &["market", "id"])],
+        "catalogCreate" => vec![single_commit_id_mapping(&[], &["catalog", "id"])],
+        "webPresenceCreate" => vec![single_commit_id_mapping(
+            &["MarketWebPresence"],
+            &["webPresence", "id"],
+        )],
+        _ => Vec::new(),
+    }
+}
+
+fn single_commit_id_mapping(
+    resource_types: &[&str],
+    response_path: &[&str],
+) -> CommitIdMappingSpec {
+    CommitIdMappingSpec {
+        resource_types: strings(resource_types),
+        response_path: strings(response_path),
+        input_order: CommitIdInputOrder::Single,
+    }
+}
+
+fn argument_list_commit_id_mapping(
+    resource_types: &[&str],
+    response_path: &[&str],
+    argument_path: &[&str],
+) -> CommitIdMappingSpec {
+    CommitIdMappingSpec {
+        resource_types: strings(resource_types),
+        response_path: strings(response_path),
+        input_order: CommitIdInputOrder::ArgumentList {
+            path: strings(argument_path),
+        },
     }
 }
 

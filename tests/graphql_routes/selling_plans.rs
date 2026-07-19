@@ -974,6 +974,224 @@ fn live_hybrid_selling_plan_group_read_hydrates_upstream_groups() {
 }
 
 #[test]
+fn selling_plan_groups_live_hybrid_preserves_an_unmodified_opaque_page() {
+    let group = live_selling_plan_group_node(
+        "gid://shopify/SellingPlanGroup/8101",
+        "Authoritative group",
+        &[],
+        &[],
+    );
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let group = group.clone();
+        move |_| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({"data": {"sellingPlanGroups": {
+                "nodes": [group.clone()],
+                "edges": [{"cursor": "opaque-group-one", "node": group}],
+                "pageInfo": {
+                    "hasNextPage": true,
+                    "hasPreviousPage": false,
+                    "startCursor": "opaque-group-one",
+                    "endCursor": "opaque-group-one"
+                }
+            }}}),
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query SellingPlanGroupsOpaquePage {
+          sellingPlanGroups(first: 1) {
+            nodes { id name }
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["sellingPlanGroups"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/SellingPlanGroup/8101",
+                "name": "Authoritative group"
+            }],
+            "edges": [{
+                "cursor": "opaque-group-one",
+                "node": {
+                    "id": "gid://shopify/SellingPlanGroup/8101",
+                    "name": "Authoritative group"
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-group-one",
+                "endCursor": "opaque-group-one"
+            }
+        })
+    );
+}
+
+#[test]
+fn selling_plan_group_hydration_paginates_relationships_before_counting() {
+    let group_id = "gid://shopify/SellingPlanGroup/8201";
+    let product_one = "gid://shopify/Product/8201";
+    let product_two = "gid://shopify/Product/8202";
+    let variant_one = "gid://shopify/ProductVariant/8201";
+    let variant_two = "gid://shopify/ProductVariant/8202";
+    let requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&requests);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            let after = body.pointer("/variables/after").and_then(Value::as_str);
+            if query.contains("SellingPlanGroupProductsPage") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({"data": {"sellingPlanGroup": {"products": {
+                        "edges": [{"cursor": "opaque-product-two", "node": {
+                            "__typename": "Product",
+                            "id": product_two,
+                            "title": "Product two",
+                            "handle": "product-two",
+                            "status": "ACTIVE",
+                            "createdAt": "2024-01-01T00:00:00Z",
+                            "updatedAt": "2024-01-01T00:00:00Z"
+                        }}],
+                        "pageInfo": {"hasNextPage": false, "endCursor": "opaque-product-two"}
+                    }}}}),
+                };
+            }
+            if query.contains("SellingPlanGroupProductVariantsPage") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({"data": {"sellingPlanGroup": {"productVariants": {
+                        "edges": [{"cursor": "opaque-variant-two", "node": {
+                            "__typename": "ProductVariant",
+                            "id": variant_two,
+                            "title": "Variant two",
+                            "price": "20.00",
+                            "product": {"id": product_two}
+                        }}],
+                        "pageInfo": {"hasNextPage": false, "endCursor": "opaque-variant-two"}
+                    }}}}),
+                };
+            }
+            if query.contains("SellingPlanProductVariantsPage") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({"data": {"product": {"variants": {
+                        "edges": [],
+                        "pageInfo": {"hasNextPage": false, "endCursor": null}
+                    }}}}),
+                };
+            }
+            if query.contains("sellingPlanGroupHydrateNodes") {
+                let mut group = live_selling_plan_group_node(
+                    group_id,
+                    "Paged relationships",
+                    &[product_one],
+                    &[variant_one],
+                );
+                group["products"] = json!({
+                    "edges": [{"cursor": "opaque-product-one", "node": {
+                        "__typename": "Product",
+                        "id": product_one,
+                        "title": "Product one",
+                        "handle": "product-one",
+                        "status": "ACTIVE",
+                        "createdAt": "2024-01-01T00:00:00Z",
+                        "updatedAt": "2024-01-01T00:00:00Z",
+                        "variants": {"edges": [], "pageInfo": {"hasNextPage": false, "endCursor": null}}
+                    }}],
+                    "pageInfo": {"hasNextPage": true, "endCursor": "opaque-product-one"}
+                });
+                group["productVariants"] = json!({
+                    "edges": [{"cursor": "opaque-variant-one", "node": {
+                        "__typename": "ProductVariant",
+                        "id": variant_one,
+                        "title": "Variant one",
+                        "price": "10.00",
+                        "product": {"id": product_one}
+                    }}],
+                    "pageInfo": {"hasNextPage": true, "endCursor": "opaque-variant-one"}
+                });
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({"data": {"nodes": [group]}}),
+                };
+            }
+            panic!("unexpected selling-plan hydration query after={after:?}: {query}");
+        },
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdatePagedSellingPlanGroup($id: ID!, $input: SellingPlanGroupInput!) {
+          sellingPlanGroupUpdate(id: $id, input: $input) {
+            sellingPlanGroup {
+              id
+              productsCount { count precision }
+              productVariantsCount { count precision }
+              products(first: 10) {
+                edges { cursor node { id title } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+              productVariants(first: 10) {
+                edges { cursor node { id title } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": group_id, "input": {"description": "Updated locally"}}),
+    ));
+
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["sellingPlanGroup"]["productsCount"],
+        json!({"count": 2, "precision": "EXACT"})
+    );
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["sellingPlanGroup"]["productVariantsCount"],
+        json!({"count": 2, "precision": "EXACT"})
+    );
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["sellingPlanGroup"]["products"]["edges"],
+        json!([
+            {"cursor": "opaque-product-one", "node": {"id": product_one, "title": "Product one"}},
+            {"cursor": "opaque-product-two", "node": {"id": product_two, "title": "Product two"}}
+        ])
+    );
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["sellingPlanGroup"]["productVariants"]
+            ["edges"],
+        json!([
+            {"cursor": "opaque-variant-one", "node": {"id": variant_one, "title": "Variant one"}},
+            {"cursor": "opaque-variant-two", "node": {"id": variant_two, "title": "Variant two"}}
+        ])
+    );
+    let captured = requests.lock().unwrap();
+    assert!(captured.iter().any(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("SellingPlanGroupProductsPage"))));
+    assert!(captured.iter().any(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("SellingPlanGroupProductVariantsPage"))));
+}
+
+#[test]
 fn live_hybrid_existing_selling_plan_mutations_preflight_and_stage_locally() {
     let group_id = "gid://shopify/SellingPlanGroup/7101";
     let product_id = "gid://shopify/Product/7201";

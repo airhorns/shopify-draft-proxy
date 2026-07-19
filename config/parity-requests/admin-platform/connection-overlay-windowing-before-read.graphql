@@ -1,0 +1,20 @@
+query ConnectionOverlayBeforeRead(
+  $savedBefore: String!
+  $fileBefore: String!
+  $groupBefore: String!
+  $fileQuery: String!
+  $groupQuery: String!
+) {
+  saved: productSavedSearches(last: 1, before: $savedBefore) {
+    edges { cursor node { id name } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+  files: files(last: 1, before: $fileBefore, query: $fileQuery, sortKey: ID) {
+    edges { cursor node { __typename id alt } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+  groups: sellingPlanGroups(last: 1, before: $groupBefore, query: $groupQuery, sortKey: ID) {
+    edges { cursor node { id name merchantCode } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+}

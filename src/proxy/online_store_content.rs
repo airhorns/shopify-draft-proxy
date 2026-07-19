@@ -84,6 +84,12 @@ const ONLINE_STORE_COMMENT_ARTICLE_HYDRATE_QUERY: &str = "query OnlineStoreComme
 const ONLINE_STORE_PAGE_HYDRATE_QUERY: &str = "query OnlineStorePageHydrate($id: ID!) { page(id: $id) { __typename id title handle body bodySummary isPublished publishedAt createdAt updatedAt templateSuffix } }";
 const ONLINE_STORE_ARTICLE_CASCADE_HYDRATE_QUERY: &str = "query OnlineStoreArticleDeleteCascadeHydrate($id: ID!) { article(id: $id) { __typename id title handle createdAt updatedAt blog { id } comments(first: 50) { nodes { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } } } }";
 const ONLINE_STORE_BLOG_CASCADE_HYDRATE_QUERY: &str = "query OnlineStoreBlogDeleteCascadeHydrate($id: ID!) { blog(id: $id) { __typename id title handle createdAt updatedAt commentPolicy articles(first: 50) { nodes { __typename id title handle createdAt updatedAt blog { id } comments(first: 50) { nodes { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } } } } } }";
+const ONLINE_STORE_ARTICLE_MUTATION_HYDRATE_QUERY: &str = include_str!(
+    "../../config/parity-requests/online-store/online-store-article-mutation-hydrate.graphql"
+);
+const ONLINE_STORE_BLOG_MUTATION_HYDRATE_QUERY: &str = include_str!(
+    "../../config/parity-requests/online-store/online-store-blog-mutation-hydrate.graphql"
+);
 const BLOGS_COUNT_Q: &str = "query OnlineStoreBlogsCountHydrate { blogsCount { count precision } }";
 const PAGES_COUNT_Q: &str = "query OnlineStorePagesCountHydrate { pagesCount { count precision } }";
 
@@ -121,6 +127,62 @@ impl OnlineStoreKind {
             Self::Article => ONLINE_STORE_ARTICLE_CASCADE_HYDRATE_QUERY,
             Self::Comment => ONLINE_STORE_COMMENT_HYDRATE_QUERY,
         }
+    }
+
+    fn mutation_hydrate_query(self) -> Option<(&'static str, &'static str)> {
+        match self {
+            Self::Blog => Some((
+                ONLINE_STORE_BLOG_MUTATION_HYDRATE_QUERY,
+                "OnlineStoreBlogMutationHydrate",
+            )),
+            Self::Article => Some((
+                ONLINE_STORE_ARTICLE_MUTATION_HYDRATE_QUERY,
+                "OnlineStoreArticleMutationHydrate",
+            )),
+            Self::Page | Self::Comment => None,
+        }
+    }
+
+    fn complete_for_mutation(self, record: &Value) -> bool {
+        let required_fields: &[&str] = match self {
+            Self::Blog => &[
+                "id",
+                "title",
+                "handle",
+                "commentPolicy",
+                "tags",
+                "templateSuffix",
+                "createdAt",
+                "updatedAt",
+                "articlesCount",
+                "metafields",
+            ],
+            Self::Article => &[
+                "id",
+                "blogId",
+                "title",
+                "handle",
+                "body",
+                "summary",
+                "tags",
+                "isPublished",
+                "publishedAt",
+                "createdAt",
+                "updatedAt",
+                "templateSuffix",
+                "author",
+                "image",
+                "metafields",
+            ],
+            Self::Page | Self::Comment => return true,
+        };
+        required_fields
+            .iter()
+            .all(|field| record.get(*field).is_some())
+            && record
+                .pointer("/metafields/pageInfo/hasNextPage")
+                .and_then(Value::as_bool)
+                == Some(false)
     }
 
     fn not_found_error(self) -> Value {

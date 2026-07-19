@@ -1,0 +1,37 @@
+mutation OnlineStoreAuthoritativeBlogUpdate($id: ID!, $blog: BlogUpdateInput!) {
+  blogUpdate(id: $id, blog: $blog) {
+    blog {
+      id
+      title
+      handle
+      commentPolicy
+      tags
+      templateSuffix
+      createdAt
+      updatedAt
+      articlesCount {
+        count
+        precision
+      }
+      metafields(first: 250) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          jsonValue
+          compareDigest
+          ownerType
+          createdAt
+          updatedAt
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
