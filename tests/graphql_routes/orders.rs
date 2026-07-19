@@ -4164,6 +4164,119 @@ fn order_create_validation_matrix_returns_typed_user_errors() {
 }
 
 #[test]
+fn order_create_processed_at_validation_compares_datetime_to_proxy_now() {
+    let mut proxy = snapshot_proxy();
+
+    let create = |proxy: &mut DraftProxy, processed_at: &str| {
+        proxy.process_request(json_graphql_request(
+            r#"
+            mutation OrderCreateProcessedAtValidation($order: OrderCreateOrderInput!) {
+              orderCreate(order: $order) {
+                order { id processedAt }
+                userErrors { field code message }
+              }
+            }
+            "#,
+            json!({
+                "order": {
+                    "email": "processed-at-validation-local@example.test",
+                    "processedAt": processed_at,
+                    "lineItems": [{
+                        "title": "Processed at validation",
+                        "quantity": 1
+                    }]
+                }
+            }),
+        ))
+    };
+
+    let future2050 = create(&mut proxy, "2050-06-01T00:00:00Z");
+    let future2099 = create(&mut proxy, "2099-01-01T00:00:00Z");
+    let future_without_offset = create(&mut proxy, "2024-01-01T00:00:01");
+    let past = create(&mut proxy, "2023-12-31T23:59:59Z");
+
+    let processed_at_error = json!([{
+        "field": ["order", "processedAt"],
+        "code": "PROCESSED_AT_INVALID",
+        "message": "Processed at is invalid"
+    }]);
+    assert_eq!(
+        future2050.body["data"]["orderCreate"]["userErrors"],
+        processed_at_error
+    );
+    assert_eq!(future2050.body["data"]["orderCreate"]["order"], Value::Null);
+    assert_eq!(
+        future2099.body["data"]["orderCreate"]["userErrors"],
+        processed_at_error
+    );
+    assert_eq!(
+        future_without_offset.body["data"]["orderCreate"]["userErrors"],
+        processed_at_error
+    );
+    assert_eq!(past.body["data"]["orderCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        past.body["data"]["orderCreate"]["order"]["processedAt"],
+        json!("2023-12-31T23:59:59Z")
+    );
+}
+
+#[test]
+fn order_create_processed_at_validation_uses_shop_timezone_for_offsetless_inputs() {
+    let mut proxy = snapshot_proxy();
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"]["ianaTimezone"] = json!("Pacific/Honolulu");
+        state["baseState"]["shop"]["timezoneOffsetMinutes"] = json!(-600);
+    });
+
+    let create = |proxy: &mut DraftProxy, processed_at: &str| {
+        proxy.process_request(json_graphql_request(
+            r#"
+            mutation OrderCreateProcessedAtShopTimezone($order: OrderCreateOrderInput!) {
+              orderCreate(order: $order) {
+                order { id processedAt }
+                userErrors { field code message }
+              }
+            }
+            "#,
+            json!({
+                "order": {
+                    "email": "processed-at-timezone@example.test",
+                    "processedAt": processed_at,
+                    "lineItems": [{
+                        "title": "Processed at timezone",
+                        "quantity": 1
+                    }]
+                }
+            }),
+        ))
+    };
+
+    let future_local = create(&mut proxy, "2023-12-31T14:00:01");
+    let past_local = create(&mut proxy, "2023-12-31T13:59:59");
+
+    assert_eq!(
+        future_local.body["data"]["orderCreate"]["userErrors"],
+        json!([{
+            "field": ["order", "processedAt"],
+            "code": "PROCESSED_AT_INVALID",
+            "message": "Processed at is invalid"
+        }])
+    );
+    assert_eq!(
+        future_local.body["data"]["orderCreate"]["order"],
+        Value::Null
+    );
+    assert_eq!(
+        past_local.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        past_local.body["data"]["orderCreate"]["order"]["processedAt"],
+        json!("2023-12-31T13:59:59")
+    );
+}
+
+#[test]
 fn order_cancel_state_transitions_replay_validation_guards() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/orders/orderCancel-state-transitions.json"

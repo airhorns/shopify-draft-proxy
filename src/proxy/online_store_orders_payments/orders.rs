@@ -1027,94 +1027,142 @@ pub(in crate::proxy) fn order_create_payment_fields(
     );
 }
 
-pub(in crate::proxy) fn order_create_validation_error(
-    order: &BTreeMap<String, ResolvedValue>,
-) -> Option<Value> {
-    if resolved_string_field(order, "processedAt")
-        .as_deref()
-        .is_some_and(|value| value.starts_with("2099-"))
+fn order_create_processed_at_error() -> Value {
+    order_create_error(
+        vec![json!("order"), json!("processedAt")],
+        "Processed at is invalid",
+        "PROCESSED_AT_INVALID",
+    )
+}
+
+fn order_processed_at_local_epoch_seconds(
+    processed_at: &str,
+    shop_offset_seconds: i64,
+) -> Option<i64> {
+    if let Some(epoch_seconds) =
+        crate::proxy::app_shipping_helpers::parse_rfc3339_epoch_seconds(processed_at)
     {
-        return Some(order_create_error(
-            vec![json!("order"), json!("processedAt")],
-            "Processed at is invalid",
-            "PROCESSED_AT_INVALID",
-        ));
+        return Some(epoch_seconds + shop_offset_seconds);
     }
-    if order.contains_key("customerId") && order.contains_key("customer") {
-        return Some(order_create_error(
-            vec![json!("order")],
-            "Customer fields are redundant",
-            "REDUNDANT_CUSTOMER_FIELDS",
-        ));
-    }
-    let line_items = resolved_object_list_field(order, "lineItems");
-    if line_items.is_empty() {
-        return Some(order_create_error(
-            vec![json!("order"), json!("lineItems")],
-            "Line items must have at least one line item",
-            "INVALID",
-        ));
-    }
-    for (line_index, line_item) in line_items.iter().enumerate() {
-        if let Some(service) = resolved_string_field(line_item, "fulfillmentService") {
-            if service != "manual" && service != "gift_card" {
-                return Some(order_create_error(
-                    vec![
-                        json!("order"),
-                        json!("lineItems"),
-                        json!(line_index),
-                        json!("fulfillmentService"),
-                    ],
-                    "Fulfillment service is invalid",
-                    "FULFILLMENT_SERVICE_INVALID",
-                ));
+
+    crate::proxy::app_shipping_helpers::parse_rfc3339_epoch_seconds(&format!("{processed_at}Z"))
+}
+
+impl DraftProxy {
+    fn order_create_validation_error(
+        &self,
+        order: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        if let Some(processed_at) = resolved_string_field(order, "processedAt") {
+            let shop_offset_seconds = self.order_processed_at_shop_offset_seconds();
+            let Some(processed_at_epoch) =
+                order_processed_at_local_epoch_seconds(&processed_at, shop_offset_seconds)
+            else {
+                return Some(order_create_processed_at_error());
+            };
+            let now_epoch = order_processed_at_validation_now_epoch_seconds(
+                self.log_entries.len() as u64,
+                shop_offset_seconds,
+            );
+            if processed_at_epoch > now_epoch {
+                return Some(order_create_processed_at_error());
             }
         }
-        for (tax_index, tax_line) in resolved_object_list_field(line_item, "taxLines")
+
+        if order.contains_key("customerId") && order.contains_key("customer") {
+            return Some(order_create_error(
+                vec![json!("order")],
+                "Customer fields are redundant",
+                "REDUNDANT_CUSTOMER_FIELDS",
+            ));
+        }
+        let line_items = resolved_object_list_field(order, "lineItems");
+        if line_items.is_empty() {
+            return Some(order_create_error(
+                vec![json!("order"), json!("lineItems")],
+                "Line items must have at least one line item",
+                "INVALID",
+            ));
+        }
+        for (line_index, line_item) in line_items.iter().enumerate() {
+            if let Some(service) = resolved_string_field(line_item, "fulfillmentService") {
+                if service != "manual" && service != "gift_card" {
+                    return Some(order_create_error(
+                        vec![
+                            json!("order"),
+                            json!("lineItems"),
+                            json!(line_index),
+                            json!("fulfillmentService"),
+                        ],
+                        "Fulfillment service is invalid",
+                        "FULFILLMENT_SERVICE_INVALID",
+                    ));
+                }
+            }
+            for (tax_index, tax_line) in resolved_object_list_field(line_item, "taxLines")
+                .iter()
+                .enumerate()
+            {
+                if resolved_number_field(tax_line, "rate").is_none() {
+                    return Some(order_create_error(
+                        vec![
+                            json!("order"),
+                            json!("lineItems"),
+                            json!(line_index),
+                            json!("taxLines"),
+                            json!(tax_index),
+                            json!("rate"),
+                        ],
+                        "Tax line rate is missing",
+                        "TAX_LINE_RATE_MISSING",
+                    ));
+                }
+            }
+        }
+        for (shipping_index, shipping_line) in resolved_object_list_field(order, "shippingLines")
             .iter()
             .enumerate()
         {
-            if resolved_number_field(tax_line, "rate").is_none() {
-                return Some(order_create_error(
-                    vec![
-                        json!("order"),
-                        json!("lineItems"),
-                        json!(line_index),
-                        json!("taxLines"),
-                        json!(tax_index),
-                        json!("rate"),
-                    ],
-                    "Tax line rate is missing",
-                    "TAX_LINE_RATE_MISSING",
-                ));
+            for (tax_index, tax_line) in resolved_object_list_field(shipping_line, "taxLines")
+                .iter()
+                .enumerate()
+            {
+                if resolved_number_field(tax_line, "rate").is_none() {
+                    return Some(order_create_error(
+                        vec![
+                            json!("order"),
+                            json!("shippingLines"),
+                            json!(shipping_index),
+                            json!("taxLines"),
+                            json!(tax_index),
+                            json!("rate"),
+                        ],
+                        "Tax line rate is missing",
+                        "TAX_LINE_RATE_MISSING",
+                    ));
+                }
             }
         }
+        None
     }
-    for (shipping_index, shipping_line) in resolved_object_list_field(order, "shippingLines")
-        .iter()
-        .enumerate()
-    {
-        for (tax_index, tax_line) in resolved_object_list_field(shipping_line, "taxLines")
-            .iter()
-            .enumerate()
-        {
-            if resolved_number_field(tax_line, "rate").is_none() {
-                return Some(order_create_error(
-                    vec![
-                        json!("order"),
-                        json!("shippingLines"),
-                        json!(shipping_index),
-                        json!("taxLines"),
-                        json!(tax_index),
-                        json!("rate"),
-                    ],
-                    "Tax line rate is missing",
-                    "TAX_LINE_RATE_MISSING",
-                ));
-            }
-        }
+
+    fn order_processed_at_shop_offset_seconds(&self) -> i64 {
+        let Some(offset_minutes) = self.store.base.shop["timezoneOffsetMinutes"].as_i64() else {
+            eprintln!(
+                "shopify-draft-proxy: orderCreate processedAt validation using UTC because shop timezone baseline is missing"
+            );
+            return 0;
+        };
+        offset_minutes * 60
     }
-    None
+}
+
+fn order_processed_at_validation_now_epoch_seconds(ordinal: u64, shop_offset_seconds: i64) -> i64 {
+    crate::proxy::app_shipping_helpers::parse_rfc3339_epoch_seconds(&order_mutation_timestamp(
+        ordinal,
+    ))
+    .expect("order mutation timestamp must be a valid RFC3339 timestamp")
+        + shop_offset_seconds
 }
 
 pub(in crate::proxy) fn order_edit_order_is_not_editable(order: &Value) -> bool {
@@ -1557,7 +1605,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let order_input = resolved_object_field(&field.arguments, "order").unwrap_or_default();
-        if let Some(error) = order_create_validation_error(&order_input) {
+        if let Some(error) = self.order_create_validation_error(&order_input) {
             return selected_json(
                 &json!({ "order": Value::Null, "userErrors": [error] }),
                 &field.selection,
