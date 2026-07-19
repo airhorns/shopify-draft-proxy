@@ -51,6 +51,8 @@ const DELIVERY_PROFILE_VARIANTS_HYDRATE_QUERY: &str = "query ShippingDeliveryPro
 // cannot be deleted) from real store state rather than guessing.
 const DELIVERY_PROFILE_DEFAULT_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileHydrate($id: ID!) { deliveryProfile(id: $id) { id name default merchantOwned version } }";
 const DELIVERY_PROFILE_UPDATE_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileUpdateHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }";
+const SHIPPING_PACKAGE_HYDRATE_QUERY: &str =
+    "query ShippingPackageHydrate($id: ID!) { node(id: $id) { id __typename } }";
 
 const SHIPPING_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = r#"
 query ShippingFulfillmentOrderHydrate($id: ID!) {
@@ -5620,16 +5622,6 @@ impl DraftProxy {
             );
         };
         let id = id.clone();
-        if !is_known_shipping_package_id(&id) {
-            return ok_json(json!({
-                "errors": [{
-                    "message": "invalid id",
-                    "extensions": { "code": "RESOURCE_NOT_FOUND" },
-                    "path": [root_field]
-                }],
-                "data": { response_key: null }
-            }));
-        }
 
         let payload = match root_field {
             "shippingPackageUpdate" => {
@@ -5638,7 +5630,9 @@ impl DraftProxy {
                         json!({ "data": { response_key: { "userErrors": [user_error_omit_code(["shippingPackage"], "Shipping package input is required", None)] } } }),
                     );
                 };
-                let mut package = self.effective_shipping_package(&id);
+                let Some(mut package) = self.effective_shipping_package(&id, request) else {
+                    return shipping_package_not_found_response(root_field, &response_key);
+                };
                 if package.get("boxType") == Some(&json!("FLAT_RATE")) {
                     return ok_json(json!({
                         "data": {
@@ -5648,12 +5642,13 @@ impl DraftProxy {
                         }
                     }));
                 }
-                let was_default = package.get("default") == Some(&json!(true));
                 merge_shipping_package_input(&mut package, input);
-                if !was_default && package.get("default") == Some(&json!(true)) {
-                    self.clear_default_shipping_packages_except(&id);
+                let timestamp = self.next_shipping_package_timestamp();
+                if package.get("default") == Some(&json!(true)) {
+                    self.clear_default_shipping_packages_except(&id, &timestamp);
                 }
-                package["updatedAt"] = json!(self.next_shipping_package_timestamp());
+                package["id"] = json!(id.clone());
+                package["updatedAt"] = json!(timestamp);
                 self.store
                     .staged
                     .shipping_packages
@@ -5661,10 +5656,14 @@ impl DraftProxy {
                 json!({ "userErrors": [] })
             }
             "shippingPackageMakeDefault" => {
-                self.clear_default_shipping_packages_except(&id);
-                let mut package = self.effective_shipping_package(&id);
+                let Some(mut package) = self.effective_shipping_package(&id, request) else {
+                    return shipping_package_not_found_response(root_field, &response_key);
+                };
+                let timestamp = self.next_shipping_package_timestamp();
+                self.clear_default_shipping_packages_except(&id, &timestamp);
+                package["id"] = json!(id.clone());
                 package["default"] = json!(true);
-                package["updatedAt"] = json!(self.next_shipping_package_timestamp());
+                package["updatedAt"] = json!(timestamp);
                 self.store
                     .staged
                     .shipping_packages
@@ -5672,6 +5671,9 @@ impl DraftProxy {
                 json!({ "userErrors": [] })
             }
             "shippingPackageDelete" => {
+                if self.effective_shipping_package(&id, request).is_none() {
+                    return shipping_package_not_found_response(root_field, &response_key);
+                }
                 self.store.staged.shipping_packages.remove(&id);
                 self.store.staged.shipping_packages.tombstone(id.clone());
                 json!({ "deletedId": id, "userErrors": [] })
@@ -5683,26 +5685,71 @@ impl DraftProxy {
         ok_json(json!({ "data": { response_key: payload } }))
     }
 
-    pub(in crate::proxy) fn effective_shipping_package(&self, id: &str) -> Value {
+    pub(in crate::proxy) fn effective_shipping_package(
+        &mut self,
+        id: &str,
+        request: &Request,
+    ) -> Option<Value> {
+        if self.store.staged.shipping_packages.is_tombstoned(id) {
+            return None;
+        }
         self.store
             .staged
             .shipping_packages
             .get(id)
             .cloned()
-            .unwrap_or_else(|| seed_shipping_package(id))
+            .or_else(|| self.hydrate_shipping_package(request, id))
     }
 
-    pub(in crate::proxy) fn clear_default_shipping_packages_except(&mut self, default_id: &str) {
-        for id in [
-            "gid://shopify/ShippingPackage/1",
-            "gid://shopify/ShippingPackage/2",
-        ] {
-            if id == default_id || self.store.staged.shipping_packages.is_tombstoned(id) {
+    fn hydrate_shipping_package(&self, request: &Request, id: &str) -> Option<Value> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": SHIPPING_PACKAGE_HYDRATE_QUERY,
+                "variables": { "id": id }
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let package = response.body["data"]["shippingPackage"].clone();
+        if package.get("id").and_then(Value::as_str) == Some(id) {
+            return Some(package);
+        }
+        let node = response.body["data"]["node"].clone();
+        if node.get("id").and_then(Value::as_str) == Some(id)
+            && node.get("__typename").and_then(Value::as_str) == Some("ShippingPackage")
+        {
+            return Some(json!({ "id": id }));
+        }
+        None
+    }
+
+    pub(in crate::proxy) fn clear_default_shipping_packages_except(
+        &mut self,
+        default_id: &str,
+        timestamp: &str,
+    ) {
+        let defaulted_ids = self
+            .store
+            .staged
+            .shipping_packages
+            .iter()
+            .filter_map(|(id, package)| {
+                (id != default_id && package.get("default") == Some(&json!(true)))
+                    .then(|| id.clone())
+            })
+            .collect::<Vec<_>>();
+
+        for id in defaulted_ids {
+            let Some(mut package) = self.store.staged.shipping_packages.get(&id).cloned() else {
                 continue;
-            }
-            let mut package = self.effective_shipping_package(id);
+            };
             package["default"] = json!(false);
-            package["updatedAt"] = json!(self.next_shipping_package_timestamp());
+            package["updatedAt"] = json!(timestamp);
             self.store
                 .staged
                 .shipping_packages
@@ -5711,27 +5758,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn next_shipping_package_timestamp(&self) -> String {
-        let staged_shipping_mutations = self
-            .log_entries
-            .iter()
-            .filter(|entry| {
-                entry
-                    .get("operationName")
-                    .and_then(Value::as_str)
-                    .is_some_and(|name| {
-                        matches!(
-                            name,
-                            "shippingPackageUpdate"
-                                | "shippingPackageMakeDefault"
-                                | "shippingPackageDelete"
-                        )
-                    })
-            })
-            .count();
-        format!(
-            "2024-01-01T00:00:{:02}.000Z",
-            staged_shipping_mutations * 2 + 1
-        )
+        self.next_product_timestamp()
     }
 
     pub(in crate::proxy) fn record_shipping_package_log_entry(
@@ -5759,6 +5786,17 @@ impl DraftProxy {
             }
         }));
     }
+}
+
+fn shipping_package_not_found_response(root_field: &str, response_key: &str) -> Response {
+    ok_json(json!({
+        "errors": [{
+            "message": "invalid id",
+            "extensions": { "code": "RESOURCE_NOT_FOUND" },
+            "path": [root_field]
+        }],
+        "data": { response_key: null }
+    }))
 }
 
 enum BackupRegionCountryCodeInput {
