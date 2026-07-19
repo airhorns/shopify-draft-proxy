@@ -858,14 +858,20 @@ impl DraftProxy {
     ) -> MutationFieldOutcome {
         let input = discount_input(&field.arguments, input_arg);
         let mut user_errors = discount_input_user_errors(input.as_ref(), input_arg, typename, true);
-        if let Some(error) =
-            self.discount_subscription_gate_error(request, input.as_ref(), input_arg)
-        {
-            user_errors.push(error);
+        let mut prerequisite_unresolved = false;
+        match self.discount_subscription_gate_error(request, input.as_ref(), input_arg) {
+            Ok(Some(error)) => user_errors.push(error),
+            Ok(None) => {}
+            Err(()) => prerequisite_unresolved = true,
         }
         if let Some(input_map) = input.as_ref() {
-            user_errors
-                .extend(self.discount_reference_user_errors(request, input_map, input_arg, None));
+            let (reference_errors, reference_unresolved) =
+                self.discount_reference_user_errors(request, input_map, input_arg, None);
+            user_errors.extend(reference_errors);
+            prerequisite_unresolved |= reference_unresolved;
+        }
+        if prerequisite_unresolved {
+            user_errors.push(discount_prerequisite_unresolved_user_error());
         }
         if !user_errors.is_empty() {
             return MutationFieldOutcome::unlogged(discount_payload_for_root(
@@ -972,8 +978,8 @@ impl DraftProxy {
     /// are valid. The ids are deduplicated and sorted (numeric tail ascending, ties
     /// broken by gid string) so the forwarded request matches the recorded
     /// `ProductsHydrateNodes` cassette byte-for-byte. Only forwarded in
-    /// `live-hybrid`; in `snapshot` the existence checks keep their permissive
-    /// default (no upstream to consult).
+    /// `live-hybrid`; Snapshot catalogs are authoritative without an upstream
+    /// lookup.
     pub(in crate::proxy) fn hydrate_discount_item_refs(
         &mut self,
         request: &Request,
@@ -996,6 +1002,7 @@ impl DraftProxy {
         }
         let mut ids: Vec<String> = Vec::new();
         let mut seen: BTreeSet<String> = BTreeSet::new();
+        let mut expected_types: BTreeMap<String, BTreeSet<&'static str>> = BTreeMap::new();
         for field in fields {
             let Some(input_arg) = discount_mutation_input_arg(field.name) else {
                 continue;
@@ -1004,15 +1011,24 @@ impl DraftProxy {
                 continue;
             };
             for selection in ["customerBuys", "customerGets"] {
-                for path in [
-                    [selection, "items", "products", "productsToAdd"],
-                    [selection, "items", "products", "productVariantsToAdd"],
-                    [selection, "items", "collections", "add"],
+                for (path, expected_type) in [
+                    ([selection, "items", "products", "productsToAdd"], "Product"),
+                    (
+                        [selection, "items", "products", "productVariantsToAdd"],
+                        "ProductVariant",
+                    ),
+                    ([selection, "items", "collections", "add"], "Collection"),
                 ] {
                     for id in resolved_string_list_path(&input, &path) {
-                        // The reference is already authoritative if it was staged
-                        // earlier in the scenario; only unknown ids need a lookup.
-                        if self.discount_reference_already_staged(&id) {
+                        expected_types
+                            .entry(id.clone())
+                            .or_default()
+                            .insert(expected_type);
+                        // Exact local presence, a tombstone, and Snapshot absence are
+                        // already authoritative. Only unresolved keys need hydration.
+                        if self.discount_reference_state(&id, expected_type)
+                            != DiscountPrerequisiteState::Unresolved
+                        {
                             continue;
                         }
                         if seen.insert(id.clone()) {
@@ -1034,7 +1050,65 @@ impl DraftProxy {
                 "variables": { "ids": ids }
             }),
         );
-        self.observe_nodes_response(&response);
+        self.observe_discount_item_refs_response(&response, &ids, &expected_types);
+    }
+
+    fn observe_discount_item_refs_response(
+        &mut self,
+        response: &Response,
+        ids: &[String],
+        expected_types: &BTreeMap<String, BTreeSet<&'static str>>,
+    ) {
+        let Some(data) = discount_prerequisite_response_data(response) else {
+            return;
+        };
+        let Some(nodes) = data.get("nodes").and_then(Value::as_array) else {
+            return;
+        };
+        if nodes.len() != ids.len() {
+            return;
+        }
+
+        let mut resolved_types = Vec::with_capacity(nodes.len());
+        for (id, node) in ids.iter().zip(nodes) {
+            if node.is_null() {
+                resolved_types.push(None);
+                continue;
+            }
+            let Some(node_id) = node.get("id").and_then(Value::as_str) else {
+                return;
+            };
+            let Some(node_type) = node.get("__typename").and_then(Value::as_str) else {
+                return;
+            };
+            if node_id != id {
+                return;
+            }
+            if !expected_types
+                .get(id)
+                .is_some_and(|expected| expected.contains(node_type))
+            {
+                return;
+            }
+            resolved_types.push(Some(node_type.to_string()));
+        }
+
+        for (id, resolved_type) in ids.iter().zip(resolved_types) {
+            let Some(expected) = expected_types.get(id) else {
+                continue;
+            };
+            for expected_type in expected {
+                let state = if resolved_type.as_deref() == Some(*expected_type) {
+                    DiscountPrerequisiteState::Present
+                } else {
+                    DiscountPrerequisiteState::Absent
+                };
+                self.execution_session
+                    .discount_reference_states
+                    .insert(((*expected_type).to_string(), id.clone()), state);
+            }
+        }
+        self.observe_nodes_response(response);
     }
 
     /// Forward a read for every buyer-context customer / segment member referenced
@@ -1134,25 +1208,11 @@ impl DraftProxy {
         }
     }
 
-    /// Whether a product / variant / collection gid is already present in staged
-    /// state (and so does not need an upstream existence lookup).
-    fn discount_reference_already_staged(&self, gid: &str) -> bool {
-        if is_shopify_gid_of_type(gid, "Product") {
-            self.store.has_product(gid)
-        } else if is_shopify_gid_of_type(gid, "ProductVariant") {
-            self.store.product_variant_by_id(gid).is_some()
-        } else if is_shopify_gid_of_type(gid, "Collection") {
-            self.store.collection_by_id(gid).is_some()
-        } else {
-            false
-        }
-    }
-
     /// Referential-integrity validation that depends on the real backend's
     /// contents: a duplicate redeem code (TAKEN) and item-entitlement references to
     /// products / variants / collections that do not exist. Shopify resolves these
     /// against its catalog; the proxy mirrors that by forwarding a uniqueness lookup
-    /// upstream (see `discount_code_is_taken`) and a batched node lookup
+    /// upstream (see `discount_code_state`) and a batched node lookup
     /// (`hydrate_discount_item_refs`) before validation. Item-entitlement existence
     /// is enforced once the referenced nodes have been observed — except the
     /// universally-invalid `/0` sentinel id, which never resolves on any Shopify
@@ -1163,45 +1223,61 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
         input_arg: &str,
         exclude_discount_id: Option<&str>,
-    ) -> Vec<Value> {
+    ) -> (Vec<Value>, bool) {
         let mut errors = Vec::new();
+        let mut prerequisite_unresolved = false;
         if let Some(code) = resolved_string_path(input, &["code"]) {
-            if !code.trim().is_empty()
-                && self.discount_code_is_taken(request, &code, exclude_discount_id)
-            {
-                errors.push(user_error_with_extra_info(
-                    vec![input_arg, "code"],
-                    "Code must be unique. Please try a different code.",
-                    Some("TAKEN"),
-                    Value::Null,
-                ));
+            if !code.trim().is_empty() {
+                match self.discount_code_state(request, &code, exclude_discount_id) {
+                    DiscountPrerequisiteState::Present => {
+                        errors.push(user_error_with_extra_info(
+                            vec![input_arg, "code"],
+                            "Code must be unique. Please try a different code.",
+                            Some("TAKEN"),
+                            Value::Null,
+                        ));
+                    }
+                    DiscountPrerequisiteState::Absent => {}
+                    DiscountPrerequisiteState::Unresolved => prerequisite_unresolved = true,
+                }
             }
         }
         for selection in ["customerBuys", "customerGets"] {
-            errors.extend(self.discount_items_reference_errors(input, input_arg, selection));
+            errors.extend(self.discount_items_reference_errors(
+                input,
+                input_arg,
+                selection,
+                &mut prerequisite_unresolved,
+            ));
         }
-        errors
+        (errors, prerequisite_unresolved)
     }
 
     /// Whether `code` is already assigned to a discount in the shop and so cannot be
     /// reused. A code staged earlier in the same scenario is taken without consulting
     /// upstream. Otherwise the proxy resolves uniqueness the real way: it forwards a
     /// `codeDiscountNodeByCode` lookup and treats a non-null node as taken. In
-    /// `snapshot` mode (no upstream) and when the upstream lookup cannot be resolved
-    /// (non-200 — e.g. a parity scenario that does not record a uniqueness call), it
-    /// degrades to "not taken", the permissive default that never fabricates a
-    /// rejection. This mirrors `fetch_shop_sells_subscriptions`.
-    fn discount_code_is_taken(
+    /// Snapshot mode treats its local discount catalog as complete. LiveHybrid
+    /// transport failures, GraphQL errors, and malformed payloads remain unresolved
+    /// rather than being converted into a uniqueness claim.
+    fn discount_code_state(
         &self,
         request: &Request,
         code: &str,
         exclude_discount_id: Option<&str>,
-    ) -> bool {
+    ) -> DiscountPrerequisiteState {
         if let Some(record) = self.discount_record_by_code(code) {
-            return Some(discount_id(record)) != exclude_discount_id;
+            return if Some(discount_id(record)) != exclude_discount_id {
+                DiscountPrerequisiteState::Present
+            } else {
+                DiscountPrerequisiteState::Absent
+            };
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return DiscountPrerequisiteState::Absent;
         }
         if self.config.read_mode != ReadMode::LiveHybrid {
-            return false;
+            return DiscountPrerequisiteState::Unresolved;
         }
         let response = self.upstream_post(
             request,
@@ -1210,16 +1286,23 @@ impl DraftProxy {
                 "variables": { "code": code }
             }),
         );
-        if response.status != 200 {
-            return false;
-        }
-        let node = &response.body["data"]["codeDiscountNodeByCode"];
+        let Some(data) = discount_prerequisite_response_data(&response) else {
+            return DiscountPrerequisiteState::Unresolved;
+        };
+        let Some(node) = data.get("codeDiscountNodeByCode") else {
+            return DiscountPrerequisiteState::Unresolved;
+        };
         if node.is_null() {
-            return false;
+            return DiscountPrerequisiteState::Absent;
         }
-        node["id"]
-            .as_str()
-            .is_none_or(|discount_id| Some(discount_id) != exclude_discount_id)
+        let Some(discount_id) = node.get("id").and_then(Value::as_str) else {
+            return DiscountPrerequisiteState::Unresolved;
+        };
+        if Some(discount_id) == exclude_discount_id {
+            DiscountPrerequisiteState::Absent
+        } else {
+            DiscountPrerequisiteState::Present
+        }
     }
 
     /// Existence / conflict validation for one entitlement selection (`customerBuys`
@@ -1231,6 +1314,7 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
         input_arg: &str,
         selection: &str,
+        prerequisite_unresolved: &mut bool,
     ) -> Vec<Value> {
         let mut errors = Vec::new();
         let products =
@@ -1252,23 +1336,30 @@ impl DraftProxy {
                 ));
             } else {
                 for collection_id in &collections {
-                    if !self.discount_reference_collection_exists(collection_id) {
-                        errors.push(user_error_with_extra_info(
-                            vec![input_arg, selection, "items", "collections", "add"],
-                            &format!(
-                                "Collection with id: {} is invalid",
-                                resource_id_tail(collection_id)
-                            ),
-                            Some("INVALID"),
-                            Value::Null,
-                        ));
+                    match self.discount_reference_state(collection_id, "Collection") {
+                        DiscountPrerequisiteState::Present => {}
+                        DiscountPrerequisiteState::Absent => {
+                            errors.push(user_error_with_extra_info(
+                                vec![input_arg, selection, "items", "collections", "add"],
+                                &format!(
+                                    "Collection with id: {} is invalid",
+                                    resource_id_tail(collection_id)
+                                ),
+                                Some("INVALID"),
+                                Value::Null,
+                            ))
+                        }
+                        DiscountPrerequisiteState::Unresolved => {
+                            *prerequisite_unresolved = true;
+                        }
                     }
                 }
             }
         }
         for product_id in &products {
-            if !self.discount_reference_product_exists(product_id) {
-                errors.push(user_error_with_extra_info(
+            match self.discount_reference_state(product_id, "Product") {
+                DiscountPrerequisiteState::Present => {}
+                DiscountPrerequisiteState::Absent => errors.push(user_error_with_extra_info(
                     vec![input_arg, selection, "items", "products", "productsToAdd"],
                     &format!(
                         "Product with id: {} is invalid",
@@ -1276,12 +1367,14 @@ impl DraftProxy {
                     ),
                     Some("INVALID"),
                     Value::Null,
-                ));
+                )),
+                DiscountPrerequisiteState::Unresolved => *prerequisite_unresolved = true,
             }
         }
         for variant_id in &variants {
-            if !self.discount_reference_product_variant_exists(variant_id) {
-                errors.push(user_error_with_extra_info(
+            match self.discount_reference_state(variant_id, "ProductVariant") {
+                DiscountPrerequisiteState::Present => {}
+                DiscountPrerequisiteState::Absent => errors.push(user_error_with_extra_info(
                     vec![
                         input_arg,
                         selection,
@@ -1295,48 +1388,50 @@ impl DraftProxy {
                     ),
                     Some("INVALID"),
                     Value::Null,
-                ));
+                )),
+                DiscountPrerequisiteState::Unresolved => *prerequisite_unresolved = true,
             }
         }
         errors
     }
 
-    fn discount_reference_product_exists(&self, gid: &str) -> bool {
-        self.discount_reference_exists(
-            gid,
-            self.store.has_product_state(),
-            self.store.has_product(gid),
-        )
-    }
-
-    fn discount_reference_product_variant_exists(&self, gid: &str) -> bool {
-        let authoritative = !self.store.product_variants.staged.records.is_empty()
-            || !self.store.product_variants.base.records.is_empty();
-        self.discount_reference_exists(
-            gid,
-            authoritative,
-            self.store.product_variant_by_id(gid).is_some(),
-        )
-    }
-
-    fn discount_reference_collection_exists(&self, gid: &str) -> bool {
-        self.discount_reference_exists(
-            gid,
-            self.store.has_collection_state(),
-            self.store.collection_by_id(gid).is_some(),
-        )
-    }
-
-    fn discount_reference_exists(
+    fn discount_reference_state(
         &self,
         gid: &str,
-        authoritative_state: bool,
-        exists: bool,
-    ) -> bool {
-        if resource_id_tail(gid) == "0" {
-            return false;
+        expected_type: &str,
+    ) -> DiscountPrerequisiteState {
+        if resource_id_tail(gid) == "0" || !is_shopify_gid_of_type(gid, expected_type) {
+            return DiscountPrerequisiteState::Absent;
         }
-        !authoritative_state || exists
+        let (present, tombstoned) = match expected_type {
+            "Product" => (
+                self.store.has_product(gid),
+                self.store.product_is_tombstoned(gid),
+            ),
+            "ProductVariant" => (
+                self.store.product_variant_by_id(gid).is_some(),
+                self.store.product_variants.staged.is_tombstoned(gid),
+            ),
+            "Collection" => (
+                self.store.collection_by_id(gid).is_some(),
+                self.store.collection_is_deleted(gid),
+            ),
+            _ => return DiscountPrerequisiteState::Unresolved,
+        };
+        if tombstoned {
+            return DiscountPrerequisiteState::Absent;
+        }
+        if present {
+            return DiscountPrerequisiteState::Present;
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return DiscountPrerequisiteState::Absent;
+        }
+        self.execution_session
+            .discount_reference_states
+            .get(&(expected_type.to_string(), gid.to_string()))
+            .copied()
+            .unwrap_or(DiscountPrerequisiteState::Unresolved)
     }
 
     fn discount_update(
@@ -1384,18 +1479,26 @@ impl DraftProxy {
                 } else {
                     let mut errors =
                         discount_input_user_errors(input.as_ref(), input_arg, typename, false);
-                    if let Some(error) =
-                        self.discount_subscription_gate_error(request, input.as_ref(), input_arg)
+                    let mut prerequisite_unresolved = false;
+                    match self.discount_subscription_gate_error(request, input.as_ref(), input_arg)
                     {
-                        errors.push(error);
+                        Ok(Some(error)) => errors.push(error),
+                        Ok(None) => {}
+                        Err(()) => prerequisite_unresolved = true,
                     }
                     if let Some(input_map) = input.as_ref() {
-                        errors.extend(self.discount_reference_user_errors(
-                            request,
-                            input_map,
-                            input_arg,
-                            Some(&id),
-                        ));
+                        let (reference_errors, reference_unresolved) = self
+                            .discount_reference_user_errors(
+                                request,
+                                input_map,
+                                input_arg,
+                                Some(&id),
+                            );
+                        errors.extend(reference_errors);
+                        prerequisite_unresolved |= reference_unresolved;
+                    }
+                    if prerequisite_unresolved {
+                        errors.push(discount_prerequisite_unresolved_user_error());
                     }
                     errors
                 }
@@ -1966,13 +2069,14 @@ impl DraftProxy {
         // Codes not already known from local staged state have their shop-wide
         // uniqueness resolved the real way: forward a `codeDiscountNodeByCode`
         // lookup per candidate and treat a non-null node as taken (see
-        // `discount_code_is_taken`). Only codes that would otherwise be accepted
+        // `discount_code_state`). Only codes that would otherwise be accepted
         // are probed — format failures and in-batch duplicates are rejected
         // locally without consulting upstream, and a code already in the local
         // index is taken without a redundant forward. In `snapshot` mode (no
-        // upstream) and when the lookup can't be resolved, the probe degrades to
-        // "not taken", so scenarios that record no uniqueness call behave exactly
-        // as a fresh batch would.
+        // upstream) resolves absence from the complete local catalog. LiveHybrid
+        // failures leave the whole bulk mutation unchanged and return the explicit
+        // prerequisite error below.
+        let mut prerequisite_unresolved = false;
         for (index, code) in codes.iter().enumerate() {
             let normalized = code.to_ascii_uppercase();
             if existing_codes.contains(&normalized) {
@@ -1981,9 +2085,19 @@ impl DraftProxy {
             if !redeem_code_errors(code, &codes, index, &existing_codes).is_empty() {
                 continue;
             }
-            if self.discount_code_is_taken(request, code, None) {
-                existing_codes.insert(normalized);
+            match self.discount_code_state(request, code, None) {
+                DiscountPrerequisiteState::Present => {
+                    existing_codes.insert(normalized);
+                }
+                DiscountPrerequisiteState::Absent => {}
+                DiscountPrerequisiteState::Unresolved => prerequisite_unresolved = true,
             }
+        }
+        if prerequisite_unresolved {
+            return MutationFieldOutcome::unlogged(json!({
+                "bulkCreation": Value::Null,
+                "userErrors": [discount_prerequisite_unresolved_user_error()]
+            }));
         }
         let creation_id = self.next_proxy_synthetic_gid("DiscountRedeemCodeBulkCreation");
         // A later `discountRedeemCodeBulkCreation(id:)` read always observes the
@@ -2472,27 +2586,42 @@ impl DraftProxy {
             .cloned()
     }
 
-    /// Whether the upstream shop sells subscriptions. Subscription/recurring
+    /// Whether the effective shop sells subscriptions. Subscription/recurring
     /// discount fields (`appliesOnSubscription`, `appliesOnOneTimePurchase`,
     /// `recurringCycleLimit`) are gated by the shop's selling-plan plan: a shop
     /// that does not sell subscriptions rejects them with "... is not permitted
     /// for this shop." We learn the capability the same way Shopify's own admin
-    /// does — by reading `shop.features.sellsSubscriptions` — and cache it for the
-    /// remainder of the scenario. When the capability cannot be resolved (no
-    /// upstream available, e.g. the default synthetic local-runtime shop) we
-    /// default to `false`, which is the gated, non-subscription behaviour.
-    fn ensure_shop_sells_subscriptions(&mut self, request: &Request) -> bool {
+    /// does — by reading `shop.features.sellsSubscriptions` — and cache only an
+    /// explicit boolean for the remainder of the scenario. Missing or failed reads
+    /// remain unresolved and are retried by the next mutation.
+    fn ensure_shop_sells_subscriptions(&mut self, request: &Request) -> DiscountPrerequisiteState {
         if let Some(cached) = self.shop_sells_subscriptions {
-            return cached;
+            return if cached {
+                DiscountPrerequisiteState::Present
+            } else {
+                DiscountPrerequisiteState::Absent
+            };
+        }
+        if let Some(observed) = self.store.base.shop["features"]["sellsSubscriptions"].as_bool() {
+            self.shop_sells_subscriptions = Some(observed);
+            return if observed {
+                DiscountPrerequisiteState::Present
+            } else {
+                DiscountPrerequisiteState::Absent
+            };
         }
         let resolved = self.fetch_shop_sells_subscriptions(request);
-        self.shop_sells_subscriptions = Some(resolved);
+        match resolved {
+            DiscountPrerequisiteState::Present => self.shop_sells_subscriptions = Some(true),
+            DiscountPrerequisiteState::Absent => self.shop_sells_subscriptions = Some(false),
+            DiscountPrerequisiteState::Unresolved => {}
+        }
         resolved
     }
 
-    fn fetch_shop_sells_subscriptions(&self, request: &Request) -> bool {
+    fn fetch_shop_sells_subscriptions(&self, request: &Request) -> DiscountPrerequisiteState {
         if self.config.read_mode == ReadMode::Snapshot {
-            return false;
+            return DiscountPrerequisiteState::Unresolved;
         }
         let response = self.upstream_post(
             request,
@@ -2501,12 +2630,14 @@ impl DraftProxy {
                 "variables": {}
             }),
         );
-        if response.status != 200 {
-            return false;
+        let Some(data) = discount_prerequisite_response_data(&response) else {
+            return DiscountPrerequisiteState::Unresolved;
+        };
+        match data["shop"]["features"]["sellsSubscriptions"].as_bool() {
+            Some(true) => DiscountPrerequisiteState::Present,
+            Some(false) => DiscountPrerequisiteState::Absent,
+            None => DiscountPrerequisiteState::Unresolved,
         }
-        response.body["data"]["shop"]["features"]["sellsSubscriptions"]
-            .as_bool()
-            .unwrap_or(false)
     }
 
     /// Gate subscription/recurring discount fields on the shop's capability. The
@@ -2520,19 +2651,23 @@ impl DraftProxy {
         request: &Request,
         input: Option<&BTreeMap<String, ResolvedValue>>,
         input_arg: &str,
-    ) -> Option<Value> {
-        let input = input?;
+    ) -> Result<Option<Value>, ()> {
+        let Some(input) = input else {
+            return Ok(None);
+        };
         // bxgy discounts reject subscription/one-time fields outright with a
         // bxgy-specific message (emitted by discount_bxgy_customer_gets_user_errors),
         // so the shop-capability gate must not also fire its generic message.
         if input_arg.to_lowercase().contains("bxgy") {
-            return None;
+            return Ok(None);
         }
-        let candidate = discount_subscription_field_user_error(input, input_arg)?;
-        if self.ensure_shop_sells_subscriptions(request) {
-            None
-        } else {
-            Some(candidate)
+        let Some(candidate) = discount_subscription_field_user_error(input, input_arg) else {
+            return Ok(None);
+        };
+        match self.ensure_shop_sells_subscriptions(request) {
+            DiscountPrerequisiteState::Present => Ok(None),
+            DiscountPrerequisiteState::Absent => Ok(Some(candidate)),
+            DiscountPrerequisiteState::Unresolved => Err(()),
         }
     }
 
@@ -2650,6 +2785,29 @@ impl DraftProxy {
         }
         None
     }
+}
+
+fn discount_prerequisite_response_data(
+    response: &Response,
+) -> Option<&serde_json::Map<String, Value>> {
+    if response.status != 200 {
+        return None;
+    }
+    match response.body.get("errors") {
+        None => {}
+        Some(Value::Array(errors)) if errors.is_empty() => {}
+        Some(_) => return None,
+    }
+    response.body.get("data")?.as_object()
+}
+
+fn discount_prerequisite_unresolved_user_error() -> Value {
+    user_error_with_extra_info(
+        ["base"],
+        "Discount validation prerequisites could not be resolved.",
+        Some("INTERNAL_ERROR"),
+        Value::Null,
+    )
 }
 
 fn discount_mutation_fields_require_shop_currency(fields: &[DiscountMutationInput]) -> bool {

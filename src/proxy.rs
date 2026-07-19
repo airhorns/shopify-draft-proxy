@@ -2624,12 +2624,20 @@ struct RequestNodeHydration {
     upstream_response_keys: BTreeSet<String>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DiscountPrerequisiteState {
+    Present,
+    Absent,
+    Unresolved,
+}
+
 #[derive(Clone, Default)]
 struct ExecutionSession {
     api_surface: Option<ApiSurface>,
     api_version: Option<String>,
     mutation_log_start: Option<usize>,
     discount_refs_preflighted: bool,
+    discount_reference_states: BTreeMap<(String, String), DiscountPrerequisiteState>,
     owner_metafield_hydrated_ids: BTreeSet<String>,
     upstream_query_response: Option<Response>,
     upstream_query_data: Option<Value>,
@@ -2682,9 +2690,10 @@ pub struct DraftProxy {
     registry: ResolverRegistry,
     store: Store,
     next_synthetic_id: u64,
-    /// Per-scenario cache of the upstream shop's `shop.features.sellsSubscriptions`
-    /// capability. Populated lazily by forwarding a `DraftProxyShopSubscriptionCapability`
-    /// probe the first time a discount mutation touches subscription/recurring fields.
+    /// Per-scenario cache of an explicitly observed
+    /// `shop.features.sellsSubscriptions` boolean. Unresolved probes are never cached.
+    /// Populated lazily by forwarding a `DraftProxyShopSubscriptionCapability` probe
+    /// the first time a discount mutation touches subscription/recurring fields.
     /// Intentionally NOT part of the dump/restore snapshot so it survives
     /// `restoreState` between a scenario's targets; it is reset on `/__meta/reset`,
     /// which the parity runner issues at the start of every scenario.
