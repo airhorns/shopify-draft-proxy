@@ -136,6 +136,158 @@ fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_ba
 }
 
 #[test]
+fn marketing_engagement_create_echoes_supplied_count_fields_and_channel_handle() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingEngagementEchoSetup($input: MarketingActivityCreateExternalInput!) {
+          marketingActivityCreateExternal(input: $input) {
+            marketingActivity { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Engagement Echo", "remoteId": "engagement-echo", "status": "ACTIVE", "remoteUrl": "https://example.com/engagement-echo", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "engagement-echo", "source": "newsletter", "medium": "email"}}}),
+    ));
+    assert_eq!(
+        create.body["data"]["marketingActivityCreateExternal"]["userErrors"],
+        json!([])
+    );
+
+    let engagement = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingEngagementEcho($engagement: MarketingEngagementInput!) {
+          marketingEngagementCreate(channelHandle: "email", marketingEngagement: $engagement) {
+            marketingEngagement {
+              occurredOn
+              utcOffset
+              isCumulative
+              impressionsCount
+              viewsCount
+              clicksCount
+              uniqueClicksCount
+              sharesCount
+              favoritesCount
+              commentsCount
+              unsubscribesCount
+              complaintsCount
+              failsCount
+              sendsCount
+              uniqueViewsCount
+              sessionsCount
+              channelHandle
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "engagement": {
+                "occurredOn": "2026-06-01",
+                "utcOffset": "+00:00",
+                "isCumulative": false,
+                "impressionsCount": 100,
+                "viewsCount": 90,
+                "clicksCount": 80,
+                "uniqueClicksCount": 70,
+                "sharesCount": 60,
+                "favoritesCount": 50,
+                "commentsCount": 40,
+                "unsubscribesCount": 30,
+                "complaintsCount": 20,
+                "failsCount": 10,
+                "sendsCount": 5,
+                "uniqueViewsCount": 4,
+                "sessionsCount": 3
+            }
+        }),
+    ));
+
+    assert_eq!(
+        engagement.body["data"]["marketingEngagementCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        engagement.body["data"]["marketingEngagementCreate"]["marketingEngagement"],
+        json!({
+            "occurredOn": "2026-06-01",
+            "utcOffset": "+00:00",
+            "isCumulative": false,
+            "impressionsCount": 100,
+            "viewsCount": 90,
+            "clicksCount": 80,
+            "uniqueClicksCount": 70,
+            "sharesCount": 60,
+            "favoritesCount": 50,
+            "commentsCount": 40,
+            "unsubscribesCount": 30,
+            "complaintsCount": 20,
+            "failsCount": 10,
+            "sendsCount": 5,
+            "uniqueViewsCount": 4,
+            "sessionsCount": 3,
+            "channelHandle": "email"
+        })
+    );
+
+    let omitted_metrics = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingEngagementOmittedMetrics($engagement: MarketingEngagementInput!) {
+          marketingEngagementCreate(channelHandle: "email", marketingEngagement: $engagement) {
+            marketingEngagement {
+              impressionsCount
+              viewsCount
+              clicksCount
+              uniqueClicksCount
+              sharesCount
+              favoritesCount
+              commentsCount
+              unsubscribesCount
+              complaintsCount
+              failsCount
+              sendsCount
+              uniqueViewsCount
+              sessionsCount
+              channelHandle
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "engagement": {
+                "occurredOn": "2026-06-02",
+                "utcOffset": "+00:00",
+                "isCumulative": false
+            }
+        }),
+    ));
+    assert_eq!(
+        omitted_metrics.body["data"]["marketingEngagementCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        omitted_metrics.body["data"]["marketingEngagementCreate"]["marketingEngagement"],
+        json!({
+            "impressionsCount": null,
+            "viewsCount": null,
+            "clicksCount": null,
+            "uniqueClicksCount": null,
+            "sharesCount": null,
+            "favoritesCount": null,
+            "commentsCount": null,
+            "unsubscribesCount": null,
+            "complaintsCount": null,
+            "failsCount": null,
+            "sendsCount": null,
+            "uniqueViewsCount": null,
+            "sessionsCount": null,
+            "channelHandle": "email"
+        })
+    );
+}
+
+#[test]
 fn marketing_external_activity_update_and_upsert_reject_tactic_change_from_storefront_app() {
     let mut proxy = snapshot_proxy();
     let setup = proxy.process_request(json_graphql_request(

@@ -1413,7 +1413,9 @@ impl DraftProxy {
             );
         }
         if has_channel {
-            let engagement = marketing_engagement_from_input(&engagement_input, None);
+            let channel_handle = resolved_string_arg(&field.arguments, "channelHandle");
+            let engagement =
+                marketing_engagement_from_input(&engagement_input, None, channel_handle.as_deref());
             return selected_json(
                 &marketing_engagement_payload(Some(engagement), Vec::new()),
                 &field.selection,
@@ -1468,7 +1470,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        let engagement = marketing_engagement_from_input(&engagement_input, Some(activity));
+        let engagement = marketing_engagement_from_input(&engagement_input, Some(activity), None);
         // Shopify accepts engagement metrics but does not fold engagement ad spend
         // back into the MarketingActivity.adSpend field in these captures.
         selected_json(

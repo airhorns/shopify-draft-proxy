@@ -230,6 +230,7 @@ pub(in crate::proxy) fn marketing_budget_json(input: BTreeMap<String, ResolvedVa
 pub(in crate::proxy) fn marketing_engagement_from_input(
     input: &BTreeMap<String, ResolvedValue>,
     activity: Option<&Value>,
+    channel_handle: Option<&str>,
 ) -> Value {
     let money = |key: &str| marketing_money_json(input, key);
     json!({
@@ -241,6 +242,15 @@ pub(in crate::proxy) fn marketing_engagement_from_input(
         "viewsCount": resolved_int_field(input, "viewsCount"),
         "clicksCount": resolved_int_field(input, "clicksCount"),
         "uniqueClicksCount": resolved_int_field(input, "uniqueClicksCount"),
+        "sharesCount": resolved_int_field(input, "sharesCount"),
+        "favoritesCount": resolved_int_field(input, "favoritesCount"),
+        "commentsCount": resolved_int_field(input, "commentsCount"),
+        "unsubscribesCount": resolved_int_field(input, "unsubscribesCount"),
+        "complaintsCount": resolved_int_field(input, "complaintsCount"),
+        "failsCount": resolved_int_field(input, "failsCount"),
+        "sendsCount": resolved_int_field(input, "sendsCount"),
+        "uniqueViewsCount": resolved_int_field(input, "uniqueViewsCount"),
+        "sessionsCount": resolved_int_field(input, "sessionsCount"),
         "adSpend": money("adSpend"),
         "sales": money("sales"),
         "orders": resolved_string_field(input, "orders"),
@@ -248,6 +258,7 @@ pub(in crate::proxy) fn marketing_engagement_from_input(
         "allConversions": resolved_string_field(input, "allConversions"),
         "firstTimeCustomers": resolved_string_field(input, "firstTimeCustomers"),
         "returningCustomers": resolved_string_field(input, "returningCustomers"),
+        "channelHandle": channel_handle,
         "marketingActivity": activity.cloned().unwrap_or(Value::Null)
     })
 }
