@@ -2386,6 +2386,13 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
             fulfillmentConstraintRule { id }
             userErrors { code field message }
           }
+          invalidDelivery: fulfillmentConstraintRuleCreate(
+            functionHandle: "fulfillment-constraint-local"
+            deliveryMethodTypes: [EXPRESS]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
           unknownId: fulfillmentConstraintRuleCreate(
             functionId: "gid://shopify/ShopifyFunction/999999999999"
             deliveryMethodTypes: [SHIPPING]
@@ -2445,6 +2452,14 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
                     "message": "Delivery method types cannot be empty."
                 }]
             },
+            "invalidDelivery": {
+                "fulfillmentConstraintRule": null,
+                "userErrors": [{
+                    "code": "INPUT_INVALID",
+                    "field": ["deliveryMethodTypes"],
+                    "message": "One or more delivery method types are invalid."
+                }]
+            },
             "unknownId": {
                 "fulfillmentConstraintRule": null,
                 "userErrors": [{
@@ -2485,6 +2500,78 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
         json!({}),
     ));
     assert_eq!(read.body["data"]["fulfillmentConstraintRules"], json!([]));
+}
+
+#[test]
+fn functions_fulfillment_constraint_rule_create_enforces_rule_cap() {
+    let mut proxy = snapshot_proxy();
+
+    for _ in 0..25 {
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation StageFulfillmentConstraintRule {
+              fulfillmentConstraintRuleCreate(
+                functionHandle: "fulfillment-constraint-local"
+                deliveryMethodTypes: [SHIPPING]
+              ) {
+                fulfillmentConstraintRule { id }
+                userErrors { code field message }
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(
+            response.body["data"]["fulfillmentConstraintRuleCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let overflow = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OverflowFulfillmentConstraintRule {
+          fulfillmentConstraintRuleCreate(
+            functionHandle: "fulfillment-constraint-local"
+            deliveryMethodTypes: [SHIPPING]
+          ) {
+            fulfillmentConstraintRule { id }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        overflow.body["data"]["fulfillmentConstraintRuleCreate"],
+        json!({
+            "fulfillmentConstraintRule": null,
+            "userErrors": [{
+                "code": "INPUT_INVALID",
+                "field": [],
+                "message": "cannot have more than 25 fulfillment constraint rules"
+            }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query FulfillmentConstraintRuleCapRead { fulfillmentConstraintRules { id } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["fulfillmentConstraintRules"]
+            .as_array()
+            .unwrap()
+            .len(),
+        25
+    );
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["functionFulfillmentConstraintRules"]
+            .as_object()
+            .unwrap()
+            .len(),
+        25
+    );
 }
 
 #[test]

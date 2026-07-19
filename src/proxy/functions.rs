@@ -1,6 +1,7 @@
 use super::*;
 
 pub(in crate::proxy) const MODELED_FUNCTION_APP_ID: &str = "347082227713";
+const MAX_FULFILLMENT_CONSTRAINT_RULES_COUNT: usize = 25;
 
 impl DraftProxy {
     pub(in crate::proxy) fn functions_metadata_mutation_data(
@@ -806,9 +807,34 @@ fn fulfillment_constraint_rule_delivery_method_error(
                 Some("INPUT_INVALID"),
             ),
         ))
+    } else if delivery_method_types.iter().any(|delivery_method_type| {
+        !fulfillment_constraint_rule_delivery_method_type_allowed(delivery_method_type)
+    }) {
+        Some(fulfillment_constraint_rule_payload_error(
+            function_user_error(
+                vec![json!("deliveryMethodTypes")],
+                "One or more delivery method types are invalid.",
+                Some("INPUT_INVALID"),
+            ),
+        ))
     } else {
         None
     }
+}
+
+fn fulfillment_constraint_rule_delivery_method_type_allowed(delivery_method_type: &str) -> bool {
+    matches!(
+        delivery_method_type,
+        "LOCAL" | "NONE" | "PICK_UP" | "PICKUP_POINT" | "RETAIL" | "SHIPPING"
+    )
+}
+
+fn fulfillment_constraint_rule_max_count_error() -> Value {
+    fulfillment_constraint_rule_payload_error(function_user_error(
+        Vec::new(),
+        "cannot have more than 25 fulfillment constraint rules",
+        Some("INPUT_INVALID"),
+    ))
 }
 
 fn fulfillment_constraint_rule_function_not_found_error(
@@ -1224,6 +1250,15 @@ impl DraftProxy {
             Ok(function) => function,
             Err(payload) => return payload,
         };
+        if self
+            .store
+            .staged
+            .function_fulfillment_constraint_rule_order
+            .len()
+            >= MAX_FULFILLMENT_CONSTRAINT_RULES_COUNT
+        {
+            return fulfillment_constraint_rule_max_count_error();
+        }
         let id = format!(
             "gid://shopify/FulfillmentConstraintRule/{}",
             self.store
