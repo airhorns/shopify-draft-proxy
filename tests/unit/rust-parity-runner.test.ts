@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
 import {
+  createParityGidAliasBindings,
   defaultApiVersionForCapture,
   diffValues,
   parseJsonlRecordsForParity,
@@ -44,6 +45,82 @@ describe('scenarioClockFromCapture', () => {
         second: { runId: '1783175824303' },
       }),
     ).toBeUndefined();
+  });
+});
+
+describe('parity runner exact Shopify GID aliases', () => {
+  const addressRule = {
+    path: '$',
+    matcher: 'exact-string:gid://shopify/CompanyAddress/4?shopify-draft-proxy=synthetic',
+    reason: 'The update must preserve the address allocated earlier in this scenario.',
+  };
+
+  it('binds an exact local alias to one actual GID across comparison targets', () => {
+    const bindings = createParityGidAliasBindings();
+
+    expect(
+      diffValues(
+        'gid://shopify/CompanyAddress/9352282418',
+        'gid://shopify/CompanyAddress/5?shopify-draft-proxy=synthetic',
+        [addressRule],
+        '$',
+        bindings,
+      ),
+    ).toEqual([]);
+    expect(
+      diffValues(
+        'gid://shopify/CompanyAddress/9352282418',
+        'gid://shopify/CompanyAddress/5?shopify-draft-proxy=synthetic',
+        [addressRule],
+        '$',
+        bindings,
+      ),
+    ).toEqual([]);
+    expect(
+      diffValues(
+        'gid://shopify/CompanyAddress/9352282418',
+        'gid://shopify/CompanyAddress/6?shopify-draft-proxy=synthetic',
+        [addressRule],
+        '$',
+        bindings,
+      ),
+    ).toEqual([expect.stringContaining('CompanyAddress/6?shopify-draft-proxy=synthetic')]);
+  });
+
+  it('keeps exact local aliases type-safe and one-to-one', () => {
+    const bindings = createParityGidAliasBindings();
+    const secondAddressRule = {
+      ...addressRule,
+      matcher: 'exact-string:gid://shopify/CompanyAddress/6?shopify-draft-proxy=synthetic',
+    };
+
+    expect(
+      diffValues(
+        'captured',
+        'gid://shopify/CompanyAddress/5?shopify-draft-proxy=synthetic',
+        [addressRule],
+        '$',
+        bindings,
+      ),
+    ).toEqual([]);
+    expect(
+      diffValues(
+        'captured',
+        'gid://shopify/CompanyAddress/5?shopify-draft-proxy=synthetic',
+        [secondAddressRule],
+        '$',
+        bindings,
+      ),
+    ).not.toEqual([]);
+    expect(
+      diffValues(
+        'captured',
+        'gid://shopify/CompanyLocation/5?shopify-draft-proxy=synthetic',
+        [addressRule],
+        '$',
+        bindings,
+      ),
+    ).not.toEqual([]);
   });
 });
 

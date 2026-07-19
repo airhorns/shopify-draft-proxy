@@ -103,6 +103,15 @@ type ProxyContext = {
 
 type ProxyResponse = { status: number; body: unknown };
 
+export type ParityGidAliasBindings = {
+  expectedToActual: Map<string, string>;
+  actualToExpected: Map<string, string>;
+};
+
+export function createParityGidAliasBindings(): ParityGidAliasBindings {
+  return { expectedToActual: new Map(), actualToExpected: new Map() };
+}
+
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const paritySpecRoot = path.join(repoRoot, 'config', 'parity-specs');
@@ -1004,7 +1013,12 @@ function isJsonlString(value: unknown): boolean {
   });
 }
 
-function matchesRule(value: unknown, rule: ExpectedDifference): boolean {
+function shopifyGidType(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  return /^gid:\/\/shopify\/([A-Za-z][A-Za-z0-9]*)\//u.exec(value)?.[1];
+}
+
+function matchesRule(value: unknown, rule: ExpectedDifference, gidAliases: ParityGidAliasBindings): boolean {
   if (rule.ignore) return true;
   const matcher = rule.matcher ?? '';
   if (matcher === 'any-string') return typeof value === 'string';
@@ -1015,7 +1029,24 @@ function matchesRule(value: unknown, rule: ExpectedDifference): boolean {
   if (matcher === 'storefront-access-token') return typeof value === 'string' && value.length > 0;
   const gidMatch = /^shopify-gid:([A-Za-z][A-Za-z0-9]*)$/u.exec(matcher);
   if (gidMatch) return typeof value === 'string' && value.startsWith(`gid://shopify/${gidMatch[1]}/`);
-  if (matcher.startsWith('exact-string:')) return value === matcher.slice('exact-string:'.length);
+  if (matcher.startsWith('exact-string:')) {
+    const expected = matcher.slice('exact-string:'.length);
+    const expectedType = shopifyGidType(expected);
+    const actualType = shopifyGidType(value);
+    if (expectedType === undefined || actualType === undefined) return value === expected;
+    if (expectedType !== actualType || typeof value !== 'string') return false;
+
+    // Exact proxy-local GIDs are scenario aliases: their old numeric tails are
+    // not stable under the instance-wide broker, but equality and distinctness
+    // across targets still prove relationship preservation.
+    const boundActual = gidAliases.expectedToActual.get(expected);
+    if (boundActual !== undefined) return value === boundActual;
+    const boundExpected = gidAliases.actualToExpected.get(value);
+    if (boundExpected !== undefined && boundExpected !== expected) return false;
+    gidAliases.expectedToActual.set(expected, value);
+    gidAliases.actualToExpected.set(value, expected);
+    return true;
+  }
   if (matcher.startsWith('regex:'))
     return typeof value === 'string' && new RegExp(matcher.slice('regex:'.length), 'u').test(value);
   if (matcher.startsWith('shop-policy-url-base:'))
@@ -1033,22 +1064,28 @@ function ruleMatchesPath(rulePath: string, actualPath: string): boolean {
   return new RegExp(pattern, 'u').test(actualPath);
 }
 
-export function diffValues(capture: unknown, proxy: unknown, rules: ExpectedDifference[], basePath = '$'): string[] {
+export function diffValues(
+  capture: unknown,
+  proxy: unknown,
+  rules: ExpectedDifference[],
+  basePath = '$',
+  gidAliases = createParityGidAliasBindings(),
+): string[] {
   const rule = rules.find((candidate) => ruleMatchesPath(candidate.path, basePath));
-  if (rule && matchesRule(proxy, rule)) return [];
+  if (rule && matchesRule(proxy, rule, gidAliases)) return [];
   if (Object.is(capture, proxy)) return [];
   if (Array.isArray(capture) && Array.isArray(proxy)) {
     const errors: string[] = [];
     const max = Math.max(capture.length, proxy.length);
     for (let index = 0; index < max; index += 1)
-      errors.push(...diffValues(capture[index], proxy[index], rules, `${basePath}[${index}]`));
+      errors.push(...diffValues(capture[index], proxy[index], rules, `${basePath}[${index}]`, gidAliases));
     return errors;
   }
   if (isPlainObject(capture) && isPlainObject(proxy)) {
     const errors: string[] = [];
     const keys = new Set([...Object.keys(capture), ...Object.keys(proxy)]);
     for (const key of [...keys].sort())
-      errors.push(...diffValues(capture[key], proxy[key], rules, `${basePath}.${key}`));
+      errors.push(...diffValues(capture[key], proxy[key], rules, `${basePath}.${key}`, gidAliases));
     return errors;
   }
   return [`${basePath}: expected ${JSON.stringify(capture)} got ${JSON.stringify(proxy)}`];
@@ -1072,6 +1109,7 @@ async function runSpec(
   proxy.restoreState(cleanState);
   await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
   const failures: string[] = [];
+  const gidAliases = createParityGidAliasBindings();
   let primaryResponse: ProxyResponse | null = null;
   let previousResponse: ProxyResponse | null = null;
   const namedResponses = new Map<string, ProxyResponse>();
@@ -1182,7 +1220,7 @@ async function runSpec(
       const proxyPath = target.proxyPath ?? target.proxyStatePath ?? target.proxyLogPath ?? '$';
       const proxyValue = normalizeForTarget(getPath(proxySource, proxyPath), target);
       const rules = [...(spec.comparison?.expectedDifferences ?? []), ...(target.expectedDifferences ?? [])];
-      const diffs = diffValues(captureValue, proxyValue, rules);
+      const diffs = diffValues(captureValue, proxyValue, rules, '$', gidAliases);
       if (diffs.length > 0) {
         failures.push(`${relativeSpecPath} [${target.name}] ${diffs.slice(0, debug ? 20 : 3).join('; ')}`);
       }
