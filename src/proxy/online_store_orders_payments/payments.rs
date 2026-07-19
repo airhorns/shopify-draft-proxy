@@ -371,7 +371,7 @@ pub(in crate::proxy) fn refund_amount_validation_error(
     None
 }
 
-pub(in crate::proxy) fn next_refund_transaction_id(order: &Value, next: u64) -> (String, u64) {
+pub(in crate::proxy) fn next_order_transaction_id(order: &Value, next: u64) -> (String, u64) {
     let highest = order_transactions(order)
         .iter()
         .filter_map(|transaction| transaction["id"].as_str())
@@ -381,6 +381,10 @@ pub(in crate::proxy) fn next_refund_transaction_id(order: &Value, next: u64) -> 
         .unwrap_or(0);
     let number = next.max(highest + 1);
     (shopify_gid("OrderTransaction", number), number + 1)
+}
+
+pub(in crate::proxy) fn next_refund_transaction_id(order: &Value, next: u64) -> (String, u64) {
+    next_order_transaction_id(order, next)
 }
 
 pub(in crate::proxy) fn build_refund_line_items(
@@ -738,6 +742,7 @@ pub(in crate::proxy) fn normalized_order_payment_amount(value: Option<String>) -
 pub(in crate::proxy) fn mandate_payment_order_record(
     order_id: &str,
     idempotency_key: &str,
+    transaction_id: &str,
     amount: &str,
     currency_code: &str,
     auto_capture: bool,
@@ -753,7 +758,7 @@ pub(in crate::proxy) fn mandate_payment_order_record(
     let outstanding_amount = if auto_capture { "0.0" } else { amount };
     let received_amount = if auto_capture { amount } else { "0.0" };
     let transaction = json!({
-        "id": "gid://shopify/OrderTransaction/4",
+        "id": transaction_id,
         "kind": transaction_kind,
         "status": "SUCCESS",
         "gateway": "mandate",
@@ -1121,9 +1126,16 @@ impl DraftProxy {
                         }]
                     }));
                 }
-                let order = resolved_string_arg(&field.arguments, "id")
-                    .or_else(|| resolved_string_field(variables, "id"))
-                    .and_then(|id| self.store.staged.orders.get(&id).cloned())
+                let requested_order_id = resolved_string_arg(&field.arguments, "id")
+                    .or_else(|| resolved_string_field(variables, "id"));
+                let order = requested_order_id
+                    .as_deref()
+                    .and_then(|id| self.store.staged.orders.get(id).cloned())
+                    .or_else(|| {
+                        (self.store.staged.orders.len() == 1)
+                            .then(|| self.store.staged.orders.iter().next().map(|(_, order)| order.clone()))
+                            .flatten()
+                    })
                     .unwrap_or(Value::Null);
                 let idempotency_key = resolved_string_arg(&field.arguments, "idempotencyKey")
                     .or_else(|| resolved_string_field(variables, "idempotencyKey"));
@@ -1144,9 +1156,18 @@ impl DraftProxy {
                         ),
                     ));
                 };
-                let order_id = resolved_string_arg(&field.arguments, "id")
+                let order_id = requested_order_id
                     .or_else(|| resolved_string_field(variables, "id"))
-                    .unwrap_or_else(|| "gid://shopify/Order/1".to_string());
+                    .or_else(|| {
+                        (self.store.staged.orders.len() == 1)
+                            .then(|| self.store.staged.orders.iter().next().map(|(id, _)| id.clone()))
+                            .flatten()
+                    })
+                    .unwrap_or_else(|| {
+                        let id = shopify_gid("Order", self.store.staged.next_order_id);
+                        self.store.staged.next_order_id += 1;
+                        id
+                    });
                 let amount_input = resolved_object_field(&field.arguments, "amount")
                     .or_else(|| resolved_object_field(variables, "amount"))
                     .unwrap_or_default();
@@ -1157,19 +1178,44 @@ impl DraftProxy {
                 let auto_capture =
                     resolved_bool_field(&field.arguments, "autoCapture").unwrap_or(true);
                 let key = format!("{order_id}:{idempotency_key}");
-                if !self.store.staged.mandate_payment_keys.contains(&key)
+                let existing_job_id = self.store.staged.mandate_payment_jobs.get(&key).cloned();
+                let job_id = if existing_job_id.is_none()
                     || !self.store.staged.orders.contains_key(&order_id)
                 {
+                    let (transaction_id, next_transaction_id) = self
+                        .store
+                        .staged
+                        .orders
+                        .get(&order_id)
+                        .map(|order| {
+                            next_order_transaction_id(
+                                order,
+                                self.store.staged.order_payment_next_transaction_id,
+                            )
+                        })
+                        .unwrap_or_else(|| {
+                            let number = self.store.staged.order_payment_next_transaction_id;
+                            (shopify_gid("OrderTransaction", number), number + 1)
+                        });
+                    self.store.staged.order_payment_next_transaction_id = next_transaction_id;
                     let order = mandate_payment_order_record(
                         &order_id,
                         &idempotency_key,
+                        &transaction_id,
                         &amount,
                         &currency,
                         auto_capture,
                     );
                     self.store.staged.orders.insert(order_id.clone(), order);
-                    self.store.staged.mandate_payment_keys.insert(key);
-                }
+                    let job_id = existing_job_id.unwrap_or_else(|| self.next_synthetic_gid("Job"));
+                    self.store
+                        .staged
+                        .mandate_payment_jobs
+                        .insert(key.clone(), job_id.clone());
+                    job_id
+                } else {
+                    existing_job_id.expect("checked existing mandate payment job")
+                };
                 let order = self
                     .store
                     .staged
@@ -1183,7 +1229,7 @@ impl DraftProxy {
                     selected_json(
                         &json!({
                             "job": {
-                                "id": "gid://shopify/Job/6",
+                                "id": job_id,
                                 "done": true
                             },
                             "paymentReferenceId": payment_reference_id,

@@ -47,6 +47,34 @@ fn assert_draft_order_custom_line(line: &Value) {
     assert_eq!(line["variant"], Value::Null);
 }
 
+fn normalize_mandate_payment_volatile_ids(value: &Value) -> Value {
+    let mut value = value.clone();
+    if let Some(payload) = value
+        .pointer_mut("/data/orderCreateMandatePayment")
+        .and_then(Value::as_object_mut)
+    {
+        if let Some(job) = payload.get_mut("job").and_then(Value::as_object_mut) {
+            job.insert(
+                "id".to_string(),
+                json!("gid://shopify/Job/<volatile-mandate-job>"),
+            );
+        }
+        if let Some(transaction) = payload
+            .get_mut("order")
+            .and_then(|order| order.get_mut("transactions"))
+            .and_then(Value::as_array_mut)
+            .and_then(|transactions| transactions.first_mut())
+            .and_then(Value::as_object_mut)
+        {
+            transaction.insert(
+                "id".to_string(),
+                json!("gid://shopify/OrderTransaction/<volatile-mandate-transaction>"),
+            );
+        }
+    }
+    value
+}
+
 fn stage_fulfillment_for_event(proxy: &mut DraftProxy) -> (Value, Value) {
     let create_order = proxy.process_request(json_graphql_request(
         r#"
@@ -5522,8 +5550,8 @@ fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
         }),
     ));
     assert_eq!(
-        first_mandate.body,
-        fixture["mandateFlow"]["expected"]["mandate"]
+        normalize_mandate_payment_volatile_ids(&first_mandate.body),
+        normalize_mandate_payment_volatile_ids(&fixture["mandateFlow"]["expected"]["mandate"])
     );
 
     let repeat = proxy.process_request(json_graphql_request(
@@ -5536,8 +5564,8 @@ fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
         }),
     ));
     assert_eq!(
-        repeat.body,
-        fixture["mandateFlow"]["expected"]["repeatMandate"]
+        normalize_mandate_payment_volatile_ids(&repeat.body),
+        normalize_mandate_payment_volatile_ids(&fixture["mandateFlow"]["expected"]["repeatMandate"])
     );
 
     let auth_only = proxy.process_request(json_graphql_request(
@@ -5551,8 +5579,112 @@ fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
         }),
     ));
     assert_eq!(
-        auth_only.body,
-        fixture["mandateFlow"]["expected"]["autoCaptureFalse"]
+        normalize_mandate_payment_volatile_ids(&auth_only.body),
+        normalize_mandate_payment_volatile_ids(
+            &fixture["mandateFlow"]["expected"]["autoCaptureFalse"]
+        )
+    );
+}
+
+#[test]
+fn order_create_mandate_payment_allocates_distinct_ids_for_distinct_orders() {
+    let mut proxy = snapshot_proxy();
+    let create_query = include_str!(
+        "../../config/parity-requests/orders/order-payment-create-local-staging.graphql"
+    );
+    let mandate_query =
+        include_str!("../../config/parity-requests/payments/order_create_mandate_payment.graphql");
+
+    let create_a = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "order": {
+                "currency": "CAD",
+                "transactions": [],
+                "lineItems": [{
+                    "title": "mandate allocation first",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "25.00", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create_a.status, 200);
+    let order_a_id = create_a.body["data"]["orderCreate"]["order"]["id"]
+        .as_str()
+        .expect("first order id")
+        .to_string();
+
+    let mandate_a = proxy.process_request(json_graphql_request(
+        mandate_query,
+        json!({
+            "id": order_a_id,
+            "mandateId": "gid://shopify/PaymentMandate/first",
+            "idempotencyKey": "mandate-first",
+            "amount": { "amount": "25.00", "currencyCode": "CAD" }
+        }),
+    ));
+    assert_eq!(mandate_a.status, 200);
+    let payload_a = &mandate_a.body["data"]["orderCreateMandatePayment"];
+    let job_a_id = payload_a["job"]["id"].clone();
+    let transaction_a_id = payload_a["order"]["transactions"][0]["id"].clone();
+    assert_eq!(payload_a["order"]["id"], json!(order_a_id));
+
+    let create_b = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "order": {
+                "currency": "CAD",
+                "transactions": [],
+                "lineItems": [{
+                    "title": "mandate allocation second",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "31.00", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create_b.status, 200);
+    let order_b_id = create_b.body["data"]["orderCreate"]["order"]["id"]
+        .as_str()
+        .expect("second order id")
+        .to_string();
+    assert_ne!(order_a_id, order_b_id);
+
+    let mandate_b = proxy.process_request(json_graphql_request(
+        mandate_query,
+        json!({
+            "id": order_b_id,
+            "mandateId": "gid://shopify/PaymentMandate/second",
+            "idempotencyKey": "mandate-second",
+            "amount": { "amount": "31.00", "currencyCode": "CAD" }
+        }),
+    ));
+    assert_eq!(mandate_b.status, 200);
+    let payload_b = &mandate_b.body["data"]["orderCreateMandatePayment"];
+    let job_b_id = payload_b["job"]["id"].clone();
+    let transaction_b_id = payload_b["order"]["transactions"][0]["id"].clone();
+    assert_eq!(payload_b["order"]["id"], json!(order_b_id));
+
+    assert_ne!(transaction_a_id, transaction_b_id);
+    assert_ne!(job_a_id, job_b_id);
+
+    let repeat_a = proxy.process_request(json_graphql_request(
+        mandate_query,
+        json!({
+            "id": order_a_id,
+            "mandateId": "gid://shopify/PaymentMandate/first",
+            "idempotencyKey": "mandate-first",
+            "amount": { "amount": "25.00", "currencyCode": "CAD" }
+        }),
+    ));
+    assert_eq!(
+        repeat_a.body["data"]["orderCreateMandatePayment"]["job"]["id"],
+        job_a_id
+    );
+    assert_eq!(
+        repeat_a.body["data"]["orderCreateMandatePayment"]["order"]["transactions"][0]["id"],
+        transaction_a_id
     );
 }
 

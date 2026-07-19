@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/order-payment-create-local-staging.graphql",
     "variablesCapturePath": "$.mandateFlow.create.variables"
@@ -20,6 +20,18 @@
         "name": "auto-capture-false-authorizes",
         "capturePath": "$.mandateFlow.expected.autoCaptureFalse",
         "proxyPath": "$",
+        "expectedDifferences": [
+          {
+            "path": "$.data.orderCreateMandatePayment.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "Mandate job IDs are allocated by the proxy session and are volatile; parity keeps the non-id auto-capture-false shape strict."
+          },
+          {
+            "path": "$.data.orderCreateMandatePayment.order.transactions[0].id",
+            "matcher": "shopify-gid:OrderTransaction",
+            "reason": "Mandate authorization transaction IDs are derived from staged order/payment state and are volatile across sessions."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/order_create_mandate_payment.graphql",
           "variables": {

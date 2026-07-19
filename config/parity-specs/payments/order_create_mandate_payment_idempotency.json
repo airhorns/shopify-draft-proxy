@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/order-payment-create-local-staging.graphql",
     "variablesCapturePath": "$.mandateFlow.create.variables"
@@ -20,6 +20,18 @@
         "name": "first-mandate-payment",
         "capturePath": "$.mandateFlow.expected.mandate",
         "proxyPath": "$",
+        "expectedDifferences": [
+          {
+            "path": "$.data.orderCreateMandatePayment.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "Mandate job IDs are allocated by the proxy session and are volatile; idempotency is covered by runtime tests."
+          },
+          {
+            "path": "$.data.orderCreateMandatePayment.order.transactions[0].id",
+            "matcher": "shopify-gid:OrderTransaction",
+            "reason": "Mandate transaction IDs are derived from staged order/payment state and are volatile across sessions."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/order_create_mandate_payment.graphql",
           "variables": {
@@ -39,6 +51,18 @@
         "name": "repeat-does-not-duplicate",
         "capturePath": "$.mandateFlow.expected.repeatMandate",
         "proxyPath": "$",
+        "expectedDifferences": [
+          {
+            "path": "$.data.orderCreateMandatePayment.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The repeat returns the session-allocated mandate job ID; exact ID values are volatile."
+          },
+          {
+            "path": "$.data.orderCreateMandatePayment.order.transactions[0].id",
+            "matcher": "shopify-gid:OrderTransaction",
+            "reason": "The repeat returns the idempotently staged mandate transaction ID; exact ID values are volatile."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/order_create_mandate_payment.graphql",
           "variables": {

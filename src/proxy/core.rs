@@ -200,6 +200,7 @@ impl DraftProxy {
                 "nextStoreCreditTransactionId": self.store.staged.next_store_credit_transaction_id,
                 "giftCards": self.store.staged.gift_cards.clone(),
                 "taggableResources": self.store.staged.taggable_resources.clone(),
+                "mandatePaymentJobs": self.store.staged.mandate_payment_jobs.clone(),
                 "orders": self.store.staged.orders.records.clone(),
                 "deletedOrderIds": self.store.staged.orders.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "nextDraftOrderId": self.store.staged.next_draft_order_id,
@@ -1078,6 +1079,8 @@ impl DraftProxy {
         self.store.staged.gift_cards = value_map_from_json(state["stagedState"].get("giftCards"));
         self.store.staged.taggable_resources =
             value_map_from_json(state["stagedState"].get("taggableResources"));
+        self.store.staged.mandate_payment_jobs =
+            string_map_from_json(state["stagedState"].get("mandatePaymentJobs"));
         self.store.staged.customer_payment_methods =
             value_map_from_json(state["stagedState"].get("customerPaymentMethods"));
         self.store.staged.customer_payment_method_customer_index = state["stagedState"]
@@ -1698,6 +1701,18 @@ fn value_map_from_json(value: Option<&Value>) -> BTreeMap<String, Value> {
             records
                 .iter()
                 .map(|(id, record)| (id.clone(), record.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn string_map_from_json(value: Option<&Value>) -> BTreeMap<String, String> {
+    value
+        .and_then(Value::as_object)
+        .map(|records| {
+            records
+                .iter()
+                .filter_map(|(id, record)| record.as_str().map(|record| (id.clone(), record.to_string())))
                 .collect()
         })
         .unwrap_or_default()
