@@ -1,5 +1,5 @@
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::{btree_map, BTreeMap, BTreeSet},
     sync::Arc,
 };
@@ -338,7 +338,7 @@ struct SavedSearchRecord {
     resource_type: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 struct ResourceStore<T> {
     base: OrderedRecords<T>,
     staged: StagedRecords<T>,
@@ -395,8 +395,13 @@ struct ShopPolicyRecord {
     translations: Vec<Value>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 struct Store {
+    next_synthetic_id: u64,
+    #[serde(skip)]
+    synthetic_identity_cache_current: Cell<bool>,
+    #[serde(skip)]
+    synthetic_identities: RefCell<BTreeSet<String>>,
     base: BaseState,
     staged: StagedState,
     products: ResourceStore<ProductRecord>,
@@ -405,7 +410,7 @@ struct Store {
     shop_policies: ResourceStore<ShopPolicyRecord>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 struct BaseState {
     delivery_profiles: OrderedRecords<Value>,
     delivery_promise_providers: OrderedRecords<Value>,
@@ -476,7 +481,7 @@ struct BaseState {
 
 type MetafieldDefinitionKey = (String, String, String);
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize)]
 struct StagedState {
     product_feeds: StagedRecords<Value>,
     selling_plan_groups: StagedRecords<SellingPlanGroupRecord>,
@@ -513,8 +518,6 @@ struct StagedState {
     store_credit_accounts: StagedRecords<Value>,
     store_credit_transactions: BTreeMap<String, Value>,
     store_credit_transaction_order: Vec<String>,
-    next_store_credit_account_id: u64,
-    next_store_credit_transaction_id: u64,
     taggable_resources: BTreeMap<String, Value>,
     carrier_services: StagedRecords<Value>,
     installed_apps: BTreeMap<String, Value>,
@@ -602,7 +605,6 @@ struct StagedState {
     b2b_role_assignments: BTreeMap<String, Value>,
     b2b_staff_assignments: BTreeMap<String, Value>,
     deleted_b2b_staff_assignment_ids: BTreeSet<String>,
-    next_b2b_company_id: u64,
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     inventory_level_order: Vec<(String, String)>,
     inventory_level_ids: BTreeMap<(String, String), String>,
@@ -656,7 +658,6 @@ struct StagedState {
     payment_customization_catalog_hydrated: bool,
     customer_payment_methods: BTreeMap<String, Value>,
     customer_payment_method_customer_index: BTreeMap<String, Vec<String>>,
-    next_customer_payment_method_id: u64,
     abandonments: BTreeMap<String, Value>,
     orders: StagedRecords<Value>,
     draft_orders: StagedRecords<Value>,
@@ -664,24 +665,17 @@ struct StagedState {
     returns_by_order: BTreeMap<String, Vec<String>>,
     reverse_deliveries: BTreeMap<String, Value>,
     reverse_fulfillment_orders: BTreeMap<String, Value>,
-    next_refund_id: u64,
-    next_refund_line_item_id: u64,
-    next_order_id: u64,
     next_order_number: u64,
-    next_draft_order_id: u64,
     draft_order_tags: BTreeMap<String, Vec<String>>,
-    next_draft_order_bulk_tag_job_id: u64,
     order_customer_orders: BTreeMap<String, Value>,
     order_customer_cancelled_ids: BTreeSet<String>,
     order_customer_b2b_order_ids: BTreeSet<String>,
     order_customer_contact_customer_ids: BTreeSet<String>,
-    next_order_customer_order_id: u64,
     order_edit_existing_order: Option<Value>,
     order_edit_existing_calculated_order: Option<Value>,
     order_edit_existing_calculated_order_id: Option<String>,
     order_edit_existing_session_order_id: Option<String>,
     order_edit_money_bag_calculated_order_ids: BTreeMap<String, String>,
-    order_payment_next_transaction_id: u64,
     order_edit_existing_mode: Option<String>,
     /// Catalog of product variants an order-edit `orderEditAddVariant` can
     /// resolve against (variant id -> {title, sku, price, currencyCode}). Seeded
@@ -722,8 +716,6 @@ struct StagedState {
     b2b_contact_role_assignments: BTreeMap<String, Value>,
     deleted_b2b_contact_ids: BTreeSet<String>,
     deleted_b2b_contact_role_assignment_ids: BTreeSet<String>,
-    next_b2b_contact_id: u64,
-    next_b2b_contact_role_assignment_id: u64,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -780,13 +772,13 @@ struct InventoryShipmentTrackingRecord {
     arrives_at: Option<String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 struct OrderedRecords<T> {
     records: BTreeMap<String, T>,
     order: Vec<String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 struct StagedRecords<T> {
     records: BTreeMap<String, T>,
     order: Vec<String>,
@@ -979,21 +971,8 @@ impl StagedState {
         Self {
             // Most staged collections use their Rust defaults; session counters
             // intentionally start at Shopify-like first synthetic IDs.
-            next_store_credit_account_id: 1,
-            next_store_credit_transaction_id: 1,
-            next_b2b_company_id: 1,
-            next_customer_payment_method_id: 1,
-            next_refund_id: 1,
-            next_refund_line_item_id: 1,
-            next_order_id: 1,
             next_order_number: 1,
-            next_draft_order_id: 1,
-            next_draft_order_bulk_tag_job_id: 1,
-            next_order_customer_order_id: 1,
-            order_payment_next_transaction_id: 3,
             order_edit_variant_catalog: Value::Object(serde_json::Map::new()),
-            next_b2b_contact_id: 1,
-            next_b2b_contact_role_assignment_id: 1,
             next_storefront_customer_access_token_id: 1,
             next_storefront_customer_reset_token_id: 1,
             next_storefront_cart_id: 1,
@@ -1009,6 +988,9 @@ impl StagedState {
 impl Default for Store {
     fn default() -> Self {
         Self {
+            next_synthetic_id: 1,
+            synthetic_identity_cache_current: Cell::new(false),
+            synthetic_identities: RefCell::new(BTreeSet::new()),
             base: BaseState::default(),
             staged: StagedState::new_session(),
             products: ResourceStore::default(),
@@ -2625,7 +2607,6 @@ pub struct DraftProxy {
     log_entries: Vec<Value>,
     registry: ResolverRegistry,
     store: Store,
-    next_synthetic_id: u64,
     /// Per-scenario cache of the upstream shop's `shop.features.sellsSubscriptions`
     /// capability. Populated lazily by forwarding a `DraftProxyShopSubscriptionCapability`
     /// probe the first time a discount mutation touches subscription/recurring fields.

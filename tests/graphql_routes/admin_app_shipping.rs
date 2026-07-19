@@ -5406,6 +5406,7 @@ fn customer_orders_connection_paginates_edges_nodes_and_page_info_consistently()
         .unwrap()
         .to_string();
 
+    let mut order_ids = Vec::new();
     for title in ["First order", "Second order", "Third order"] {
         let order = proxy.process_request(json_graphql_request(
             r#"
@@ -5420,6 +5421,12 @@ fn customer_orders_connection_paginates_edges_nodes_and_page_info_consistently()
             }}),
         ));
         assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+        order_ids.push(
+            order.body["data"]["orderCreate"]["order"]["id"]
+                .as_str()
+                .unwrap()
+                .to_string(),
+        );
     }
 
     let first_page = proxy.process_request(json_graphql_request(
@@ -5440,18 +5447,18 @@ fn customer_orders_connection_paginates_edges_nodes_and_page_info_consistently()
         first_page.body["data"]["customer"]["orders"],
         json!({
             "nodes": [
-                {"id": "gid://shopify/Order/1"},
-                {"id": "gid://shopify/Order/2"}
+                {"id": order_ids[0].clone()},
+                {"id": order_ids[1].clone()}
             ],
             "edges": [
-                {"cursor": "gid://shopify/Order/1", "node": {"id": "gid://shopify/Order/1"}},
-                {"cursor": "gid://shopify/Order/2", "node": {"id": "gid://shopify/Order/2"}}
+                {"cursor": order_ids[0].clone(), "node": {"id": order_ids[0].clone()}},
+                {"cursor": order_ids[1].clone(), "node": {"id": order_ids[1].clone()}}
             ],
             "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "gid://shopify/Order/1",
-                "endCursor": "gid://shopify/Order/2"
+                "startCursor": order_ids[0].clone(),
+                "endCursor": order_ids[1].clone()
             }
         })
     );
@@ -5477,13 +5484,13 @@ fn customer_orders_connection_paginates_edges_nodes_and_page_info_consistently()
     assert_eq!(
         second_page.body["data"]["customer"]["orders"],
         json!({
-            "nodes": [{"id": "gid://shopify/Order/3"}],
-            "edges": [{"cursor": "gid://shopify/Order/3", "node": {"id": "gid://shopify/Order/3"}}],
+            "nodes": [{"id": order_ids[2].clone()}],
+            "edges": [{"cursor": order_ids[2].clone(), "node": {"id": order_ids[2].clone()}}],
             "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": true,
-                "startCursor": "gid://shopify/Order/3",
-                "endCursor": "gid://shopify/Order/3"
+                "startCursor": order_ids[2].clone(),
+                "endCursor": order_ids[2].clone()
             }
         })
     );

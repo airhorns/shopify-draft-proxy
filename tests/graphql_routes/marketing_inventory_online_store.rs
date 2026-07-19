@@ -7626,6 +7626,10 @@ fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
         }),
     ));
     assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = order.body["data"]["orderCreate"]["order"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     let read = proxy.process_request(json_graphql_request(
         r#"
@@ -7673,10 +7677,7 @@ fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
         order_log["notes"],
         json!("Locally staged orderCreate in shopify-draft-proxy.")
     );
-    assert_eq!(
-        order_log["stagedResourceIds"],
-        json!(["gid://shopify/Order/1"])
-    );
+    assert_eq!(order_log["stagedResourceIds"], json!([order_id]));
 
     let bypass_seed = proxy.process_request(json_graphql_request(
         r#"

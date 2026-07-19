@@ -5209,7 +5209,7 @@ impl DraftProxy {
     ) -> MetaobjectHandleChoice {
         let base = slugify_handle(requested);
         let base = if base.is_empty() {
-            format!("{meta_type}-{}", self.next_synthetic_id)
+            format!("{meta_type}-{}", self.store.synthetic_id_sequence())
         } else {
             base
         };

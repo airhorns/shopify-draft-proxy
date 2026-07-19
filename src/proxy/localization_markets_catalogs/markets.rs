@@ -1028,7 +1028,7 @@ impl DraftProxy {
             }
         }
 
-        let id = self.next_markets_family_synthetic_gid("Market");
+        let id = self.next_proxy_synthetic_gid("Market");
         let shop_currency_code = self.store.shop_currency_code();
         let market = market_record_from_input(
             &id,

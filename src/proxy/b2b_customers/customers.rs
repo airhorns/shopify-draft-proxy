@@ -1252,15 +1252,11 @@ impl DraftProxy {
     }
 
     fn next_store_credit_account_gid(&mut self) -> String {
-        let id = self.store.staged.next_store_credit_account_id;
-        self.store.staged.next_store_credit_account_id += 1;
-        synthetic_shopify_gid("StoreCreditAccount", id)
+        self.next_proxy_synthetic_gid("StoreCreditAccount")
     }
 
     fn next_store_credit_transaction_gid(&mut self) -> String {
-        let id = self.store.staged.next_store_credit_transaction_id;
-        self.store.staged.next_store_credit_transaction_id += 1;
-        synthetic_shopify_gid("StoreCreditAccountTransaction", id)
+        self.next_proxy_synthetic_gid("StoreCreditAccountTransaction")
     }
 
     /// `customers(first:, query:)` list root. Filters the live staged customers
@@ -2541,9 +2537,7 @@ impl DraftProxy {
             let existing = requested_id
                 .as_deref()
                 .and_then(|id| existing_by_id.get(id));
-            let validation_id = requested_id
-                .clone()
-                .unwrap_or_else(|| synthetic_shopify_gid("MailingAddress", index + 1));
+            let validation_id = requested_id.clone().unwrap_or_default();
             let (_, mut address_errors) =
                 customer_update_mailing_address(&input, index, existing, &validation_id);
             errors.append(&mut address_errors);
@@ -2766,7 +2760,7 @@ impl DraftProxy {
     }
 
     fn customer_input_validation_errors(
-        &self,
+        &mut self,
         request: &Request,
         input: &BTreeMap<String, ResolvedValue>,
         current_id: Option<&str>,
@@ -2939,8 +2933,13 @@ impl DraftProxy {
             normalized.tax_exemptions = Some(list_string_field(input, "taxExemptions"));
         }
         if let Some(address_values) = resolved_list_field(input, "addresses") {
-            let (addresses, address_errors) =
+            let (mut addresses, address_errors) =
                 customer_mailing_addresses(&address_values, customer_set);
+            if errors.is_empty() && address_errors.is_empty() {
+                for address in &mut addresses {
+                    address["id"] = json!(self.next_proxy_synthetic_gid("MailingAddress"));
+                }
+            }
             errors.extend(address_errors);
             normalized.addresses = Some(addresses);
         }

@@ -1080,8 +1080,7 @@ impl DraftProxy {
 
     fn stage_payment_terms_order(&mut self, arguments: &BTreeMap<String, ResolvedValue>) -> Value {
         let order_input = resolved_object_field(arguments, "order").unwrap_or_default();
-        let id = shopify_gid("Order", self.store.staged.next_order_id);
-        self.store.staged.next_order_id += 1;
+        let id = self.next_synthetic_gid("Order");
         let shop_currency_code = self.store.shop_currency_code();
         let price_set = payment_terms_order_total_price_set(&order_input, &shop_currency_code);
         let order_name = self.next_order_name();

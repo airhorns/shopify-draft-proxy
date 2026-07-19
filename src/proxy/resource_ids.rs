@@ -1,4 +1,10 @@
 use super::{DraftProxy, StagedRecords, StagedSortValue, Store};
+use serde::ser::{
+    Error as SerdeError, SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant,
+    SerializeTuple, SerializeTupleStruct, SerializeTupleVariant, Serializer,
+};
+use serde::Serialize;
+use std::fmt;
 
 pub(in crate::proxy) const SYNTHETIC_MARKER: &str = "shopify-draft-proxy=synthetic";
 const SHOPIFY_GID_PREFIX: &str = "gid://shopify/";
@@ -58,17 +64,318 @@ pub(in crate::proxy) fn shopify_gid_identities_overlap(left: &str, right: &str) 
         .is_some_and(|(left, right)| left == right)
 }
 
-fn value_contains_shopify_gid_identity(value: &serde_json::Value, candidate: &str) -> bool {
-    match value {
-        serde_json::Value::String(id) => shopify_gid_identities_overlap(id, candidate),
-        serde_json::Value::Array(values) => values
-            .iter()
-            .any(|value| value_contains_shopify_gid_identity(value, candidate)),
-        serde_json::Value::Object(fields) => fields.iter().any(|(key, value)| {
-            shopify_gid_identities_overlap(key, candidate)
-                || value_contains_shopify_gid_identity(value, candidate)
-        }),
-        _ => false,
+#[derive(Clone, Copy)]
+struct ShopifyGidIdentityScan<'a> {
+    identities: &'a std::cell::RefCell<std::collections::BTreeSet<String>>,
+}
+
+#[derive(Debug)]
+struct ShopifyGidIdentityFound;
+
+impl fmt::Display for ShopifyGidIdentityFound {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Shopify GID identity found")
+    }
+}
+
+impl std::error::Error for ShopifyGidIdentityFound {}
+
+impl SerdeError for ShopifyGidIdentityFound {
+    fn custom<T>(_message: T) -> Self
+    where
+        T: fmt::Display,
+    {
+        Self
+    }
+}
+
+impl<'a> ShopifyGidIdentityScan<'a> {
+    fn inspect<T>(self, value: &T) -> Result<(), ShopifyGidIdentityFound>
+    where
+        T: ?Sized + Serialize,
+    {
+        value.serialize(self)
+    }
+}
+
+impl<'a> Serializer for ShopifyGidIdentityScan<'a> {
+    type Ok = ();
+    type Error = ShopifyGidIdentityFound;
+    type SerializeSeq = Self;
+    type SerializeTuple = Self;
+    type SerializeTupleStruct = Self;
+    type SerializeTupleVariant = Self;
+    type SerializeMap = Self;
+    type SerializeStruct = Self;
+    type SerializeStructVariant = Self;
+
+    fn serialize_bool(self, _value: bool) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn serialize_i8(self, _value: i8) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn serialize_i16(self, _value: i16) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn serialize_i32(self, _value: i32) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn serialize_i64(self, _value: i64) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn serialize_u8(self, _value: u8) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn serialize_u16(self, _value: u16) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn serialize_u32(self, _value: u32) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn serialize_u64(self, _value: u64) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn serialize_f32(self, _value: f32) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn serialize_f64(self, _value: f64) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn serialize_char(self, value: char) -> Result<(), Self::Error> {
+        self.serialize_str(&value.to_string())
+    }
+
+    fn serialize_str(self, value: &str) -> Result<(), Self::Error> {
+        let mut remaining = value;
+        while let Some(start) = remaining.find(SHOPIFY_GID_PREFIX) {
+            let candidate = &remaining[start..];
+            let rest = &candidate[SHOPIFY_GID_PREFIX.len()..];
+            let Some((resource_type, resource_id)) = rest.split_once('/') else {
+                break;
+            };
+            let tail_length = resource_id
+                .find(|character: char| {
+                    !character.is_ascii_alphanumeric() && character != '-' && character != '_'
+                })
+                .unwrap_or(resource_id.len());
+            let tail = &resource_id[..tail_length];
+            if !resource_type.is_empty()
+                && resource_type.chars().all(|character| {
+                    character.is_ascii_alphanumeric() || character == '-' || character == '_'
+                })
+                && !tail.is_empty()
+            {
+                self.identities
+                    .borrow_mut()
+                    .insert(format!("{resource_type}/{tail}"));
+            }
+            remaining = &candidate[SHOPIFY_GID_PREFIX.len()..];
+        }
+        if let Some((resource_type, tail)) = shopify_gid_identity(value) {
+            self.identities
+                .borrow_mut()
+                .insert(format!("{resource_type}/{tail}"));
+        }
+        Ok(())
+    }
+
+    fn serialize_bytes(self, _value: &[u8]) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn serialize_none(self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn serialize_some<T>(self, value: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + Serialize,
+    {
+        self.inspect(value)
+    }
+
+    fn serialize_unit(self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn serialize_unit_struct(self, _name: &'static str) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn serialize_unit_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn serialize_newtype_struct<T>(self, _name: &'static str, value: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + Serialize,
+    {
+        self.inspect(value)
+    }
+
+    fn serialize_newtype_variant<T>(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        value: &T,
+    ) -> Result<(), Self::Error>
+    where
+        T: ?Sized + Serialize,
+    {
+        self.inspect(value)
+    }
+
+    fn serialize_seq(self, _length: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
+        Ok(self)
+    }
+
+    fn serialize_tuple(self, _length: usize) -> Result<Self::SerializeTuple, Self::Error> {
+        Ok(self)
+    }
+
+    fn serialize_tuple_struct(
+        self,
+        _name: &'static str,
+        _length: usize,
+    ) -> Result<Self::SerializeTupleStruct, Self::Error> {
+        Ok(self)
+    }
+
+    fn serialize_tuple_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _length: usize,
+    ) -> Result<Self::SerializeTupleVariant, Self::Error> {
+        Ok(self)
+    }
+
+    fn serialize_map(self, _length: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
+        Ok(self)
+    }
+
+    fn serialize_struct(
+        self,
+        _name: &'static str,
+        _length: usize,
+    ) -> Result<Self::SerializeStruct, Self::Error> {
+        Ok(self)
+    }
+
+    fn serialize_struct_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _length: usize,
+    ) -> Result<Self::SerializeStructVariant, Self::Error> {
+        Ok(self)
+    }
+
+    fn collect_str<T>(self, value: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + fmt::Display,
+    {
+        self.serialize_str(&value.to_string())
+    }
+}
+
+macro_rules! impl_identity_scan_sequence {
+    ($trait_name:ident, $method_name:ident) => {
+        impl<'a> $trait_name for ShopifyGidIdentityScan<'a> {
+            type Ok = ();
+            type Error = ShopifyGidIdentityFound;
+
+            fn $method_name<T>(&mut self, value: &T) -> Result<(), Self::Error>
+            where
+                T: ?Sized + Serialize,
+            {
+                self.inspect(value)
+            }
+
+            fn end(self) -> Result<(), Self::Error> {
+                Ok(())
+            }
+        }
+    };
+}
+
+impl_identity_scan_sequence!(SerializeSeq, serialize_element);
+impl_identity_scan_sequence!(SerializeTuple, serialize_element);
+impl_identity_scan_sequence!(SerializeTupleStruct, serialize_field);
+impl_identity_scan_sequence!(SerializeTupleVariant, serialize_field);
+
+impl<'a> SerializeMap for ShopifyGidIdentityScan<'a> {
+    type Ok = ();
+    type Error = ShopifyGidIdentityFound;
+
+    fn serialize_key<T>(&mut self, key: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + Serialize,
+    {
+        self.inspect(key)
+    }
+
+    fn serialize_value<T>(&mut self, value: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + Serialize,
+    {
+        self.inspect(value)
+    }
+
+    fn end(self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
+impl<'a> SerializeStruct for ShopifyGidIdentityScan<'a> {
+    type Ok = ();
+    type Error = ShopifyGidIdentityFound;
+
+    fn serialize_field<T>(&mut self, _key: &'static str, value: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + Serialize,
+    {
+        self.inspect(value)
+    }
+
+    fn end(self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
+impl<'a> SerializeStructVariant for ShopifyGidIdentityScan<'a> {
+    type Ok = ();
+    type Error = ShopifyGidIdentityFound;
+
+    fn serialize_field<T>(&mut self, _key: &'static str, value: &T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + Serialize,
+    {
+        self.inspect(value)
+    }
+
+    fn end(self) -> Result<(), Self::Error> {
+        Ok(())
     }
 }
 
@@ -128,31 +435,109 @@ pub(in crate::proxy) fn metafield_owner_gid_resource_type(id: &str) -> String {
     shopify_gid_resource_type(id).unwrap_or(id).to_string()
 }
 
-impl DraftProxy {
-    pub(in crate::proxy) fn next_proxy_synthetic_gid(&mut self, resource_type: &str) -> String {
-        let id = self.next_synthetic_id;
-        self.next_synthetic_id += 1;
-        synthetic_shopify_gid(resource_type, id)
+impl Store {
+    fn refresh_synthetic_identity_cache(&mut self, log_entries: &[serde_json::Value]) {
+        if self.synthetic_identity_cache_current.get() {
+            return;
+        }
+
+        ShopifyGidIdentityScan {
+            identities: &self.synthetic_identities,
+        }
+        .inspect(&*self)
+        .expect("proxy store identity state should serialize");
+        ShopifyGidIdentityScan {
+            identities: &self.synthetic_identities,
+        }
+        .inspect(log_entries)
+        .expect("proxy mutation log identity state should serialize");
+        self.synthetic_identity_cache_current.set(true);
     }
 
-    pub(in crate::proxy) fn next_proxy_synthetic_gid_avoiding<IdentityKnown>(
+    pub(in crate::proxy) fn observe_shopify_gid_identities<T>(&self, value: &T)
+    where
+        T: ?Sized + Serialize,
+    {
+        ShopifyGidIdentityScan {
+            identities: &self.synthetic_identities,
+        }
+        .inspect(value)
+        .expect("proxy request identity state should serialize");
+    }
+
+    fn broker_shopify_gid<Format>(
         &mut self,
         resource_type: &str,
-        identity_known: IdentityKnown,
+        log_entries: &[serde_json::Value],
+        format: Format,
     ) -> String
     where
-        IdentityKnown: Fn(&Store, &str) -> bool,
+        Format: Fn(&str, u64) -> String,
     {
+        self.refresh_synthetic_identity_cache(log_entries);
         loop {
-            let candidate = self.next_proxy_synthetic_gid(resource_type);
-            let present_in_log = self
-                .log_entries
-                .iter()
-                .any(|entry| value_contains_shopify_gid_identity(entry, &candidate));
-            if !identity_known(&self.store, &candidate) && !present_in_log {
-                return candidate;
+            let id = self.next_synthetic_id;
+            self.next_synthetic_id = id
+                .checked_add(1)
+                .expect("proxy synthetic identity sequence exhausted");
+            let identity = format!("{resource_type}/{id}");
+            if self.synthetic_identities.borrow_mut().insert(identity) {
+                return format(resource_type, id);
             }
         }
+    }
+
+    fn broker_proxy_synthetic_gid(
+        &mut self,
+        resource_type: &str,
+        log_entries: &[serde_json::Value],
+    ) -> String {
+        self.broker_shopify_gid(resource_type, log_entries, synthetic_shopify_gid)
+    }
+
+    fn broker_plain_shopify_gid(
+        &mut self,
+        resource_type: &str,
+        log_entries: &[serde_json::Value],
+    ) -> String {
+        self.broker_shopify_gid(resource_type, log_entries, |resource_type, id| {
+            shopify_gid(resource_type, id)
+        })
+    }
+
+    pub(in crate::proxy) fn synthetic_id_sequence(&self) -> u64 {
+        self.next_synthetic_id
+    }
+
+    pub(in crate::proxy) fn reset_synthetic_id_sequence(&mut self) {
+        self.next_synthetic_id = 1;
+        self.synthetic_identity_cache_current.set(false);
+        self.synthetic_identities.borrow_mut().clear();
+    }
+
+    pub(in crate::proxy) fn restore_synthetic_id_sequence(&mut self, next_id: u64) {
+        debug_assert!(next_id > 0);
+        self.next_synthetic_id = next_id;
+        self.synthetic_identity_cache_current.set(false);
+        self.synthetic_identities.borrow_mut().clear();
+    }
+
+    pub(in crate::proxy) fn invalidate_synthetic_identity_cache(&self) {
+        self.synthetic_identity_cache_current.set(false);
+    }
+
+    pub(in crate::proxy) fn reserve_synthetic_id(&mut self) {
+        self.next_synthetic_id = self
+            .next_synthetic_id
+            .checked_add(1)
+            .expect("proxy synthetic identity sequence exhausted");
+    }
+}
+
+impl DraftProxy {
+    pub(in crate::proxy) fn next_proxy_synthetic_gid(&mut self, resource_type: &str) -> String {
+        self.store
+            .broker_proxy_synthetic_gid(resource_type, &self.log_entries)
     }
 
     /// Mint a plain `gid://shopify/<type>/<id>` without the proxy-synthetic
@@ -160,20 +545,20 @@ impl DraftProxy {
     /// entities (e.g. media files) the proxy fabricates with stable identifiers
     /// rather than commit-rewritten placeholders.
     pub(in crate::proxy) fn next_synthetic_gid(&mut self, resource_type: &str) -> String {
-        let id = self.next_synthetic_id;
-        self.next_synthetic_id += 1;
-        shopify_gid(resource_type, id)
+        self.store
+            .broker_plain_shopify_gid(resource_type, &self.log_entries)
     }
 
     /// Reserve a synthetic id for a mutation-log entry at the start of every successful mutation. This keeps entity ids in lockstep with the current synthetic-id contract: each mutation advances the counter once for its log entry before allocating the resources it creates.
     pub(in crate::proxy) fn reserve_synthetic_log_id(&mut self) {
-        self.next_synthetic_id += 1;
+        self.store.reserve_synthetic_id();
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::proxy::ProductRecord;
     use serde_json::{json, Value};
 
     #[test]
@@ -195,6 +580,67 @@ mod tests {
             "gid://shopify/Market/42",
             "gid://shopify/Market/Region/42"
         ));
+    }
+
+    #[test]
+    fn store_broker_is_monotonic_across_domains_state_and_logs() {
+        let mut store = Store::default();
+        store.products.base.insert(
+            "gid://shopify/Product/1".to_string(),
+            ProductRecord {
+                id: "gid://shopify/Product/1".to_string(),
+                ..ProductRecord::default()
+            },
+        );
+        store
+            .staged
+            .deleted_market_ids
+            .insert("gid://shopify/Market/3?shopify-draft-proxy=synthetic".to_string());
+        store.staged.inventory_level_ids.insert(
+            (
+                "gid://shopify/InventoryItem/100".to_string(),
+                "gid://shopify/Location/8".to_string(),
+            ),
+            "gid://shopify/InventoryLevel/100?inventory_item_id=100&location_id=8".to_string(),
+        );
+        let log_entries = vec![json!({
+            "stagedResourceIds": ["gid://shopify/MarketCatalog/5"]
+        })];
+
+        assert_eq!(
+            store.broker_proxy_synthetic_gid("Product", &log_entries),
+            "gid://shopify/Product/2?shopify-draft-proxy=synthetic"
+        );
+        assert_eq!(
+            store.broker_proxy_synthetic_gid("Market", &log_entries),
+            "gid://shopify/Market/4?shopify-draft-proxy=synthetic"
+        );
+        assert_eq!(
+            store.broker_proxy_synthetic_gid("MarketCatalog", &log_entries),
+            "gid://shopify/MarketCatalog/6?shopify-draft-proxy=synthetic"
+        );
+        assert_eq!(
+            store.broker_plain_shopify_gid("Customer", &log_entries),
+            "gid://shopify/Customer/7"
+        );
+        assert_eq!(
+            store.broker_proxy_synthetic_gid("Location", &log_entries),
+            "gid://shopify/Location/9?shopify-draft-proxy=synthetic"
+        );
+        assert_eq!(store.synthetic_id_sequence(), 10);
+    }
+
+    #[test]
+    fn store_broker_reserves_shopify_gids_embedded_in_request_json() {
+        let mut store = Store::default();
+        store.observe_shopify_gid_identities(
+            r#"{"query":"mutation { node(id: \"gid://shopify/Market/1\") { id } }","variables":{"id":"gid://shopify/Market/2?shopify-draft-proxy=synthetic"}}"#,
+        );
+
+        assert_eq!(
+            store.broker_proxy_synthetic_gid("Market", &[]),
+            "gid://shopify/Market/3?shopify-draft-proxy=synthetic"
+        );
     }
 
     #[test]

@@ -491,29 +491,6 @@ fn apply_context_id_diff<ReadIds>(
     }
 }
 
-fn markets_family_identity_known(store: &Store, candidate: &str) -> bool {
-    let overlaps = |known: &String| shopify_gid_identities_overlap(known, candidate);
-    match shopify_gid_resource_type(candidate) {
-        Some("Market") => store
-            .staged
-            .markets
-            .keys()
-            .chain(store.staged.deleted_market_ids.iter())
-            .any(overlaps),
-        Some("MarketCatalog" | "CompanyLocationCatalog" | "CountryCatalog") => {
-            store.staged.catalogs.keys().any(overlaps)
-        }
-        Some("PriceList") => store.staged.price_lists.keys().any(overlaps),
-        Some("MarketWebPresence") => store.staged.web_presences.keys().any(overlaps),
-        _ => false,
-    }
-}
-
-impl DraftProxy {
-    fn next_markets_family_synthetic_gid(&mut self, resource_type: &str) -> String {
-        self.next_proxy_synthetic_gid_avoiding(resource_type, markets_family_identity_known)
-    }
-}
 fn selected_catalog_error(
     _field: &MarketsRootInput,
     path: Vec<&str>,

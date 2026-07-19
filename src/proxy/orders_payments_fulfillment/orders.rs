@@ -704,14 +704,13 @@ pub(in crate::proxy) fn order_update_validation_errors(
 }
 
 pub(in crate::proxy) fn order_update_metafields(
-    order_id: &str,
     input: &BTreeMap<String, ResolvedValue>,
     existing: &[Value],
+    allocate_metafield_id: &mut impl FnMut() -> String,
 ) -> Vec<Value> {
     resolved_object_list_field(input, "metafields")
         .into_iter()
-        .enumerate()
-        .filter_map(|(index, metafield)| {
+        .filter_map(|metafield| {
             let namespace = resolved_string_field(&metafield, "namespace")?;
             let key = resolved_string_field(&metafield, "key")?;
             // Reuse the backing metafield id when the order already carries a
@@ -724,9 +723,7 @@ pub(in crate::proxy) fn order_update_metafields(
                         && m["key"].as_str() == Some(key.as_str())
                 })
                 .and_then(|m| m["id"].as_str().map(str::to_string))
-                .unwrap_or_else(|| {
-                    shopify_gid("Metafield", format!("{}{}", resource_id_tail(order_id), index + 1))
-                });
+                .unwrap_or_else(&mut *allocate_metafield_id);
             Some(json!({
                 "id": metafield_id,
                 "namespace": namespace,
@@ -806,7 +803,7 @@ pub(in crate::proxy) fn order_create_discount_amount(
 
 pub(in crate::proxy) fn order_create_line_item_record(
     input: &BTreeMap<String, ResolvedValue>,
-    index: usize,
+    id: &str,
     currency_code: &str,
     presentment_currency_code: &str,
 ) -> (Value, f64, f64) {
@@ -849,7 +846,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
     let unit_amount_text = format_money_amount(unit_amount);
     let presentment_amount_text = format_money_amount(presentment_amount);
     let line = json!({
-        "id": shopify_gid("LineItem", index + 1),
+        "id": id,
         "title": resolved_string_field(input, "title").unwrap_or_else(|| "Custom Item".to_string()),
         "quantity": quantity,
         "currentQuantity": quantity,
@@ -1526,9 +1523,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn next_order_transaction_id(&mut self) -> String {
-        let number = self.store.staged.order_payment_next_transaction_id.max(3);
-        self.store.staged.order_payment_next_transaction_id = number.saturating_add(1);
-        shopify_gid("OrderTransaction", number)
+        self.next_synthetic_gid("OrderTransaction")
     }
 
     fn order_line_inventory_item_id(
@@ -1784,7 +1779,9 @@ impl DraftProxy {
                 .cloned()
                 .or_else(|| self.store.staged.owner_metafields.get(&order_id).cloned())
                 .unwrap_or_default();
-            let metafields = order_update_metafields(&order_id, &input, &existing_metafields);
+            let metafields = order_update_metafields(&input, &existing_metafields, &mut || {
+                self.next_synthetic_gid("Metafield")
+            });
             self.store
                 .staged
                 .owner_metafields
@@ -1871,8 +1868,7 @@ impl DraftProxy {
             }
         }
 
-        let order_id = shopify_gid("Order", self.store.staged.next_order_id);
-        self.store.staged.next_order_id += 1;
+        let order_id = self.next_synthetic_gid("Order");
         if order_create_updates_customer_email_from_order(request) {
             if let (Some(customer_id), Some(order_email)) = (
                 resolved_string_field(&order_input, "customerId"),
@@ -2409,11 +2405,11 @@ impl DraftProxy {
         let mut tax_total = 0.0;
         let line_items = resolved_object_list_field(order_input, "lineItems")
             .into_iter()
-            .enumerate()
-            .map(|(index, line_item)| {
+            .map(|line_item| {
+                let line_item_id = self.next_synthetic_gid("LineItem");
                 let (line, line_subtotal, line_tax_total) = order_create_line_item_record(
                     &line_item,
-                    index,
+                    &line_item_id,
                     &currency_code,
                     &presentment_currency_code,
                 );
@@ -2550,11 +2546,12 @@ impl DraftProxy {
     }
 
     pub(super) fn record_orders_local_log_entry(&mut self, entry: OrdersLocalLogEntry<'_>) {
+        let id = self.next_synthetic_gid("MutationLogEntry");
         let root_fields = parse_operation(entry.query)
             .map(|operation| operation.root_fields)
             .unwrap_or_else(|| vec![entry.root_field.to_string()]);
         self.log_entries.push(json!({
-            "id": shopify_gid("MutationLogEntry", self.log_entries.len() + 1),
+            "id": id,
             "operationName": entry.root_field,
             "path": entry.request.path,
             "query": entry.query,

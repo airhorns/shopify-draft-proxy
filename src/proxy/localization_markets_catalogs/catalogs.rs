@@ -511,7 +511,7 @@ impl DraftProxy {
         &mut self,
         driver_type: CatalogContextDriver,
     ) -> String {
-        self.next_markets_family_synthetic_gid(driver_type.catalog_type_name())
+        self.next_proxy_synthetic_gid(driver_type.catalog_type_name())
     }
 
     pub(in crate::proxy) fn staged_company_locations_for_catalog(&self) -> BTreeMap<String, Value> {
@@ -1194,7 +1194,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn next_price_list_id(&mut self) -> String {
-        self.next_markets_family_synthetic_gid("PriceList")
+        self.next_proxy_synthetic_gid("PriceList")
     }
 
     pub(in crate::proxy) fn attach_price_list_to_catalog(

@@ -137,7 +137,7 @@ impl DraftProxy {
         if !errors.is_empty() {
             return payload_error("webPresence", errors);
         }
-        let id = self.next_markets_family_synthetic_gid("MarketWebPresence");
+        let id = self.next_proxy_synthetic_gid("MarketWebPresence");
         draft.id = id.clone();
         let shop_domain = web_presence_shop_domain(&self.store);
         if linked_domain.is_none() && shop_domain.is_none() {

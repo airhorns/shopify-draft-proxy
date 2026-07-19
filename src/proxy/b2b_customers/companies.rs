@@ -2335,8 +2335,7 @@ impl DraftProxy {
             }
         }
 
-        let id = synthetic_shopify_gid("Company", self.store.staged.next_b2b_company_id);
-        self.store.staged.next_b2b_company_id += 5;
+        let id = self.next_proxy_synthetic_gid("Company");
         let name = resolved_string_field(&company_input, "name")
             .map(|name| b2b_strip_html_tags(&name))
             .unwrap_or_else(|| "B2B Draft".to_string());

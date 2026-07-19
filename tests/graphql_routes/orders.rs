@@ -972,13 +972,19 @@ fn returnable_fulfillments_and_return_calculate_derive_from_staged_fulfillments(
         }),
     ));
     assert_eq!(calculated.status, 200);
+    let restocking_fee_id = calculated.body["data"]["returnCalculate"]["returnLineItems"][0]
+        ["restockingFee"]["id"]
+        .clone();
+    assert!(restocking_fee_id
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/CalculatedRestockingFee/")));
     assert_eq!(
         calculated.body["data"]["returnCalculate"]["returnLineItems"],
         json!([{
             "fulfillmentLineItem": { "id": fulfillment_line_item_id.clone() },
             "quantity": 1,
             "restockingFee": {
-                "id": "gid://shopify/CalculatedRestockingFee/1",
+                "id": restocking_fee_id,
                 "percentage": 10.0,
                 "amountSet": {
                     "shopMoney": { "amount": "1.0", "currencyCode": "USD" }
@@ -8106,10 +8112,11 @@ fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
             "tags": [" added ", "ADDED"]
         }),
     ));
-    assert_eq!(
-        partial_add.body,
-        strip_user_error_codes(&fixture["expected"]["partialSuccessWithUnknownId"])
-    );
+    let mut expected_partial =
+        strip_user_error_codes(&fixture["expected"]["partialSuccessWithUnknownId"]);
+    expected_partial["data"]["draftOrderBulkAddTags"]["job"]["id"] =
+        partial_add.body["data"]["draftOrderBulkAddTags"]["job"]["id"].clone();
+    assert_eq!(partial_add.body, expected_partial);
 
     let read_after_partial = proxy.process_request(json_graphql_request(
         include_str!(
@@ -8126,19 +8133,20 @@ fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
         &add_query,
         json!({ "ids": [draft_order_id.clone()], "tags": [fixture["inputs"]["longTag"].clone()] }),
     ));
-    assert_eq!(
-        long_tag.body,
-        strip_user_error_codes(&fixture["expected"]["longTagRejected"])
-    );
+    let mut expected_long_tag = strip_user_error_codes(&fixture["expected"]["longTagRejected"]);
+    expected_long_tag["data"]["draftOrderBulkAddTags"]["job"]["id"] =
+        long_tag.body["data"]["draftOrderBulkAddTags"]["job"]["id"].clone();
+    assert_eq!(long_tag.body, expected_long_tag);
 
     let remove = proxy.process_request(json_graphql_request(
         &remove_query,
         json!({ "ids": [draft_order_id.clone()], "tags": [" INITIAL "] }),
     ));
-    assert_eq!(
-        remove.body,
-        strip_user_error_codes(&fixture["expected"]["removeNormalizesTagIdentity"])
-    );
+    let mut expected_remove =
+        strip_user_error_codes(&fixture["expected"]["removeNormalizesTagIdentity"]);
+    expected_remove["data"]["draftOrderBulkRemoveTags"]["job"]["id"] =
+        remove.body["data"]["draftOrderBulkRemoveTags"]["job"]["id"].clone();
+    assert_eq!(remove.body, expected_remove);
 
     let read_after_remove = proxy.process_request(json_graphql_request(
         include_str!(
@@ -8155,10 +8163,10 @@ fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
         &add_query,
         json!({ "ids": [draft_order_id], "tags": fixture["inputs"]["tooManyTags"].clone() }),
     ));
-    assert_eq!(
-        too_many.body,
-        strip_user_error_codes(&fixture["expected"]["tooManyInputTags"])
-    );
+    let mut expected_too_many = strip_user_error_codes(&fixture["expected"]["tooManyInputTags"]);
+    expected_too_many["data"]["draftOrderBulkAddTags"]["job"] =
+        too_many.body["data"]["draftOrderBulkAddTags"]["job"].clone();
+    assert_eq!(too_many.body, expected_too_many);
 }
 
 #[test]
@@ -11232,15 +11240,12 @@ fn payment_customization_local_runtime_covers_create_activation_update_readback_
     "#;
     let activation = proxy.process_request(json_graphql_request(
         activation_query,
-        json!({ "ids": [customization_id, second_id, "gid://shopify/PaymentCustomization/999"], "enabled": false }),
+        json!({ "ids": [customization_id.clone(), second_id.clone(), "gid://shopify/PaymentCustomization/999"], "enabled": false }),
     ));
     assert_eq!(activation.status, 200);
     assert_eq!(
         activation.body["data"]["paymentCustomizationActivation"]["ids"],
-        json!([
-            "gid://shopify/PaymentCustomization/2",
-            "gid://shopify/PaymentCustomization/3"
-        ])
+        json!([customization_id.clone(), second_id])
     );
     assert_eq!(
         activation.body["data"]["paymentCustomizationActivation"]["userErrors"][0]["code"],
@@ -11257,7 +11262,7 @@ fn payment_customization_local_runtime_covers_create_activation_update_readback_
 
     let repeated_activation = proxy.process_request(json_graphql_request(
         activation_query,
-        json!({ "ids": ["gid://shopify/PaymentCustomization/2"], "enabled": false }),
+        json!({ "ids": [customization_id], "enabled": false }),
     ));
     assert_eq!(repeated_activation.status, 200);
     assert_eq!(
@@ -17175,7 +17180,9 @@ fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
     assert_eq!(completed_draft["id"], draft_id);
     assert_eq!(completed_draft["status"], json!("COMPLETED"));
     let order = &completed_draft["order"];
-    assert_eq!(order["id"], json!("gid://shopify/Order/1"));
+    assert!(order["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/Order/")));
     assert_eq!(
         order["email"],
         json!("customer-completion-any-email@example.com")
@@ -17576,7 +17583,9 @@ fn refund_create_stages_refund_and_downstream_order_reads() {
         json!([])
     );
     let payload = &response.body["data"]["refundCreate"];
-    assert_eq!(payload["refund"]["id"], json!("gid://shopify/Refund/1"));
+    assert!(payload["refund"]["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/Refund/")));
     assert_eq!(
         payload["refund"]["note"],
         json!("Customer returned one item")
@@ -19713,18 +19722,16 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
         }),
     ));
     assert_eq!(primary.body["data"]["cardCreate"]["userErrors"], json!([]));
-    assert_eq!(
-        primary.body["data"]["cardCreate"]["customerPaymentMethod"]["id"],
-        json!("gid://shopify/CustomerPaymentMethod/1")
-    );
-    assert_eq!(
-        primary.body["data"]["remoteCreate"]["customerPaymentMethod"]["id"],
-        json!("gid://shopify/CustomerPaymentMethod/2")
-    );
-    assert_eq!(
-        primary.body["data"]["paypalCreate"]["customerPaymentMethod"]["id"],
-        json!("gid://shopify/CustomerPaymentMethod/3")
-    );
+    let primary_method_ids = [
+        primary.body["data"]["cardCreate"]["customerPaymentMethod"]["id"].clone(),
+        primary.body["data"]["remoteCreate"]["customerPaymentMethod"]["id"].clone(),
+        primary.body["data"]["paypalCreate"]["customerPaymentMethod"]["id"].clone(),
+    ];
+    assert!(primary_method_ids.iter().all(|id| id
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/CustomerPaymentMethod/"))));
+    assert_ne!(primary_method_ids[0], primary_method_ids[1]);
+    assert_ne!(primary_method_ids[1], primary_method_ids[2]);
     assert_eq!(
         primary.body["data"]["reminder"],
         json!({ "success": true, "userErrors": [] })
@@ -19766,15 +19773,9 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
     let source_nodes = lifecycle_read.body["data"]["source"]["paymentMethods"]["nodes"]
         .as_array()
         .expect("source payment methods should be an array");
-    assert!(source_nodes
+    assert!(primary_method_ids
         .iter()
-        .any(|node| node["id"] == json!("gid://shopify/CustomerPaymentMethod/1")));
-    assert!(source_nodes
-        .iter()
-        .any(|node| node["id"] == json!("gid://shopify/CustomerPaymentMethod/2")));
-    assert!(source_nodes
-        .iter()
-        .any(|node| node["id"] == json!("gid://shopify/CustomerPaymentMethod/3")));
+        .all(|id| source_nodes.iter().any(|node| node["id"] == *id)));
     assert_eq!(
         lifecycle_read.body["data"]["shownRevoked"]["id"],
         json!("gid://shopify/CustomerPaymentMethod/base-card")

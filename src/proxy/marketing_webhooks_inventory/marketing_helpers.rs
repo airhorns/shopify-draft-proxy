@@ -135,43 +135,6 @@ pub(in crate::proxy) fn marketing_event_missing_error() -> Value {
     )
 }
 
-fn marketing_identity_known(store: &Store, candidate: &str) -> bool {
-    let overlaps = |known: &String| shopify_gid_identities_overlap(known, candidate);
-    match shopify_gid_resource_type(candidate) {
-        Some("MarketingActivity") => {
-            store.base.marketing_activities.records.keys().any(overlaps)
-                || store
-                    .staged
-                    .marketing_activities
-                    .records
-                    .keys()
-                    .any(overlaps)
-                || store
-                    .staged
-                    .marketing_activities
-                    .tombstones
-                    .iter()
-                    .any(overlaps)
-        }
-        Some("MarketingEvent") => {
-            store.base.marketing_events.records.keys().any(overlaps)
-                || store
-                    .base
-                    .marketing_activities
-                    .records
-                    .values()
-                    .chain(store.staged.marketing_activities.values())
-                    .filter_map(|activity| {
-                        activity
-                            .pointer("/marketingEvent/id")
-                            .and_then(Value::as_str)
-                    })
-                    .any(|known| shopify_gid_identities_overlap(known, candidate))
-        }
-        _ => false,
-    }
-}
-
 #[derive(Clone)]
 pub(in crate::proxy) struct MarketingActivityAppContext {
     api_client_id: Option<String>,
@@ -1076,8 +1039,7 @@ impl DraftProxy {
                 "userErrors": [error]
             });
         }
-        let id =
-            self.next_proxy_synthetic_gid_avoiding("MarketingActivity", marketing_identity_known);
+        let id = self.next_proxy_synthetic_gid("MarketingActivity");
         let timestamp = self.next_product_timestamp();
         let shop_currency_code = self.store.shop_currency_code();
         let app_context = self.marketing_app_context_for_request(request);
@@ -1108,12 +1070,7 @@ impl DraftProxy {
             .and_then(|activity| activity["id"].as_str())
             .map(str::to_string)
             .or(submitted_id)
-            .unwrap_or_else(|| {
-                self.next_proxy_synthetic_gid_avoiding(
-                    "MarketingActivity",
-                    marketing_identity_known,
-                )
-            });
+            .unwrap_or_else(|| self.next_proxy_synthetic_gid("MarketingActivity"));
         let timestamp = self.next_product_timestamp();
         let shop_currency_code = self.store.shop_currency_code();
         let app_context = self.marketing_app_context_for_request(request);
@@ -1361,20 +1318,13 @@ impl DraftProxy {
             .and_then(|activity| activity["id"].as_str())
             .map(str::to_string)
             .or(existing_id)
-            .unwrap_or_else(|| {
-                self.next_proxy_synthetic_gid_avoiding(
-                    "MarketingActivity",
-                    marketing_identity_known,
-                )
-            });
+            .unwrap_or_else(|| self.next_proxy_synthetic_gid("MarketingActivity"));
         let new_marketing_event_id = existing
             .as_ref()
             .and_then(|activity| activity.pointer("/marketingEvent/id"))
             .and_then(Value::as_str)
             .is_none()
-            .then(|| {
-                self.next_proxy_synthetic_gid_avoiding("MarketingEvent", marketing_identity_known)
-            });
+            .then(|| self.next_proxy_synthetic_gid("MarketingEvent"));
         let timestamp = self.next_product_timestamp();
         let shop_currency_code = self.store.shop_currency_code();
         let app_context = self.marketing_app_context_for_request(request);

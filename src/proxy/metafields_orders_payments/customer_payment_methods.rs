@@ -253,7 +253,6 @@ impl DraftProxy {
         ] {
             self.stage_customer_payment_method_record(record);
         }
-        self.store.staged.next_customer_payment_method_id = 1;
     }
 
     fn stage_customer_payment_method_record(&mut self, record: Value) {
@@ -800,12 +799,7 @@ impl DraftProxy {
     }
 
     fn next_customer_payment_method_gid(&mut self) -> String {
-        let id = shopify_gid(
-            "CustomerPaymentMethod",
-            self.store.staged.next_customer_payment_method_id,
-        );
-        self.store.staged.next_customer_payment_method_id += 1;
-        id
+        self.next_synthetic_gid("CustomerPaymentMethod")
     }
 }
 

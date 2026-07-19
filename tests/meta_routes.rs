@@ -83,6 +83,15 @@ fn graphql_request(body: &str) -> Request {
     request_with_body("POST", "/admin/api/2026-04/graphql.json", body)
 }
 
+fn gid_numeric_tail(value: &Value) -> u64 {
+    value
+        .as_str()
+        .and_then(|id| id.rsplit('/').next())
+        .and_then(|tail| tail.split('?').next())
+        .and_then(|tail| tail.parse().ok())
+        .expect("expected a Shopify GID with a numeric tail")
+}
+
 fn base_product() -> ProductRecord {
     ProductRecord {
         id: "gid://shopify/Product/base".to_string(),
@@ -1122,9 +1131,6 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "locationOrder": [],
                     "locations": {},
                     "mergedCustomerIds": {},
-                    "nextDraftOrderId": 1,
-                    "nextStoreCreditAccountId": 1,
-                    "nextStoreCreditTransactionId": 1,
                     "observedShippingLocationOrder": [],
                     "observedShippingLocations": {},
                     "orders": {},
@@ -1437,7 +1443,27 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
 }
 
 #[test]
-fn restore_state_round_trips_dumped_staged_counter_fields() {
+fn store_identity_broker_skips_canonical_aliases_for_all_domains() {
+    let mut base = base_product();
+    base.id = "gid://shopify/Product/1".to_string();
+    let mut proxy = snapshot_proxy().with_base_products(vec![base]);
+
+    let create = proxy.process_request(graphql_request(
+        &json!({
+            "query": "mutation { productCreate(product: { title: \"Collision safe\" }) { product { id } userErrors { message } } }"
+        })
+        .to_string(),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["id"],
+        json!("gid://shopify/Product/2?shopify-draft-proxy=synthetic")
+    );
+}
+
+#[test]
+fn restore_state_round_trips_non_identity_staged_counter_fields() {
     let mut dump = snapshot_proxy()
         .process_request(request_with_body(
             "POST",
@@ -1446,16 +1472,7 @@ fn restore_state_round_trips_dumped_staged_counter_fields() {
         ))
         .body;
     let staged_state = dump["state"]["stagedState"].as_object_mut().unwrap();
-    staged_state.insert("nextStoreCreditAccountId".to_string(), json!(17));
-    staged_state.insert("nextStoreCreditTransactionId".to_string(), json!(23));
-    staged_state.insert("nextDraftOrderId".to_string(), json!(29));
-    staged_state.insert("nextCustomerPaymentMethodId".to_string(), json!(31));
-    staged_state.insert("nextOrderCustomerOrderId".to_string(), json!(37));
-    staged_state.insert("nextDraftOrderBulkTagJobId".to_string(), json!(41));
     staged_state.insert("nextInventoryQuantityTimestamp".to_string(), json!(43));
-    staged_state.insert("nextB2bCompanyId".to_string(), json!(47));
-    staged_state.insert("nextB2bContactId".to_string(), json!(53));
-    staged_state.insert("nextB2bContactRoleAssignmentId".to_string(), json!(59));
     staged_state.insert("nextStorefrontCartId".to_string(), json!(61));
     staged_state.insert("nextStorefrontCartLineId".to_string(), json!(67));
     staged_state.insert("nextStorefrontCartAppliedGiftCardId".to_string(), json!(71));
@@ -1478,16 +1495,7 @@ fn restore_state_round_trips_dumped_staged_counter_fields() {
         }),
     );
     let counter_fields = [
-        "nextStoreCreditAccountId",
-        "nextStoreCreditTransactionId",
-        "nextDraftOrderId",
-        "nextCustomerPaymentMethodId",
-        "nextOrderCustomerOrderId",
-        "nextDraftOrderBulkTagJobId",
         "nextInventoryQuantityTimestamp",
-        "nextB2bCompanyId",
-        "nextB2bContactId",
-        "nextB2bContactRoleAssignmentId",
         "nextStorefrontCartId",
         "nextStorefrontCartLineId",
         "nextStorefrontCartAppliedGiftCardId",
@@ -1522,7 +1530,7 @@ fn restore_state_round_trips_dumped_staged_counter_fields() {
 }
 
 #[test]
-fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
+fn restore_state_preserves_shared_identity_broker_monotonicity() {
     let mut proxy = snapshot_proxy();
     let create_order_query = r#"
         mutation CreateRestorableOrder($order: OrderCreateOrderInput!) {
@@ -1569,6 +1577,7 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
         first_order.body["data"]["orderCreate"]["order"]["lineItems"]["nodes"][0]["id"].clone();
     let parent_transaction_id =
         first_order.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone();
+    assert!(gid_numeric_tail(&parent_transaction_id) > gid_numeric_tail(&first_order_id));
 
     let refund_query = r#"
         mutation RefundRestoredOrder($input: RefundInput!) {
@@ -1607,17 +1616,18 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
         .to_string(),
     ));
     assert_eq!(first_refund.status, 200);
-    assert_eq!(
-        first_refund.body["data"]["refundCreate"]["refund"]["id"],
-        json!("gid://shopify/Refund/1")
-    );
-    assert_eq!(
-        first_refund.body["data"]["refundCreate"]["refund"]["refundLineItems"]["nodes"][0]["id"],
-        json!("gid://shopify/RefundLineItem/1")
-    );
-    assert_eq!(
-        first_refund.body["data"]["refundCreate"]["refund"]["transactions"]["nodes"][0]["id"],
-        json!("gid://shopify/OrderTransaction/4")
+    let first_refund_id = first_refund.body["data"]["refundCreate"]["refund"]["id"].clone();
+    let first_refund_line_item_id = first_refund.body["data"]["refundCreate"]["refund"]
+        ["refundLineItems"]["nodes"][0]["id"]
+        .clone();
+    let first_refund_transaction_id = first_refund.body["data"]["refundCreate"]["refund"]
+        ["transactions"]["nodes"][0]["id"]
+        .clone();
+    assert!(gid_numeric_tail(&first_refund_id) > gid_numeric_tail(&parent_transaction_id));
+    assert!(gid_numeric_tail(&first_refund_line_item_id) > gid_numeric_tail(&first_refund_id));
+    assert!(
+        gid_numeric_tail(&first_refund_transaction_id)
+            > gid_numeric_tail(&first_refund_line_item_id)
     );
 
     let create_draft = proxy.process_request(graphql_request(
@@ -1639,6 +1649,7 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
     ));
     assert_eq!(create_draft.status, 200);
     let draft_order_id = create_draft.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+    assert!(gid_numeric_tail(&draft_order_id) > gid_numeric_tail(&first_refund_transaction_id));
     let first_bulk_job = proxy.process_request(graphql_request(
         &json!({
             "query": r#"
@@ -1654,10 +1665,9 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
         .to_string(),
     ));
     assert_eq!(first_bulk_job.status, 200);
-    assert_eq!(
-        first_bulk_job.body["data"]["draftOrderBulkAddTags"]["job"]["id"],
-        json!("gid://shopify/Job/1")
-    );
+    let first_bulk_job_id =
+        first_bulk_job.body["data"]["draftOrderBulkAddTags"]["job"]["id"].clone();
+    assert!(gid_numeric_tail(&first_bulk_job_id) > gid_numeric_tail(&draft_order_id));
 
     let dump = proxy.process_request(request_with_body(
         "POST",
@@ -1665,10 +1675,9 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
         &json!({ "createdAt": "2026-06-21T00:00:00.000Z" }).to_string(),
     ));
     assert_eq!(dump.status, 200);
-    assert_eq!(
-        dump.body["state"]["stagedState"]["nextDraftOrderBulkTagJobId"],
-        json!(2)
-    );
+    let restored_sequence_floor = dump.body["nextSyntheticId"]
+        .as_u64()
+        .expect("dump should preserve the store broker sequence");
 
     let mut restored = snapshot_proxy();
     let restore = restored.process_request(request_with_body(
@@ -1697,9 +1706,9 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
         .to_string(),
     ));
     assert_eq!(second_order.status, 200);
-    assert_eq!(
-        second_order.body["data"]["orderCreate"]["order"]["id"],
-        json!("gid://shopify/Order/2")
+    assert!(
+        gid_numeric_tail(&second_order.body["data"]["orderCreate"]["order"]["id"])
+            >= restored_sequence_floor
     );
     assert!(state_snapshot(&restored)["stagedState"]["orders"]
         .as_object()
@@ -1722,10 +1731,9 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
         .to_string(),
     ));
     assert_eq!(mark_paid.status, 200);
-    assert_eq!(
-        mark_paid.body["data"]["orderMarkAsPaid"]["order"]["transactions"][0]["id"],
-        json!("gid://shopify/OrderTransaction/5")
-    );
+    let mark_paid_transaction_id =
+        mark_paid.body["data"]["orderMarkAsPaid"]["order"]["transactions"][0]["id"].clone();
+    assert!(gid_numeric_tail(&mark_paid_transaction_id) > gid_numeric_tail(&second_order_id));
 
     let second_refund = restored.process_request(graphql_request(
         &json!({
@@ -1751,17 +1759,18 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
         .to_string(),
     ));
     assert_eq!(second_refund.status, 200);
-    assert_eq!(
-        second_refund.body["data"]["refundCreate"]["refund"]["id"],
-        json!("gid://shopify/Refund/2")
-    );
-    assert_eq!(
-        second_refund.body["data"]["refundCreate"]["refund"]["refundLineItems"]["nodes"][0]["id"],
-        json!("gid://shopify/RefundLineItem/2")
-    );
-    assert_eq!(
-        second_refund.body["data"]["refundCreate"]["refund"]["transactions"]["nodes"][0]["id"],
-        json!("gid://shopify/OrderTransaction/6")
+    let second_refund_id = second_refund.body["data"]["refundCreate"]["refund"]["id"].clone();
+    let second_refund_line_item_id = second_refund.body["data"]["refundCreate"]["refund"]
+        ["refundLineItems"]["nodes"][0]["id"]
+        .clone();
+    let second_refund_transaction_id = second_refund.body["data"]["refundCreate"]["refund"]
+        ["transactions"]["nodes"][0]["id"]
+        .clone();
+    assert!(gid_numeric_tail(&second_refund_id) > gid_numeric_tail(&mark_paid_transaction_id));
+    assert!(gid_numeric_tail(&second_refund_line_item_id) > gid_numeric_tail(&second_refund_id));
+    assert!(
+        gid_numeric_tail(&second_refund_transaction_id)
+            > gid_numeric_tail(&second_refund_line_item_id)
     );
 
     let second_bulk_job = restored.process_request(graphql_request(
@@ -1782,14 +1791,14 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
         .to_string(),
     ));
     assert_eq!(second_bulk_job.status, 200);
-    assert_eq!(
-        second_bulk_job.body["data"]["draftOrderBulkRemoveTags"]["job"]["id"],
-        json!("gid://shopify/Job/2")
+    assert!(
+        gid_numeric_tail(&second_bulk_job.body["data"]["draftOrderBulkRemoveTags"]["job"]["id"])
+            > gid_numeric_tail(&second_refund_transaction_id)
     );
 }
 
 #[test]
-fn restore_state_round_trips_customer_payment_method_records_and_counter() {
+fn restore_state_round_trips_customer_payment_method_records_and_broker_sequence() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"
         mutation CreatePaymentMethod($sessionId: String!) {
@@ -1832,7 +1841,9 @@ fn restore_state_round_trips_customer_payment_method_records_and_counter() {
     let first_id = first.body["data"]["customerPaymentMethodCreditCardCreate"]
         ["customerPaymentMethod"]["id"]
         .clone();
-    assert_eq!(first_id, json!("gid://shopify/CustomerPaymentMethod/1"));
+    assert!(first_id
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/CustomerPaymentMethod/")));
 
     let dump = proxy.process_request(request_with_body(
         "POST",
@@ -1841,24 +1852,17 @@ fn restore_state_round_trips_customer_payment_method_records_and_counter() {
     ));
     assert_eq!(dump.status, 200);
     assert_eq!(
-        dump.body["state"]["stagedState"]["customerPaymentMethods"]
-            ["gid://shopify/CustomerPaymentMethod/1"]["customer"]["id"],
+        dump.body["state"]["stagedState"]["customerPaymentMethods"][first_id.as_str().unwrap()]
+            ["customer"]["id"],
         json!("gid://shopify/Customer/8801")
     );
-    assert_eq!(
-        dump.body["state"]["stagedState"]["customerPaymentMethodCustomerIndex"]
-            ["gid://shopify/Customer/8801"],
-        json!([
-            "gid://shopify/CustomerPaymentMethod/base-card",
-            "gid://shopify/CustomerPaymentMethod/base-paypal",
-            "gid://shopify/CustomerPaymentMethod/base-shop-pay",
-            "gid://shopify/CustomerPaymentMethod/1"
-        ])
-    );
-    assert_eq!(
-        dump.body["state"]["stagedState"]["nextCustomerPaymentMethodId"],
-        json!(2)
-    );
+    let customer_method_index = dump.body["state"]["stagedState"]
+        ["customerPaymentMethodCustomerIndex"]["gid://shopify/Customer/8801"]
+        .as_array()
+        .unwrap();
+    assert_eq!(customer_method_index.last(), Some(&first_id));
+    let restored_sequence_floor = dump.body["nextSyntheticId"].as_u64().unwrap();
+    assert!(restored_sequence_floor > gid_numeric_tail(&first_id));
 
     let mut restored = snapshot_proxy();
     let restore = restored.process_request(request_with_body(
@@ -1889,10 +1893,7 @@ fn restore_state_round_trips_customer_payment_method_records_and_counter() {
         .to_string(),
     ));
     assert_eq!(read.status, 200);
-    assert_eq!(
-        read.body["data"]["customerPaymentMethod"]["id"],
-        json!("gid://shopify/CustomerPaymentMethod/1")
-    );
+    assert_eq!(read.body["data"]["customerPaymentMethod"]["id"], first_id);
     assert_eq!(
         read.body["data"]["customerPaymentMethod"]["instrument"]["billingAddress"]["address1"],
         json!("1 Main St")
@@ -1902,10 +1903,9 @@ fn restore_state_round_trips_customer_payment_method_records_and_counter() {
         &json!({ "query": create_query, "variables": { "sessionId": "session-two" } }).to_string(),
     ));
     assert_eq!(second.status, 200);
-    assert_eq!(
-        second.body["data"]["customerPaymentMethodCreditCardCreate"]["customerPaymentMethod"]["id"],
-        json!("gid://shopify/CustomerPaymentMethod/2")
-    );
+    let second_id = &second.body["data"]["customerPaymentMethodCreditCardCreate"]
+        ["customerPaymentMethod"]["id"];
+    assert!(gid_numeric_tail(second_id) >= restored_sequence_floor);
 }
 
 #[test]
