@@ -4548,6 +4548,101 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
 }
 
 #[test]
+fn online_store_script_tag_and_theme_unknown_ids_match_core_user_errors() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OnlineStoreUnknownIntegrationIds {
+          scriptDelete: scriptTagDelete(id: "gid://shopify/ScriptTag/9999999999") {
+            deletedScriptTagId
+            userErrors { __typename code field message }
+          }
+          scriptUpdate: scriptTagUpdate(id: "gid://shopify/ScriptTag/9999999999", input: { src: "https://x.test/a.js" }) {
+            scriptTag { id }
+            userErrors { __typename code field message }
+          }
+          themeDelete(id: "gid://shopify/OnlineStoreTheme/9999999999") {
+            deletedThemeId
+            userErrors { __typename code field message }
+          }
+          themePublish(id: "gid://shopify/OnlineStoreTheme/9999999999") {
+            theme { id }
+            userErrors { __typename code field message }
+          }
+          themeUpdate(id: "gid://shopify/OnlineStoreTheme/9999999999", input: { name: "Changed" }) {
+            theme { id }
+            userErrors { __typename code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["scriptDelete"],
+        json!({
+            "deletedScriptTagId": null,
+            "userErrors": [{
+                "__typename": "ScriptTagUserError",
+                "code": null,
+                "field": ["id"],
+                "message": "Script tag does not exist"
+            }]
+        })
+    );
+    assert_eq!(
+        response.body["data"]["scriptUpdate"],
+        json!({
+            "scriptTag": null,
+            "userErrors": [{
+                "__typename": "ScriptTagUserError",
+                "code": null,
+                "field": ["id"],
+                "message": "Script tag does not exist"
+            }]
+        })
+    );
+    assert_eq!(
+        response.body["data"]["themeDelete"],
+        json!({
+            "deletedThemeId": null,
+            "userErrors": [{
+                "__typename": "ThemeUserError",
+                "code": "NOT_FOUND",
+                "field": ["id"],
+                "message": "Theme does not exist"
+            }]
+        })
+    );
+    assert_eq!(
+        response.body["data"]["themePublish"],
+        json!({
+            "theme": null,
+            "userErrors": [{
+                "__typename": "ThemeUserError",
+                "code": "NOT_FOUND",
+                "field": ["id"],
+                "message": "The specified theme does not exist."
+            }]
+        })
+    );
+    assert_eq!(
+        response.body["data"]["themeUpdate"],
+        json!({
+            "theme": null,
+            "userErrors": [{
+                "__typename": "ThemeUserError",
+                "code": "NOT_FOUND",
+                "field": ["id"],
+                "message": "The specified theme does not exist."
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
 fn online_store_storefront_access_token_edges_ported_from_gleam() {
     let mut proxy = snapshot_proxy();
 

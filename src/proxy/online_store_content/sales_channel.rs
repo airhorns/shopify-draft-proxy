@@ -520,6 +520,25 @@ impl DraftProxy {
             Some(ResolvedValue::Object(input)) => input,
             _ => return script_tag_payload(&field.selection, None, Vec::new()),
         };
+        let Some(mut record) = self
+            .store
+            .staged
+            .online_store_integrations
+            .get(&id)
+            .filter(|record| is_online_store_script_tag_record(record))
+            .cloned()
+        else {
+            return script_tag_payload(
+                &field.selection,
+                None,
+                vec![user_error_typed(
+                    "ScriptTagUserError",
+                    ["id"],
+                    "Script tag does not exist",
+                    None,
+                )],
+            );
+        };
         if let Some(errors) = validate_script_src(input, false) {
             return script_tag_payload(&field.selection, None, vec![errors]);
         }
@@ -533,7 +552,6 @@ impl DraftProxy {
                 ],
             );
         }
-        let mut record = self.store.staged.online_store_integrations.get(&id).cloned().unwrap_or_else(|| json!({"id": id, "src": "https://cdn.example.test/app.js", "displayScope": "ALL", "event": "onload", "cache": false}));
         if let Some(src) = resolved_string_field(input, "src") {
             record["src"] = json!(src);
         }
@@ -568,12 +586,12 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "deletedScriptTagId": Value::Null,
-                    "userErrors": [{
-                        "__typename": "ScriptTagUserError",
-                        "code": "NOT_FOUND",
-                        "field": ["id"],
-                        "message": "Script tag not found"
-                    }]
+                    "userErrors": [user_error_typed(
+                        "ScriptTagUserError",
+                        ["id"],
+                        "Script tag does not exist",
+                        None
+                    )]
                 }),
                 &field.selection,
             );
@@ -626,7 +644,7 @@ impl DraftProxy {
             .cloned()
         else {
             return selected_json(
-                &json!({"theme": null, "userErrors": [user_error_omit_code(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
+                &json!({"theme": null, "userErrors": [user_error_typed("ThemeUserError", ["id"], "The specified theme does not exist.", Some("NOT_FOUND"))]}),
                 &field.selection,
             );
         };
@@ -677,7 +695,7 @@ impl DraftProxy {
             .cloned()
         else {
             return selected_json(
-                &json!({"theme": null, "userErrors": [user_error_omit_code(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
+                &json!({"theme": null, "userErrors": [user_error_typed("ThemeUserError", ["id"], "The specified theme does not exist.", Some("NOT_FOUND"))]}),
                 &field.selection,
             );
         };
@@ -724,7 +742,7 @@ impl DraftProxy {
             .cloned()
         else {
             return selected_json(
-                &json!({"deletedThemeId": null, "userErrors": [user_error_omit_code(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
+                &json!({"deletedThemeId": null, "userErrors": [user_error_typed("ThemeUserError", ["id"], "Theme does not exist", Some("NOT_FOUND"))]}),
                 &field.selection,
             );
         };
