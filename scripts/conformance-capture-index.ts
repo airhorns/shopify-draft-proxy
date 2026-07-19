@@ -7466,6 +7466,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/storefront/storefront-customer-address-update.graphql',
       'config/parity-requests/storefront/storefront-customer-admin-address-create.graphql',
       'config/parity-requests/storefront/storefront-customer-admin-order-create.graphql',
+      'config/parity-requests/storefront/storefront-customer-admin-order-update.graphql',
       'config/parity-requests/storefront/storefront-customer-admin-read.graphql',
       'config/parity-requests/storefront/storefront-customer-default-address-update.graphql',
       'config/parity-requests/storefront/storefront-customer-profile-address-order-read.graphql',
