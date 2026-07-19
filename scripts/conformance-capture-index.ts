@@ -9866,14 +9866,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-draft-order-calculate-validation-and-shipping-rates-conformance.ts',
     purpose:
-      'draftOrderCalculate validation branches and captured empty availableShippingRates behavior when no shipping address is present.',
-    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_products'],
+      'draftOrderCalculate validation, no-address/no-match, delivery-profile-backed fixed shipping rates, and rate-handle chaining into draftOrderCreate/draftOrderUpdate.',
+    requiredAuthScopes: [
+      'read_draft_orders',
+      'write_draft_orders',
+      'read_products',
+      'write_products',
+      'read_locations',
+      'read_shipping',
+      'write_shipping',
+      'delivery profile management access',
+    ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}draftOrderCalculate-validation-and-shipping-rates.json`,
       'config/parity-specs/orders/draftOrderCalculate-validation-and-shipping-rates.json',
       'config/parity-requests/orders/draftOrderCalculate-validation-and-shipping-rates.graphql',
+      'config/parity-requests/orders/draftOrderCalculate-shipping-rate-create.graphql',
+      'config/parity-requests/orders/draftOrderCalculate-shipping-rate-update.graphql',
     ],
-    cleanupBehavior: 'Validation/calculate-only probes do not create merchant resources.',
+    cleanupBehavior:
+      'Creates a disposable product variant and delivery profile with two fixed US rates, chains captured handles through one draft order, then deletes the draft/product and removes the profile.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

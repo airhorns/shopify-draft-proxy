@@ -1,26 +1,133 @@
 {
   "scenarioId": "draftOrderCalculate-validation-and-shipping-rates",
-  "operationNames": ["draftOrderCalculate"],
+  "operationNames": ["draftOrderCalculate", "draftOrderCreate", "draftOrderUpdate"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "nullability-parity"],
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "nullability-parity",
+    "runtime-staging",
+    "downstream-read-parity"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/draftOrderCalculate-validation-and-shipping-rates.json"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/orders/draftOrderCalculate-validation-and-shipping-rates.graphql",
-    "variablesCapturePath": "$.variables"
+    "documentPath": "config/parity-requests/orders/draftOrderCalculate-shipping-rate-create.graphql",
+    "variablesCapturePath": "$.createWithRate.variables",
+    "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured draftOrderCalculate validation branches for empty lineItems and invalid email, plus current 2026-04 no-shipping-address availableShippingRates behavior and a valid paymentTermsTemplateId branch on the conformance shop. The live capture returns field null for empty lineItems, field [\"email\"] for invalid email, an empty availableShippingRates array for the selected shipping-required variant without a shippingAddress, and accepts template gid://shopify/PaymentTermsTemplate/4 with issuedAt on this merchant. This intentionally records the conformance result even where older ticket notes expected input-prefixed fields, null rates, or a payment-terms access error. The proxy still does not compute delivery-profile-backed non-empty rates locally.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
+    "expectedDifferences": [
+      {
+        "path": "$.draftOrder.id",
+        "matcher": "shopify-gid:DraftOrder",
+        "reason": "The proxy stages a deterministic local DraftOrder while Shopify returns the disposable live DraftOrder id."
+      },
+      {
+        "path": "$.draftOrder.shippingLine.shippingRateHandle",
+        "matcher": "non-empty-string",
+        "reason": "Shopify signs its opaque rate handle with a shop-owned key; the proxy emits a deterministic local JWT-shaped handle and validates its decoded rate fields against effective delivery-profile state."
+      }
+    ],
     "targets": [
       {
-        "name": "calculate-validation-and-shipping-rates-data",
-        "capturePath": "$.mutation.response.data",
-        "proxyPath": "$.data"
+        "name": "create-with-calculated-shipping-rate",
+        "capturePath": "$.createWithRate.response.data.draftOrderCreate",
+        "proxyPath": "$.data.draftOrderCreate"
+      },
+      {
+        "name": "update-with-calculated-shipping-rate",
+        "capturePath": "$.updateWithRate.response.data.draftOrderUpdate",
+        "proxyPath": "$.data.draftOrderUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderCalculate-shipping-rate-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "input": {
+              "fromCapturePath": "$.updateWithRate.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "calculate-empty-line-items-validation",
+        "capturePath": "$.calculate.response.data.emptyLineItems",
+        "proxyPath": "$.data.emptyLineItems",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderCalculate-validation-and-shipping-rates.graphql",
+          "variablesCapturePath": "$.calculate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "calculate-invalid-email-validation",
+        "capturePath": "$.calculate.response.data.invalidEmail",
+        "proxyPath": "$.data.invalidEmail",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderCalculate-validation-and-shipping-rates.graphql",
+          "variablesCapturePath": "$.calculate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "calculate-no-address-shipping-rates-empty",
+        "capturePath": "$.calculate.response.data.availableShippingRatesEmpty",
+        "proxyPath": "$.data.availableShippingRatesEmpty",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderCalculate-validation-and-shipping-rates.graphql",
+          "variablesCapturePath": "$.calculate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "calculate-no-match-shipping-rates-empty",
+        "capturePath": "$.calculate.response.data.availableShippingRatesNoMatch",
+        "proxyPath": "$.data.availableShippingRatesNoMatch",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderCalculate-validation-and-shipping-rates.graphql",
+          "variablesCapturePath": "$.calculate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "calculate-matching-shipping-rates",
+        "capturePath": "$.calculate.response.data.availableShippingRatesMatching",
+        "proxyPath": "$.data.availableShippingRatesMatching",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderCalculate-validation-and-shipping-rates.graphql",
+          "variablesCapturePath": "$.calculate.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.calculatedDraftOrder.availableShippingRates[0].handle",
+            "matcher": "non-empty-string",
+            "reason": "Shopify signs opaque rate handles with a shop-owned key; the proxy emits deterministic local JWT-shaped handles."
+          },
+          {
+            "path": "$.calculatedDraftOrder.availableShippingRates[1].handle",
+            "matcher": "non-empty-string",
+            "reason": "Shopify signs opaque rate handles with a shop-owned key; the proxy emits deterministic local JWT-shaped handles."
+          }
+        ]
+      },
+      {
+        "name": "calculate-payment-terms-template",
+        "capturePath": "$.calculate.response.data.paymentTermsTemplateId",
+        "proxyPath": "$.data.paymentTermsTemplateId",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderCalculate-validation-and-shipping-rates.graphql",
+          "variablesCapturePath": "$.calculate.variables",
+          "apiVersion": "2026-04"
+        }
       }
     ]
-  }
+  },
+  "notes": "Live Admin GraphQL 2026-04 evidence creates a disposable shippable variant and US-only delivery profile with two active fixed rates, captures matching/no-address/no-match calculation branches, then feeds the returned opaque handles into draftOrderCreate and draftOrderUpdate before cleanup. Proxy replay hydrates the exact read-only delivery-profile slice from the recorded cassette; normal supported mutations remain local."
 }

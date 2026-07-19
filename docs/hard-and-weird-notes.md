@@ -4514,3 +4514,36 @@ Practical rule:
 - distinguish an authoritative null node from transport, GraphQL, or incomplete
   response failures; all failure classes must leave product/category state
   unchanged, but only the authoritative miss is proven invalid
+
+## 108. Draft-order shipping-rate handles bind calculation to configured delivery state
+
+Admin GraphQL 2026-04 live capture created a disposable shippable variant and a
+US-only delivery profile with two fixed CAD rates. `draftOrderCalculate`
+returned both rates for a complete matching US address, and returned an empty
+`availableShippingRates` list both without a shipping address and for a Canadian
+address outside the configured zone. The matching entries contained their
+configured titles and shop-currency prices plus signed JWT-shaped opaque
+handles. Shopify accepted those handles in later `draftOrderCreate` and
+`draftOrderUpdate` calls and projected non-custom shipping lines with the same
+configured titles and CAD prices.
+
+The decoded Shopify handle payload included title, code, source, shop price and
+currency, and separate presentment price and currency fields. Its signature is
+shop-owned and cannot be reproduced locally. A structurally valid opaque handle
+therefore is not sufficient authority by itself: the effective delivery profile
+must still contain a rate with matching title, code, source, shop price, and
+currency. Carrier-backed participants were not part of this fixed-rate capture.
+
+Practical rule:
+
+- derive available fixed rates from the effective variant-to-profile
+  association, normalized country/province zone, active method definition,
+  subtotal condition, and observed shop currency
+- return empty rates when required address or delivery configuration does not
+  match instead of inventing a default profile, country, or rate
+- keep Shopify and local handle signatures opaque, but validate decoded rate
+  identity and money against effective store state before a later mutation uses
+  the handle
+- hydrate delivery-profile configuration through read-only LiveHybrid calls;
+  never send the supported draft-order mutation upstream or invoke carrier
+  participants during normal calculation

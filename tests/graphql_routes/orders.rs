@@ -14,6 +14,361 @@ fn snapshot_proxy_with_clock(clock: Arc<Mutex<time::OffsetDateTime>>) -> DraftPr
     proxy
 }
 
+fn stage_draft_order_shipping_rate_context(proxy: &mut DraftProxy) -> String {
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftOrderShippingRateProductCreate($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              variants(first: 1) { nodes { id } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Draft order shipping rate product",
+                "status": "ACTIVE"
+            }
+        }),
+    ));
+    assert_eq!(
+        product.body["data"]["productCreate"]["userErrors"],
+        json!([]),
+        "{}",
+        product.body
+    );
+    let product_id = product.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("product id")
+        .to_string();
+    let variant_id = product.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["id"]
+        .as_str()
+        .expect("variant id")
+        .to_string();
+
+    let variant_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftOrderShippingRateVariantUpdate(
+          $productId: ID!
+          $variants: [ProductVariantsBulkInput!]!
+        ) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants { id price inventoryItem { requiresShipping } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [{
+                "id": variant_id.clone(),
+                "price": "25.00",
+                "inventoryItem": { "requiresShipping": true }
+            }]
+        }),
+    ));
+    assert_eq!(
+        variant_update.body["data"]["productVariantsBulkUpdate"]["userErrors"],
+        json!([]),
+        "{}",
+        variant_update.body
+    );
+
+    let location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftOrderShippingRateLocationAdd($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Draft order shipping origin",
+                "address": { "countryCode": "US" }
+            }
+        }),
+    ));
+    assert_eq!(
+        location.body["data"]["locationAdd"]["userErrors"],
+        json!([]),
+        "{}",
+        location.body
+    );
+    let location_id = location.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .expect("location id")
+        .to_string();
+
+    let profile = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/shipping-fulfillments/delivery-profile-lifecycle-create.graphql"
+        ),
+        json!({
+            "profile": {
+                "name": "Draft order fixed shipping rates",
+                "variantsToAssociate": [variant_id.clone()],
+                "locationGroupsToCreate": [{
+                    "locations": [location_id],
+                    "zonesToCreate": [{
+                        "name": "United States",
+                        "countries": [{ "code": "US", "includeAllProvinces": true }],
+                        "methodDefinitionsToCreate": [
+                            {
+                                "name": "Conformance Standard",
+                                "active": true,
+                                "rateDefinition": {
+                                    "price": { "amount": "7.25", "currencyCode": "USD" }
+                                }
+                            },
+                            {
+                                "name": "Conformance Express",
+                                "active": true,
+                                "rateDefinition": {
+                                    "price": { "amount": "12.00", "currencyCode": "USD" }
+                                }
+                            }
+                        ]
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        profile.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([]),
+        "{}",
+        profile.body
+    );
+    variant_id
+}
+
+#[test]
+fn draft_order_calculate_uses_configured_shipping_rates_and_handles() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, None)
+        .with_upstream_transport(|_| panic!("snapshot shipping-rate calculation must stay local"));
+    restore_shop_currency(&mut proxy, "USD");
+    let variant_id = stage_draft_order_shipping_rate_context(&mut proxy);
+    let setup_log_len = log_snapshot(&proxy)["entries"]
+        .as_array()
+        .expect("setup mutation log")
+        .len();
+    let calculate_document = r#"
+        mutation DraftOrderConfiguredShippingRateCalculate($input: DraftOrderInput!) {
+          draftOrderCalculate(input: $input) {
+            calculatedDraftOrder {
+              availableShippingRates {
+                handle
+                title
+                price { amount currencyCode }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let shipping_address = json!({
+        "firstName": "Rate",
+        "lastName": "Recipient",
+        "address1": "151 O'Connor Street",
+        "city": "Ottawa",
+        "provinceCode": "NY",
+        "countryCode": "US",
+        "zip": "10001"
+    });
+
+    let invalid = proxy.process_request(json_graphql_request(
+        calculate_document,
+        json!({ "input": { "lineItems": [], "shippingAddress": shipping_address.clone() } }),
+    ));
+    assert_eq!(
+        invalid.body["data"]["draftOrderCalculate"],
+        json!({
+            "calculatedDraftOrder": Value::Null,
+            "userErrors": [{ "field": Value::Null, "message": "Add at least 1 product" }]
+        })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        setup_log_len,
+        "validation errors must not append a draftOrderCalculate log entry"
+    );
+
+    let line_items = json!([{ "variantId": variant_id.clone(), "quantity": 1 }]);
+    let no_address = proxy.process_request(json_graphql_request(
+        calculate_document,
+        json!({ "input": { "lineItems": line_items.clone() } }),
+    ));
+    assert_eq!(
+        no_address.body["data"]["draftOrderCalculate"]["calculatedDraftOrder"]
+            ["availableShippingRates"],
+        json!([])
+    );
+
+    let mut no_match_address = shipping_address.clone();
+    no_match_address["countryCode"] = json!("CA");
+    no_match_address["provinceCode"] = json!("ON");
+    no_match_address["zip"] = json!("K1P 1J1");
+    let no_match = proxy.process_request(json_graphql_request(
+        calculate_document,
+        json!({
+            "input": {
+                "lineItems": line_items.clone(),
+                "shippingAddress": no_match_address
+            }
+        }),
+    ));
+    assert_eq!(
+        no_match.body["data"]["draftOrderCalculate"]["calculatedDraftOrder"]
+            ["availableShippingRates"],
+        json!([])
+    );
+
+    let matching = proxy.process_request(json_graphql_request(
+        calculate_document,
+        json!({
+            "input": {
+                "lineItems": line_items.clone(),
+                "shippingAddress": shipping_address.clone()
+            }
+        }),
+    ));
+    assert_eq!(
+        matching.body["data"]["draftOrderCalculate"]["userErrors"],
+        json!([]),
+        "{}",
+        matching.body
+    );
+    let rates = matching.body["data"]["draftOrderCalculate"]["calculatedDraftOrder"]
+        ["availableShippingRates"]
+        .as_array()
+        .expect("available shipping rates");
+    assert_eq!(rates.len(), 2, "matching fixed rates should be returned");
+    assert_eq!(
+        rates
+            .iter()
+            .map(|rate| (&rate["title"], &rate["price"]))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                &json!("Conformance Standard"),
+                &json!({ "amount": "7.25", "currencyCode": "USD" })
+            ),
+            (
+                &json!("Conformance Express"),
+                &json!({ "amount": "12.0", "currencyCode": "USD" })
+            )
+        ]
+    );
+    assert!(rates
+        .iter()
+        .all(|rate| rate["handle"]
+            .as_str()
+            .is_some_and(|handle| handle.starts_with("eyJhbGciOiJIUzI1NiJ9.")
+                && handle.split('.').count() == 3)));
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        setup_log_len,
+        "successful calculation must not append a staged mutation log entry"
+    );
+
+    let standard_handle = rates[0]["handle"].clone();
+    let express_handle = rates[1]["handle"].clone();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftOrderConfiguredShippingRateCreate($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              shippingLine {
+                title
+                code
+                custom
+                shippingRateHandle
+                originalPriceSet { shopMoney { amount currencyCode } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "lineItems": line_items.clone(),
+                "shippingAddress": shipping_address.clone(),
+                "shippingLine": { "shippingRateHandle": standard_handle.clone() }
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([]),
+        "{}",
+        create.body
+    );
+    let created = &create.body["data"]["draftOrderCreate"]["draftOrder"];
+    assert_eq!(
+        created["shippingLine"],
+        json!({
+            "title": "Conformance Standard",
+            "code": "Conformance Standard",
+            "custom": false,
+            "shippingRateHandle": standard_handle,
+            "originalPriceSet": {
+                "shopMoney": { "amount": "7.25", "currencyCode": "USD" }
+            }
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftOrderConfiguredShippingRateUpdate(
+          $id: ID!
+          $input: DraftOrderInput!
+        ) {
+          draftOrderUpdate(id: $id, input: $input) {
+            draftOrder {
+              shippingLine {
+                title
+                code
+                custom
+                shippingRateHandle
+                originalPriceSet { shopMoney { amount currencyCode } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": created["id"].clone(),
+            "input": { "shippingLine": { "shippingRateHandle": express_handle.clone() } }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["userErrors"],
+        json!([]),
+        "{}",
+        update.body
+    );
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["draftOrder"]["shippingLine"],
+        json!({
+            "title": "Conformance Express",
+            "code": "Conformance Express",
+            "custom": false,
+            "shippingRateHandle": express_handle,
+            "originalPriceSet": {
+                "shopMoney": { "amount": "12.0", "currencyCode": "USD" }
+            }
+        })
+    );
+}
+
 fn omit_unavailable_customer_card_digits(query: &str) -> String {
     query
         .lines()
