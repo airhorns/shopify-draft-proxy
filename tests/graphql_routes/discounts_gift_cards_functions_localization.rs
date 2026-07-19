@@ -1202,6 +1202,15 @@ fn create_discount_ref_collection(proxy: &mut DraftProxy) -> String {
     )
 }
 
+fn set_discount_shop_sells_subscriptions(proxy: &mut DraftProxy, enabled: bool) {
+    restore_state_with(proxy, |state| {
+        if !state["baseState"]["shop"].is_object() {
+            state["baseState"]["shop"] = json!({});
+        }
+        state["baseState"]["shop"]["features"]["sellsSubscriptions"] = json!(enabled);
+    });
+}
+
 fn basic_code_discount_input(title: &str, code: &str, items: Value) -> Value {
     json!({
         "title": title,
@@ -1333,6 +1342,7 @@ fn discount_broad_bulk_roots_stage_locally_without_runtime_upstream_forwarding()
                 headers: Default::default(),
                 body: json!({
                     "data": {
+                        "codeDiscountNodeByCode": null,
                         "discountCodeBulkActivate": { "job": { "done": true }, "userErrors": [] },
                         "discountCodeBulkDeactivate": { "job": { "done": true }, "userErrors": [] },
                         "discountCodeBulkDelete": { "job": { "done": true }, "userErrors": [] },
@@ -1669,6 +1679,7 @@ fn discount_broad_bulk_search_and_saved_search_target_effective_local_catalog() 
                 headers: Default::default(),
                 body: json!({
                     "data": {
+                        "codeDiscountNodeByCode": null,
                         "codeNode": null,
                         "automaticNode": null,
                         "deactivated": null,
@@ -2184,7 +2195,7 @@ fn discount_count_only_live_hybrid_preserves_upstream_total_with_staged_delta() 
         .any(|query| query.contains("discountNodesCount")));
 }
 
-fn starts_at_required_variables(starts_at: Option<Value>) -> Value {
+fn starts_at_required_variables(starts_at: Option<Value>, product_id: &str) -> Value {
     let mut variables = json!({
         "basicCode": {
             "title": "StartsAt required code basic",
@@ -2198,8 +2209,8 @@ fn starts_at_required_variables(starts_at: Option<Value>) -> Value {
             "code": "STARTSAT-BXGY",
             "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
             "context": { "all": "ALL" },
-            "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } },
-            "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 1 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } }
+            "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": [product_id] } } },
+            "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 1 } } }, "items": { "products": { "productsToAdd": [product_id] } } }
         },
         "freeShippingCode": {
             "title": "StartsAt required code free shipping",
@@ -2218,8 +2229,8 @@ fn starts_at_required_variables(starts_at: Option<Value>) -> Value {
             "title": "StartsAt required automatic BXGY",
             "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
             "context": { "all": "ALL" },
-            "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } },
-            "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 1 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } }
+            "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": [product_id] } } },
+            "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 1 } } }, "items": { "products": { "productsToAdd": [product_id] } } }
         },
         "automaticFreeShipping": {
             "title": "StartsAt required automatic free shipping",
@@ -2246,6 +2257,7 @@ fn starts_at_required_variables(starts_at: Option<Value>) -> Value {
 #[test]
 fn discount_native_create_requires_starts_at_for_all_roots() {
     let mut proxy = snapshot_proxy();
+    let (product_id, _) = create_discount_ref_product(&mut proxy);
     let query = r#"
         mutation DiscountStartsAtRequiredValidation(
           $basicCode: DiscountCodeBasicInput!
@@ -2265,8 +2277,8 @@ fn discount_native_create_requires_starts_at_for_all_roots() {
     "#;
 
     for variables in [
-        starts_at_required_variables(None),
-        starts_at_required_variables(Some(Value::Null)),
+        starts_at_required_variables(None, &product_id),
+        starts_at_required_variables(Some(Value::Null), &product_id),
     ] {
         let response = proxy.process_request(json_graphql_request(query, variables));
         assert_eq!(response.status, 200);
@@ -2358,6 +2370,448 @@ fn discount_native_update_preserves_existing_starts_at_when_omitted() {
             ["startsAt"],
         json!("2026-04-27T19:31:14Z")
     );
+}
+
+fn assert_discount_prerequisite_unresolved(response: &Response, root: &str, node_field: &str) {
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"][root][node_field], json!(null));
+    assert_eq!(
+        response.body["data"][root]["userErrors"],
+        json!([{
+            "field": ["base"],
+            "message": "Discount validation prerequisites could not be resolved.",
+            "code": "INTERNAL_ERROR",
+            "extraInfo": null
+        }])
+    );
+}
+
+fn discount_prerequisite_code_create(proxy: &mut DraftProxy, code: &str) -> Response {
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountPrerequisiteCodeCreate($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": format!("Prerequisite {code}"),
+            "code": code,
+            "startsAt": "2026-04-25T00:00:00Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ))
+}
+
+#[test]
+fn discount_prerequisite_duplicate_code_retries_unresolved_reads_without_staging() {
+    let responses = Arc::new(Mutex::new(vec![
+        Response {
+            status: 503,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "unavailable" }] }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": {} }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": { "codeDiscountNodeByCode": null },
+                "errors": [{ "message": "partial lookup" }]
+            }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "codeDiscountNodeByCode": null } }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "codeDiscountNodeByCode": {
+                        "id": "gid://shopify/DiscountCodeNode/remote-taken"
+                    }
+                }
+            }),
+        },
+    ]));
+    let queued_responses = Arc::clone(&responses);
+    let hits = Arc::new(Mutex::new(0usize));
+    let captured_hits = Arc::clone(&hits);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            assert!(request.body.contains("DiscountUniquenessCheck"));
+            *captured_hits.lock().unwrap() += 1;
+            queued_responses.lock().unwrap().remove(0)
+        });
+    let initial_state = state_snapshot(&proxy);
+
+    for _ in 0..3 {
+        let response = discount_prerequisite_code_create(&mut proxy, "RETRY-CODE");
+        assert_discount_prerequisite_unresolved(
+            &response,
+            "discountCodeBasicCreate",
+            "codeDiscountNode",
+        );
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+        assert_eq!(state_snapshot(&proxy), initial_state);
+    }
+
+    let verified_absent = discount_prerequisite_code_create(&mut proxy, "RETRY-CODE");
+    assert_eq!(
+        verified_absent.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        verified_absent.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"]
+            .as_str()
+            .is_some_and(|id| id.contains("shopify-draft-proxy=synthetic"))
+    );
+
+    let verified_present = discount_prerequisite_code_create(&mut proxy, "REMOTE-TAKEN");
+    assert_eq!(
+        verified_present.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        verified_present.body["data"]["discountCodeBasicCreate"]["userErrors"][0]["code"],
+        json!("TAKEN")
+    );
+    assert_eq!(*hits.lock().unwrap(), 5);
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn discount_prerequisite_bulk_add_keeps_codes_unchanged_until_uniqueness_is_resolved() {
+    let responses = Arc::new(Mutex::new(vec![
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "codeDiscountNodeByCode": null } }),
+        },
+        Response {
+            status: 503,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "unavailable" }] }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "codeDiscountNodeByCode": null } }),
+        },
+    ]));
+    let queued_responses = Arc::clone(&responses);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            assert!(request.body.contains("DiscountUniquenessCheck"));
+            queued_responses.lock().unwrap().remove(0)
+        });
+    let created = discount_prerequisite_code_create(&mut proxy, "BULK-OWNER");
+    let discount_id = json_string(
+        &created.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        "bulk owner discount id",
+    );
+    let bulk_add = r#"
+        mutation DiscountPrerequisiteBulkAdd(
+          $discountId: ID!
+          $codes: [DiscountRedeemCodeInput!]!
+        ) {
+          discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {
+            bulkCreation { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+    "#;
+    let state_before_bulk = state_snapshot(&proxy);
+
+    let unresolved = proxy.process_request(json_graphql_request(
+        bulk_add,
+        json!({ "discountId": discount_id, "codes": [{ "code": "BULK-RETRY" }] }),
+    ));
+    assert_discount_prerequisite_unresolved(
+        &unresolved,
+        "discountRedeemCodeBulkAdd",
+        "bulkCreation",
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(state_snapshot(&proxy), state_before_bulk);
+
+    let resolved = proxy.process_request(json_graphql_request(
+        bulk_add,
+        json!({ "discountId": discount_id, "codes": [{ "code": "BULK-RETRY" }] }),
+    ));
+    assert_eq!(
+        resolved.body["data"]["discountRedeemCodeBulkAdd"]["userErrors"],
+        json!([])
+    );
+    assert!(resolved.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["id"].is_string());
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+}
+
+fn discount_prerequisite_subscription_create(proxy: &mut DraftProxy, title: &str) -> Response {
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountPrerequisiteSubscriptionCreate($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": title,
+            "startsAt": "2026-04-25T00:00:00Z",
+            "customerGets": {
+                "value": { "percentage": 0.1 },
+                "items": { "all": true },
+                "appliesOnSubscription": true
+            }
+        }}),
+    ))
+}
+
+#[test]
+fn discount_prerequisite_subscription_capability_retries_unresolved_reads_and_caches_only_booleans()
+{
+    let responses = Arc::new(Mutex::new(vec![
+        Response {
+            status: 503,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "unavailable" }] }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "shop": { "features": {} } } }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": { "shop": { "features": { "sellsSubscriptions": true } } },
+                "errors": [{ "message": "partial capability" }]
+            }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": { "shop": { "features": { "sellsSubscriptions": true } } }
+            }),
+        },
+    ]));
+    let queued_responses = Arc::clone(&responses);
+    let hits = Arc::new(Mutex::new(0usize));
+    let captured_hits = Arc::clone(&hits);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            assert!(request
+                .body
+                .contains("DraftProxyShopSubscriptionCapability"));
+            *captured_hits.lock().unwrap() += 1;
+            queued_responses.lock().unwrap().remove(0)
+        });
+    let initial_state = state_snapshot(&proxy);
+
+    for attempt in 0..3 {
+        let response = discount_prerequisite_subscription_create(
+            &mut proxy,
+            &format!("Unresolved subscription {attempt}"),
+        );
+        assert_discount_prerequisite_unresolved(
+            &response,
+            "discountAutomaticBasicCreate",
+            "automaticDiscountNode",
+        );
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+        assert_eq!(state_snapshot(&proxy), initial_state);
+    }
+
+    for title in ["Resolved subscription", "Cached subscription"] {
+        let response = discount_prerequisite_subscription_create(&mut proxy, title);
+        assert_eq!(
+            response.body["data"]["discountAutomaticBasicCreate"]["userErrors"],
+            json!([])
+        );
+    }
+    assert_eq!(*hits.lock().unwrap(), 4);
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+
+    let false_hits = Arc::new(Mutex::new(0usize));
+    let captured_false_hits = Arc::clone(&false_hits);
+    let mut false_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            *captured_false_hits.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": { "shop": { "features": { "sellsSubscriptions": false } } }
+                }),
+            }
+        });
+    for title in ["Known absent subscription", "Cached absent subscription"] {
+        let response = discount_prerequisite_subscription_create(&mut false_proxy, title);
+        assert_eq!(
+            response.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"],
+            json!(null)
+        );
+        assert_eq!(
+            response.body["data"]["discountAutomaticBasicCreate"]["userErrors"][0]["message"],
+            json!("Customer gets applies on subscription is not permitted for this shop.")
+        );
+    }
+    assert_eq!(*false_hits.lock().unwrap(), 1);
+    assert_eq!(log_snapshot(&false_proxy)["entries"], json!([]));
+}
+
+fn discount_prerequisite_product_create(
+    proxy: &mut DraftProxy,
+    title: &str,
+    product_ids: &[&str],
+) -> Response {
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountPrerequisiteProductCreate($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": title,
+            "startsAt": "2026-04-25T00:00:00Z",
+            "customerGets": {
+                "value": { "percentage": 0.1 },
+                "items": { "products": { "productsToAdd": product_ids } }
+            }
+        }}),
+    ))
+}
+
+#[test]
+fn discount_prerequisite_item_references_require_complete_key_specific_results_and_retry() {
+    let product_one = "gid://shopify/Product/81001";
+    let product_two = "gid://shopify/Product/81002";
+    let missing_product = "gid://shopify/Product/81003";
+    let responses = Arc::new(Mutex::new(vec![
+        Response {
+            status: 503,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "unavailable" }] }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "nodes": {} } }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": { "nodes": [null, null] },
+                "errors": [{ "message": "partial nodes" }]
+            }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": { "nodes": [{ "__typename": "Product", "id": product_one }] }
+            }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": { "nodes": [
+                    { "__typename": "Customer", "id": product_one },
+                    { "__typename": "Product", "id": product_two }
+                ] }
+            }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": { "nodes": [
+                    { "__typename": "Product", "id": product_one },
+                    { "__typename": "Product", "id": product_two }
+                ] }
+            }),
+        },
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "nodes": [null] } }),
+        },
+    ]));
+    let queued_responses = Arc::clone(&responses);
+    let hits = Arc::new(Mutex::new(0usize));
+    let captured_hits = Arc::clone(&hits);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            assert!(request.body.contains("ProductsHydrateNodes"));
+            *captured_hits.lock().unwrap() += 1;
+            queued_responses.lock().unwrap().remove(0)
+        });
+    let initial_state = state_snapshot(&proxy);
+
+    for attempt in 0..5 {
+        let response = discount_prerequisite_product_create(
+            &mut proxy,
+            &format!("Unresolved products {attempt}"),
+            &[product_one, product_two],
+        );
+        assert_discount_prerequisite_unresolved(
+            &response,
+            "discountAutomaticBasicCreate",
+            "automaticDiscountNode",
+        );
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+        assert_eq!(state_snapshot(&proxy), initial_state);
+    }
+
+    let verified_present = discount_prerequisite_product_create(
+        &mut proxy,
+        "Verified present products",
+        &[product_one, product_two],
+    );
+    assert_eq!(
+        verified_present.body["data"]["discountAutomaticBasicCreate"]["userErrors"],
+        json!([])
+    );
+
+    let verified_absent = discount_prerequisite_product_create(
+        &mut proxy,
+        "Verified absent product",
+        &[missing_product],
+    );
+    assert_eq!(
+        verified_absent.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        verified_absent.body["data"]["discountAutomaticBasicCreate"]["userErrors"],
+        json!([{
+            "field": ["automaticBasicDiscount", "customerGets", "items", "products", "productsToAdd"],
+            "message": "Product with id: 81003 is invalid",
+            "code": "INVALID",
+            "extraInfo": null
+        }])
+    );
+    assert_eq!(*hits.lock().unwrap(), 7);
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
 }
 
 #[test]
@@ -15979,6 +16433,8 @@ fn discount_redeem_code_bulk_add_validation_tracks_async_results_and_downstream_
 #[test]
 fn discount_update_edge_cases_reject_bulk_code_change_and_coerce_bxgy() {
     let mut proxy = snapshot_proxy();
+    let (product_one_id, _) = create_discount_ref_product(&mut proxy);
+    let (product_two_id, _) = create_discount_ref_product(&mut proxy);
     let create_basic = r#"mutation DiscountUpdateEdgeBasicCreate($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }"#;
     let created = proxy.process_request(json_graphql_request(create_basic, json!({ "input": { "title": "HAR-605 bulk rule 1778002393771", "code": "HAR605BULK1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } } })));
     assert_eq!(
@@ -16014,7 +16470,7 @@ fn discount_update_edge_cases_reject_bulk_code_change_and_coerce_bxgy() {
     );
 
     let create_bxgy = r#"mutation DiscountUpdateEdgeBxgyCreate($input: DiscountCodeBxgyInput!) { discountCodeBxgyCreate(bxgyCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename } } userErrors { field message code extraInfo } } }"#;
-    let bxgy = proxy.process_request(json_graphql_request(create_bxgy, json!({ "input": { "title": "HAR-605 BXGY 1778002393771", "code": "HAR605BXGY1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177504608562"] } } }, "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177504641330"] } } } } })));
+    let bxgy = proxy.process_request(json_graphql_request(create_bxgy, json!({ "input": { "title": "HAR-605 BXGY 1778002393771", "code": "HAR605BXGY1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": [product_one_id] } } }, "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": [product_two_id] } } } } })));
     assert_eq!(
         bxgy.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"]["codeDiscount"]
             ["__typename"],
@@ -16052,6 +16508,7 @@ fn discount_update_edge_cases_reject_bulk_code_change_and_coerce_bxgy() {
 #[test]
 fn discount_subscription_fields_not_permitted_matches_local_runtime_gating() {
     let mut proxy = snapshot_proxy();
+    set_discount_shop_sells_subscriptions(&mut proxy, false);
     let primary = r#"
         mutation DiscountSubscriptionFieldsNotPermitted {
           basicSub: discountCodeBasicCreate(basicCodeDiscount: { title: "Sub gated", code: "SUB-GATED", startsAt: "2026-04-25T00:00:00Z", customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnSubscription: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } }
@@ -16384,6 +16841,9 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
 #[test]
 fn discount_class_inference_stages_all_discount_classes_and_product_count() {
     let mut proxy = snapshot_proxy();
+    let (product_one_id, _) = create_discount_ref_product(&mut proxy);
+    let (product_two_id, _) = create_discount_ref_product(&mut proxy);
+    let collection_id = create_discount_ref_collection(&mut proxy);
     let create_query = r#"
         mutation DiscountClassInferenceCreate(
           $basicAll: DiscountCodeBasicInput!
@@ -16403,9 +16863,9 @@ fn discount_class_inference_stages_all_discount_classes_and_product_count() {
         create_query,
         json!({
             "basicAll": { "title": "HAR597CLASS1777950382203 basic order", "code": "HAR597ORDER1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } },
-            "basicProduct": { "title": "HAR597CLASS1777950382203 basic product", "code": "HAR597PRODUCT1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002799410"] } } } },
-            "basicCollection": { "title": "HAR597CLASS1777950382203 basic collection", "code": "HAR597COLL1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "collections": { "add": ["gid://shopify/Collection/512409665842"] } } } },
-            "bxgy": { "title": "HAR597CLASS1777950382203 bxgy product", "code": "HAR597BXGY1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002832178"] } } }, "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002799410"] } } } },
+            "basicProduct": { "title": "HAR597CLASS1777950382203 basic product", "code": "HAR597PRODUCT1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "products": { "productsToAdd": [product_one_id.clone()] } } } },
+            "basicCollection": { "title": "HAR597CLASS1777950382203 basic collection", "code": "HAR597COLL1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "collections": { "add": [collection_id] } } } },
+            "bxgy": { "title": "HAR597CLASS1777950382203 bxgy product", "code": "HAR597BXGY1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": [product_two_id] } } }, "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": [product_one_id] } } } },
             "freeShipping": { "title": "HAR597CLASS1777950382203 free shipping", "code": "HAR597SHIP1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "destination": { "all": true } }
         }),
     ));
@@ -17723,6 +18183,8 @@ fn discount_basic_summary_supports_one_time_scope_when_shop_sells_subscriptions(
 fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
     let mut proxy = snapshot_proxy();
     restore_shop_currency(&mut proxy, "USD");
+    let (product_one_id, _) = create_discount_ref_product(&mut proxy);
+    let (product_two_id, _) = create_discount_ref_product(&mut proxy);
 
     let code_create_query = r#"
         mutation DiscountAmountEachCodeCreate($input: DiscountCodeBasicInput!) {
@@ -17982,7 +18444,7 @@ fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
             "context": { "all": "ALL" },
             "customerBuys": {
                 "value": { "quantity": "1" },
-                "items": { "products": { "productsToAdd": ["gid://shopify/Product/1001"] } }
+                "items": { "products": { "productsToAdd": [product_one_id] } }
             },
             "customerGets": {
                 "value": {
@@ -17991,7 +18453,7 @@ fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
                         "effect": { "amount": "3.00" }
                     }
                 },
-                "items": { "products": { "productsToAdd": ["gid://shopify/Product/1002"] } }
+                "items": { "products": { "productsToAdd": [product_two_id] } }
             }
         }}),
     ));
@@ -18298,6 +18760,7 @@ fn discount_basic_rejects_discount_on_quantity_for_non_bxgy_inputs() {
 #[test]
 fn discount_bxgy_numeric_validation_handles_bounds_and_variable_coercion() {
     let mut proxy = snapshot_proxy();
+    let (product_id, _) = create_discount_ref_product(&mut proxy);
 
     let code_query = r#"
         mutation DiscountBxgyNumericValidationCodeCreate($input: DiscountCodeBxgyInput!) {
@@ -18321,8 +18784,8 @@ fn discount_bxgy_numeric_validation_handles_bounds_and_variable_coercion() {
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
         "context": { "all": "ALL" },
-        "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } },
-        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10180236017970"] } } }
+        "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": [product_id.clone()] } } },
+        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": [product_id] } } }
     });
 
     let setup = proxy.process_request(json_graphql_request(
@@ -18433,6 +18896,9 @@ fn discount_bxgy_numeric_validation_handles_bounds_and_variable_coercion() {
 #[test]
 fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
     let mut proxy = snapshot_proxy();
+    let (product_one_id, variant_one_id) = create_discount_ref_product(&mut proxy);
+    let (product_two_id, _) = create_discount_ref_product(&mut proxy);
+    let collection_id = create_discount_ref_collection(&mut proxy);
 
     let create_query = r#"
         mutation DiscountBxgyLifecycleCreate($codeInput: DiscountCodeBxgyInput!, $automaticInput: DiscountAutomaticBxgyInput!) {
@@ -18473,8 +18939,8 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
         "context": { "all": "ALL" },
-        "customerBuys": { "value": { "quantity": "2" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10170555597106"], "productVariantsToAdd": ["gid://shopify/ProductVariant/51098643235122"] } } },
-        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 1 } } }, "items": { "collections": { "add": ["gid://shopify/Collection/512147128626"] } } },
+        "customerBuys": { "value": { "quantity": "2" }, "items": { "products": { "productsToAdd": [product_one_id.clone()], "productVariantsToAdd": [variant_one_id.clone()] } } },
+        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 1 } } }, "items": { "collections": { "add": [collection_id.clone()] } } },
         "usesPerOrderLimit": 1
     });
     let automatic_input = json!({
@@ -18482,8 +18948,8 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
         "context": { "all": "ALL" },
-        "customerBuys": { "value": { "quantity": "1" }, "items": { "collections": { "add": ["gid://shopify/Collection/512147128626"] } } },
-        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10170555629874"] } } },
+        "customerBuys": { "value": { "quantity": "1" }, "items": { "collections": { "add": [collection_id.clone()] } } },
+        "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": [product_two_id.clone()] } } },
         "usesPerOrderLimit": "1"
     });
 
@@ -18508,7 +18974,7 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
     assert_eq!(
         created.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"]["codeDiscount"]
             ["customerBuys"]["items"]["products"]["nodes"][0]["id"],
-        json!("gid://shopify/Product/10170555597106")
+        json!(product_one_id)
     );
     let automatic_id = json_string(
         &created.body["data"]["discountAutomaticBxgyCreate"]["automaticDiscountNode"]["id"],
@@ -18523,7 +18989,7 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
     assert_eq!(
         created.body["data"]["discountAutomaticBxgyCreate"]["automaticDiscountNode"]
             ["automaticDiscount"]["customerGets"]["items"]["products"]["nodes"][0]["id"],
-        json!("gid://shopify/Product/10170555629874")
+        json!(product_two_id)
     );
 
     let code_update_query = r#"
@@ -18537,8 +19003,8 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
         "context": { "all": "ALL" },
-        "customerBuys": { "value": { "quantity": "2" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10170555597106"], "productVariantsToAdd": ["gid://shopify/ProductVariant/51098643235122"] } } },
-        "customerGets": { "value": { "discountOnQuantity": { "quantity": "2", "effect": { "percentage": 0.5 } } }, "items": { "collections": { "add": ["gid://shopify/Collection/512147128626"] } } },
+        "customerBuys": { "value": { "quantity": "2" }, "items": { "products": { "productsToAdd": [product_one_id], "productVariantsToAdd": [variant_one_id] } } },
+        "customerGets": { "value": { "discountOnQuantity": { "quantity": "2", "effect": { "percentage": 0.5 } } }, "items": { "collections": { "add": [collection_id] } } },
         "usesPerOrderLimit": 1
     });
     let updated_code = proxy.process_request(json_graphql_request(
