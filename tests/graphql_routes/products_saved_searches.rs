@@ -513,7 +513,16 @@ fn product_and_variant_mutations_hydrate_rich_products_through_the_last_variant_
           }
         }
         "#,
-        json!({ "product": { "id": product_id, "title": "Narrowly updated" } }),
+        json!({
+            "product": {
+                "id": product_id,
+                "title": "Narrowly updated",
+                "seo": {
+                    "title": "Updated SEO title",
+                    "description": "Updated SEO description"
+                }
+            }
+        }),
     ));
     assert_eq!(update.status, 200);
     assert_eq!(
@@ -530,7 +539,11 @@ fn product_and_variant_mutations_hydrate_rich_products_through_the_last_variant_
         json!("<p>Preserve this description</p>")
     );
     assert_eq!(product["templateSuffix"], json!("rich"));
-    assert_eq!(product["seo"]["title"], json!("Rich SEO title"));
+    assert_eq!(product["seo"]["title"], json!("Updated SEO title"));
+    assert_eq!(
+        product["seo"]["description"],
+        json!("Updated SEO description")
+    );
     assert_eq!(product["media"]["nodes"].as_array().map(Vec::len), Some(1));
     assert_eq!(
         product["collections"]["nodes"].as_array().map(Vec::len),

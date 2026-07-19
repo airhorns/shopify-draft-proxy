@@ -1132,8 +1132,10 @@ impl DraftProxy {
                 "seo".to_string(),
                 product.extra_fields.get("seo").cloned().unwrap_or_else(|| {
                     json!({
-                        "title": product.seo_title,
-                        "description": product.seo_description,
+                        "title": (!product.seo_title.is_empty())
+                            .then(|| product.seo_title.clone()),
+                        "description": (!product.seo_description.is_empty())
+                            .then(|| product.seo_description.clone()),
                     })
                 }),
             ),

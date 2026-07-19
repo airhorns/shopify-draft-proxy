@@ -1161,9 +1161,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-create-parity.json`,
       `${CAPTURE_ROOT}product-update-parity.json`,
+      `${CAPTURE_ROOT}product-update-blank-title-parity.json`,
+      `${CAPTURE_ROOT}product-update-too-long-handle-parity.json`,
       `${CAPTURE_ROOT}product-delete-parity.json`,
       'config/parity-specs/products/productCreate-blank-title-parity.json',
       'config/parity-specs/products/productCreate-parity-plan.json',
+      'config/parity-specs/products/productUpdate-parity-plan.json',
+      'config/parity-specs/products/productUpdate-blank-title-parity.json',
+      'config/parity-specs/products/productUpdate-too-long-handle-parity.json',
       'config/parity-specs/products/productDelete-parity-plan.json',
       'config/parity-specs/products/productDelete-inline-missing-id-parity.json',
       'config/parity-specs/products/productDelete-inline-null-id-parity.json',
@@ -2469,6 +2474,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-variants-bulk-reorder-validation-resequence.json`,
+      `${CAPTURE_ROOT}product-variants-bulk-reorder-parity.json`,
+      'config/parity-specs/products/productVariantsBulkReorder-parity.json',
       'config/parity-specs/products/productVariantsBulkReorder-validation-resequence.json',
       'config/parity-requests/products/productVariantsBulkReorder-validation-resequence.graphql',
       'config/parity-requests/products/productVariantsBulkReorder-position-read.graphql',
@@ -3562,6 +3569,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-create-inventory-read-parity.json`,
       `${CAPTURE_ROOT}product-variants-bulk-create-inventory-read-parity.json`,
+      'config/parity-specs/products/productVariantsBulkCreate-inventory-read-parity.json',
     ],
     cleanupBehavior: 'Read-only capture; no cleanup expected.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -3878,6 +3886,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-relationship-roots.json`,
+      `${CAPTURE_ROOT}product-relationship-roots-mutation-preflight.json`,
       'config/parity-specs/products/product-relationship-roots-live-parity.json',
       'config/parity-specs/products/selling-plan-product-variant-associations.json',
       'config/parity-requests/products/product-options-hydrate-nodes.graphql',

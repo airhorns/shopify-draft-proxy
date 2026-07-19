@@ -561,6 +561,27 @@ impl DraftProxy {
         }
 
         let mut extra_fields = existing.extra_fields;
+        if let Some(seo_input) = resolved_object_field(&input, "seo") {
+            let mut seo = extra_fields
+                .get("seo")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_else(|| {
+                    serde_json::Map::from_iter([
+                        ("title".to_string(), json!(existing.seo_title.clone())),
+                        (
+                            "description".to_string(),
+                            json!(existing.seo_description.clone()),
+                        ),
+                    ])
+                });
+            for field in ["title", "description"] {
+                if let Some(value) = seo_input.get(field) {
+                    seo.insert(field.to_string(), resolved_value_json(value));
+                }
+            }
+            extra_fields.insert("seo".to_string(), Value::Object(seo));
+        }
         if let Some(category_id) = product_category_input_id(&input) {
             match self.product_category_value_for_input(request, &category_id) {
                 Some(category) => {

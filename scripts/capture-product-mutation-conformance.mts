@@ -1,7 +1,7 @@
 // @ts-nocheck
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -9,13 +9,14 @@ import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 import { parseWriteScopeBlocker, renderWriteScopeBlockerNote } from './product-mutation-conformance-lib.mjs';
+import { captureProductMutationPreflight } from './product-mutation-preflight-capture.js';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-mutation-conformance-scope-blocker.md');
-const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRaw, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
@@ -166,6 +167,11 @@ const updateMutation = `#graphql
   }
 `;
 
+const tooLongHandleUpdateMutation = await readFile(
+  'config/parity-requests/products/productUpdate-too-long-handle-parity.graphql',
+  'utf8',
+);
+
 const updateMissingIdMutation = `#graphql
   mutation ProductUpdateConformanceMissingId($product: ProductUpdateInput!) {
     productUpdate(product: $product) {
@@ -269,6 +275,15 @@ function buildUpdateBlankTitleValidationVariables(productId) {
   };
 }
 
+function buildUpdateTooLongHandleValidationVariables(productId) {
+  return {
+    product: {
+      id: productId,
+      handle: 'b'.repeat(256),
+    },
+  };
+}
+
 function buildDeleteValidationVariables() {
   return {
     input: {
@@ -320,7 +335,7 @@ function buildCreateHandleNormalizationVariables(runId) {
   return {
     product: {
       title: `Normalized Handle Probe ${runId}`,
-      handle: '  Weird Handle / 100%  ',
+      handle: `  Weird Handle ${runId} / 100%  `,
     },
   };
 }
@@ -503,6 +518,7 @@ try {
     throw new Error('Product update title-only handle seed create did not return a product id.');
   }
 
+  const updateHydration = await captureProductMutationPreflight(runGraphqlRaw, createdProductId);
   const updateVariables = buildUpdateVariables(createdProductId, runId);
   const updateValidationVariables = buildUpdateValidationVariables();
   const updateValidationResponse = await runGraphql(updateMutation, updateValidationVariables);
@@ -513,6 +529,11 @@ try {
   );
   const updateBlankTitleValidationVariables = buildUpdateBlankTitleValidationVariables(createdProductId);
   const updateBlankTitleValidationResponse = await runGraphql(updateMutation, updateBlankTitleValidationVariables);
+  const updateTooLongHandleValidationVariables = buildUpdateTooLongHandleValidationVariables(createdProductId);
+  const updateTooLongHandleValidationResponse = await runGraphql(
+    tooLongHandleUpdateMutation,
+    updateTooLongHandleValidationVariables,
+  );
   const updateHandleNormalizationVariables = buildUpdateHandleNormalizationVariables(updateCollisionSeedProductId);
   const updateHandleNormalizationResponse = await runGraphql(updateMutation, updateHandleNormalizationVariables);
   const updateWhitespaceHandleVariables = buildUpdateWhitespaceHandleVariables(whitespaceHandleSeedProductId);
@@ -621,6 +642,22 @@ try {
         },
       },
       downstreamRead: postUpdateDetail,
+      upstreamCalls: updateHydration,
+    },
+    'product-update-blank-title-parity.json': {
+      sourceCapture: 'product-update-parity.json#validation.blankTitle',
+      mutation: {
+        variables: updateBlankTitleValidationVariables,
+        response: updateBlankTitleValidationResponse,
+      },
+      upstreamCalls: updateHydration,
+    },
+    'product-update-too-long-handle-parity.json': {
+      mutation: {
+        variables: updateTooLongHandleValidationVariables,
+        response: updateTooLongHandleValidationResponse,
+      },
+      upstreamCalls: updateHydration,
     },
     'product-delete-parity.json': {
       mutation: {
