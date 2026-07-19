@@ -9977,6 +9977,539 @@ fn live_hybrid_observed_product_does_not_make_catalog_reads_local() {
 }
 
 #[test]
+fn live_hybrid_product_overlay_uses_a_bounded_upstream_window_for_a_small_page() {
+    let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let calls = Arc::clone(&calls);
+        move |request| {
+            calls.lock().unwrap().push(request.body.clone());
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let after = body.pointer("/variables/after").and_then(Value::as_str);
+            let (id, title, has_next_page, end_cursor) = match after {
+                None => (
+                    "gid://shopify/Product/upstream-1",
+                    "Zulu upstream one",
+                    true,
+                    Some("upstream-page-1"),
+                ),
+                Some("upstream-page-1") => (
+                    "gid://shopify/Product/upstream-2",
+                    "Zulu upstream two",
+                    true,
+                    Some("upstream-page-2"),
+                ),
+                _ => (
+                    "gid://shopify/Product/upstream-3",
+                    "Zulu upstream three",
+                    false,
+                    None,
+                ),
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "products": {
+                            "edges": [{
+                                "cursor": end_cursor,
+                                "node": {
+                                    "id": id,
+                                    "title": title,
+                                    "handle": id.rsplit('/').next().unwrap_or_default(),
+                                    "status": "ACTIVE",
+                                    "createdAt": "2024-01-01T00:00:00Z",
+                                    "updatedAt": "2024-01-01T00:00:00Z",
+                                    "descriptionHtml": "",
+                                    "vendor": "",
+                                    "productType": "",
+                                    "tags": [],
+                                    "totalInventory": 0,
+                                    "tracksInventory": false,
+                                    "variants": { "nodes": [] }
+                                }
+                            }],
+                            "nodes": [{
+                                "id": id,
+                                "title": title,
+                                "handle": id.rsplit('/').next().unwrap_or_default(),
+                                "status": "ACTIVE",
+                                "createdAt": "2024-01-01T00:00:00Z",
+                                "updatedAt": "2024-01-01T00:00:00Z",
+                                "descriptionHtml": "",
+                                "vendor": "",
+                                "productType": "",
+                                "tags": [],
+                                "totalInventory": 0,
+                                "tracksInventory": false,
+                                "variants": { "nodes": [] }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": has_next_page,
+                                "hasPreviousPage": after.is_some(),
+                                "startCursor": end_cursor,
+                                "endCursor": end_cursor
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageBoundedCatalogProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Alpha staged" } }),
+    ));
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BoundedLiveHybridProductPage {
+          products(first: 1, sortKey: TITLE) {
+            nodes { title }
+            pageInfo { hasNextPage }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["products"]["nodes"],
+        json!([{ "title": "Alpha staged" }])
+    );
+    assert_eq!(
+        read.body["data"]["products"]["pageInfo"]["hasNextPage"],
+        true
+    );
+
+    let calls = calls.lock().unwrap();
+    assert_eq!(
+        calls.len(),
+        1,
+        "serving first: 1 must not traverse every upstream catalog page"
+    );
+    let upstream_request: Value = serde_json::from_str(&calls[0]).unwrap();
+    assert!(
+        upstream_request.pointer("/variables/first").and_then(Value::as_u64) <= Some(3),
+        "the upstream window should be page size + staged impact + one lookahead: {upstream_request}"
+    );
+}
+
+#[test]
+fn live_hybrid_product_catalog_overlays_staged_create_update_and_delete() {
+    let update_id = "gid://shopify/Product/upstream-update";
+    let delete_id = "gid://shopify/Product/upstream-delete";
+    let unrelated_id = "gid://shopify/Product/upstream-unrelated";
+    let saved_search_id = "gid://shopify/SavedSearch/product-overlay";
+    let mut update_product = seed_product(update_id);
+    update_product.title = "Alpha original".to_string();
+    update_product.handle = "alpha-original".to_string();
+    update_product.tags = vec!["upstream".to_string()];
+    let mut delete_product = seed_product(delete_id);
+    delete_product.title = "Delete upstream".to_string();
+    delete_product.handle = "delete-upstream".to_string();
+
+    let upstream_products = json!([
+        {
+            "id": update_id,
+            "title": "Alpha original",
+            "handle": "alpha-original",
+            "status": "ACTIVE",
+            "createdAt": "2024-01-01T00:00:00Z",
+            "updatedAt": "2024-01-01T00:00:00Z",
+            "descriptionHtml": "",
+            "vendor": "Upstream vendor",
+            "productType": "Upstream type",
+            "tags": ["upstream"],
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "variants": { "nodes": [] }
+        },
+        {
+            "id": delete_id,
+            "title": "Delete upstream",
+            "handle": "delete-upstream",
+            "status": "ACTIVE",
+            "createdAt": "2024-01-02T00:00:00Z",
+            "updatedAt": "2024-01-02T00:00:00Z",
+            "descriptionHtml": "",
+            "vendor": "Upstream vendor",
+            "productType": "Upstream type",
+            "tags": ["upstream"],
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "variants": { "nodes": [] }
+        },
+        {
+            "id": unrelated_id,
+            "title": "Zulu unrelated",
+            "handle": "zulu-unrelated",
+            "status": "ACTIVE",
+            "createdAt": "2024-01-03T00:00:00Z",
+            "updatedAt": "2024-01-03T00:00:00Z",
+            "descriptionHtml": "",
+            "vendor": "Upstream vendor",
+            "productType": "Upstream type",
+            "tags": ["upstream"],
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "variants": { "nodes": [] }
+        }
+    ]);
+    let upstream_products_for_transport = upstream_products.clone();
+    let calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![update_product, delete_product])
+        .with_upstream_transport({
+            let calls = Arc::clone(&calls);
+            move |request| {
+                calls.lock().unwrap().push(request.body.clone());
+                let request_body: Value = serde_json::from_str(&request.body).unwrap();
+                let body = if request
+                    .body
+                    .contains("DraftProxyProductSavedSearchHydration")
+                {
+                    json!({
+                        "data": {
+                            "node": {
+                                "id": saved_search_id,
+                                "name": "Overlay products",
+                                "query": "tag:overlay\\-tag",
+                                "resourceType": "PRODUCT"
+                            }
+                        }
+                    })
+                } else if request.body.contains("DraftProxyProductCatalogWindow") {
+                    let query = request_body
+                        .pointer("/variables/query")
+                        .and_then(Value::as_str);
+                    let mut nodes = upstream_products_for_transport
+                        .as_array()
+                        .expect("upstream products should be an array")
+                        .iter()
+                        .filter(|product| {
+                            !query.is_some_and(|query| query.contains("tag:overlay"))
+                                || product["tags"]
+                                    .as_array()
+                                    .is_some_and(|tags| tags.iter().any(|tag| tag == "overlay-tag"))
+                        })
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    nodes.sort_by(|left, right| {
+                        left["title"]
+                            .as_str()
+                            .unwrap_or_default()
+                            .cmp(right["title"].as_str().unwrap_or_default())
+                    });
+                    if request_body
+                        .pointer("/variables/reverse")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false)
+                    {
+                        nodes.reverse();
+                    }
+                    let after = request_body
+                        .pointer("/variables/after")
+                        .and_then(Value::as_str);
+                    let start = after
+                        .and_then(|after| {
+                            nodes.iter().position(|node| {
+                                format!("cursor:{}", node["id"].as_str().unwrap_or_default())
+                                    == after
+                            })
+                        })
+                        .map(|index| index + 1)
+                        .unwrap_or(0);
+                    let first = request_body
+                        .pointer("/variables/first")
+                        .and_then(Value::as_u64)
+                        .unwrap_or(50) as usize;
+                    let page = nodes
+                        .iter()
+                        .skip(start)
+                        .take(first)
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    let edges = page
+                        .iter()
+                        .map(|node| {
+                            json!({
+                                "cursor": format!(
+                                    "cursor:{}",
+                                    node["id"].as_str().unwrap_or_default()
+                                ),
+                                "node": node,
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    let end_cursor = edges
+                        .last()
+                        .and_then(|edge| edge["cursor"].as_str())
+                        .map(str::to_string);
+                    json!({
+                        "data": {
+                            "products": {
+                                "edges": edges,
+                                "pageInfo": {
+                                    "hasNextPage": start + page.len() < nodes.len(),
+                                    "hasPreviousPage": start > 0,
+                                    "startCursor": edges
+                                        .first()
+                                        .and_then(|edge| edge["cursor"].as_str()),
+                                    "endCursor": end_cursor
+                                }
+                            }
+                        }
+                    })
+                } else if request.body.contains("DraftProxyProductCatalogCount") {
+                    let query = request_body
+                        .pointer("/variables/query")
+                        .and_then(Value::as_str);
+                    let count = if query.is_some_and(|query| query.contains("tag:overlay")) {
+                        0
+                    } else {
+                        3
+                    };
+                    json!({
+                        "data": {
+                            "productsCount": { "count": count, "precision": "EXACT" }
+                        }
+                    })
+                } else {
+                    json!({
+                        "data": {
+                            "unobserved": {
+                                "id": "gid://shopify/Product/unobserved-sibling",
+                                "title": "Unobserved sibling"
+                            }
+                        }
+                    })
+                };
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body,
+                }
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageCatalogCreate($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title handle tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Bravo created",
+                "handle": "bravo-created",
+                "tags": ["overlay-tag"]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let created_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("productCreate should return an id")
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageCatalogUpdate($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id title handle tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": update_id,
+                "title": "Alpha updated",
+                "handle": "alpha-updated",
+                "tags": ["overlay-tag"]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageCatalogDelete($input: ProductDeleteInput!) {
+          productDelete(input: $input) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": delete_id } }),
+    ));
+    assert_eq!(
+        delete.body["data"]["productDelete"]["userErrors"],
+        json!([])
+    );
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        query LiveHybridProductOverlayRead($savedSearchId: ID!) {
+          catalog: products(first: 10, sortKey: TITLE) {
+            nodes { id title handle tags }
+          }
+          total: productsCount(limit: 2) { count precision }
+          overlayMatches: products(first: 1, query: "tag:overlay", sortKey: TITLE, reverse: true) {
+            nodes { id title }
+          }
+          firstPage: products(first: 1, query: "tag:overlay", sortKey: TITLE) {
+            nodes { id title }
+            pageInfo { hasNextPage endCursor }
+          }
+          overlayCount: productsCount(query: "tag:overlay") { count precision }
+          savedSearchMatches: products(first: 10, savedSearchId: $savedSearchId, sortKey: TITLE) {
+            nodes { id title }
+          }
+          unobserved: product(id: "gid://shopify/Product/unobserved-sibling") {
+            id
+            title
+          }
+        }
+        "#,
+        json!({ "savedSearchId": saved_search_id }),
+    ));
+
+    assert_eq!(catalog.status, 200, "catalog response: {}", catalog.body);
+    assert_eq!(
+        catalog.body["data"]["catalog"]["nodes"],
+        json!([
+            {
+                "id": update_id,
+                "title": "Alpha updated",
+                "handle": "alpha-updated",
+                "tags": ["overlay-tag"]
+            },
+            {
+                "id": created_id,
+                "title": "Bravo created",
+                "handle": "bravo-created",
+                "tags": ["overlay-tag"]
+            },
+            {
+                "id": unrelated_id,
+                "title": "Zulu unrelated",
+                "handle": "zulu-unrelated",
+                "tags": ["upstream"]
+            }
+        ])
+    );
+    assert_eq!(
+        catalog.body["data"]["total"],
+        json!({ "count": 2, "precision": "AT_LEAST" })
+    );
+    assert_eq!(
+        catalog.body["data"]["firstPage"]["nodes"],
+        json!([{ "id": update_id, "title": "Alpha updated" }])
+    );
+    assert_eq!(
+        catalog.body["data"]["firstPage"]["pageInfo"]["hasNextPage"],
+        true
+    );
+    assert_eq!(
+        catalog.body["data"]["overlayMatches"]["nodes"],
+        json!([{ "id": created_id, "title": "Bravo created" }])
+    );
+    assert_eq!(
+        catalog.body["data"]["overlayCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        catalog.body["data"]["savedSearchMatches"]["nodes"],
+        json!([
+            { "id": update_id, "title": "Alpha updated" },
+            { "id": created_id, "title": "Bravo created" }
+        ])
+    );
+    assert_eq!(
+        catalog.body["data"]["unobserved"],
+        json!({
+            "id": "gid://shopify/Product/unobserved-sibling",
+            "title": "Unobserved sibling"
+        }),
+        "an unobserved singular sibling should merge upstream without bypassing the local catalog overlay"
+    );
+    let first_page_cursor = catalog.body["data"]["firstPage"]["pageInfo"]["endCursor"]
+        .as_str()
+        .expect("the first effective page should expose a continuation cursor")
+        .to_string();
+    let recorded_calls = calls.lock().unwrap();
+    assert_eq!(
+        recorded_calls
+            .iter()
+            .filter(|body| body.contains("DraftProxyProductCatalogWindow"))
+            .count(),
+        4,
+        "each product root should fetch only its own bounded upstream candidate window"
+    );
+    assert_eq!(
+        recorded_calls
+            .iter()
+            .filter(|body| body.contains("DraftProxyProductSavedSearchHydration"))
+            .count(),
+        1,
+        "savedSearchId should hydrate its PRODUCT saved-search query once"
+    );
+    drop(recorded_calls);
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query LiveHybridProductOverlaySecondPage($after: String!) {
+          products(first: 1, after: $after, query: "tag:overlay", sortKey: TITLE) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#,
+        json!({ "after": first_page_cursor }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["products"]["nodes"],
+        json!([{ "id": created_id, "title": "Bravo created" }])
+    );
+    assert_eq!(
+        second_page.body["data"]["products"]["pageInfo"],
+        json!({ "hasNextPage": false, "hasPreviousPage": true })
+    );
+    assert_eq!(
+        calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|body| body.contains("DraftProxyProductCatalogWindow"))
+            .count(),
+        5,
+        "the continuation should resume from encoded upstream/staged state with one bounded call"
+    );
+}
+
+#[test]
 fn live_hybrid_handle_and_barcode_searches_forward_with_partial_overlay_state() {
     let calls = Arc::new(Mutex::new(Vec::<String>::new()));
     let upstream_search = json!({

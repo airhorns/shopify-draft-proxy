@@ -376,10 +376,6 @@ impl<T> ResourceStore<T> {
         effective_find(&self.base, &self.staged, predicate)
     }
 
-    fn count(&self) -> usize {
-        effective_count(&self.base, &self.staged)
-    }
-
     fn has_state(&self) -> bool {
         !self.base.records.is_empty()
             || !self.staged.records.is_empty()
@@ -1741,10 +1737,6 @@ impl Store {
         self.products.records()
     }
 
-    fn product_count(&self) -> usize {
-        self.products.count()
-    }
-
     fn has_product_state(&self) -> bool {
         self.products.has_state()
     }
@@ -2689,6 +2681,10 @@ pub struct DraftProxy {
     /// `restoreState` between a scenario's targets; it is reset on `/__meta/reset`,
     /// which the parity runner issues at the start of every scenario.
     shop_sells_subscriptions: Option<bool>,
+    /// Original upstream/base records for products changed during the current
+    /// staging session. Count overlays compare these pre-mutation records with
+    /// the effective staged records without loading the surrounding catalog.
+    product_catalog_base_records: BTreeMap<String, ProductRecord>,
     clock: RuntimeClock,
     last_mutation_timestamp: Option<time::OffsetDateTime>,
     /// All GraphQL-execution transients live behind one request-lifetime

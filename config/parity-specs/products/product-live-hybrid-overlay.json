@@ -1,0 +1,112 @@
+{
+  "scenarioId": "product-live-hybrid-overlay",
+  "operationNames": ["productCreate", "productUpdate", "productDelete", "products", "productsCount", "node"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "downstream-read-parity",
+    "search-filter-semantics",
+    "connection-window-parity",
+    "count-precision-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-live-hybrid-overlay.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-live-hybrid-overlay-create.graphql",
+    "variablesCapturePath": "$.mutations.create.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "staged-create",
+        "capturePath": "$.mutations.create.response.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "selectedPaths": [
+          "$.product.title",
+          "$.product.handle",
+          "$.product.status",
+          "$.product.vendor",
+          "$.product.productType",
+          "$.product.tags",
+          "$.product.descriptionHtml",
+          "$.product.templateSuffix",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "staged-update-wins-by-id",
+        "capturePath": "$.mutations.update.response.data.productUpdate",
+        "proxyPath": "$.data.productUpdate",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUpdate-parity-plan.graphql",
+          "variablesCapturePath": "$.mutations.update.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": ["$.product.title", "$.product.handle", "$.product.status", "$.product.tags", "$.userErrors"]
+      },
+      {
+        "name": "staged-delete-tombstone",
+        "capturePath": "$.mutations.delete.response.data.productDelete",
+        "proxyPath": "$.data.productDelete",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-live-hybrid-overlay-delete.graphql",
+          "variablesCapturePath": "$.mutations.delete.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": ["$.deletedProductId", "$.userErrors"]
+      },
+      {
+        "name": "effective-catalog-search-sort-reverse-saved-search-count-and-unrelated-retention",
+        "capturePath": "$.read.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-live-hybrid-overlay-read.graphql",
+          "variablesCapturePath": "$.read.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.catalog.nodes",
+          "$.reverse.nodes",
+          "$.firstPage.nodes",
+          "$.firstPage.pageInfo.hasNextPage",
+          "$.firstPage.pageInfo.hasPreviousPage",
+          "$.savedSearch.nodes",
+          "$.deleted.nodes",
+          "$.unrelated.nodes",
+          "$.matches",
+          "$.limitedTotal"
+        ]
+      },
+      {
+        "name": "effective-catalog-cursor-second-page",
+        "capturePath": "$.page.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-live-hybrid-overlay-page.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "matchQuery": {
+              "fromCapturePath": "$.page.variables.matchQuery"
+            },
+            "after": {
+              "fromProxyResponse": "effective-catalog-search-sort-reverse-saved-search-count-and-unrelated-retention",
+              "path": "$.data.firstPage.pageInfo.endCursor"
+            }
+          }
+        },
+        "selectedPaths": ["$.products.nodes", "$.products.pageInfo.hasNextPage", "$.products.pageInfo.hasPreviousPage"]
+      }
+    ]
+  },
+  "notes": "Live Shopify capture records the exact pre-mutation bounded product windows, filtered counts, product-node hydrates, and PRODUCT saved-search hydrate used by LiveHybrid. Public productCreate/productUpdate/productDelete requests are replayed locally before strict effective-catalog comparisons cover create/update/delete precedence, unrelated retention, search, title sort, reverse, cursor windowing, saved searches, count deltas, and limited-count precision without a full-catalog scan."
+}

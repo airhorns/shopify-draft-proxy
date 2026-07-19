@@ -17,7 +17,7 @@ const TAGGABLE_ORDER_HYDRATE_QUERY: &str =
 const TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY: &str =
     "query OrdersDraftOrderHydrate($id: ID!) {\n  draftOrder(id: $id) { id name tags }\n}";
 const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str =
-    include_str!("../../config/parity-requests/customers/taggable-customer-hydrate.graphql");
+    include_str!("../runtime_graphql/customers/taggable-customer-hydrate.graphql.raw");
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
 const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      availablePublicationsCount { count precision }\n      resourcePublicationsCount { count precision }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n      publications(first: 10) { nodes { isPublished publishDate product { id } } }\n    }\n  }\n}";
 const PRODUCT_VARIANTS_BULK_CREATE_INVENTORY_QUANTITIES_LIMIT: usize = 50_000;
@@ -526,6 +526,7 @@ impl DraftProxy {
         let Some(existing) = self.store.product_staged_or_base(&id) else {
             return ResolverOutcome::value(product_update_missing_payload_value());
         };
+        self.remember_product_catalog_base_record(&existing);
 
         if input.contains_key("title")
             && resolved_string_field(&input, "title")
@@ -2017,6 +2018,9 @@ impl DraftProxy {
         }
         if !self.store.has_product(&id) {
             return ResolverOutcome::value(product_delete_missing_payload_value());
+        }
+        if let Some(existing) = self.store.product_by_id(&id).cloned() {
+            self.remember_product_catalog_base_record(&existing);
         }
 
         if is_async_delete {

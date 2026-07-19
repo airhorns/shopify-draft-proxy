@@ -1,0 +1,23 @@
+mutation ProductLiveHybridOverlayCreate($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      handle
+      status
+      vendor
+      productType
+      tags
+      descriptionHtml
+      templateSuffix
+      seo {
+        title
+        description
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,17 +1,13 @@
 use super::*;
 
-// Cold-order hydrate the proxy forwards on a `refundCreate` against an order it has
-// not yet staged. Extracted to a shared `.graphql` so the de-seeded refund capture
-// scripts can forward the byte-identical query (`readRequestRaw`) and record a
-// cassette that matches this `include_str!` const exactly.
+// Runtime-owned cold-order hydrate for `refundCreate`. Parity capture keeps a
+// separate byte-identical request for exact cassette replay.
 const REFUND_ORDER_HYDRATE_QUERY: &str =
-    include_str!("../../../config/parity-requests/orders/refund-order-hydrate.graphql");
-const PAYMENT_CUSTOMIZATION_HYDRATE_BY_ID_QUERY: &str = include_str!(
-    "../../../config/parity-requests/payments/payment-customization-hydrate-by-id.graphql"
-);
-const PAYMENT_CUSTOMIZATION_HYDRATE_CATALOG_QUERY: &str = include_str!(
-    "../../../config/parity-requests/payments/payment-customization-hydrate-catalog.graphql"
-);
+    include_str!("../../runtime_graphql/orders/refund-order-hydrate.graphql.raw");
+const PAYMENT_CUSTOMIZATION_HYDRATE_BY_ID_QUERY: &str =
+    include_str!("../../runtime_graphql/payments/payment-customization-hydrate-by-id.graphql");
+const PAYMENT_CUSTOMIZATION_HYDRATE_CATALOG_QUERY: &str =
+    include_str!("../../runtime_graphql/payments/payment-customization-hydrate-catalog.graphql");
 const FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE: &str =
     "Setting final capture is not supported for this transaction's payment gateway. Please remove the parameter or set it to null, then try again.";
 

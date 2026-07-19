@@ -1,0 +1,28 @@
+query CustomerMergeHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on Customer {
+      id
+      firstName
+      lastName
+      displayName
+      email
+      phone
+      locale
+      note
+      canDelete
+      verifiedEmail
+      dataSaleOptOut
+      taxExempt
+      taxExemptions
+      state
+      tags
+      numberOfOrders
+      createdAt
+      updatedAt
+      defaultEmailAddress { emailAddress }
+      defaultPhoneNumber { phoneNumber }
+      defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
+      lastOrder { id name email createdAt }
+    }
+  }
+}

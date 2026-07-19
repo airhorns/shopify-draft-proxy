@@ -255,6 +255,7 @@ The Python package is not a second proxy implementation and does not spawn the R
   - `config/parity-specs/**`
   - `config/parity-requests/**`
   - `fixtures/conformance/**`
+- Runtime-owned secondary GraphQL documents live under `src/runtime_graphql/**`. Parity requests may intentionally byte-match those documents for cassette replay, but runtime Rust source never compiles or reads `config/parity-requests/**`; a structural test enforces that dependency direction.
 - Those paths must be registered in the conformance capture index when they drift from `origin/main`.
 - `scripts/check-protected-evidence-invariants.ts` compares protected evidence against `origin/main` and rejects unregistered changes.
 - `scripts/conformance-capture-index.ts`, `scripts/conformance-check.ts`, and `scripts/conformance-status-report.ts` maintain capture metadata and status reporting.

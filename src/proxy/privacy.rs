@@ -1,12 +1,9 @@
 use super::*;
 
-// Shared with the parity capture script via include_str! so the recorded
-// `DataSaleOptOutCustomerLookup` cassette byte-matches this forward. dataSaleOptOut
-// resolves a pre-existing customer by email the real way (forward + observe) rather
-// than reading from seeded state, so the lookup text must stay in lockstep with the
-// recorded request.
+// Runtime-owned preflight for resolving a pre-existing customer by email through
+// forward + observe. Parity capture maintains a separate byte-matching request.
 const DATA_SALE_OPT_OUT_CUSTOMER_LOOKUP_QUERY: &str =
-    include_str!("../../config/parity-requests/privacy/data-sale-opt-out-customer-lookup.graphql");
+    include_str!("../runtime_graphql/privacy/data-sale-opt-out-customer-lookup.graphql");
 
 pub(in crate::proxy) fn privacy_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
     [

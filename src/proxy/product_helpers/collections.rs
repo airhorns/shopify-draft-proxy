@@ -1666,7 +1666,9 @@ impl DraftProxy {
                 body: String::new(),
             },
             json!({
-                "query": PRODUCT_OPTIONS_HYDRATE_NODES_QUERY,
+                "query": PRODUCT_OPTIONS_HYDRATE_NODES_QUERY
+                    .strip_suffix('\n')
+                    .unwrap_or(PRODUCT_OPTIONS_HYDRATE_NODES_QUERY),
                 "operationName": "ProductOptionsHydrateNodes",
                 "variables": { "ids": [product_id] }
             }),
