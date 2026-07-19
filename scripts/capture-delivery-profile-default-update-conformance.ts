@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write capture status to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
@@ -45,25 +45,62 @@ const defaultProfileLookupQuery = `#graphql
   }
 `;
 
-const defaultProfileHydrateQuery =
-  'query ShippingDeliveryProfileUpdateHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }';
-
-const deliveryProfileDefaultUpdateMutation = `#graphql
-  mutation DeliveryProfileDefaultUpdate($id: ID!, $profile: DeliveryProfileInput!) {
-    deliveryProfileUpdate(id: $id, profile: $profile) {
-      profile {
-        id
-        name
-        default
-        version
+const defaultProfileHydrateQuery = `query ShippingDeliveryProfileUpdateHydrate($id: ID!) {
+  deliveryProfile(id: $id) {
+    id name default version activeMethodDefinitionsCount locationsWithoutRatesCount originLocationCount zoneCountryCount
+    productVariantsCount { count precision }
+    profileItems(first: 250) {
+      nodes { id product { id title } variants(first: 250) { nodes { id title } pageInfo { hasNextPage endCursor } } }
+      pageInfo { hasNextPage endCursor }
+    }
+    profileLocationGroups {
+      countriesInAnyZone { zone country { id name translatedName code { countryCode restOfWorld } provinces { id name code } } }
+      locationGroup {
+        id locations(first: 250) { nodes { id name } pageInfo { hasNextPage endCursor } } locationsCount { count precision }
       }
-      userErrors {
-        field
-        message
+      locationGroupZones(first: 250) {
+        nodes {
+          zone { id name countries { id name translatedName code { countryCode restOfWorld } provinces { id name code } } }
+          methodDefinitions(first: 250) {
+            nodes {
+              id name active description
+              rateProvider {
+                ... on DeliveryRateDefinition { id price { amount currencyCode } }
+                ... on DeliveryParticipant { id fixedFee { amount currencyCode } percentageOfRateFee }
+              }
+              methodConditions {
+                id field operator conditionCriteria {
+                  __typename ... on MoneyV2 { amount currencyCode } ... on Weight { unit value }
+                }
+              }
+            }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+        pageInfo { hasNextPage endCursor }
       }
     }
+    sellingPlanGroups(first: 250) { nodes { id name } pageInfo { hasNextPage endCursor } }
+    unassignedLocationsPaginated(first: 250) { nodes { id name } pageInfo { hasNextPage endCursor } }
   }
-`;
+}`;
+const profileItemsPageQuery = `query ShippingDeliveryProfileItemsPage($id: ID!, $after: String!) {
+  deliveryProfile(id: $id) {
+    profileItems(first: 250, after: $after) {
+      nodes { id product { id title } variants(first: 250) { nodes { id title } pageInfo { hasNextPage endCursor } } }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}`;
+
+const deliveryProfileDefaultUpdateMutation = await readFile(
+  path.join('config', 'parity-requests', 'shipping-fulfillments', 'delivery-profile-default-update.graphql'),
+  'utf8',
+);
+const deliveryProfileDefaultUpdateRead = await readFile(
+  path.join('config', 'parity-requests', 'shipping-fulfillments', 'delivery-profile-default-update-read.graphql'),
+  'utf8',
+);
 
 function trimGraphql(query: string): string {
   return query.replace(/^#graphql\n/u, '').trim();
@@ -146,6 +183,25 @@ const originalName = defaultProfile['name'] as string;
 const updateName = `Default profile parity ${Date.now()}`;
 const hydrateBeforeUpdate = await capture(defaultProfileHydrateQuery, { id: defaultProfileId });
 assertHttpOk('default profile hydrate before update', hydrateBeforeUpdate.result);
+const profileItemsHydratePages: GraphqlCapture[] = [];
+let profileItemsPage = readObject(
+  readPath(hydrateBeforeUpdate.result.payload, ['data', 'deliveryProfile', 'profileItems']),
+);
+while (readObject(profileItemsPage?.['pageInfo'])?.['hasNextPage'] === true) {
+  const after = readObject(profileItemsPage?.['pageInfo'])?.['endCursor'];
+  if (typeof after !== 'string' || after.length === 0) {
+    throw new Error(
+      `profileItems hydrate page reported hasNextPage without endCursor: ${JSON.stringify(profileItemsPage)}`,
+    );
+  }
+  const page = await capture(profileItemsPageQuery, { id: defaultProfileId, after });
+  assertHttpOk('default profile items hydrate page', page.result);
+  profileItemsHydratePages.push(page);
+  profileItemsPage = readObject(readPath(page.result.payload, ['data', 'deliveryProfile', 'profileItems']));
+}
+if (profileItemsHydratePages.length === 0) {
+  throw new Error('default profile capture requires profileItems beyond the first hydrate page');
+}
 
 let cleanup: GraphqlCapture | undefined;
 const mutation = await capture(deliveryProfileDefaultUpdateMutation, {
@@ -156,8 +212,17 @@ const mutation = await capture(deliveryProfileDefaultUpdateMutation, {
 });
 const updatedProfile = assertSuccessfulDefaultUpdate(mutation, defaultProfileId, originalName);
 
-const readBack = await capture(defaultProfileHydrateQuery, { id: defaultProfileId });
+const readBack = await capture(deliveryProfileDefaultUpdateRead, { id: defaultProfileId });
 assertHttpOk('default profile readback', readBack.result);
+const readBackProfile = readObject(readPath(readBack.result.payload, ['data', 'deliveryProfile']));
+if (JSON.stringify(readBackProfile) !== JSON.stringify(updatedProfile)) {
+  throw new Error(
+    `default profile readback did not preserve the whole selected mutation profile: ${JSON.stringify({
+      updatedProfile,
+      readBackProfile,
+    })}`,
+  );
+}
 
 try {
   if (updatedProfile['name'] === updateName) {
@@ -202,7 +267,8 @@ try {
           'Captured with SHOPIFY_CONFORMANCE_API_VERSION=2026-04 and home-folder conformance auth.',
           'Setup reads deliveryProfiles to find the default profile id, hydrates that profile with the same read query used by the proxy update path, sends a name update for the default profile, reads it back, and restores the original name only if Shopify returns a changed display name.',
           'Admin GraphQL 2026-04 accepts the default-profile name update with empty userErrors and increments version; the selected public payload preserves the default profile display name.',
-          'The selected mutation payload compares id, name, default, version, and userErrors exactly.',
+          'The hydrate cassette follows every profileItems page for this relationship-heavy default profile; the selected mutation profile and immediate readback are asserted equal by the recorder.',
+          'Parity strictly compares the whole selected profile in the mutation payload and immediate readback, including connection rows and Count precision metadata.',
         ],
         upstreamCalls: [
           {
@@ -214,6 +280,15 @@ try {
               body: hydrateBeforeUpdate.result.payload,
             },
           },
+          ...profileItemsHydratePages.map((page) => ({
+            operationName: 'ShippingDeliveryProfileItemsPage',
+            variables: page.variables,
+            query: profileItemsPageQuery,
+            response: {
+              status: page.result.status,
+              body: page.result.payload,
+            },
+          })),
         ],
       },
       null,

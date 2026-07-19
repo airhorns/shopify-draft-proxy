@@ -21,6 +21,8 @@ const scenarioId = 'b2b-cold-company-location-hydration';
 const timestamp = Date.now();
 const searchToken = `b2bcoldhydrate${timestamp}`;
 const companyName = `B2B ${searchToken}`;
+const updatedCompanyName = `${companyName} Updated`;
+const updatedContactTitle = 'Updated cold hydration buyer';
 const originalLocationName = `${companyName} Warehouse`;
 const updatedLocationName = `${companyName} Updated Warehouse`;
 const taxRegistrationId = `B2B-COLD-${timestamp}`;
@@ -38,37 +40,6 @@ const companyDeleteDocument = `#graphql
       userErrors { field message code }
     }
   }
-`;
-
-const companyLocationHydrateDocument = `
-query B2BCompanyLocationHydrate($id: ID!) {
-  companyLocation(id: $id) {
-    id
-    name
-    externalId
-    note
-    locale
-    phone
-    billingAddress { id address1 }
-    shippingAddress { id address1 }
-    taxSettings {
-      taxRegistrationId
-      taxExempt
-      taxExemptions
-    }
-    buyerExperienceConfiguration {
-      editableShippingAddress
-      checkoutToDraft
-      paymentTermsTemplate { id }
-      deposit { __typename }
-    }
-    company {
-      id
-      name
-      locations(first: 50) { nodes { id } }
-    }
-  }
-}
 `;
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -132,6 +103,15 @@ async function readDocument(documentPath: string): Promise<string> {
   return await readFile(documentPath, 'utf8');
 }
 
+async function readRustQuery(name: string): Promise<string> {
+  const source = await readFile('src/proxy/b2b_customers/companies.rs', 'utf8');
+  const match = source.match(new RegExp(`const ${name}: &str = r#"([\\s\\S]*?)"#;`, 'u'));
+  if (!match?.[1]) {
+    throw new Error(`${name} was not found in the B2B runtime`);
+  }
+  return match[1];
+}
+
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -184,12 +164,20 @@ const companyCreateDocument = await readDocument(
   'config/parity-requests/b2b/b2b-contact-location-assignments-tax-create.graphql',
 );
 const coldCompaniesReadDocument = await readDocument('config/parity-requests/b2b/b2b-cold-companies-read.graphql');
+const companyUpdateDocument = await readDocument(
+  'config/parity-requests/b2b/b2b-mutation-first-company-update.graphql',
+);
+const contactUpdateDocument = await readDocument(
+  'config/parity-requests/b2b/b2b-mutation-first-contact-update.graphql',
+);
 const locationUpdateDocument = await readDocument(
   'config/parity-requests/b2b/b2b-cold-company-location-update.graphql',
 );
 const taxUpdateDocument = await readDocument(
   'config/parity-requests/b2b/b2b-contact-location-assignments-tax-tax.graphql',
 );
+const readbackDocument = await readDocument('config/parity-requests/b2b/b2b-mutation-first-readback.graphql');
+const mutationTargetsHydrateDocument = await readRustQuery('B2B_MUTATION_TARGETS_HYDRATE_QUERY');
 
 let companyId: string | null = null;
 let companyDeleted = false;
@@ -227,6 +215,11 @@ try {
     'companyCreate setup',
   );
   companyId = readStringAtPath(companyCreate.response, ['data', 'companyCreate', 'company', 'id'], 'companyCreate');
+  const companyContactId = readStringAtPath(
+    companyCreate.response,
+    ['data', 'companyCreate', 'company', 'mainContact', 'id'],
+    'companyCreate main contact',
+  );
   const companyLocationId = readStringAtPath(
     companyCreate.response,
     ['data', 'companyCreate', 'company', 'locations', 'nodes', 0, 'id'],
@@ -251,14 +244,64 @@ try {
     throw new Error('cold companies read did not expose the created company before timeout');
   }
 
-  const hydrateBeforeLocationUpdate = await runGraphql(
-    companyLocationHydrateDocument,
-    { id: companyLocationId },
-    'company location hydrate before update',
+  const coldSingularRead = await runGraphql(
+    readbackDocument,
+    { companyId, companyContactId, companyLocationId },
+    'cold singular company/contact/location read',
   );
-  if (readPath(hydrateBeforeLocationUpdate.response, ['data', 'companyLocation', 'id']) !== companyLocationId) {
+
+  const hydrateBeforeCompanyUpdate = await runGraphql(
+    mutationTargetsHydrateDocument,
+    { ids: [companyId] },
+    'company mutation target hydrate before update',
+  );
+  if (readPath(hydrateBeforeCompanyUpdate.response, ['data', 'nodes', 0, 'id']) !== companyId) {
     throw new Error(
-      `company location hydrate returned the wrong location: ${JSON.stringify(
+      `company mutation target hydrate returned the wrong company: ${JSON.stringify(
+        hydrateBeforeCompanyUpdate.response,
+        null,
+        2,
+      )}`,
+    );
+  }
+
+  const companyUpdate = await runRequired(
+    companyUpdateDocument,
+    { companyId, input: { name: updatedCompanyName } },
+    'companyUpdate',
+    'companyUpdate mutation-first hydrate-backed mutation',
+  );
+
+  const hydrateBeforeContactUpdate = await runGraphql(
+    mutationTargetsHydrateDocument,
+    { ids: [companyContactId] },
+    'company contact mutation target hydrate before update',
+  );
+  if (readPath(hydrateBeforeContactUpdate.response, ['data', 'nodes', 0, 'id']) !== companyContactId) {
+    throw new Error(
+      `company contact mutation target hydrate returned the wrong contact: ${JSON.stringify(
+        hydrateBeforeContactUpdate.response,
+        null,
+        2,
+      )}`,
+    );
+  }
+
+  const contactUpdate = await runRequired(
+    contactUpdateDocument,
+    { companyContactId, input: { title: updatedContactTitle } },
+    'companyContactUpdate',
+    'companyContactUpdate mutation-first hydrate-backed mutation',
+  );
+
+  const hydrateBeforeLocationUpdate = await runGraphql(
+    mutationTargetsHydrateDocument,
+    { ids: [companyLocationId] },
+    'company location mutation target hydrate before update',
+  );
+  if (readPath(hydrateBeforeLocationUpdate.response, ['data', 'nodes', 0, 'id']) !== companyLocationId) {
+    throw new Error(
+      `company location mutation target hydrate returned the wrong location: ${JSON.stringify(
         hydrateBeforeLocationUpdate.response,
         null,
         2,
@@ -288,6 +331,12 @@ try {
     'companyLocationTaxSettingsUpdate cold hydrate-backed mutation',
   );
 
+  const readAfterMutationFirstUpdates = await runGraphql(
+    readbackDocument,
+    { companyId, companyContactId, companyLocationId },
+    'mutation-first update readback',
+  );
+
   const companyDelete = await runRequired(companyDeleteDocument, { id: companyId }, 'companyDelete', 'company cleanup');
   cleanup['companyDelete'] = companyDelete;
   companyDeleted = true;
@@ -303,13 +352,19 @@ try {
         storeDomain,
         apiVersion,
         intent: {
-          plan: 'Create a disposable B2B company/location, capture a cold companies read, capture a pre-mutation companyLocation hydrate, run live companyLocationUpdate and companyLocationTaxSettingsUpdate against that real location id, then delete the company.',
+          plan: 'Create a disposable B2B company/contact/location, capture a partial companies read, capture the exact query-only runtime hydrate before mutation-first company/contact/location updates, compare downstream readback, then delete the company.',
         },
         companyCreate,
         coldCompaniesRead,
+        coldSingularRead,
+        hydrateBeforeCompanyUpdate,
+        companyUpdate,
+        hydrateBeforeContactUpdate,
+        contactUpdate,
         hydrateBeforeLocationUpdate,
         locationUpdate,
         taxUpdate,
+        readAfterMutationFirstUpdates,
         cleanup,
         upstreamCalls: [
           {
@@ -325,7 +380,31 @@ try {
             },
           },
           {
-            operationName: 'B2BCompanyLocationHydrate',
+            operationName: 'B2BMutationTargetsHydrate',
+            variables: hydrateBeforeCompanyUpdate.request.variables,
+            query: hydrateBeforeCompanyUpdate.request.query,
+            response: {
+              status: hydrateBeforeCompanyUpdate.response.status,
+              body: {
+                data: hydrateBeforeCompanyUpdate.response.data,
+                extensions: hydrateBeforeCompanyUpdate.response.extensions,
+              },
+            },
+          },
+          {
+            operationName: 'B2BMutationTargetsHydrate',
+            variables: hydrateBeforeContactUpdate.request.variables,
+            query: hydrateBeforeContactUpdate.request.query,
+            response: {
+              status: hydrateBeforeContactUpdate.response.status,
+              body: {
+                data: hydrateBeforeContactUpdate.response.data,
+                extensions: hydrateBeforeContactUpdate.response.extensions,
+              },
+            },
+          },
+          {
+            operationName: 'B2BMutationTargetsHydrate',
             variables: hydrateBeforeLocationUpdate.request.variables,
             query: hydrateBeforeLocationUpdate.request.query,
             response: {

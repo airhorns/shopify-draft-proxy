@@ -1,0 +1,232 @@
+{
+  "scenarioId": "online-store-authoritative-content-hydration",
+  "operationNames": ["article", "articleCreate", "articleUpdate", "blog", "blogUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "mutation-first-hydration-parity",
+    "whole-resource-parity",
+    "no-upstream-mutation"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-authoritative-content-hydration.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-authoritative-article-create.graphql",
+    "variablesCapturePath": "$.operations.articleCreate.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "article-create-cold-blog-whole-resource",
+        "capturePath": "$.operations.articleCreate.response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.article.id",
+            "matcher": "shopify-gid:Article",
+            "reason": "The proxy stages a synthetic Article while Shopify creates an authoritative Article ID."
+          },
+          {
+            "path": "$.article.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy create the article at independently generated times."
+          },
+          {
+            "path": "$.article.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy create the article at independently generated times."
+          },
+          {
+            "path": "$.article.publishedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy publish the article at independently generated times."
+          },
+          {
+            "path": "$.article.blog.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy touch the hydrated parent blog at independently generated article-create times."
+          }
+        ]
+      },
+      {
+        "name": "article-create-cold-blog-readback-whole-resource",
+        "capturePath": "$.reads.afterArticleCreate.response.data.article",
+        "proxyPath": "$.data.article",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-authoritative-article-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "article-create-cold-blog-whole-resource",
+              "path": "$.data.articleCreate.article.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Article",
+            "reason": "The proxy reads back its synthetic Article while Shopify reads the authoritative Article ID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy create the article at independently generated times."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy create the article at independently generated times."
+          },
+          {
+            "path": "$.publishedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy publish the article at independently generated times."
+          },
+          {
+            "path": "$.blog.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy touch the hydrated parent blog at independently generated article-create times."
+          }
+        ]
+      },
+      {
+        "name": "article-narrow-update-whole-resource",
+        "capturePath": "$.operations.articleUpdate.response.data.articleUpdate",
+        "proxyPath": "$.data.articleUpdate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-authoritative-article-update.graphql",
+          "variablesCapturePath": "$.operations.articleUpdate.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.article.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy apply the narrow update at independently generated times."
+          },
+          {
+            "path": "$.article.blog.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy touch the parent blog at independently generated article-update times."
+          }
+        ]
+      },
+      {
+        "name": "article-narrow-update-readback-whole-resource",
+        "capturePath": "$.reads.afterArticleUpdate.response.data.article",
+        "proxyPath": "$.data.article",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-authoritative-article-read.graphql",
+          "variablesCapturePath": "$.reads.afterArticleUpdate.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy apply the narrow update at independently generated times."
+          },
+          {
+            "path": "$.blog.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy touch the parent blog at independently generated article-update times."
+          }
+        ]
+      },
+      {
+        "name": "article-move-cold-blog-whole-resource",
+        "capturePath": "$.operations.articleMove.response.data.articleUpdate",
+        "proxyPath": "$.data.articleUpdate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-authoritative-article-move.graphql",
+          "variablesCapturePath": "$.operations.articleMove.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.article.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy move the article at independently generated times."
+          },
+          {
+            "path": "$.article.blog.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy touch the destination blog at independently generated article-move times."
+          }
+        ]
+      },
+      {
+        "name": "article-move-cold-blog-readback-whole-resource",
+        "capturePath": "$.reads.afterArticleMove.response.data.article",
+        "proxyPath": "$.data.article",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-authoritative-article-read.graphql",
+          "variablesCapturePath": "$.reads.afterArticleMove.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy move the article at independently generated times."
+          },
+          {
+            "path": "$.blog.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy touch the destination blog at independently generated article-move times."
+          }
+        ]
+      },
+      {
+        "name": "blog-narrow-update-whole-resource",
+        "capturePath": "$.operations.blogUpdate.response.data.blogUpdate",
+        "proxyPath": "$.data.blogUpdate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-authoritative-blog-update.graphql",
+          "variablesCapturePath": "$.operations.blogUpdate.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.blog.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy apply the narrow blog update at independently generated times."
+          }
+        ]
+      },
+      {
+        "name": "blog-narrow-update-readback-whole-resource",
+        "capturePath": "$.reads.afterBlogUpdate.response.data.blog",
+        "proxyPath": "$.data.blog",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-authoritative-blog-read.graphql",
+          "variablesCapturePath": "$.reads.afterBlogUpdate.request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy apply the narrow blog update at independently generated times."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Recorded Shopify Admin GraphQL 2025-01 mutation-first evidence for an unobserved real blog on articleCreate, an unobserved destination blog on articleUpdate, a richly populated real article updated narrowly, and a metafield-rich real blog updated narrowly. Each isolated proxy branch starts empty, replays the exact query-only hydration documents captured from Shopify, compares the whole selected mutation resource, and then compares the whole selected downstream readback. Runtime coverage separately forces multi-page metafield hydration and proves omitted selections remain distinct from selected null/empty values."
+}

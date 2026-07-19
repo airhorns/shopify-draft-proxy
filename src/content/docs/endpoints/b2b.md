@@ -86,8 +86,26 @@ and `CompanyLocation.orders` expose the same staged orders that feed
 `ordersCount`, `orderCount`, and `totalSpent`; `Company.draftOrders` and
 `CompanyLocation.draftOrders` expose matching staged draft orders. These nested
 order connections honor cursor windows and return empty connection objects when
-no staged records match. Cold LiveHybrid reads that do not need local B2B
-handling continue to use the existing upstream or fixture-backed read path.
+no staged records match.
+
+Cold LiveHybrid `company(id:)`, `companyContact(id:)`, and
+`companyLocation(id:)` reads forward upstream and observe the returned entity
+and relationships before local projection. An observed company, location, or
+contact does not make its resource family or sibling relationship catalog
+complete: singular reads without a staged overlay remain authoritative upstream
+reads. Once an entity has a staged update or tombstone, that overlay takes
+precedence over later upstream observations.
+
+Before a locally supported B2B mutation makes not-found, uniqueness, ownership,
+or membership decisions in LiveHybrid mode, it issues query-only prerequisite
+reads for referenced real Shopify IDs. External-ID and contact-email checks use
+targeted upstream searches. Company location/contact/role connections and
+location/contact assignment connections continue through all upstream pages
+needed by the decision, and address deletion searches paginated company
+locations to establish the owning address slot. Direct `StaffMember` IDs are
+resolved individually even though the proxy does not hydrate a store-wide staff
+catalog. These prerequisite reads hydrate the base graph only; the original
+mutation remains local and is not sent upstream before `POST /__meta/commit`.
 
 Local B2B list connections use the shared staged-connection path for filtering,
 sorting, `reverse`, cursor windows, and `pageInfo`. `companies` supports
@@ -181,9 +199,10 @@ slots and resets `billingSameAsShipping` to `false`.
 `companyLocationAssignStaffMembers` and
 `companyLocationRemoveStaffMembers` stage staff assignment rows. Assignment
 dedups already-assigned staff, enforces a maximum of 10 observed staff members
-per location, and returns indexed `RESOURCE_NOT_FOUND` errors at
-`["staffMemberIds", i]` for staff IDs that are not present in already observed
-staff-assignment state. Removal returns indexed `RESOURCE_NOT_FOUND` errors at
+per location, resolves real direct-ID inputs through query-only LiveHybrid
+hydration, and returns indexed `RESOURCE_NOT_FOUND` errors at
+`["staffMemberIds", i]` for unresolved staff IDs. Removal returns indexed
+`RESOURCE_NOT_FOUND` errors at
 `["companyLocationStaffMemberAssignmentIds", i]` for unknown assignment IDs.
 
 `companyLocationAssignRoles` and `companyLocationRevokeRoles` stage
@@ -225,11 +244,9 @@ stored as a `DepositPercentage` object with the supplied `percentage` value.
 - `companyContactSendWelcomeEmail` remains unsupported because it is an outbound
   customer-visible email side effect. The proxy has no no-send model for it.
 - Staff assignment does not synthesize a full staff catalog, accept arbitrary
-  numeric StaffMember GIDs, or support staff catalog reads. The current
-  conformance token receives `Access denied for staffMembers field`, so local
-  assignment validity is limited to staff IDs already observed through staged
-  assignment state; unknown staff or assignment IDs return Shopify-like
-  per-index errors.
+  numeric StaffMember GIDs, or support staff catalog reads. LiveHybrid mutation
+  prerequisites can resolve a referenced staff member through `nodes(ids:)`;
+  unresolved staff or assignment IDs return Shopify-like per-index errors.
 - Validation-only B2B parity specs prove guardrail payloads and no-stage
   behavior for those inputs only. They do not make the corresponding mutation
   roots generally supported.
