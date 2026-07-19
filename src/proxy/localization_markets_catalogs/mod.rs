@@ -957,7 +957,7 @@ fn market_record_legacy(market: &Value) -> bool {
 
 /// Region country codes declared by a market record, reading from the captured
 /// `conditions.regionsCondition.regions` connection (nodes and/or edges). Supports both upstream-hydrated and mutation-staged market shapes.
-fn market_record_country_codes(market: &Value) -> Vec<String> {
+pub(in crate::proxy) fn market_record_country_codes(market: &Value) -> Vec<String> {
     let Some(regions) = market
         .get("conditions")
         .and_then(|conditions| conditions.get("regionsCondition"))
