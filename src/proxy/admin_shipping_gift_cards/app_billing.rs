@@ -911,10 +911,7 @@ impl DraftProxy {
             }));
         }
 
-        let token = format!(
-            "shpat_delegate_proxy_{}",
-            self.store.staged.delegate_access_tokens.len() + 1
-        );
+        let token = self.next_delegate_access_token_secret();
         let parent_access_token =
             request_access_token(request).unwrap_or_else(|| "shpat_parent_default".to_string());
         let created_at = self.next_product_timestamp();

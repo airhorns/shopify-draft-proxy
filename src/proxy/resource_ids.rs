@@ -68,6 +68,12 @@ impl DraftProxy {
         shopify_gid(resource_type, id)
     }
 
+    pub(in crate::proxy) fn next_delegate_access_token_secret(&mut self) -> String {
+        let id = self.next_synthetic_id;
+        self.next_synthetic_id += 1;
+        format!("shpat_delegate_proxy_{id}")
+    }
+
     /// Reserve a synthetic id for a mutation-log entry at the start of every successful mutation. This keeps entity ids in lockstep with the current synthetic-id contract: each mutation advances the counter once for its log entry before allocating the resources it creates.
     pub(in crate::proxy) fn reserve_synthetic_log_id(&mut self) {
         self.next_synthetic_id += 1;

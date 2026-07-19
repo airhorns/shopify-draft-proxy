@@ -112,6 +112,36 @@ fn delegate_access_token_create_validates_and_stages_synthetic_secret() {
 }
 
 #[test]
+fn delegate_access_token_create_does_not_reissue_token_after_destroy() {
+    let mut proxy = snapshot_proxy();
+
+    let first = create_delegate_access_token_for_removed_app_tests(&mut proxy);
+    let second = create_delegate_access_token_for_removed_app_tests(&mut proxy);
+
+    let destroy_first = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DestroyFirstDelegateAccessToken($token: String!) {
+          delegateAccessTokenDestroy(accessToken: $token) {
+            status
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": first }),
+    ));
+    assert_eq!(
+        destroy_first.body["data"]["delegateAccessTokenDestroy"],
+        json!({ "status": true, "userErrors": [] })
+    );
+
+    let third = create_delegate_access_token_for_removed_app_tests(&mut proxy);
+
+    assert_ne!(first, second);
+    assert_ne!(first, third);
+    assert_ne!(second, third);
+}
+
+#[test]
 fn apps_mutations_dispatch_by_root_field_for_ordinary_operation_names() {
     let mut proxy = configured_proxy(
         ReadMode::Snapshot,
