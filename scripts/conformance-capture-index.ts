@@ -13178,6 +13178,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}delivery-profile-default-update.json`,
       'config/parity-specs/shipping-fulfillments/delivery-profile-default-update.json',
       'config/parity-requests/shipping-fulfillments/delivery-profile-default-update.graphql',
+      'config/parity-requests/shipping-fulfillments/delivery-profile-default-update-read.graphql',
     ],
     cleanupBehavior:
       'Finds the existing default delivery profile, updates its name for the capture, reads it back, then restores the original name in cleanup.',

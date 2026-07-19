@@ -3914,6 +3914,14 @@ Observed behavior:
 - a name-input update against the shop default delivery profile returned empty
   `userErrors` and incremented `version`, but the selected public payload kept
   the default profile display name as `General profile`
+- the relationship-heavy default profile required the initial 250-item hydrate
+  plus five cursor pages to enumerate 1,458 `profileItems`; those rows contained
+  2,315 selected variants even though `productVariantsCount` remained capped at
+  `{ count: 500, precision: AT_LEAST }`
+- the whole selected delivery profile in the successful mutation payload
+  matched the immediate `deliveryProfile(id:)` readback, including profile
+  items, nested variants, location groups, selling-plan groups, unassigned
+  locations, and Count precision metadata
 
 Practical rule:
 
@@ -3924,6 +3932,11 @@ Practical rule:
 - do not reject default-profile updates just because the profile is default;
   for the public name-input branch, preserve the hydrated default display name
   while staging Shopify's accepted payload shape
+- update hydration must follow every relationship cursor before treating the
+  record as authoritative; a first-page-only record silently turns omitted
+  input into destructive relationship loss
+- scalar updates must preserve Shopify's authoritative Count values and
+  precision instead of recomputing a capped `AT_LEAST` count as an exact total
 
 ## 85. `orderDelete` is permissive for disposable Admin-created orders
 

@@ -11411,12 +11411,9 @@ fn delivery_profile_update_hydrates_and_stages_default_profile_name() {
         let default_profile_id = default_profile_id.to_string();
         move |request| {
             let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
-            assert_eq!(
-                body["query"],
-                json!(
-                    "query ShippingDeliveryProfileUpdateHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }"
-                )
-            );
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("ShippingDeliveryProfileUpdateHydrate")));
             assert_eq!(body["variables"]["id"], json!(default_profile_id));
             Response {
                 status: 200,
@@ -11427,7 +11424,25 @@ fn delivery_profile_update_hydrates_and_stages_default_profile_name() {
                             "id": default_profile_id,
                             "name": "General profile",
                             "default": true,
-                            "version": 1
+                            "version": 1,
+                            "activeMethodDefinitionsCount": 0,
+                            "locationsWithoutRatesCount": 0,
+                            "originLocationCount": 0,
+                            "zoneCountryCount": 0,
+                            "productVariantsCount": { "count": 0, "precision": "EXACT" },
+                            "profileItems": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false, "endCursor": null }
+                            },
+                            "profileLocationGroups": [],
+                            "sellingPlanGroups": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false, "endCursor": null }
+                            },
+                            "unassignedLocationsPaginated": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false, "endCursor": null }
+                            }
                         }
                     }
                 }),
@@ -11496,6 +11511,595 @@ fn delivery_profile_update_hydrates_and_stages_default_profile_name() {
         log["entries"][0]["stagedResourceIds"],
         json!([default_profile_id])
     );
+}
+
+fn delivery_profile_partial_update_fixture(id: &str, first_page_only: bool) -> Value {
+    let page_info = |has_next_page: bool, end_cursor: &str| {
+        json!({
+            "hasNextPage": has_next_page,
+            "hasPreviousPage": false,
+            "startCursor": if end_cursor.is_empty() { Value::Null } else { json!(end_cursor) },
+            "endCursor": if end_cursor.is_empty() { Value::Null } else { json!(end_cursor) }
+        })
+    };
+    let variant_one = json!({ "id": "gid://shopify/ProductVariant/501", "title": "First" });
+    let variant_two = json!({ "id": "gid://shopify/ProductVariant/502", "title": "Second" });
+    let item_one = json!({
+        "id": "gid://shopify/DeliveryProfileItem/401",
+        "product": { "id": "gid://shopify/Product/301", "title": "First product" },
+        "variants": {
+            "nodes": if first_page_only { vec![variant_one.clone()] } else { vec![variant_one, variant_two] },
+            "pageInfo": page_info(first_page_only, if first_page_only { "variant-1" } else { "variant-2" })
+        }
+    });
+    let item_two = json!({
+        "id": "gid://shopify/DeliveryProfileItem/402",
+        "product": { "id": "gid://shopify/Product/302", "title": "Second product" },
+        "variants": {
+            "nodes": [{ "id": "gid://shopify/ProductVariant/503", "title": "Only" }],
+            "pageInfo": page_info(false, "variant-3")
+        }
+    });
+    let method_one = json!({
+        "id": "gid://shopify/DeliveryMethodDefinition/801",
+        "name": "Ground",
+        "active": true,
+        "description": "Ground service",
+        "rateProvider": {
+            "__typename": "DeliveryRateDefinition",
+            "id": "gid://shopify/DeliveryRateDefinition/901",
+            "price": { "amount": "5.00", "currencyCode": "USD" }
+        },
+        "methodConditions": [{
+            "id": "gid://shopify/DeliveryCondition/1001",
+            "field": "TOTAL_PRICE",
+            "operator": "GREATER_THAN_OR_EQUAL_TO",
+            "conditionCriteria": {
+                "__typename": "MoneyV2",
+                "amount": "10.00",
+                "currencyCode": "USD"
+            }
+        }]
+    });
+    let method_two = json!({
+        "id": "gid://shopify/DeliveryMethodDefinition/802",
+        "name": "Express",
+        "active": true,
+        "description": "Express service",
+        "rateProvider": {
+            "__typename": "DeliveryRateDefinition",
+            "id": "gid://shopify/DeliveryRateDefinition/902",
+            "price": { "amount": "15.00", "currencyCode": "USD" }
+        },
+        "methodConditions": []
+    });
+    let zone_one = json!({
+        "zone": {
+            "id": "gid://shopify/DeliveryZone/701",
+            "name": "North America",
+            "countries": [{
+                "id": "gid://shopify/DeliveryCountry/US",
+                "name": "United States",
+                "translatedName": "United States",
+                "code": { "countryCode": "US", "restOfWorld": false },
+                "provinces": []
+            }]
+        },
+        "methodDefinitions": {
+            "nodes": if first_page_only { vec![method_one.clone()] } else { vec![method_one, method_two] },
+            "pageInfo": page_info(first_page_only, if first_page_only { "method-1" } else { "method-2" })
+        }
+    });
+    let zone_two = json!({
+        "zone": {
+            "id": "gid://shopify/DeliveryZone/702",
+            "name": "Rest of world",
+            "countries": [{
+                "id": "gid://shopify/DeliveryCountry/ROW",
+                "name": "Rest of World",
+                "translatedName": "Rest of World",
+                "code": { "countryCode": Value::Null, "restOfWorld": true },
+                "provinces": []
+            }]
+        },
+        "methodDefinitions": {
+            "nodes": [{
+                "id": "gid://shopify/DeliveryMethodDefinition/803",
+                "name": "International",
+                "active": true,
+                "description": Value::Null,
+                "rateProvider": {
+                    "__typename": "DeliveryRateDefinition",
+                    "id": "gid://shopify/DeliveryRateDefinition/903",
+                    "price": { "amount": "25.00", "currencyCode": "USD" }
+                },
+                "methodConditions": []
+            }],
+            "pageInfo": page_info(false, "method-3")
+        }
+    });
+    let location_one = json!({ "id": "gid://shopify/Location/101", "name": "Primary" });
+    let location_two = json!({ "id": "gid://shopify/Location/102", "name": "Secondary" });
+
+    json!({
+        "id": id,
+        "name": "Authoritative profile",
+        "default": false,
+        "version": 7,
+        "activeMethodDefinitionsCount": 3,
+        "locationsWithoutRatesCount": 2,
+        "originLocationCount": 2,
+        "zoneCountryCount": 2,
+        "productVariantsCount": { "count": 3, "precision": "EXACT" },
+        "profileItems": {
+            "nodes": if first_page_only { vec![item_one.clone()] } else { vec![item_one, item_two] },
+            "pageInfo": page_info(first_page_only, if first_page_only { "item-1" } else { "item-2" })
+        },
+        "profileLocationGroups": [{
+            "countriesInAnyZone": [
+                {
+                    "zone": "North America",
+                    "country": {
+                        "id": "gid://shopify/DeliveryCountry/US",
+                        "name": "United States",
+                        "translatedName": "United States",
+                        "code": { "countryCode": "US", "restOfWorld": false },
+                        "provinces": []
+                    }
+                },
+                {
+                    "zone": "Rest of world",
+                    "country": {
+                        "id": "gid://shopify/DeliveryCountry/ROW",
+                        "name": "Rest of World",
+                        "translatedName": "Rest of World",
+                        "code": { "countryCode": Value::Null, "restOfWorld": true },
+                        "provinces": []
+                    }
+                }
+            ],
+            "locationGroup": {
+                "id": "gid://shopify/DeliveryLocationGroup/601",
+                "locations": {
+                    "nodes": if first_page_only { vec![location_one.clone()] } else { vec![location_one, location_two] },
+                    "pageInfo": page_info(first_page_only, if first_page_only { "location-1" } else { "location-2" })
+                },
+                "locationsCount": { "count": 2, "precision": "EXACT" }
+            },
+            "locationGroupZones": {
+                "nodes": if first_page_only { vec![zone_one.clone()] } else { vec![zone_one, zone_two] },
+                "pageInfo": page_info(first_page_only, if first_page_only { "zone-1" } else { "zone-2" })
+            }
+        }],
+        "sellingPlanGroups": {
+            "nodes": if first_page_only {
+                vec![json!({ "id": "gid://shopify/SellingPlanGroup/201", "name": "Monthly" })]
+            } else {
+                vec![
+                    json!({ "id": "gid://shopify/SellingPlanGroup/201", "name": "Monthly" }),
+                    json!({ "id": "gid://shopify/SellingPlanGroup/202", "name": "Annual" })
+                ]
+            },
+            "pageInfo": page_info(first_page_only, if first_page_only { "selling-1" } else { "selling-2" })
+        },
+        "unassignedLocationsPaginated": {
+            "nodes": if first_page_only {
+                vec![json!({ "id": "gid://shopify/Location/103", "name": "Unassigned one" })]
+            } else {
+                vec![
+                    json!({ "id": "gid://shopify/Location/103", "name": "Unassigned one" }),
+                    json!({ "id": "gid://shopify/Location/104", "name": "Unassigned two" })
+                ]
+            },
+            "pageInfo": page_info(first_page_only, if first_page_only { "unassigned-1" } else { "unassigned-2" })
+        },
+        "unassignedLocations": if first_page_only {
+            vec![json!({ "id": "gid://shopify/Location/103", "name": "Unassigned one" })]
+        } else {
+            vec![
+                json!({ "id": "gid://shopify/Location/103", "name": "Unassigned one" }),
+                json!({ "id": "gid://shopify/Location/104", "name": "Unassigned two" })
+            ]
+        }
+    })
+}
+
+fn remove_delivery_profile_connection_cursors(value: &mut Value) {
+    match value {
+        Value::Array(values) => {
+            for value in values {
+                remove_delivery_profile_connection_cursors(value);
+            }
+        }
+        Value::Object(fields) => {
+            fields.remove("startCursor");
+            fields.remove("endCursor");
+            for value in fields.values_mut() {
+                remove_delivery_profile_connection_cursors(value);
+            }
+        }
+        _ => {}
+    }
+}
+
+#[test]
+fn delivery_profile_narrow_update_hydrates_every_relationship_page_without_data_loss() {
+    let profile_id = "gid://shopify/DeliveryProfile/authoritative";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let profile_id = profile_id.to_string();
+        move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            let response_body = if query.contains("DeliveryProfileBeforeNarrowUpdate") {
+                json!({ "data": { "deliveryProfile": delivery_profile_partial_update_fixture(&profile_id, false) } })
+            } else if query.contains("ShippingDeliveryProfileUpdateHydrate") {
+                json!({ "data": { "deliveryProfile": delivery_profile_partial_update_fixture(&profile_id, true) } })
+            } else if query.contains("ShippingDeliveryProfileItemsPage") {
+                let full = delivery_profile_partial_update_fixture(&profile_id, false);
+                json!({
+                    "data": { "deliveryProfile": { "profileItems": {
+                        "nodes": [full["profileItems"]["nodes"][1].clone()],
+                        "pageInfo": full["profileItems"]["pageInfo"].clone()
+                    } } }
+                })
+            } else if query.contains("ShippingDeliveryProfileItemVariantsPage") {
+                json!({
+                    "data": { "node": { "id": "gid://shopify/DeliveryProfileItem/401", "variants": {
+                        "nodes": [{ "id": "gid://shopify/ProductVariant/502", "title": "Second" }],
+                        "pageInfo": { "hasNextPage": false, "endCursor": "variant-2" }
+                    } } }
+                })
+            } else if query.contains("ShippingDeliveryProfileLocationsPage") {
+                json!({
+                    "data": { "node": { "id": "gid://shopify/DeliveryLocationGroup/601", "locations": {
+                        "nodes": [{ "id": "gid://shopify/Location/102", "name": "Secondary" }],
+                        "pageInfo": { "hasNextPage": false, "endCursor": "location-2" }
+                    } } }
+                })
+            } else if query.contains("ShippingDeliveryProfileZonesPage") {
+                let full = delivery_profile_partial_update_fixture(&profile_id, false);
+                json!({
+                    "data": { "deliveryProfile": { "profileLocationGroups": [{
+                        "locationGroup": { "id": "gid://shopify/DeliveryLocationGroup/601" },
+                        "locationGroupZones": {
+                            "nodes": [full["profileLocationGroups"][0]["locationGroupZones"]["nodes"][1].clone()],
+                            "pageInfo": full["profileLocationGroups"][0]["locationGroupZones"]["pageInfo"].clone()
+                        }
+                    }] } }
+                })
+            } else if query.contains("ShippingDeliveryProfileMethodsPage") {
+                json!({
+                    "data": { "deliveryProfile": { "profileLocationGroups": [{
+                        "locationGroup": { "id": "gid://shopify/DeliveryLocationGroup/601" },
+                        "locationGroupZones": { "nodes": [{
+                            "zone": { "id": "gid://shopify/DeliveryZone/701" },
+                            "methodDefinitions": {
+                                "nodes": [{
+                                    "id": "gid://shopify/DeliveryMethodDefinition/802",
+                                    "name": "Express",
+                                    "active": true,
+                                    "description": "Express service",
+                                    "rateProvider": {
+                                        "__typename": "DeliveryRateDefinition",
+                                        "id": "gid://shopify/DeliveryRateDefinition/902",
+                                        "price": { "amount": "15.00", "currencyCode": "USD" }
+                                    },
+                                    "methodConditions": []
+                                }],
+                                "pageInfo": { "hasNextPage": false, "endCursor": "method-2" }
+                            }
+                        }] }
+                    }] } }
+                })
+            } else if query.contains("ShippingDeliveryProfileSellingPlanGroupsPage") {
+                json!({
+                    "data": { "deliveryProfile": { "sellingPlanGroups": {
+                        "nodes": [{ "id": "gid://shopify/SellingPlanGroup/202", "name": "Annual" }],
+                        "pageInfo": { "hasNextPage": false, "endCursor": "selling-2" }
+                    } } }
+                })
+            } else if query.contains("ShippingDeliveryProfileUnassignedLocationsPage") {
+                json!({
+                    "data": { "deliveryProfile": { "unassignedLocationsPaginated": {
+                        "nodes": [{ "id": "gid://shopify/Location/104", "name": "Unassigned two" }],
+                        "pageInfo": { "hasNextPage": false, "endCursor": "unassigned-2" }
+                    } } }
+                })
+            } else if query.contains("ShippingDeliveryProfileLocationNodesHydrate") {
+                json!({
+                    "data": { "nodes": [{
+                        "__typename": "Location",
+                        "id": "gid://shopify/Location/105",
+                        "name": "Added location",
+                        "isActive": true,
+                        "isFulfillmentService": false
+                    }] }
+                })
+            } else if query.contains("ShippingDeliveryProfileVariantsHydrate") {
+                json!({
+                    "data": { "nodes": [{
+                        "id": "gid://shopify/ProductVariant/504",
+                        "title": "Added variant",
+                        "product": {
+                            "id": "gid://shopify/Product/303",
+                            "title": "Added product",
+                            "handle": "added-product"
+                        }
+                    }] }
+                })
+            } else if query.contains("ShippingDeliveryProfileSellingPlanGroupsHydrate") {
+                json!({
+                    "data": { "nodes": [{
+                        "id": "gid://shopify/SellingPlanGroup/203",
+                        "name": "Quarterly"
+                    }] }
+                })
+            } else {
+                panic!("unexpected delivery-profile upstream request: {body}");
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: response_body,
+            }
+        }
+    });
+    let full_profile_selection = r#"
+      id
+      name
+      default
+      version
+      activeMethodDefinitionsCount
+      locationsWithoutRatesCount
+      originLocationCount
+      zoneCountryCount
+      productVariantsCount { count precision }
+      profileItems(first: 250) {
+        nodes {
+          id
+          product { id title }
+          variants(first: 250) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+      profileLocationGroups {
+        countriesInAnyZone {
+          zone
+          country {
+            id name translatedName
+            code { countryCode restOfWorld }
+            provinces { id name code }
+          }
+        }
+        locationGroup {
+          id
+          locations(first: 250) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          locationsCount { count precision }
+        }
+        locationGroupZones(first: 250) {
+          nodes {
+            zone {
+              id name
+              countries {
+                id name translatedName
+                code { countryCode restOfWorld }
+                provinces { id name code }
+              }
+            }
+            methodDefinitions(first: 250) {
+              nodes {
+                id name active description
+                rateProvider {
+                  ... on DeliveryRateDefinition { id price { amount currencyCode } }
+                }
+                methodConditions {
+                  id field operator
+                  conditionCriteria {
+                    __typename
+                    ... on MoneyV2 { amount currencyCode }
+                    ... on Weight { unit value }
+                  }
+                }
+              }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+      }
+      sellingPlanGroups(first: 250) {
+        nodes { id name }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+      unassignedLocationsPaginated(first: 250) {
+        nodes { id name }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+      unassignedLocations { id name }
+    "#;
+
+    let before = proxy.process_request(json_graphql_request(
+        &format!(
+            "query DeliveryProfileBeforeNarrowUpdate($id: ID!) {{ deliveryProfile(id: $id) {{ {full_profile_selection} }} }}"
+        ),
+        json!({ "id": profile_id }),
+    ));
+    assert_eq!(before.status, 200);
+    let mut expected_after = before.body["data"]["deliveryProfile"].clone();
+    expected_after["name"] = json!("Authoritative profile renamed");
+    expected_after["version"] = json!(8);
+    remove_delivery_profile_connection_cursors(&mut expected_after);
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileNarrowUpdate($id: ID!, $profile: DeliveryProfileInput!) {
+          deliveryProfileUpdate(id: $id, profile: $profile) {
+            profile { id name version }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": profile_id,
+            "profile": { "name": "Authoritative profile renamed" }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["deliveryProfileUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let after = proxy.process_request(json_graphql_request(
+        &format!(
+            "query DeliveryProfileAfterNarrowUpdate($id: ID!) {{ deliveryProfile(id: $id) {{ {full_profile_selection} }} }}"
+        ),
+        json!({ "id": profile_id }),
+    ));
+    assert_eq!(after.status, 200);
+    let mut actual_after = after.body["data"]["deliveryProfile"].clone();
+    remove_delivery_profile_connection_cursors(&mut actual_after);
+    assert_eq!(actual_after, expected_after);
+
+    let nested_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileNestedDeltaUpdate($id: ID!, $profile: DeliveryProfileInput!) {
+          deliveryProfileUpdate(id: $id, profile: $profile) {
+            profile { id version }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": profile_id,
+            "profile": {
+                "variantsToAssociate": ["gid://shopify/ProductVariant/504"],
+                "variantsToDissociate": ["gid://shopify/ProductVariant/501"],
+                "sellingPlanGroupsToAssociate": ["gid://shopify/SellingPlanGroup/203"],
+                "sellingPlanGroupsToDissociate": ["gid://shopify/SellingPlanGroup/201"],
+                "zonesToDelete": ["gid://shopify/DeliveryZone/702"],
+                "methodDefinitionsToDelete": ["gid://shopify/DeliveryMethodDefinition/801"],
+                "locationGroupsToUpdate": [{
+                    "id": "gid://shopify/DeliveryLocationGroup/601",
+                    "locationsToAdd": ["gid://shopify/Location/105"],
+                    "locationsToRemove": ["gid://shopify/Location/101"],
+                    "zonesToUpdate": [{
+                        "id": "gid://shopify/DeliveryZone/701",
+                        "name": "North America updated",
+                        "methodDefinitionsToUpdate": [{
+                            "id": "gid://shopify/DeliveryMethodDefinition/802",
+                            "name": "Express updated"
+                        }],
+                        "methodDefinitionsToCreate": [{
+                            "name": "Overnight",
+                            "active": true,
+                            "rateDefinition": {
+                                "price": { "amount": "30.00", "currencyCode": "USD" }
+                            }
+                        }]
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(nested_update.status, 200);
+    assert_eq!(
+        nested_update.body["data"]["deliveryProfileUpdate"]["userErrors"],
+        json!([])
+    );
+    let after_nested_update = proxy.process_request(json_graphql_request(
+        &format!(
+            "query DeliveryProfileAfterNestedDelta($id: ID!) {{ deliveryProfile(id: $id) {{ {full_profile_selection} }} }}"
+        ),
+        json!({ "id": profile_id }),
+    ));
+    let nested_profile = &after_nested_update.body["data"]["deliveryProfile"];
+    assert_eq!(nested_profile["version"], json!(9));
+    assert_eq!(
+        nested_profile["profileLocationGroups"][0]["locationGroup"]["locations"]["nodes"],
+        json!([
+            { "id": "gid://shopify/Location/102", "name": "Secondary" },
+            { "id": "gid://shopify/Location/105", "name": "Added location" }
+        ])
+    );
+    let zones = &nested_profile["profileLocationGroups"][0]["locationGroupZones"]["nodes"];
+    assert_eq!(zones.as_array().unwrap().len(), 1);
+    assert_eq!(zones[0]["zone"]["name"], json!("North America updated"));
+    assert_eq!(
+        zones[0]["methodDefinitions"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        zones[0]["methodDefinitions"]["nodes"][0]["id"],
+        json!("gid://shopify/DeliveryMethodDefinition/802")
+    );
+    assert_eq!(
+        zones[0]["methodDefinitions"]["nodes"][0]["name"],
+        json!("Express updated")
+    );
+    assert_eq!(
+        nested_profile["profileItems"]["nodes"][0]["variants"]["nodes"],
+        json!([{ "id": "gid://shopify/ProductVariant/502", "title": "Second" }])
+    );
+    assert_eq!(
+        nested_profile["profileItems"]["nodes"][1]["product"]["id"],
+        json!("gid://shopify/Product/302")
+    );
+    assert_eq!(
+        nested_profile["profileItems"]["nodes"][2]["variants"]["nodes"][0]["id"],
+        json!("gid://shopify/ProductVariant/504")
+    );
+    assert_eq!(
+        nested_profile["sellingPlanGroups"]["nodes"],
+        json!([
+            { "id": "gid://shopify/SellingPlanGroup/202", "name": "Annual" },
+            { "id": "gid://shopify/SellingPlanGroup/203", "name": "Quarterly" }
+        ])
+    );
+    assert_eq!(
+        nested_profile["unassignedLocationsPaginated"]["nodes"],
+        json!([
+            { "id": "gid://shopify/Location/103", "name": "Unassigned one" },
+            { "id": "gid://shopify/Location/104", "name": "Unassigned two" }
+        ])
+    );
+
+    let queries = upstream_calls
+        .lock()
+        .unwrap()
+        .iter()
+        .filter_map(|body| body["query"].as_str().map(str::to_string))
+        .collect::<Vec<_>>();
+    for operation_name in [
+        "ShippingDeliveryProfileUpdateHydrate",
+        "ShippingDeliveryProfileItemsPage",
+        "ShippingDeliveryProfileItemVariantsPage",
+        "ShippingDeliveryProfileLocationsPage",
+        "ShippingDeliveryProfileZonesPage",
+        "ShippingDeliveryProfileMethodsPage",
+        "ShippingDeliveryProfileSellingPlanGroupsPage",
+        "ShippingDeliveryProfileUnassignedLocationsPage",
+        "ShippingDeliveryProfileLocationNodesHydrate",
+        "ShippingDeliveryProfileVariantsHydrate",
+        "ShippingDeliveryProfileSellingPlanGroupsHydrate",
+    ] {
+        assert!(
+            queries.iter().any(|query| query.contains(operation_name)),
+            "missing paginated hydrate operation {operation_name}: {queries:?}"
+        );
+    }
 }
 
 #[test]
