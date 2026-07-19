@@ -1,0 +1,14 @@
+mutation SegmentMalformedIdUpdateInline {
+  segmentUpdate(
+    name: "x"
+    id: "not-a-gid"
+  ) {
+    segment {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

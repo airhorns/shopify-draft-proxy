@@ -163,7 +163,7 @@ impl DraftProxy {
                 "segmentUpdate" => {
                     let id = resolved_string_field(&arguments, "id").unwrap_or_default();
                     if let Some(response) =
-                        segment_id_top_level_error(&id, &field.response_key, field)
+                        segment_id_top_level_error(&id, field, &document, query)
                     {
                         return response;
                     }
@@ -233,7 +233,7 @@ impl DraftProxy {
                 "segmentDelete" => {
                     let id = resolved_string_field(&arguments, "id").unwrap_or_default();
                     if let Some(response) =
-                        segment_id_top_level_error(&id, &field.response_key, field)
+                        segment_id_top_level_error(&id, field, &document, query)
                     {
                         return response;
                     }
@@ -267,6 +267,24 @@ impl DraftProxy {
             self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
         }
         ok_json(json!({ "data": data }))
+    }
+
+    pub(in crate::proxy) fn segment_read_top_level_error(
+        &self,
+        query: &str,
+        document: &ParsedDocument,
+    ) -> Option<Response> {
+        for field in document
+            .root_fields
+            .iter()
+            .filter(|field| field.name == "segment")
+        {
+            let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+            if let Some(response) = segment_id_top_level_error(&id, field, document, query) {
+                return Some(response);
+            }
+        }
+        None
     }
 
     fn segment_available_name(
@@ -498,7 +516,7 @@ fn member_query_segment_id_top_level_error(
         .find(|field| field.name == "customerSegmentMembersQueryCreate")?;
     match shopify_gid_resource_type(segment_id) {
         Some("Segment") => None,
-        Some(_) => segment_id_top_level_error(segment_id, &field.response_key, field),
+        Some(_) => segment_id_top_level_error(segment_id, field, &document, query),
         None => Some(ok_json(json!({
             "errors": [member_query_segment_id_invalid_variable_error(&document, field, segment_id)
                 .unwrap_or_else(|| member_query_segment_id_invalid_literal_error(&document, field, segment_id))]
@@ -980,8 +998,9 @@ fn segment_required_argument_error(
 
 fn segment_id_top_level_error(
     id: &str,
-    response_key: &str,
     field: &RootFieldSelection,
+    document: &ParsedDocument,
+    query: &str,
 ) -> Option<Response> {
     match shopify_gid_resource_type(id) {
         Some("Segment") => None,
@@ -990,24 +1009,57 @@ fn segment_id_top_level_error(
                 "message": "invalid id",
                 "locations": [{"line": field.location.line, "column": field.location.column}],
                 "extensions": {"code": "RESOURCE_NOT_FOUND"},
-                "path": [response_key]
+                "path": [field.response_key.clone()]
             }],
-            "data": { response_key: null }
+            "data": { (field.response_key.clone()): null }
         }))),
         None => Some(ok_json(json!({
-            "errors": [{
-                "message": "Variable $id of type ID! was provided invalid value",
-                "locations": [{"line": 2, "column": 38}],
-                "extensions": {
-                    "code": "INVALID_VARIABLE",
-                    "value": id,
-                    "problems": [{
-                        "path": [],
-                        "explanation": format!("Invalid global id '{id}'"),
-                        "message": format!("Invalid global id '{id}'")
-                    }]
-                }
-            }]
+            "errors": [segment_id_invalid_variable_error(document, field, id)
+                .unwrap_or_else(|| segment_id_invalid_literal_error(query, document, field, id))]
         }))),
     }
+}
+
+fn segment_id_invalid_variable_error(
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
+    id: &str,
+) -> Option<Value> {
+    let RawArgumentValue::Variable { name, value } = field.raw_arguments.get("id")? else {
+        return None;
+    };
+    let value = value.as_ref()?;
+    let variable_definition = document.variable_definitions.get(name)?;
+    let explanation = format!("Invalid global id '{id}'");
+    Some(invalid_variable_error_envelope(
+        format!(
+            "Variable ${} of type {} was provided invalid value",
+            name, variable_definition.type_display
+        ),
+        variable_definition.location,
+        resolved_value_json(value),
+        json!([variable_problem_with_message_value_path(&[], &explanation)]),
+    ))
+}
+
+fn segment_id_invalid_literal_error(
+    query: &str,
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
+    id: &str,
+) -> Value {
+    let location = inline_argument_value_location(query, field, "id").unwrap_or(field.location);
+    json!({
+        "message": format!("Invalid global id '{id}'"),
+        "locations": [{"line": location.line, "column": location.column}],
+        "path": [
+            document.operation_path.as_str(),
+            field.response_key.as_str(),
+            "id"
+        ],
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "CoercionError"
+        }
+    })
 }

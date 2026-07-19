@@ -6297,6 +6297,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segment-malformed-id-error-locations',
+    scriptPath: 'scripts/capture-segment-malformed-id-error-locations-conformance.ts',
+    purpose:
+      'segment/segmentUpdate/segmentDelete malformed id variable-vs-literal error wording and source locations.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-malformed-id-error-locations.json`,
+      'config/parity-specs/segments/segment-malformed-id-error-locations.json',
+      'config/parity-requests/segments/segment-malformed-id-delete-inline.graphql',
+      'config/parity-requests/segments/segment-malformed-id-delete-variable.graphql',
+      'config/parity-requests/segments/segment-malformed-id-read-inline.graphql',
+      'config/parity-requests/segments/segment-malformed-id-read-variable.graphql',
+      'config/parity-requests/segments/segment-malformed-id-update-inline.graphql',
+      'config/parity-requests/segments/segment-malformed-id-update-variable.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no live segment setup or cleanup expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
     captureId: 'segment-update-delete-malformed-gid',
     scriptPath: 'scripts/capture-segment-update-delete-malformed-gid-conformance.ts',
     purpose:

@@ -1,0 +1,7 @@
+query SegmentMalformedIdReadInline {
+  segment(
+    id: "not-a-gid"
+  ) {
+    id
+  }
+}

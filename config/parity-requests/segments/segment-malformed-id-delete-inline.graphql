@@ -1,0 +1,11 @@
+mutation SegmentMalformedIdDeleteInline {
+  segmentDelete(
+    id: "not-a-gid"
+  ) {
+    deletedSegmentId
+    userErrors {
+      field
+      message
+    }
+  }
+}

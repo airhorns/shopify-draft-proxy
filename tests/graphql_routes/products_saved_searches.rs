@@ -9888,6 +9888,168 @@ fn segment_delete_matches_shopify_validation_shapes() {
 }
 
 #[test]
+fn segment_id_coercion_errors_derive_variable_and_literal_locations() {
+    let mut proxy = snapshot_proxy();
+    let invalid_id = "not-a-gid";
+    let invalid_id_message = format!("Invalid global id '{invalid_id}'");
+
+    let update_variable_query = r#"mutation SegmentUpdateVariableLocation(
+  $name: String!
+  $id: ID!
+) {
+  segmentUpdate(
+    name: $name
+    id: $id
+  ) {
+    segment { id }
+    userErrors { field message }
+  }
+}"#;
+    let update_variable = proxy.process_request(json_graphql_request(
+        update_variable_query,
+        json!({ "id": invalid_id, "name": "x" }),
+    ));
+    assert_eq!(update_variable.status, 200);
+    assert_eq!(update_variable.body.get("data"), None);
+    assert_eq!(
+        update_variable.body["errors"],
+        json!([{
+            "message": "Variable $id of type ID! was provided invalid value",
+            "locations": [{ "line": 3, "column": 3 }],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": invalid_id,
+                "problems": [{
+                    "path": [],
+                    "explanation": invalid_id_message,
+                    "message": invalid_id_message
+                }]
+            }
+        }])
+    );
+
+    let update_inline_query = r#"mutation SegmentUpdateInlineMalformed {
+  segmentUpdate(
+    name: "x"
+    id: "not-a-gid"
+  ) {
+    segment { id }
+    userErrors { field message }
+  }
+}"#;
+    let update_inline =
+        proxy.process_request(json_graphql_request(update_inline_query, json!({})));
+    assert_eq!(update_inline.status, 200);
+    assert_eq!(update_inline.body.get("data"), None);
+    assert_eq!(
+        update_inline.body["errors"],
+        json!([{
+            "message": invalid_id_message,
+            "locations": [{ "line": 4, "column": 9 }],
+            "path": ["mutation SegmentUpdateInlineMalformed", "segmentUpdate", "id"],
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "CoercionError"
+            }
+        }])
+    );
+
+    let delete_variable_query = r#"mutation SegmentDeleteVariableLocation(
+  $id: ID!
+) {
+  segmentDelete(id: $id) {
+    deletedSegmentId
+    userErrors { field message }
+  }
+}"#;
+    let delete_variable = proxy.process_request(json_graphql_request(
+        delete_variable_query,
+        json!({ "id": invalid_id }),
+    ));
+    assert_eq!(delete_variable.status, 200);
+    assert_eq!(delete_variable.body.get("data"), None);
+    assert_eq!(
+        delete_variable.body["errors"][0]["message"],
+        json!("Variable $id of type ID! was provided invalid value")
+    );
+    assert_eq!(
+        delete_variable.body["errors"][0]["locations"],
+        json!([{ "line": 2, "column": 3 }])
+    );
+
+    let delete_inline_query = r#"mutation SegmentDeleteInlineMalformed {
+  segmentDelete(
+    id: "not-a-gid"
+  ) {
+    deletedSegmentId
+    userErrors { field message }
+  }
+}"#;
+    let delete_inline =
+        proxy.process_request(json_graphql_request(delete_inline_query, json!({})));
+    assert_eq!(delete_inline.status, 200);
+    assert_eq!(delete_inline.body.get("data"), None);
+    assert_eq!(
+        delete_inline.body["errors"],
+        json!([{
+            "message": invalid_id_message,
+            "locations": [{ "line": 3, "column": 9 }],
+            "path": ["mutation SegmentDeleteInlineMalformed", "segmentDelete", "id"],
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "CoercionError"
+            }
+        }])
+    );
+
+    let read_variable_query = r#"query SegmentReadVariableLocation(
+  $id: ID!
+) {
+  segment(id: $id) {
+    id
+  }
+}"#;
+    let read_variable = proxy.process_request(json_graphql_request(
+        read_variable_query,
+        json!({ "id": invalid_id }),
+    ));
+    assert_eq!(read_variable.status, 200);
+    assert_eq!(read_variable.body.get("data"), None);
+    assert_eq!(
+        read_variable.body["errors"][0]["message"],
+        json!("Variable $id of type ID! was provided invalid value")
+    );
+    assert_eq!(
+        read_variable.body["errors"][0]["locations"],
+        json!([{ "line": 2, "column": 3 }])
+    );
+
+    let read_inline_query = r#"query SegmentReadInlineMalformed {
+  segment(
+    id: "not-a-gid"
+  ) {
+    id
+  }
+}"#;
+    let read_inline = proxy.process_request(json_graphql_request(read_inline_query, json!({})));
+    assert_eq!(read_inline.status, 200);
+    assert_eq!(read_inline.body.get("data"), None);
+    assert_eq!(
+        read_inline.body["errors"],
+        json!([{
+            "message": invalid_id_message,
+            "locations": [{ "line": 3, "column": 9 }],
+            "path": ["query SegmentReadInlineMalformed", "segment", "id"],
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "CoercionError"
+            }
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
 fn segment_mutations_validate_inputs_without_operation_name_markers() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"

@@ -1,0 +1,17 @@
+mutation SegmentMalformedIdUpdateVariable(
+  $name: String!
+  $id: ID!
+) {
+  segmentUpdate(
+    name: $name
+    id: $id
+  ) {
+    segment {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

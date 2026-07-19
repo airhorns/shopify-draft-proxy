@@ -1,0 +1,84 @@
+{
+  "scenarioId": "segment-malformed-id-error-locations",
+  "operationNames": ["segment", "segmentUpdate", "segmentDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "top-level-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-malformed-id-error-locations.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segment-malformed-id-read-variable.graphql",
+    "variablesCapturePath": "$.cases[0].request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live validation-only evidence that malformed id values on segment, segmentUpdate, and segmentDelete derive top-level GraphQL error wording and locations from the submitted document. Variable cases assert variable-definition locations and INVALID_VARIABLE envelopes; inline cases assert literal coercion wording and argument literal locations.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "segment-read-variable-malformed-id-error-location",
+        "capturePath": "$.cases[0].response.payload",
+        "proxyPath": "$",
+        "selectedPaths": ["$.errors"]
+      },
+      {
+        "name": "segment-read-inline-malformed-id-error-location",
+        "capturePath": "$.cases[1].response.payload",
+        "proxyPath": "$",
+        "selectedPaths": ["$.errors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-malformed-id-read-inline.graphql",
+          "variables": {},
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "segment-update-variable-malformed-id-error-location",
+        "capturePath": "$.cases[2].response.payload",
+        "proxyPath": "$",
+        "selectedPaths": ["$.errors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-malformed-id-update-variable.graphql",
+          "variablesCapturePath": "$.cases[2].request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "segment-update-inline-malformed-id-error-location",
+        "capturePath": "$.cases[3].response.payload",
+        "proxyPath": "$",
+        "selectedPaths": ["$.errors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-malformed-id-update-inline.graphql",
+          "variables": {},
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "segment-delete-variable-malformed-id-error-location",
+        "capturePath": "$.cases[4].response.payload",
+        "proxyPath": "$",
+        "selectedPaths": ["$.errors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-malformed-id-delete-variable.graphql",
+          "variablesCapturePath": "$.cases[4].request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "segment-delete-inline-malformed-id-error-location",
+        "capturePath": "$.cases[5].response.payload",
+        "proxyPath": "$",
+        "selectedPaths": ["$.errors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-malformed-id-delete-inline.graphql",
+          "variables": {},
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

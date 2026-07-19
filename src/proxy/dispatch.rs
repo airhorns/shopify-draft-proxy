@@ -2239,10 +2239,16 @@ impl DraftProxy {
             (CapabilityDomain::Segments, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
-                let fields = try_root_fields!(&query, &variables);
+                let Some(document) = parsed_document(&query, &variables) else {
+                    return json_error(400, "Could not parse GraphQL operation");
+                };
+                let fields = &document.root_fields;
+                if let Some(response) = self.segment_read_top_level_error(&query, &document) {
+                    return response;
+                }
                 if root_field == "customerSegmentMembersQuery" {
                     ok_json(json!({
-                        "data": self.customer_segment_members_query_read_data(&fields)
+                        "data": self.customer_segment_members_query_read_data(fields)
                     }))
                 } else if self.store.staged.segments.is_empty()
                     && self.store.staged.segment_catalog.is_empty()
@@ -2260,7 +2266,7 @@ impl DraftProxy {
                     // locally below.
                     (self.upstream_transport)(request.clone())
                 } else {
-                    let (data, errors) = self.segment_read_data(&fields);
+                    let (data, errors) = self.segment_read_data(fields);
                     if errors.is_empty() {
                         ok_json(json!({ "data": data }))
                     } else {
