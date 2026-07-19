@@ -21,6 +21,11 @@ pub(in crate::proxy) fn customer_field_resolver_registrations() -> Vec<FieldReso
                 "storeCreditAccounts",
                 customer_store_credit_accounts_field,
             ),
+            (
+                "Customer",
+                "companyContactProfiles",
+                customer_company_contact_profiles_field,
+            ),
             ("Customer", "metafield", customer_metafield_field),
             ("Customer", "metafields", customer_metafields_field),
         ]
@@ -118,6 +123,16 @@ fn customer_payment_methods_field(
         customer_parent_id(invocation)?,
         &resolved_arguments_from_json(&invocation.arguments),
     ))
+}
+
+fn customer_company_contact_profiles_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(Value::Array(proxy.b2b_contacts_for_customer(
+        customer_parent_id(invocation)?,
+    )))
 }
 
 fn customer_store_credit_accounts_field(

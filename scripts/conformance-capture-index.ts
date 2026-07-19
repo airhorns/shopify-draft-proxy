@@ -246,11 +246,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-company-lifecycle-conformance.mts',
     purpose:
-      'B2B company lifecycle, customer-as-contact assignment, main-contact assignment/revocation, wrong-company main-contact validation, main-contact delete clearing, bulk delete, explicit delete, and post-delete empty reads.',
+      'B2B company lifecycle, cold customer-as-contact assignment hydration and missing-resource controls, downstream relationship reads, main-contact assignment/revocation, wrong-company main-contact validation, main-contact delete clearing, bulk delete, explicit delete, and post-delete empty reads.',
     requiredAuthScopes: ['read_companies', 'write_companies', 'read_customers', 'write_customers'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-company-contact-main-delete.json`,
       'config/parity-specs/b2b/b2b-company-contact-main-delete.json',
+      'config/parity-requests/b2b/b2b-assign-customer-as-contact-cold-readback.graphql',
     ],
     cleanupBehavior:
       'Creates disposable companies and a disposable customer; deletes companies during the scenario and deletes the customer in cleanup.',
