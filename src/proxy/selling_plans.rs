@@ -17,7 +17,9 @@ query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
       position
       createdAt
       products(first: 250) {
-        nodes {
+        edges {
+          cursor
+          node {
           __typename
           id
           title
@@ -26,7 +28,9 @@ query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
           createdAt
           updatedAt
           variants(first: 50) {
-            nodes {
+            edges {
+              cursor
+              node {
               __typename
               id
               title
@@ -39,12 +43,18 @@ query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
               inventoryQuantity
               selectedOptions { name value }
               inventoryItem { id tracked requiresShipping }
+              }
             }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
           }
         }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
       }
       productVariants(first: 250) {
-        nodes {
+        edges {
+          cursor
+          node {
           __typename
           id
           title
@@ -58,10 +68,14 @@ query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
           selectedOptions { name value }
           inventoryItem { id tracked requiresShipping }
           product { id title handle status createdAt updatedAt }
+          }
         }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
       }
       sellingPlans(first: 250) {
-        nodes {
+        edges {
+          cursor
+          node {
           __typename
           id
           name
@@ -100,8 +114,93 @@ query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
               }
             }
           }
+          }
+        }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+  }
+}
+"#;
+
+const SELLING_PLAN_GROUPS_CONNECTION_BASELINE_QUERY: &str = r#"
+query SellingPlanGroupsConnectionBaseline(
+  $first: Int!
+  $after: String
+  $query: String
+  $sortKey: SellingPlanGroupSortKeys
+) {
+  sellingPlanGroupsBaseline: sellingPlanGroups(
+    first: $first
+    after: $after
+    query: $query
+    sortKey: $sortKey
+  ) {
+    edges { cursor node { id } }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+}
+"#;
+
+const SELLING_PLAN_GROUP_PRODUCTS_PAGE_QUERY: &str = r#"
+query SellingPlanGroupProductsPage($id: ID!, $first: Int!, $after: String) {
+  sellingPlanGroup(id: $id) {
+    products(first: $first, after: $after) {
+      edges {
+        cursor
+        node {
+          __typename id title handle status createdAt updatedAt
+          variants(first: 50) {
+            edges {
+              cursor
+              node {
+                __typename id title sku barcode price compareAtPrice taxable
+                inventoryPolicy inventoryQuantity selectedOptions { name value }
+                inventoryItem { id tracked requiresShipping }
+              }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
         }
       }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+  }
+}
+"#;
+
+const SELLING_PLAN_GROUP_PRODUCT_VARIANTS_PAGE_QUERY: &str = r#"
+query SellingPlanGroupProductVariantsPage($id: ID!, $first: Int!, $after: String) {
+  sellingPlanGroup(id: $id) {
+    productVariants(first: $first, after: $after) {
+      edges {
+        cursor
+        node {
+          __typename id title sku barcode price compareAtPrice taxable
+          inventoryPolicy inventoryQuantity selectedOptions { name value }
+          inventoryItem { id tracked requiresShipping }
+          product { id title handle status createdAt updatedAt }
+        }
+      }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+  }
+}
+"#;
+
+const SELLING_PLAN_PRODUCT_VARIANTS_PAGE_QUERY: &str = r#"
+query SellingPlanProductVariantsPage($id: ID!, $first: Int!, $after: String) {
+  product(id: $id) {
+    variants(first: $first, after: $after) {
+      edges {
+        cursor
+        node {
+          __typename id title sku barcode price compareAtPrice taxable
+          inventoryPolicy inventoryQuantity selectedOptions { name value }
+          inventoryItem { id tracked requiresShipping }
+        }
+      }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
     }
   }
 }
@@ -284,7 +383,7 @@ fn selling_plan_group_products_field(
             .map(|product| proxy.product_canonical_value(product))
             .collect(),
         &selling_plan_field_arguments(invocation),
-        value_id_cursor,
+        |node| selling_plan_relationship_cursor(&group.product_cursors, node),
     ))
 }
 
@@ -304,7 +403,7 @@ fn selling_plan_group_product_variants_field(
             .map(|variant| proxy.product_variant_canonical_value(variant))
             .collect(),
         &selling_plan_field_arguments(invocation),
-        value_id_cursor,
+        |node| selling_plan_relationship_cursor(&group.product_variant_cursors, node),
     ))
 }
 
@@ -313,20 +412,32 @@ fn selling_plan_group_selling_plans_field(
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
-    let plans = selling_plan_group_field_record(proxy, invocation)
-        .map(|group| {
-            group
-                .selling_plans
-                .iter()
-                .map(selling_plan_canonical_value)
-                .collect()
-        })
-        .unwrap_or_default();
+    let Some(group) = selling_plan_group_field_record(proxy, invocation) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    let plans = group
+        .selling_plans
+        .iter()
+        .map(selling_plan_canonical_value)
+        .collect();
     Ok(connection_value_with_args(
         plans,
         &selling_plan_field_arguments(invocation),
-        value_id_cursor,
+        |node| {
+            let id = value_id_cursor(node);
+            group
+                .selling_plans
+                .iter()
+                .find(|plan| plan.id == id)
+                .and_then(|plan| plan.cursor.clone())
+                .unwrap_or(id)
+        },
     ))
+}
+
+fn selling_plan_relationship_cursor(cursors: &BTreeMap<String, String>, node: &Value) -> String {
+    let id = value_id_cursor(node);
+    cursors.get(&id).cloned().unwrap_or(id)
 }
 
 fn selling_plan_group_products_count_field(
@@ -375,6 +486,38 @@ fn selling_plan_group_summary_field(
     )))
 }
 
+fn selling_plan_group_cursor(group: &SellingPlanGroupRecord) -> String {
+    group.cursor.clone().unwrap_or_else(|| group.id.clone())
+}
+
+fn selling_plan_groups_baseline_variables(
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> serde_json::Map<String, Value> {
+    let mut variables = serde_json::Map::from_iter([
+        ("first".to_string(), json!(250)),
+        ("after".to_string(), Value::Null),
+        ("query".to_string(), Value::Null),
+        ("sortKey".to_string(), Value::Null),
+    ]);
+    for name in ["query", "sortKey"] {
+        if let Some(value) = arguments.get(name) {
+            variables.insert(name.to_string(), resolved_value_json(value));
+        }
+    }
+    variables
+}
+
+fn selling_plan_relationship_page_variables(
+    id: &str,
+    first: usize,
+) -> serde_json::Map<String, Value> {
+    serde_json::Map::from_iter([
+        ("id".to_string(), json!(id)),
+        ("first".to_string(), json!(first)),
+        ("after".to_string(), Value::Null),
+    ])
+}
+
 impl DraftProxy {
     pub(crate) fn selling_plan_group_root(
         &mut self,
@@ -398,15 +541,68 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        self.hydrate_selling_plan_group_read(&invocation, true);
         let arguments = resolved_arguments_from_json(&invocation.arguments);
+        if self.config.read_mode == ReadMode::LiveHybrid {
+            let mut outcome = self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+            if !outcome.errors.is_empty() || !self.store.staged.selling_plan_groups_overlay_dirty {
+                return outcome;
+            }
+            let baseline = self
+                .complete_upstream_connection(
+                    invocation.request,
+                    SELLING_PLAN_GROUPS_CONNECTION_BASELINE_QUERY,
+                    "SellingPlanGroupsConnectionBaseline",
+                    selling_plan_groups_baseline_variables(&arguments),
+                    "/data/sellingPlanGroupsBaseline",
+                    None,
+                )
+                .or_else(|| {
+                    upstream_page_is_complete_baseline(&outcome.value, &arguments)
+                        .then(|| outcome.value.clone())
+                });
+            let Some(baseline) = baseline else {
+                return outcome;
+            };
+            let rows = observed_connection_rows(&baseline);
+            let ids = rows
+                .iter()
+                .filter_map(|row| {
+                    row.node
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                })
+                .collect();
+            self.hydrate_selling_plan_group_nodes_for_observation(invocation.request, ids);
+            for row in rows {
+                let Some(id) = row.node.get("id").and_then(Value::as_str) else {
+                    continue;
+                };
+                if let Some(group) = self.store.staged.selling_plan_groups.get_mut(id) {
+                    group.cursor = row.cursor;
+                }
+            }
+            outcome.value = staged_connection_value_with_args(
+                self.store.selling_plan_groups(),
+                &arguments,
+                selling_plan_group_search_decision,
+                selling_plan_group_staged_sort_key,
+                |group| selling_plan_group_canonical_value(self, group),
+                selling_plan_group_cursor,
+            );
+            outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
+            return outcome;
+        }
         ResolverOutcome::value(staged_connection_value_with_args(
             self.store.selling_plan_groups(),
             &arguments,
             selling_plan_group_search_decision,
             selling_plan_group_staged_sort_key,
             |group| selling_plan_group_canonical_value(self, group),
-            |group| group.id.clone(),
+            selling_plan_group_cursor,
         ))
     }
 
@@ -428,23 +624,6 @@ impl DraftProxy {
                 invocation.request,
                 vec![id.to_string()],
             );
-            return;
-        }
-
-        let response = (self.upstream_transport)(invocation.request.clone());
-        let observed_groups = observed_connection_nodes(
-            response
-                .body
-                .get("data")
-                .and_then(|data| data.get(invocation.response_key)),
-        );
-        let ids = observed_groups
-            .iter()
-            .filter_map(|group| group.get("id").and_then(Value::as_str).map(str::to_string))
-            .collect();
-        self.hydrate_selling_plan_group_nodes_for_observation(invocation.request, ids);
-        for group in observed_groups {
-            self.observe_selling_plan_group_value(&group, false);
         }
     }
 
@@ -520,6 +699,7 @@ impl DraftProxy {
         let ids = ids
             .into_iter()
             .filter(|id| !id.is_empty())
+            .filter(|id| !self.store.staged.selling_plan_groups.is_tombstoned(id))
             .filter(|id| self.store.selling_plan_group_by_id(id).is_none())
             .collect::<Vec<_>>();
         if ids.is_empty() {
@@ -534,19 +714,99 @@ impl DraftProxy {
                 "variables": { "ids": ids }
             }),
         );
-        self.observe_selling_plan_groups_response(&response, false);
+        self.observe_selling_plan_groups_response(request, &response, false);
     }
 
-    fn observe_selling_plan_groups_response(&mut self, response: &Response, replace: bool) {
-        for group in observed_selling_plan_group_values(response) {
+    fn observe_selling_plan_groups_response(
+        &mut self,
+        request: &Request,
+        response: &Response,
+        replace: bool,
+    ) {
+        for mut group in observed_selling_plan_group_values(response) {
+            if !self.complete_selling_plan_group_relationships(request, &mut group) {
+                continue;
+            }
             self.observe_selling_plan_group_value(&group, replace);
         }
+    }
+
+    fn complete_selling_plan_group_relationships(
+        &self,
+        request: &Request,
+        group: &mut Value,
+    ) -> bool {
+        let Some(group_id) = group.get("id").and_then(Value::as_str).map(str::to_string) else {
+            return false;
+        };
+        let Some(products) = self.complete_upstream_connection(
+            request,
+            SELLING_PLAN_GROUP_PRODUCTS_PAGE_QUERY,
+            "SellingPlanGroupProductsPage",
+            selling_plan_relationship_page_variables(&group_id, 250),
+            "/data/sellingPlanGroup/products",
+            group.get("products"),
+        ) else {
+            return false;
+        };
+        let mut product_rows = observed_connection_rows(&products);
+        for row in &mut product_rows {
+            // Registered Shopify requests always select this connection. Older
+            // injected transports may omit unselected nested data entirely;
+            // absence is distinct from a bounded page whose pageInfo requires
+            // another request.
+            if row.node.get("variants").is_none() {
+                row.node["variants"] = connection_json(Vec::new());
+                continue;
+            }
+            let Some(product_id) = row
+                .node
+                .get("id")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+            else {
+                continue;
+            };
+            let Some(variants) = self.complete_upstream_connection(
+                request,
+                SELLING_PLAN_PRODUCT_VARIANTS_PAGE_QUERY,
+                "SellingPlanProductVariantsPage",
+                selling_plan_relationship_page_variables(&product_id, 250),
+                "/data/product/variants",
+                row.node.get("variants"),
+            ) else {
+                return false;
+            };
+            row.node["variants"] = variants;
+        }
+        group["products"] = complete_connection_value(product_rows);
+
+        let Some(product_variants) = self.complete_upstream_connection(
+            request,
+            SELLING_PLAN_GROUP_PRODUCT_VARIANTS_PAGE_QUERY,
+            "SellingPlanGroupProductVariantsPage",
+            selling_plan_relationship_page_variables(&group_id, 250),
+            "/data/sellingPlanGroup/productVariants",
+            group.get("productVariants"),
+        ) else {
+            return false;
+        };
+        group["productVariants"] = product_variants;
+        true
     }
 
     fn observe_selling_plan_group_value(&mut self, value: &Value, replace: bool) {
         let Some(group) = selling_plan_group_record_from_observed_json(value) else {
             return;
         };
+        if self
+            .store
+            .staged
+            .selling_plan_groups
+            .is_tombstoned(&group.id)
+        {
+            return;
+        }
         if !replace
             && (self.store.selling_plan_group_by_id(&group.id).is_some()
                 || self
@@ -586,7 +846,7 @@ impl DraftProxy {
                 self.store.stage_product_variant(variant);
             }
         }
-        self.store.stage_selling_plan_group(group);
+        self.store.observe_selling_plan_group(group);
     }
 
     pub(crate) fn selling_plan_outcome(
@@ -723,6 +983,7 @@ impl DraftProxy {
 
         let group = SellingPlanGroupRecord {
             id: id.clone(),
+            cursor: None,
             app_id: resolved_string_field(&input, "appId"),
             merchant_code: resolved_string_field(&input, "merchantCode")
                 .unwrap_or_else(|| name.clone()),
@@ -735,6 +996,8 @@ impl DraftProxy {
             selling_plans,
             product_ids: unique_product_ids,
             product_variant_ids: unique_product_variant_ids,
+            product_cursors: BTreeMap::new(),
+            product_variant_cursors: BTreeMap::new(),
         };
         self.store.stage_selling_plan_group(group.clone());
 
@@ -1329,32 +1592,66 @@ fn selling_plan_group_record_from_observed_json(value: &Value) -> Option<Selling
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
-    let product_ids = observed_connection_nodes(value.get("products"))
-        .into_iter()
+    let product_rows = value
+        .get("products")
+        .map(observed_connection_rows)
+        .unwrap_or_default();
+    let product_ids = product_rows
+        .iter()
         .filter_map(|product| {
             product
+                .node
                 .get("id")
                 .and_then(Value::as_str)
                 .map(str::to_string)
         })
         .collect::<Vec<_>>();
-    let product_variant_ids = observed_connection_nodes(value.get("productVariants"))
-        .into_iter()
+    let product_cursors = product_rows
+        .iter()
+        .filter_map(|row| {
+            Some((
+                row.node.get("id")?.as_str()?.to_string(),
+                row.cursor.clone()?,
+            ))
+        })
+        .collect();
+    let product_variant_rows = value
+        .get("productVariants")
+        .map(observed_connection_rows)
+        .unwrap_or_default();
+    let product_variant_ids = product_variant_rows
+        .iter()
         .filter_map(|variant| {
             variant
+                .node
                 .get("id")
                 .and_then(Value::as_str)
                 .map(str::to_string)
         })
         .collect::<Vec<_>>();
-    let selling_plans = observed_connection_nodes(value.get("sellingPlans"))
+    let product_variant_cursors = product_variant_rows
+        .iter()
+        .filter_map(|row| {
+            Some((
+                row.node.get("id")?.as_str()?.to_string(),
+                row.cursor.clone()?,
+            ))
+        })
+        .collect();
+    let selling_plans = value
+        .get("sellingPlans")
+        .map(observed_connection_rows)
+        .unwrap_or_default()
         .into_iter()
         .enumerate()
-        .filter_map(|(index, plan)| selling_plan_record_from_observed_json(&plan, index))
+        .filter_map(|(index, row)| {
+            selling_plan_record_from_observed_json(&row.node, row.cursor, index)
+        })
         .collect::<Vec<_>>();
 
     Some(SellingPlanGroupRecord {
         id,
+        cursor: None,
         app_id: value
             .get("appId")
             .and_then(Value::as_str)
@@ -1381,16 +1678,20 @@ fn selling_plan_group_record_from_observed_json(value: &Value) -> Option<Selling
         selling_plans,
         product_ids,
         product_variant_ids,
+        product_cursors,
+        product_variant_cursors,
     })
 }
 
 fn selling_plan_record_from_observed_json(
     value: &Value,
+    cursor: Option<String>,
     index: usize,
 ) -> Option<SellingPlanRecord> {
     let id = value.get("id")?.as_str()?.to_string();
     Some(SellingPlanRecord {
         id,
+        cursor,
         name: value
             .get("name")
             .and_then(Value::as_str)
@@ -2082,6 +2383,7 @@ fn selling_plan_record_from_input(
 ) -> SellingPlanRecord {
     SellingPlanRecord {
         id,
+        cursor: None,
         name: resolved_string_field(input, "name").unwrap_or_default(),
         description: resolved_string_field(input, "description").unwrap_or_default(),
         options: list_string_field(input, "options"),

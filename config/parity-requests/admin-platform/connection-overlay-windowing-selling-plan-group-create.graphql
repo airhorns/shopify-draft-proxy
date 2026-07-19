@@ -1,0 +1,13 @@
+mutation ConnectionOverlaySellingPlanGroupCreate(
+  $first: SellingPlanGroupInput!
+  $second: SellingPlanGroupInput!
+) {
+  first: sellingPlanGroupCreate(input: $first) {
+    sellingPlanGroup { id name merchantCode }
+    userErrors { field message code }
+  }
+  second: sellingPlanGroupCreate(input: $second) {
+    sellingPlanGroup { id name merchantCode }
+    userErrors { field message code }
+  }
+}

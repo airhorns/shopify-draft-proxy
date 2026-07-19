@@ -448,6 +448,7 @@ The current live-backed slice on this host now shows:
 - explicit colliding handles do **not** auto-rewrite silently
   - `productCreate` returns `product: null` plus `userErrors[{ field: ['input', 'handle'], message: "Handle '<handle>' already in use. Please provide a new handle." }]`
   - `productUpdate` and synchronous `productSet` return the unchanged existing product payload plus that same `['input', 'handle']` userError
+  - the message interpolates the raw submitted value, including surrounding whitespace and casing, even though collision detection uses the normalized handle
 - a follow-up HAR-22 live probe found no product-handle reserved word rejection for common storefront/admin-looking handles including `admin`, `products`, `collections`, `cart`, `checkout`, and `new`
   - those explicit handles were accepted as-is on `productCreate` when no product already owned the handle
 - explicit Unicode handles are not collapsed to the ASCII fallback path
@@ -458,6 +459,9 @@ The current live-backed slice on this host now shows:
 - a title-only `productUpdate` against a product that already has an explicit handle keeps that current handle stable
   - on this host, updating the title of a product created with `handle: title-only-handle-probe-<runId>` returned the new title but preserved the same handle
   - practical consequence: do not regenerate handles from title-only updates once a product already has a concrete handle unless a broader live capture proves Shopify does something more specific for other edge cases
+- omission and blank input are not the same update branch
+  - omitting `handle` keeps the current handle stable on `productUpdate` and synchronous `productSet`
+  - explicitly supplying whitespace-only `handle` regenerates the handle from the effective title; after a prior explicit handle change, this can restore the title-derived handle rather than preserve the latest explicit handle
 
 Practical rule:
 
@@ -465,8 +469,9 @@ Practical rule:
 - preserve Unicode letters/numbers during explicit handle normalization; do not treat non-ASCII handles as punctuation-only fallback input
 - keep explicit-handle collision handling separate from auto-generated-handle de-duplication after normalization
 - do not "fix" explicit collisions by silently inventing a new handle locally; Shopify surfaced a userError instead
+- preserve the raw explicit input for the collision message even though ownership is checked with the normalized candidate
 - when the source slug already ends in digits, de-duplication should increment that numeric tail instead of blindly appending another `-1`
-- keep title-only updates handle-stable in the first local parity slice rather than re-slugifying the new title
+- keep omitted-handle updates stable, but treat an explicitly blank handle as a request to regenerate from the effective title
 
 ### Current: Inventory quantity mutation contracts drift by Admin API version
 
@@ -4441,3 +4446,26 @@ Practical rule:
   metafield page, before applying a narrow article or blog input
 - derive blog tags from known child articles and touch the appropriate parent or
   destination blog when staging article writes
+
+## 105. Storefront order numbers are independent of custom Admin order names
+
+Authenticated Admin plus Storefront GraphQL 2026-04 lifecycle capture created
+an order named `WEB-2026-#77-A`. Storefront returned that name unchanged while
+reporting an independently allocated numeric `orderNumber`; it did not parse or
+concatenate the digits in the name. The same projection returned the captured
+CAD subtotal and total, `AUTHORIZED` financial status, `UNFULFILLED`
+fulfillment status, and explicit processed timestamp. A later Admin
+`orderUpdate` changed email and phone while all of those other Storefront values
+remained stable. The checked-in anchor is
+`config/parity-specs/storefront/storefront-customer-profile-address-order-lifecycle.json`.
+
+Practical rule:
+
+- retain an explicit order number in shared order state and never derive it from
+  an arbitrary order name
+- project current Admin subtotal and total money sets ahead of original totals
+- overlay staged Admin lifecycle changes without replacing known Storefront
+  identity, money, status, or processed-time values
+- leave absent required Storefront Order values unknown so GraphQL applies its
+  schema error and null-propagation behavior; do not substitute zero money,
+  `USD`, `UNFULFILLED`, an epoch timestamp, or order number zero

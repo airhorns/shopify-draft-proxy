@@ -1,0 +1,13 @@
+mutation ProductHandleLifecycleSet($input: ProductSetInput!) {
+  productSet(input: $input, synchronous: true) {
+    product {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1083,10 +1083,12 @@ impl DraftProxy {
         let id = self.next_synthetic_gid("Order");
         let shop_currency_code = self.store.shop_currency_code();
         let price_set = payment_terms_order_total_price_set(&order_input, &shop_currency_code);
-        let order_name = self.next_order_name();
+        let order_number = self.next_order_number();
+        let order_name = format!("#{order_number}");
         let order = json!({
             "id": id,
             "name": order_name,
+            "orderNumber": order_number,
             "currentTotalPriceSet": price_set.clone(),
             "totalPriceSet": price_set.clone(),
             "totalOutstandingSet": price_set,

@@ -1,0 +1,63 @@
+#graphql
+query ColdInventoryAuthoritativeReads(
+  $inventoryItemId: ID!
+  $inventoryLevelId: ID!
+  $itemQuery: String!
+) {
+  item: inventoryItem(id: $inventoryItemId) {
+    id
+    tracked
+    requiresShipping
+    sku
+    variant {
+      id
+      sku
+      inventoryQuantity
+      product {
+        id
+      }
+    }
+  }
+  items: inventoryItems(first: 5, query: $itemQuery) {
+    edges {
+      cursor
+      node {
+        id
+        tracked
+        requiresShipping
+        sku
+        variant {
+          id
+          sku
+          inventoryQuantity
+          product {
+            id
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  level: inventoryLevel(id: $inventoryLevelId) {
+    id
+    isActive
+    item {
+      id
+      tracked
+    }
+    location {
+      id
+      name
+    }
+    quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) {
+      name
+      quantity
+      updatedAt
+    }
+  }
+}

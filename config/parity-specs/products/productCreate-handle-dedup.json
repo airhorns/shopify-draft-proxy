@@ -1,80 +1,277 @@
 {
   "scenarioId": "product-handle-dedup",
-  "operationNames": ["productCreate", "productDuplicate", "collectionCreate"],
+  "operationNames": ["productCreate", "productUpdate", "productSet", "productDuplicate"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-handle-dedup-parity.json"
   ],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/productCreate-handle-dedup.graphql",
-    "variablesCapturePath": "$.operations.productCreateFirst.request.variables"
+    "variablesCapturePath": "$.operations.generatedCreateFirst.request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-579 live parity for generated handle de-duplication. Shopify keeps the original generated handle when free, then strips any trailing numeric suffix and probes base-1, base-2, base-3 for productCreate, generated productDuplicate copy handles, and collectionCreate. The scenario uses supported local mutations only; no upstream cassette calls are required.",
+  "notes": "Captured Shopify product handle lifecycle behavior. Public product mutations prove generated numeric-tail reservation, explicit Unicode/punctuation normalization, punctuation-only fallback suffixing, raw-input collision errors, whitespace-only regeneration, omitted-handle sticky updates, productSet create/update parity, and duplicate handle reservation without hidden state setup or runtime Shopify writes during proxy replay.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "product-create-first",
-        "capturePath": "$.operations.productCreateFirst.response.data",
+        "name": "generated-create-first",
+        "capturePath": "$.operations.generatedCreateFirst.response.data",
         "proxyPath": "$.data",
         "selectedPaths": ["$.productCreate.product.handle", "$.productCreate.userErrors"]
       },
       {
-        "name": "product-create-second",
-        "capturePath": "$.operations.productCreateSecond.response.data",
+        "name": "generated-create-second-numeric-tail",
+        "capturePath": "$.operations.generatedCreateSecond.response.data",
         "proxyPath": "$.data",
         "selectedPaths": ["$.productCreate.product.handle", "$.productCreate.userErrors"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/productCreate-handle-dedup.graphql",
-          "variablesCapturePath": "$.operations.productCreateSecond.request.variables"
+          "variablesCapturePath": "$.operations.generatedCreateSecond.request.variables"
         }
       },
       {
-        "name": "product-create-third",
-        "capturePath": "$.operations.productCreateThird.response.data",
+        "name": "explicit-create-unicode-normalization",
+        "capturePath": "$.operations.normalizedUnicodeCreate.response.data",
         "proxyPath": "$.data",
         "selectedPaths": ["$.productCreate.product.handle", "$.productCreate.userErrors"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/productCreate-handle-dedup.graphql",
-          "variablesCapturePath": "$.operations.productCreateThird.request.variables"
+          "variablesCapturePath": "$.operations.normalizedUnicodeCreate.request.variables"
         }
       },
       {
-        "name": "product-create-fourth",
-        "capturePath": "$.operations.productCreateFourth.response.data",
+        "name": "punctuation-create-fallback-first",
+        "capturePath": "$.operations.punctuationCreateFirst.response.data",
         "proxyPath": "$.data",
         "selectedPaths": ["$.productCreate.product.handle", "$.productCreate.userErrors"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/productCreate-handle-dedup.graphql",
-          "variablesCapturePath": "$.operations.productCreateFourth.request.variables"
+          "variablesCapturePath": "$.operations.punctuationCreateFirst.request.variables"
         }
       },
       {
-        "name": "product-create-copy-first",
-        "capturePath": "$.operations.productCreateCopyFirst.response.data",
+        "name": "punctuation-create-fallback-collision",
+        "capturePath": "$.operations.punctuationCreateSecond.response.data",
         "proxyPath": "$.data",
         "selectedPaths": ["$.productCreate.product.handle", "$.productCreate.userErrors"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/productCreate-handle-dedup.graphql",
-          "variablesCapturePath": "$.operations.productCreateCopyFirst.request.variables"
+          "variablesCapturePath": "$.operations.punctuationCreateSecond.request.variables"
         }
       },
       {
-        "name": "product-create-copy-second",
-        "capturePath": "$.operations.productCreateCopySecond.response.data",
+        "name": "explicit-create-normalized-collision",
+        "capturePath": "$.operations.explicitCreateCollision.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productCreate.product", "$.productCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-handle-dedup.graphql",
+          "variablesCapturePath": "$.operations.explicitCreateCollision.request.variables"
+        }
+      },
+      {
+        "name": "update-target-create",
+        "capturePath": "$.operations.updateTargetCreate.response.data",
         "proxyPath": "$.data",
         "selectedPaths": ["$.productCreate.product.handle", "$.productCreate.userErrors"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/productCreate-handle-dedup.graphql",
-          "variablesCapturePath": "$.operations.productCreateCopySecond.request.variables"
+          "variablesCapturePath": "$.operations.updateTargetCreate.request.variables"
         }
       },
       {
-        "name": "product-duplicate-copy",
-        "capturePath": "$.operations.productDuplicateCopy.response.data",
+        "name": "explicit-update-unicode-normalization",
+        "capturePath": "$.operations.normalizedUnicodeUpdate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productUpdate.product.handle", "$.productUpdate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUpdate-handle-dedup.graphql",
+          "variables": {
+            "product": {
+              "id": {
+                "fromProxyResponse": "update-target-create",
+                "path": "$.data.productCreate.product.id"
+              },
+              "handle": {
+                "fromCapturePath": "$.operations.normalizedUnicodeUpdate.request.variables.product.handle"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "blank-update-regenerated-handle",
+        "capturePath": "$.operations.blankUpdate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productUpdate.product.handle", "$.productUpdate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUpdate-handle-dedup.graphql",
+          "variables": {
+            "product": {
+              "id": {
+                "fromProxyResponse": "update-target-create",
+                "path": "$.data.productCreate.product.id"
+              },
+              "handle": "   "
+            }
+          }
+        }
+      },
+      {
+        "name": "title-only-update-sticky-handle",
+        "capturePath": "$.operations.titleOnlyUpdate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productUpdate.product.handle", "$.productUpdate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUpdate-handle-dedup.graphql",
+          "variables": {
+            "product": {
+              "id": {
+                "fromProxyResponse": "update-target-create",
+                "path": "$.data.productCreate.product.id"
+              },
+              "title": {
+                "fromCapturePath": "$.operations.titleOnlyUpdate.request.variables.product.title"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "explicit-update-normalized-collision",
+        "capturePath": "$.operations.explicitUpdateCollision.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productUpdate.product.handle", "$.productUpdate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUpdate-handle-dedup.graphql",
+          "variables": {
+            "product": {
+              "id": {
+                "fromProxyResponse": "update-target-create",
+                "path": "$.data.productCreate.product.id"
+              },
+              "handle": {
+                "fromCapturePath": "$.operations.explicitUpdateCollision.request.variables.product.handle"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "punctuation-update-fallback-collision",
+        "capturePath": "$.operations.punctuationUpdate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productUpdate.product.handle", "$.productUpdate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUpdate-handle-dedup.graphql",
+          "variables": {
+            "product": {
+              "id": {
+                "fromProxyResponse": "update-target-create",
+                "path": "$.data.productCreate.product.id"
+              },
+              "handle": "%%%"
+            }
+          }
+        }
+      },
+      {
+        "name": "generated-product-set-first",
+        "capturePath": "$.operations.generatedProductSetFirst.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productSet.product.handle", "$.productSet.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productSet-handle-dedup.graphql",
+          "variablesCapturePath": "$.operations.generatedProductSetFirst.request.variables"
+        }
+      },
+      {
+        "name": "generated-product-set-second-numeric-tail",
+        "capturePath": "$.operations.generatedProductSetSecond.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productSet.product.handle", "$.productSet.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productSet-handle-dedup.graphql",
+          "variablesCapturePath": "$.operations.generatedProductSetSecond.request.variables"
+        }
+      },
+      {
+        "name": "explicit-product-set-unicode-normalization",
+        "capturePath": "$.operations.normalizedProductSetUpdate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productSet.product.handle", "$.productSet.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productSet-handle-dedup.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "generated-product-set-first",
+                "path": "$.data.productSet.product.id"
+              },
+              "handle": {
+                "fromCapturePath": "$.operations.normalizedProductSetUpdate.request.variables.input.handle"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "blank-product-set-regenerated-handle",
+        "capturePath": "$.operations.blankProductSetUpdate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productSet.product.handle", "$.productSet.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productSet-handle-dedup.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "generated-product-set-first",
+                "path": "$.data.productSet.product.id"
+              },
+              "handle": "   "
+            }
+          }
+        }
+      },
+      {
+        "name": "explicit-product-set-normalized-collision",
+        "capturePath": "$.operations.explicitProductSetCollision.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productSet.product.handle", "$.productSet.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productSet-handle-dedup.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "generated-product-set-first",
+                "path": "$.data.productSet.product.id"
+              },
+              "handle": {
+                "fromCapturePath": "$.operations.explicitProductSetCollision.request.variables.input.handle"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "duplicate-handle-owner-create",
+        "capturePath": "$.operations.duplicateHandleOwnerCreate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productCreate.product.handle", "$.productCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-handle-dedup.graphql",
+          "variablesCapturePath": "$.operations.duplicateHandleOwnerCreate.request.variables"
+        }
+      },
+      {
+        "name": "product-duplicate-generated-collision",
+        "capturePath": "$.operations.productDuplicate.response.data",
         "proxyPath": "$.data",
         "selectedPaths": ["$.productDuplicate.newProduct.handle", "$.productDuplicate.userErrors"],
         "proxyRequest": {
@@ -84,49 +281,9 @@
               "fromPrimaryProxyPath": "$.data.productCreate.product.id"
             },
             "newTitle": {
-              "fromCapturePath": "$.operations.productDuplicateCopy.request.variables.newTitle"
+              "fromCapturePath": "$.operations.productDuplicate.request.variables.newTitle"
             }
           }
-        }
-      },
-      {
-        "name": "collection-create-first",
-        "capturePath": "$.operations.collectionCreateFirst.response.data",
-        "proxyPath": "$.data",
-        "selectedPaths": ["$.collectionCreate.collection.handle", "$.collectionCreate.userErrors"],
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/products/collectionCreate-handle-dedup.graphql",
-          "variablesCapturePath": "$.operations.collectionCreateFirst.request.variables"
-        }
-      },
-      {
-        "name": "collection-create-second",
-        "capturePath": "$.operations.collectionCreateSecond.response.data",
-        "proxyPath": "$.data",
-        "selectedPaths": ["$.collectionCreate.collection.handle", "$.collectionCreate.userErrors"],
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/products/collectionCreate-handle-dedup.graphql",
-          "variablesCapturePath": "$.operations.collectionCreateSecond.request.variables"
-        }
-      },
-      {
-        "name": "collection-create-third",
-        "capturePath": "$.operations.collectionCreateThird.response.data",
-        "proxyPath": "$.data",
-        "selectedPaths": ["$.collectionCreate.collection.handle", "$.collectionCreate.userErrors"],
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/products/collectionCreate-handle-dedup.graphql",
-          "variablesCapturePath": "$.operations.collectionCreateThird.request.variables"
-        }
-      },
-      {
-        "name": "collection-create-fourth",
-        "capturePath": "$.operations.collectionCreateFourth.response.data",
-        "proxyPath": "$.data",
-        "selectedPaths": ["$.collectionCreate.collection.handle", "$.collectionCreate.userErrors"],
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/products/collectionCreate-handle-dedup.graphql",
-          "variablesCapturePath": "$.operations.collectionCreateFourth.request.variables"
         }
       }
     ]

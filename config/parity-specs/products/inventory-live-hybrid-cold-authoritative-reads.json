@@ -1,0 +1,27 @@
+{
+  "scenarioId": "inventory-live-hybrid-cold-authoritative-reads",
+  "operationNames": ["inventoryItem", "inventoryItems", "inventoryLevel"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "cold-live-hybrid-hydration"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-live-hybrid-cold-authoritative-reads.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-live-hybrid-cold-authoritative-reads.graphql",
+    "variablesCapturePath": "$.coldRead.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cold-singular-list-and-level-authoritative-data",
+        "capturePath": "$.coldRead.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  },
+  "notes": "A real disposable Shopify product supplies an unobserved inventory item and level. The proxy must send the caller's complete multi-root read upstream once in LiveHybrid mode and preserve authoritative singular, filtered connection, level, quantity, location, cursor, and pageInfo data."
+}

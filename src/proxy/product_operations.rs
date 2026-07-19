@@ -157,6 +157,14 @@ impl DraftProxy {
         let title = resolved_string_field(&input, "title")
             .or_else(|| base.as_ref().map(|product| product.title.clone()))
             .unwrap_or_default();
+        let explicit_handle = resolved_string_field(&input, "handle");
+        let handle =
+            match self.resolve_product_handle(&title, explicit_handle.as_deref(), base.as_ref()) {
+                Ok(handle) => handle,
+                Err(error) => {
+                    return self.product_set_user_error_outcome(base.as_ref(), vec![error]);
+                }
+            };
         let mut product = ProductRecord {
             id: product_id.clone(),
             created_at: base
@@ -165,9 +173,7 @@ impl DraftProxy {
                 .unwrap_or_else(|| timestamp.clone()),
             updated_at: self.next_product_updated_at(current_updated_at),
             title: title.clone(),
-            handle: resolved_string_field(&input, "handle")
-                .or_else(|| base.as_ref().map(|product| product.handle.clone()))
-                .unwrap_or_else(|| slugify_handle(&title)),
+            handle,
             status: resolved_string_field(&input, "status")
                 .or_else(|| base.as_ref().map(|product| product.status.clone()))
                 .unwrap_or_else(|| "ACTIVE".to_string()),
@@ -769,7 +775,9 @@ impl DraftProxy {
         let mut duplicate = source.clone();
         duplicate.id = self.next_proxy_synthetic_gid("Product");
         duplicate.title = new_title.to_string();
-        duplicate.handle = slugify_handle(new_title);
+        duplicate.handle = self
+            .resolve_product_handle(new_title, None, None)
+            .expect("generated product handles cannot return collision errors");
         if let Some(status) = new_status {
             duplicate.status = status.to_string();
         }
