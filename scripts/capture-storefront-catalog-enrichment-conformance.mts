@@ -362,8 +362,8 @@ const visibleProductValue = `visible product ${suffix}`;
 const hiddenProductValue = `hidden product ${suffix}`;
 const visibleVariantValue = `visible variant ${suffix}`;
 const missingProductId = 'gid://shopify/Product/0';
-const marketCountry = 'DK';
-const marketCurrency = 'DKK';
+const marketCountry = 'DE';
+const marketCurrency = 'EUR';
 const defaultLanguage = 'EN';
 
 const captures: Record<string, unknown> = {};
@@ -649,7 +649,7 @@ try {
 
   const marketCreate = await captureAdmin('admin-market-create', documentText.marketCreate, {
     input: {
-      name: `Storefront Enrichment Denmark ${suffix}`,
+      name: `Storefront Enrichment Europe ${suffix}`,
       status: 'ACTIVE',
       conditions: { regionsCondition: { regions: [{ countryCode: marketCountry }] } },
       currencySettings: { localCurrencies: true },
@@ -662,7 +662,7 @@ try {
 
   const priceListCreate = await captureAdmin('admin-price-list-create', documentText.priceListCreate, {
     input: {
-      name: `Storefront Enrichment DKK ${suffix}`,
+      name: `Storefront Enrichment EUR ${suffix}`,
       currency: marketCurrency,
       parent: { adjustment: { type: 'PERCENTAGE_DECREASE', value: 5 } },
     },
@@ -678,7 +678,7 @@ try {
 
   const catalogCreate = await captureAdmin('admin-catalog-create', documentText.catalogCreate, {
     input: {
-      title: `Storefront Enrichment Denmark Catalog ${suffix}`,
+      title: `Storefront Enrichment Europe Catalog ${suffix}`,
       status: 'ACTIVE',
       context: { marketIds: [marketId] },
       priceListId,

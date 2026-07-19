@@ -4470,7 +4470,34 @@ Practical rule:
   schema error and null-propagation behavior; do not substitute zero money,
   `USD`, `UNFULFILLED`, an epoch timestamp, or order number zero
 
-## 106. Taxonomy category GID structure is not category evidence
+## 106. Storefront currency is observed context, not a schema-filling default
+
+Authenticated Storefront GraphQL 2026-04 catalog capture against a CAD shop
+returned CAD money in default context and EUR money after a disposable active
+DE market, market catalog, and EUR price list were attached to the product. The
+contextual product and variant fixed price was `799.0 EUR`. A country directive
+alone is not evidence of conversion: before that market setup, DE still
+resolved through the shop's CAD context.
+
+This makes currency provenance part of the money value. An incompletely
+hydrated snapshot cannot infer a shop or presentment currency merely from a
+non-null Storefront `MoneyV2` field. Returning USD in that state creates
+plausible but false prices; leaving the money unavailable lets the executable
+Storefront schema apply its standard null propagation and error path.
+
+Practical rule:
+
+- prefer hydrated localization, then its matched active catalog/price list and
+  market currency, before falling back to variant-observed or Storefront/Admin
+  shop currency
+- resolve one authoritative cart currency and use it for line, subtotal,
+  discount, gift-card, delivery, and total money projections
+- do not treat a country code as a currency mapping or use USD as a placeholder
+  when no observed state establishes currency
+- keep unavailable money as null and allow schema nullability to determine the
+  caller-visible error boundary
+
+## 107. Taxonomy category GID structure is not category evidence
 
 Live Admin GraphQL 2025-01 capture tested a syntactically plausible but
 nonexistent `TaxonomyCategory` GID against `productCreate`, `productUpdate`, and
