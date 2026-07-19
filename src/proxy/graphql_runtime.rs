@@ -1264,6 +1264,14 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         root_fields: &[String],
     ) {
+        if root_fields == ["bulkOperationRunMutation"] {
+            // The outer operation is an asynchronous job submission, while each
+            // locally executed JSONL row is its own commit-replay mutation. The
+            // bulk resolver records those row requests with their original
+            // variables and ordering; collapsing them into the outer request
+            // would lose both the replay bodies and the exactly-once boundary.
+            return;
+        }
         if log_start >= self.log_entries.len() {
             return;
         }

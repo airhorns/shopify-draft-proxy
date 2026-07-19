@@ -79,6 +79,12 @@ struct BulkOperationRunQueryResult {
     root_object_count: usize,
 }
 
+struct BulkOperationRunMutationResult {
+    jsonl: String,
+    object_count: usize,
+    status: &'static str,
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn bulk_operation_result_jsonl(&self, artifact_id: &str) -> Response {
         let Some(result) = self.store.staged.bulk_operation_results.get(artifact_id) else {
@@ -909,15 +915,13 @@ impl DraftProxy {
 
         let id = self.next_bulk_operation_gid();
         let created_at = self.next_product_timestamp();
-        let result_jsonl = self.bulk_operation_run_mutation_result_jsonl(
-            request,
-            &mutation_text,
-            &staged_upload_body,
-        );
-        let (object_count, file_size) = bulk_operation_result_metadata(&result_jsonl);
+        let result =
+            self.bulk_operation_run_mutation_result(request, &mutation_text, &staged_upload_body);
+        let object_count = result.object_count.to_string();
+        let file_size = result.jsonl.len().to_string();
         let terminal_operation = self.bulk_operation_record(BulkOperationRecordSpec {
             id: &id,
-            status: "COMPLETED",
+            status: result.status,
             operation_type: "MUTATION",
             query: &mutation_text,
             count: &object_count,
@@ -925,7 +929,7 @@ impl DraftProxy {
             created_at: &created_at,
             file_size: &file_size,
         });
-        self.stage_bulk_operation_result(&id, result_jsonl);
+        self.stage_bulk_operation_result(&id, result.jsonl);
         self.store
             .staged
             .bulk_operations
@@ -993,15 +997,32 @@ impl DraftProxy {
             .map(String::as_str)
     }
 
-    fn bulk_operation_run_mutation_result_jsonl(
+    fn bulk_operation_run_mutation_result(
         &mut self,
         request: &Request,
         mutation_text: &str,
         jsonl: &str,
-    ) -> String {
+    ) -> BulkOperationRunMutationResult {
         let api_version = crate::admin_graphql::AdminApiVersion::from_route(&request.path)
             .unwrap_or(crate::admin_graphql::AdminApiVersion::DEFAULT);
+        let inner_root = parsed_document(mutation_text, &BTreeMap::new())
+            .and_then(|document| document.root_fields.into_iter().next())
+            .map(|root| root.name)
+            .expect("bulk mutation document validation guarantees one mutation root");
+        let locally_implemented = self
+            .registry
+            .registration(OperationType::Mutation, &inner_root)
+            .is_some_and(|registration| {
+                registration.execution == CapabilityExecution::StageLocally
+            });
+        let unsupported_message = (!locally_implemented).then(|| {
+            format!(
+                "Bulk mutation root `{inner_root}` is accepted by Shopify but is not implemented locally. The proxy did not send this mutation upstream during draft staging."
+            )
+        });
         let mut rows = Vec::new();
+        let mut object_count = 0usize;
+        let mut failed = unsupported_message.is_some();
         for (line_number, line) in jsonl.lines().enumerate() {
             if line.trim().is_empty() {
                 continue;
@@ -1009,6 +1030,7 @@ impl DraftProxy {
             let variables = match serde_json::from_str::<Value>(line) {
                 Ok(Value::Object(variables)) => Value::Object(variables),
                 Ok(other) => {
+                    failed = true;
                     rows.push(bulk_operation_run_mutation_line_error(
                         line_number,
                         &format!("Expected JSON object variables, got {other}"),
@@ -1016,6 +1038,7 @@ impl DraftProxy {
                     continue;
                 }
                 Err(error) => {
+                    failed = true;
                     rows.push(bulk_operation_run_mutation_line_error(
                         line_number,
                         &format!("Failed to parse JSONL variables: {error}"),
@@ -1023,6 +1046,10 @@ impl DraftProxy {
                     continue;
                 }
             };
+            if let Some(message) = unsupported_message.as_deref() {
+                rows.push(bulk_operation_run_mutation_line_error(line_number, message));
+                continue;
+            }
             let row_request = Request {
                 method: "POST".to_string(),
                 path: request.path.clone(),
@@ -1048,8 +1075,13 @@ impl DraftProxy {
                 });
             }
             rows.push(row);
+            object_count += 1;
         }
-        values_to_jsonl(rows)
+        BulkOperationRunMutationResult {
+            jsonl: values_to_jsonl(rows),
+            object_count,
+            status: if failed { "FAILED" } else { "COMPLETED" },
+        }
     }
 
     pub(in crate::proxy) fn bulk_operation_cancel_outcome(
@@ -1184,8 +1216,9 @@ fn bulk_project_mutation_response(
 }
 
 fn bulk_operation_record_value(spec: BulkOperationRecordSpec<'_>, artifact_url: String) -> Value {
-    let completed = spec.status == "COMPLETED";
-    let file_size_value = if completed {
+    let terminal = bulk_operation_status_is_terminal(Some(spec.status));
+    let has_result = matches!(spec.status, "COMPLETED" | "FAILED");
+    let file_size_value = if has_result {
         json!(spec.file_size)
     } else {
         Value::Null
@@ -1196,11 +1229,11 @@ fn bulk_operation_record_value(spec: BulkOperationRecordSpec<'_>, artifact_url: 
         "type": spec.operation_type,
         "errorCode": null,
         "createdAt": spec.created_at,
-        "completedAt": if completed { json!(spec.created_at) } else { Value::Null },
-        "objectCount": if completed { spec.count } else { "0" },
-        "rootObjectCount": if completed { spec.root_count } else { "0" },
+        "completedAt": if terminal { json!(spec.created_at) } else { Value::Null },
+        "objectCount": if terminal { spec.count } else { "0" },
+        "rootObjectCount": if terminal { spec.root_count } else { "0" },
         "fileSize": file_size_value,
-        "url": if completed { json!(artifact_url) } else { Value::Null },
+        "url": if has_result { json!(artifact_url) } else { Value::Null },
         "partialDataUrl": null,
         "query": spec.query
     })
@@ -1491,6 +1524,46 @@ mod tests {
             seed_product("gid://shopify/Product/2", "Blue product", "blue-product"),
         ])
         .with_upstream_transport(|_| panic!("bulk operation tests should not call upstream"))
+    }
+
+    fn instrumented_live_proxy() -> (DraftProxy, Arc<Mutex<Vec<Request>>>) {
+        let upstream_calls = Arc::new(Mutex::new(Vec::<Request>::new()));
+        let upstream_calls_for_transport = Arc::clone(&upstream_calls);
+        let proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: Some(UnsupportedMutationMode::Passthrough),
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_upstream_transport(move |request| {
+            upstream_calls_for_transport.lock().unwrap().push(request);
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: json!({ "data": {} }),
+            }
+        });
+        (proxy, upstream_calls)
+    }
+
+    fn run_bulk_mutation_import(
+        proxy: &mut DraftProxy,
+        mutation: &str,
+        staged_upload_path: &str,
+    ) -> Response {
+        proxy.process_request(test_request(
+            r#"
+            mutation RunBulkImport($mutation: String!, $path: String!) {
+              bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+                bulkOperation { id status type }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "mutation": mutation, "path": staged_upload_path }),
+        ))
     }
 
     fn create_variant(proxy: &mut DraftProxy, product_id: &str, sku: &str) -> Value {
@@ -2710,6 +2783,258 @@ mod tests {
             rows[3]["data"]["productUpdate"]["product"]["title"],
             json!("Second bulk update")
         );
+    }
+
+    #[test]
+    fn bulk_operation_run_mutation_fails_unimplemented_inner_roots_without_upstream_writes() {
+        let (proxy, upstream_calls) = instrumented_live_proxy();
+        let commit_calls = Arc::new(Mutex::new(Vec::<Request>::new()));
+        let commit_calls_for_transport = Arc::clone(&commit_calls);
+        let mut proxy = proxy.with_commit_transport(move |request| {
+            commit_calls_for_transport.lock().unwrap().push(request);
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: json!({ "data": {} }),
+            }
+        });
+        let jsonl = [
+            json!({"urlRedirect": {"path": "/first", "target": "/first-target"}}).to_string(),
+            json!({"urlRedirect": {"path": "/second", "target": "/second-target"}}).to_string(),
+        ]
+        .join("\n")
+            + "\n";
+        let path = staged_bulk_mutation_upload_path_with_body(
+            &mut proxy,
+            "unsupported-url-redirects.jsonl",
+            &jsonl,
+        );
+        let log_len_before = proxy
+            .process_request(meta_request("GET", "/__meta/log", ""))
+            .body["entries"]
+            .as_array()
+            .unwrap()
+            .len();
+
+        let response = run_bulk_mutation_import(
+            &mut proxy,
+            "mutation UrlRedirectCreate($urlRedirect: UrlRedirectInput!) { urlRedirectCreate(urlRedirect: $urlRedirect) { urlRedirect { id path target } userErrors { field message } } }",
+            &path,
+        );
+
+        assert_eq!(response.status, 200);
+        assert!(
+            upstream_calls.lock().unwrap().is_empty(),
+            "valid-but-unimplemented bulk import rows must never write upstream during staging"
+        );
+        assert_eq!(
+            response.body["data"]["bulkOperationRunMutation"]["bulkOperation"]["status"],
+            json!("CREATED")
+        );
+        assert_eq!(
+            response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+            json!([])
+        );
+
+        let operation_id = response.body["data"]["bulkOperationRunMutation"]["bulkOperation"]["id"]
+            .as_str()
+            .unwrap();
+        let current = proxy.process_request(test_request(
+            r#"
+            query CurrentBulkMutation {
+              currentBulkOperation(type: MUTATION) {
+                id status errorCode objectCount rootObjectCount fileSize url
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(
+            current.body["data"]["currentBulkOperation"]["status"],
+            json!("FAILED")
+        );
+        assert_eq!(
+            current.body["data"]["currentBulkOperation"]["objectCount"],
+            json!("0")
+        );
+
+        let artifact = proxy.process_request(bulk_artifact_request(operation_id));
+        assert_eq!(artifact.status, 200);
+        let rows = artifact
+            .body
+            .as_str()
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0]["__lineNumber"], json!(0));
+        assert_eq!(rows[1]["__lineNumber"], json!(1));
+        assert!(rows.iter().all(|row| {
+            row["errors"][0]["message"]
+                == json!(
+                    "Bulk mutation root `urlRedirectCreate` is accepted by Shopify but is not implemented locally. The proxy did not send this mutation upstream during draft staging."
+                )
+        }));
+
+        let log = proxy.process_request(meta_request("GET", "/__meta/log", ""));
+        assert_eq!(
+            log.body["entries"].as_array().unwrap().len(),
+            log_len_before,
+            "unsupported import rows must not become commit-replay entries"
+        );
+
+        let commit = proxy.process_request(meta_request("POST", "/__meta/commit", ""));
+        assert_eq!(commit.status, 200);
+        assert_eq!(commit.body["committed"], json!(log_len_before));
+        assert!(
+            commit_calls.lock().unwrap().iter().all(|request| {
+                !request.body.contains("urlRedirectCreate")
+                    && !request.body.contains("bulkOperationRunMutation")
+            }),
+            "failed unsupported rows must not be replayed during commit"
+        );
+    }
+
+    #[test]
+    fn bulk_operation_run_mutation_rejects_invalid_inner_roots_without_upstream_writes() {
+        let (mut proxy, upstream_calls) = instrumented_live_proxy();
+
+        for mutation in [
+            "mutation Broken(",
+            "mutation NestedBulk($mutation: String!, $path: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) { bulkOperation { id } } }",
+        ] {
+            let response = run_bulk_mutation_import(&mut proxy, mutation, "missing");
+
+            assert_eq!(response.status, 200);
+            assert_eq!(
+                response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+                Value::Null
+            );
+            assert!(response.body["data"]["bulkOperationRunMutation"]["userErrors"]
+                .as_array()
+                .is_some_and(|errors| !errors.is_empty()));
+        }
+
+        assert!(
+            upstream_calls.lock().unwrap().is_empty(),
+            "invalid and disallowed inner roots must fail before upstream dispatch"
+        );
+    }
+
+    #[test]
+    fn bulk_operation_run_mutation_commit_replays_supported_rows_once_in_jsonl_order() {
+        let (proxy, upstream_calls) = instrumented_live_proxy();
+        let commit_calls = Arc::new(Mutex::new(Vec::<Request>::new()));
+        let commit_calls_for_transport = Arc::clone(&commit_calls);
+        let mut proxy = proxy
+            .with_base_products(vec![seed_product(
+                "gid://shopify/Product/1",
+                "Original product",
+                "original-product",
+            )])
+            .with_commit_transport(move |request| {
+                commit_calls_for_transport.lock().unwrap().push(request);
+                Response {
+                    status: 200,
+                    headers: BTreeMap::new(),
+                    body: json!({
+                        "data": {
+                            "productUpdate": {
+                                "product": { "id": "gid://shopify/Product/1" },
+                                "userErrors": []
+                            }
+                        }
+                    }),
+                }
+            });
+        let jsonl = [
+            json!({"product": {"id": "gid://shopify/Product/1", "title": "First update"}})
+                .to_string(),
+            json!({"product": {"id": "gid://shopify/Product/1", "title": "Second update"}})
+                .to_string(),
+        ]
+        .join("\n")
+            + "\n";
+        let path = staged_bulk_mutation_upload_path_with_body(
+            &mut proxy,
+            "ordered-product-updates.jsonl",
+            &jsonl,
+        );
+        let log_len_before = proxy
+            .process_request(meta_request("GET", "/__meta/log", ""))
+            .body["entries"]
+            .as_array()
+            .unwrap()
+            .len();
+        let inner_mutation = "mutation ProductUpdate($product: ProductUpdateInput!) { productUpdate(product: $product) { product { id title } userErrors { field message } } }";
+
+        let response = run_bulk_mutation_import(&mut proxy, inner_mutation, &path);
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["bulkOperationRunMutation"]["bulkOperation"]["status"],
+            json!("CREATED")
+        );
+        assert!(
+            upstream_calls.lock().unwrap().is_empty(),
+            "locally implemented rows must remain local until commit"
+        );
+
+        let log = proxy.process_request(meta_request("GET", "/__meta/log", ""));
+        let inner_entries = &log.body["entries"].as_array().unwrap()[log_len_before..];
+        assert_eq!(inner_entries.len(), 2);
+        assert_eq!(
+            inner_entries[0]["variables"]["product"]["title"],
+            json!("First update")
+        );
+        assert_eq!(
+            inner_entries[1]["variables"]["product"]["title"],
+            json!("Second update")
+        );
+
+        let first_commit = proxy.process_request(meta_request("POST", "/__meta/commit", ""));
+        assert_eq!(first_commit.status, 200);
+        let replayed_inner_bodies = commit_calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|request| {
+                let body = serde_json::from_str::<Value>(&request.body).unwrap();
+                (body["query"].as_str() == Some(inner_mutation)).then_some(body)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(replayed_inner_bodies.len(), 2);
+        assert_eq!(
+            replayed_inner_bodies[0]["variables"]["product"]["title"],
+            json!("First update")
+        );
+        assert_eq!(
+            replayed_inner_bodies[1]["variables"]["product"]["title"],
+            json!("Second update")
+        );
+        assert!(commit_calls
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|request| { !request.body.contains("bulkOperationRunMutation") }));
+
+        let second_commit = proxy.process_request(meta_request("POST", "/__meta/commit", ""));
+        assert_eq!(second_commit.status, 200);
+        assert_eq!(second_commit.body["committed"], json!(0));
+        let replayed_inner_count = commit_calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|request| {
+                serde_json::from_str::<Value>(&request.body)
+                    .ok()
+                    .and_then(|body| body["query"].as_str().map(str::to_string))
+                    .as_deref()
+                    == Some(inner_mutation)
+            })
+            .count();
+        assert_eq!(replayed_inner_count, 2);
     }
 
     #[test]
