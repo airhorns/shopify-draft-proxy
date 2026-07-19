@@ -4401,3 +4401,29 @@ Practical rule:
 - keep carrier callbacks and checkout navigation outside local delivery
   calculation; a local checkout URL is an opaque deterministic reference, not a
   claim that checkout can execute
+
+## 104. Narrow article writes require full authoritative hydration and touch their blog
+
+Admin GraphQL 2025-01 whole-resource capture showed that mutation-first Online
+Store writes cannot safely reuse the narrower article selection used by delete
+cascade discovery. A title-only article update retained the existing body,
+summary, tags, author, publication state, image, template suffix, blog, and all
+article-owned metafields. A title-only blog update likewise retained its comment
+policy, template suffix, and blog-owned metafields. Shopify metafield connections
+must therefore be hydrated through every page before the local replacement set
+is authoritative; an unselected field must remain distinguishable from a
+selected `null`, empty string, or empty list.
+
+The same capture exposed two parent-blog effects. Article create and update
+advanced the current blog's `updatedAt`, while an article move advanced the
+destination blog's timestamp. `Blog.tags` reflected the effective tags of its
+child articles, including the tag changes from the staged article write.
+
+Practical rule:
+
+- resolve unobserved target blogs with read-only hydration before returning
+  `NOT_FOUND`, but never send a supported mutation upstream during normal runtime
+- hydrate the complete mutation-preservation shape, including every owner
+  metafield page, before applying a narrow article or blog input
+- derive blog tags from known child articles and touch the appropriate parent or
+  destination blog when staging article writes

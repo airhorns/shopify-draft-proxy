@@ -1,0 +1,1637 @@
+{
+  "scenarioId": "online-store-authoritative-content-hydration",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-07-19T13:30:51.143Z",
+  "setup": {
+    "createTargetBlog": {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreAuthoritativeSetupBlog($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "blog": {
+            "title": "Authoritative Create Target 20260719133044",
+            "commentPolicy": "MODERATED",
+            "templateSuffix": "authoritative_blog",
+            "metafields": [
+              {
+                "namespace": "authoritative_content",
+                "key": "hero",
+                "type": "single_line_text_field",
+                "value": "createTargetBlog hero"
+              },
+              {
+                "namespace": "authoritative_content",
+                "key": "secondary",
+                "type": "single_line_text_field",
+                "value": "createTargetBlog secondary"
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121895616818"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "updateArticleBlog": {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreAuthoritativeSetupBlog($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "blog": {
+            "title": "Authoritative Update Parent 20260719133044",
+            "commentPolicy": "MODERATED",
+            "templateSuffix": null,
+            "metafields": []
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121895649586"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "moveSourceBlog": {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreAuthoritativeSetupBlog($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "blog": {
+            "title": "Authoritative Move Source 20260719133044",
+            "commentPolicy": "MODERATED",
+            "templateSuffix": null,
+            "metafields": []
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121895682354"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "moveTargetBlog": {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreAuthoritativeSetupBlog($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "blog": {
+            "title": "Authoritative Move Target 20260719133044",
+            "commentPolicy": "MODERATED",
+            "templateSuffix": "authoritative_blog",
+            "metafields": [
+              {
+                "namespace": "authoritative_content",
+                "key": "hero",
+                "type": "single_line_text_field",
+                "value": "moveTargetBlog hero"
+              },
+              {
+                "namespace": "authoritative_content",
+                "key": "secondary",
+                "type": "single_line_text_field",
+                "value": "moveTargetBlog secondary"
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121895715122"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "updateTargetBlog": {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreAuthoritativeSetupBlog($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "blog": {
+            "title": "Authoritative Blog Update 20260719133044",
+            "commentPolicy": "MODERATED",
+            "templateSuffix": "authoritative_blog",
+            "metafields": [
+              {
+                "namespace": "authoritative_content",
+                "key": "hero",
+                "type": "single_line_text_field",
+                "value": "updateTargetBlog hero"
+              },
+              {
+                "namespace": "authoritative_content",
+                "key": "secondary",
+                "type": "single_line_text_field",
+                "value": "updateTargetBlog secondary"
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121895747890"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "updateTargetArticle": {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreAuthoritativeSetupArticle($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article { id }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "article": {
+            "blogId": "gid://shopify/Blog/121895649586",
+            "title": "Authoritative Article Update 20260719133044",
+            "body": "<p>Authoritative article body</p>",
+            "summary": "<p>Authoritative article summary</p>",
+            "tags": ["authoritative-content", "updateTargetArticle"],
+            "isPublished": true,
+            "templateSuffix": "authoritative_article",
+            "author": {
+              "name": "Authoritative Content Author"
+            },
+            "image": {
+              "altText": "Authoritative content image",
+              "url": "https://placehold.co/96x64/png"
+            },
+            "metafields": [
+              {
+                "namespace": "authoritative_content",
+                "key": "hero",
+                "type": "single_line_text_field",
+                "value": "updateTargetArticle hero"
+              },
+              {
+                "namespace": "authoritative_content",
+                "key": "secondary",
+                "type": "single_line_text_field",
+                "value": "updateTargetArticle secondary"
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/685149421874"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "moveTargetArticle": {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreAuthoritativeSetupArticle($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article { id }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "article": {
+            "blogId": "gid://shopify/Blog/121895682354",
+            "title": "Authoritative Article Move 20260719133044",
+            "body": "<p>Authoritative article body</p>",
+            "summary": "<p>Authoritative article summary</p>",
+            "tags": ["authoritative-content", "moveTargetArticle"],
+            "isPublished": true,
+            "templateSuffix": "authoritative_article",
+            "author": {
+              "name": "Authoritative Content Author"
+            },
+            "image": {
+              "altText": "Authoritative content image",
+              "url": "https://placehold.co/96x64/png"
+            },
+            "metafields": [
+              {
+                "namespace": "authoritative_content",
+                "key": "hero",
+                "type": "single_line_text_field",
+                "value": "moveTargetArticle hero"
+              },
+              {
+                "namespace": "authoritative_content",
+                "key": "secondary",
+                "type": "single_line_text_field",
+                "value": "moveTargetArticle secondary"
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/685149454642"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    }
+  },
+  "operations": {
+    "articleCreate": {
+      "request": {
+        "query": "mutation OnlineStoreAuthoritativeArticleCreate($article: ArticleCreateInput!) {\n  articleCreate(article: $article) {\n    article {\n      id\n      title\n      handle\n      body\n      summary\n      tags\n      isPublished\n      publishedAt\n      createdAt\n      updatedAt\n      templateSuffix\n      author {\n        name\n      }\n      image {\n        altText\n        url\n        width\n        height\n      }\n      blog {\n        id\n        title\n        handle\n        commentPolicy\n        tags\n        templateSuffix\n        createdAt\n        updatedAt\n        articlesCount {\n          count\n          precision\n        }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          jsonValue\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "article": {
+            "blogId": "gid://shopify/Blog/121895616818",
+            "title": "Authoritative Cold Create 20260719133044",
+            "body": "<p>Cold-create body</p>",
+            "summary": "<p>Cold-create summary</p>",
+            "tags": ["authoritative-content", "cold-create"],
+            "isPublished": true,
+            "templateSuffix": "authoritative_create",
+            "author": {
+              "name": "Authoritative Create Author"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/685149487410",
+              "title": "Authoritative Cold Create 20260719133044",
+              "handle": "authoritative-cold-create-20260719133044",
+              "body": "<p>Cold-create body</p>",
+              "summary": "<p>Cold-create summary</p>",
+              "tags": ["authoritative-content", "cold-create"],
+              "isPublished": true,
+              "publishedAt": "2026-07-19T13:30:48Z",
+              "createdAt": "2026-07-19T13:30:48Z",
+              "updatedAt": "2026-07-19T13:30:48Z",
+              "templateSuffix": "authoritative_create",
+              "author": {
+                "name": "Authoritative Create Author"
+              },
+              "image": null,
+              "blog": {
+                "id": "gid://shopify/Blog/121895616818",
+                "title": "Authoritative Create Target 20260719133044",
+                "handle": "authoritative-create-target-20260719133044",
+                "commentPolicy": "MODERATED",
+                "tags": ["authoritative-content", "cold-create"],
+                "templateSuffix": "authoritative_blog",
+                "createdAt": "2026-07-19T13:30:44Z",
+                "updatedAt": "2026-07-19T13:30:48Z",
+                "articlesCount": {
+                  "count": 1,
+                  "precision": "EXACT"
+                }
+              },
+              "metafields": {
+                "nodes": []
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 36,
+            "actualQueryCost": 36,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1960,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "articleUpdate": {
+      "request": {
+        "query": "mutation OnlineStoreAuthoritativeArticleUpdate($id: ID!, $article: ArticleUpdateInput!) {\n  articleUpdate(id: $id, article: $article) {\n    article {\n      id\n      title\n      handle\n      body\n      summary\n      tags\n      isPublished\n      publishedAt\n      createdAt\n      updatedAt\n      templateSuffix\n      author {\n        name\n      }\n      image {\n        altText\n        url\n        width\n        height\n      }\n      blog {\n        id\n        title\n        handle\n        commentPolicy\n        tags\n        templateSuffix\n        createdAt\n        updatedAt\n        articlesCount {\n          count\n          precision\n        }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          jsonValue\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Article/685149421874",
+          "article": {
+            "title": "Authoritative Article Narrow Update 20260719133044"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "articleUpdate": {
+            "article": {
+              "id": "gid://shopify/Article/685149421874",
+              "title": "Authoritative Article Narrow Update 20260719133044",
+              "handle": "authoritative-article-update-20260719133044",
+              "body": "<p>Authoritative article body</p>",
+              "summary": "<p>Authoritative article summary</p>",
+              "tags": ["authoritative-content", "updateTargetArticle"],
+              "isPublished": true,
+              "publishedAt": "2026-07-19T13:30:45Z",
+              "createdAt": "2026-07-19T13:30:46Z",
+              "updatedAt": "2026-07-19T13:30:48Z",
+              "templateSuffix": "authoritative_article",
+              "author": {
+                "name": "Authoritative Content Author"
+              },
+              "image": {
+                "altText": "Authoritative content image",
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/articles/png.png?v=1784467847",
+                "width": 96,
+                "height": 64
+              },
+              "blog": {
+                "id": "gid://shopify/Blog/121895649586",
+                "title": "Authoritative Update Parent 20260719133044",
+                "handle": "authoritative-update-parent-20260719133044",
+                "commentPolicy": "MODERATED",
+                "tags": ["authoritative-content", "updateTargetArticle"],
+                "templateSuffix": null,
+                "createdAt": "2026-07-19T13:30:45Z",
+                "updatedAt": "2026-07-19T13:30:48Z",
+                "articlesCount": {
+                  "count": 1,
+                  "precision": "EXACT"
+                }
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/45213788832050",
+                    "namespace": "authoritative_content",
+                    "key": "hero",
+                    "type": "single_line_text_field",
+                    "value": "updateTargetArticle hero",
+                    "jsonValue": "updateTargetArticle hero",
+                    "compareDigest": "184f006ea25780d74378951c0f4c523e0a8e69410881219448bcbbfcaf054bae",
+                    "ownerType": "ARTICLE",
+                    "createdAt": "2026-07-19T13:30:46Z",
+                    "updatedAt": "2026-07-19T13:30:46Z"
+                  },
+                  {
+                    "id": "gid://shopify/Metafield/45213788864818",
+                    "namespace": "authoritative_content",
+                    "key": "secondary",
+                    "type": "single_line_text_field",
+                    "value": "updateTargetArticle secondary",
+                    "jsonValue": "updateTargetArticle secondary",
+                    "compareDigest": "7859fd297d4e9c2d829baa21d64bccc85494a85c931fd6e4bf23103c680fb7a5",
+                    "ownerType": "ARTICLE",
+                    "createdAt": "2026-07-19T13:30:46Z",
+                    "updatedAt": "2026-07-19T13:30:46Z"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 36,
+            "actualQueryCost": 25,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1932,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "articleMove": {
+      "request": {
+        "query": "mutation OnlineStoreAuthoritativeArticleMove($id: ID!, $article: ArticleUpdateInput!) {\n  articleUpdate(id: $id, article: $article) {\n    article {\n      id\n      title\n      handle\n      body\n      summary\n      tags\n      isPublished\n      publishedAt\n      createdAt\n      updatedAt\n      templateSuffix\n      author {\n        name\n      }\n      image {\n        altText\n        url\n        width\n        height\n      }\n      blog {\n        id\n        title\n        handle\n        commentPolicy\n        tags\n        templateSuffix\n        createdAt\n        updatedAt\n        articlesCount {\n          count\n          precision\n        }\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          jsonValue\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Article/685149454642",
+          "article": {
+            "blogId": "gid://shopify/Blog/121895715122"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "articleUpdate": {
+            "article": {
+              "id": "gid://shopify/Article/685149454642",
+              "title": "Authoritative Article Move 20260719133044",
+              "handle": "authoritative-article-move-20260719133044",
+              "body": "<p>Authoritative article body</p>",
+              "summary": "<p>Authoritative article summary</p>",
+              "tags": ["authoritative-content", "moveTargetArticle"],
+              "isPublished": true,
+              "publishedAt": "2026-07-19T13:30:47Z",
+              "createdAt": "2026-07-19T13:30:47Z",
+              "updatedAt": "2026-07-19T13:30:49Z",
+              "templateSuffix": "authoritative_article",
+              "author": {
+                "name": "Authoritative Content Author"
+              },
+              "image": {
+                "altText": "Authoritative content image",
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/articles/png_df443daf-be97-41df-9dc2-0439af30977f.png?v=1784467848",
+                "width": 96,
+                "height": 64
+              },
+              "blog": {
+                "id": "gid://shopify/Blog/121895715122",
+                "title": "Authoritative Move Target 20260719133044",
+                "handle": "authoritative-move-target-20260719133044",
+                "commentPolicy": "MODERATED",
+                "tags": ["authoritative-content", "moveTargetArticle"],
+                "templateSuffix": "authoritative_blog",
+                "createdAt": "2026-07-19T13:30:45Z",
+                "updatedAt": "2026-07-19T13:30:49Z",
+                "articlesCount": {
+                  "count": 1,
+                  "precision": "EXACT"
+                }
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/45213788930354",
+                    "namespace": "authoritative_content",
+                    "key": "hero",
+                    "type": "single_line_text_field",
+                    "value": "moveTargetArticle hero",
+                    "jsonValue": "moveTargetArticle hero",
+                    "compareDigest": "f48727553643401ca3687a065fbc3ab5b3c01c9f9f2211e06de9cad8c8e61e5a",
+                    "ownerType": "ARTICLE",
+                    "createdAt": "2026-07-19T13:30:47Z",
+                    "updatedAt": "2026-07-19T13:30:47Z"
+                  },
+                  {
+                    "id": "gid://shopify/Metafield/45213788963122",
+                    "namespace": "authoritative_content",
+                    "key": "secondary",
+                    "type": "single_line_text_field",
+                    "value": "moveTargetArticle secondary",
+                    "jsonValue": "moveTargetArticle secondary",
+                    "compareDigest": "f154b62b31cd4ff9925e131dce6e8a0230a0631210878dab23118fef4e398710",
+                    "ownerType": "ARTICLE",
+                    "createdAt": "2026-07-19T13:30:47Z",
+                    "updatedAt": "2026-07-19T13:30:47Z"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 36,
+            "actualQueryCost": 25,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1911,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "blogUpdate": {
+      "request": {
+        "query": "mutation OnlineStoreAuthoritativeBlogUpdate($id: ID!, $blog: BlogUpdateInput!) {\n  blogUpdate(id: $id, blog: $blog) {\n    blog {\n      id\n      title\n      handle\n      commentPolicy\n      tags\n      templateSuffix\n      createdAt\n      updatedAt\n      articlesCount {\n        count\n        precision\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          jsonValue\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121895747890",
+          "blog": {
+            "title": "Authoritative Blog Narrow Update 20260719133044"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "blogUpdate": {
+            "blog": {
+              "id": "gid://shopify/Blog/121895747890",
+              "title": "Authoritative Blog Narrow Update 20260719133044",
+              "handle": "authoritative-blog-update-20260719133044",
+              "commentPolicy": "MODERATED",
+              "tags": [],
+              "templateSuffix": "authoritative_blog",
+              "createdAt": "2026-07-19T13:30:45Z",
+              "updatedAt": "2026-07-19T13:30:49Z",
+              "articlesCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/45213788504370",
+                    "namespace": "authoritative_content",
+                    "key": "hero",
+                    "type": "single_line_text_field",
+                    "value": "updateTargetBlog hero",
+                    "jsonValue": "updateTargetBlog hero",
+                    "compareDigest": "1cacdd8498b4e111934012fc193848b436a0be99a569835ceb8fa5ae8e96082d",
+                    "ownerType": "BLOG",
+                    "createdAt": "2026-07-19T13:30:45Z",
+                    "updatedAt": "2026-07-19T13:30:45Z"
+                  },
+                  {
+                    "id": "gid://shopify/Metafield/45213788537138",
+                    "namespace": "authoritative_content",
+                    "key": "secondary",
+                    "type": "single_line_text_field",
+                    "value": "updateTargetBlog secondary",
+                    "jsonValue": "updateTargetBlog secondary",
+                    "compareDigest": "1c9ab4815d8b71e2154380d0d15e2712494d702bef8053a83e4739fc6c354609",
+                    "ownerType": "BLOG",
+                    "createdAt": "2026-07-19T13:30:45Z",
+                    "updatedAt": "2026-07-19T13:30:45Z"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 33,
+            "actualQueryCost": 22,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1900,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    }
+  },
+  "reads": {
+    "afterArticleCreate": {
+      "request": {
+        "query": "query OnlineStoreAuthoritativeArticleRead($id: ID!) {\n  article(id: $id) {\n    id\n    title\n    handle\n    body\n    summary\n    tags\n    isPublished\n    publishedAt\n    createdAt\n    updatedAt\n    templateSuffix\n    author {\n      name\n    }\n    image {\n      altText\n      url\n      width\n      height\n    }\n    blog {\n      id\n      title\n      handle\n      commentPolicy\n      tags\n      templateSuffix\n      createdAt\n      updatedAt\n      articlesCount {\n        count\n        precision\n      }\n    }\n    metafields(first: 250) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Article/685149487410"
+        }
+      },
+      "response": {
+        "data": {
+          "article": {
+            "id": "gid://shopify/Article/685149487410",
+            "title": "Authoritative Cold Create 20260719133044",
+            "handle": "authoritative-cold-create-20260719133044",
+            "body": "<p>Cold-create body</p>",
+            "summary": "<p>Cold-create summary</p>",
+            "tags": ["authoritative-content", "cold-create"],
+            "isPublished": true,
+            "publishedAt": "2026-07-19T13:30:48Z",
+            "createdAt": "2026-07-19T13:30:48Z",
+            "updatedAt": "2026-07-19T13:30:48Z",
+            "templateSuffix": "authoritative_create",
+            "author": {
+              "name": "Authoritative Create Author"
+            },
+            "image": null,
+            "blog": {
+              "id": "gid://shopify/Blog/121895616818",
+              "title": "Authoritative Create Target 20260719133044",
+              "handle": "authoritative-create-target-20260719133044",
+              "commentPolicy": "MODERATED",
+              "tags": ["authoritative-content", "cold-create"],
+              "templateSuffix": "authoritative_blog",
+              "createdAt": "2026-07-19T13:30:44Z",
+              "updatedAt": "2026-07-19T13:30:48Z",
+              "articlesCount": {
+                "count": 1,
+                "precision": "EXACT"
+              }
+            },
+            "metafields": {
+              "nodes": []
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 27,
+            "actualQueryCost": 27,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1952,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "afterArticleUpdate": {
+      "request": {
+        "query": "query OnlineStoreAuthoritativeArticleRead($id: ID!) {\n  article(id: $id) {\n    id\n    title\n    handle\n    body\n    summary\n    tags\n    isPublished\n    publishedAt\n    createdAt\n    updatedAt\n    templateSuffix\n    author {\n      name\n    }\n    image {\n      altText\n      url\n      width\n      height\n    }\n    blog {\n      id\n      title\n      handle\n      commentPolicy\n      tags\n      templateSuffix\n      createdAt\n      updatedAt\n      articlesCount {\n        count\n        precision\n      }\n    }\n    metafields(first: 250) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Article/685149421874"
+        }
+      },
+      "response": {
+        "data": {
+          "article": {
+            "id": "gid://shopify/Article/685149421874",
+            "title": "Authoritative Article Narrow Update 20260719133044",
+            "handle": "authoritative-article-update-20260719133044",
+            "body": "<p>Authoritative article body</p>",
+            "summary": "<p>Authoritative article summary</p>",
+            "tags": ["authoritative-content", "updateTargetArticle"],
+            "isPublished": true,
+            "publishedAt": "2026-07-19T13:30:45Z",
+            "createdAt": "2026-07-19T13:30:46Z",
+            "updatedAt": "2026-07-19T13:30:48Z",
+            "templateSuffix": "authoritative_article",
+            "author": {
+              "name": "Authoritative Content Author"
+            },
+            "image": {
+              "altText": "Authoritative content image",
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/articles/png.png?v=1784467847",
+              "width": 96,
+              "height": 64
+            },
+            "blog": {
+              "id": "gid://shopify/Blog/121895649586",
+              "title": "Authoritative Update Parent 20260719133044",
+              "handle": "authoritative-update-parent-20260719133044",
+              "commentPolicy": "MODERATED",
+              "tags": ["authoritative-content", "updateTargetArticle"],
+              "templateSuffix": null,
+              "createdAt": "2026-07-19T13:30:45Z",
+              "updatedAt": "2026-07-19T13:30:48Z",
+              "articlesCount": {
+                "count": 1,
+                "precision": "EXACT"
+              }
+            },
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/45213788832050",
+                  "namespace": "authoritative_content",
+                  "key": "hero",
+                  "type": "single_line_text_field",
+                  "value": "updateTargetArticle hero",
+                  "jsonValue": "updateTargetArticle hero",
+                  "compareDigest": "184f006ea25780d74378951c0f4c523e0a8e69410881219448bcbbfcaf054bae",
+                  "ownerType": "ARTICLE",
+                  "createdAt": "2026-07-19T13:30:46Z",
+                  "updatedAt": "2026-07-19T13:30:46Z"
+                },
+                {
+                  "id": "gid://shopify/Metafield/45213788864818",
+                  "namespace": "authoritative_content",
+                  "key": "secondary",
+                  "type": "single_line_text_field",
+                  "value": "updateTargetArticle secondary",
+                  "jsonValue": "updateTargetArticle secondary",
+                  "compareDigest": "7859fd297d4e9c2d829baa21d64bccc85494a85c931fd6e4bf23103c680fb7a5",
+                  "ownerType": "ARTICLE",
+                  "createdAt": "2026-07-19T13:30:46Z",
+                  "updatedAt": "2026-07-19T13:30:46Z"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 27,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1935,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "afterArticleMove": {
+      "request": {
+        "query": "query OnlineStoreAuthoritativeArticleRead($id: ID!) {\n  article(id: $id) {\n    id\n    title\n    handle\n    body\n    summary\n    tags\n    isPublished\n    publishedAt\n    createdAt\n    updatedAt\n    templateSuffix\n    author {\n      name\n    }\n    image {\n      altText\n      url\n      width\n      height\n    }\n    blog {\n      id\n      title\n      handle\n      commentPolicy\n      tags\n      templateSuffix\n      createdAt\n      updatedAt\n      articlesCount {\n        count\n        precision\n      }\n    }\n    metafields(first: 250) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Article/685149454642"
+        }
+      },
+      "response": {
+        "data": {
+          "article": {
+            "id": "gid://shopify/Article/685149454642",
+            "title": "Authoritative Article Move 20260719133044",
+            "handle": "authoritative-article-move-20260719133044",
+            "body": "<p>Authoritative article body</p>",
+            "summary": "<p>Authoritative article summary</p>",
+            "tags": ["authoritative-content", "moveTargetArticle"],
+            "isPublished": true,
+            "publishedAt": "2026-07-19T13:30:47Z",
+            "createdAt": "2026-07-19T13:30:47Z",
+            "updatedAt": "2026-07-19T13:30:49Z",
+            "templateSuffix": "authoritative_article",
+            "author": {
+              "name": "Authoritative Content Author"
+            },
+            "image": {
+              "altText": "Authoritative content image",
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/articles/png_df443daf-be97-41df-9dc2-0439af30977f.png?v=1784467848",
+              "width": 96,
+              "height": 64
+            },
+            "blog": {
+              "id": "gid://shopify/Blog/121895715122",
+              "title": "Authoritative Move Target 20260719133044",
+              "handle": "authoritative-move-target-20260719133044",
+              "commentPolicy": "MODERATED",
+              "tags": ["authoritative-content", "moveTargetArticle"],
+              "templateSuffix": "authoritative_blog",
+              "createdAt": "2026-07-19T13:30:45Z",
+              "updatedAt": "2026-07-19T13:30:49Z",
+              "articlesCount": {
+                "count": 1,
+                "precision": "EXACT"
+              }
+            },
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/45213788930354",
+                  "namespace": "authoritative_content",
+                  "key": "hero",
+                  "type": "single_line_text_field",
+                  "value": "moveTargetArticle hero",
+                  "jsonValue": "moveTargetArticle hero",
+                  "compareDigest": "f48727553643401ca3687a065fbc3ab5b3c01c9f9f2211e06de9cad8c8e61e5a",
+                  "ownerType": "ARTICLE",
+                  "createdAt": "2026-07-19T13:30:47Z",
+                  "updatedAt": "2026-07-19T13:30:47Z"
+                },
+                {
+                  "id": "gid://shopify/Metafield/45213788963122",
+                  "namespace": "authoritative_content",
+                  "key": "secondary",
+                  "type": "single_line_text_field",
+                  "value": "moveTargetArticle secondary",
+                  "jsonValue": "moveTargetArticle secondary",
+                  "compareDigest": "f154b62b31cd4ff9925e131dce6e8a0230a0631210878dab23118fef4e398710",
+                  "ownerType": "ARTICLE",
+                  "createdAt": "2026-07-19T13:30:47Z",
+                  "updatedAt": "2026-07-19T13:30:47Z"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 27,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1914,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    "afterBlogUpdate": {
+      "request": {
+        "query": "query OnlineStoreAuthoritativeBlogRead($id: ID!) {\n  blog(id: $id) {\n    id\n    title\n    handle\n    commentPolicy\n    tags\n    templateSuffix\n    createdAt\n    updatedAt\n    articlesCount {\n      count\n      precision\n    }\n    metafields(first: 250) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121895747890"
+        }
+      },
+      "response": {
+        "data": {
+          "blog": {
+            "id": "gid://shopify/Blog/121895747890",
+            "title": "Authoritative Blog Narrow Update 20260719133044",
+            "handle": "authoritative-blog-update-20260719133044",
+            "commentPolicy": "MODERATED",
+            "tags": [],
+            "templateSuffix": "authoritative_blog",
+            "createdAt": "2026-07-19T13:30:45Z",
+            "updatedAt": "2026-07-19T13:30:49Z",
+            "articlesCount": {
+              "count": 0,
+              "precision": "EXACT"
+            },
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/45213788504370",
+                  "namespace": "authoritative_content",
+                  "key": "hero",
+                  "type": "single_line_text_field",
+                  "value": "updateTargetBlog hero",
+                  "jsonValue": "updateTargetBlog hero",
+                  "compareDigest": "1cacdd8498b4e111934012fc193848b436a0be99a569835ceb8fa5ae8e96082d",
+                  "ownerType": "BLOG",
+                  "createdAt": "2026-07-19T13:30:45Z",
+                  "updatedAt": "2026-07-19T13:30:45Z"
+                },
+                {
+                  "id": "gid://shopify/Metafield/45213788537138",
+                  "namespace": "authoritative_content",
+                  "key": "secondary",
+                  "type": "single_line_text_field",
+                  "value": "updateTargetBlog secondary",
+                  "jsonValue": "updateTargetBlog secondary",
+                  "compareDigest": "1c9ab4815d8b71e2154380d0d15e2712494d702bef8053a83e4739fc6c354609",
+                  "ownerType": "BLOG",
+                  "createdAt": "2026-07-19T13:30:45Z",
+                  "updatedAt": "2026-07-19T13:30:45Z"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 24,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1902,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreAuthoritativeArticleCleanup($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/685149487410"
+        }
+      },
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/685149487410",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1903,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreAuthoritativeArticleCleanup($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/685149454642"
+        }
+      },
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/685149454642",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1909,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreAuthoritativeArticleCleanup($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/685149421874"
+        }
+      },
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/685149421874",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1917,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreAuthoritativeBlogCleanup($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121895747890"
+        }
+      },
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/121895747890",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1925,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreAuthoritativeBlogCleanup($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121895715122"
+        }
+      },
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/121895715122",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1931,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreAuthoritativeBlogCleanup($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121895682354"
+        }
+      },
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/121895682354",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1934,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreAuthoritativeBlogCleanup($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121895649586"
+        }
+      },
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/121895649586",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1940,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreAuthoritativeBlogCleanup($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121895616818"
+        }
+      },
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/121895616818",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1945,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "OnlineStoreBlogMutationHydrate",
+      "query": "query OnlineStoreBlogMutationHydrate($id: ID!, $after: String) {\n  blog(id: $id) {\n    __typename\n    id\n    title\n    handle\n    commentPolicy\n    tags\n    templateSuffix\n    createdAt\n    updatedAt\n    articlesCount {\n      count\n      precision\n    }\n    metafields(first: 250, after: $after) {\n      nodes {\n        __typename\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Blog/121895616818",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "blog": {
+              "__typename": "Blog",
+              "id": "gid://shopify/Blog/121895616818",
+              "title": "Authoritative Create Target 20260719133044",
+              "handle": "authoritative-create-target-20260719133044",
+              "commentPolicy": "MODERATED",
+              "tags": [],
+              "templateSuffix": "authoritative_blog",
+              "createdAt": "2026-07-19T13:30:44Z",
+              "updatedAt": "2026-07-19T13:30:44Z",
+              "articlesCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "__typename": "Metafield",
+                    "id": "gid://shopify/Metafield/45213788373298",
+                    "namespace": "authoritative_content",
+                    "key": "hero",
+                    "type": "single_line_text_field",
+                    "value": "createTargetBlog hero",
+                    "jsonValue": "createTargetBlog hero",
+                    "compareDigest": "fb68810ba3d9e2e07a80375bcf463c2b137eef18011361056ab59e61690070b9",
+                    "ownerType": "BLOG",
+                    "createdAt": "2026-07-19T13:30:44Z",
+                    "updatedAt": "2026-07-19T13:30:44Z"
+                  },
+                  {
+                    "__typename": "Metafield",
+                    "id": "gid://shopify/Metafield/45213788406066",
+                    "namespace": "authoritative_content",
+                    "key": "secondary",
+                    "type": "single_line_text_field",
+                    "value": "createTargetBlog secondary",
+                    "jsonValue": "createTargetBlog secondary",
+                    "compareDigest": "3519a80433affdf9fffa7ea27dacb02edede1610eceb465388e09971ee6f6737",
+                    "ownerType": "BLOG",
+                    "createdAt": "2026-07-19T13:30:44Z",
+                    "updatedAt": "2026-07-19T13:30:44Z"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0NTIxMzc4ODM3MzI5OCwibGFzdF92YWx1ZSI6IjQ1MjEzNzg4MzczMjk4In0=",
+                  "endCursor": "eyJsYXN0X2lkIjo0NTIxMzc4ODQwNjA2NiwibGFzdF92YWx1ZSI6IjQ1MjEzNzg4NDA2MDY2In0="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OnlineStoreArticleMutationHydrate",
+      "query": "query OnlineStoreArticleMutationHydrate($id: ID!, $after: String) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    body\n    summary\n    tags\n    isPublished\n    publishedAt\n    createdAt\n    updatedAt\n    templateSuffix\n    author {\n      name\n    }\n    image {\n      id\n      altText\n      url\n      width\n      height\n    }\n    blog {\n      __typename\n      id\n      title\n      handle\n      commentPolicy\n      tags\n      templateSuffix\n      createdAt\n      updatedAt\n      articlesCount {\n        count\n        precision\n      }\n    }\n    metafields(first: 250, after: $after) {\n      nodes {\n        __typename\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Article/685149421874",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "article": {
+              "__typename": "Article",
+              "id": "gid://shopify/Article/685149421874",
+              "title": "Authoritative Article Update 20260719133044",
+              "handle": "authoritative-article-update-20260719133044",
+              "body": "<p>Authoritative article body</p>",
+              "summary": "<p>Authoritative article summary</p>",
+              "tags": ["authoritative-content", "updateTargetArticle"],
+              "isPublished": true,
+              "publishedAt": "2026-07-19T13:30:45Z",
+              "createdAt": "2026-07-19T13:30:46Z",
+              "updatedAt": "2026-07-19T13:30:47Z",
+              "templateSuffix": "authoritative_article",
+              "author": {
+                "name": "Authoritative Content Author"
+              },
+              "image": {
+                "id": "gid://shopify/ArticleImage/298543546674",
+                "altText": "Authoritative content image",
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/articles/png.png?v=1784467847",
+                "width": 96,
+                "height": 64
+              },
+              "blog": {
+                "__typename": "Blog",
+                "id": "gid://shopify/Blog/121895649586",
+                "title": "Authoritative Update Parent 20260719133044",
+                "handle": "authoritative-update-parent-20260719133044",
+                "commentPolicy": "MODERATED",
+                "tags": ["authoritative-content", "updateTargetArticle"],
+                "templateSuffix": null,
+                "createdAt": "2026-07-19T13:30:45Z",
+                "updatedAt": "2026-07-19T13:30:47Z",
+                "articlesCount": {
+                  "count": 1,
+                  "precision": "EXACT"
+                }
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "__typename": "Metafield",
+                    "id": "gid://shopify/Metafield/45213788832050",
+                    "namespace": "authoritative_content",
+                    "key": "hero",
+                    "type": "single_line_text_field",
+                    "value": "updateTargetArticle hero",
+                    "jsonValue": "updateTargetArticle hero",
+                    "compareDigest": "184f006ea25780d74378951c0f4c523e0a8e69410881219448bcbbfcaf054bae",
+                    "ownerType": "ARTICLE",
+                    "createdAt": "2026-07-19T13:30:46Z",
+                    "updatedAt": "2026-07-19T13:30:46Z"
+                  },
+                  {
+                    "__typename": "Metafield",
+                    "id": "gid://shopify/Metafield/45213788864818",
+                    "namespace": "authoritative_content",
+                    "key": "secondary",
+                    "type": "single_line_text_field",
+                    "value": "updateTargetArticle secondary",
+                    "jsonValue": "updateTargetArticle secondary",
+                    "compareDigest": "7859fd297d4e9c2d829baa21d64bccc85494a85c931fd6e4bf23103c680fb7a5",
+                    "ownerType": "ARTICLE",
+                    "createdAt": "2026-07-19T13:30:46Z",
+                    "updatedAt": "2026-07-19T13:30:46Z"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0NTIxMzc4ODgzMjA1MCwibGFzdF92YWx1ZSI6IjQ1MjEzNzg4ODMyMDUwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjo0NTIxMzc4ODg2NDgxOCwibGFzdF92YWx1ZSI6IjQ1MjEzNzg4ODY0ODE4In0="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1946,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OnlineStoreArticleMutationHydrate",
+      "query": "query OnlineStoreArticleMutationHydrate($id: ID!, $after: String) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    body\n    summary\n    tags\n    isPublished\n    publishedAt\n    createdAt\n    updatedAt\n    templateSuffix\n    author {\n      name\n    }\n    image {\n      id\n      altText\n      url\n      width\n      height\n    }\n    blog {\n      __typename\n      id\n      title\n      handle\n      commentPolicy\n      tags\n      templateSuffix\n      createdAt\n      updatedAt\n      articlesCount {\n        count\n        precision\n      }\n    }\n    metafields(first: 250, after: $after) {\n      nodes {\n        __typename\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Article/685149454642",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "article": {
+              "__typename": "Article",
+              "id": "gid://shopify/Article/685149454642",
+              "title": "Authoritative Article Move 20260719133044",
+              "handle": "authoritative-article-move-20260719133044",
+              "body": "<p>Authoritative article body</p>",
+              "summary": "<p>Authoritative article summary</p>",
+              "tags": ["authoritative-content", "moveTargetArticle"],
+              "isPublished": true,
+              "publishedAt": "2026-07-19T13:30:47Z",
+              "createdAt": "2026-07-19T13:30:47Z",
+              "updatedAt": "2026-07-19T13:30:48Z",
+              "templateSuffix": "authoritative_article",
+              "author": {
+                "name": "Authoritative Content Author"
+              },
+              "image": {
+                "id": "gid://shopify/ArticleImage/298543579442",
+                "altText": "Authoritative content image",
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/articles/png_df443daf-be97-41df-9dc2-0439af30977f.png?v=1784467848",
+                "width": 96,
+                "height": 64
+              },
+              "blog": {
+                "__typename": "Blog",
+                "id": "gid://shopify/Blog/121895682354",
+                "title": "Authoritative Move Source 20260719133044",
+                "handle": "authoritative-move-source-20260719133044",
+                "commentPolicy": "MODERATED",
+                "tags": ["authoritative-content", "moveTargetArticle"],
+                "templateSuffix": null,
+                "createdAt": "2026-07-19T13:30:45Z",
+                "updatedAt": "2026-07-19T13:30:48Z",
+                "articlesCount": {
+                  "count": 1,
+                  "precision": "EXACT"
+                }
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "__typename": "Metafield",
+                    "id": "gid://shopify/Metafield/45213788930354",
+                    "namespace": "authoritative_content",
+                    "key": "hero",
+                    "type": "single_line_text_field",
+                    "value": "moveTargetArticle hero",
+                    "jsonValue": "moveTargetArticle hero",
+                    "compareDigest": "f48727553643401ca3687a065fbc3ab5b3c01c9f9f2211e06de9cad8c8e61e5a",
+                    "ownerType": "ARTICLE",
+                    "createdAt": "2026-07-19T13:30:47Z",
+                    "updatedAt": "2026-07-19T13:30:47Z"
+                  },
+                  {
+                    "__typename": "Metafield",
+                    "id": "gid://shopify/Metafield/45213788963122",
+                    "namespace": "authoritative_content",
+                    "key": "secondary",
+                    "type": "single_line_text_field",
+                    "value": "moveTargetArticle secondary",
+                    "jsonValue": "moveTargetArticle secondary",
+                    "compareDigest": "f154b62b31cd4ff9925e131dce6e8a0230a0631210878dab23118fef4e398710",
+                    "ownerType": "ARTICLE",
+                    "createdAt": "2026-07-19T13:30:47Z",
+                    "updatedAt": "2026-07-19T13:30:47Z"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0NTIxMzc4ODkzMDM1NCwibGFzdF92YWx1ZSI6IjQ1MjEzNzg4OTMwMzU0In0=",
+                  "endCursor": "eyJsYXN0X2lkIjo0NTIxMzc4ODk2MzEyMiwibGFzdF92YWx1ZSI6IjQ1MjEzNzg4OTYzMTIyIn0="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1928,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OnlineStoreBlogMutationHydrate",
+      "query": "query OnlineStoreBlogMutationHydrate($id: ID!, $after: String) {\n  blog(id: $id) {\n    __typename\n    id\n    title\n    handle\n    commentPolicy\n    tags\n    templateSuffix\n    createdAt\n    updatedAt\n    articlesCount {\n      count\n      precision\n    }\n    metafields(first: 250, after: $after) {\n      nodes {\n        __typename\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Blog/121895715122",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "blog": {
+              "__typename": "Blog",
+              "id": "gid://shopify/Blog/121895715122",
+              "title": "Authoritative Move Target 20260719133044",
+              "handle": "authoritative-move-target-20260719133044",
+              "commentPolicy": "MODERATED",
+              "tags": [],
+              "templateSuffix": "authoritative_blog",
+              "createdAt": "2026-07-19T13:30:45Z",
+              "updatedAt": "2026-07-19T13:30:45Z",
+              "articlesCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "__typename": "Metafield",
+                    "id": "gid://shopify/Metafield/45213788438834",
+                    "namespace": "authoritative_content",
+                    "key": "hero",
+                    "type": "single_line_text_field",
+                    "value": "moveTargetBlog hero",
+                    "jsonValue": "moveTargetBlog hero",
+                    "compareDigest": "4368909d9f507e28ad0e51fcbc94276c9c959ab280abfc08307ed2be3c18bc16",
+                    "ownerType": "BLOG",
+                    "createdAt": "2026-07-19T13:30:45Z",
+                    "updatedAt": "2026-07-19T13:30:45Z"
+                  },
+                  {
+                    "__typename": "Metafield",
+                    "id": "gid://shopify/Metafield/45213788471602",
+                    "namespace": "authoritative_content",
+                    "key": "secondary",
+                    "type": "single_line_text_field",
+                    "value": "moveTargetBlog secondary",
+                    "jsonValue": "moveTargetBlog secondary",
+                    "compareDigest": "edcbb6bd0f526a3ea5b49ec01520e00b6e33621a36ce76e4b447e02895177455",
+                    "ownerType": "BLOG",
+                    "createdAt": "2026-07-19T13:30:45Z",
+                    "updatedAt": "2026-07-19T13:30:45Z"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0NTIxMzc4ODQzODgzNCwibGFzdF92YWx1ZSI6IjQ1MjEzNzg4NDM4ODM0In0=",
+                  "endCursor": "eyJsYXN0X2lkIjo0NTIxMzc4ODQ3MTYwMiwibGFzdF92YWx1ZSI6IjQ1MjEzNzg4NDcxNjAyIn0="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1925,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OnlineStoreBlogMutationHydrate",
+      "query": "query OnlineStoreBlogMutationHydrate($id: ID!, $after: String) {\n  blog(id: $id) {\n    __typename\n    id\n    title\n    handle\n    commentPolicy\n    tags\n    templateSuffix\n    createdAt\n    updatedAt\n    articlesCount {\n      count\n      precision\n    }\n    metafields(first: 250, after: $after) {\n      nodes {\n        __typename\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Blog/121895747890",
+        "after": null
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "blog": {
+              "__typename": "Blog",
+              "id": "gid://shopify/Blog/121895747890",
+              "title": "Authoritative Blog Update 20260719133044",
+              "handle": "authoritative-blog-update-20260719133044",
+              "commentPolicy": "MODERATED",
+              "tags": [],
+              "templateSuffix": "authoritative_blog",
+              "createdAt": "2026-07-19T13:30:45Z",
+              "updatedAt": "2026-07-19T13:30:45Z",
+              "articlesCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "__typename": "Metafield",
+                    "id": "gid://shopify/Metafield/45213788504370",
+                    "namespace": "authoritative_content",
+                    "key": "hero",
+                    "type": "single_line_text_field",
+                    "value": "updateTargetBlog hero",
+                    "jsonValue": "updateTargetBlog hero",
+                    "compareDigest": "1cacdd8498b4e111934012fc193848b436a0be99a569835ceb8fa5ae8e96082d",
+                    "ownerType": "BLOG",
+                    "createdAt": "2026-07-19T13:30:45Z",
+                    "updatedAt": "2026-07-19T13:30:45Z"
+                  },
+                  {
+                    "__typename": "Metafield",
+                    "id": "gid://shopify/Metafield/45213788537138",
+                    "namespace": "authoritative_content",
+                    "key": "secondary",
+                    "type": "single_line_text_field",
+                    "value": "updateTargetBlog secondary",
+                    "jsonValue": "updateTargetBlog secondary",
+                    "compareDigest": "1c9ab4815d8b71e2154380d0d15e2712494d702bef8053a83e4739fc6c354609",
+                    "ownerType": "BLOG",
+                    "createdAt": "2026-07-19T13:30:45Z",
+                    "updatedAt": "2026-07-19T13:30:45Z"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0NTIxMzc4ODUwNDM3MCwibGFzdF92YWx1ZSI6IjQ1MjEzNzg4NTA0MzcwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjo0NTIxMzc4ODUzNzEzOCwibGFzdF92YWx1ZSI6IjQ1MjEzNzg4NTM3MTM4In0="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1911,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

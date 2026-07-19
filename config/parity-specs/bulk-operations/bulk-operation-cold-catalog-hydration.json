@@ -1,0 +1,107 @@
+{
+  "scenarioId": "bulk-operation-cold-catalog-hydration",
+  "operationNames": ["productCreate", "productDelete", "bulkOperationRunQuery", "bulkOperation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "bulk-jsonl-artifact-parity",
+    "live-hybrid-hydration-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-cold-catalog-hydration.json"
+  ],
+  "runtimeTestFiles": [
+    "src/proxy/media_products_saved_searches/bulk_operations.rs",
+    "tests/graphql_routes/admin_app_shipping.rs"
+  ],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-cold-catalog-hydration-run-query.graphql",
+    "variablesCapturePath": "$.run.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures a disposable Shopify product, the exact ordinary Admin GraphQL catalog pages required by a cold LiveHybrid product bulk export, and Shopify's terminal JSONL artifact for the same tag-filtered query. The strict artifact target proves the proxy hydrates the captured baseline instead of representing an unobserved catalog as empty.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cold-live-hybrid-run-payload",
+        "capturePath": "$.run.response.data.bulkOperationRunQuery",
+        "proxyPath": "$.data.bulkOperationRunQuery",
+        "expectedDifferences": [
+          {
+            "path": "$.bulkOperation.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy create their BulkOperation records on different clocks."
+          },
+          {
+            "path": "$.bulkOperation.id",
+            "matcher": "shopify-gid:BulkOperation",
+            "reason": "Shopify allocates the captured job id while the proxy allocates a synthetic local id."
+          }
+        ]
+      },
+      {
+        "name": "cold-live-hybrid-terminal-counts",
+        "capturePath": "$.run.terminalOperation",
+        "proxyPath": "$.data.bulkOperation",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-by-id-parity.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "cold-live-hybrid-run-payload",
+              "path": "$.data.bulkOperationRunQuery.bulkOperation.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.completedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy complete their BulkOperation records on different clocks."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy create their BulkOperation records on different clocks."
+          },
+          {
+            "path": "$.fileSize",
+            "matcher": "non-empty-string",
+            "reason": "Both artifacts are non-empty but their storage encodings may produce different byte counts."
+          },
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:BulkOperation",
+            "reason": "Shopify allocates the captured job id while the proxy allocates a synthetic local id."
+          },
+          {
+            "path": "$.url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify uses signed storage while the proxy serves an instance-owned local artifact URL."
+          }
+        ]
+      },
+      {
+        "name": "cold-live-hybrid-jsonl-contains-captured-baseline-product",
+        "capturePath": "$.run.result.records[0]",
+        "proxyPath": "$.body",
+        "proxyHttpRequest": {
+          "method": "GET",
+          "path": {
+            "fromProxyResponse": "cold-live-hybrid-terminal-counts",
+            "path": "$.data.bulkOperation.url"
+          }
+        },
+        "preserveProxyState": true,
+        "expectedDifferences": []
+      }
+    ]
+  }
+}

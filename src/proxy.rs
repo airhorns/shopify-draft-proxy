@@ -1867,6 +1867,65 @@ impl Store {
         }
     }
 
+    /// Merge an upstream catalog row into baseline state without touching the
+    /// staged overlay. Bulk exports hydrate selected fields incrementally, so
+    /// preserve any baseline fields learned by earlier reads when the current
+    /// query did not select them.
+    fn observe_base_product_json(&mut self, value: &Value) {
+        let Some(id) = value.get("id").and_then(Value::as_str) else {
+            return;
+        };
+        let mut merged = self
+            .products
+            .base
+            .get(id)
+            .map(product_state_json)
+            .unwrap_or_else(|| json!({}));
+        let (Some(merged), Some(observed)) = (merged.as_object_mut(), value.as_object()) else {
+            return;
+        };
+        if let Some(extra_fields) = merged
+            .remove("extraFields")
+            .and_then(|extra_fields| extra_fields.as_object().cloned())
+        {
+            merged.extend(extra_fields);
+        }
+        merged.extend(observed.clone());
+        let Some(product) = product_state_from_json(&Value::Object(merged.clone())) else {
+            return;
+        };
+        self.products.base.insert(product.id.clone(), product);
+    }
+
+    fn observe_base_product_variant_json(&mut self, value: &Value, product_id: &str) {
+        let Some(id) = value.get("id").and_then(Value::as_str) else {
+            return;
+        };
+        let mut observed = value.clone();
+        let Some(observed_object) = observed.as_object_mut() else {
+            return;
+        };
+        observed_object.insert("productId".to_string(), json!(product_id));
+        let mut merged = self
+            .product_variants
+            .base
+            .get(id)
+            .map(product_variant_state_json)
+            .unwrap_or_else(|| json!({}));
+        let (Some(merged), Some(observed)) = (merged.as_object_mut(), observed.as_object()) else {
+            return;
+        };
+        merged.extend(observed.clone());
+        let Some(variant) =
+            product_variant_state_from_observed_json(&Value::Object(merged.clone()))
+        else {
+            return;
+        };
+        self.product_variants
+            .base
+            .insert(variant.id.clone(), variant);
+    }
+
     fn stage_collection_membership(&mut self, collection: Value, products: Vec<ProductRecord>) {
         let Some(collection_id) = collection
             .get("id")
