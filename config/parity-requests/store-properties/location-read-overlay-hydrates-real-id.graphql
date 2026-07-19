@@ -1,0 +1,107 @@
+#graphql
+query LocationReadOverlayHydratesRealId($realId: ID!, $fixtureId: ID!, $stagedId: ID!) {
+  real: location(id: $realId) {
+    id
+    legacyResourceId
+    name
+    activatable
+    addressVerified
+    createdAt
+    deactivatable
+    deactivatedAt
+    deletable
+    fulfillsOnlineOrders
+    hasActiveInventory
+    hasUnfulfilledOrders
+    isActive
+    isFulfillmentService
+    isPrimary
+    shipsInventory
+    updatedAt
+    fulfillmentService {
+      id
+      handle
+      serviceName
+    }
+    address {
+      address1
+      address2
+      city
+      country
+      countryCode
+      formatted
+      latitude
+      longitude
+      phone
+      province
+      provinceCode
+      zip
+    }
+    suggestedAddresses {
+      address1
+      countryCode
+      formatted
+    }
+    metafield(namespace: "custom", key: "hours") {
+      id
+      namespace
+      key
+      value
+      type
+    }
+    metafields(first: 3) {
+      nodes {
+        id
+        namespace
+        key
+        value
+        type
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    inventoryLevels(first: 3) {
+      nodes {
+        id
+        item {
+          id
+        }
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "committed", "on_hand"]) {
+          name
+          quantity
+          updatedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  realByIdentifier: locationByIdentifier(identifier: { id: $realId }) {
+    id
+    name
+    isActive
+  }
+  fixture: location(id: $fixtureId) {
+    id
+    name
+    isActive
+    fulfillsOnlineOrders
+  }
+  staged: location(id: $stagedId) {
+    id
+    name
+    isActive
+  }
+}

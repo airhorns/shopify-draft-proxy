@@ -5859,6 +5859,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-read-overlay',
+    scriptPath: 'scripts/capture-location-read-overlay-conformance.mts',
+    purpose:
+      'location(id:) and locationByIdentifier(id:) real-baseline hydration after local overlay state exists, including the old fixture-location id probe.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-read-overlay-hydrates-real-id.json`,
+      'config/parity-specs/store-properties/location-read-overlay-hydrates-real-id.json',
+      'config/parity-requests/store-properties/location-read-overlay-hydrates-real-id.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable non-online-fulfilling overlay location, reads a separate real baseline location, then deactivates and deletes the disposable location.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'location-add-resource-limit-reached',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-location-add-resource-limit-reached-conformance.mts',

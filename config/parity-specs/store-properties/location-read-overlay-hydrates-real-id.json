@@ -1,0 +1,88 @@
+{
+  "scenarioId": "location-read-overlay-hydrates-real-id",
+  "operationNames": ["locationAdd", "location", "locationByIdentifier"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "upstream-hydration", "no-fixture-fallback"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-read-overlay-hydrates-real-id.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-add-validation-and-defaults.graphql",
+    "variablesCapturePath": "$.setup.createOverlay.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "overlay-location-add-user-errors",
+        "capturePath": "$.setup.createOverlay.response.payload.data.locationAdd.userErrors",
+        "proxyPath": "$.data.locationAdd.userErrors"
+      },
+      {
+        "name": "real-location-read-after-overlay",
+        "capturePath": "$.read.response.payload.data.real",
+        "proxyPath": "$.data.real",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-read-overlay-hydrates-real-id.graphql",
+          "variables": {
+            "realId": {
+              "fromCapturePath": "$.metadata.realLocationId"
+            },
+            "fixtureId": {
+              "fromCapturePath": "$.metadata.fixtureLocationId"
+            },
+            "stagedId": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "real-location-by-identifier-after-overlay",
+        "capturePath": "$.read.response.payload.data.realByIdentifier",
+        "proxyPath": "$.data.realByIdentifier",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-read-overlay-hydrates-real-id.graphql",
+          "variables": {
+            "realId": {
+              "fromCapturePath": "$.metadata.realLocationId"
+            },
+            "fixtureId": {
+              "fromCapturePath": "$.metadata.fixtureLocationId"
+            },
+            "stagedId": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "fixture-location-id-not-synthesized-after-overlay",
+        "capturePath": "$.read.response.payload.data.fixture",
+        "proxyPath": "$.data.fixture",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-read-overlay-hydrates-real-id.graphql",
+          "variables": {
+            "realId": {
+              "fromCapturePath": "$.metadata.realLocationId"
+            },
+            "fixtureId": {
+              "fromCapturePath": "$.metadata.fixtureLocationId"
+            },
+            "stagedId": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 capture against harry-test-heelo.myshopify.com proves that once local location overlay state exists, location(id:) and id-based locationByIdentifier for a separate real baseline Location still resolve from the real store through a StorePropertiesLocationHydrate cassette. The scenario also probes the old captured fixture-location id through the same path so replay must hydrate or return Shopify's null instead of synthesizing a baked fixture record."
+}

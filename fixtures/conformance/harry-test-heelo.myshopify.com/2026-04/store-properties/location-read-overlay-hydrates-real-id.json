@@ -1,0 +1,644 @@
+{
+  "metadata": {
+    "capturedAt": "2026-06-26T05:46:15.819Z",
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "realLocationId": "gid://shopify/Location/112829759794",
+    "fixtureLocationId": "gid://shopify/Location/112831103282",
+    "overlayLocationId": "gid://shopify/Location/113641881906"
+  },
+  "setup": {
+    "catalog": {
+      "name": "catalog",
+      "query": "query LocationReadOverlayCatalog($first: Int!) {\n    locations(first: $first) {\n      nodes {\n        id\n        name\n      }\n    }\n  }",
+      "variables": {
+        "first": 10
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/112829759794",
+                  "name": "HAR-571 transfer destination 20260505000619"
+                },
+                {
+                  "id": "gid://shopify/Location/112829956402",
+                  "name": "HAR-571 transfer destination 20260505000856"
+                },
+                {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352"
+                },
+                {
+                  "id": "gid://shopify/Location/112833069362",
+                  "name": "HAR-654 Sub 20260505044352"
+                },
+                {
+                  "id": "gid://shopify/Location/112831103282",
+                  "name": "HAR-658 lifecycle 20260505013332"
+                },
+                {
+                  "id": "gid://shopify/Location/112864788786",
+                  "name": "Inventory transfer conformance destination 1778105212772"
+                },
+                {
+                  "id": "gid://shopify/Location/112864919858",
+                  "name": "Inventory transfer conformance destination 1778105301908"
+                },
+                {
+                  "id": "gid://shopify/Location/112864985394",
+                  "name": "Inventory transfer conformance destination 1778105349016"
+                },
+                {
+                  "id": "gid://shopify/Location/112865149234",
+                  "name": "Inventory transfer conformance destination 1778105966307"
+                },
+                {
+                  "id": "gid://shopify/Location/113491640626",
+                  "name": "Inventory transfer conformance destination 1781556548951"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createOverlay": {
+      "name": "createOverlay",
+      "query": "mutation LocationReadOverlaySeed($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        fulfillsOnlineOrders\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "Overlay Probe 20260626054615",
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "address1": "3 Spadina",
+            "city": "Toronto",
+            "countryCode": "CA",
+            "zip": "M5T 2C4"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/113641881906",
+                "name": "Overlay Probe 20260626054615",
+                "fulfillsOnlineOrders": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "read": {
+    "name": "read",
+    "query": "query LocationReadOverlayHydratesRealId($realId: ID!, $fixtureId: ID!, $stagedId: ID!) {\n    real: location(id: $realId) {\n      id\n      legacyResourceId\n      name\n      activatable\n      addressVerified\n      createdAt\n      deactivatable\n      deactivatedAt\n      deletable\n      fulfillsOnlineOrders\n      hasActiveInventory\n      hasUnfulfilledOrders\n      isActive\n      isFulfillmentService\n      isPrimary\n      shipsInventory\n      updatedAt\n      fulfillmentService {\n        id\n        handle\n        serviceName\n      }\n      address {\n        address1\n        address2\n        city\n        country\n        countryCode\n        formatted\n        latitude\n        longitude\n        phone\n        province\n        provinceCode\n        zip\n      }\n      suggestedAddresses {\n        address1\n        countryCode\n        formatted\n      }\n      metafield(namespace: \"custom\", key: \"hours\") {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      metafields(first: 3) {\n        nodes {\n          id\n          namespace\n          key\n          value\n          type\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      inventoryLevels(first: 3) {\n        nodes {\n          id\n          item {\n            id\n          }\n          location {\n            id\n            name\n          }\n          quantities(names: [\"available\", \"committed\", \"on_hand\"]) {\n            name\n            quantity\n            updatedAt\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    realByIdentifier: locationByIdentifier(identifier: { id: $realId }) {\n      id\n      name\n      isActive\n    }\n    fixture: location(id: $fixtureId) {\n      id\n      name\n      isActive\n      fulfillsOnlineOrders\n    }\n    staged: location(id: $stagedId) {\n      id\n      name\n      isActive\n    }\n  }",
+    "variables": {
+      "realId": "gid://shopify/Location/112829759794",
+      "fixtureId": "gid://shopify/Location/112831103282",
+      "stagedId": "gid://shopify/Location/113641881906"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "real": {
+            "id": "gid://shopify/Location/112829759794",
+            "legacyResourceId": "112829759794",
+            "name": "HAR-571 transfer destination 20260505000619",
+            "activatable": true,
+            "addressVerified": true,
+            "createdAt": "2026-05-05T00:06:19Z",
+            "deactivatable": true,
+            "deactivatedAt": null,
+            "deletable": false,
+            "fulfillsOnlineOrders": true,
+            "hasActiveInventory": false,
+            "hasUnfulfilledOrders": true,
+            "isActive": true,
+            "isFulfillmentService": false,
+            "isPrimary": false,
+            "shipsInventory": false,
+            "updatedAt": "2026-06-25T13:38:30Z",
+            "fulfillmentService": null,
+            "address": {
+              "address1": "123 Broadway",
+              "address2": null,
+              "city": "New York",
+              "country": "United States",
+              "countryCode": "US",
+              "formatted": [
+                "123 Broadway",
+                "New York NY 10006",
+                "United States"
+              ],
+              "latitude": 40.7088387,
+              "longitude": -74.0111328,
+              "phone": null,
+              "province": "New York",
+              "provinceCode": "NY",
+              "zip": "10006"
+            },
+            "suggestedAddresses": [],
+            "metafield": null,
+            "metafields": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "inventoryLevels": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "realByIdentifier": {
+            "id": "gid://shopify/Location/112829759794",
+            "name": "HAR-571 transfer destination 20260505000619",
+            "isActive": true
+          },
+          "fixture": {
+            "id": "gid://shopify/Location/112831103282",
+            "name": "HAR-658 lifecycle 20260505013332",
+            "isActive": true,
+            "fulfillsOnlineOrders": false
+          },
+          "staged": {
+            "id": "gid://shopify/Location/113641881906",
+            "name": "Overlay Probe 20260626054615",
+            "isActive": true
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "hydrates": {
+    "realHydrate": {
+      "name": "realHydrate",
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "variables": {
+        "id": "gid://shopify/Location/112829759794"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112829759794",
+              "legacyResourceId": "112829759794",
+              "name": "HAR-571 transfer destination 20260505000619",
+              "activatable": true,
+              "addressVerified": true,
+              "createdAt": "2026-05-05T00:06:19Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": true,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": true,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-06-25T13:38:30Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "123 Broadway",
+                "address2": null,
+                "city": "New York",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": [
+                  "123 Broadway",
+                  "New York NY 10006",
+                  "United States"
+                ],
+                "latitude": 40.7088387,
+                "longitude": -74.0111328,
+                "phone": null,
+                "province": "New York",
+                "provinceCode": "NY",
+                "zip": "10006"
+              },
+              "suggestedAddresses": [],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fixtureHydrate": {
+      "name": "fixtureHydrate",
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "variables": {
+        "id": "gid://shopify/Location/112831103282"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112831103282",
+              "legacyResourceId": "112831103282",
+              "name": "HAR-658 lifecycle 20260505013332",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-05-05T01:33:32Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-05T01:33:34Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "1 Test St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": [
+                  "1 Test St",
+                  "Boston MA 02110",
+                  "United States"
+                ],
+                "latitude": 42.3390059,
+                "longitude": -71.0913587,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02110"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "1 Jess St",
+                  "countryCode": "US",
+                  "formatted": [
+                    "1 Jess St",
+                    "Boston MA 02130",
+                    "United States"
+                  ]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "cleanupDeactivate",
+      "query": "mutation LocationReadOverlayCleanupDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        isActive\n      }\n      locationDeactivateUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/113641881906",
+        "idempotencyKey": "location-read-overlay-hydrates-real-id-cleanup-20260626054615-113641881906"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/113641881906",
+                "isActive": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanupDelete",
+      "query": "mutation LocationReadOverlayCleanupDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/113641881906"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/113641881906",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/112829759794"
+      },
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112829759794",
+              "legacyResourceId": "112829759794",
+              "name": "HAR-571 transfer destination 20260505000619",
+              "activatable": true,
+              "addressVerified": true,
+              "createdAt": "2026-05-05T00:06:19Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": true,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": true,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-06-25T13:38:30Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "123 Broadway",
+                "address2": null,
+                "city": "New York",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": [
+                  "123 Broadway",
+                  "New York NY 10006",
+                  "United States"
+                ],
+                "latitude": 40.7088387,
+                "longitude": -74.0111328,
+                "phone": null,
+                "province": "New York",
+                "provinceCode": "NY",
+                "zip": "10006"
+              },
+              "suggestedAddresses": [],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/112831103282"
+      },
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112831103282",
+              "legacyResourceId": "112831103282",
+              "name": "HAR-658 lifecycle 20260505013332",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-05-05T01:33:32Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-05T01:33:34Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "1 Test St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": [
+                  "1 Test St",
+                  "Boston MA 02110",
+                  "United States"
+                ],
+                "latitude": 42.3390059,
+                "longitude": -71.0913587,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02110"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "1 Jess St",
+                  "countryCode": "US",
+                  "formatted": [
+                    "1 Jess St",
+                    "Boston MA 02130",
+                    "United States"
+                  ]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

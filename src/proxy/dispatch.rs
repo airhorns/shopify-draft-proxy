@@ -255,9 +255,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         root_field: &str,
     ) -> Response {
-        if is_shipping_fulfillment_order_local_order_read(query, variables)
-            || (root_field == "order"
-                && self.should_handle_shipping_fulfillment_order_local_order_read(query, variables))
+        if root_field == "order"
+            && self.should_handle_shipping_fulfillment_order_local_order_read(query, variables)
         {
             return self.shipping_fulfillment_order_local_order_read(query, variables);
         }
@@ -1834,7 +1833,7 @@ impl DraftProxy {
                     // fields from the location overlay, then merge the
                     // delivery-profile locations connection into the same `data`
                     // object so both resolve from staged/observed state.
-                    let mut response = self.location_read_response(&fields);
+                    let mut response = self.location_read_response(request, &fields);
                     if fields.iter().any(|field| {
                         field.name == "locationsAvailableForDeliveryProfilesConnection"
                     }) {
@@ -1961,10 +1960,6 @@ impl DraftProxy {
                     self.delivery_profile_locations_read_response(request, &fields)
                 } else if let Some(data) = self.fulfillment_service_read_data(&fields) {
                     ok_json(json!({ "data": data }))
-                } else if root_field == "fulfillmentOrder"
-                    && is_fulfillment_order_request_lifecycle_direct_read(&query, &variables)
-                {
-                    self.fulfillment_order_request_lifecycle_direct_read(&query, &variables)
                 } else if matches!(
                     root_field,
                     "fulfillmentOrder"
@@ -2039,14 +2034,9 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation
                     && root_field == "fulfillmentOrderMove" =>
             {
-                if fulfillment_order_move_is_sentinel_scenario(&query, &variables) {
-                    self.fulfillment_order_move_assignment_status(&query, &variables, request)
-                } else {
-                    // Real-id moves stage against the local fulfillment-order engine.
-                    self.shipping_fulfillment_order_mutation_response(
-                        root_field, request, &query, &variables,
-                    )
-                }
+                self.shipping_fulfillment_order_mutation_response(
+                    root_field, request, &query, &variables,
+                )
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
@@ -2055,27 +2045,17 @@ impl DraftProxy {
                         "fulfillmentOrderOpen" | "fulfillmentOrderReportProgress"
                     ) =>
             {
-                if fulfillment_order_status_precondition_is_sentinel_scenario(&query, &variables) {
-                    self.fulfillment_order_status_precondition(root_field, &query, &variables)
-                } else {
-                    // Real-id open/report-progress stage against the local engine.
-                    self.shipping_fulfillment_order_mutation_response(
-                        root_field, request, &query, &variables,
-                    )
-                }
+                self.shipping_fulfillment_order_mutation_response(
+                    root_field, request, &query, &variables,
+                )
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && root_field == "fulfillmentOrdersSetFulfillmentDeadline" =>
             {
-                if fulfillment_order_set_deadline_is_sentinel_scenario(&query, &variables) {
-                    self.fulfillment_order_set_deadline(&query, &variables, request)
-                } else {
-                    // Real-id deadline updates stage against the local engine.
-                    self.shipping_fulfillment_order_mutation_response(
-                        root_field, request, &query, &variables,
-                    )
-                }
+                self.shipping_fulfillment_order_mutation_response(
+                    root_field, request, &query, &variables,
+                )
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation

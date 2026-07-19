@@ -2281,6 +2281,150 @@ fn generic_location_add_stages_location_and_downstream_reads() {
 }
 
 #[test]
+fn location_read_does_not_synthesize_fixture_records_after_overlay_state() {
+    let mut proxy = snapshot_proxy();
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedRealLocationOverlay($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id name }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Real Overlay Location",
+                "address": { "countryCode": "US" }
+            }
+        }),
+    ));
+    assert_eq!(add.body["data"]["locationAdd"]["userErrors"], json!([]));
+    let staged_location_id = add.body["data"]["locationAdd"]["location"]["id"].clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCapturedFixtureLocation($fixtureId: ID!, $stagedId: ID!) {
+          fixture: location(id: $fixtureId) { id name isActive fulfillsOnlineOrders }
+          staged: location(id: $stagedId) { id name isActive }
+        }
+        "#,
+        json!({
+            "fixtureId": "gid://shopify/Location/112831103282",
+            "stagedId": staged_location_id.clone()
+        }),
+    ));
+    assert_eq!(read.body["data"]["fixture"], Value::Null);
+    assert_eq!(
+        read.body["data"]["staged"],
+        json!({
+            "id": staged_location_id,
+            "name": "Real Overlay Location",
+            "isActive": true
+        })
+    );
+}
+
+#[test]
+fn location_read_hydrates_real_id_after_overlay_state_in_live_hybrid() {
+    let real_location_id = "gid://shopify/Location/5550001";
+    let fixture_location_id = "gid://shopify/Location/112831103282";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let requests_for_transport = Arc::clone(&upstream_requests);
+    let real_location_id_for_transport = real_location_id.to_string();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            requests_for_transport.lock().unwrap().push(body.clone());
+            let requested_id = body["variables"]["id"].as_str().unwrap_or_default();
+            let location = if requested_id == real_location_id_for_transport {
+                json!({
+                    "id": requested_id,
+                    "name": "Live Baseline Location",
+                    "isActive": true,
+                    "fulfillsOnlineOrders": true,
+                    "isFulfillmentService": false,
+                    "shipsInventory": true,
+                    "hasActiveInventory": false,
+                    "hasUnfulfilledOrders": false
+                })
+            } else {
+                Value::Null
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "location": location } }),
+            }
+        });
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedLiveLocationOverlay($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id name }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Live Overlay Location",
+                "address": { "countryCode": "US" }
+            }
+        }),
+    ));
+    assert_eq!(add.body["data"]["locationAdd"]["userErrors"], json!([]));
+    let staged_location_id = add.body["data"]["locationAdd"]["location"]["id"].clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadRealLocationWithOverlay($realId: ID!, $fixtureId: ID!, $stagedId: ID!) {
+          real: location(id: $realId) { id name isActive fulfillsOnlineOrders }
+          realByIdentifier: locationByIdentifier(identifier: { id: $realId }) { id name }
+          fixture: location(id: $fixtureId) { id name isActive fulfillsOnlineOrders }
+          staged: location(id: $stagedId) { id name isActive }
+        }
+        "#,
+        json!({
+            "realId": real_location_id,
+            "fixtureId": fixture_location_id,
+            "stagedId": staged_location_id.clone()
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["real"],
+        json!({
+            "id": real_location_id,
+            "name": "Live Baseline Location",
+            "isActive": true,
+            "fulfillsOnlineOrders": true
+        })
+    );
+    assert_eq!(
+        read.body["data"]["realByIdentifier"],
+        json!({ "id": real_location_id, "name": "Live Baseline Location" })
+    );
+    assert_eq!(read.body["data"]["fixture"], Value::Null);
+    assert_eq!(
+        read.body["data"]["staged"],
+        json!({
+            "id": staged_location_id,
+            "name": "Live Overlay Location",
+            "isActive": true
+        })
+    );
+
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert!(requests.iter().all(|request| {
+        request["operationName"] == json!("StorePropertiesLocationHydrate")
+    }));
+    assert_eq!(requests[0]["variables"], json!({ "id": real_location_id }));
+    assert_eq!(requests[1]["variables"], json!({ "id": fixture_location_id }));
+}
+
+#[test]
 fn generic_location_edit_stages_location_validates_and_downstream_reads() {
     let mut proxy = snapshot_proxy();
     let primary = proxy.process_request(json_graphql_request(
@@ -3874,40 +4018,102 @@ fn fulfillment_order_close_stages_after_accepted_request_passthrough_observation
 }
 
 #[test]
-fn fulfillment_order_close_reschedule_and_reroute_return_guardrail_payloads() {
-    let mut proxy = snapshot_proxy();
-
-    let close = proxy.process_request(json_graphql_request(
-        r#"
-        mutation CloseNumericFulfillmentOrder($id: ID!) {
-          fulfillmentOrderClose(id: $id, message: "done") {
-            fulfillmentOrder { id status }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "id": "gid://shopify/FulfillmentOrder/3234567890" }),
-    ));
-    assert_eq!(close.status, 200);
-    assert_eq!(
-        close.body["data"]["fulfillmentOrderClose"]["userErrors"][0]["message"],
-        json!("The fulfillment order's assigned fulfillment service must be of api type")
+fn fulfillment_order_reschedule_stages_scheduled_orders_and_reroute_forwards() {
+    let order_id = "gid://shopify/Order/7004001";
+    let fulfillment_order_id = "gid://shopify/FulfillmentOrder/3234567890";
+    let order = fulfillment_order_order_fixture(
+        order_id,
+        "#7004",
+        fulfillment_order_id,
+        "gid://shopify/FulfillmentOrderLineItem/5233445500",
+        1,
+        "SCHEDULED",
     );
+    let reroute_forwarded = Arc::new(Mutex::new(false));
+    let reroute_forwarded_for_transport = Arc::clone(&reroute_forwarded);
+    let fulfillment_order_id_for_transport = fulfillment_order_id.to_string();
+    let order_for_transport = order.clone();
+    let mut proxy = snapshot_proxy().with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        let query = body["query"].as_str().unwrap_or_default();
+        if query.contains("fulfillmentOrdersReroute") {
+            *reroute_forwarded_for_transport.lock().unwrap() = true;
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "fulfillmentOrdersReroute": {
+                            "movedFulfillmentOrders": [{ "id": fulfillment_order_id_for_transport }],
+                            "userErrors": []
+                        }
+                    }
+                }),
+            };
+        }
+        let requested_id = body["variables"]["id"].as_str().unwrap_or_default();
+        let hydrated = if requested_id == fulfillment_order_id_for_transport {
+            let mut node = order_for_transport["fulfillmentOrders"]["nodes"][0].clone();
+            node["order"] = json!({
+                "id": order_for_transport["id"],
+                "name": order_for_transport["name"],
+                "displayFulfillmentStatus": order_for_transport["displayFulfillmentStatus"]
+            });
+            Some(node)
+        } else {
+            None
+        };
+        let response_body = if query.contains("node(id: $id)") {
+            json!({ "data": { "node": hydrated.unwrap_or(Value::Null) } })
+        } else {
+            json!({ "data": { "order": order_for_transport.clone() } })
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
 
     let reschedule = proxy.process_request(json_graphql_request(
         r#"
         mutation RescheduleNumericFulfillmentOrder($id: ID!) {
-          fulfillmentOrderReschedule(id: $id, fulfillAt: "2026-12-01T00:00:00Z") {
-            fulfillmentOrder { id status }
+          fulfillmentOrderReschedule(id: $id, fulfillAt: "2026-12-01T00:00:00.000Z") {
+            fulfillmentOrder { id status fulfillAt updatedAt supportedActions { action } }
             userErrors { field message code }
           }
         }
         "#,
-        json!({ "id": "gid://shopify/FulfillmentOrder/3234567890" }),
+        json!({ "id": fulfillment_order_id }),
     ));
     assert_eq!(
-        reschedule.body["data"]["fulfillmentOrderReschedule"]["userErrors"][0]["message"],
-        json!("Fulfillment order must be scheduled.")
+        reschedule.body["data"]["fulfillmentOrderReschedule"],
+        json!({
+            "fulfillmentOrder": {
+                "id": fulfillment_order_id,
+                "status": "SCHEDULED",
+                "fulfillAt": "2026-12-01T00:00:00Z",
+                "updatedAt": "2026-01-01T00:00:01Z",
+                "supportedActions": [{ "action": "MARK_AS_OPEN" }]
+            },
+            "userErrors": []
+        })
+    );
+
+    let after_reschedule = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadRescheduledFulfillmentOrder($orderId: ID!) {
+          order(id: $orderId) {
+            id
+            fulfillmentOrders(first: 10) { nodes { id status fulfillAt } }
+          }
+        }
+        "#,
+        json!({ "orderId": order_id }),
+    ));
+    assert_eq!(
+        after_reschedule.body["data"]["order"]["fulfillmentOrders"]["nodes"][0]["fulfillAt"],
+        json!("2026-12-01T00:00:00Z")
     );
 
     let reroute = proxy.process_request(json_graphql_request(
@@ -3919,86 +4125,106 @@ fn fulfillment_order_close_reschedule_and_reroute_return_guardrail_payloads() {
           }
         }
         "#,
-        json!({ "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/3234567890"] }),
+        json!({ "fulfillmentOrderIds": [fulfillment_order_id] }),
     ));
     assert_eq!(
-        reroute.body["data"]["fulfillmentOrdersReroute"]["movedFulfillmentOrders"],
-        json!([])
+        reroute.body["data"]["fulfillmentOrdersReroute"],
+        json!({
+            "movedFulfillmentOrders": [{ "id": fulfillment_order_id }],
+            "userErrors": []
+        })
+    );
+    assert!(*reroute_forwarded.lock().unwrap());
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("fulfillmentOrderReschedule")
     );
     assert_eq!(
-        reroute.body["data"]["fulfillmentOrdersReroute"]["userErrors"][0]["code"],
-        json!("NOT_IMPLEMENTED")
+        log["entries"][0]["stagedResourceIds"],
+        json!([fulfillment_order_id])
     );
 }
 
 #[test]
-fn fulfillment_order_move_assignment_status_allows_cancellation_assignment_states() {
+fn fulfillment_order_reschedule_rejects_non_scheduled_store_status() {
     let mut proxy = snapshot_proxy();
-    let query = r#"
-        fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {
-          id
-          status
-          requestStatus
-          updatedAt
-          assignedLocation { name location { id name } }
-          lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }
-        }
-        mutation FulfillmentOrderMoveValidationMove($id: ID!, $newLocationId: ID!, $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]) {
-          fulfillmentOrderMove(id: $id, newLocationId: $newLocationId, fulfillmentOrderLineItems: $fulfillmentOrderLineItems) {
-            movedFulfillmentOrder { ...FulfillmentOrderMoveValidationFields }
-            originalFulfillmentOrder { ...FulfillmentOrderMoveValidationFields }
-            remainingFulfillmentOrder { ...FulfillmentOrderMoveValidationFields }
+    let (_, fulfillment_order) = create_fulfillment_order_test_order(&mut proxy, 1);
+    let fulfillment_order_id = fulfillment_order["id"].clone();
+
+    let reschedule = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RescheduleOpenFulfillmentOrder($id: ID!) {
+          fulfillmentOrderReschedule(id: $id, fulfillAt: "2026-12-01T00:00:00Z") {
+            fulfillmentOrder { id status fulfillAt }
             userErrors { field message code }
           }
         }
-    "#;
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        reschedule.body["data"]["fulfillmentOrderReschedule"],
+        json!({
+            "fulfillmentOrder": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Fulfillment order must be scheduled.",
+                "code": null
+            }]
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+}
 
-    for id in [
-        "gid://shopify/FulfillmentOrder/move-assignment-cancellation-requested",
-        "gid://shopify/FulfillmentOrder/move-assignment-cancellation-rejected",
-    ] {
-        let response = proxy.process_request(json_graphql_request(
-            query,
-            json!({
-                "id": id,
-                "newLocationId": "gid://shopify/Location/move-assignment-destination",
-                "fulfillmentOrderLineItems": null
-            }),
-        ));
-        let payload = &response.body["data"]["fulfillmentOrderMove"];
-        assert_eq!(
-            payload["movedFulfillmentOrder"]["assignedLocation"]["location"]["id"],
-            json!("gid://shopify/Location/move-assignment-destination")
-        );
-        assert_eq!(
-            payload["originalFulfillmentOrder"]["assignedLocation"]["location"]["id"],
-            json!("gid://shopify/Location/move-assignment-destination")
-        );
-        assert_eq!(payload["remainingFulfillmentOrder"], json!(null));
-        assert_eq!(payload["userErrors"], json!([]));
-    }
+#[test]
+fn fulfillment_order_sentinel_ids_are_not_fabricated_locally() {
+    let mut proxy = snapshot_proxy();
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CapturedFulfillmentOrderRead($id: ID!) {
+          fulfillmentOrder(id: $id) {
+            id
+            status
+            requestStatus
+            merchantRequests(first: 10) { nodes { message } }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/FulfillmentOrder/9656703910194" }),
+    ));
+    assert_eq!(read.body["data"]["fulfillmentOrder"], Value::Null);
 
-    let submitted = proxy.process_request(json_graphql_request(
-        query,
+    let move_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentOrderMoveValidationMove($id: ID!, $newLocationId: ID!, $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]) {
+          fulfillmentOrderMove(id: $id, newLocationId: $newLocationId, fulfillmentOrderLineItems: $fulfillmentOrderLineItems) {
+            movedFulfillmentOrder { id }
+            originalFulfillmentOrder { id }
+            remainingFulfillmentOrder { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
         json!({
             "id": "gid://shopify/FulfillmentOrder/move-assignment-submitted",
             "newLocationId": "gid://shopify/Location/move-assignment-destination",
             "fulfillmentOrderLineItems": null
         }),
     ));
+    assert_eq!(move_response.body["data"]["fulfillmentOrderMove"], Value::Null);
     assert_eq!(
-        submitted.body["data"]["fulfillmentOrderMove"],
-        json!({
-            "movedFulfillmentOrder": null,
-            "originalFulfillmentOrder": null,
-            "remainingFulfillmentOrder": null,
-            "userErrors": [{
-                "field": null,
-                "message": "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
-                "code": null
-            }]
-        })
+        move_response.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
     );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
 }
 
 #[test]
@@ -4076,7 +4302,19 @@ fn fulfillment_order_open_rejects_already_open_without_mutating_hydrated_order()
 
 #[test]
 fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() {
-    let mut proxy = snapshot_proxy();
+    let closed_order_id = "gid://shopify/Order/7002003";
+    let closed_fulfillment_order_id = "gid://shopify/FulfillmentOrder/2234567892";
+    let mut proxy =
+        snapshot_proxy().with_upstream_transport(fulfillment_order_hydrate_transport(vec![
+            fulfillment_order_order_fixture(
+                closed_order_id,
+                "#7005",
+                closed_fulfillment_order_id,
+                "gid://shopify/FulfillmentOrderLineItem/3233445502",
+                2,
+                "CLOSED",
+            ),
+        ]));
     let open = proxy.process_request(json_graphql_request(
         r#"
         mutation FulfillmentOrderStatusPreconditionOpen($id: ID!) {
@@ -4086,7 +4324,7 @@ fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() 
           }
         }
         "#,
-        json!({ "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed" }),
+        json!({ "id": closed_fulfillment_order_id }),
     ));
     assert_eq!(
         open.body["data"]["fulfillmentOrderOpen"],
@@ -4111,21 +4349,40 @@ fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() 
           }
         }
         "#,
-        json!({ "orderId": "gid://shopify/Order/status-precondition-open-closed" }),
+        json!({ "orderId": closed_order_id }),
     ));
     assert_eq!(
         after_open.body["data"]["order"],
         json!({
-            "id": "gid://shopify/Order/status-precondition-open-closed",
+            "id": closed_order_id,
             "fulfillmentOrders": { "nodes": [{
-                "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed",
+                "id": closed_fulfillment_order_id,
                 "status": "CLOSED",
-                "updatedAt": "2026-05-11T10:00:00Z",
-                "supportedActions": []
+                "updatedAt": "2026-06-15T11:00:00Z",
+                "supportedActions": [
+                    { "action": "CREATE_FULFILLMENT" },
+                    { "action": "REPORT_PROGRESS" },
+                    { "action": "MOVE" },
+                    { "action": "HOLD" },
+                    { "action": "SPLIT" }
+                ]
             }] }
         })
     );
 
+    let scheduled_order_id = "gid://shopify/Order/7002004";
+    let scheduled_fulfillment_order_id = "gid://shopify/FulfillmentOrder/2234567893";
+    let mut proxy =
+        snapshot_proxy().with_upstream_transport(fulfillment_order_hydrate_transport(vec![
+            fulfillment_order_order_fixture(
+                scheduled_order_id,
+                "#7006",
+                scheduled_fulfillment_order_id,
+                "gid://shopify/FulfillmentOrderLineItem/3233445503",
+                2,
+                "SCHEDULED",
+            ),
+        ]));
     let progress = proxy.process_request(json_graphql_request(
         r#"
         mutation FulfillmentOrderStatusPreconditionReportProgress($id: ID!, $progressReport: FulfillmentOrderReportProgressInput) {
@@ -4136,7 +4393,7 @@ fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() 
         }
         "#,
         json!({
-            "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
+            "id": scheduled_fulfillment_order_id,
             "progressReport": { "reasonNotes": "local-runtime progress precondition" }
         }),
     ));
@@ -4163,16 +4420,16 @@ fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() 
           }
         }
         "#,
-        json!({ "orderId": "gid://shopify/Order/status-precondition-progress-scheduled" }),
+        json!({ "orderId": scheduled_order_id }),
     ));
     assert_eq!(
         after_progress.body["data"]["order"],
         json!({
-            "id": "gid://shopify/Order/status-precondition-progress-scheduled",
+            "id": scheduled_order_id,
             "fulfillmentOrders": { "nodes": [{
-                "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
+                "id": scheduled_fulfillment_order_id,
                 "status": "SCHEDULED",
-                "updatedAt": "2026-05-11T10:05:00Z",
+                "updatedAt": "2026-06-15T11:00:00Z",
                 "supportedActions": [{ "action": "MARK_AS_OPEN" }]
             }] }
         })
@@ -4181,7 +4438,78 @@ fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() 
 
 #[test]
 fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_orders() {
-    let mut proxy = snapshot_proxy();
+    let order_id = "gid://shopify/Order/7002005";
+    let open_a_id = "gid://shopify/FulfillmentOrder/3234567891";
+    let open_b_id = "gid://shopify/FulfillmentOrder/3234567892";
+    let closed_id = "gid://shopify/FulfillmentOrder/3234567893";
+    let cancelled_id = "gid://shopify/FulfillmentOrder/3234567894";
+    let mut order = fulfillment_order_order_fixture(
+        order_id,
+        "#7007",
+        open_a_id,
+        "gid://shopify/FulfillmentOrderLineItem/5233445601",
+        1,
+        "OPEN",
+    );
+    let mut open_b = order["fulfillmentOrders"]["nodes"][0].clone();
+    open_b["id"] = json!(open_b_id);
+    open_b["lineItems"]["nodes"][0]["id"] =
+        json!("gid://shopify/FulfillmentOrderLineItem/5233445602");
+    let mut closed = order["fulfillmentOrders"]["nodes"][0].clone();
+    closed["id"] = json!(closed_id);
+    closed["status"] = json!("CLOSED");
+    closed["lineItems"]["nodes"][0]["id"] =
+        json!("gid://shopify/FulfillmentOrderLineItem/5233445603");
+    let mut cancelled = order["fulfillmentOrders"]["nodes"][0].clone();
+    cancelled["id"] = json!(cancelled_id);
+    cancelled["status"] = json!("CANCELLED");
+    cancelled["lineItems"]["nodes"][0]["id"] =
+        json!("gid://shopify/FulfillmentOrderLineItem/5233445604");
+    order["fulfillmentOrders"]["nodes"] = json!([
+        order["fulfillmentOrders"]["nodes"][0].clone(),
+        open_b,
+        closed,
+        cancelled
+    ]);
+    let order_for_transport = order.clone();
+    let mut proxy = snapshot_proxy().with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        let query = body["query"].as_str().unwrap_or_default();
+        if query.contains("fulfillmentOrdersSetFulfillmentDeadline") {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "fulfillmentOrdersSetFulfillmentDeadline": {
+                            "success": false,
+                            "userErrors": [{
+                                "field": ["base"],
+                                "message": "The fulfillment orders could not be found.",
+                                "code": "FULFILLMENT_ORDERS_NOT_FOUND"
+                            }]
+                        }
+                    }
+                }),
+            };
+        }
+        let requested_id = body["variables"]["id"].as_str().unwrap_or_default();
+        let has_requested_order = order_for_transport["fulfillmentOrders"]["nodes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|node| node["id"].as_str() == Some(requested_id));
+        let order = if has_requested_order {
+            order_for_transport.clone()
+        } else {
+            Value::Null
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "order": order } }),
+        }
+    });
     let read_query = r#"
         query FulfillmentOrdersSetDeadlineValidationOrderRead($id: ID!) {
           order(id: $id) {
@@ -4221,7 +4549,7 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
     let mixed = proxy.process_request(json_graphql_request(
         mutation,
         json!({
-            "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/deadline-open-a", "gid://shopify/FulfillmentOrder/9999999"],
+            "fulfillmentOrderIds": [open_a_id, "gid://shopify/FulfillmentOrder/9999999"],
             "fulfillmentDeadline": "2026-12-01T00:00:00Z"
         }),
     ));
@@ -4232,7 +4560,7 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
 
     let after_mixed = proxy.process_request(json_graphql_request(
         read_query,
-        json!({ "id": "gid://shopify/Order/deadline-validation" }),
+        json!({ "id": order_id }),
     ));
     assert_eq!(
         after_mixed.body["data"]["order"]["fulfillmentOrders"]["nodes"][0]["fulfillBy"],
@@ -4240,8 +4568,8 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
     );
 
     for id in [
-        "gid://shopify/FulfillmentOrder/deadline-closed",
-        "gid://shopify/FulfillmentOrder/deadline-cancelled",
+        closed_id,
+        cancelled_id,
     ] {
         let rejected = proxy.process_request(json_graphql_request(
             mutation,
@@ -4266,7 +4594,7 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
     let happy = proxy.process_request(json_graphql_request(
         mutation,
         json!({
-            "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/deadline-open-a", "gid://shopify/FulfillmentOrder/deadline-open-b"],
+            "fulfillmentOrderIds": [open_a_id, open_b_id],
             "fulfillmentDeadline": "2026-12-01T00:00:00Z"
         }),
     ));
@@ -4277,19 +4605,19 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
 
     let after_happy = proxy.process_request(json_graphql_request(
         read_query,
-        json!({ "id": "gid://shopify/Order/deadline-validation" }),
+        json!({ "id": order_id }),
     ));
     assert_eq!(
         after_happy.body["data"]["order"],
         json!({
-            "id": "gid://shopify/Order/deadline-validation",
-            "name": "#DEADLINE-VALIDATION",
+            "id": order_id,
+            "name": "#7007",
             "displayFulfillmentStatus": "UNFULFILLED",
             "fulfillmentOrders": { "nodes": [
-                { "id": "gid://shopify/FulfillmentOrder/deadline-open-a", "status": "OPEN", "fulfillBy": "2026-12-01T00:00:00Z" },
-                { "id": "gid://shopify/FulfillmentOrder/deadline-open-b", "status": "OPEN", "fulfillBy": "2026-12-01T00:00:00Z" },
-                { "id": "gid://shopify/FulfillmentOrder/deadline-closed", "status": "CLOSED", "fulfillBy": null },
-                { "id": "gid://shopify/FulfillmentOrder/deadline-cancelled", "status": "CANCELLED", "fulfillBy": null }
+                { "id": open_a_id, "status": "OPEN", "fulfillBy": "2026-12-01T00:00:00Z" },
+                { "id": open_b_id, "status": "OPEN", "fulfillBy": "2026-12-01T00:00:00Z" },
+                { "id": closed_id, "status": "CLOSED", "fulfillBy": null },
+                { "id": cancelled_id, "status": "CANCELLED", "fulfillBy": null }
             ] }
         })
     );

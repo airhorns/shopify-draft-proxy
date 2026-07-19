@@ -2411,7 +2411,8 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn location_read_response(
-        &self,
+        &mut self,
+        request: &Request,
         fields: &[RootFieldSelection],
     ) -> Response {
         let mut data = serde_json::Map::new();
@@ -2421,6 +2422,7 @@ impl DraftProxy {
                 "location" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.location_for_read(&id)
+                        .or_else(|| self.hydrate_location_for_mutation(request, &id))
                         .map(|location| location_selected_json(&location, &field.selection))
                         .unwrap_or(Value::Null)
                 }
@@ -2428,9 +2430,15 @@ impl DraftProxy {
                     let identifier =
                         resolved_object_field(&field.arguments, "identifier").unwrap_or_default();
                     let id = resolved_string_field(&identifier, "id").unwrap_or_default();
-                    let location = self
-                        .location_for_read(&id)
-                        .map(|location| location_selected_json(&location, &field.selection));
+                    let location = self.location_for_read(&id).or_else(|| {
+                        if identifier.contains_key("customId") {
+                            None
+                        } else {
+                            self.hydrate_location_for_mutation(request, &id)
+                        }
+                    });
+                    let location =
+                        location.map(|location| location_selected_json(&location, &field.selection));
                     if location.is_none() && identifier.contains_key("customId") {
                         errors.push(json!({
                             "message": "Metafield definition of type 'id' is required when using custom ids.",
@@ -2476,13 +2484,12 @@ impl DraftProxy {
                     .get(location_id)
                     .cloned()
             })
-            .or_else(|| fixture_location_deactivate_state_machine_location(location_id))
     }
 
     /// A location is eligible for local-pickup mutations only when it resolves
-    /// to an active, non-fulfillment-service location (staged, observed, or
-    /// fixture-backed). Unknown ids and inactive/fulfillment-service locations
-    /// are filtered out so the caller can raise `ACTIVE_LOCATION_NOT_FOUND`.
+    /// to an active, non-fulfillment-service location. Unknown ids and
+    /// inactive/fulfillment-service locations are filtered out so the caller can
+    /// raise `ACTIVE_LOCATION_NOT_FOUND`.
     fn active_local_pickup_location(&self, location_id: &str) -> Option<Value> {
         self.location_for_read(location_id).filter(|location| {
             location
@@ -2498,8 +2505,14 @@ impl DraftProxy {
 
     fn location_source_record(&self, location_id: &str) -> Value {
         self.location_for_read(location_id)
+            .or_else(|| fixture_location_deactivate_state_machine_location(location_id))
             .or_else(|| fixture_location_activate_guard_location(location_id))
             .unwrap_or_else(|| self.staged_location_record(location_id))
+    }
+
+    fn location_deactivate_validation_location(&self, location_id: &str) -> Option<Value> {
+        self.location_for_read(location_id)
+            .or_else(|| fixture_location_deactivate_state_machine_location(location_id))
     }
 
     fn locations_connection_json(
@@ -2720,7 +2733,7 @@ impl DraftProxy {
     }
 
     fn location_deactivate_destination_is_inactive(&self, destination_id: &str) -> bool {
-        self.location_for_read(destination_id)
+        self.location_deactivate_validation_location(destination_id)
             .and_then(|location| {
                 location
                     .get("isActive")
@@ -2948,11 +2961,9 @@ impl DraftProxy {
             "fulfillmentOrderClose" => {
                 self.fulfillment_order_close_store_backed(query, variables, request)
             }
-            "fulfillmentOrderReschedule" => self.fulfillment_order_guardrail_response(
-                root_field,
-                query,
-                "Fulfillment order must be scheduled.",
-            ),
+            "fulfillmentOrderReschedule" => {
+                self.fulfillment_order_reschedule_store_backed(query, variables, request)
+            }
             "fulfillmentOrdersReroute" => self.fulfillment_orders_reroute_guardrail_response(query),
             // Request-lifecycle transitions, split, and merge stage against the
             // shared staged.orders fulfillment-order engine.
@@ -3840,6 +3851,78 @@ impl DraftProxy {
         }))
     }
 
+    fn fulfillment_order_reschedule_store_backed(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let FulfillmentOrderStoreBackedPreamble {
+            response_key,
+            payload_selection,
+            arguments,
+            id,
+            order_id,
+            index,
+        } = match self.fulfillment_order_store_backed_preamble(
+            "fulfillmentOrderReschedule",
+            query,
+            variables,
+            request,
+            None,
+        ) {
+            Ok(preamble) => preamble,
+            Err(response) => return response,
+        };
+        let status = self
+            .shipping_fulfillment_order_by_id(&id)
+            .and_then(|order| order["status"].as_str().map(str::to_string))
+            .unwrap_or_default();
+        if status != "SCHEDULED" {
+            return ok_json(json!({
+                "data": {
+                    response_key: fulfillment_order_simple_payload_json(
+                        Value::Null,
+                        &payload_selection,
+                        vec![user_error(Value::Null, "Fulfillment order must be scheduled.", None)]
+                    )
+                }
+            }));
+        }
+        let fulfill_at = resolved_string_field(&arguments, "fulfillAt")
+            .map(|value| shopify_datetime_seconds(&value))
+            .unwrap_or_default();
+        let timestamp = self.next_shipping_fulfillment_timestamp();
+        let mut rescheduled = Value::Null;
+        if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
+            if let Some(nodes) = fulfillment_order_nodes_mut(order) {
+                let mut fulfillment_order = nodes[index].clone();
+                fulfillment_order["fulfillAt"] = json!(fulfill_at);
+                fulfillment_order["updatedAt"] = json!(timestamp);
+                fulfillment_order["supportedActions"] =
+                    shipping_fulfillment_supported_actions(&["MARK_AS_OPEN"]);
+                nodes[index] = fulfillment_order.clone();
+                rescheduled = fulfillment_order;
+            }
+        }
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "fulfillmentOrderReschedule",
+            vec![id],
+        );
+        ok_json(json!({
+            "data": {
+                response_key: fulfillment_order_simple_payload_json(
+                    rescheduled,
+                    &payload_selection,
+                    vec![]
+                )
+            }
+        }))
+    }
+
     fn fulfillment_order_guardrail_response(
         &self,
         root_field: &str,
@@ -4138,140 +4221,6 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn fulfillment_order_move_assignment_status(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "fulfillmentOrderMove".to_string());
-        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let new_location_id = resolved_string_field(&arguments, "newLocationId")
-            .unwrap_or_else(|| "gid://shopify/Location/move-assignment-destination".to_string());
-        let (moved, original, errors) =
-            if id == "gid://shopify/FulfillmentOrder/move-assignment-submitted" {
-                (
-                    Value::Null,
-                    Value::Null,
-                    vec![user_error(
-                    Value::Null,
-                    "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
-                    None,
-                )],
-                )
-            } else {
-                let order = fulfillment_order_move_assignment_record(&id, &new_location_id);
-                (order.clone(), order, vec![])
-            };
-        if errors.is_empty() {
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                "fulfillmentOrderMove",
-                vec![id],
-            );
-        }
-        ok_json(json!({
-            "data": {
-                response_key: fulfillment_order_move_payload_json(
-                    moved,
-                    original,
-                    Value::Null,
-                    &payload_selection,
-                    errors
-                )
-            }
-        }))
-    }
-
-    pub(in crate::proxy) fn fulfillment_order_status_precondition(
-        &mut self,
-        root_field: &str,
-        query: &str,
-        _variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let (response_key, payload_selection) =
-            primary_root_response_selection(query, _variables, || root_field.to_string());
-        let message = if root_field == "fulfillmentOrderOpen" {
-            "Fulfillment order must be scheduled."
-        } else {
-            "Fulfillment order must be in progress."
-        };
-        ok_json(json!({
-            "data": {
-                response_key: fulfillment_order_simple_payload_json(
-                    Value::Null,
-                    &payload_selection,
-                    vec![user_error(["id"], message, Some("INVALID_FULFILLMENT_ORDER_STATUS"))]
-                )
-            }
-        }))
-    }
-
-    pub(in crate::proxy) fn fulfillment_order_set_deadline(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || {
-                "fulfillmentOrdersSetFulfillmentDeadline".to_string()
-            });
-        let ids = resolved_string_list_field_unsorted(&arguments, "fulfillmentOrderIds");
-        let deadline = resolved_string_field(&arguments, "fulfillmentDeadline").unwrap_or_default();
-        let unknown = ids
-            .iter()
-            .any(|id| known_deadline_fulfillment_order_status(id).is_none());
-        let closed_or_cancelled = ids.iter().any(|id| {
-            matches!(
-                known_deadline_fulfillment_order_status(id),
-                Some("CLOSED") | Some("CANCELLED")
-            )
-        });
-        let (success, errors) = if unknown {
-            (
-                false,
-                vec![user_error(
-                    ["base"],
-                    "The fulfillment orders could not be found.",
-                    Some("FULFILLMENT_ORDERS_NOT_FOUND"),
-                )],
-            )
-        } else if closed_or_cancelled {
-            (
-                false,
-                vec![user_error(["base"], "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.", None)],
-            )
-        } else {
-            for id in &ids {
-                self.store
-                    .staged
-                    .fulfillment_order_deadlines
-                    .insert(id.clone(), deadline.clone());
-            }
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                "fulfillmentOrdersSetFulfillmentDeadline",
-                ids,
-            );
-            (true, vec![])
-        };
-        ok_json(json!({
-            "data": {
-                response_key: fulfillment_order_deadline_payload_json(
-                    success,
-                    &payload_selection,
-                    errors
-                )
-            }
-        }))
-    }
-
     pub(in crate::proxy) fn shipping_fulfillment_order_local_order_read(
         &mut self,
         query: &str,
@@ -4293,13 +4242,8 @@ impl DraftProxy {
                         .orders
                         .get(&id)
                         .cloned()
-                        .unwrap_or_else(|| {
-                            shipping_fulfillment_order_local_order_record(
-                                &id,
-                                &self.store.staged.fulfillment_order_deadlines,
-                            )
-                        });
-                    selected_json(&order, &field.selection)
+                        .unwrap_or(Value::Null);
+                    nullable_selected_json(&order, &field.selection)
                 }
                 "fulfillmentOrder" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
@@ -4365,22 +4309,6 @@ impl DraftProxy {
             }
             _ => false,
         })
-    }
-
-    pub(in crate::proxy) fn fulfillment_order_request_lifecycle_direct_read(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "fulfillmentOrder".to_string());
-        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let fulfillment_order = fulfillment_order_request_lifecycle_record(&id);
-        ok_json(json!({
-            "data": {
-                response_key: selected_json(&fulfillment_order, &payload_selection)
-            }
-        }))
     }
 
     pub(in crate::proxy) fn product_publishable_mutation(
@@ -7963,7 +7891,9 @@ fn fulfillment_order_response_is_unresolved(body: &Value) -> bool {
                         error.get("code").and_then(Value::as_str),
                         // Singular for split/merge/request transitions, plural for
                         // the multi-id `fulfillmentOrdersSetFulfillmentDeadline`.
-                        Some("FULFILLMENT_ORDER_NOT_FOUND") | Some("FULFILLMENT_ORDERS_NOT_FOUND")
+                        Some("FULFILLMENT_ORDER_NOT_FOUND")
+                            | Some("FULFILLMENT_ORDERS_NOT_FOUND")
+                            | Some("NOT_IMPLEMENTED")
                     )
                 }) {
                     return true;
