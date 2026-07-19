@@ -564,7 +564,7 @@ impl DraftProxy {
             return metafield_definition_delete_null_payload(vec![
                 metafield_definition_user_error(
                     "MetafieldDefinitionDeleteUserError",
-                    json!(["id"]),
+                    Value::Null,
                     "Definition not found.",
                     "NOT_FOUND",
                 ),

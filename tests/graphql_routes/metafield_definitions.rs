@@ -2462,6 +2462,67 @@ fn metafield_definition_lifecycle_mutations_validate_and_stage_real_inputs() {
 }
 
 #[test]
+fn metafield_definition_delete_not_found_uses_base_error_field() {
+    let mut proxy = snapshot_proxy();
+
+    let missing_identifier = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteMissingDefinitionByIdentifier($identifier: MetafieldDefinitionIdentifierInput!) {
+          metafieldDefinitionDelete(identifier: $identifier) {
+            deletedDefinitionId
+            deletedDefinition { ownerType namespace key }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": {
+                "ownerType": "PRODUCT",
+                "namespace": "custom",
+                "key": "does_not_exist"
+            }
+        }),
+    ));
+    assert_eq!(
+        missing_identifier.body["data"]["metafieldDefinitionDelete"],
+        json!({
+            "deletedDefinitionId": null,
+            "deletedDefinition": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Definition not found.",
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+
+    let missing_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteMissingDefinitionById($id: ID!) {
+          metafieldDefinitionDelete(id: $id) {
+            deletedDefinitionId
+            deletedDefinition { ownerType namespace key }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/MetafieldDefinition/999999999" }),
+    ));
+    assert_eq!(
+        missing_id.body["data"]["metafieldDefinitionDelete"],
+        json!({
+            "deletedDefinitionId": null,
+            "deletedDefinition": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Definition not found.",
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+}
+
+#[test]
 fn metafield_definition_delete_enforces_type_guards_without_associated_values() {
     let mut proxy = snapshot_proxy();
 
