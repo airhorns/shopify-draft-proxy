@@ -4401,3 +4401,33 @@ Practical rule:
 - keep carrier callbacks and checkout navigation outside local delivery
   calculation; a local checkout URL is an opaque deterministic reference, not a
   claim that checkout can execute
+
+## 104. Function lifecycle limits require authoritative catalogs, and their payloads are asymmetric
+
+Admin GraphQL 2026-04 capture with 25 active validations and one cart transform
+settled three preflight details that cannot be inferred from partial Function
+metadata:
+
+- the 26th enabled validation returns `MAX_VALIDATIONS_ACTIVATED` with a null
+  `field`, not an empty field path
+- reusing a Function ID already registered by a validation returns
+  `FUNCTION_ALREADY_REGISTERED` before cart-transform API-type validation
+- a different released cart-transform Function reaches the global cap, whose
+  user error has null `field` and `code` plus the exact message
+  `An API client cannot have more than 1 cart transform functions per shop`
+
+A separate live rule lifecycle proved that direct
+`fulfillmentConstraintRuleUpdate` and `fulfillmentConstraintRuleDelete` can
+target a real rule that the caller has not read first. The public API exposes
+only the complete `fulfillmentConstraintRules` list for this hydration; there
+is no singular rule query root.
+
+Practical rule:
+
+- never treat a caller-bounded validation/cart-transform read or partial
+  Function metadata as proof that a lifecycle catalog is complete
+- hydrate complete validation and cart-transform catalogs before global
+  reuse/count decisions, and derive a hydrated validation's internal Function
+  ID from `shopifyFunction.id`
+- hydrate the fulfillment-rule list before returning `NOT_FOUND` for a direct
+  update/delete target, while keeping local tombstones authoritative

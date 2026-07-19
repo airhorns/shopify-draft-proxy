@@ -34,9 +34,74 @@ pub(in crate::proxy) fn function_field_resolver_type_policies() -> Vec<FieldReso
 const FUNCTION_HYDRATE_BY_ID_QUERY: &str = "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n";
 const FUNCTION_HYDRATE_BY_HANDLE_QUERY: &str = "query FunctionHydrateByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
 const FUNCTION_METADATA_CATALOG_HYDRATE_QUERY: &str = "query FunctionMetadataCatalogHydrate {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
-const FUNCTION_VALIDATIONS_HYDRATE_QUERY: &str = "query FunctionValidationsHydrate {\n  validations(first: 100) {\n    nodes {\n      id\n      title\n      enabled\n      blockOnFailure\n      shopifyFunction {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          __typename\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
+const FUNCTION_VALIDATIONS_HYDRATE_QUERY: &str = r#"query FunctionValidationsHydrate($after: String) {
+  validations(first: 100, after: $after) {
+    nodes {
+      id
+      title
+      enabled
+      blockOnFailure
+      shopifyFunction {
+        id
+        title
+        handle
+        apiType
+        description
+        appKey
+        app {
+          __typename
+          id
+          title
+          handle
+          apiKey
+        }
+      }
+      metafields(first: 100) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          updatedAt
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+"#;
 const FUNCTION_VALIDATION_HYDRATE_BY_ID_QUERY: &str = "query FunctionValidationHydrateById($id: ID!) {\n  validation(id: $id) {\n    id\n    title\n    enabled\n    blockOnFailure\n    shopifyFunction {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        updatedAt\n      }\n    }\n  }\n}\n";
-const FUNCTION_CART_TRANSFORMS_HYDRATE_QUERY: &str = "query FunctionCartTransformsHydrate {\n  cartTransforms(first: 100) {\n    nodes {\n      id\n      functionId\n      blockOnFailure\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
+const FUNCTION_CART_TRANSFORMS_HYDRATE_QUERY: &str = r#"query FunctionCartTransformsHydrate($after: String) {
+  cartTransforms(first: 100, after: $after) {
+    nodes {
+      id
+      functionId
+      blockOnFailure
+      metafields(first: 100) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          compareDigest
+          ownerType
+          createdAt
+          updatedAt
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+"#;
 const FUNCTION_CART_TRANSFORM_HYDRATE_BY_ID_QUERY: &str = "query FunctionCartTransformHydrateById($id: ID!) {\n  node(id: $id) {\n    ... on CartTransform {\n      id\n      functionId\n      blockOnFailure\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
 const FUNCTION_FULFILLMENT_CONSTRAINT_RULES_HYDRATE_QUERY: &str = "query FunctionFulfillmentConstraintRulesHydrate {\n  fulfillmentConstraintRules {\n    id\n    deliveryMethodTypes\n    function {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n";
 
@@ -139,7 +204,7 @@ impl DraftProxy {
                 self.function_fulfillment_constraint_rule_update_payload(request, field)
             }
             "fulfillmentConstraintRuleDelete" => {
-                self.function_fulfillment_constraint_rule_delete_payload(field)
+                self.function_fulfillment_constraint_rule_delete_payload(request, field)
             }
             "taxAppConfigure" => {
                 if tax_app_configure_has_authority(request) {
@@ -739,24 +804,8 @@ impl DraftProxy {
         root_name: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) {
-        match root_name {
-            "validations" => {
-                self.store.base.function_validations_catalog_hydrated = true;
-            }
-            "cartTransforms" => {
-                self.store.base.function_cart_transforms_catalog_hydrated = true;
-            }
-            "fulfillmentConstraintRules" => {
-                self.store
-                    .base
-                    .function_fulfillment_constraint_rules_catalog_hydrated = true;
-            }
-            "shopifyFunctions" => {
-                self.mark_function_metadata_catalog_hydrated(requested_function_api_type(
-                    arguments,
-                ));
-            }
-            _ => {}
+        if root_name == "shopifyFunctions" {
+            self.mark_function_metadata_catalog_hydrated(requested_function_api_type(arguments));
         }
     }
 
@@ -847,17 +896,37 @@ impl DraftProxy {
     }
 
     fn hydrate_function_validation_catalog(&mut self, request: &Request) {
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": FUNCTION_VALIDATIONS_HYDRATE_QUERY,
-                "operationName": "FunctionValidationsHydrate",
-                "variables": {}
-            }),
-        );
-        if response.status == 200 {
+        let mut after = None;
+        loop {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": FUNCTION_VALIDATIONS_HYDRATE_QUERY,
+                    "operationName": "FunctionValidationsHydrate",
+                    "variables": { "after": after.clone() }
+                }),
+            );
+            let connection = &response.body["data"]["validations"];
+            if response.status != 200
+                || response.body.get("errors").is_some()
+                || !connection.is_object()
+            {
+                return;
+            }
             self.hydrate_function_metadata_from_response_data(&response.body["data"]);
-            self.store.base.function_validations_catalog_hydrated = true;
+            match connection["pageInfo"]["hasNextPage"].as_bool() {
+                Some(false) => {
+                    self.store.base.function_validations_catalog_hydrated = true;
+                    return;
+                }
+                Some(true) => {
+                    let Some(cursor) = connection["pageInfo"]["endCursor"].as_str() else {
+                        return;
+                    };
+                    after = Some(cursor.to_string());
+                }
+                None => return,
+            }
         }
     }
 
@@ -888,17 +957,37 @@ impl DraftProxy {
     }
 
     fn hydrate_function_cart_transform_catalog(&mut self, request: &Request) {
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": FUNCTION_CART_TRANSFORMS_HYDRATE_QUERY,
-                "operationName": "FunctionCartTransformsHydrate",
-                "variables": {}
-            }),
-        );
-        if response.status == 200 {
+        let mut after = None;
+        loop {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": FUNCTION_CART_TRANSFORMS_HYDRATE_QUERY,
+                    "operationName": "FunctionCartTransformsHydrate",
+                    "variables": { "after": after.clone() }
+                }),
+            );
+            let connection = &response.body["data"]["cartTransforms"];
+            if response.status != 200
+                || response.body.get("errors").is_some()
+                || !connection.is_object()
+            {
+                return;
+            }
             self.hydrate_function_metadata_from_response_data(&response.body["data"]);
-            self.store.base.function_cart_transforms_catalog_hydrated = true;
+            match connection["pageInfo"]["hasNextPage"].as_bool() {
+                Some(false) => {
+                    self.store.base.function_cart_transforms_catalog_hydrated = true;
+                    return;
+                }
+                Some(true) => {
+                    let Some(cursor) = connection["pageInfo"]["endCursor"].as_str() else {
+                        return;
+                    };
+                    after = Some(cursor.to_string());
+                }
+                None => return,
+            }
         }
     }
 
@@ -911,7 +1000,10 @@ impl DraftProxy {
                 "variables": {}
             }),
         );
-        if response.status == 200 {
+        if response.status == 200
+            && response.body.get("errors").is_none()
+            && response.body["data"]["fulfillmentConstraintRules"].is_array()
+        {
             self.hydrate_function_metadata_from_response_data(&response.body["data"]);
             self.store
                 .base
@@ -958,6 +1050,8 @@ impl DraftProxy {
             .and_then(|function| normalized_function_metadata(function.clone()))
         {
             validation["shopifyFunction"] = function.clone();
+            validation["functionId"] = function["id"].clone();
+            validation["functionHandle"] = function["handle"].clone();
             self.stage_function_metadata(function);
         }
         if validation.get("enabled").is_none() {
@@ -1532,14 +1626,25 @@ const FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD: FunctionPayloadDescriptor =
     };
 
 fn maximum_cart_transforms_error() -> Value {
-    payload_user_error(
-        CART_TRANSFORM_FUNCTION_PAYLOAD.payload_key,
-        user_error(
-            ["base"],
-            "The maximum number of cart transforms per shop has been reached.",
-            Some("MAXIMUM_CART_TRANSFORMS"),
-        ),
-    )
+    json!({
+        "cartTransform": null,
+        "userErrors": [{
+            "field": null,
+            "message": "An API client cannot have more than 1 cart transform functions per shop",
+            "code": null
+        }]
+    })
+}
+
+fn maximum_active_validations_error() -> Value {
+    json!({
+        "validation": null,
+        "userErrors": [{
+            "field": null,
+            "message": "Cannot have more than 25 active validation functions.",
+            "code": "MAX_VALIDATIONS_ACTIVATED"
+        }]
+    })
 }
 
 fn function_identifier_error(
@@ -2143,6 +2248,18 @@ impl DraftProxy {
             }
         };
         let (function_id, function_handle) = function_identifier_input(input);
+        if let Some(payload) =
+            function_identifier_error(VALIDATION_FUNCTION_PAYLOAD, &function_id, &function_handle)
+        {
+            return payload;
+        }
+        let enable = resolved_bool_field(input, "enable").unwrap_or(false);
+        if enable
+            && self.config.read_mode != ReadMode::Snapshot
+            && !self.store.base.function_validations_catalog_hydrated
+        {
+            self.hydrate_function_validation_catalog(request);
+        }
         let function = match function_resolution_payload(
             self,
             request,
@@ -2157,16 +2274,8 @@ impl DraftProxy {
         if !errors.is_empty() {
             return payload_error(VALIDATION_FUNCTION_PAYLOAD.payload_key, errors);
         }
-        let enable = resolved_bool_field(input, "enable").unwrap_or(false);
         if enable && self.effective_active_validation_count(None) >= 25 {
-            return payload_user_error(
-                VALIDATION_FUNCTION_PAYLOAD.payload_key,
-                user_error(
-                    Vec::<&str>::new(),
-                    "Cannot have more than 25 active validation functions.",
-                    Some("MAX_VALIDATIONS_ACTIVATED"),
-                ),
-            );
+            return maximum_active_validations_error();
         }
         let id = self.next_proxy_synthetic_gid("Validation");
         let timestamp = self.next_product_timestamp();
@@ -2236,15 +2345,14 @@ impl DraftProxy {
         let next_enable = resolved_bool_field(input, "enable")
             .or_else(|| resolved_bool_field(input, "enabled"))
             .unwrap_or(false);
+        if next_enable
+            && self.config.read_mode != ReadMode::Snapshot
+            && !self.store.base.function_validations_catalog_hydrated
+        {
+            self.hydrate_function_validation_catalog(request);
+        }
         if next_enable && self.effective_active_validation_count(Some(&id)) >= 25 {
-            return payload_user_error(
-                VALIDATION_FUNCTION_PAYLOAD.payload_key,
-                user_error(
-                    Vec::<&str>::new(),
-                    "Cannot have more than 25 active validation functions.",
-                    Some("MAX_VALIDATIONS_ACTIVATED"),
-                ),
-            );
+            return maximum_active_validations_error();
         }
         if let Some(title) = resolved_string_field(input, "title") {
             validation["title"] = json!(title);
@@ -2315,6 +2423,14 @@ impl DraftProxy {
             &function_handle,
         ) {
             return payload;
+        }
+        if self.config.read_mode != ReadMode::Snapshot {
+            if !self.store.base.function_validations_catalog_hydrated {
+                self.hydrate_function_validation_catalog(request);
+            }
+            if !self.store.base.function_cart_transforms_catalog_hydrated {
+                self.hydrate_function_cart_transform_catalog(request);
+            }
         }
         if let Some(function_id) = function_id.as_deref() {
             if self.effective_function_id_in_use(function_id) {
@@ -2525,11 +2641,50 @@ impl DraftProxy {
         {
             return payload;
         }
+        if self
+            .store
+            .staged
+            .deleted_function_fulfillment_constraint_rule_ids
+            .contains(&id)
+        {
+            return payload_user_error(
+                FULFILLMENT_CONSTRAINT_RULE_FUNCTION_PAYLOAD.payload_key,
+                user_error(
+                    ["id"],
+                    &format!("Could not find FulfillmentConstraintRule with id: {id}"),
+                    Some("NOT_FOUND"),
+                ),
+            );
+        }
+        if !self
+            .store
+            .staged
+            .function_fulfillment_constraint_rules
+            .contains_key(&id)
+            && !self
+                .store
+                .base
+                .function_fulfillment_constraint_rules
+                .contains_key(&id)
+            && self.config.read_mode != ReadMode::Snapshot
+            && !self
+                .store
+                .base
+                .function_fulfillment_constraint_rules_catalog_hydrated
+        {
+            self.hydrate_function_fulfillment_constraint_rule_catalog(request);
+        }
         let Some(mut rule) = self
             .store
             .staged
             .function_fulfillment_constraint_rules
             .get(&id)
+            .or_else(|| {
+                self.store
+                    .base
+                    .function_fulfillment_constraint_rules
+                    .get(&id)
+            })
             .cloned()
         else {
             return payload_user_error(
@@ -2564,9 +2719,33 @@ impl DraftProxy {
 
     fn function_fulfillment_constraint_rule_delete_payload(
         &mut self,
+        request: &Request,
         field: &FunctionRootInput,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        if !self
+            .store
+            .staged
+            .deleted_function_fulfillment_constraint_rule_ids
+            .contains(&id)
+            && !self
+                .store
+                .staged
+                .function_fulfillment_constraint_rules
+                .contains_key(&id)
+            && !self
+                .store
+                .base
+                .function_fulfillment_constraint_rules
+                .contains_key(&id)
+            && self.config.read_mode != ReadMode::Snapshot
+            && !self
+                .store
+                .base
+                .function_fulfillment_constraint_rules_catalog_hydrated
+        {
+            self.hydrate_function_fulfillment_constraint_rule_catalog(request);
+        }
         let (payload, deleted) = delete_staged_function_record(
             &mut self.store.staged.function_fulfillment_constraint_rules,
             &mut self.store.staged.function_fulfillment_constraint_rule_order,

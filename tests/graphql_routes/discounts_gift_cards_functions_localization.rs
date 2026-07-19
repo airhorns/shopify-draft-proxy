@@ -6399,8 +6399,8 @@ fn functions_handle_lookup_uses_narrow_query_and_reuses_metadata() {
 
 #[test]
 fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
-    let upstream_hits = Arc::new(Mutex::new(0usize));
-    let hit_counter = Arc::clone(&upstream_hits);
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_hits = Arc::clone(&upstream_hits);
     let mut upstream_function =
         test_function_metadata_by_id_or_handle(None, Some("non-catalog-validation")).unwrap();
     upstream_function["apiType"] = json!("cart_checkout_validation");
@@ -6411,24 +6411,35 @@ fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
     .with_upstream_transport(move |request| {
         let body: Value =
             serde_json::from_str(&request.body).expect("cold function read body should parse");
-        *hit_counter.lock().unwrap() += 1;
-        assert!(
-            body["query"]
-                .as_str()
-                .unwrap_or_default()
-                .contains("shopifyFunctions"),
-            "cold function read should forward the original shopifyFunctions query, got {body}"
-        );
-        Response {
-            status: 200,
-            headers: Default::default(),
-            body: json!({
+        captured_hits.lock().unwrap().push(body.clone());
+        let response_body = match body["operationName"].as_str() {
+            Some("FunctionValidationsHydrate") => json!({
                 "data": {
-                    "validationFunctions": {
-                        "nodes": [upstream_function.clone()]
+                    "validations": {
+                        "nodes": [],
+                        "pageInfo": { "hasNextPage": false, "endCursor": null }
                     }
                 }
             }),
+            _ if body["query"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("query ColdNonCatalogFunctionRead") =>
+            {
+                json!({
+                    "data": {
+                        "validationFunctions": {
+                            "nodes": [upstream_function.clone()]
+                        }
+                    }
+                })
+            }
+            _ => panic!("unexpected cold function read upstream request: {body}"),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
         }
     });
 
@@ -6446,7 +6457,7 @@ fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
         cold_read.body["data"]["validationFunctions"]["nodes"][0]["handle"],
         json!("non-catalog-validation")
     );
-    assert_eq!(*upstream_hits.lock().unwrap(), 1);
+    assert_eq!(upstream_hits.lock().unwrap().len(), 1);
 
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -6477,11 +6488,32 @@ fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
         create.body["data"]["validationCreate"]["validation"]["shopifyFunction"]["app"]["apiKey"],
         json!("non-catalog-app-key")
     );
-    assert_eq!(
-        *upstream_hits.lock().unwrap(),
-        1,
-        "create should reuse the hydrated function metadata without another upstream read"
-    );
+    {
+        let hits = upstream_hits.lock().unwrap();
+        assert_eq!(hits.len(), 2);
+        let original_read = hits
+            .iter()
+            .find(|body| {
+                body["query"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("query ColdNonCatalogFunctionRead")
+            })
+            .expect("cold function read should forward the original shopifyFunctions query");
+        assert!(original_read["query"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("shopifyFunctions(first: 5, apiType: \"VALIDATION\")"));
+        let validation_preflight = hits
+            .iter()
+            .find(|body| body["operationName"] == "FunctionValidationsHydrate")
+            .expect("enabled create should hydrate the complete validation lifecycle catalog");
+        assert_eq!(validation_preflight["variables"], json!({ "after": null }));
+        assert!(validation_preflight["query"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("validations(first: 100, after: $after)"));
+    }
 
     let local_read = proxy.process_request(json_graphql_request(
         r#"
@@ -6501,7 +6533,11 @@ fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
             "app": { "apiKey": "non-catalog-app-key" }
         })
     );
-    assert_eq!(*upstream_hits.lock().unwrap(), 1);
+    assert_eq!(
+        upstream_hits.lock().unwrap().len(),
+        2,
+        "create should reuse the hydrated function metadata and local reads should stay local"
+    );
 }
 
 #[test]
@@ -7571,7 +7607,7 @@ fn functions_validation_max_cap_update_defaults_and_metafield_rejection_preserve
         stage_response.body["data"]["maxActive"],
         json!({
             "validation": null,
-            "userErrors": [{ "field": [], "message": "Cannot have more than 25 active validation functions.", "code": "MAX_VALIDATIONS_ACTIVATED" }]
+            "userErrors": [{ "field": null, "message": "Cannot have more than 25 active validation functions.", "code": "MAX_VALIDATIONS_ACTIVATED" }]
         })
     );
     let subject_id = stage_response.body["data"]["subject"]["validation"]["id"]
@@ -7619,6 +7655,318 @@ fn functions_validation_max_cap_update_defaults_and_metafield_rejection_preserve
             "metafields": { "nodes": [] }
         })
     );
+}
+
+#[test]
+fn functions_validation_create_hydrates_complete_catalog_after_partial_read_before_cap_check() {
+    let validation_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/validation-cap",
+        "Validation Cap",
+        "validation-cap",
+        "VALIDATION",
+        "validation-cap-key",
+        "validation-cap-app",
+    );
+    let upstream_validations = (1..=25)
+        .map(|index| {
+            json!({
+                "id": format!("gid://shopify/Validation/upstream-{index}"),
+                "title": format!("Upstream validation {index}"),
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": validation_function.clone(),
+                "metafields": { "nodes": [] }
+            })
+        })
+        .collect::<Vec<_>>();
+    let partial_validation = upstream_validations[0].clone();
+    let hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_hits = Arc::clone(&hits);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value =
+            serde_json::from_str(&request.body).expect("validation catalog request should parse");
+        captured_hits.lock().unwrap().push(body.clone());
+        let response_body = match body["operationName"].as_str() {
+            Some("FunctionValidationsHydrate") => {
+                if body["variables"]["after"].is_null() {
+                    json!({
+                        "data": {
+                            "validations": {
+                                "nodes": upstream_validations[..24].to_vec(),
+                                "pageInfo": {
+                                    "hasNextPage": true,
+                                    "endCursor": "validation-catalog-page-1"
+                                }
+                            }
+                        }
+                    })
+                } else {
+                    json!({
+                        "data": {
+                            "validations": {
+                                "nodes": [upstream_validations[24].clone()],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "endCursor": "validation-catalog-end"
+                                }
+                            }
+                        }
+                    })
+                }
+            }
+            _ if body["query"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("PartialValidationCatalogRead") =>
+            {
+                json!({
+                    "data": {
+                        "validations": {
+                            "nodes": [partial_validation.clone()]
+                        }
+                    }
+                })
+            }
+            _ => json!({
+                "errors": [{
+                    "message": format!("unexpected validation catalog request: {body}")
+                }]
+            }),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
+
+    let partial_read = proxy.process_request(json_graphql_request(
+        r#"
+        query PartialValidationCatalogRead {
+          validations(first: 1) {
+            nodes { id enabled shopifyFunction { id handle apiType } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        partial_read.body["data"]["validations"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let create_query = r#"
+        mutation CreateTwentySixthActiveValidation {
+          validationCreate(validation: {
+            functionHandle: "validation-cap"
+            title: "Twenty sixth active validation"
+            enable: true
+          }) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let create = proxy.process_request(json_graphql_request(create_query, json!({})));
+    assert_eq!(
+        create.body["data"]["validationCreate"],
+        json!({
+            "validation": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Cannot have more than 25 active validation functions.",
+                "code": "MAX_VALIDATIONS_ACTIVATED"
+            }]
+        })
+    );
+
+    let hits = hits.lock().unwrap();
+    assert_eq!(
+        hits.iter()
+            .filter(|body| body["operationName"] == "FunctionValidationsHydrate")
+            .count(),
+        2,
+        "the partial caller read must not suppress a complete paginated preflight catalog hydrate"
+    );
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["rawBody"],
+        json!(serde_json::to_string(&json!({ "query": create_query, "variables": {} })).unwrap()),
+        "the locally handled rejection must retain its original commit body"
+    );
+}
+
+#[test]
+fn functions_cart_transform_create_hydrates_lifecycle_catalogs_before_reuse_and_cap_checks() {
+    let registered_validation_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/registered-validation",
+        "Registered Validation",
+        "registered-validation",
+        "VALIDATION",
+        "registered-validation-key",
+        "registered-validation-app",
+    );
+    let second_cart_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/second-cart",
+        "Second Cart Transform",
+        "second-cart",
+        "CART_TRANSFORM",
+        "second-cart-key",
+        "second-cart-app",
+    );
+    let upstream_validation = json!({
+        "id": "gid://shopify/Validation/registered-validation",
+        "title": "Registered validation",
+        "enabled": false,
+        "blockOnFailure": false,
+        "shopifyFunction": registered_validation_function.clone(),
+        "metafields": { "nodes": [] }
+    });
+    let upstream_cart_transform = json!({
+        "id": "gid://shopify/CartTransform/existing",
+        "functionId": "gid://shopify/ShopifyFunction/existing-cart",
+        "blockOnFailure": false,
+        "metafields": { "nodes": [] }
+    });
+    let hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_hits = Arc::clone(&hits);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("cart transform catalog request should parse");
+        captured_hits.lock().unwrap().push(body.clone());
+        let response_body = match body["operationName"].as_str() {
+            Some("FunctionValidationsHydrate") => json!({
+                "data": {
+                    "validations": {
+                        "nodes": [upstream_validation.clone()],
+                        "pageInfo": { "hasNextPage": false, "endCursor": "validation-end" }
+                    }
+                }
+            }),
+            Some("FunctionCartTransformsHydrate") => json!({
+                "data": {
+                    "cartTransforms": {
+                        "nodes": [upstream_cart_transform.clone()],
+                        "pageInfo": { "hasNextPage": false, "endCursor": "cart-end" }
+                    }
+                }
+            }),
+            Some("FunctionHydrateById") => {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                let function = if id == second_cart_function["id"].as_str().unwrap() {
+                    second_cart_function.clone()
+                } else if id == registered_validation_function["id"].as_str().unwrap() {
+                    registered_validation_function.clone()
+                } else {
+                    Value::Null
+                };
+                json!({ "data": { "shopifyFunction": function } })
+            }
+            _ => json!({
+                "errors": [{
+                    "message": format!("unexpected cart transform catalog request: {body}")
+                }]
+            }),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
+
+    let reused = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReuseUnobservedValidationFunction {
+          cartTransformCreate(
+            functionId: "gid://shopify/ShopifyFunction/registered-validation"
+          ) {
+            cartTransform { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        reused.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{
+                "field": ["functionId"],
+                "message": "Could not enable cart transform because it is already registered",
+                "code": "FUNCTION_ALREADY_REGISTERED"
+            }]
+        })
+    );
+
+    let second = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSecondCartTransform {
+          cartTransformCreate(
+            functionId: "gid://shopify/ShopifyFunction/second-cart"
+          ) {
+            cartTransform { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        second.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{
+                "field": null,
+                "message": "An API client cannot have more than 1 cart transform functions per shop",
+                "code": null
+            }]
+        })
+    );
+
+    let hits = hits.lock().unwrap();
+    for operation_name in [
+        "FunctionValidationsHydrate",
+        "FunctionCartTransformsHydrate",
+    ] {
+        assert_eq!(
+            hits.iter()
+                .filter(|body| body["operationName"] == operation_name)
+                .count(),
+            1,
+            "{operation_name} should run exactly once for both cold decisions"
+        );
+    }
+    assert_eq!(
+        hits.iter()
+            .filter(|body| body["operationName"] == "FunctionHydrateById")
+            .count(),
+        1,
+        "the registered validation Function should be resolved from the lifecycle catalog"
+    );
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 2);
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("ReuseUnobservedValidationFunction"));
+    assert!(log["entries"][1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("CreateSecondCartTransform"));
 }
 
 #[test]
@@ -7727,7 +8075,7 @@ fn functions_cart_transform_create_validates_identifier_api_conflict_and_metafie
         cap_conflict.body["data"]["cartTransformCreate"],
         json!({
             "cartTransform": null,
-            "userErrors": [{ "field": ["base"], "message": "The maximum number of cart transforms per shop has been reached.", "code": "MAXIMUM_CART_TRANSFORMS" }]
+            "userErrors": [{ "field": null, "message": "An API client cannot have more than 1 cart transform functions per shop", "code": null }]
         })
     );
 }
@@ -8311,6 +8659,89 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
         json!({}),
     ));
     assert_eq!(read.body["data"]["fulfillmentConstraintRules"], json!([]));
+}
+
+#[test]
+fn functions_fulfillment_constraint_rule_update_and_delete_hydrate_unobserved_targets() {
+    let update_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut update_proxy =
+        function_fulfillment_constraint_rule_proxy_with_hits(Arc::clone(&update_hits));
+    let update_query = r#"
+        mutation UpdateUnobservedFulfillmentConstraintRule {
+          fulfillmentConstraintRuleUpdate(
+            id: "gid://shopify/FulfillmentConstraintRule/upstream-rule"
+            deliveryMethodTypes: [LOCAL]
+          ) {
+            fulfillmentConstraintRule {
+              id
+              deliveryMethodTypes
+              function { id handle apiType }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let update = update_proxy.process_request(json_graphql_request(update_query, json!({})));
+    assert_eq!(
+        update.body["data"]["fulfillmentConstraintRuleUpdate"],
+        json!({
+            "fulfillmentConstraintRule": {
+                "id": "gid://shopify/FulfillmentConstraintRule/upstream-rule",
+                "deliveryMethodTypes": ["LOCAL"],
+                "function": {
+                    "id": "gid://shopify/ShopifyFunction/upstream-fulfillment-constraint",
+                    "handle": "upstream-fulfillment-constraint",
+                    "apiType": "FULFILLMENT_CONSTRAINT_RULE"
+                }
+            },
+            "userErrors": []
+        })
+    );
+    let update_hits = update_hits.lock().unwrap();
+    assert_eq!(update_hits.len(), 1);
+    assert_eq!(
+        update_hits[0]["operationName"],
+        json!("FunctionFulfillmentConstraintRulesHydrate")
+    );
+    drop(update_hits);
+    let update_log = log_snapshot(&update_proxy);
+    assert_eq!(update_log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        update_log["entries"][0]["rawBody"],
+        json!(serde_json::to_string(&json!({ "query": update_query, "variables": {} })).unwrap())
+    );
+
+    let delete_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut delete_proxy =
+        function_fulfillment_constraint_rule_proxy_with_hits(Arc::clone(&delete_hits));
+    let delete_query = r#"
+        mutation DeleteUnobservedFulfillmentConstraintRule {
+          fulfillmentConstraintRuleDelete(
+            id: "gid://shopify/FulfillmentConstraintRule/upstream-rule"
+          ) {
+            success
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let delete = delete_proxy.process_request(json_graphql_request(delete_query, json!({})));
+    assert_eq!(
+        delete.body["data"]["fulfillmentConstraintRuleDelete"],
+        json!({ "success": true, "userErrors": [] })
+    );
+    let delete_hits = delete_hits.lock().unwrap();
+    assert_eq!(delete_hits.len(), 1);
+    assert_eq!(
+        delete_hits[0]["operationName"],
+        json!("FunctionFulfillmentConstraintRulesHydrate")
+    );
+    drop(delete_hits);
+    let delete_log = log_snapshot(&delete_proxy);
+    assert_eq!(delete_log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        delete_log["entries"][0]["rawBody"],
+        json!(serde_json::to_string(&json!({ "query": delete_query, "variables": {} })).unwrap())
+    );
 }
 
 #[test]

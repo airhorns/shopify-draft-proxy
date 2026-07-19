@@ -1,0 +1,10 @@
+mutation FulfillmentConstraintHydratedDelete($id: ID!) {
+  fulfillmentConstraintRuleDelete(id: $id) {
+    success
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,3203 @@
+{
+  "scenarioId": "functions-authoritative-lifecycle-preflight",
+  "capturedAt": "2026-07-19T12:18:57.423Z",
+  "source": "live-shopify",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "Live global lifecycle limits and registered-Function precedence with 25 active validations and one existing cart transform.",
+  "functions": {
+    "validationFunction": {
+      "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+      "title": "conformance-validation",
+      "handle": "conformance-validation",
+      "apiType": "cart_checkout_validation",
+      "description": "conformance-validation",
+      "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+      "app": {
+        "__typename": "App",
+        "id": "gid://shopify/App/347082227713",
+        "title": "hermes-conformance-products",
+        "handle": "hermes-conformance-products",
+        "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+      }
+    },
+    "cartFunction": {
+      "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+      "title": "conformance-cart-transform",
+      "handle": "conformance-cart-transform",
+      "apiType": "cart_transform",
+      "description": "conformance-cart-transform",
+      "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+      "app": {
+        "__typename": "App",
+        "id": "gid://shopify/App/347082227713",
+        "title": "hermes-conformance-products",
+        "handle": "hermes-conformance-products",
+        "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+      }
+    },
+    "secondCartFunction": {
+      "id": "019f7a30-08b0-7799-8dcc-3a1720d5d8af",
+      "title": "conformance-cart-transform-secondary",
+      "handle": "conformance-cart-transform-secondary",
+      "apiType": "cart_transform",
+      "description": "conformance-cart-transform-secondary",
+      "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+      "app": {
+        "__typename": "App",
+        "id": "gid://shopify/App/347082227713",
+        "title": "hermes-conformance-products",
+        "handle": "hermes-conformance-products",
+        "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+      }
+    }
+  },
+  "initialInventory": {
+    "query": "query AuthoritativeLifecycleInventory {\n  validations(first: 100) {\n    nodes { id title }\n  }\n  cartTransforms(first: 100) {\n    nodes { id functionId }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validations": {
+            "nodes": []
+          },
+          "cartTransforms": {
+            "nodes": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 22,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1978,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanupBefore": [],
+  "validationSetup": [
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 1",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/121995570"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 2",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122028338"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 3",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122061106"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 4",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122093874"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 5",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122126642"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 6",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122159410"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 7",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122192178"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 8",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122224946"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 9",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122257714"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 10",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122290482"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 11",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122323250"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 12",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122356018"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 13",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122388786"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 14",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122421554"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 15",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122454322"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 16",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122487090"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 17",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122519858"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 18",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122552626"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 19",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122585394"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 20",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122618162"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 21",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122650930"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 22",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122683698"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 23",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122716466"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 24",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122749234"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation { id }\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "validation": {
+          "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+          "title": "Authoritative lifecycle preflight 25",
+          "enable": true,
+          "blockOnFailure": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/122782002"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cartSetup": {
+    "query": "mutation AuthoritativeLifecycleCartSetup($functionId: String!) {\n  cartTransformCreate(functionId: $functionId) {\n    cartTransform { id }\n    userErrors { field message code }\n  }\n}\n",
+    "variables": {
+      "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransformCreate": {
+            "cartTransform": {
+              "id": "gid://shopify/CartTransform/133038386"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "functionValidationsHydrate": {
+    "query": "query FunctionValidationsHydrate($after: String) {\n  validations(first: 100, after: $after) {\n    nodes {\n      id\n      title\n      enabled\n      blockOnFailure\n      shopifyFunction {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          __typename\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          updatedAt\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "after": null
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Validation/121995570",
+                "title": "Authoritative lifecycle preflight 1",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122028338",
+                "title": "Authoritative lifecycle preflight 2",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122061106",
+                "title": "Authoritative lifecycle preflight 3",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122093874",
+                "title": "Authoritative lifecycle preflight 4",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122126642",
+                "title": "Authoritative lifecycle preflight 5",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122159410",
+                "title": "Authoritative lifecycle preflight 6",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122192178",
+                "title": "Authoritative lifecycle preflight 7",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122224946",
+                "title": "Authoritative lifecycle preflight 8",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122257714",
+                "title": "Authoritative lifecycle preflight 9",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122290482",
+                "title": "Authoritative lifecycle preflight 10",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122323250",
+                "title": "Authoritative lifecycle preflight 11",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122356018",
+                "title": "Authoritative lifecycle preflight 12",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122388786",
+                "title": "Authoritative lifecycle preflight 13",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122421554",
+                "title": "Authoritative lifecycle preflight 14",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122454322",
+                "title": "Authoritative lifecycle preflight 15",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122487090",
+                "title": "Authoritative lifecycle preflight 16",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122519858",
+                "title": "Authoritative lifecycle preflight 17",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122552626",
+                "title": "Authoritative lifecycle preflight 18",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122585394",
+                "title": "Authoritative lifecycle preflight 19",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122618162",
+                "title": "Authoritative lifecycle preflight 20",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122650930",
+                "title": "Authoritative lifecycle preflight 21",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122683698",
+                "title": "Authoritative lifecycle preflight 22",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122716466",
+                "title": "Authoritative lifecycle preflight 23",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122749234",
+                "title": "Authoritative lifecycle preflight 24",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              },
+              {
+                "id": "gid://shopify/Validation/122782002",
+                "title": "Authoritative lifecycle preflight 25",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "metafields": {
+                  "nodes": []
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "endCursor": "eyJsYXN0X2lkIjoxMjI3ODIwMDIsImxhc3RfdmFsdWUiOjEyMjc4MjAwMn0="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 128,
+            "actualQueryCost": 21,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1979,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "functionCartTransformsHydrate": {
+    "query": "query FunctionCartTransformsHydrate($after: String) {\n  cartTransforms(first: 100, after: $after) {\n    nodes {\n      id\n      functionId\n      blockOnFailure\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "after": null
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransforms": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CartTransform/133038386",
+                "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "blockOnFailure": false,
+                "metafields": {
+                  "nodes": []
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "endCursor": "eyJsYXN0X2lkIjoxMzMwMzgzODYsImxhc3RfdmFsdWUiOiIxMzMwMzgzODYifQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 110,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "secondCartFunctionHydrate": {
+    "query": "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n",
+    "variables": {
+      "id": "019f7a30-08b0-7799-8dcc-3a1720d5d8af"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopifyFunction": {
+            "id": "019f7a30-08b0-7799-8dcc-3a1720d5d8af",
+            "title": "conformance-cart-transform-secondary",
+            "apiType": "cart_transform",
+            "description": "conformance-cart-transform-secondary",
+            "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+            "app": {
+              "__typename": "App",
+              "id": "gid://shopify/App/347082227713",
+              "title": "hermes-conformance-products",
+              "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "preflight": {
+    "query": "mutation AuthoritativeLifecyclePreflight(\n  $validationFunctionId: String!\n  $secondCartFunctionId: String!\n) {\n  validationLimit: validationCreate(\n    validation: {\n      functionId: $validationFunctionId\n      title: \"Twenty sixth active validation\"\n      enable: true\n    }\n  ) {\n    validation { id }\n    userErrors { field message code }\n  }\n  reusedValidationFunction: cartTransformCreate(functionId: $validationFunctionId) {\n    cartTransform { id }\n    userErrors { field message code }\n  }\n  secondCartTransform: cartTransformCreate(functionId: $secondCartFunctionId) {\n    cartTransform { id }\n    userErrors { field message code }\n  }\n}\n",
+    "variables": {
+      "validationFunctionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+      "secondCartFunctionId": "019f7a30-08b0-7799-8dcc-3a1720d5d8af"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validationLimit": {
+            "validation": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Cannot have more than 25 active validation functions.",
+                "code": "MAX_VALIDATIONS_ACTIVATED"
+              }
+            ]
+          },
+          "reusedValidationFunction": {
+            "cartTransform": null,
+            "userErrors": [
+              {
+                "field": ["functionId"],
+                "message": "Could not enable cart transform because it is already registered",
+                "code": "FUNCTION_ALREADY_REGISTERED"
+              }
+            ]
+          },
+          "secondCartTransform": {
+            "cartTransform": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "An API client cannot have more than 1 cart transform functions per shop",
+                "code": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 30,
+            "actualQueryCost": 30,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1970,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanupAfter": [
+    {
+      "query": "mutation AuthoritativeLifecycleCartCleanup($id: ID!) {\n  cartTransformDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/CartTransform/133038386"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "cartTransformDelete": {
+              "deletedId": "gid://shopify/CartTransform/133038386",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122782002"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122782002",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122749234"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122749234",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122716466"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122716466",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122683698"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122683698",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122650930"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122650930",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122618162"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122618162",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122585394"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122585394",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122552626"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122552626",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122519858"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122519858",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122487090"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122487090",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122454322"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122454322",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122421554"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122421554",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122388786"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122388786",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122356018"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122356018",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122323250"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122323250",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122290482"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122290482",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122257714"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122257714",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122224946"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122224946",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122192178"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122192178",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122159410"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122159410",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122126642"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122126642",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122093874"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122093874",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122061106"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122061106",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/122028338"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/122028338",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation AuthoritativeLifecycleValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/121995570"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/121995570",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "FunctionValidationsHydrate",
+      "variables": {
+        "after": null
+      },
+      "query": "query FunctionValidationsHydrate($after: String) {\n  validations(first: 100, after: $after) {\n    nodes {\n      id\n      title\n      enabled\n      blockOnFailure\n      shopifyFunction {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          __typename\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          updatedAt\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "validations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Validation/121995570",
+                  "title": "Authoritative lifecycle preflight 1",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122028338",
+                  "title": "Authoritative lifecycle preflight 2",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122061106",
+                  "title": "Authoritative lifecycle preflight 3",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122093874",
+                  "title": "Authoritative lifecycle preflight 4",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122126642",
+                  "title": "Authoritative lifecycle preflight 5",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122159410",
+                  "title": "Authoritative lifecycle preflight 6",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122192178",
+                  "title": "Authoritative lifecycle preflight 7",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122224946",
+                  "title": "Authoritative lifecycle preflight 8",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122257714",
+                  "title": "Authoritative lifecycle preflight 9",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122290482",
+                  "title": "Authoritative lifecycle preflight 10",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122323250",
+                  "title": "Authoritative lifecycle preflight 11",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122356018",
+                  "title": "Authoritative lifecycle preflight 12",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122388786",
+                  "title": "Authoritative lifecycle preflight 13",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122421554",
+                  "title": "Authoritative lifecycle preflight 14",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122454322",
+                  "title": "Authoritative lifecycle preflight 15",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122487090",
+                  "title": "Authoritative lifecycle preflight 16",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122519858",
+                  "title": "Authoritative lifecycle preflight 17",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122552626",
+                  "title": "Authoritative lifecycle preflight 18",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122585394",
+                  "title": "Authoritative lifecycle preflight 19",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122618162",
+                  "title": "Authoritative lifecycle preflight 20",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122650930",
+                  "title": "Authoritative lifecycle preflight 21",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122683698",
+                  "title": "Authoritative lifecycle preflight 22",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122716466",
+                  "title": "Authoritative lifecycle preflight 23",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122749234",
+                  "title": "Authoritative lifecycle preflight 24",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/Validation/122782002",
+                  "title": "Authoritative lifecycle preflight 25",
+                  "enabled": true,
+                  "blockOnFailure": false,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": "eyJsYXN0X2lkIjoxMjI3ODIwMDIsImxhc3RfdmFsdWUiOjEyMjc4MjAwMn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 128,
+              "actualQueryCost": 21,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionCartTransformsHydrate",
+      "variables": {
+        "after": null
+      },
+      "query": "query FunctionCartTransformsHydrate($after: String) {\n  cartTransforms(first: 100, after: $after) {\n    nodes {\n      id\n      functionId\n      blockOnFailure\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "cartTransforms": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CartTransform/133038386",
+                  "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                  "blockOnFailure": false,
+                  "metafields": {
+                    "nodes": []
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": "eyJsYXN0X2lkIjoxMzMwMzgzODYsImxhc3RfdmFsdWUiOiIxMzMwMzgzODYifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 110,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionHydrateById",
+      "variables": {
+        "id": "019f7a30-08b0-7799-8dcc-3a1720d5d8af"
+      },
+      "query": "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunction": {
+              "id": "019f7a30-08b0-7799-8dcc-3a1720d5d8af",
+              "title": "conformance-cart-transform-secondary",
+              "apiType": "cart_transform",
+              "description": "conformance-cart-transform-secondary",
+              "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "app": {
+                "__typename": "App",
+                "id": "gid://shopify/App/347082227713",
+                "title": "hermes-conformance-products",
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": {
+    "authoritativeCatalogs": "The replay starts cold and can reach the three Shopify payloads only by consuming the exact complete validation and cart-transform catalog reads recorded in upstreamCalls.",
+    "cleanup": "The script clears the disposable lifecycle catalogs before setup and deletes every created Validation and CartTransform in finally."
+  }
+}
