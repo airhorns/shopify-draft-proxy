@@ -580,7 +580,14 @@ impl DraftProxy {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
-        let existing = self.gift_card_effective_record_for_mutation(request, &id);
+        if user_errors.is_empty() {
+            user_errors.extend(self.gift_card_assignment_errors(&field.name, &input, "input"));
+        }
+        let existing = if user_errors.is_empty() {
+            self.gift_card_effective_record_for_mutation(request, &id)
+        } else {
+            None
+        };
         if user_errors.is_empty() && existing.is_none() {
             user_errors.push(gift_card_not_found_error(&field.name));
         }
@@ -603,9 +610,6 @@ impl DraftProxy {
                     ));
                 }
             }
-        }
-        if user_errors.is_empty() {
-            user_errors.extend(self.gift_card_assignment_errors(&field.name, &input, "input"));
         }
         let mut assigned_customer = None;
         if user_errors.is_empty() {

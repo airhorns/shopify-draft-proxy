@@ -8239,6 +8239,39 @@ fn gift_card_trial_shop_assignment_rejects_customer_and_recipient_assignment() {
 }
 
 #[test]
+fn gift_card_trial_shop_update_assignment_rejects_before_missing_card() {
+    let mut proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut proxy);
+    set_gift_card_trial_shop(&mut proxy);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardTrialShopMissingUpdateAssignment($customerId: ID!, $recipientId: ID!) {
+          missingCustomerAssignment: giftCardUpdate(id: "gid://shopify/GiftCard/trial-missing-card", input: { customerId: $customerId }) { giftCard { id } userErrors { field code message } }
+          missingRecipientAssignment: giftCardUpdate(id: "gid://shopify/GiftCard/trial-missing-recipient-card", input: { recipientAttributes: { id: $recipientId } }) { giftCard { id } userErrors { field code message } }
+        }"#,
+        json!({
+            "customerId": "gid://shopify/Customer/trial-customer",
+            "recipientId": "gid://shopify/Customer/trial-recipient"
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "missingCustomerAssignment": {
+                "giftCard": null,
+                "userErrors": [{ "field": ["input", "customerId"], "code": "INVALID", "message": "A trial shop cannot assign a customer to a gift card." }]
+            },
+            "missingRecipientAssignment": {
+                "giftCard": null,
+                "userErrors": [{ "field": ["input", "recipientAttributes"], "code": "INVALID", "message": "A trial shop cannot assign a recipient to a gift card." }]
+            }
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
 fn gift_card_notification_trial_shop_rejects_customer_and_recipient_notifications() {
     let mut proxy = snapshot_proxy();
     seed_legacy_gift_card_base_state(&mut proxy);
