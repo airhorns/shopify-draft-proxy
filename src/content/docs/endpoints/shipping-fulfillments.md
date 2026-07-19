@@ -284,11 +284,22 @@ create/update/remove, validation, variant dissociation, async removal payloads,
 and downstream null reads after removal. Custom profiles are fully staged from
 create/update inputs covered by the delivery-profile parity requests. In
 LiveHybrid mode, `deliveryProfileUpdate` can hydrate an existing default profile
-and stage proxy-modelable updates without writing to Shopify at runtime.
+and stage proxy-modelable updates without writing to Shopify at runtime. Cold
+updates hydrate the authoritative profile-item, variant, location-group,
+location, zone, method-definition, selling-plan-group, and unassigned-location
+relationships, following each selected connection until its final page. A
+scalar-only update preserves that baseline and its Count precision metadata;
+explicit relationship additions and removals are applied over the hydrated
+profile without clearing unrelated rows. Missing relationship selections remain
+unknown during normalization, while relationships that Shopify selected as
+empty normalize to authoritative empty lists.
 Captured Admin GraphQL 2026-04 behavior accepts a default-profile name input
 with empty `userErrors` while preserving the public default display name and
-incrementing `version`; unsupported side effects such as rate recalculation
-remain outside this slice. Delivery profile name validation accepts exactly 128
+incrementing `version`. The `delivery-profile-default-update` parity scenario
+strictly compares the whole selected mutation profile and immediate downstream
+readback against a real default profile whose items require multiple hydrate
+pages. Unsupported side effects such as rate recalculation remain outside this
+slice. Delivery profile name validation accepts exactly 128
 characters and rejects 129-character names on both create and update with a
 public `UserError` payload containing `field` and `message`; `code` is not
 selectable on the captured Admin GraphQL 2026-04 `UserError` type. Location IDs
