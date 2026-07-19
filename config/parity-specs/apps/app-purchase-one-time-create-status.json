@@ -1,0 +1,61 @@
+{
+  "scenarioId": "app-purchase-one-time-create-status",
+  "operationNames": ["appPurchaseOneTimeCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/apps/app-purchase-one-time-create-validation.json"],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/appPurchaseOneTimeCreate-status-test-false.graphql"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "test-false-pending-status",
+        "capturePath": "$.evidence.parity.expected.statusTestFalse.data.appPurchaseOneTimeCreate",
+        "proxyPath": "$.data.appPurchaseOneTimeCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.confirmationUrl",
+            "matcher": "non-empty-string",
+            "reason": "The proxy returns a synthetic local confirmation URL instead of a real Shopify billing approval URL."
+          },
+          {
+            "path": "$.appPurchaseOneTime.id",
+            "matcher": "shopify-gid:AppPurchaseOneTime",
+            "reason": "The proxy generates stable session-local one-time purchase IDs."
+          }
+        ]
+      },
+      {
+        "name": "test-true-active-status",
+        "capturePath": "$.evidence.parity.expected.success.data.appPurchaseOneTimeCreate",
+        "proxyPath": "$.data.appPurchaseOneTimeCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appPurchaseOneTimeCreate-validation-success.graphql"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.confirmationUrl",
+            "matcher": "non-empty-string",
+            "reason": "The proxy returns a synthetic local confirmation URL instead of a real Shopify billing approval URL."
+          },
+          {
+            "path": "$.appPurchaseOneTime.id",
+            "matcher": "shopify-gid:AppPurchaseOneTime",
+            "reason": "The proxy generates stable session-local one-time purchase IDs."
+          },
+          {
+            "path": "$.appPurchaseOneTime.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic session-local timestamps for staged purchases."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Covers one-time app purchase status gating: local-runtime parity expects non-test charges to remain PENDING while test charges stage ACTIVE for local agent flows. Live billing mutation capture remains blocked for the configured conformance custom app by Shopify's `Custom apps cannot use the Billing API` response, so the PENDING non-test expectation is derived from Shopify billing core behavior and protected by focused runtime coverage plus local-runtime parity."
+}

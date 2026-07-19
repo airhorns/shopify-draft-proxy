@@ -1234,11 +1234,12 @@ impl DraftProxy {
             }));
         }
 
+        let test = resolved_bool_field(&arguments, "test").unwrap_or(false);
         let purchase = json!({
             "id": LOCAL_APP_PURCHASE_ONE_TIME_ID,
             "name": name,
-            "status": "ACTIVE",
-            "test": resolved_bool_field(&arguments, "test").unwrap_or(false),
+            "status": if test { "ACTIVE" } else { "PENDING" },
+            "test": test,
             "createdAt": "2024-01-01T00:00:00.000Z",
             "price": { "amount": amount, "currencyCode": currency_code }
         });

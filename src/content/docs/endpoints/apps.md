@@ -86,6 +86,7 @@ Synthetic confirmation URLs use `signature=shopify-draft-proxy-local-redacted`. 
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-destroy-codes.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-shop-payload.json`
 - `config/parity-specs/apps/app-billing-access-local-staging.json`
+- `config/parity-specs/apps/app-purchase-one-time-create-status.json`
 - `config/parity-specs/apps/app-purchase-one-time-create-validation.json`
 - `config/parity-specs/apps/app-revoke-access-scopes-error-codes.json`
 - `config/parity-specs/apps/app-uninstall-error-codes-and-cascade.json`
@@ -102,6 +103,7 @@ Synthetic confirmation URLs use `signature=shopify-draft-proxy-local-redacted`. 
 ### Validation
 
 - `corepack pnpm parity -- app-billing-access-local-staging`
+- `corepack pnpm parity -- app-purchase-one-time-create-status`
 - `corepack pnpm parity -- delegate-access-token-current-input-local-staging`
 - `corepack pnpm parity -- delegate-access-token-destroy-codes`
 - `corepack pnpm conformance:check`

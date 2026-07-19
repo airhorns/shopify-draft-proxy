@@ -1,0 +1,20 @@
+mutation AppPurchaseOneTimeCreateStatusTestFalse {
+  appPurchaseOneTimeCreate(
+    name: "Non-test one-time purchase"
+    returnUrl: "https://app.example.test/return"
+    price: { amount: "5.00", currencyCode: USD }
+    test: false
+  ) {
+    appPurchaseOneTime {
+      id
+      status
+      test
+    }
+    confirmationUrl
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

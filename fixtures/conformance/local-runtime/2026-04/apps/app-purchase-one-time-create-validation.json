@@ -96,6 +96,19 @@
               "userErrors": []
             }
           }
+        },
+        "statusTestFalse": {
+          "data": {
+            "appPurchaseOneTimeCreate": {
+              "appPurchaseOneTime": {
+                "id": "gid://shopify/AppPurchaseOneTime/expected",
+                "status": "PENDING",
+                "test": false
+              },
+              "confirmationUrl": "https://app.example.test/local-confirmation",
+              "userErrors": []
+            }
+          }
         }
       }
     }

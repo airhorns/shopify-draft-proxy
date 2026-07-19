@@ -134,6 +134,10 @@ async function capturePurchaseValidation(): Promise<void> {
       { query: await readGraphql('appPurchaseOneTimeCreate-validation-success.graphql') },
       { apiVersion },
     );
+    const statusTestFalse = await proxy.processGraphQLRequest(
+      { query: await readGraphql('appPurchaseOneTimeCreate-status-test-false.graphql') },
+      { apiVersion },
+    );
     const notes = Array.isArray(existing['notes']) ? (existing['notes'] as string[]) : [];
     await writeFixture(fileName, {
       capturedAt: existing['capturedAt'],
@@ -150,6 +154,7 @@ async function capturePurchaseValidation(): Promise<void> {
             currencyMismatch: assertOk(currencyMismatch, 'currency mismatch'),
             missingReturnUrl: assertOk(missingReturnUrl, 'missing return URL'),
             success: assertOk(success, 'success'),
+            statusTestFalse: assertOk(statusTestFalse, 'status test false'),
           },
         },
       },

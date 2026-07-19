@@ -2840,7 +2840,7 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
         r#"
         mutation OneTimeTestFalse {
           appPurchaseOneTimeCreate(name: "Import package 2", returnUrl: "https://app.example.test/return", price: { amount: 10, currencyCode: USD }, test: false) {
-            appPurchaseOneTime { id test }
+            appPurchaseOneTime { id status test }
             userErrors { field message }
           }
         }
@@ -2852,6 +2852,31 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
         json!({
             "appPurchaseOneTime": {
                 "id": "gid://shopify/AppPurchaseOneTime/expected",
+                "status": "PENDING",
+                "test": false
+            },
+            "userErrors": []
+        })
+    );
+
+    let mut one_time_omitted_test_proxy = snapshot_proxy();
+    let one_time_test_omitted = one_time_omitted_test_proxy.process_request(json_graphql_request(
+        r#"
+        mutation OneTimeTestOmitted {
+          appPurchaseOneTimeCreate(name: "Import package 3", returnUrl: "https://app.example.test/return", price: { amount: 10, currencyCode: USD }) {
+            appPurchaseOneTime { id status test }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        one_time_test_omitted.body["data"]["appPurchaseOneTimeCreate"],
+        json!({
+            "appPurchaseOneTime": {
+                "id": "gid://shopify/AppPurchaseOneTime/expected",
+                "status": "PENDING",
                 "test": false
             },
             "userErrors": []
