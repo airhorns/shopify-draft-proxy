@@ -882,6 +882,21 @@ impl DraftProxy {
         inputs: &[BTreeMap<String, ResolvedValue>],
         api_client_id: Option<&str>,
     ) {
+        let complete_observed_connections = inputs
+            .iter()
+            .filter_map(|input| resolved_string_field(input, "ownerId"))
+            .filter(|owner_id| !self.owner_has_metafield_local_effects(owner_id))
+            .filter_map(|owner_id| {
+                self.observed_owner_metafields_connection(&owner_id)
+                    .filter(|connection| owner_metafields_connection_is_complete(connection))
+                    .cloned()
+                    .map(|connection| (owner_id, connection))
+            })
+            .collect::<Vec<_>>();
+        for (owner_id, connection) in complete_observed_connections {
+            self.replace_owner_metafields_from_connection(&owner_id, &connection);
+        }
+
         let mut shape = OwnerMetafieldHydrationShape::default();
         let ids = inputs
             .iter()
@@ -898,7 +913,9 @@ impl DraftProxy {
                     api_client_id,
                 );
                 let key = resolved_string_field(input, "key").unwrap_or_default();
-                if self.owner_metafield_has_local_effect(&owner_id, &namespace, &key) {
+                if self.owner_metafield_has_local_effect(&owner_id, &namespace, &key)
+                    || self.observed_owner_metafields_connection_is_complete(&owner_id)
+                {
                     return None;
                 }
                 if !namespace.is_empty() && !key.is_empty() {
@@ -1609,6 +1626,7 @@ impl DraftProxy {
             return OwnerMetafieldResolution::Present(metafield);
         }
         if self.owner_metafield_has_local_effect(owner_id, namespace, key)
+            || self.observed_owner_metafields_connection_is_complete(owner_id)
             || self.config.read_mode != ReadMode::LiveHybrid
             || is_synthetic_gid(owner_id)
             || self
@@ -1638,6 +1656,102 @@ impl DraftProxy {
                 namespace.to_string(),
                 key.to_string(),
             ))
+    }
+
+    fn observed_owner_metafields_connection_is_complete(&self, owner_id: &str) -> bool {
+        self.observed_owner_metafields_connection(owner_id)
+            .is_some_and(owner_metafields_connection_is_complete)
+    }
+
+    fn observed_owner_metafields_connection(&self, owner_id: &str) -> Option<&Value> {
+        match shopify_gid_resource_type(owner_id) {
+            Some("Product") => self
+                .store
+                .product_by_id(owner_id)
+                .and_then(|product| product.extra_fields.get("metafields")),
+            Some("ProductVariant") => self
+                .store
+                .product_variant_by_id(owner_id)
+                .and_then(|variant| variant.extra_fields.get("metafields")),
+            Some("Collection") => self
+                .store
+                .collection_by_id(owner_id)
+                .and_then(|owner| owner.get("metafields")),
+            Some("Customer") => self
+                .store
+                .staged
+                .customers
+                .get(owner_id)
+                .and_then(|owner| owner.get("metafields")),
+            Some("Order") => self
+                .store
+                .staged
+                .orders
+                .get(owner_id)
+                .and_then(|owner| owner.get("metafields")),
+            Some("Company") => self
+                .store
+                .staged
+                .b2b_companies
+                .get(owner_id)
+                .and_then(|owner| owner.get("metafields")),
+            Some("Shop") => self.store.base.shop.get("metafields"),
+            Some("Location") => self
+                .store
+                .staged
+                .locations
+                .get(owner_id)
+                .and_then(|owner| owner.get("metafields")),
+            Some("Market") => self
+                .store
+                .staged
+                .markets
+                .get(owner_id)
+                .and_then(|owner| owner.get("metafields")),
+            Some("Page") => self
+                .store
+                .staged
+                .online_store_pages
+                .get(owner_id)
+                .and_then(|owner| owner.get("metafields")),
+            Some("Article") => self
+                .store
+                .staged
+                .online_store_articles
+                .get(owner_id)
+                .and_then(|owner| owner.get("metafields")),
+            Some("CartTransform") => self
+                .store
+                .staged
+                .function_cart_transforms
+                .get(owner_id)
+                .and_then(|owner| owner.get("metafields")),
+            Some("DeliveryCustomization") => self
+                .store
+                .staged
+                .delivery_customizations
+                .get(owner_id)
+                .and_then(|owner| owner.get("metafields")),
+            Some("FulfillmentConstraintRule") => self
+                .store
+                .staged
+                .function_fulfillment_constraint_rules
+                .get(owner_id)
+                .and_then(|owner| owner.get("metafields")),
+            Some("PaymentCustomization") => self
+                .store
+                .staged
+                .payment_customizations
+                .get(owner_id)
+                .and_then(|owner| owner.get("metafields")),
+            Some("Validation") => self
+                .store
+                .staged
+                .function_validations
+                .get(owner_id)
+                .and_then(|owner| owner.get("metafields")),
+            _ => None,
+        }
     }
 
     pub(in crate::proxy) fn owner_has_metafield_local_effects(&self, owner_id: &str) -> bool {
@@ -2111,6 +2225,10 @@ fn owner_metafield_hydration_target_is_resolved(
         return true;
     }
 
+    owner_metafields_connection_is_complete(connection)
+}
+
+fn owner_metafields_connection_is_complete(connection: &Value) -> bool {
     connection.get("pageInfo").is_some_and(|page_info| {
         page_info.get("hasNextPage").and_then(Value::as_bool) == Some(false)
             && page_info.get("hasPreviousPage").and_then(Value::as_bool) == Some(false)
@@ -2657,6 +2775,117 @@ mod tests {
                 "gid://shopify/Article/3",
                 "gid://shopify/Market/4",
             ])
+        );
+    }
+
+    #[test]
+    fn complete_observed_owner_connection_proves_null_cas_target_is_absent() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let owner_id = shopify_gid("Product", 1);
+        let observed_product = json!({
+            "__typename": "Product",
+            "id": owner_id,
+            "title": "Observed product",
+            "handle": "observed-product",
+            "status": "ACTIVE",
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "metafields": {
+                "nodes": [{
+                    "id": shopify_gid("Metafield", 1),
+                    "namespace": "details",
+                    "key": "origin",
+                    "type": "single_line_text_field",
+                    "value": "VN",
+                    "compareDigest": "opaque-origin-digest"
+                }],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "origin-cursor",
+                    "endCursor": "origin-cursor"
+                }
+            }
+        });
+        let transport_product = observed_product.clone();
+        let transport_calls = calls.clone();
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            transport_calls.lock().unwrap().push(body.clone());
+            let node = if body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("ObserveOwner"))
+            {
+                transport_product.clone()
+            } else {
+                json!({ "__typename": "Product", "id": shopify_gid("Product", 1) })
+            };
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: json!({ "data": { "nodes": [node] } }),
+            }
+        });
+        let observed = proxy.process_request(graphql_request(
+            r#"
+                query ObserveOwner($ids: [ID!]!) {
+                  nodes(ids: $ids) { ... on Product { id title } }
+                }
+            "#,
+            json!({ "ids": [owner_id] }),
+        ));
+        assert_eq!(observed.status, 200);
+        assert_eq!(observed.body["data"]["nodes"][0]["id"], owner_id);
+
+        let set = proxy.process_request(graphql_request(
+            MIXED_OWNER_SET,
+            json!({
+                "metafields": [{
+                    "ownerId": owner_id,
+                    "namespace": "details",
+                    "key": "season",
+                    "type": "single_line_text_field",
+                    "value": "Summer",
+                    "compareDigest": null
+                }]
+            }),
+        ));
+
+        assert!(set.body.get("errors").is_none(), "{:#?}", set.body);
+        assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+        assert_eq!(
+            set.body["data"]["metafieldsSet"]["metafields"][0]["value"],
+            "Summer"
+        );
+        let read = proxy.process_request(graphql_request(
+            r#"
+                query ReadObservedOwner($id: ID!) {
+                  product(id: $id) {
+                    metafields(first: 10) { nodes { namespace key value } }
+                  }
+                }
+            "#,
+            json!({ "id": owner_id }),
+        ));
+        assert_eq!(
+            read.body["data"]["product"]["metafields"]["nodes"],
+            json!([
+                { "namespace": "details", "key": "origin", "value": "VN" },
+                { "namespace": "details", "key": "season", "value": "Summer" }
+            ])
+        );
+        assert_eq!(
+            calls.lock().unwrap().len(),
+            1,
+            "a complete observed connection should avoid redundant mutation hydration"
         );
     }
 
