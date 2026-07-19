@@ -3258,6 +3258,16 @@ Practical rule:
 - keep required-input GraphQL validation branches separate from resolver `userErrors`
 - do not broaden owner support from this evidence; these fixtures remain product-owned metafield coverage
 
+### 61a. A well-formed owner GID is not proof that a `metafieldsSet` owner exists
+
+The product-owner existence capture in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-owner-existence-atomicity.json` creates two disposable products, deletes one, and then submits both single-owner and mixed-owner batches. Shopify resolves the owners before writing any metafield rows:
+
+- the deleted owner returns `Owner does not exist.`, code `INVALID_VALUE`, field `['metafields', '0', 'ownerId']`, `elementIndex: null`, and `metafields: []`
+- a mixed existing/deleted-owner batch reports the same error at index `1`
+- the valid owner's downstream metafield lookup remains null and its matching connection remains empty after the rejected mixed batch
+
+The local preflight must therefore distinguish an owner record from owner-scoped metafield state. A syntactically valid GID, a resource type accepted by the input, or an orphaned owner-metafield row cannot establish existence. Resolve staged/base records first, treat local tombstones as missing, and use the captured read-only `OwnerMetafieldsExistenceHydrate` `nodes(ids:) { __typename id }` query for unresolved LiveHybrid owners. Sort and deduplicate the ID variables so cassette replay remains deterministic. If any owner is missing, return before reference hydration, detailed owner-metafield hydration, write staging, or mutation-log creation.
+
 ## 62. Admin customer address roots use MailingAddress payloads and split validation styles
 
 HAR-152 captured customer address lifecycle evidence on Admin GraphQL 2025-01 with `corepack pnpm conformance:capture-customer-addresses`. HAR-283 expanded the same fixture with address validation, normalization, ownership, default-address, and bounded maximum-address probes.

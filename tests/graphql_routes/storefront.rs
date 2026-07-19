@@ -5375,11 +5375,18 @@ fn storefront_shop_metafields_require_storefront_definition_access() {
 }
 
 #[test]
-fn storefront_shop_metafields_use_staged_shop_owner_without_hydration() {
+fn storefront_shop_metafields_use_known_shop_owner_without_hydration() {
+    let shop_id = "gid://shopify/Shop/storefront-metafields-no-hydrate";
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,
         Some(UnsupportedMutationMode::Passthrough),
     );
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({
+            "id": shop_id,
+            "name": "Known Storefront metafields shop"
+        });
+    });
 
     stage_metafield_definition(
         &mut proxy,
@@ -5399,7 +5406,7 @@ fn storefront_shop_metafields_use_staged_shop_owner_without_hydration() {
     );
     stage_metafields_set(
         &mut proxy,
-        "gid://shopify/Shop/storefront-metafields-no-hydrate",
+        shop_id,
         json!([
             {
                 "namespace": "custom",

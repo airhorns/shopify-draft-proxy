@@ -1962,6 +1962,7 @@ fn standard_metafield_definition_enable_rejects_ineligible_capabilities() {
 #[test]
 fn standard_metafield_definition_enable_public_hidden_arguments_match_live_branches() {
     let mut proxy = snapshot_proxy();
+    let (owner_id, _) = create_product_metafield_owner(&mut proxy, "Standard definition owner");
 
     let visible = proxy.process_request(json_graphql_request(
         r#"
@@ -2054,10 +2055,10 @@ fn standard_metafield_definition_enable_public_hidden_arguments_match_live_branc
 
     let unstructured_setup = proxy.process_request(json_graphql_request(
         r#"
-        mutation StandardMetafieldDefinitionEnableMetafieldsSetSubtitle {
+        mutation StandardMetafieldDefinitionEnableMetafieldsSetSubtitle($ownerId: ID!) {
           metafieldsSet(
             metafields: [{
-              ownerId: "gid://shopify/Product/1"
+              ownerId: $ownerId
               namespace: "descriptors"
               key: "subtitle"
               type: "single_line_text_field"
@@ -2069,7 +2070,7 @@ fn standard_metafield_definition_enable_public_hidden_arguments_match_live_branc
           }
         }
         "#,
-        json!({}),
+        json!({ "ownerId": owner_id }),
     ));
     assert_eq!(
         unstructured_setup.body["data"]["metafieldsSet"]["userErrors"],
@@ -3267,6 +3268,7 @@ fn metafields_set_uses_matching_definition_type_when_input_type_is_omitted() {
 #[test]
 fn metafields_set_without_type_still_rejects_when_no_definition_matches() {
     let mut proxy = snapshot_proxy();
+    let (owner_id, _) = create_product_metafield_owner(&mut proxy, "Missing definition type owner");
 
     let set = proxy.process_request(json_graphql_request(
         r#"
@@ -3279,7 +3281,7 @@ fn metafields_set_without_type_still_rejects_when_no_definition_matches() {
         "#,
         json!({
             "metafields": [{
-                "ownerId": "gid://shopify/Product/123",
+                "ownerId": owner_id,
                 "namespace": "custom",
                 "key": "specs",
                 "value": "hello world"
@@ -3620,7 +3622,7 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
 fn metafield_definition_validation_update_gates_later_metafields_set() {
     let mut proxy = snapshot_proxy();
     let namespace = "validation_affects_values";
-    let owner_id = "gid://shopify/Product/10173064872242";
+    let (owner_id, _) = create_product_metafield_owner(&mut proxy, "Updated validation owner");
 
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -3777,7 +3779,7 @@ fn metafield_definition_validation_update_gates_later_metafields_set() {
 #[test]
 fn metafields_set_and_owner_reads_project_matching_definition() {
     let mut proxy = snapshot_proxy();
-    let owner_id = "gid://shopify/Product/10173064872243";
+    let (owner_id, _) = create_product_metafield_owner(&mut proxy, "Projected definition owner");
 
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -3903,7 +3905,7 @@ fn metafields_set_and_owner_reads_project_matching_definition() {
 #[test]
 fn metafield_definition_validation_rules_gate_metafields_set_values() {
     let mut proxy = snapshot_proxy();
-    let owner_id = "gid://shopify/Product/10173064872244";
+    let (owner_id, _) = create_product_metafield_owner(&mut proxy, "Definition rule owner");
     let namespace = "definition_rule_matrix";
     let create_query = r#"
         mutation DefinitionRuleMatrixCreate($definition: MetafieldDefinitionInput!) {
@@ -4010,6 +4012,7 @@ fn metafield_definition_validation_rules_gate_metafields_set_values() {
 #[test]
 fn metafield_definition_metaobject_reference_validation_checks_target_definition() {
     let mut proxy = snapshot_proxy();
+    let (owner_id, _) = create_product_metafield_owner(&mut proxy, "Metaobject reference owner");
     let title_field = json!({"key": "title", "name": "Title", "type": "single_line_text_field", "required": false});
     let create_definition_query = r#"
         mutation CreateMetaobjectDefinitionForMetafieldReference($definition: MetaobjectDefinitionCreateInput!) {
@@ -4110,7 +4113,7 @@ fn metafield_definition_metaobject_reference_validation_checks_target_definition
     let rejected = proxy.process_request(json_graphql_request(
         set_query,
         json!({"metafields": [{
-            "ownerId": "gid://shopify/Product/10173064872245",
+            "ownerId": owner_id,
             "namespace": namespace,
             "key": "linked",
             "type": "metaobject_reference",
@@ -4133,7 +4136,7 @@ fn metafield_definition_metaobject_reference_validation_checks_target_definition
     let accepted = proxy.process_request(json_graphql_request(
         set_query,
         json!({"metafields": [{
-            "ownerId": "gid://shopify/Product/10173064872245",
+            "ownerId": owner_id,
             "namespace": namespace,
             "key": "linked",
             "type": "metaobject_reference",
@@ -4149,16 +4152,19 @@ fn metafield_definition_metaobject_reference_validation_checks_target_definition
 #[test]
 fn metafield_definition_validations_gate_metafields_set_for_non_product_owners() {
     let mut proxy = snapshot_proxy();
+    let customer_id = create_customer_metafield_owner(&mut proxy, "definition-validation");
+    let order_id = create_order_metafield_owner(&mut proxy, "definition-validation");
+    let company_id = create_company_metafield_owner(&mut proxy, "Definition Validation Company");
+    let collection_id =
+        create_collection_metafield_owner(&mut proxy, "Definition validation collection");
+    let (_, variant_id) =
+        create_product_metafield_owner(&mut proxy, "Definition validation variant owner");
     let cases = [
-        ("CUSTOMER", "gid://shopify/Customer/1", "customer"),
-        ("ORDER", "gid://shopify/Order/1", "order"),
-        ("COMPANY", "gid://shopify/Company/1", "company"),
-        ("COLLECTION", "gid://shopify/Collection/1", "collection"),
-        (
-            "PRODUCTVARIANT",
-            "gid://shopify/ProductVariant/1",
-            "variant",
-        ),
+        ("CUSTOMER", customer_id, "customer"),
+        ("ORDER", order_id, "order"),
+        ("COMPANY", company_id, "company"),
+        ("COLLECTION", collection_id, "collection"),
+        ("PRODUCTVARIANT", variant_id, "variant"),
     ];
 
     for (owner_type, owner_id, suffix) in cases {
