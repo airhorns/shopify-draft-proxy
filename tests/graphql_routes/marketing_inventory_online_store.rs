@@ -1085,6 +1085,77 @@ fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
 }
 
 #[test]
+fn marketing_engagement_activity_currency_falls_back_to_activity_ad_spend() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingEngagementAdSpendActivityCurrencyValidation(
+          $activityInput: MarketingActivityCreateExternalInput!
+          $remoteId: String!
+          $activityId: ID!
+          $adSpendMismatchEngagement: MarketingEngagementInput!
+          $salesMismatchEngagement: MarketingEngagementInput!
+          $noCurrencyActivityInput: MarketingActivityCreateExternalInput!
+          $noCurrencyRemoteId: String!
+          $noCurrencyEngagement: MarketingEngagementInput!
+        ) {
+          createAdSpendActivity: marketingActivityCreateExternal(input: $activityInput) { marketingActivity { id } userErrors { field message code } }
+          adSpendMismatchById: marketingEngagementCreate(marketingActivityId: $activityId, marketingEngagement: $adSpendMismatchEngagement) { marketingEngagement { occurredOn adSpend { amount currencyCode } } userErrors { field message code } }
+          salesMismatchByRemoteId: marketingEngagementCreate(remoteId: $remoteId, marketingEngagement: $salesMismatchEngagement) { marketingEngagement { occurredOn sales { amount currencyCode } } userErrors { field message code } }
+          createNoCurrencyActivity: marketingActivityCreateExternal(input: $noCurrencyActivityInput) { marketingActivity { id } userErrors { field message code } }
+          noActivityCurrencyEngagement: marketingEngagementCreate(remoteId: $noCurrencyRemoteId, marketingEngagement: $noCurrencyEngagement) { marketingEngagement { occurredOn adSpend { amount currencyCode } } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "activityInput": {"title": "AdSpend Currency Validation Campaign", "remoteId": "adspend-currency-validation", "status": "ACTIVE", "remoteUrl": "https://example.com/adspend-currency-validation", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "adSpend": {"amount": "1.00", "currencyCode": "USD"}, "utm": {"campaign": "adspend-currency-validation", "source": "newsletter", "medium": "email"}},
+            "remoteId": "adspend-currency-validation",
+            "activityId": "gid://shopify/MarketingActivity/1",
+            "adSpendMismatchEngagement": {"occurredOn": "2026-04-01", "isCumulative": false, "utcOffset": "+00:00", "adSpend": {"amount": "5.00", "currencyCode": "EUR"}},
+            "salesMismatchEngagement": {"occurredOn": "2026-04-02", "isCumulative": false, "utcOffset": "+00:00", "sales": {"amount": "30.00", "currencyCode": "EUR"}},
+            "noCurrencyActivityInput": {"title": "No Currency Marketing Activity", "remoteId": "no-currency-activity-validation", "status": "ACTIVE", "remoteUrl": "https://example.com/no-currency-activity-validation", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "no-currency-activity-validation", "source": "newsletter", "medium": "email"}},
+            "noCurrencyRemoteId": "no-currency-activity-validation",
+            "noCurrencyEngagement": {"occurredOn": "2026-04-03", "isCumulative": false, "utcOffset": "+00:00", "adSpend": {"amount": "1.00", "currencyCode": "USD"}}
+        }),
+    ));
+
+    let activity_currency_error = json!([{ "field": ["marketingEngagement"], "message": "Marketing activity currency code does not match the currency code in the marketing engagement input.", "code": "MARKETING_ACTIVITY_CURRENCY_CODE_MISMATCH" }]);
+    assert_eq!(
+        response.body["data"]["createAdSpendActivity"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["adSpendMismatchById"]["userErrors"],
+        activity_currency_error
+    );
+    assert_eq!(
+        response.body["data"]["adSpendMismatchById"]["marketingEngagement"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["salesMismatchByRemoteId"]["userErrors"],
+        activity_currency_error
+    );
+    assert_eq!(
+        response.body["data"]["salesMismatchByRemoteId"]["marketingEngagement"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["createNoCurrencyActivity"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["noActivityCurrencyEngagement"],
+        json!({
+            "marketingEngagement": {
+                "occurredOn": "2026-04-03",
+                "adSpend": {"amount": "1.00", "currencyCode": "USD"}
+            },
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
 fn marketing_channel_handles_accept_non_empty_values() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(

@@ -1543,7 +1543,10 @@ impl DraftProxy {
         let Some(activity) = self.store.staged.marketing_activities.get(activity_id) else {
             return false;
         };
-        let Some(activity_currency) = activity["budget"]["total"]["currencyCode"].as_str() else {
+        let Some(activity_currency) = activity["budget"]["total"]["currencyCode"]
+            .as_str()
+            .or_else(|| activity["adSpend"]["currencyCode"].as_str())
+        else {
             return false;
         };
         marketing_money_currency(engagement, "adSpend").is_some_and(|c| c != activity_currency)
