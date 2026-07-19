@@ -540,12 +540,41 @@ fn inventory_item_variants_field(
 }
 
 pub(in crate::proxy) struct InventoryLevelViewState<'a> {
-    pub inventory_level_ids: &'a BTreeMap<(String, String), String>,
-    pub inactive_levels: &'a BTreeSet<(String, String)>,
-    pub quantity_updated_at: &'a BTreeMap<(String, String, String), String>,
+    pub base_inventory_level_ids: &'a BTreeMap<(String, String), String>,
+    pub staged_inventory_level_ids: &'a BTreeMap<(String, String), String>,
+    pub base_inactive_levels: &'a BTreeSet<(String, String)>,
+    pub staged_inactive_levels: &'a BTreeSet<(String, String)>,
+    pub staged_active_levels: &'a BTreeSet<(String, String)>,
+    pub base_quantity_updated_at: &'a BTreeMap<(String, String, String), String>,
+    pub staged_quantity_updated_at: &'a BTreeMap<(String, String, String), String>,
+    pub base_locations: &'a BTreeMap<String, Value>,
     pub staged_locations: &'a BTreeMap<String, Value>,
     pub observed_shipping_locations: &'a BTreeMap<String, Value>,
     pub fulfillment_service_locations: &'a BTreeMap<String, Value>,
+}
+
+impl InventoryLevelViewState<'_> {
+    fn level_id(&self, key: &(String, String)) -> Option<&String> {
+        self.staged_inventory_level_ids
+            .get(key)
+            .or_else(|| self.base_inventory_level_ids.get(key))
+    }
+
+    fn is_active(&self, key: &(String, String)) -> bool {
+        if self.staged_active_levels.contains(key) {
+            return true;
+        }
+        if self.staged_inactive_levels.contains(key) {
+            return false;
+        }
+        !self.base_inactive_levels.contains(key)
+    }
+
+    fn quantity_updated_at(&self, key: &(String, String, String)) -> Option<&String> {
+        self.staged_quantity_updated_at
+            .get(key)
+            .or_else(|| self.base_quantity_updated_at.get(key))
+    }
 }
 
 #[derive(Clone)]
@@ -565,6 +594,7 @@ fn inventory_level_location_for_view(
         .get(location_id)
         .or_else(|| view_state.observed_shipping_locations.get(location_id))
         .or_else(|| view_state.fulfillment_service_locations.get(location_id))
+        .or_else(|| view_state.base_locations.get(location_id))
         .cloned()
         .unwrap_or_else(|| json!({ "id": location_id }))
 }
@@ -818,12 +848,73 @@ const INVENTORY_TRANSFER_HYDRATE_NODES_QUERY: &str = r#"#graphql
   }
 "#;
 
+const INVENTORY_REFERENCE_HYDRATE_NODES_QUERY: &str = r#"query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } } } }"#;
+
+const INVENTORY_LOCATION_HYDRATE_NODES_QUERY: &str = r#"query InventoryLocationsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Location { id name isActive } } }"#;
+
+const INVENTORY_ITEMS_CATALOG_HYDRATE_QUERY: &str = r#"#graphql
+  query InventoryItemsCatalogHydrate($first: Int!, $after: String) {
+    inventoryItems(first: $first, after: $after) {
+      edges {
+        cursor
+        node {
+          id
+          tracked
+          requiresShipping
+          countryCodeOfOrigin
+          provinceCodeOfOrigin
+          harmonizedSystemCode
+          measurement { weight { unit value } }
+          variant {
+            id
+            title
+            sku
+            barcode
+            price
+            compareAtPrice
+            taxable
+            inventoryPolicy
+            inventoryQuantity
+            selectedOptions { name value }
+            product {
+              id
+              title
+              handle
+              status
+              totalInventory
+              tracksInventory
+            }
+          }
+          inventoryLevels(first: 250) {
+            nodes {
+              id
+              isActive
+              location { id name }
+              quantities(names: ["available", "on_hand", "committed", "incoming", "reserved", "damaged", "quality_control", "safety_stock"]) {
+                name
+                quantity
+                updatedAt
+              }
+            }
+          }
+        }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+"#;
+
 impl DraftProxy {
     fn inventory_level_view_state(&self) -> InventoryLevelViewState<'_> {
         InventoryLevelViewState {
-            inventory_level_ids: &self.store.staged.inventory_level_ids,
-            inactive_levels: &self.store.staged.inactive_inventory_levels,
-            quantity_updated_at: &self.store.staged.inventory_quantity_updated_at,
+            base_inventory_level_ids: &self.store.base.inventory_level_ids,
+            staged_inventory_level_ids: &self.store.staged.inventory_level_ids,
+            base_inactive_levels: &self.store.base.inactive_inventory_levels,
+            staged_inactive_levels: &self.store.staged.inactive_inventory_levels,
+            staged_active_levels: &self.store.staged.active_inventory_levels,
+            base_quantity_updated_at: &self.store.base.inventory_quantity_updated_at,
+            staged_quantity_updated_at: &self.store.staged.inventory_quantity_updated_at,
+            base_locations: &self.store.base.locations.records,
             staged_locations: &self.store.staged.locations.records,
             observed_shipping_locations: &self.store.staged.observed_shipping_locations,
             fulfillment_service_locations: &self.store.staged.fulfillment_service_locations.records,
@@ -845,6 +936,30 @@ impl DraftProxy {
             .get("id")
             .and_then(Value::as_str)
             .unwrap_or_default();
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && !is_synthetic_gid(id)
+            && !self.inventory_item_is_tombstoned(id)
+        {
+            let had_overlay = self.inventory_item_has_staged_overlay(id);
+            let result = self.cached_or_forward_upstream_graphql_result(
+                invocation.request,
+                invocation.response_key,
+            );
+            let mut outcome = result.outcome;
+            if result.transport_succeeded && outcome.errors.is_empty() {
+                self.observe_inventory_item_node(&outcome.value);
+            }
+            if !had_overlay || !outcome.errors.is_empty() {
+                return outcome;
+            }
+            outcome.value = if self.inventory_item_exists(id) {
+                self.inventory_item_canonical_value(id)
+            } else {
+                Value::Null
+            };
+            outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
+            return outcome;
+        }
         ResolverOutcome::value(if self.inventory_item_exists(id) {
             self.inventory_item_canonical_value(id)
         } else {
@@ -857,6 +972,27 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
+        if self.config.read_mode == ReadMode::LiveHybrid {
+            let had_overlay = self.inventory_catalog_has_staged_overlay();
+            let result = self.cached_or_forward_upstream_graphql_result(
+                invocation.request,
+                invocation.response_key,
+            );
+            let mut outcome = result.outcome;
+            if result.transport_succeeded && outcome.errors.is_empty() {
+                self.observe_inventory_items_connection(&outcome.value);
+            }
+            if !had_overlay || !outcome.errors.is_empty() {
+                return outcome;
+            }
+            self.hydrate_inventory_items_catalog(invocation.request);
+            if !self.store.base.inventory_items_catalog_hydrated {
+                return outcome;
+            }
+            outcome.value = self.inventory_items_connection_value(&arguments);
+            outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
+            return outcome;
+        }
         ResolverOutcome::value(self.inventory_items_connection_value(&arguments))
     }
 
@@ -869,6 +1005,23 @@ impl DraftProxy {
             .get("id")
             .and_then(Value::as_str)
             .unwrap_or_default();
+        if self.config.read_mode == ReadMode::LiveHybrid && !is_synthetic_gid(id) {
+            let had_overlay = self.inventory_level_has_staged_overlay(id);
+            let result = self.cached_or_forward_upstream_graphql_result(
+                invocation.request,
+                invocation.response_key,
+            );
+            let mut outcome = result.outcome;
+            if result.transport_succeeded && outcome.errors.is_empty() {
+                self.observe_inventory_level_node(&outcome.value);
+            }
+            if !had_overlay || !outcome.errors.is_empty() {
+                return outcome;
+            }
+            outcome.value = self.inventory_level_value_by_id(id);
+            outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
+            return outcome;
+        }
         ResolverOutcome::value(self.inventory_level_value_by_id(id))
     }
 
