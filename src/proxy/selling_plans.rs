@@ -1,4 +1,5 @@
 use super::*;
+use crate::proxy::search::{search_query_decision, ParsedSearchTerm};
 
 const MAX_SELLING_PLANS_PER_GROUP: usize = 31;
 const INT32_MIN: i64 = i32::MIN as i64;
@@ -936,43 +937,24 @@ fn selling_plan_group_search_decision(
     group: &SellingPlanGroupRecord,
     query: Option<&str>,
 ) -> StagedSearchDecision {
-    let Some(query) = query else {
-        return StagedSearchDecision::Match;
-    };
-    let query = query.trim();
-    if query.is_empty() {
-        return StagedSearchDecision::Match;
-    }
-
-    for term in query.split_whitespace() {
-        let term = trim_selling_plan_group_search_value(term);
-        if term.is_empty() || term.eq_ignore_ascii_case("AND") {
-            continue;
-        }
-        match selling_plan_group_search_term_decision(group, term) {
-            StagedSearchDecision::Match => {}
-            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
-            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
-        }
-    }
-
-    StagedSearchDecision::Match
+    search_query_decision(query, |term| {
+        selling_plan_group_search_term_decision(group, term)
+    })
 }
 
 fn selling_plan_group_search_term_decision(
     group: &SellingPlanGroupRecord,
-    term: &str,
+    term: &ParsedSearchTerm,
 ) -> StagedSearchDecision {
-    let Some((key, value)) = term.split_once(':') else {
-        return StagedSearchDecision::from_bool(selling_plan_group_text_matches(group, term));
-    };
-    let key = key.to_ascii_lowercase();
-    let value = trim_selling_plan_group_search_value(value);
+    let value = trim_selling_plan_group_search_value(&term.value);
     if value.is_empty() {
-        return StagedSearchDecision::NoMatch;
+        return StagedSearchDecision::Match;
     }
+    let Some(key) = term.field.as_deref() else {
+        return StagedSearchDecision::from_bool(selling_plan_group_text_matches(group, value));
+    };
 
-    match key.as_str() {
+    match key {
         "app_id" => {
             StagedSearchDecision::from_bool(selling_plan_group_app_id_matches(group, value))
         }
@@ -2017,5 +1999,64 @@ fn resource_members_mut(
     match resource_kind {
         ResourceKind::Product => &mut group.product_ids,
         ResourceKind::ProductVariant => &mut group.product_variant_ids,
+    }
+}
+
+#[cfg(test)]
+mod selling_plan_group_search_tests {
+    use super::*;
+
+    fn search_selling_plan_group() -> SellingPlanGroupRecord {
+        SellingPlanGroupRecord {
+            id: "gid://shopify/SellingPlanGroup/9001".to_string(),
+            app_id: Some("gid://shopify/App/11".to_string()),
+            name: "Subscribe and save".to_string(),
+            merchant_code: "subscribe-save".to_string(),
+            description: "Recurring delivery".to_string(),
+            options: vec!["Delivery".to_string()],
+            position: 1,
+            created_at: "2026-07-01T00:00:00Z".to_string(),
+            updated_at: "2026-07-02T00:00:00Z".to_string(),
+            selling_plans: vec![SellingPlanRecord {
+                id: "gid://shopify/SellingPlan/9002".to_string(),
+                name: "Monthly".to_string(),
+                description: "Monthly delivery".to_string(),
+                options: vec!["Monthly".to_string()],
+                position: 1,
+                category: "SUBSCRIPTION".to_string(),
+                created_at: "2026-07-01T00:00:00Z".to_string(),
+                billing_policy: json!({}),
+                delivery_policy: json!({}),
+                inventory_policy: json!({}),
+                pricing_policies: Vec::new(),
+            }],
+            product_ids: Vec::new(),
+            product_variant_ids: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn selling_plan_group_search_composes_boolean_queries() {
+        let group = search_selling_plan_group();
+
+        assert_eq!(
+            selling_plan_group_search_decision(&group, Some("name:Other OR name:Subscribe")),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            selling_plan_group_search_decision(
+                &group,
+                Some("(name:Other OR name:Subscribe) category:SUBSCRIPTION")
+            ),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            selling_plan_group_search_decision(&group, Some("-name:Subscribe")),
+            StagedSearchDecision::NoMatch
+        );
+        assert_eq!(
+            selling_plan_group_search_decision(&group, Some("NOT name:Subscribe")),
+            StagedSearchDecision::NoMatch
+        );
     }
 }

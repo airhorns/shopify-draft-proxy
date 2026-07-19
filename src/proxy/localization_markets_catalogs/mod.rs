@@ -1,5 +1,6 @@
 use super::market_unsupported_country_regions::is_unsupported_country_region;
 use super::*;
+use crate::proxy::search::{search_query_decision, ParsedSearchTerm};
 use sha2::{Digest, Sha256};
 
 mod catalogs;
@@ -376,33 +377,15 @@ fn catalog_search_decision(
     if !catalog_matches_type(catalog, type_filter) {
         return StagedSearchDecision::NoMatch;
     }
-    let Some(query) = query else {
-        return StagedSearchDecision::Match;
-    };
-    let query = query.trim();
-    if query.is_empty() {
-        return StagedSearchDecision::Match;
-    }
-    for term in query.split_whitespace() {
-        if term.eq_ignore_ascii_case("AND") {
-            continue;
-        }
-        match catalog_search_term_decision(catalog, term) {
-            StagedSearchDecision::Match => {}
-            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
-            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
-        }
-    }
-    StagedSearchDecision::Match
+    search_query_decision(query, |term| catalog_search_term_decision(catalog, term))
 }
 
-fn catalog_search_term_decision(catalog: &Value, term: &str) -> StagedSearchDecision {
-    let term = unquote_search_value(term);
-    if term.is_empty() {
+fn catalog_search_term_decision(catalog: &Value, term: &ParsedSearchTerm) -> StagedSearchDecision {
+    let value = unquote_search_value(&term.value);
+    if value.is_empty() {
         return StagedSearchDecision::Match;
     }
-    if let Some((key, value)) = term.split_once(':') {
-        let value = unquote_search_value(value);
+    if let Some(key) = term.field.as_deref() {
         return match key {
             "id" => StagedSearchDecision::from_bool(
                 catalog
@@ -440,7 +423,7 @@ fn catalog_search_term_decision(catalog: &Value, term: &str) -> StagedSearchDeci
     StagedSearchDecision::from_bool(
         fields
             .into_iter()
-            .any(|value| catalog_text_matches(value, term)),
+            .any(|field_value| catalog_text_matches(field_value, value)),
     )
 }
 
@@ -463,30 +446,15 @@ fn market_sort_key(market: &Value, sort_key: Option<&str>) -> StagedSortKey {
 }
 
 fn market_search_decision(market: &Value, query: Option<&str>) -> StagedSearchDecision {
-    let Some(query) = query else {
-        return StagedSearchDecision::Match;
-    };
-    let query = query.trim();
-    if query.is_empty() {
-        return StagedSearchDecision::Match;
-    }
-    for term in query.split_whitespace() {
-        match market_search_term_decision(market, term) {
-            StagedSearchDecision::Match => {}
-            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
-            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
-        }
-    }
-    StagedSearchDecision::Match
+    search_query_decision(query, |term| market_search_term_decision(market, term))
 }
 
-fn market_search_term_decision(market: &Value, term: &str) -> StagedSearchDecision {
-    let term = unquote_search_value(term);
-    if term.is_empty() {
+fn market_search_term_decision(market: &Value, term: &ParsedSearchTerm) -> StagedSearchDecision {
+    let value = unquote_search_value(&term.value);
+    if value.is_empty() {
         return StagedSearchDecision::Match;
     }
-    if let Some((key, value)) = term.split_once(':') {
-        let value = unquote_search_value(value);
+    if let Some(key) = term.field.as_deref() {
         let matches = match key {
             "id" => {
                 let id = value_string(market, "id");
@@ -514,7 +482,7 @@ fn market_search_term_decision(market: &Value, term: &str) -> StagedSearchDecisi
         value_string(market, "type")
     )
     .to_ascii_lowercase();
-    StagedSearchDecision::from_bool(value_contains_ci(&haystack, term))
+    StagedSearchDecision::from_bool(value_contains_ci(&haystack, value))
 }
 
 fn value_contains_ci(value: &str, needle: &str) -> bool {
@@ -1263,4 +1231,77 @@ pub(in crate::proxy) fn localization_resource_type_matches(
         return false;
     };
     gid_type.eq_ignore_ascii_case(&resource_type.replace('_', ""))
+}
+
+#[cfg(test)]
+mod markets_catalogs_search_tests {
+    use super::*;
+
+    fn search_catalog() -> Value {
+        json!({
+            "id": "gid://shopify/MarketCatalog/4001",
+            "__typename": "MarketCatalog",
+            "title": "Primary Catalog",
+            "status": "ACTIVE"
+        })
+    }
+
+    fn search_market() -> Value {
+        json!({
+            "id": "gid://shopify/Market/5001",
+            "name": "United States",
+            "handle": "us",
+            "status": "ACTIVE",
+            "type": "REGION",
+            "enabled": true
+        })
+    }
+
+    #[test]
+    fn catalog_search_composes_boolean_queries() {
+        let catalog = search_catalog();
+
+        assert_eq!(
+            catalog_search_decision(&catalog, Some("title:Secondary OR status:ACTIVE"), None),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            catalog_search_decision(
+                &catalog,
+                Some("(title:Secondary OR status:ACTIVE) type:MARKET"),
+                None
+            ),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            catalog_search_decision(&catalog, Some("-status:ACTIVE"), None),
+            StagedSearchDecision::NoMatch
+        );
+        assert_eq!(
+            catalog_search_decision(&catalog, Some("NOT status:ACTIVE"), None),
+            StagedSearchDecision::NoMatch
+        );
+    }
+
+    #[test]
+    fn market_search_composes_boolean_queries() {
+        let market = search_market();
+
+        assert_eq!(
+            market_search_decision(&market, Some("name:Canada OR handle:us")),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            market_search_decision(&market, Some("(name:Canada OR handle:us) status:ACTIVE")),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            market_search_decision(&market, Some("-handle:us")),
+            StagedSearchDecision::NoMatch
+        );
+        assert_eq!(
+            market_search_decision(&market, Some("NOT handle:us")),
+            StagedSearchDecision::NoMatch
+        );
+    }
 }

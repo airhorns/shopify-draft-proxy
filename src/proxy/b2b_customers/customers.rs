@@ -1,4 +1,5 @@
 use super::*;
+use crate::proxy::search::{search_query_decision, ParsedSearchTerm};
 
 enum StoreCreditAccountMutationResolution {
     Existing(String),
@@ -3537,51 +3538,41 @@ fn store_credit_account_search_decision(
     account: &Value,
     query: Option<&str>,
 ) -> StagedSearchDecision {
-    let Some(query) = query else {
-        return StagedSearchDecision::Match;
-    };
-    let query = query.trim();
-    if query.is_empty() {
+    search_query_decision(query, |term| {
+        store_credit_account_search_term_decision(account, term)
+    })
+}
+
+fn store_credit_account_search_term_decision(
+    account: &Value,
+    term: &ParsedSearchTerm,
+) -> StagedSearchDecision {
+    let value = term.value.trim().trim_matches('"').trim_matches('\'');
+    if value.is_empty() {
         return StagedSearchDecision::Match;
     }
-
-    for term in query.split_whitespace() {
-        if term.eq_ignore_ascii_case("AND") {
-            continue;
+    match term.field.as_deref() {
+        Some("id") => {
+            StagedSearchDecision::from_bool(store_credit_account_matches_id(account, value))
         }
-        let term = term.trim().trim_matches('"').trim_matches('\'');
-        if term.is_empty() {
-            continue;
-        }
-        let decision = if let Some((key, value)) = term.split_once(':') {
-            let value = value.trim().trim_matches('"').trim_matches('\'');
-            match key {
-                "id" => {
-                    StagedSearchDecision::from_bool(store_credit_account_matches_id(account, value))
-                }
-                "currency"
-                | "currency_code"
-                | "currencyCode"
-                | "balance.currency_code"
-                | "balance.currencyCode" => StagedSearchDecision::from_bool(
-                    store_credit_account_currency(account).eq_ignore_ascii_case(value),
-                ),
-                _ => StagedSearchDecision::Unsupported,
-            }
-        } else {
-            let needle = term.to_ascii_lowercase();
+        Some(
+            "currency"
+            | "currency_code"
+            | "currencycode"
+            | "balance.currency_code"
+            | "balance.currencycode",
+        ) => StagedSearchDecision::from_bool(
+            store_credit_account_currency(account).eq_ignore_ascii_case(value),
+        ),
+        Some(_) => StagedSearchDecision::Unsupported,
+        None => {
+            let needle = value.to_ascii_lowercase();
             let currency = store_credit_account_currency(account).to_ascii_lowercase();
             StagedSearchDecision::from_bool(
-                currency.contains(&needle) || store_credit_account_matches_id(account, term),
+                currency.contains(&needle) || store_credit_account_matches_id(account, value),
             )
-        };
-        match decision {
-            StagedSearchDecision::Match => {}
-            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
-            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
         }
     }
-    StagedSearchDecision::Match
 }
 
 fn store_credit_account_sort_key(account: &Value, _sort_key: Option<&str>) -> StagedSortKey {
@@ -3732,6 +3723,41 @@ mod customer_search_tests {
         );
         assert_eq!(
             customer_search_decision(&customer, Some("state:DISABLED -tag:VIP")),
+            StagedSearchDecision::NoMatch
+        );
+    }
+
+    fn search_store_credit_account() -> Value {
+        json!({
+            "id": "gid://shopify/StoreCreditAccount/3001",
+            "balance": {
+                "amount": "12.50",
+                "currencyCode": "USD"
+            }
+        })
+    }
+
+    #[test]
+    fn store_credit_account_search_composes_boolean_queries() {
+        let account = search_store_credit_account();
+
+        assert_eq!(
+            store_credit_account_search_decision(&account, Some("currency:EUR OR currency:USD")),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            store_credit_account_search_decision(
+                &account,
+                Some("(currency:EUR OR currency:USD) id:3001")
+            ),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            store_credit_account_search_decision(&account, Some("-currency:USD")),
+            StagedSearchDecision::NoMatch
+        );
+        assert_eq!(
+            store_credit_account_search_decision(&account, Some("NOT currency:USD")),
             StagedSearchDecision::NoMatch
         );
     }

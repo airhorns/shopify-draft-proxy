@@ -1,3 +1,5 @@
+use super::connection::StagedSearchDecision;
+
 pub(in crate::proxy) enum ParsedSearchExpression {
     Term(ParsedSearchTerm),
     Not(Box<ParsedSearchExpression>),
@@ -34,6 +36,21 @@ impl ParsedSearchExpression {
             ParsedSearchExpression::Or(expressions) => expressions
                 .iter()
                 .any(|expression| expression.matches_with(matches_term)),
+        }
+    }
+
+    fn for_each_term<F>(&self, visit: &mut F)
+    where
+        F: FnMut(&ParsedSearchTerm),
+    {
+        match self {
+            ParsedSearchExpression::Term(term) => visit(term),
+            ParsedSearchExpression::Not(expression) => expression.for_each_term(visit),
+            ParsedSearchExpression::And(expressions) | ParsedSearchExpression::Or(expressions) => {
+                for expression in expressions {
+                    expression.for_each_term(visit);
+                }
+            }
         }
     }
 }
@@ -100,6 +117,11 @@ impl SearchParser {
                 .parse_unary()
                 .map(|expression| ParsedSearchExpression::Not(Box::new(expression)));
         }
+        if self.consume_operator("NOT") {
+            return self
+                .parse_unary()
+                .map(|expression| ParsedSearchExpression::Not(Box::new(expression)));
+        }
         self.parse_primary()
     }
 
@@ -149,6 +171,36 @@ pub(in crate::proxy) fn parse_search_query(query: &str) -> Option<ParsedSearchEx
     (!tokens.is_empty())
         .then(|| SearchParser(tokens, 0).parse_or())
         .flatten()
+}
+
+pub(in crate::proxy) fn search_query_decision<F>(
+    query: Option<&str>,
+    mut matches_term: F,
+) -> StagedSearchDecision
+where
+    F: FnMut(&ParsedSearchTerm) -> StagedSearchDecision,
+{
+    let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+        return StagedSearchDecision::Match;
+    };
+    let Some(expression) = parse_search_query(query) else {
+        return StagedSearchDecision::Unsupported;
+    };
+
+    let mut saw_unsupported = false;
+    expression.for_each_term(&mut |term| {
+        if matches!(matches_term(term), StagedSearchDecision::Unsupported) {
+            saw_unsupported = true;
+        }
+    });
+    if saw_unsupported {
+        return StagedSearchDecision::Unsupported;
+    }
+
+    StagedSearchDecision::from_bool(
+        expression
+            .matches_with(&mut |term| matches!(matches_term(term), StagedSearchDecision::Match)),
+    )
 }
 
 fn search_query_tokens(query: &str) -> Vec<SearchToken> {

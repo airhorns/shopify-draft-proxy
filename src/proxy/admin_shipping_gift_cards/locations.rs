@@ -1,4 +1,5 @@
 use super::*;
+use crate::proxy::search::{search_query_decision, ParsedSearchTerm};
 
 const LOCATION_HYDRATE_QUERY: &str = r#"query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: "custom", key: "hours") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: ["available", "committed", "on_hand"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"#;
 const LOCATION_LIMIT_STATUS_QUERY: &str = r#"query StorePropertiesLocationLimitStatus($first: Int!) { shop { resourceLimits { locationLimit } } locations(first: $first, includeInactive: true) { nodes { id isActive isFulfillmentService } pageInfo { hasNextPage } } }"#;
@@ -1674,79 +1675,22 @@ fn location_sort_string(location: &Value, field: &str) -> StagedSortValue {
 }
 
 fn location_search_decision(location: &Value, query: Option<&str>) -> StagedSearchDecision {
-    let Some(query) = query else {
-        return StagedSearchDecision::Match;
-    };
-    let query = query.trim();
-    if query.is_empty() {
-        return StagedSearchDecision::Match;
-    }
-    let mut any_supported = false;
-    for group in location_search_or_groups(query) {
-        let mut group_supported = false;
-        let mut group_matches = true;
-        for term in group {
-            if term.eq_ignore_ascii_case("AND") {
-                continue;
-            }
-            match location_search_term_decision(location, term) {
-                StagedSearchDecision::Match => {
-                    group_supported = true;
-                }
-                StagedSearchDecision::NoMatch => {
-                    group_supported = true;
-                    group_matches = false;
-                    break;
-                }
-                StagedSearchDecision::Unsupported => {
-                    group_matches = false;
-                    break;
-                }
-            }
-        }
-        if group_supported {
-            any_supported = true;
-        }
-        if group_matches && group_supported {
-            return StagedSearchDecision::Match;
-        }
-    }
-    if any_supported {
-        StagedSearchDecision::NoMatch
-    } else {
-        StagedSearchDecision::Unsupported
-    }
+    search_query_decision(query, |term| location_search_term_decision(location, term))
 }
 
-fn location_search_or_groups(query: &str) -> Vec<Vec<&str>> {
-    let mut groups = vec![Vec::new()];
-    for term in query.split_whitespace() {
-        if term.eq_ignore_ascii_case("OR") {
-            if groups.last().is_some_and(|group| !group.is_empty()) {
-                groups.push(Vec::new());
-            }
-            continue;
-        }
-        if let Some(group) = groups.last_mut() {
-            group.push(term);
-        }
-    }
-    groups
-        .into_iter()
-        .filter(|group| !group.is_empty())
-        .collect()
-}
-
-fn location_search_term_decision(location: &Value, term: &str) -> StagedSearchDecision {
-    let term = term.trim().trim_matches('\'').trim_matches('"');
-    if term.is_empty() {
+fn location_search_term_decision(
+    location: &Value,
+    term: &ParsedSearchTerm,
+) -> StagedSearchDecision {
+    let value = term.value.trim().trim_matches('\'').trim_matches('"');
+    if value.is_empty() {
         return StagedSearchDecision::Match;
     }
-    if let Some((key, value)) = term.split_once(':') {
+    if let Some(key) = term.field.as_deref() {
         return location_keyed_search_decision(location, key, value);
     }
 
-    let needle = normalized_location_search_value(term);
+    let needle = normalized_location_search_value(value);
     let haystack = [
         location_value_string(location, "id"),
         location_value_string(location, "legacyResourceId"),
@@ -1777,7 +1721,7 @@ fn location_keyed_search_decision(
     }
     let values = match key {
         "id" => vec![location_value_string(location, "id")],
-        "legacyResourceId" | "legacy_resource_id" => {
+        "legacyresourceid" | "legacy_resource_id" => {
             vec![location_value_string(location, "legacyResourceId")]
         }
         "name" => vec![location_value_string(location, "name")],
@@ -1785,19 +1729,19 @@ fn location_keyed_search_decision(
         "address2" => vec![location_address_value_string(location, "address2")],
         "city" => vec![location_address_value_string(location, "city")],
         "country" => vec![location_address_value_string(location, "country")],
-        "countryCode" | "country_code" => {
+        "countrycode" | "country_code" => {
             vec![location_address_value_string(location, "countryCode")]
         }
         "province" => vec![location_address_value_string(location, "province")],
-        "provinceCode" | "province_code" => {
+        "provincecode" | "province_code" => {
             vec![location_address_value_string(location, "provinceCode")]
         }
         "zip" => vec![location_address_value_string(location, "zip")],
         "phone" => vec![location_address_value_string(location, "phone")],
-        "isActive" | "is_active" | "active" => {
+        "isactive" | "is_active" | "active" => {
             vec![location_bool_search_value(location, "isActive")]
         }
-        "isFulfillmentService" | "is_fulfillment_service" | "legacy" => {
+        "isfulfillmentservice" | "is_fulfillment_service" | "legacy" => {
             vec![location_bool_search_value(location, "isFulfillmentService")]
         }
         _ => return StagedSearchDecision::Unsupported,
@@ -2575,4 +2519,54 @@ fn location_limit_reached_in_response(body: &Value) -> Option<bool> {
         })
         .count();
     Some(active_merchant_managed_count >= limit || (has_next_page && nodes.len() >= limit))
+}
+
+#[cfg(test)]
+mod location_search_tests {
+    use super::*;
+
+    fn search_location() -> Value {
+        json!({
+            "id": "gid://shopify/Location/7001",
+            "legacyResourceId": "7001",
+            "name": "Boston Warehouse",
+            "isActive": true,
+            "isFulfillmentService": false,
+            "address": {
+                "address1": "1 Harbor Way",
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02110",
+                "phone": "+16175550100"
+            }
+        })
+    }
+
+    #[test]
+    fn location_search_composes_boolean_queries() {
+        let location = search_location();
+
+        assert_eq!(
+            location_search_decision(&location, Some("name:Chicago OR city:Boston")),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            location_search_decision(
+                &location,
+                Some("(name:Chicago OR city:Boston) isActive:true")
+            ),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            location_search_decision(&location, Some("-city:Boston")),
+            StagedSearchDecision::NoMatch
+        );
+        assert_eq!(
+            location_search_decision(&location, Some("NOT city:Boston")),
+            StagedSearchDecision::NoMatch
+        );
+    }
 }

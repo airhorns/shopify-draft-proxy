@@ -1,4 +1,5 @@
 use super::*;
+use crate::proxy::search::{search_query_decision, ParsedSearchTerm};
 
 mod helpers;
 pub(in crate::proxy) use self::helpers::*;
@@ -724,30 +725,29 @@ pub(in crate::proxy) fn draft_order_search_decision(
     draft_order: &Value,
     query: Option<&str>,
 ) -> StagedSearchDecision {
-    let Some(query) = query else {
-        return StagedSearchDecision::Match;
-    };
-    let query = query.trim();
-    if query.is_empty() {
+    search_query_decision(query, |term| {
+        draft_order_search_term_decision(draft_order, term)
+    })
+}
+
+fn draft_order_search_term_decision(
+    draft_order: &Value,
+    term: &ParsedSearchTerm,
+) -> StagedSearchDecision {
+    let value = term.value.trim();
+    if value.is_empty() {
         return StagedSearchDecision::Match;
     }
-    for term in query.split_whitespace() {
-        if term.eq_ignore_ascii_case("AND") {
-            continue;
-        }
-        if let Some((key, value)) = term.split_once(':') {
-            match draft_order_matches_query_term(draft_order, key, value) {
-                Some(true) => {}
-                Some(false) => return StagedSearchDecision::NoMatch,
-                // Shopify returns invalid-field search warnings and ignores
-                // unknown draft-order fields instead of narrowing to empty.
-                None => continue,
-            }
-        } else if !draft_order_matches_free_text(draft_order, term) {
-            return StagedSearchDecision::NoMatch;
-        }
+    match term.field.as_deref() {
+        Some(key) => match draft_order_matches_query_term(draft_order, key, value) {
+            Some(true) => StagedSearchDecision::Match,
+            Some(false) => StagedSearchDecision::NoMatch,
+            // Shopify returns invalid-field search warnings and ignores
+            // unknown draft-order fields instead of narrowing to empty.
+            None => StagedSearchDecision::Match,
+        },
+        None => StagedSearchDecision::from_bool(draft_order_matches_free_text(draft_order, value)),
     }
-    StagedSearchDecision::Match
 }
 
 fn draft_order_matches_query_term(draft_order: &Value, key: &str, value: &str) -> Option<bool> {
@@ -2717,5 +2717,54 @@ impl DraftProxy {
             &json!({ "job": job, "userErrors": user_errors }),
             &field.selection,
         )
+    }
+}
+
+#[cfg(test)]
+mod draft_order_search_tests {
+    use super::*;
+
+    fn search_draft_order() -> Value {
+        json!({
+            "id": "gid://shopify/DraftOrder/2001",
+            "name": "#D2001",
+            "email": "draft@example.test",
+            "status": "OPEN",
+            "tags": ["vip"],
+            "totalPriceSet": {
+                "shopMoney": {
+                    "amount": "10.00",
+                    "currencyCode": "USD"
+                }
+            }
+        })
+    }
+
+    #[test]
+    fn draft_order_search_composes_boolean_queries() {
+        let draft_order = search_draft_order();
+
+        assert_eq!(
+            draft_order_search_decision(
+                &draft_order,
+                Some("name:#D9999 OR email:draft@example.test")
+            ),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            draft_order_search_decision(
+                &draft_order,
+                Some("(name:#D9999 OR email:draft@example.test) status:open")
+            ),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            draft_order_search_decision(&draft_order, Some("-tag:vip")),
+            StagedSearchDecision::NoMatch
+        );
+        assert_eq!(
+            draft_order_search_decision(&draft_order, Some("NOT tag:vip")),
+            StagedSearchDecision::NoMatch
+        );
     }
 }

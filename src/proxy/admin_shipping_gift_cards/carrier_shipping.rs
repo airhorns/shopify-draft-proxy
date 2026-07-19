@@ -1,4 +1,5 @@
 use super::*;
+use crate::proxy::search::{search_query_decision, ParsedSearchTerm};
 
 const SHIPPING_PACKAGE_HYDRATE_QUERY: &str = r#"query ShippingPackageHydrate($id: ID!) {
   node(id: $id) {
@@ -1043,26 +1044,20 @@ fn normalize_hydrated_shipping_package(package: &Value, expected_id: &str) -> Op
 }
 
 fn carrier_service_search_decision(carrier: &Value, query: Option<&str>) -> StagedSearchDecision {
-    let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
-        return StagedSearchDecision::Match;
-    };
-    for term in query.split_whitespace() {
-        match carrier_service_search_term_decision(carrier, term) {
-            StagedSearchDecision::Match => {}
-            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
-            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
-        }
-    }
-    StagedSearchDecision::Match
+    search_query_decision(query, |term| {
+        carrier_service_search_term_decision(carrier, term)
+    })
 }
 
-fn carrier_service_search_term_decision(carrier: &Value, term: &str) -> StagedSearchDecision {
-    let Some((field, value)) = term.split_once(':') else {
+fn carrier_service_search_term_decision(
+    carrier: &Value,
+    term: &ParsedSearchTerm,
+) -> StagedSearchDecision {
+    let Some(field) = term.field.as_deref() else {
         return StagedSearchDecision::Unsupported;
     };
-    let field = field.trim().to_ascii_lowercase();
-    let value = carrier_service_query_value(value);
-    match field.as_str() {
+    let value = carrier_service_query_value(&term.value);
+    match field {
         "active" => match value.to_ascii_lowercase().as_str() {
             "true" => StagedSearchDecision::from_bool(carrier.get("active") == Some(&json!(true))),
             "false" => {
@@ -1129,5 +1124,44 @@ fn fulfillment_service_name_user_errors(name: &str) -> Vec<Value> {
         vec![user_error_omit_code(["name"], "Name can't be blank", None)]
     } else {
         fulfillment_service_name_whitespace_errors(name)
+    }
+}
+
+#[cfg(test)]
+mod carrier_service_search_tests {
+    use super::*;
+
+    fn search_carrier_service() -> Value {
+        json!({
+            "id": "gid://shopify/CarrierService/8001",
+            "active": true,
+            "createdAt": "2026-07-01T00:00:00Z",
+            "updatedAt": "2026-07-02T00:00:00Z"
+        })
+    }
+
+    #[test]
+    fn carrier_service_search_composes_boolean_queries() {
+        let carrier = search_carrier_service();
+
+        assert_eq!(
+            carrier_service_search_decision(&carrier, Some("active:false OR active:true")),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            carrier_service_search_decision(
+                &carrier,
+                Some("(active:false OR active:true) id:8001")
+            ),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            carrier_service_search_decision(&carrier, Some("-active:true")),
+            StagedSearchDecision::NoMatch
+        );
+        assert_eq!(
+            carrier_service_search_decision(&carrier, Some("NOT active:true")),
+            StagedSearchDecision::NoMatch
+        );
     }
 }

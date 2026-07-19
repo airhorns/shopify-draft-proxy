@@ -1,4 +1,5 @@
 use super::*;
+use crate::proxy::search::{search_query_decision, ParsedSearchTerm};
 
 mod order_customer_paths;
 mod order_edit;
@@ -394,28 +395,22 @@ pub(in crate::proxy) fn order_search_decision(
     order: &Value,
     query: Option<&str>,
 ) -> StagedSearchDecision {
-    let Some(query) = query else {
-        return StagedSearchDecision::Match;
-    };
-    let query = query.trim();
-    if query.is_empty() {
+    search_query_decision(query, |term| order_search_term_decision(order, term))
+}
+
+fn order_search_term_decision(order: &Value, term: &ParsedSearchTerm) -> StagedSearchDecision {
+    let value = term.value.trim();
+    if value.is_empty() {
         return StagedSearchDecision::Match;
     }
-    for term in query.split_whitespace() {
-        if term.eq_ignore_ascii_case("AND") {
-            continue;
-        }
-        if let Some((key, value)) = term.split_once(':') {
-            match order_matches_term(order, key, value) {
-                Some(true) => {}
-                Some(false) => return StagedSearchDecision::NoMatch,
-                None => return StagedSearchDecision::Unsupported,
-            }
-        } else if !order_matches_free_text(order, term) {
-            return StagedSearchDecision::NoMatch;
-        }
+    match term.field.as_deref() {
+        Some(key) => match order_matches_term(order, key, value) {
+            Some(true) => StagedSearchDecision::Match,
+            Some(false) => StagedSearchDecision::NoMatch,
+            None => StagedSearchDecision::Unsupported,
+        },
+        None => StagedSearchDecision::from_bool(order_matches_free_text(order, value)),
     }
-    StagedSearchDecision::Match
 }
 
 fn order_gid_tail_sort_value(order: &Value) -> StagedSortValue {
@@ -3334,5 +3329,47 @@ impl DraftProxy {
         for delivery_id in delivery_ids {
             self.store.staged.reverse_deliveries.remove(&delivery_id);
         }
+    }
+}
+
+#[cfg(test)]
+mod order_search_tests {
+    use super::*;
+
+    fn search_order() -> Value {
+        json!({
+            "id": "gid://shopify/Order/1001",
+            "name": "#1001",
+            "email": "buyer@example.test",
+            "tags": ["vip"],
+            "closed": false,
+            "cancelledAt": Value::Null,
+            "cancelReason": Value::Null
+        })
+    }
+
+    #[test]
+    fn order_search_composes_boolean_queries() {
+        let order = search_order();
+
+        assert_eq!(
+            order_search_decision(&order, Some("name:#9999 OR email:buyer@example.test")),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            order_search_decision(
+                &order,
+                Some("(name:#9999 OR email:buyer@example.test) status:open")
+            ),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            order_search_decision(&order, Some("-tag:vip")),
+            StagedSearchDecision::NoMatch
+        );
+        assert_eq!(
+            order_search_decision(&order, Some("NOT tag:vip")),
+            StagedSearchDecision::NoMatch
+        );
     }
 }

@@ -1,4 +1,5 @@
 use super::*;
+use crate::proxy::search::{search_query_decision, ParsedSearchTerm};
 
 const RETURN_CALCULATION_ORDER_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/orders/return-calculation-order-hydrate.graphql");
@@ -21,56 +22,43 @@ fn return_search_string_matches(actual: Option<&str>, query_value: &str) -> bool
 }
 
 fn return_search_decision(return_value: &Value, query: Option<&str>) -> StagedSearchDecision {
-    let Some(query) = query else {
-        return StagedSearchDecision::Match;
-    };
-    let query = query.trim();
-    if query.is_empty() {
+    search_query_decision(query, |term| {
+        return_search_term_decision(return_value, term)
+    })
+}
+
+fn return_search_term_decision(
+    return_value: &Value,
+    term: &ParsedSearchTerm,
+) -> StagedSearchDecision {
+    let value = term.value.trim().trim_matches('"').trim_matches('\'');
+    if value.is_empty() {
         return StagedSearchDecision::Match;
     }
-    for term in query.split_whitespace() {
-        if term.eq_ignore_ascii_case("AND") {
-            continue;
-        }
-        let term = term.trim().trim_matches('"').trim_matches('\'');
-        if term.is_empty() {
-            continue;
-        }
-        let decision = if let Some((key, value)) = term.split_once(':') {
-            let value = value.trim().trim_matches('"').trim_matches('\'');
-            match key {
-                "id" => StagedSearchDecision::from_bool(return_matches_id(return_value, value)),
-                "name" => StagedSearchDecision::from_bool(return_search_string_matches(
+    match term.field.as_deref() {
+        Some("id") => StagedSearchDecision::from_bool(return_matches_id(return_value, value)),
+        Some("name") => StagedSearchDecision::from_bool(return_search_string_matches(
+            return_value.get("name").and_then(Value::as_str),
+            value,
+        )),
+        Some("status") => StagedSearchDecision::from_bool(
+            return_value["status"]
+                .as_str()
+                .is_some_and(|status| status.eq_ignore_ascii_case(value)),
+        ),
+        Some(_) => StagedSearchDecision::Unsupported,
+        None => StagedSearchDecision::from_bool(
+            return_matches_id(return_value, value)
+                || return_search_string_matches(
                     return_value.get("name").and_then(Value::as_str),
                     value,
-                )),
-                "status" => StagedSearchDecision::from_bool(
-                    return_value["status"]
-                        .as_str()
-                        .is_some_and(|status| status.eq_ignore_ascii_case(value)),
+                )
+                || return_search_string_matches(
+                    return_value.get("status").and_then(Value::as_str),
+                    value,
                 ),
-                _ => StagedSearchDecision::Unsupported,
-            }
-        } else {
-            StagedSearchDecision::from_bool(
-                return_matches_id(return_value, term)
-                    || return_search_string_matches(
-                        return_value.get("name").and_then(Value::as_str),
-                        term,
-                    )
-                    || return_search_string_matches(
-                        return_value.get("status").and_then(Value::as_str),
-                        term,
-                    ),
-            )
-        };
-        match decision {
-            StagedSearchDecision::Match => {}
-            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
-            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
-        }
+        ),
     }
-    StagedSearchDecision::Match
 }
 
 fn return_sort_key(return_value: &Value, _sort_key: Option<&str>) -> StagedSortKey {
@@ -1750,5 +1738,40 @@ impl DraftProxy {
             .returns
             .insert(id.to_string(), stored_record.clone());
         self.return_payload(record, Vec::new(), &field.selection)
+    }
+}
+
+#[cfg(test)]
+mod return_search_tests {
+    use super::*;
+
+    fn search_return() -> Value {
+        json!({
+            "id": "gid://shopify/Return/10001",
+            "name": "Return #10001",
+            "status": "OPEN"
+        })
+    }
+
+    #[test]
+    fn return_search_composes_boolean_queries() {
+        let return_value = search_return();
+
+        assert_eq!(
+            return_search_decision(&return_value, Some("name:Other OR status:OPEN")),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            return_search_decision(&return_value, Some("(name:Other OR status:OPEN) id:10001")),
+            StagedSearchDecision::Match
+        );
+        assert_eq!(
+            return_search_decision(&return_value, Some("-status:OPEN")),
+            StagedSearchDecision::NoMatch
+        );
+        assert_eq!(
+            return_search_decision(&return_value, Some("NOT status:OPEN")),
+            StagedSearchDecision::NoMatch
+        );
     }
 }
