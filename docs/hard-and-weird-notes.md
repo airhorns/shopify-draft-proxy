@@ -997,6 +997,10 @@ Once the repo had creation/editing scaffolding for direct orders and draft order
   - broader happy-path probes with concrete ids were blocked differently under the host credential at that point:
     - `fulfillmentTrackingInfoUpdate` returned `ACCESS_DENIED` requiring one of `write_assigned_fulfillment_orders`, `write_merchant_managed_fulfillment_orders`, or `write_third_party_fulfillment_orders`, plus the `fulfill_and_ship_orders` permission
     - `fulfillmentCancel` returned a generic `ACCESS_DENIED` payload on this host
+- a later Admin GraphQL 2026-04 multi-group capture showed that `fulfillmentCreate` validates non-positive line-item quantities across the complete input before reporting an unknown fulfillment order or cross-order/cross-location relationship error; the quantity error keeps the full group and line indexes in its `field` path
+- after quantity validation, every fulfillment-order group must resolve and all groups must share one order and assigned location; Shopify reports those relationship failures on `field: ["fulfillment"]` and lists the conflicting numeric IDs in ascending order
+- missing later-group line items return `Fulfillment order line item does not exist.`, while over-quantity requests return `Invalid fulfillment order line item quantity requested.`
+- a valid request across two same-location fulfillment orders split from one order creates one fulfillment; when both fulfillment-order lines reference the same order line item, Shopify aggregates them into one fulfillment line item with the combined quantity and closes both fulfillment orders
 
 Practical rule:
 
