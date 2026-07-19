@@ -7,6 +7,9 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operations-live-hybrid-base-overlay.json"
   ],
   "runtimeTestFiles": ["src/proxy/media_products_saved_searches/bulk_operations.rs"],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/bulk-operations/bulk-operations-base-overlay-run-query.graphql",
     "apiVersion": "2026-04",

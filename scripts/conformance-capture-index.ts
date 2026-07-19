@@ -7469,6 +7469,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-authoritative-content-hydration',
+    scriptPath: 'scripts/capture-online-store-authoritative-content-hydration-conformance.ts',
+    purpose:
+      'Mutation-first article create/move and narrow article/blog update hydration with complete scalar, publication, image, template, and metafield preservation.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-authoritative-content-hydration.json`,
+      'config/parity-specs/online-store/online-store-authoritative-content-hydration.json',
+      'config/parity-requests/online-store/online-store-article-mutation-hydrate.graphql',
+      'config/parity-requests/online-store/online-store-authoritative-article-create.graphql',
+      'config/parity-requests/online-store/online-store-authoritative-article-move.graphql',
+      'config/parity-requests/online-store/online-store-authoritative-article-read.graphql',
+      'config/parity-requests/online-store/online-store-authoritative-article-update.graphql',
+      'config/parity-requests/online-store/online-store-authoritative-blog-read.graphql',
+      'config/parity-requests/online-store/online-store-authoritative-blog-update.graphql',
+      'config/parity-requests/online-store/online-store-blog-mutation-hydrate.graphql',
+    ],
+    cleanupBehavior:
+      'Creates five disposable blogs and three disposable articles across isolated mutation-first branches, records exact query-only hydration cassettes, then deletes every created article and blog.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-page-blog-article-template-suffix',
     scriptPath: 'scripts/capture-online-store-template-suffix-conformance.ts',
     purpose:
@@ -13262,6 +13285,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Starts a safe bulkOperationRunQuery against products; Shopify retains the historical BulkOperation record.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
+    captureId: 'bulk-operation-cold-catalog-hydration',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-cold-catalog-hydration-conformance.ts',
+    purpose:
+      'Cold LiveHybrid product bulk export hydration through exact paginated catalog reads and strict Shopify JSONL artifact parity.',
+    requiredAuthScopes: ['bulk operation access through active Admin token', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-cold-catalog-hydration.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-cold-catalog-hydration.json',
+      'config/parity-requests/bulk-operations/bulk-operation-cold-catalog-hydration-run-query.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable tagged product, captures the complete product catalog and a filtered Shopify bulk artifact, then deletes the product.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
