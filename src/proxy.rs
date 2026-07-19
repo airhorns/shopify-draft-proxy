@@ -464,6 +464,7 @@ struct BaseState {
     b2b_contact_roles: OrderedRecords<Value>,
     b2b_role_assignments: OrderedRecords<Value>,
     b2b_staff_assignments: OrderedRecords<Value>,
+    b2b_staff_member_ids: BTreeSet<String>,
 }
 
 type MetafieldDefinitionKey = (String, String, String);
