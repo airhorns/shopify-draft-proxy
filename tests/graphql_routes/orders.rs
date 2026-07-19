@@ -8540,6 +8540,57 @@ fn customer_payment_methods_remote_create_counts_all_gateway_objects_for_cardina
 }
 
 #[test]
+fn customer_payment_method_paypal_create_rejects_unknown_customer_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodPaypalCreateUnknownCustomer {
+          customerPaymentMethodPaypalBillingAgreementCreate(
+            customerId: "gid://shopify/Customer/999999999"
+            billingAgreementId: "B-1234ABCD"
+            billingAddress: {
+              address1: "1 Secret St"
+              city: "New York"
+              zip: "10001"
+              countryCode: "US"
+              provinceCode: "NY"
+            }
+          ) {
+            customerPaymentMethod { id customer { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["customerPaymentMethodPaypalBillingAgreementCreate"],
+        json!({
+            "customerPaymentMethod": Value::Null,
+            "userErrors": [{
+                "field": ["customerId"],
+                "message": "is invalid",
+                "code": "INVALID"
+            }]
+        })
+    );
+
+    let state = state_snapshot(&proxy);
+    let staged_methods = state["stagedState"]["customerPaymentMethods"]
+        .as_object()
+        .expect("customer payment methods should be dumped as an object");
+    assert!(
+        staged_methods
+            .values()
+            .all(|record| record["customer"]["id"] != json!("gid://shopify/Customer/999999999")),
+        "unknown customer must not receive a staged payment method"
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
 fn customer_payment_methods_replay_shop_pay_guard_shapes() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-shop-pay-guards.json"

@@ -166,7 +166,7 @@ impl DraftProxy {
                     payload
                 }
                 "customerPaymentMethodPaypalBillingAgreementCreate" => {
-                    let (payload, id) = self.customer_payment_method_paypal_create(field);
+                    let (payload, id) = self.customer_payment_method_paypal_create(request, field);
                     if let Some(id) = id {
                         staged_ids.push(id);
                     }
@@ -729,9 +729,21 @@ impl DraftProxy {
 
     fn customer_payment_method_paypal_create(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
     ) -> (Value, Option<String>) {
         let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
+        if !self.customer_payment_method_customer_exists(request, &customer_id) {
+            return (
+                self.customer_payment_method_payload(
+                    &field.selection,
+                    Value::Null,
+                    None,
+                    vec![user_error(["customerId"], "is invalid", Some("INVALID"))],
+                ),
+                None,
+            );
+        }
         let id = self.next_customer_payment_method_gid();
         let record = customer_payment_method_seed_record(
             &id,
@@ -747,6 +759,33 @@ impl DraftProxy {
             self.customer_payment_method_payload(&field.selection, record, None, Vec::new()),
             Some(id),
         )
+    }
+
+    fn customer_payment_method_customer_exists(
+        &mut self,
+        request: &Request,
+        customer_id: &str,
+    ) -> bool {
+        if customer_id.is_empty() || self.store.staged.customers.is_tombstoned(customer_id) {
+            return false;
+        }
+        if self.store.staged.customers.contains_key(customer_id)
+            || self
+                .store
+                .staged
+                .customer_payment_method_customer_index
+                .contains_key(customer_id)
+        {
+            return true;
+        }
+        let Some(customer) = self.hydrate_customer_for_mutation(request, customer_id) else {
+            return false;
+        };
+        self.store
+            .staged
+            .customers
+            .stage(customer_id.to_string(), customer);
+        true
     }
 
     fn customer_payment_method_paypal_update(&mut self, field: &RootFieldSelection) -> Value {
