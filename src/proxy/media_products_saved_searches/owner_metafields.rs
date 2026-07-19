@@ -1253,61 +1253,57 @@ impl DraftProxy {
                     .locations
                     .insert(owner_id.clone(), node.clone());
             }
-            Some("Market") => {
-                if !self.store.staged.deleted_market_ids.contains(&owner_id) {
-                    let record = self
-                        .store
-                        .staged
-                        .markets
-                        .get(&owner_id)
-                        .cloned()
-                        .map(|existing| shallow_merged_object(existing, node.clone()))
-                        .unwrap_or_else(|| node.clone());
-                    self.store.staged.markets.insert(owner_id.clone(), record);
-                }
+            Some("Market") if !self.store.staged.deleted_market_ids.contains(&owner_id) => {
+                let record = self
+                    .store
+                    .staged
+                    .markets
+                    .get(&owner_id)
+                    .cloned()
+                    .map(|existing| shallow_merged_object(existing, node.clone()))
+                    .unwrap_or_else(|| node.clone());
+                self.store.staged.markets.insert(owner_id.clone(), record);
             }
-            Some("Page") => {
+            Some("Page")
                 if !self
                     .store
                     .staged
                     .deleted_online_store_page_ids
-                    .contains(&owner_id)
-                {
-                    if !self.store.staged.online_store_pages.contains_key(&owner_id) {
-                        self.store
-                            .staged
-                            .online_store_page_order
-                            .push(owner_id.clone());
-                    }
+                    .contains(&owner_id) =>
+            {
+                if !self.store.staged.online_store_pages.contains_key(&owner_id) {
                     self.store
                         .staged
-                        .online_store_pages
-                        .insert(owner_id.clone(), node.clone());
+                        .online_store_page_order
+                        .push(owner_id.clone());
                 }
+                self.store
+                    .staged
+                    .online_store_pages
+                    .insert(owner_id.clone(), node.clone());
             }
-            Some("Article") => {
+            Some("Article")
                 if !self
                     .store
                     .staged
                     .deleted_online_store_article_ids
-                    .contains(&owner_id)
+                    .contains(&owner_id) =>
+            {
+                if !self
+                    .store
+                    .staged
+                    .online_store_articles
+                    .contains_key(&owner_id)
                 {
-                    if !self
-                        .store
-                        .staged
-                        .online_store_articles
-                        .contains_key(&owner_id)
-                    {
-                        self.store
-                            .staged
-                            .online_store_article_order
-                            .push(owner_id.clone());
-                    }
                     self.store
                         .staged
-                        .online_store_articles
-                        .insert(owner_id.clone(), node.clone());
+                        .online_store_article_order
+                        .push(owner_id.clone());
                 }
+                self.store
+                    .staged
+                    .online_store_articles
+                    .insert(owner_id.clone(), node.clone());
             }
             _ => {}
         }
