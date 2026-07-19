@@ -289,6 +289,8 @@ impl DraftProxy {
             .map(|_| self.next_proxy_synthetic_gid("AppSubscriptionLineItem"))
             .collect::<Vec<_>>();
         let line_items = app_subscription_line_items_from_arguments(&arguments, &line_item_ids);
+        let created_at = self.next_product_timestamp();
+        let return_url = resolved_string_field(&arguments, "returnUrl").unwrap_or_default();
         let confirmation_url = app_domain_confirmation_url_from_arguments(&arguments);
         let subscription = json!({
             "__typename": "AppSubscription",
@@ -298,6 +300,8 @@ impl DraftProxy {
             "test": test,
             "trialDays": trial_days,
             "currentPeriodEnd": app_subscription_current_period_end(trial_days),
+            "createdAt": created_at,
+            "returnUrl": return_url,
             "lineItems": line_items
         });
         self.store

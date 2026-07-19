@@ -836,15 +836,7 @@ impl DraftProxy {
             .staged
             .app_subscriptions
             .get(id)
-            .map(|subscription| {
-                selected_json(
-                    subscription,
-                    &selected_fields_named(
-                        selection,
-                        &["__typename", "id", "status", "trialDays", "lineItems"],
-                    ),
-                )
-            })
+            .map(|subscription| selected_json(subscription, selection))
             .or_else(|| {
                 self.store
                     .staged

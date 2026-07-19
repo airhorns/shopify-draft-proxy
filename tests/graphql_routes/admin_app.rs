@@ -2259,7 +2259,7 @@ fn app_subscription_create_activates_test_charge_and_reads_back_current_installa
             ]
           ) {
             confirmationUrl
-            appSubscription { id status test trialDays currentPeriodEnd }
+            appSubscription { id status test trialDays currentPeriodEnd createdAt returnUrl }
             userErrors { field message }
           }
         }
@@ -2279,7 +2279,9 @@ fn app_subscription_create_activates_test_charge_and_reads_back_current_installa
                 "status": "ACTIVE",
                 "test": true,
                 "trialDays": 7,
-                "currentPeriodEnd": "2026-05-05T02:10:00.000Z"
+                "currentPeriodEnd": "2026-05-05T02:10:00.000Z",
+                "createdAt": "2024-01-01T00:00:01.000Z",
+                "returnUrl": "https://app.example.test/return"
             },
             "userErrors": []
         })
@@ -2289,7 +2291,7 @@ fn app_subscription_create_activates_test_charge_and_reads_back_current_installa
         r#"
         query AppSubscriptionActivationRead {
           installation: currentAppInstallation {
-            activeSubscriptions { id status currentPeriodEnd }
+            activeSubscriptions { id status currentPeriodEnd createdAt returnUrl }
           }
         }
         "#,
@@ -2303,8 +2305,43 @@ fn app_subscription_create_activates_test_charge_and_reads_back_current_installa
                     "activeSubscriptions": [{
                         "id": subscription_id,
                         "status": "ACTIVE",
-                        "currentPeriodEnd": "2026-05-05T02:10:00.000Z"
+                        "currentPeriodEnd": "2026-05-05T02:10:00.000Z",
+                        "createdAt": "2024-01-01T00:00:01.000Z",
+                        "returnUrl": "https://app.example.test/return"
                     }]
+                }
+            }
+        })
+    );
+
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query AppSubscriptionNodeRead($id: ID!) {
+          node(id: $id) {
+            __typename
+            ... on AppSubscription {
+              id
+              status
+              currentPeriodEnd
+              createdAt
+              returnUrl
+            }
+          }
+        }
+        "#,
+        json!({ "id": subscription_id }),
+    ));
+    assert_eq!(
+        node_read.body,
+        json!({
+            "data": {
+                "node": {
+                    "__typename": "AppSubscription",
+                    "id": subscription_id,
+                    "status": "ACTIVE",
+                    "currentPeriodEnd": "2026-05-05T02:10:00.000Z",
+                    "createdAt": "2024-01-01T00:00:01.000Z",
+                    "returnUrl": "https://app.example.test/return"
                 }
             }
         })
