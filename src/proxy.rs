@@ -424,6 +424,7 @@ struct StagedState {
     media_files: StagedRecords<Value>,
     media_ready_on_read: BTreeSet<String>,
     online_store_integrations: BTreeMap<String, Value>,
+    deleted_online_store_integration_ids: BTreeSet<String>,
     online_store_blogs: BTreeMap<String, Value>,
     online_store_blog_order: Vec<String>,
     deleted_online_store_blog_ids: BTreeSet<String>,

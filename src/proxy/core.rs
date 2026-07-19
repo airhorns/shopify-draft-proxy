@@ -319,6 +319,20 @@ impl DraftProxy {
             snapshot["stagedState"]["onlineStoreIntegrations"] =
                 json!(self.store.staged.online_store_integrations.clone());
         }
+        if !self
+            .store
+            .staged
+            .deleted_online_store_integration_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["deletedOnlineStoreIntegrationIds"] = json!(self
+                .store
+                .staged
+                .deleted_online_store_integration_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.online_store_blogs.is_empty() {
             snapshot["stagedState"]["onlineStoreBlogs"] =
                 json!(self.store.staged.online_store_blogs.clone());
@@ -912,6 +926,12 @@ impl DraftProxy {
             value_map_from_json(state["stagedState"].get("delegatedAccessTokens"));
         self.store.staged.online_store_integrations =
             value_map_from_json(state["stagedState"].get("onlineStoreIntegrations"));
+        self.store.staged.deleted_online_store_integration_ids = state["stagedState"]
+            .get("deletedOnlineStoreIntegrationIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.online_store_blogs =
             value_map_from_json(state["stagedState"].get("onlineStoreBlogs"));
         self.store.staged.online_store_blog_order = state["stagedState"]

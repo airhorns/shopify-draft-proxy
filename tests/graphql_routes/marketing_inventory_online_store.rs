@@ -18,6 +18,30 @@ fn assert_core_metaobject_auto_handle(handle: &str, prefix: &str) {
     );
 }
 
+fn upstream_graphql_body(request: &Request) -> Value {
+    let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+    let query = body["query"]
+        .as_str()
+        .expect("upstream GraphQL request should include a query document");
+    assert!(
+        query.trim_start().starts_with("query "),
+        "hydration request must be a read query, got {query}"
+    );
+    assert!(
+        !query.contains("mutation "),
+        "hydration request must not contain a mutation document: {query}"
+    );
+    body
+}
+
+fn upstream_ok(body: Value) -> Response {
+    Response {
+        status: 200,
+        headers: Default::default(),
+        body,
+    }
+}
+
 fn assert_online_store_operation_timestamp(value: &Value, context: &str) -> String {
     let timestamp = value
         .as_str()
@@ -8385,6 +8409,629 @@ fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
         hydrated_read.body["data"]["mobilePlatformApplications"]["nodes"],
         json!([{"__typename": "AppleApplication", "id": mobile_app_id, "appId": "com.example.upstream", "universalLinksEnabled": true}])
     );
+}
+
+#[test]
+fn online_store_script_tag_update_hydrates_existing_record_before_staging() {
+    let script_tag_id = "gid://shopify/ScriptTag/872";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body = upstream_graphql_body(&request);
+            assert_eq!(body["variables"]["id"], json!(script_tag_id));
+            upstream_calls.lock().unwrap().push(body);
+            upstream_ok(json!({
+                "data": {
+                    "scriptTag": {
+                        "id": script_tag_id,
+                        "src": "https://cdn.example.test/upstream.js",
+                        "displayScope": "ALL",
+                        "event": "onload",
+                        "cache": true
+                    }
+                }
+            }))
+        }
+    });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ScriptTagUpdateHydratesExisting($id: ID!) {
+          scriptTagUpdate(id: $id, input: { src: "https://cdn.example.test/changed.js", cache: false }) {
+            scriptTag { id src displayScope event cache }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"id": script_tag_id}),
+    ));
+
+    assert_eq!(
+        update.body["data"]["scriptTagUpdate"],
+        json!({
+            "scriptTag": {
+                "id": script_tag_id,
+                "src": "https://cdn.example.test/changed.js",
+                "displayScope": "ALL",
+                "event": "onload",
+                "cache": false
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(
+        upstream_calls.lock().unwrap().len(),
+        1,
+        "mutation-first update should hydrate the existing script tag with a read query"
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        1,
+        "hydration must not log the read query, only the original mutation"
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ScriptTagUpdateHydratedRead($id: ID!) {
+          scriptTag(id: $id) { id src displayScope event cache }
+        }
+        "#,
+        json!({"id": script_tag_id}),
+    ));
+    assert_eq!(
+        upstream_calls.lock().unwrap().len(),
+        1,
+        "read-after-update should use staged hydrated state without another upstream call"
+    );
+    assert_eq!(
+        read.body["data"]["scriptTag"],
+        json!({
+            "id": script_tag_id,
+            "src": "https://cdn.example.test/changed.js",
+            "displayScope": "ALL",
+            "event": "onload",
+            "cache": false
+        })
+    );
+}
+
+#[test]
+fn online_store_script_tag_delete_hydrates_existing_record_and_tombstones() {
+    let script_tag_id = "gid://shopify/ScriptTag/873";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body = upstream_graphql_body(&request);
+            assert_eq!(body["variables"]["id"], json!(script_tag_id));
+            upstream_calls.lock().unwrap().push(body);
+            upstream_ok(json!({
+                "data": {
+                    "scriptTag": {
+                        "id": script_tag_id,
+                        "src": "https://cdn.example.test/delete-me.js",
+                        "displayScope": "ALL",
+                        "event": "onload",
+                        "cache": false
+                    }
+                }
+            }))
+        }
+    });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ScriptTagDeleteHydratesExisting($id: ID!) {
+          scriptTagDelete(id: $id) {
+            deletedScriptTagId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"id": script_tag_id}),
+    ));
+    assert_eq!(
+        delete.body["data"]["scriptTagDelete"],
+        json!({"deletedScriptTagId": script_tag_id, "userErrors": []})
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        1,
+        "only the original delete mutation should be recorded"
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ScriptTagDeleteHydratedRead($id: ID!) {
+          scriptTag(id: $id) { id src }
+        }
+        "#,
+        json!({"id": script_tag_id}),
+    ));
+    assert_eq!(
+        upstream_calls.lock().unwrap().len(),
+        1,
+        "deleted hydrated id should be tombstoned instead of cold-read again"
+    );
+    assert_eq!(read.body["data"]["scriptTag"], Value::Null);
+}
+
+#[test]
+fn online_store_theme_mutations_hydrate_existing_catalog_before_staging() {
+    let main_theme_id = "gid://shopify/OnlineStoreTheme/901";
+    let target_theme_id = "gid://shopify/OnlineStoreTheme/902";
+
+    let update_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut update_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let update_calls = Arc::clone(&update_calls);
+        move |request| {
+            let body = upstream_graphql_body(&request);
+            assert_eq!(body["variables"]["id"], json!(target_theme_id));
+            update_calls.lock().unwrap().push(body);
+            upstream_ok(json!({
+                "data": {
+                    "theme": {
+                        "__typename": "OnlineStoreTheme",
+                        "id": target_theme_id,
+                        "name": "Upstream editable",
+                        "role": "UNPUBLISHED",
+                        "processing": false,
+                        "processingFailed": false,
+                        "files": {"nodes": []}
+                    },
+                    "themes": {
+                        "nodes": [
+                            {
+                                "__typename": "OnlineStoreTheme",
+                                "id": main_theme_id,
+                                "name": "Main theme",
+                                "role": "MAIN",
+                                "processing": false,
+                                "processingFailed": false
+                            },
+                            {
+                                "__typename": "OnlineStoreTheme",
+                                "id": target_theme_id,
+                                "name": "Upstream editable",
+                                "role": "UNPUBLISHED",
+                                "processing": false,
+                                "processingFailed": false
+                            }
+                        ]
+                    }
+                }
+            }))
+        }
+    });
+    let update = update_proxy.process_request(json_graphql_request(
+        r#"
+        mutation ThemeUpdateHydratesExisting($id: ID!) {
+          themeUpdate(id: $id, input: { name: "Hydrated rename" }) {
+            theme { id name role }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": target_theme_id}),
+    ));
+    assert_eq!(
+        update.body["data"]["themeUpdate"],
+        json!({
+            "theme": {"id": target_theme_id, "name": "Hydrated rename", "role": "UNPUBLISHED"},
+            "userErrors": []
+        })
+    );
+    assert_eq!(update_calls.lock().unwrap().len(), 1);
+
+    let publish_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut publish_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let publish_calls = Arc::clone(&publish_calls);
+        move |request| {
+            let body = upstream_graphql_body(&request);
+            assert_eq!(body["variables"]["id"], json!(target_theme_id));
+            publish_calls.lock().unwrap().push(body);
+            upstream_ok(json!({
+                "data": {
+                    "theme": {
+                        "__typename": "OnlineStoreTheme",
+                        "id": target_theme_id,
+                        "name": "Publish target",
+                        "role": "UNPUBLISHED",
+                        "processing": false,
+                        "processingFailed": false,
+                        "files": {"nodes": []}
+                    },
+                    "themes": {
+                        "nodes": [
+                            {
+                                "__typename": "OnlineStoreTheme",
+                                "id": main_theme_id,
+                                "name": "Main theme",
+                                "role": "MAIN",
+                                "processing": false,
+                                "processingFailed": false
+                            },
+                            {
+                                "__typename": "OnlineStoreTheme",
+                                "id": target_theme_id,
+                                "name": "Publish target",
+                                "role": "UNPUBLISHED",
+                                "processing": false,
+                                "processingFailed": false
+                            }
+                        ]
+                    }
+                }
+            }))
+        }
+    });
+    let publish = publish_proxy.process_request(json_graphql_request(
+        r#"
+        mutation ThemePublishHydratesExisting($id: ID!) {
+          themePublish(id: $id) {
+            theme { id name role }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": target_theme_id}),
+    ));
+    assert_eq!(
+        publish.body["data"]["themePublish"]["theme"],
+        json!({"id": target_theme_id, "name": "Publish target", "role": "MAIN"})
+    );
+    let published_read = publish_proxy.process_request(json_graphql_request(
+        r#"
+        query ThemePublishHydratedRead {
+          themes(first: 10) { nodes { id role } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        publish_calls.lock().unwrap().len(),
+        1,
+        "read-after-publish should use the hydrated catalog"
+    );
+    assert_eq!(
+        published_read.body["data"]["themes"]["nodes"],
+        json!([
+            {"id": main_theme_id, "role": "UNPUBLISHED"},
+            {"id": target_theme_id, "role": "MAIN"}
+        ])
+    );
+
+    let delete_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut delete_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let delete_calls = Arc::clone(&delete_calls);
+        move |request| {
+            let body = upstream_graphql_body(&request);
+            assert_eq!(body["variables"]["id"], json!(target_theme_id));
+            delete_calls.lock().unwrap().push(body);
+            upstream_ok(json!({
+                "data": {
+                    "theme": {
+                        "__typename": "OnlineStoreTheme",
+                        "id": target_theme_id,
+                        "name": "Delete target",
+                        "role": "UNPUBLISHED",
+                        "processing": false,
+                        "processingFailed": false,
+                        "files": {"nodes": []}
+                    },
+                    "themes": {
+                        "nodes": [
+                            {
+                                "__typename": "OnlineStoreTheme",
+                                "id": main_theme_id,
+                                "name": "Main theme",
+                                "role": "MAIN",
+                                "processing": false,
+                                "processingFailed": false
+                            },
+                            {
+                                "__typename": "OnlineStoreTheme",
+                                "id": target_theme_id,
+                                "name": "Delete target",
+                                "role": "UNPUBLISHED",
+                                "processing": false,
+                                "processingFailed": false
+                            }
+                        ]
+                    }
+                }
+            }))
+        }
+    });
+    let delete = delete_proxy.process_request(json_graphql_request(
+        r#"
+        mutation ThemeDeleteHydratesExisting($id: ID!) {
+          themeDelete(id: $id) {
+            deletedThemeId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": target_theme_id}),
+    ));
+    assert_eq!(
+        delete.body["data"]["themeDelete"],
+        json!({"deletedThemeId": target_theme_id, "userErrors": []})
+    );
+    let deleted_read = delete_proxy.process_request(json_graphql_request(
+        r#"
+        query ThemeDeleteHydratedRead($id: ID!) {
+          theme(id: $id) { id name role }
+          themes(first: 10) { nodes { id role } }
+        }
+        "#,
+        json!({"id": target_theme_id}),
+    ));
+    assert_eq!(
+        delete_calls.lock().unwrap().len(),
+        1,
+        "deleted theme should be tombstoned instead of rehydrated"
+    );
+    assert_eq!(deleted_read.body["data"]["theme"], Value::Null);
+    assert_eq!(
+        deleted_read.body["data"]["themes"]["nodes"],
+        json!([{"id": main_theme_id, "role": "MAIN"}])
+    );
+}
+
+#[test]
+fn online_store_theme_file_mutations_hydrate_existing_theme_files() {
+    let theme_id = "gid://shopify/OnlineStoreTheme/910";
+    let file_node = || {
+        json!({
+            "filename": "templates/index.json",
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-01T00:00:00Z",
+            "checksumMd5": "149603e6c03516362a8da23f624db945",
+            "size": 3,
+            "body": {"content": "old"}
+        })
+    };
+
+    let upsert_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut upsert_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upsert_calls = Arc::clone(&upsert_calls);
+        move |request| {
+            let body = upstream_graphql_body(&request);
+            assert_eq!(body["variables"]["id"], json!(theme_id));
+            upsert_calls.lock().unwrap().push(body);
+            upstream_ok(json!({
+                "data": {
+                    "theme": {
+                        "__typename": "OnlineStoreTheme",
+                        "id": theme_id,
+                        "name": "Theme files",
+                        "role": "UNPUBLISHED",
+                        "processing": false,
+                        "processingFailed": false,
+                        "files": {"nodes": [file_node()]}
+                    }
+                }
+            }))
+        }
+    });
+    let upsert = upsert_proxy.process_request(json_graphql_request(
+        r#"
+        mutation ThemeFilesUpsertHydratesExisting($themeId: ID!, $checksum: String!) {
+          themeFilesUpsert(
+            themeId: $themeId,
+            files: [{ filename: "templates/index.json", checksumMd5: $checksum, body: { type: TEXT, value: "new" } }]
+          ) {
+            upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"themeId": theme_id, "checksum": "149603e6c03516362a8da23f624db945"}),
+    ));
+    assert_eq!(
+        upsert.body["data"]["themeFilesUpsert"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        upsert.body["data"]["themeFilesUpsert"]["upsertedThemeFiles"][0]["body"]["content"],
+        json!("new")
+    );
+    assert_eq!(upsert_calls.lock().unwrap().len(), 1);
+
+    let copy_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut copy_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let copy_calls = Arc::clone(&copy_calls);
+        move |request| {
+            let body = upstream_graphql_body(&request);
+            assert_eq!(body["variables"]["id"], json!(theme_id));
+            copy_calls.lock().unwrap().push(body);
+            upstream_ok(json!({
+                "data": {
+                    "theme": {
+                        "__typename": "OnlineStoreTheme",
+                        "id": theme_id,
+                        "name": "Theme files",
+                        "role": "UNPUBLISHED",
+                        "processing": false,
+                        "processingFailed": false,
+                        "files": {"nodes": [file_node()]}
+                    }
+                }
+            }))
+        }
+    });
+    let copy = copy_proxy.process_request(json_graphql_request(
+        r#"
+        mutation ThemeFilesCopyHydratesExisting($themeId: ID!) {
+          themeFilesCopy(
+            themeId: $themeId,
+            files: [{ srcFilename: "templates/index.json", dstFilename: "assets/copy.js" }]
+          ) {
+            copiedThemeFiles { filename body { ... on OnlineStoreThemeFileBodyText { content } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"themeId": theme_id}),
+    ));
+    assert_eq!(copy.body["data"]["themeFilesCopy"]["userErrors"], json!([]));
+    assert_eq!(
+        copy.body["data"]["themeFilesCopy"]["copiedThemeFiles"][0],
+        json!({"filename": "assets/copy.js", "body": {"content": "old"}})
+    );
+    assert_eq!(copy_calls.lock().unwrap().len(), 1);
+
+    let delete_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut delete_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let delete_calls = Arc::clone(&delete_calls);
+        move |request| {
+            let body = upstream_graphql_body(&request);
+            assert_eq!(body["variables"]["id"], json!(theme_id));
+            delete_calls.lock().unwrap().push(body);
+            upstream_ok(json!({
+                "data": {
+                    "theme": {
+                        "__typename": "OnlineStoreTheme",
+                        "id": theme_id,
+                        "name": "Theme files",
+                        "role": "UNPUBLISHED",
+                        "processing": false,
+                        "processingFailed": false,
+                        "files": {"nodes": [file_node()]}
+                    }
+                }
+            }))
+        }
+    });
+    let delete = delete_proxy.process_request(json_graphql_request(
+        r#"
+        mutation ThemeFilesDeleteHydratesExisting($themeId: ID!) {
+          themeFilesDelete(themeId: $themeId, files: ["templates/index.json"]) {
+            deletedThemeFiles { filename }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"themeId": theme_id}),
+    ));
+    assert_eq!(
+        delete.body["data"]["themeFilesDelete"],
+        json!({"deletedThemeFiles": [{"filename": "templates/index.json"}], "userErrors": []})
+    );
+    let read = delete_proxy.process_request(json_graphql_request(
+        r#"
+        query ThemeFilesDeleteHydratedRead($themeId: ID!) {
+          theme(id: $themeId) { files(first: 10) { nodes { filename } } }
+        }
+        "#,
+        json!({"themeId": theme_id}),
+    ));
+    assert_eq!(
+        delete_calls.lock().unwrap().len(),
+        1,
+        "read-after-file-delete should use the hydrated theme record"
+    );
+    assert_eq!(read.body["data"]["theme"]["files"]["nodes"], json!([]));
+}
+
+#[test]
+fn online_store_mobile_app_and_web_pixel_updates_hydrate_existing_records() {
+    let mobile_app_id = "gid://shopify/MobilePlatformApplication/920";
+    let mobile_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut mobile_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let mobile_calls = Arc::clone(&mobile_calls);
+        move |request| {
+            let body = upstream_graphql_body(&request);
+            assert_eq!(body["variables"]["id"], json!(mobile_app_id));
+            mobile_calls.lock().unwrap().push(body);
+            upstream_ok(json!({
+                "data": {
+                    "mobilePlatformApplication": {
+                        "__typename": "AppleApplication",
+                        "id": mobile_app_id,
+                        "appId": "com.example.old",
+                        "universalLinksEnabled": false,
+                        "sharedWebCredentialsEnabled": true,
+                        "appClipsEnabled": false,
+                        "appClipApplicationId": ""
+                    }
+                }
+            }))
+        }
+    });
+    let mobile_update = mobile_proxy.process_request(json_graphql_request(
+        r#"
+        mutation MobilePlatformApplicationUpdateHydratesExisting($id: ID!) {
+          mobilePlatformApplicationUpdate(id: $id, input: { apple: { appId: "com.example.new", universalLinksEnabled: true } }) {
+            mobilePlatformApplication {
+              __typename
+              ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId }
+            }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({"id": mobile_app_id}),
+    ));
+    assert_eq!(
+        mobile_update.body["data"]["mobilePlatformApplicationUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        mobile_update.body["data"]["mobilePlatformApplicationUpdate"]["mobilePlatformApplication"],
+        json!({
+            "__typename": "AppleApplication",
+            "id": mobile_app_id,
+            "appId": "com.example.new",
+            "universalLinksEnabled": true,
+            "sharedWebCredentialsEnabled": true,
+            "appClipsEnabled": false,
+            "appClipApplicationId": ""
+        })
+    );
+    assert_eq!(mobile_calls.lock().unwrap().len(), 1);
+
+    let web_pixel_id = "gid://shopify/WebPixel/921";
+    let pixel_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut pixel_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let pixel_calls = Arc::clone(&pixel_calls);
+        move |request| {
+            let body = upstream_graphql_body(&request);
+            assert_eq!(body["variables"]["id"], json!(web_pixel_id));
+            pixel_calls.lock().unwrap().push(body);
+            upstream_ok(json!({
+                "data": {
+                    "webPixel": {
+                        "__typename": "WebPixel",
+                        "id": web_pixel_id,
+                        "settings": {"accountID": "old"}
+                    }
+                }
+            }))
+        }
+    });
+    let pixel_update = pixel_proxy.process_request(json_graphql_request(
+        r#"
+        mutation WebPixelUpdateHydratesExisting($id: ID!) {
+          webPixelUpdate(id: $id, webPixel: { settings: "{\"accountID\":\"new\"}" }) {
+            webPixel { id settings }
+            userErrors { __typename code field message }
+          }
+        }
+        "#,
+        json!({"id": web_pixel_id}),
+    ));
+    assert_eq!(
+        pixel_update.body["data"]["webPixelUpdate"],
+        json!({
+            "webPixel": {"id": web_pixel_id, "settings": {"accountID": "new"}},
+            "userErrors": []
+        })
+    );
+    assert_eq!(pixel_calls.lock().unwrap().len(), 1);
 }
 
 #[test]

@@ -2,6 +2,12 @@ use super::content::online_store_operation_timestamp;
 use super::search::is_online_store_content_query_root;
 use super::*;
 
+const SCRIPT_TAG_HYDRATE_QUERY: &str = r#"query OnlineStoreScriptTagHydrate($id: ID!) { scriptTag(id: $id) { id src displayScope event cache } }"#;
+const THEME_CATALOG_HYDRATE_QUERY: &str = r#"query OnlineStoreThemeCatalogHydrate($id: ID!) { theme(id: $id) { __typename id name role processing processingFailed files(first: 250) { nodes { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } ... on OnlineStoreThemeFileBodyBase64 { contentBase64 } ... on OnlineStoreThemeFileBodyUrl { url } } } } } themes(first: 250) { nodes { __typename id name role processing processingFailed } } }"#;
+const THEME_FILE_HYDRATE_QUERY: &str = r#"query OnlineStoreThemeFileHydrate($id: ID!) { theme(id: $id) { __typename id name role processing processingFailed files(first: 250) { nodes { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } ... on OnlineStoreThemeFileBodyBase64 { contentBase64 } ... on OnlineStoreThemeFileBodyUrl { url } } } } } }"#;
+const MOBILE_PLATFORM_APPLICATION_HYDRATE_QUERY: &str = r#"query OnlineStoreMobilePlatformApplicationHydrate($id: ID!) { mobilePlatformApplication(id: $id) { __typename ... on AppleApplication { id appId universalLinksEnabled sharedWebCredentialsEnabled appClipsEnabled appClipApplicationId } ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints } } }"#;
+const WEB_PIXEL_HYDRATE_QUERY: &str = r#"query OnlineStoreWebPixelHydrate($id: ID!) { webPixel(id: $id) { __typename id settings } }"#;
+
 impl DraftProxy {
     pub(in crate::proxy) fn online_store_query_response(
         &mut self,
@@ -131,23 +137,23 @@ impl DraftProxy {
                         self.mobile_platform_application_create(field, &mut staged_ids)
                     }
                     "mobilePlatformApplicationUpdate" => {
-                        self.mobile_platform_application_update(field, &mut staged_ids)
+                        self.mobile_platform_application_update(field, request, &mut staged_ids)
                     }
                     "scriptTagCreate" => self.script_tag_create(field, &mut staged_ids),
-                    "scriptTagUpdate" => self.script_tag_update(field, &mut staged_ids),
-                    "scriptTagDelete" => self.script_tag_delete(field, &mut staged_ids),
+                    "scriptTagUpdate" => self.script_tag_update(field, request, &mut staged_ids),
+                    "scriptTagDelete" => self.script_tag_delete(field, request, &mut staged_ids),
                     "themeCreate" => self.theme_create(field, &mut staged_ids),
-                    "themePublish" => self.theme_publish(field, &mut staged_ids),
-                    "themeUpdate" => self.theme_update(field, &mut staged_ids),
-                    "themeDelete" => self.theme_delete(field, &mut staged_ids),
-                    "themeFilesUpsert" => self.theme_files_upsert(field, &mut staged_ids),
-                    "themeFilesCopy" => self.theme_files_copy(field, &mut staged_ids),
-                    "themeFilesDelete" => self.theme_files_delete(field, &mut staged_ids),
+                    "themePublish" => self.theme_publish(field, request, &mut staged_ids),
+                    "themeUpdate" => self.theme_update(field, request, &mut staged_ids),
+                    "themeDelete" => self.theme_delete(field, request, &mut staged_ids),
+                    "themeFilesUpsert" => self.theme_files_upsert(field, request, &mut staged_ids),
+                    "themeFilesCopy" => self.theme_files_copy(field, request, &mut staged_ids),
+                    "themeFilesDelete" => self.theme_files_delete(field, request, &mut staged_ids),
                     "webPixelCreate" => self.web_pixel_create(field, &mut staged_ids),
                     "webPixelUpdate" => {
                         let allow_missing_upsert = resolved_string_field(&field.arguments, "id")
                             .is_some_and(|id| id.contains(SYNTHETIC_MARKER));
-                        self.web_pixel_update(field, allow_missing_upsert, &mut staged_ids)
+                        self.web_pixel_update(field, request, allow_missing_upsert, &mut staged_ids)
                     }
                     "serverPixelCreate" => self.server_pixel_create(field, &mut staged_ids),
                     "eventBridgeServerPixelUpdate" => {
@@ -211,12 +217,18 @@ impl DraftProxy {
         match field.name.as_str() {
             "theme" => self
                 .singular_sales_channel_record_needs_upstream(field, is_online_store_theme_record),
-            "themes" => !self.any_sales_channel_record(is_online_store_theme_record),
+            "themes" => {
+                !self.any_sales_channel_record(is_online_store_theme_record)
+                    && !self.has_deleted_sales_channel_record("OnlineStoreTheme")
+            }
             "scriptTag" => self.singular_sales_channel_record_needs_upstream(
                 field,
                 is_online_store_script_tag_record,
             ),
-            "scriptTags" => !self.any_sales_channel_record(is_online_store_script_tag_record),
+            "scriptTags" => {
+                !self.any_sales_channel_record(is_online_store_script_tag_record)
+                    && !self.has_deleted_sales_channel_record("ScriptTag")
+            }
             "webPixel" => {
                 self.singular_sales_channel_record_needs_upstream(field, is_web_pixel_record)
             }
@@ -229,6 +241,7 @@ impl DraftProxy {
             ),
             "mobilePlatformApplications" => {
                 !self.any_sales_channel_record(is_mobile_platform_application_record)
+                    && !self.has_deleted_sales_channel_record("MobilePlatformApplication")
             }
             "urlRedirect" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -245,6 +258,7 @@ impl DraftProxy {
         predicate: fn(&Value) -> bool,
     ) -> bool {
         match resolved_string_field(&field.arguments, "id") {
+            Some(id) if self.is_online_store_integration_deleted(&id) => false,
             Some(id) if !id.is_empty() => !self
                 .store
                 .staged
@@ -261,6 +275,14 @@ impl DraftProxy {
             .online_store_integrations
             .values()
             .any(predicate)
+    }
+
+    fn has_deleted_sales_channel_record(&self, typename: &str) -> bool {
+        self.store
+            .staged
+            .deleted_online_store_integration_ids
+            .iter()
+            .any(|id| is_shopify_gid_of_type(id, typename))
     }
 
     fn online_store_integration_connection_value<P, F>(
@@ -323,32 +345,181 @@ impl DraftProxy {
     }
 
     fn observe_online_store_sales_channel_response(&mut self, body: &Value) {
+        self.observe_online_store_sales_channel_response_with_policy(body, false);
+    }
+
+    fn observe_online_store_sales_channel_response_preserving_existing(&mut self, body: &Value) {
+        self.observe_online_store_sales_channel_response_with_policy(body, true);
+    }
+
+    fn observe_online_store_sales_channel_response_with_policy(
+        &mut self,
+        body: &Value,
+        preserve_existing: bool,
+    ) {
         let Some(data) = body.get("data") else {
             return;
         };
-        self.observe_online_store_sales_channel_node(data);
+        self.observe_online_store_sales_channel_node(data, preserve_existing);
     }
 
-    fn observe_online_store_sales_channel_node(&mut self, node: &Value) {
+    fn observe_online_store_sales_channel_node(&mut self, node: &Value, preserve_existing: bool) {
         match node {
             Value::Array(entries) => {
                 for entry in entries {
-                    self.observe_online_store_sales_channel_node(entry);
+                    self.observe_online_store_sales_channel_node(entry, preserve_existing);
                 }
             }
             Value::Object(object) => {
                 if let Some((id, record)) = observed_sales_channel_record(node) {
-                    self.store
-                        .staged
-                        .online_store_integrations
-                        .insert(id, record);
+                    if !self.is_online_store_integration_deleted(&id)
+                        && !(preserve_existing
+                            && self
+                                .store
+                                .staged
+                                .online_store_integrations
+                                .contains_key(&id))
+                    {
+                        let record = self
+                            .store
+                            .staged
+                            .online_store_integrations
+                            .get(&id)
+                            .map(|existing| {
+                                merge_observed_sales_channel_record(existing, record.clone())
+                            })
+                            .unwrap_or(record);
+                        self.store
+                            .staged
+                            .online_store_integrations
+                            .insert(id, record);
+                    }
                 }
                 for value in object.values() {
-                    self.observe_online_store_sales_channel_node(value);
+                    self.observe_online_store_sales_channel_node(value, preserve_existing);
                 }
             }
             _ => {}
         }
+    }
+
+    fn hydrate_online_store_integration_by_id(&mut self, request: &Request, id: &str, query: &str) {
+        self.hydrate_online_store_integration_by_id_with_policy(request, id, query, false);
+    }
+
+    fn hydrate_online_store_integration_by_id_preserving_existing(
+        &mut self,
+        request: &Request,
+        id: &str,
+        query: &str,
+    ) {
+        self.hydrate_online_store_integration_by_id_with_policy(request, id, query, true);
+    }
+
+    fn hydrate_online_store_integration_by_id_with_policy(
+        &mut self,
+        request: &Request,
+        id: &str,
+        query: &str,
+        preserve_existing: bool,
+    ) {
+        if self.config.read_mode == ReadMode::Snapshot
+            || id.is_empty()
+            || self.is_online_store_integration_deleted(id)
+        {
+            return;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": query,
+                "variables": { "id": id }
+            })
+            .to_string(),
+        });
+        if response.status < 400 {
+            if preserve_existing {
+                self.observe_online_store_sales_channel_response_preserving_existing(
+                    &response.body,
+                );
+            } else {
+                self.observe_online_store_sales_channel_response(&response.body);
+            }
+        }
+    }
+
+    fn hydrate_online_store_integration_if_missing(
+        &mut self,
+        request: &Request,
+        id: &str,
+        query: &str,
+        predicate: fn(&Value) -> bool,
+    ) {
+        if self
+            .store
+            .staged
+            .online_store_integrations
+            .get(id)
+            .is_some_and(predicate)
+        {
+            return;
+        }
+        self.hydrate_online_store_integration_by_id(request, id, query);
+    }
+
+    fn hydrate_online_store_theme_catalog_if_needed(&mut self, request: &Request, id: &str) {
+        let target_known = self
+            .store
+            .staged
+            .online_store_integrations
+            .get(id)
+            .is_some_and(is_online_store_theme_record);
+        let surrounding_catalog_known = self
+            .store
+            .staged
+            .online_store_integrations
+            .iter()
+            .any(|(theme_id, record)| theme_id != id && is_online_store_theme_record(record));
+        if target_known && surrounding_catalog_known {
+            return;
+        }
+        if target_known {
+            self.hydrate_online_store_integration_by_id_preserving_existing(
+                request,
+                id,
+                THEME_CATALOG_HYDRATE_QUERY,
+            );
+        } else {
+            self.hydrate_online_store_integration_by_id(request, id, THEME_CATALOG_HYDRATE_QUERY);
+        }
+    }
+
+    fn is_online_store_integration_deleted(&self, id: &str) -> bool {
+        self.store
+            .staged
+            .deleted_online_store_integration_ids
+            .contains(id)
+    }
+
+    fn stage_online_store_integration(&mut self, id: String, record: Value) {
+        self.store
+            .staged
+            .deleted_online_store_integration_ids
+            .remove(&id);
+        self.store
+            .staged
+            .online_store_integrations
+            .insert(id, record);
+    }
+
+    fn delete_online_store_integration(&mut self, id: &str) {
+        self.store.staged.online_store_integrations.remove(id);
+        self.store
+            .staged
+            .deleted_online_store_integration_ids
+            .insert(id.to_string());
     }
 
     pub(in crate::proxy) fn next_online_store_id(&mut self, typename: &str) -> String {
@@ -468,10 +639,7 @@ impl DraftProxy {
             "appClipsEnabled": resolved_bool_field(apple, "appClipsEnabled").unwrap_or(false),
             "appClipApplicationId": resolved_string_field(apple, "appClipApplicationId").unwrap_or_default()
         });
-        self.store
-            .staged
-            .online_store_integrations
-            .insert(id.clone(), record.clone());
+        self.stage_online_store_integration(id.clone(), record.clone());
         staged_ids.push(id);
         mobile_app_payload(&field.selection, Some(record), Vec::new())
     }
@@ -479,9 +647,16 @@ impl DraftProxy {
     pub(in crate::proxy) fn mobile_platform_application_update(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        self.hydrate_online_store_integration_if_missing(
+            request,
+            &id,
+            MOBILE_PLATFORM_APPLICATION_HYDRATE_QUERY,
+            is_mobile_platform_application_record,
+        );
         let Some(existing) = self
             .store
             .staged
@@ -597,10 +772,7 @@ impl DraftProxy {
                 record["appClipApplicationId"] = json!(v);
             }
         }
-        self.store
-            .staged
-            .online_store_integrations
-            .insert(id.clone(), record.clone());
+        self.stage_online_store_integration(id.clone(), record.clone());
         staged_ids.push(id);
         mobile_app_payload(&field.selection, Some(record), Vec::new())
     }
@@ -623,10 +795,7 @@ impl DraftProxy {
             "displayScope": resolved_string_field(input, "displayScope").unwrap_or_else(|| "ONLINE_STORE".to_string()),
             "event": "onload", "cache": resolved_bool_field(input, "cache").unwrap_or(false)
         });
-        self.store
-            .staged
-            .online_store_integrations
-            .insert(id.clone(), record.clone());
+        self.stage_online_store_integration(id.clone(), record.clone());
         staged_ids.push(id);
         script_tag_payload(&field.selection, Some(record), Vec::new())
     }
@@ -634,9 +803,16 @@ impl DraftProxy {
     pub(in crate::proxy) fn script_tag_update(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        self.hydrate_online_store_integration_if_missing(
+            request,
+            &id,
+            SCRIPT_TAG_HYDRATE_QUERY,
+            is_online_store_script_tag_record,
+        );
         let input = match field.arguments.get("input") {
             Some(ResolvedValue::Object(input)) => input,
             _ => return script_tag_payload(&field.selection, None, Vec::new()),
@@ -685,10 +861,7 @@ impl DraftProxy {
             record["cache"] = json!(cache);
         }
         record["event"] = json!("onload");
-        self.store
-            .staged
-            .online_store_integrations
-            .insert(id.clone(), record.clone());
+        self.stage_online_store_integration(id.clone(), record.clone());
         staged_ids.push(id);
         script_tag_payload(&field.selection, Some(record), Vec::new())
     }
@@ -696,9 +869,16 @@ impl DraftProxy {
     pub(in crate::proxy) fn script_tag_delete(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        self.hydrate_online_store_integration_if_missing(
+            request,
+            &id,
+            SCRIPT_TAG_HYDRATE_QUERY,
+            is_online_store_script_tag_record,
+        );
         let is_staged_script_tag = self
             .store
             .staged
@@ -717,7 +897,7 @@ impl DraftProxy {
                 )],
             );
         }
-        self.store.staged.online_store_integrations.remove(&id);
+        self.delete_online_store_integration(&id);
         staged_ids.push(id.clone());
         deleted_script_tag_payload(&field.selection, json!(id), Vec::new())
     }
@@ -737,10 +917,7 @@ impl DraftProxy {
             "processingFailed": false,
             "files": {"nodes": []}
         });
-        self.store
-            .staged
-            .online_store_integrations
-            .insert(id.clone(), record.clone());
+        self.stage_online_store_integration(id.clone(), record.clone());
         staged_ids.push(id);
         theme_payload(&field.selection, record, Vec::new())
     }
@@ -748,9 +925,11 @@ impl DraftProxy {
     pub(in crate::proxy) fn theme_publish(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        self.hydrate_online_store_theme_catalog_if_needed(request, &id);
         let Some(existing) = self
             .store
             .staged
@@ -803,10 +982,7 @@ impl DraftProxy {
         }
         let mut theme = existing;
         theme["role"] = json!("MAIN");
-        self.store
-            .staged
-            .online_store_integrations
-            .insert(id.clone(), theme.clone());
+        self.stage_online_store_integration(id.clone(), theme.clone());
         staged_ids.push(id);
         theme_payload(&field.selection, theme, Vec::new())
     }
@@ -814,9 +990,11 @@ impl DraftProxy {
     pub(in crate::proxy) fn theme_update(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        self.hydrate_online_store_theme_catalog_if_needed(request, &id);
         let Some(mut theme) = self
             .store
             .staged
@@ -863,10 +1041,7 @@ impl DraftProxy {
             }
             theme["name"] = json!(name);
         }
-        self.store
-            .staged
-            .online_store_integrations
-            .insert(id.clone(), theme.clone());
+        self.stage_online_store_integration(id.clone(), theme.clone());
         staged_ids.push(id);
         theme_payload(&field.selection, theme, Vec::new())
     }
@@ -874,9 +1049,11 @@ impl DraftProxy {
     pub(in crate::proxy) fn theme_delete(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        self.hydrate_online_store_theme_catalog_if_needed(request, &id);
         let Some(theme) = self
             .store
             .staged
@@ -915,7 +1092,7 @@ impl DraftProxy {
                 )],
             );
         }
-        self.store.staged.online_store_integrations.remove(&id);
+        self.delete_online_store_integration(&id);
         staged_ids.push(id.clone());
         deleted_theme_payload(&field.selection, json!(id), Vec::new())
     }
@@ -923,9 +1100,16 @@ impl DraftProxy {
     pub(in crate::proxy) fn theme_files_upsert(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let theme_id = resolved_string_field(&field.arguments, "themeId").unwrap_or_default();
+        self.hydrate_online_store_integration_if_missing(
+            request,
+            &theme_id,
+            THEME_FILE_HYDRATE_QUERY,
+            is_online_store_theme_record_with_files,
+        );
         let files = resolved_list_arg(&field.arguments, "files");
         if files.len() > THEME_FILES_MAX_FILE_INPUT {
             let payload = json!({
@@ -1010,9 +1194,16 @@ impl DraftProxy {
     pub(in crate::proxy) fn theme_files_copy(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let theme_id = resolved_string_field(&field.arguments, "themeId").unwrap_or_default();
+        self.hydrate_online_store_integration_if_missing(
+            request,
+            &theme_id,
+            THEME_FILE_HYDRATE_QUERY,
+            is_online_store_theme_record_with_files,
+        );
         let files = resolved_list_arg(&field.arguments, "files");
         if files.len() > THEME_FILES_MAX_FILE_INPUT {
             return selected_json(
@@ -1072,9 +1263,16 @@ impl DraftProxy {
     pub(in crate::proxy) fn theme_files_delete(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let theme_id = resolved_string_field(&field.arguments, "themeId").unwrap_or_default();
+        self.hydrate_online_store_integration_if_missing(
+            request,
+            &theme_id,
+            THEME_FILE_HYDRATE_QUERY,
+            is_online_store_theme_record_with_files,
+        );
         let files = resolved_string_list_arg(&field.arguments, "files");
         if files.len() > THEME_FILES_MAX_FILE_LIMIT {
             return selected_json(
@@ -1221,10 +1419,7 @@ impl DraftProxy {
             "id": id,
             "settings": settings
         });
-        self.store
-            .staged
-            .online_store_integrations
-            .insert(id.clone(), record.clone());
+        self.stage_online_store_integration(id.clone(), record.clone());
         staged_ids.push(id);
         web_pixel_payload(&field.selection, record, Vec::new())
     }
@@ -1232,10 +1427,19 @@ impl DraftProxy {
     pub(in crate::proxy) fn web_pixel_update(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         allow_missing_upsert: bool,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        if !allow_missing_upsert {
+            self.hydrate_online_store_integration_if_missing(
+                request,
+                &id,
+                WEB_PIXEL_HYDRATE_QUERY,
+                is_web_pixel_record,
+            );
+        }
         if !allow_missing_upsert
             && !self
                 .store
@@ -1476,9 +1680,6 @@ fn observed_sales_channel_record(record: &Value) -> Option<(String, Value)> {
     match typename.as_str() {
         "OnlineStoreTheme" => {
             record["__typename"] = json!("OnlineStoreTheme");
-            if record.get("files").is_none() {
-                record["files"] = json!({"nodes": []});
-            }
         }
         "ScriptTag" => {}
         "WebPixel" => {
@@ -1501,6 +1702,21 @@ fn observed_sales_channel_record(record: &Value) -> Option<(String, Value)> {
         _ => return None,
     }
     Some((id, record))
+}
+
+fn merge_observed_sales_channel_record(existing: &Value, mut observed: Value) -> Value {
+    if is_online_store_theme_record(existing)
+        && is_online_store_theme_record(&observed)
+        && observed.get("files").is_none()
+        && existing.get("files").is_some()
+    {
+        observed["files"] = existing["files"].clone();
+    }
+    observed
+}
+
+fn is_online_store_theme_record_with_files(record: &Value) -> bool {
+    is_online_store_theme_record(record) && record["files"]["nodes"].is_array()
 }
 
 fn selected_online_store_theme_json(record: &Value, selections: &[SelectedField]) -> Value {
