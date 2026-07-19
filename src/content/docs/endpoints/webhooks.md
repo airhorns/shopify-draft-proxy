@@ -48,7 +48,7 @@ Subscription lifecycle mutations stage locally and retain the original raw mutat
 - Dedicated Pub/Sub create/update roots normalize `pubSubProject` plus `pubSubTopic` into the stored `pubsub://project:topic` URI while preserving dedicated validation field paths.
 - Pub/Sub GCP project validation accepts all-numeric project numbers in addition to lowercase alpha-start project IDs. Topic validation requires an ASCII letter first character and accepts literal percent signs when represented by a valid percent-encoded `%25` sequence; encoded invalid characters such as `%20` are rejected like Shopify.
 - Dedicated EventBridge create/update roots normalize `arn` into the stored URI/address while preserving dedicated validation field paths.
-- Commit replay replaces synthetic IDs with upstream IDs from prior successful replay attempts before replaying subsequent raw request bodies.
+- Commit replay replaces synthetic webhook IDs only from the create payload's declared `webhookSubscription.id` response path before replaying subsequent raw request bodies; missing or ambiguous IDs remain unresolved instead of being guessed from another payload node.
 
 Validation and no-side-effect behavior:
 

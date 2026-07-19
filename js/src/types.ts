@@ -73,6 +73,13 @@ export interface DraftProxyCommitAttemptResponse {
   body: unknown;
 }
 
+export interface DraftProxyUnresolvedIdMapping {
+  syntheticId: string;
+  operation: string | null;
+  responsePath: string[] | null;
+  reason: string;
+}
+
 export interface DraftProxyCommitAttempt {
   index: number;
   logId: string;
@@ -80,6 +87,7 @@ export interface DraftProxyCommitAttempt {
   request: DraftProxyCommitAttemptRequest;
   response: DraftProxyCommitAttemptResponse;
   mappedIds?: Record<string, string>;
+  unresolvedIds?: DraftProxyUnresolvedIdMapping[];
   error?: string;
 }
 

@@ -207,6 +207,19 @@ function cloneRegistryEntries(registryEntries: OperationRegistryEntry[]): Operat
   return registryEntries.map((entry) => ({
     ...entry,
     runtimeTests: [...entry.runtimeTests],
+    ...(entry.commitIdMappings
+      ? {
+          commitIdMappings: entry.commitIdMappings.map((mapping) => ({
+            ...mapping,
+            resourceTypes: [...mapping.resourceTypes],
+            responsePath: [...mapping.responsePath],
+            inputOrder:
+              mapping.inputOrder.kind === 'argument-list'
+                ? { ...mapping.inputOrder, path: [...mapping.inputOrder.path] }
+                : { ...mapping.inputOrder },
+          })),
+        }
+      : {}),
   }));
 }
 
