@@ -1,0 +1,14 @@
+mutation OnlineStoreContentHandlePageUpdate($id: ID!, $page: PageUpdateInput!) {
+  pageUpdate(id: $id, page: $page) {
+    page {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

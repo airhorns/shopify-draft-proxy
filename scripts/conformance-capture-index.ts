@@ -7882,6 +7882,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-content-handle-reservations',
+    scriptPath: 'scripts/capture-online-store-content-handle-reservations-conformance.ts',
+    purpose:
+      'Shop-scoped Page/Blog and per-blog Article handle reservation for generated and explicit create collisions, update self-exclusion, update collisions, and cross-blog Article reuse.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-content-handle-reservations.json`,
+      'config/parity-specs/online-store/online-store-content-handle-reservations.json',
+      'config/parity-requests/online-store/online-store-content-handle-article-create.graphql',
+      'config/parity-requests/online-store/online-store-content-handle-article-update.graphql',
+      'config/parity-requests/online-store/online-store-content-handle-blog-create.graphql',
+      'config/parity-requests/online-store/online-store-content-handle-blog-update.graphql',
+      'config/parity-requests/online-store/online-store-content-handle-page-create.graphql',
+      'config/parity-requests/online-store/online-store-content-handle-page-update.graphql',
+      'config/parity-requests/online-store/online-store-article-handle-reservation-hydrate.graphql',
+      'config/parity-requests/online-store/online-store-blog-handle-reservation-hydrate.graphql',
+      'config/parity-requests/online-store/online-store-page-handle-reservation-hydrate.graphql',
+      'config/parity-requests/online-store/online-store-page-mutation-hydrate.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable pages, two blogs, and article collision rows in both blogs; cleanup deletes every successful article/page creation before deleting both blogs.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-salvaged-parity-recordings',
     scriptPath: 'scripts/capture-online-store-local-runtime-parity-retirement.ts',
     purpose:

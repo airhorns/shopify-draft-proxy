@@ -4514,3 +4514,28 @@ Practical rule:
 - distinguish an authoritative null node from transport, GraphQL, or incomplete
   response failures; all failure classes must leave product/category state
   unchanged, but only the authoritative miss is proven invalid
+
+## 108. Online Store handle collisions are scoped by resource and Blogs do not return TAKEN
+
+Admin GraphQL 2025-01 capture created colliding Pages, Blogs, and Articles and
+then exercised self-updates and updates into another record's handle. Generated
+handles used the next numeric suffix for all three resource families. Page and
+Blog reservations were shop-scoped, while an Article handle could be reused in
+a different Blog.
+
+Explicit collision behavior was not uniform. Page and Article create/update
+returned a null resource plus `TAKEN` on the resource's `handle` field. An
+explicit colliding Blog create succeeded with the next suffix instead. A Blog
+update into another Blog's handle returned the target Blog unchanged with no
+user error. Self-updates succeeded for every resource.
+
+Practical rule:
+
+- hydrate exact handle ownership with query-only requests before a mutation-first
+  create or update when effective local state cannot answer the collision check
+- reserve Page and Blog handles shop-wide and Article handles by parent Blog,
+  excluding the update target itself
+- advance trailing numeric suffixes instead of blindly appending another
+  `-1`
+- preserve Blog's distinct suffix/no-op behavior rather than sharing the Page
+  and Article `TAKEN` branch
