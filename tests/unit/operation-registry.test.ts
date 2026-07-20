@@ -114,7 +114,7 @@ function nodeResolverCoverageAudit() {
     localResolverBehaviorCounts: {
       projectLocalRecord: nodeResolverInventoryEntries.filter((entry) => entry.behavior === 'project-local-record')
         .length,
-      returnKnownNull: nodeResolverInventoryEntries.filter((entry) => entry.behavior === 'return-known-null').length,
+      hydrateUnmodeled: nodeResolverInventoryEntries.filter((entry) => entry.behavior === 'hydrate-unmodeled').length,
     },
     unsupported: capturedTypeNames.filter((typeName) => !localResolverTypeNames.includes(typeName)),
     localInventoryNotInCapturedNodeInterface: localResolverTypeNames.filter(
@@ -363,7 +363,7 @@ describe('operation registry', () => {
       localNodeResolverTypeCount: 84,
       localResolverBehaviorCounts: {
         projectLocalRecord: 81,
-        returnKnownNull: 3,
+        hydrateUnmodeled: 3,
       },
       unsupported: [
         'AbandonedCheckout',

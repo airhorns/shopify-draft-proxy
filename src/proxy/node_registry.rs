@@ -85,6 +85,11 @@ impl DraftProxy {
                     &arguments,
                     &outcome.value,
                 );
+                self.cache_authoritative_admin_node_root_value(
+                    invocation.root_name,
+                    &arguments,
+                    &outcome.value,
+                );
             }
             outcome.value = self.node_value_with_upstream_fallback(
                 invocation.root_name,
@@ -117,6 +122,11 @@ impl DraftProxy {
             if result.transport_succeeded {
                 if result.outcome.errors.is_empty() {
                     self.observe_delivery_promise_node_root_value(
+                        invocation.root_name,
+                        &arguments,
+                        &result.outcome.value,
+                    );
+                    self.cache_authoritative_admin_node_root_value(
                         invocation.root_name,
                         &arguments,
                         &result.outcome.value,
@@ -357,7 +367,20 @@ impl DraftProxy {
             }
         };
         self.cached_request_entity_load_state(key, || match api_surface {
-            ApiSurface::Admin => registered_node_value(self, id, request),
+            ApiSurface::Admin => {
+                let local_state = registered_node_value(self, id, request);
+                match local_state {
+                    NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType
+                        if self
+                            .authoritative_admin_node_misses
+                            .borrow()
+                            .contains(&RequestEntityCacheKey::admin(api_version, id)) =>
+                    {
+                        NodeLoadState::KnownMissing
+                    }
+                    state => state,
+                }
+            }
             ApiSurface::Storefront => NodeLoadState::UnsupportedType,
         })
     }
@@ -388,7 +411,9 @@ impl DraftProxy {
         self.request_entity_load_state(ApiSurface::Admin, id, request)
     }
 
-    fn cache_admin_entity_value(&self, id: &str, value: &Value) {
+    pub(in crate::proxy) fn cache_admin_entity_value(&self, id: &str, value: &Value) {
+        let key =
+            RequestEntityCacheKey::admin(self.execution_session.api_version(ApiSurface::Admin), id);
         let state = if value.is_null() {
             NodeLoadState::KnownMissing
         } else if let Some(type_name) = registered_node_type_name(id) {
@@ -396,10 +421,54 @@ impl DraftProxy {
         } else {
             NodeLoadState::UnsupportedType
         };
-        self.execution_session.entity_cache.borrow_mut().insert(
-            RequestEntityCacheKey::admin(self.execution_session.api_version(ApiSurface::Admin), id),
-            state,
-        );
+        self.execution_session
+            .entity_cache
+            .borrow_mut()
+            .insert(key, state);
+    }
+
+    pub(in crate::proxy) fn cache_authoritative_admin_node_value(&self, id: &str, value: &Value) {
+        if registered_node_type_name(id).is_none() {
+            return;
+        }
+        let key =
+            RequestEntityCacheKey::admin(self.execution_session.api_version(ApiSurface::Admin), id);
+        if value.is_null() {
+            self.authoritative_admin_node_misses
+                .borrow_mut()
+                .insert(key);
+        } else {
+            self.authoritative_admin_node_misses
+                .borrow_mut()
+                .remove(&key);
+        }
+    }
+
+    fn cache_authoritative_admin_node_root_value(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        upstream: &Value,
+    ) {
+        match root_name {
+            "node" => {
+                if let Some(id) = resolved_string_field(arguments, "id") {
+                    self.cache_authoritative_admin_node_value(&id, upstream);
+                }
+            }
+            "nodes" => {
+                let ids = arguments
+                    .get("ids")
+                    .map(resolved_string_list)
+                    .unwrap_or_default();
+                if let Some(values) = upstream.as_array() {
+                    for (id, value) in ids.iter().zip(values) {
+                        self.cache_authoritative_admin_node_value(id, value);
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 
     pub(in crate::proxy) fn observe_nodes_response(&mut self, response: &Response) {
@@ -1198,12 +1267,12 @@ pub(crate) fn load_media(
         })
 }
 
-pub(crate) fn load_known_null(
+pub(crate) fn load_unmodeled(
     _proxy: &DraftProxy,
     _id: &str,
     _request: Option<&Request>,
 ) -> NodeLoadState<EntityRef> {
-    NodeLoadState::KnownMissing
+    NodeLoadState::NeedsHydration
 }
 
 #[cfg(test)]

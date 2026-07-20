@@ -34,10 +34,23 @@ impl DraftProxy {
             ));
         }
         if self.config.read_mode != ReadMode::Snapshot {
-            return self.cached_or_forward_upstream_root_outcome(
+            let result = self.cached_or_forward_upstream_graphql_result(
                 invocation.request,
                 invocation.response_key,
             );
+            if result.transport_succeeded
+                && result.outcome.errors.is_empty()
+                && matches!(
+                    invocation.root_name,
+                    "cashTrackingSession" | "pointOfSaleDevice" | "dispute"
+                )
+            {
+                let arguments = resolved_arguments_from_json(&invocation.arguments);
+                if let Some(id) = resolved_string_field(&arguments, "id") {
+                    self.cache_authoritative_admin_node_value(&id, &result.outcome.value);
+                }
+            }
+            return result.outcome;
         }
         ResolverOutcome::value(match invocation.root_name {
             "cashTrackingSessions" | "disputes" | "shopPayPaymentRequestReceipts" => {
