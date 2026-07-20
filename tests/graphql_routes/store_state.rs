@@ -1412,6 +1412,16 @@ fn collection_create_reserves_handles_against_observed_and_staged_collections() 
                     "title": "Observed Collection 41",
                     "handle": "observed-collection-41"
                 }]
+            },
+            "matching": {
+                "edges": [{
+                    "cursor": "opaque-shopify-collection-cursor",
+                    "node": {
+                        "id": "gid://shopify/Collection/900",
+                        "title": "Observed Collection 41",
+                        "handle": "observed-collection-41"
+                    }
+                }]
             }
         }
     });
@@ -1441,6 +1451,16 @@ fn collection_create_reserves_handles_against_observed_and_staged_collections() 
               id
               title
               handle
+            }
+          }
+          matching: collections(first: 1, query: "handle:observed-collection-41") {
+            edges {
+              cursor
+              node {
+                id
+                title
+                handle
+              }
             }
           }
         }

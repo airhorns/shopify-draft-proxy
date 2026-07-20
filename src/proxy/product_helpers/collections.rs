@@ -674,12 +674,17 @@ impl DraftProxy {
                 invocation.response_key,
             );
         }
-        if self.config.read_mode != ReadMode::Snapshot && !self.store.has_collection_state() {
+        if self.config.read_mode != ReadMode::Snapshot
+            && (self.execution_session.collection_list_reads_started_cold
+                || !self.store.has_collection_state())
+        {
+            let should_observe = !self.execution_session.collection_list_reads_started_cold;
+            self.execution_session.collection_list_reads_started_cold = true;
             let result = self.cached_or_forward_upstream_graphql_result(
                 invocation.request,
                 invocation.response_key,
             );
-            if result.transport_succeeded {
+            if should_observe && result.transport_succeeded {
                 self.observe_collection_value(&result.data);
             }
             return result.outcome;
@@ -702,7 +707,9 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         if self.config.read_mode == ReadMode::Live
-            || (self.config.read_mode != ReadMode::Snapshot && !self.store.has_collection_state())
+            || (self.config.read_mode != ReadMode::Snapshot
+                && (self.execution_session.collection_list_reads_started_cold
+                    || !self.store.has_collection_state()))
         {
             return self.cached_or_forward_upstream_root_outcome(
                 invocation.request,
