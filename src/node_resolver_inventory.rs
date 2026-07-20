@@ -55,14 +55,14 @@ pub(crate) enum NodeLoadState<T = Value> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeResolverBehavior {
     ProjectLocalRecord,
-    ReturnKnownNull,
+    HydrateUnmodeled,
 }
 
 impl NodeResolverBehavior {
     fn registry_name(self) -> &'static str {
         match self {
             Self::ProjectLocalRecord => "project-local-record",
-            Self::ReturnKnownNull => "return-known-null",
+            Self::HydrateUnmodeled => "hydrate-unmodeled",
         }
     }
 }
@@ -143,9 +143,9 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "CashTrackingSession",
-        "NodeLoadState::KnownMissing",
-        NodeResolverBehavior::ReturnKnownNull,
-        load_known_null,
+        "NodeLoadState::NeedsHydration",
+        NodeResolverBehavior::HydrateUnmodeled,
+        load_unmodeled,
     ),
     node_entry!(
         "Collection",
@@ -419,9 +419,9 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "PointOfSaleDevice",
-        "NodeLoadState::KnownMissing",
-        NodeResolverBehavior::ReturnKnownNull,
-        load_known_null,
+        "NodeLoadState::NeedsHydration",
+        NodeResolverBehavior::HydrateUnmodeled,
+        load_unmodeled,
     ),
     node_entry!(
         "Product",
@@ -533,9 +533,9 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     node_entry!(
         "ShopifyPaymentsDispute",
-        "NodeLoadState::KnownMissing",
-        NodeResolverBehavior::ReturnKnownNull,
-        load_known_null,
+        "NodeLoadState::NeedsHydration",
+        NodeResolverBehavior::HydrateUnmodeled,
+        load_unmodeled,
     ),
     node_entry!(
         "StoreCreditAccount",

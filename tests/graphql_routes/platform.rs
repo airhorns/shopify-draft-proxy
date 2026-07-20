@@ -2471,8 +2471,9 @@ fn backup_region_update_hydrates_market_region_from_upstream_in_live_hybrid() {
 }
 
 #[test]
-fn finance_and_pos_node_no_data_reads_return_null_nodes_locally() {
-    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
+fn snapshot_finance_and_pos_node_no_data_reads_return_null_nodes_locally() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, None)
+        .with_upstream_transport(|_| panic!("snapshot node reads must not call upstream"));
     let query = r#"
         query AdminPlatformFinanceRiskNodeNoData($ids: [ID!]!) {
           safeNodes: nodes(ids: $ids) {
@@ -2497,6 +2498,283 @@ fn finance_and_pos_node_no_data_reads_return_null_nodes_locally() {
     assert_eq!(
         response.body,
         json!({ "data": { "safeNodes": [null, null, null] } })
+    );
+}
+
+#[test]
+fn live_hybrid_unmodeled_legitimate_nodes_forward_and_preserve_upstream_fields() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("node request body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let response_body = if body["variables"].get("id").is_some() {
+                json!({
+                    "data": {
+                        "result": {
+                            "__typename": "CashTrackingSession",
+                            "id": "gid://shopify/CashTrackingSession/live",
+                            "registerName": "Main register"
+                        }
+                    }
+                })
+            } else {
+                json!({
+                    "data": {
+                        "results": [
+                            {
+                                "__typename": "CashTrackingSession",
+                                "id": "gid://shopify/CashTrackingSession/live",
+                                "registerName": "Main register"
+                            },
+                            {
+                                "__typename": "PointOfSaleDevice",
+                                "id": "gid://shopify/PointOfSaleDevice/live",
+                                "cashDrawer": {
+                                    "id": "gid://shopify/CashDrawer/live",
+                                    "name": "Front counter"
+                                }
+                            },
+                            {
+                                "__typename": "ShopifyPaymentsDispute",
+                                "id": "gid://shopify/ShopifyPaymentsDispute/live",
+                                "status": "NEEDS_RESPONSE"
+                            }
+                        ]
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: response_body,
+            }
+        });
+
+    let single = proxy.process_request(json_graphql_request(
+        r#"
+        query LegitimateUnmodeledSingleNode($id: ID!) {
+          result: node(id: $id) {
+            __typename
+            ... on CashTrackingSession { id registerName }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/CashTrackingSession/live" }),
+    ));
+    assert_eq!(
+        single.body["data"]["result"],
+        json!({
+            "__typename": "CashTrackingSession",
+            "id": "gid://shopify/CashTrackingSession/live",
+            "registerName": "Main register"
+        })
+    );
+
+    let batch = proxy.process_request(json_graphql_request(
+        r#"
+        query LegitimateUnmodeledNodeBatch($ids: [ID!]!) {
+          results: nodes(ids: $ids) {
+            __typename
+            ... on CashTrackingSession { id registerName }
+            ... on PointOfSaleDevice { id cashDrawer { id name } }
+            ... on ShopifyPaymentsDispute { id status }
+          }
+        }
+        "#,
+        json!({
+            "ids": [
+                "gid://shopify/CashTrackingSession/live",
+                "gid://shopify/PointOfSaleDevice/live",
+                "gid://shopify/ShopifyPaymentsDispute/live"
+            ]
+        }),
+    ));
+    assert_eq!(
+        batch.body["data"]["results"],
+        json!([
+            {
+                "__typename": "CashTrackingSession",
+                "id": "gid://shopify/CashTrackingSession/live",
+                "registerName": "Main register"
+            },
+            {
+                "__typename": "PointOfSaleDevice",
+                "id": "gid://shopify/PointOfSaleDevice/live",
+                "cashDrawer": {
+                    "id": "gid://shopify/CashDrawer/live",
+                    "name": "Front counter"
+                }
+            },
+            {
+                "__typename": "ShopifyPaymentsDispute",
+                "id": "gid://shopify/ShopifyPaymentsDispute/live",
+                "status": "NEEDS_RESPONSE"
+            }
+        ])
+    );
+
+    let upstream_requests = upstream_requests.lock().unwrap();
+    assert_eq!(upstream_requests.len(), 2);
+    assert!(upstream_requests[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("query LegitimateUnmodeledSingleNode")));
+    assert!(upstream_requests[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("query LegitimateUnmodeledNodeBatch")));
+}
+
+#[test]
+fn live_hybrid_exact_authoritative_node_misses_do_not_reforward() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("node request body parses");
+            captured_requests.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "cashTrackingSession": null,
+                        "pointOfSaleDevice": null,
+                        "dispute": null
+                    }
+                }),
+            }
+        });
+    let ids = json!([
+        "gid://shopify/CashTrackingSession/0",
+        "gid://shopify/PointOfSaleDevice/0",
+        "gid://shopify/ShopifyPaymentsDispute/0"
+    ]);
+
+    let authoritative_read = proxy.process_request(json_graphql_request(
+        r#"
+        query AuthoritativeFinanceNodeMisses(
+          $cashId: ID!
+          $posId: ID!
+          $disputeId: ID!
+        ) {
+          cashTrackingSession(id: $cashId) { __typename }
+          pointOfSaleDevice(id: $posId) { __typename }
+          dispute(id: $disputeId) { __typename }
+        }
+        "#,
+        json!({
+            "cashId": ids[0],
+            "posId": ids[1],
+            "disputeId": ids[2]
+        }),
+    ));
+    assert_eq!(
+        authoritative_read.body["data"],
+        json!({
+            "cashTrackingSession": null,
+            "pointOfSaleDevice": null,
+            "dispute": null
+        })
+    );
+
+    let generic_read = proxy.process_request(json_graphql_request(
+        r#"
+        query KnownMissingFinanceNodes($ids: [ID!]!) {
+          nodes(ids: $ids) { __typename id }
+        }
+        "#,
+        json!({ "ids": ids }),
+    ));
+    assert_eq!(
+        generic_read.body["data"]["nodes"],
+        json!([null, null, null])
+    );
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "exact upstream misses must not trigger another transport call"
+    );
+}
+
+#[test]
+fn live_hybrid_node_error_null_does_not_become_an_authoritative_miss() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let id = "gid://shopify/CashTrackingSession/restricted";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("node request body parses");
+            let is_singular_finance_read = body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("cashTrackingSession"));
+            captured_requests.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: if is_singular_finance_read {
+                    json!({
+                        "data": { "cashTrackingSession": null },
+                        "errors": [{
+                            "message": "Access denied for cashTrackingSession field.",
+                            "path": ["cashTrackingSession"],
+                            "extensions": { "code": "ACCESS_DENIED" }
+                        }]
+                    })
+                } else {
+                    json!({
+                        "data": {
+                            "node": {
+                                "__typename": "CashTrackingSession",
+                                "id": id,
+                                "registerName": "Recovered register"
+                            }
+                        }
+                    })
+                },
+            }
+        });
+
+    let denied = proxy.process_request(json_graphql_request(
+        r#"
+        query RestrictedFinanceNode($id: ID!) {
+          cashTrackingSession(id: $id) { __typename }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+    assert_eq!(denied.body["data"]["cashTrackingSession"], Value::Null);
+    assert_eq!(
+        denied.body["errors"][0]["extensions"]["code"],
+        "ACCESS_DENIED"
+    );
+
+    let generic_read = proxy.process_request(json_graphql_request(
+        r#"
+        query RetryRestrictedFinanceNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            ... on CashTrackingSession { id registerName }
+          }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+    assert_eq!(
+        generic_read.body["data"]["node"],
+        json!({
+            "__typename": "CashTrackingSession",
+            "id": id,
+            "registerName": "Recovered register"
+        })
+    );
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        2,
+        "an error null must not suppress the next hydration attempt"
     );
 }
 
@@ -2757,11 +3035,27 @@ fn live_hybrid_nodes_batch_merges_staged_and_tombstoned_records_over_one_upstrea
             null
         ])
     );
-    let upstream_requests = upstream_requests.lock().unwrap();
-    assert_eq!(upstream_requests.len(), 1);
-    assert!(upstream_requests[0]["query"]
+    let upstream_request_guard = upstream_requests.lock().unwrap();
+    assert_eq!(upstream_request_guard.len(), 1);
+    assert!(upstream_request_guard[0]["query"]
         .as_str()
         .is_some_and(|query| query.contains("query MixedLocalAndColdNodes")));
+    drop(upstream_request_guard);
+
+    let tombstone_only = proxy.process_request(json_graphql_request(
+        r#"
+        query TombstonedNodeDoesNotHydrate($id: ID!) {
+          node(id: $id) { __typename id }
+        }
+        "#,
+        json!({ "id": deleted_id }),
+    ));
+    assert_eq!(tombstone_only.body["data"]["node"], Value::Null);
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "an exact local tombstone must not trigger another upstream read"
+    );
 }
 
 #[test]

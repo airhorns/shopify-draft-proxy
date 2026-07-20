@@ -2617,6 +2617,7 @@ impl RequestEntityCacheKey {
 }
 
 type RequestEntityCache = RefCell<BTreeMap<RequestEntityCacheKey, NodeLoadState<EntityRef>>>;
+type AuthoritativeAdminNodeMisses = RefCell<BTreeSet<RequestEntityCacheKey>>;
 
 #[derive(Clone)]
 struct RequestNodeHydration {
@@ -2689,6 +2690,11 @@ pub struct DraftProxy {
     /// `restoreState` between a scenario's targets; it is reset on `/__meta/reset`,
     /// which the parity runner issues at the start of every scenario.
     shop_sells_subscriptions: Option<bool>,
+    /// Exact Admin Node misses learned from successful upstream reads. These
+    /// survive request boundaries so a later generic Node read does not
+    /// re-hydrate an ID Shopify already authoritatively returned as null. The
+    /// API version is part of the key, and `/__meta/reset` clears the cache.
+    authoritative_admin_node_misses: AuthoritativeAdminNodeMisses,
     clock: RuntimeClock,
     last_mutation_timestamp: Option<time::OffsetDateTime>,
     /// All GraphQL-execution transients live behind one request-lifetime
