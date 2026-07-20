@@ -4569,6 +4569,7 @@ Practical rule:
   when no observed state establishes currency
 - keep unavailable money as null and allow schema nullability to determine the
   caller-visible error boundary
+
 ## 107. Taxonomy category GID structure is not category evidence
 
 Live Admin GraphQL 2025-01 capture tested a syntactically plausible but
@@ -4586,6 +4587,7 @@ Practical rule:
 - distinguish an authoritative null node from transport, GraphQL, or incomplete
   response failures; all failure classes must leave product/category state
   unchanged, but only the authoritative miss is proven invalid
+
 ## 108. A saved-search page is not an absence proof for mutation targets
 
 Saved-search connections are paginated, so observing one upstream page cannot
