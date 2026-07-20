@@ -1590,6 +1590,7 @@ fn product_variant_inventory_item_field(
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     Ok(product_variant_record(proxy, invocation)
+        .filter(|variant| is_shopify_gid_of_type(&variant.inventory_item.id, "InventoryItem"))
         .map(|variant| {
             let variant = proxy.variant_with_inventory_levels(&variant);
             product_variant_state_json(&variant)["inventoryItem"].clone()
@@ -3658,7 +3659,7 @@ fn product_variant_state_from_json_parts(
             .and_then(|item| item.get("id"))
             .and_then(Value::as_str)
             .map(str::to_string)
-            .unwrap_or_else(|| shopify_gid("InventoryItem", resource_id_tail(&id))),
+            .unwrap_or_default(),
         ProductVariantInventoryItemMode::Required => {
             inventory_item?.get("id")?.as_str()?.to_string()
         }
@@ -5237,6 +5238,23 @@ pub(in crate::proxy) fn variant_media_ids_from_json(value: &Value) -> Vec<String
 #[cfg(test)]
 mod product_variant_connection_tests {
     use super::*;
+
+    #[test]
+    fn observed_variant_without_inventory_item_does_not_invent_cross_resource_identity() {
+        let variant = product_variant_state_from_observed_json(&json!({
+            "id": "gid://shopify/ProductVariant/424242",
+            "product": { "id": "gid://shopify/Product/1" },
+            "title": "Partially observed variant",
+            "price": "10.00",
+        }))
+        .expect("partially observed variant should normalize");
+
+        assert_eq!(variant.inventory_item.id, "");
+        assert_ne!(
+            variant.inventory_item.id,
+            "gid://shopify/InventoryItem/424242"
+        );
+    }
 
     #[test]
     fn staged_variant_overlays_its_observed_connection_position() {
