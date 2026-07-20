@@ -538,15 +538,7 @@ impl DraftProxy {
             ..
         } = invocation;
         let arguments = resolved_arguments_from_json(&arguments);
-        let requests_payment_terms = requested_field_paths
-            .iter()
-            .any(|path| path.iter().any(|field| field == "paymentTerms"));
-        if let Some(outcome) = self.payment_terms_local_outcome(
-            request,
-            root_field,
-            &arguments,
-            requests_payment_terms,
-        ) {
+        if let Some(outcome) = self.payment_terms_local_outcome(root_field, &arguments) {
             return outcome;
         }
         if let Some(outcome) = self.order_return_local_runtime_outcome(
@@ -621,24 +613,24 @@ impl DraftProxy {
                     )
                 }
             }
-            "orderMarkAsPaid"
-            | "orderCreateManualPayment"
-            | "refundCreate"
-            | "orderEditBegin"
-            | "orderEditCommit" => {
-                if let Some(outcome) = self.money_bag_presentment_local_outcome(
-                    request,
-                    root_field,
-                    &arguments,
-                    &requested_field_paths,
-                ) {
-                    outcome
-                } else if let Some(outcome) = self
+            "refundCreate" => {
+                if let Some(outcome) = self
                     .refund_create_local_outcome(request, root_field, &arguments, query, variables)
                 {
                     outcome
-                } else if let Some(outcome) = self.order_payment_transaction_local_outcome(&context)
-                {
+                } else {
+                    self.orders_stage_locally_unmodeled_shape_outcome(root_field)
+                }
+            }
+            "orderEditBegin" | "orderEditCommit" => {
+                if let Some(outcome) = self.remaining_order_local_outcome(&context) {
+                    outcome
+                } else {
+                    self.orders_stage_locally_unmodeled_shape_outcome(root_field)
+                }
+            }
+            "orderMarkAsPaid" | "orderCreateManualPayment" => {
+                if let Some(outcome) = self.order_payment_transaction_local_outcome(&context) {
                     outcome
                 } else if let Some(outcome) = self.remaining_order_local_outcome(&context) {
                     outcome
@@ -647,40 +639,12 @@ impl DraftProxy {
                 }
             }
             "orderCreate" => {
-                if let Some(outcome) = self.payment_terms_local_outcome(
-                    request,
-                    root_field,
-                    &arguments,
-                    requested_field_paths
-                        .iter()
-                        .any(|path| path.iter().any(|field| field == "paymentTerms")),
-                ) {
-                    outcome
-                } else if let Some(outcome) = self.money_bag_presentment_local_outcome(
-                    request,
-                    root_field,
-                    &arguments,
-                    &requested_field_paths,
-                ) {
-                    outcome
-                } else if let Some(outcome) = self.order_payment_transaction_local_outcome(&context)
-                {
-                    outcome
-                } else if let Some(outcome) = self.draft_order_complete_local_outcome(
-                    request,
-                    root_field,
-                    &arguments,
-                    &raw_arguments,
-                ) {
-                    outcome
-                } else if let Some(outcome) = self.remaining_order_local_outcome(&context) {
-                    outcome
-                } else if let Some(outcome) = self
+                if let Some(outcome) = self
                     .order_create_local_outcome(request, root_field, &arguments, query, variables)
                 {
                     outcome
                 } else {
-                    self.customer_order_create(&arguments)
+                    self.orders_stage_locally_unmodeled_shape_outcome(root_field)
                 }
             }
             "orderUpdate" => {

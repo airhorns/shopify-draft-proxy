@@ -282,6 +282,27 @@ pub(super) fn oe_session_currency(session: &Value) -> &str {
         .unwrap_or("CAD")
 }
 
+pub(super) fn oe_session_has_changes(session: &Value) -> bool {
+    let lines_changed = session
+        .get("lines")
+        .and_then(Value::as_array)
+        .is_some_and(|lines| {
+            lines.iter().any(|line| {
+                line.get("kind").and_then(Value::as_str) != Some("existing")
+                    || oe_int(line, "curQty") != oe_int(line, "histQty")
+                    || line
+                        .get("discounts")
+                        .and_then(Value::as_array)
+                        .is_some_and(|discounts| !discounts.is_empty())
+            })
+        });
+    lines_changed
+        || session
+            .get("shippingLines")
+            .and_then(Value::as_array)
+            .is_some_and(|lines| !lines.is_empty())
+}
+
 pub(super) fn oe_calc_order_view(session: &Value) -> Value {
     let currency = oe_session_currency(session);
     let empty = Vec::new();
@@ -307,6 +328,15 @@ pub(super) fn oe_calc_order_view(session: &Value) -> Value {
         .map(|line| oe_shipping_view(line, currency))
         .collect();
     let totals = oe_session_totals(session);
+    let total_price_set = if oe_session_has_changes(session) {
+        oe_shop_presentment_money(totals.total, currency)
+    } else {
+        session
+            .get("originalTotalPriceSet")
+            .filter(|value| value.is_object())
+            .cloned()
+            .unwrap_or_else(|| oe_shop_presentment_money(totals.total, currency))
+    };
     json!({
         "id": session.get("id").cloned().unwrap_or(Value::Null),
         "originalOrder": {
@@ -318,7 +348,7 @@ pub(super) fn oe_calc_order_view(session: &Value) -> Value {
         "shippingLines": shipping,
         "subtotalLineItemsQuantity": totals.quantity,
         "subtotalPriceSet": oe_shop_presentment_money(totals.subtotal, currency),
-        "totalPriceSet": oe_shop_presentment_money(totals.total, currency)
+        "totalPriceSet": total_price_set
     })
 }
 
@@ -398,6 +428,7 @@ pub(super) fn oe_build_session(order: &Value, calculated_id: &str, session_id: &
         "sessionId": session_id,
         "originalOrderId": order["id"].clone(),
         "originalOrderName": order["name"].clone(),
+        "originalTotalPriceSet": order["totalPriceSet"].clone(),
         "currency": currency,
         "seq": 0,
         "lines": lines,

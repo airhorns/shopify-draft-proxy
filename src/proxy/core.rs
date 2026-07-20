@@ -1382,18 +1382,6 @@ impl DraftProxy {
         if let Some(session_order_id) = &self.store.staged.order_edit_existing_session_order_id {
             snapshot["stagedState"]["orderEditExistingSessionOrderId"] = json!(session_order_id);
         }
-        if !self
-            .store
-            .staged
-            .order_edit_money_bag_calculated_order_ids
-            .is_empty()
-        {
-            snapshot["stagedState"]["orderEditMoneyBagCalculatedOrderIds"] = json!(self
-                .store
-                .staged
-                .order_edit_money_bag_calculated_order_ids
-                .clone());
-        }
         if let Some(mode) = &self.store.staged.order_edit_existing_mode {
             snapshot["stagedState"]["orderEditExistingMode"] = json!(mode);
         }
@@ -2583,8 +2571,6 @@ impl DraftProxy {
             .get("orderEditExistingSessionOrderId")
             .and_then(Value::as_str)
             .map(str::to_string);
-        self.store.staged.order_edit_money_bag_calculated_order_ids =
-            string_map_from_json(state["stagedState"].get("orderEditMoneyBagCalculatedOrderIds"));
         self.store.staged.order_edit_existing_mode = state["stagedState"]
             .get("orderEditExistingMode")
             .and_then(Value::as_str)

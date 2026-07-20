@@ -277,6 +277,106 @@ pub(in crate::proxy) fn refund_input_total_amount(
     }
 }
 
+fn refund_transaction_money_set(
+    order: &Value,
+    input: &BTreeMap<String, ResolvedValue>,
+    transaction: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
+) -> Option<Value> {
+    let amount = resolved_string_field(transaction, "amount")?;
+    let shop_currency = order_currency(order, shop_currency_code);
+    let parent_amount_set = resolved_string_field(transaction, "parentId")
+        .and_then(|parent_id| order_transaction_by_id(order, &parent_id))
+        .map(|parent| parent["amountSet"].clone());
+    let requested_currency = resolved_string_field(input, "currency")
+        .or_else(|| resolved_string_field(transaction, "currency"))
+        .or_else(|| resolved_string_field(transaction, "currencyCode"))
+        .or_else(|| {
+            parent_amount_set
+                .as_ref()
+                .and_then(money_set_presentment_or_shop_currency)
+        })
+        .unwrap_or_else(|| order_presentment_currency(order, &shop_currency));
+    let conversion_basis = parent_amount_set.unwrap_or_else(|| {
+        order_money_set_with_presentment_fallback(
+            &order["totalPriceSet"],
+            order,
+            shop_currency_code,
+        )
+    });
+    Some(payment_money_set_for_capture(
+        &conversion_basis,
+        &normalized_order_payment_amount(Some(amount)),
+        &requested_currency,
+    ))
+}
+
+fn refund_money_set_for_shop_amount(amount: f64, order: &Value, shop_currency_code: &str) -> Value {
+    let basis = order_money_set_with_presentment_fallback(
+        &order["totalPriceSet"],
+        order,
+        shop_currency_code,
+    );
+    let basis_shop = money_set_amount(&basis).unwrap_or(0.0);
+    let basis_presentment = money_set_presentment_or_shop_amount_value(&basis);
+    let presentment_amount = if basis_shop.abs() > 0.000_001 {
+        amount * basis_presentment / basis_shop
+    } else {
+        amount
+    };
+    let shop_currency = money_set_shop_currency(&basis)
+        .unwrap_or_else(|| order_currency(order, shop_currency_code));
+    let presentment_currency = money_set_presentment_currency(&basis)
+        .unwrap_or_else(|| order_presentment_currency(order, &shop_currency));
+    money_set_pair(
+        &format_money_amount(amount),
+        &shop_currency,
+        &format_money_amount(presentment_amount),
+        &presentment_currency,
+    )
+}
+
+fn refund_total_money_set(
+    input: &BTreeMap<String, ResolvedValue>,
+    order: &Value,
+    shop_currency_code: &str,
+) -> Value {
+    let transactions = resolved_object_list_field(input, "transactions");
+    if !transactions.is_empty() {
+        return transactions.iter().fold(
+            zero_order_money_set_like(&order["totalPriceSet"], order, shop_currency_code),
+            |total, transaction| {
+                let transaction_total =
+                    refund_transaction_money_set(order, input, transaction, shop_currency_code)
+                        .unwrap_or_else(|| {
+                            zero_order_money_set_like(
+                                &order["totalPriceSet"],
+                                order,
+                                shop_currency_code,
+                            )
+                        });
+                add_order_money_sets(&total, &transaction_total, order, shop_currency_code)
+            },
+        );
+    }
+
+    if resolved_object_list_field(input, "refundLineItems").is_empty()
+        && resolved_object_field(input, "shipping").is_none()
+    {
+        return order_money_set_with_presentment_fallback(
+            &order["totalOutstandingSet"],
+            order,
+            shop_currency_code,
+        );
+    }
+
+    refund_money_set_for_shop_amount(
+        refund_input_total_amount(input, order),
+        order,
+        shop_currency_code,
+    )
+}
+
 pub(in crate::proxy) fn refund_order_with_defaults(
     mut order: Value,
     shop_currency_code: &str,
@@ -515,9 +615,8 @@ pub(in crate::proxy) fn build_refund_line_items(
 pub(in crate::proxy) fn build_refund_transactions(
     input: &BTreeMap<String, ResolvedValue>,
     order: &Value,
-    refund_amount: f64,
-    shop_currency: &str,
-    presentment_currency: &str,
+    refund_total_set: &Value,
+    shop_currency_code: &str,
     transaction_id: &str,
 ) -> Vec<Value> {
     let inputs = resolved_object_list_field(input, "transactions");
@@ -528,16 +627,13 @@ pub(in crate::proxy) fn build_refund_transactions(
             "kind": "REFUND",
             "status": "SUCCESS",
             "gateway": gateway,
-            "amountSet": money_bag_from_amount(refund_amount, shop_currency, presentment_currency)
+            "amountSet": refund_total_set
         })];
     }
     inputs
         .iter()
         .enumerate()
         .map(|(index, transaction)| {
-            let amount = resolved_string_field(transaction, "amount")
-                .and_then(|amount| amount.parse::<f64>().ok())
-                .unwrap_or(refund_amount);
             let parent = resolved_string_field(transaction, "parentId")
                 .and_then(|id| order_transaction_by_id(order, &id));
             let gateway = parent
@@ -555,7 +651,16 @@ pub(in crate::proxy) fn build_refund_transactions(
                 "kind": "REFUND",
                 "status": "SUCCESS",
                 "gateway": gateway,
-                "amountSet": money_bag_from_amount(amount, shop_currency, presentment_currency)
+                "amountSet": refund_transaction_money_set(
+                    order,
+                    input,
+                    transaction,
+                    shop_currency_code
+                ).unwrap_or_else(|| zero_order_money_set_like(
+                    &order["totalPriceSet"],
+                    order,
+                    shop_currency_code
+                ))
             })
         })
         .collect()
@@ -565,22 +670,36 @@ pub(in crate::proxy) fn update_order_after_refund(
     mut order: Value,
     refund: &Value,
     refund_transactions: &[Value],
-    refund_amount: f64,
+    refund_total_set: &Value,
     shipping_refund_amount: f64,
     shop_currency: &str,
     presentment_currency: &str,
 ) -> Value {
     order = refund_order_with_defaults(order, shop_currency);
-    let total_refunded = order_refunded_amount(&order) + refund_amount;
+    let total_refunded_set = add_order_money_sets(
+        &order["totalRefundedSet"],
+        refund_total_set,
+        &order,
+        shop_currency,
+    );
+    let total_refunded = money_set_amount(&total_refunded_set).unwrap_or(0.0);
+    let total_refunded_presentment =
+        money_set_presentment_or_shop_amount_value(&total_refunded_set);
     let total_refunded_shipping = order_refunded_shipping_amount(&order) + shipping_refund_amount;
     let received = order_received_amount(&order);
+    let received_presentment =
+        money_set_presentment_or_shop_amount_value(&order["totalReceivedSet"]);
     let net_payment = (received - total_refunded).max(0.0);
-    order["totalRefundedSet"] =
-        money_bag_from_amount(total_refunded, shop_currency, presentment_currency);
+    let net_payment_presentment = (received_presentment - total_refunded_presentment).max(0.0);
+    order["totalRefundedSet"] = total_refunded_set;
     order["totalRefundedShippingSet"] =
         money_bag_from_amount(total_refunded_shipping, shop_currency, presentment_currency);
-    order["netPaymentSet"] =
-        money_bag_from_amount(net_payment, shop_currency, presentment_currency);
+    order["netPaymentSet"] = money_set_pair(
+        &format_money_amount(net_payment),
+        shop_currency,
+        &format_money_amount(net_payment_presentment),
+        presentment_currency,
+    );
     order["displayFinancialStatus"] = if total_refunded + 0.005 >= received && received > 0.0 {
         json!("REFUNDED")
     } else {
@@ -801,33 +920,6 @@ fn payment_capture_error(
         vec![payment_user_error(field, &message, code)],
         Vec::new(),
     ))
-}
-
-pub(in crate::proxy) fn payment_order_record(
-    id: &str,
-    display_financial_status: &str,
-    capturable_amount: &str,
-    outstanding_amount: &str,
-    received_amount: &str,
-    currency_code: &str,
-    transactions: Vec<Value>,
-) -> Value {
-    let payment_gateway_names = payment_gateway_names_from_transactions(&transactions);
-    let capturable = capturable_amount
-        .parse::<f64>()
-        .is_ok_and(|amount| amount > 0.000_001);
-    json!({
-        "id": id,
-        "displayFinancialStatus": display_financial_status,
-        "capturable": capturable,
-        "totalCapturable": capturable_amount,
-        "totalCapturableSet": money_set(capturable_amount, currency_code),
-        "totalOutstandingSet": money_set(outstanding_amount, currency_code),
-        "totalReceivedSet": money_set(received_amount, currency_code),
-        "netPaymentSet": money_set(received_amount, currency_code),
-        "paymentGatewayNames": payment_gateway_names,
-        "transactions": transactions
-    })
 }
 
 pub(in crate::proxy) fn normalized_order_payment_amount(value: Option<String>) -> String {
@@ -1120,7 +1212,7 @@ impl DraftProxy {
 
         let shop_currency = order_currency(&order, &shop_currency_code);
         let presentment_currency = order_presentment_currency(&order, &shop_currency);
-        let refund_amount = refund_input_total_amount(&input, &order);
+        let refund_total_set = refund_total_money_set(&input, &order, &shop_currency_code);
         let shipping_refund_amount = refund_input_shipping_amount(&input, &order);
         let refund_id = shopify_gid("Refund", self.store.staged.next_refund_id);
         self.store.staged.next_refund_id += 1;
@@ -1139,9 +1231,8 @@ impl DraftProxy {
         let refund_transactions = build_refund_transactions(
             &input,
             &order,
-            refund_amount,
-            &shop_currency,
-            &presentment_currency,
+            &refund_total_set,
+            &shop_currency_code,
             &transaction_id,
         );
         let refund = json!({
@@ -1149,7 +1240,7 @@ impl DraftProxy {
             "note": resolved_string_field(&input, "note"),
             "createdAt": "2024-01-01T00:00:00.000Z",
             "updatedAt": "2024-01-01T00:00:00.000Z",
-            "totalRefundedSet": money_bag_from_amount(refund_amount, &shop_currency, &presentment_currency),
+            "totalRefundedSet": refund_total_set,
             "refundLineItems": order_connection(refund_line_items),
             "transactions": order_connection(refund_transactions.clone())
         });
@@ -1157,7 +1248,7 @@ impl DraftProxy {
             order,
             &refund,
             &refund_transactions,
-            refund_amount,
+            &refund_total_set,
             shipping_refund_amount,
             &shop_currency,
             &presentment_currency,
@@ -1474,41 +1565,10 @@ impl DraftProxy {
         let root_field = context.root_field;
         let root_location = context.root_location;
         let arguments = context.arguments;
-        let requested_field_paths = context.requested_field_paths;
         let query = context.query;
         let variables = context.variables;
         let response_key = context.response_key;
         match root_field {
-            "orderCreate"
-                if requested_field_paths.iter().any(|path| {
-                    path.iter().any(|field| {
-                        matches!(
-                            field.as_str(),
-                            "capturable"
-                                | "totalCapturable"
-                                | "totalCapturableSet"
-                                | "totalOutstandingSet"
-                                | "totalReceivedSet"
-                                | "netPaymentSet"
-                                | "paymentGatewayNames"
-                                | "transactions"
-                        )
-                    })
-                }) =>
-            {
-                let order = self.stage_payment_order(arguments);
-                let order_id = order["id"].as_str().unwrap_or_default().to_string();
-                self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
-                    root_field,
-                    vec![order_id],
-                );
-                Some(ResolverOutcome::value(
-                    json!({ "order": order, "userErrors": [] }),
-                ))
-            }
             "orderMarkAsPaid" => {
                 let input = resolved_object_field(arguments, "input").unwrap_or_default();
                 let order_id = resolved_string_field(&input, "id").unwrap_or_default();
@@ -1557,155 +1617,6 @@ impl DraftProxy {
             }
             _ => None,
         }
-    }
-
-    pub(super) fn stage_payment_order(
-        &mut self,
-        arguments: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        let id = shopify_gid("Order", self.store.staged.next_order_id);
-        self.store.staged.next_order_id += 1;
-        let order_input = resolved_object_field(arguments, "order").unwrap_or_default();
-        let transaction_inputs = resolved_object_list_field(&order_input, "transactions");
-        let first_transaction = transaction_inputs.first().cloned().unwrap_or_default();
-        let transaction_amount_set = payment_money_set_from_input(&first_transaction);
-        let inferred_input_currency = transaction_amount_set
-            .as_ref()
-            .and_then(|amount_set| {
-                money_currency(amount_set, "shopMoney")
-                    .or_else(|| money_currency(amount_set, "presentmentMoney"))
-            })
-            .or_else(|| {
-                resolved_object_list_field(&order_input, "lineItems")
-                    .into_iter()
-                    .find_map(|line_item| {
-                        resolved_object_field(&line_item, "priceSet")
-                            .or_else(|| resolved_object_field(&line_item, "originalUnitPriceSet"))
-                            .and_then(|price| input_money_currency(&price))
-                    })
-            });
-        let explicit_currency = resolved_string_field(&order_input, "currency")
-            .or_else(|| resolved_string_field(&order_input, "currencyCode"));
-        let currency = explicit_currency
-            .clone()
-            .or_else(|| inferred_input_currency.clone())
-            .unwrap_or_else(|| self.store.shop_currency_code());
-        let explicit_presentment_currency =
-            resolved_string_field(&order_input, "presentmentCurrency")
-                .or_else(|| resolved_string_field(&order_input, "presentmentCurrencyCode"));
-        let presentment_currency = explicit_presentment_currency
-            .clone()
-            .or_else(|| {
-                transaction_amount_set
-                    .as_ref()
-                    .and_then(|amount_set| money_currency(amount_set, "presentmentMoney"))
-            })
-            .or_else(|| inferred_input_currency.clone())
-            .unwrap_or_else(|| currency.clone());
-        let mut order_record_input = order_input.clone();
-        if explicit_currency.is_none() {
-            order_record_input.insert(
-                "currency".to_string(),
-                ResolvedValue::String(currency.clone()),
-            );
-        }
-        if explicit_presentment_currency.is_none() {
-            order_record_input.insert(
-                "presentmentCurrency".to_string(),
-                ResolvedValue::String(presentment_currency),
-            );
-        }
-        order_record_input.remove("transactions");
-        // Base projection: full order math (line items + taxLines, shipping lines +
-        // totalShippingPriceSet, subtotals, taxes, discounts). The payment view is
-        // layered on top so a payment-field selection still receives the complete
-        // order shape rather than the totals-only subset.
-        let mut order = self.build_order_create_record(&id, &order_record_input);
-        if transaction_inputs.is_empty() {
-            self.store.staged.orders.insert(id, order.clone());
-            return order;
-        }
-        let shop_currency_code = self.store.shop_currency_code();
-        let amount_set = transaction_amount_set.unwrap_or_else(|| {
-            order_money_set_with_presentment_fallback(
-                &order["totalOutstandingSet"],
-                &order,
-                &shop_currency_code,
-            )
-        });
-        let amount =
-            money_set_presentment_or_shop_amount(&amount_set).unwrap_or_else(|| "0.0".to_string());
-        let transaction_id = self.next_order_transaction_id();
-        let kind = resolved_string_field(&first_transaction, "kind")
-            .unwrap_or_else(|| "AUTHORIZATION".to_string());
-        let status = resolved_string_field(&first_transaction, "status")
-            .unwrap_or_else(|| "SUCCESS".to_string());
-        let gateway = resolved_string_field(&first_transaction, "gateway")
-            .unwrap_or_else(|| order_payment_gateway(&order));
-        let transaction = payment_transaction_record_from_amount_set(
-            &transaction_id,
-            &kind,
-            &status,
-            &gateway,
-            amount_set.clone(),
-            Value::Null,
-            &currency,
-        );
-        let (display_status, capturable_amount, outstanding_amount, received_amount) =
-            if kind == "AUTHORIZATION" && status == "SUCCESS" {
-                ("AUTHORIZED", amount.as_str(), "0.0", "0.0")
-            } else if matches!(kind.as_str(), "CAPTURE" | "SALE") && status == "SUCCESS" {
-                ("PAID", "0.0", "0.0", amount.as_str())
-            } else {
-                ("PENDING", "0.0", amount.as_str(), "0.0")
-            };
-        let payment_view = payment_order_record(
-            &id,
-            display_status,
-            capturable_amount,
-            outstanding_amount,
-            received_amount,
-            money_set_presentment_or_shop_currency(&amount_set)
-                .as_deref()
-                .unwrap_or(&currency),
-            vec![transaction],
-        );
-        // Override the payment-derived projection onto the full order base.
-        for key in [
-            "displayFinancialStatus",
-            "capturable",
-            "totalCapturable",
-            "totalCapturableSet",
-            "totalOutstandingSet",
-            "totalReceivedSet",
-            "netPaymentSet",
-            "paymentGatewayNames",
-            "transactions",
-        ] {
-            if let Some(value) = payment_view.get(key) {
-                order[key] = value.clone();
-            }
-        }
-        if amount_set.get("presentmentMoney").is_some() {
-            let captured_amount = if capturable_amount == "0.0" {
-                amount.as_str()
-            } else {
-                "0.0"
-            };
-            let (capturable_set, outstanding_set, received_set) =
-                payment_money_set_for_order_totals(
-                    &amount_set,
-                    capturable_amount.parse::<f64>().unwrap_or(0.0),
-                    captured_amount.parse::<f64>().unwrap_or(0.0),
-                    &currency,
-                );
-            order["totalCapturableSet"] = capturable_set;
-            order["totalOutstandingSet"] = outstanding_set;
-            order["totalReceivedSet"] = received_set.clone();
-            order["netPaymentSet"] = received_set;
-        }
-        self.store.staged.orders.insert(id, order.clone());
-        order
     }
 
     pub(super) fn stage_order_mark_as_paid(

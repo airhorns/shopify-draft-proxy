@@ -131,6 +131,67 @@ fn without_extensions(value: &Value) -> Value {
     value
 }
 
+fn semantic_log_snapshot(proxy: &DraftProxy) -> Value {
+    let mut log = log_snapshot(proxy);
+    for entry in log["entries"]
+        .as_array_mut()
+        .expect("mutation log entries should be an array")
+    {
+        let object = entry
+            .as_object_mut()
+            .expect("mutation log entries should be objects");
+        object.remove("query");
+        object.remove("rawBody");
+    }
+    log
+}
+
+fn read_selection_invariant_order(proxy: &mut DraftProxy, id: Value) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+            query ReadSelectionInvariantOrder($id: ID!) {
+              order(id: $id) {
+                id
+                name
+                displayFinancialStatus
+                currentTotalPriceSet {
+                  shopMoney { amount currencyCode }
+                  presentmentMoney { amount currencyCode }
+                }
+                totalRefundedSet {
+                  shopMoney { amount currencyCode }
+                  presentmentMoney { amount currencyCode }
+                }
+                paymentTerms { id }
+                lineItems(first: 10) {
+                  nodes {
+                    id
+                    title
+                    quantity
+                    currentQuantity
+                    originalUnitPriceSet {
+                      shopMoney { amount currencyCode }
+                      presentmentMoney { amount currencyCode }
+                    }
+                  }
+                }
+                refunds {
+                  id
+                  totalRefundedSet {
+                    shopMoney { amount currencyCode }
+                    presentmentMoney { amount currencyCode }
+                  }
+                }
+              }
+            }
+            "#,
+            json!({ "id": id }),
+        ))
+        .body["data"]["order"]
+        .clone()
+}
+
 fn assert_draft_order_variant_catalog_line(line: &Value, quantity: i64, currency_code: &str) {
     assert_eq!(line["title"], json!("Catalog product title"));
     assert_eq!(line["name"], json!("Catalog product title"));
@@ -13554,11 +13615,17 @@ fn order_create_mandate_payment_preserves_existing_staged_order() {
     assert_eq!(paid_order["displayFinancialStatus"], json!("PAID"));
     assert_eq!(
         paid_order["totalOutstandingSet"]["shopMoney"],
-        json!({ "amount": "0.0", "currencyCode": "CAD" })
+        json!({
+            "amount": "0.0",
+            "currencyCode": created_order["totalOutstandingSet"]["shopMoney"]["currencyCode"]
+        })
     );
     assert_eq!(
         paid_order["totalReceivedSet"]["shopMoney"],
-        json!({ "amount": "25.0", "currencyCode": "CAD" })
+        json!({
+            "amount": "25.0",
+            "currencyCode": created_order["totalOutstandingSet"]["shopMoney"]["currencyCode"]
+        })
     );
     assert_eq!(paid_order["transactions"].as_array().unwrap().len(), 2);
     assert_eq!(paid_order["transactions"][0], authorization_transaction);
@@ -15137,7 +15204,7 @@ fn order_mark_as_paid_stages_from_stored_order_without_money_selection() {
         paid_order["totalReceivedSet"],
         json!({
             "shopMoney": { "amount": "17.01", "currencyCode": "CAD" },
-            "presentmentMoney": { "amount": "17.01", "currencyCode": "USD" }
+            "presentmentMoney": { "amount": "12.5", "currencyCode": "USD" }
         })
     );
     assert_eq!(paid_order["netPaymentSet"], paid_order["totalReceivedSet"]);
@@ -15333,6 +15400,490 @@ fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() 
         .filter(|entry| entry["interpreted"]["primaryRootField"] == "orderMarkAsPaid")
         .count();
     assert_eq!(staged_mark_as_paid_entries, 1);
+}
+
+#[test]
+fn order_create_validation_and_staging_do_not_depend_on_response_fields() {
+    let minimal_document = r#"
+        mutation CreateSelectionInvariantOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let rich_document = r#"
+        mutation CreateSelectionInvariantOrderRich($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              paymentTerms { id }
+              currentTotalPriceSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+              totalTaxSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+              totalOutstandingSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+              lineItems(first: 10) {
+                nodes {
+                  id
+                  title
+                  quantity
+                  originalUnitPriceSet {
+                    shopMoney { amount currencyCode }
+                    presentmentMoney { amount currencyCode }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let clock = Arc::new(Mutex::new(utc_time(1_783_382_400)));
+    let mut minimal_proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+    let mut rich_proxy = snapshot_proxy_with_clock(clock);
+
+    let invalid_variables = json!({ "order": { "lineItems": [] } });
+    let invalid_minimal = minimal_proxy.process_request(json_graphql_request(
+        minimal_document,
+        invalid_variables.clone(),
+    ));
+    let invalid_rich =
+        rich_proxy.process_request(json_graphql_request(rich_document, invalid_variables));
+    assert_eq!(
+        invalid_minimal.body["data"]["orderCreate"]["userErrors"],
+        invalid_rich.body["data"]["orderCreate"]["userErrors"]
+    );
+    assert_eq!(state_snapshot(&minimal_proxy), state_snapshot(&rich_proxy));
+    assert_eq!(
+        semantic_log_snapshot(&minimal_proxy),
+        semantic_log_snapshot(&rich_proxy)
+    );
+
+    let variables = json!({
+        "order": {
+            "email": "selection-invariant-order@example.test",
+            "currency": "CAD",
+            "presentmentCurrency": "USD",
+            "lineItems": [{
+                "title": "Selection invariant line",
+                "quantity": 1,
+                "priceSet": {
+                    "shopMoney": { "amount": "12.00", "currencyCode": "CAD" },
+                    "presentmentMoney": { "amount": "8.00", "currencyCode": "USD" }
+                },
+                "taxLines": [{
+                    "title": "Selection invariant tax",
+                    "rate": 0.125,
+                    "priceSet": {
+                        "shopMoney": { "amount": "1.50", "currencyCode": "CAD" },
+                        "presentmentMoney": { "amount": "1.00", "currencyCode": "USD" }
+                    }
+                }]
+            }]
+        }
+    });
+    let minimal =
+        minimal_proxy.process_request(json_graphql_request(minimal_document, variables.clone()));
+    let rich = rich_proxy.process_request(json_graphql_request(rich_document, variables));
+    assert_eq!(
+        minimal.body["data"]["orderCreate"]["userErrors"],
+        rich.body["data"]["orderCreate"]["userErrors"]
+    );
+    assert_eq!(state_snapshot(&minimal_proxy), state_snapshot(&rich_proxy));
+    assert_eq!(
+        semantic_log_snapshot(&minimal_proxy),
+        semantic_log_snapshot(&rich_proxy)
+    );
+
+    let minimal_id = minimal.body["data"]["orderCreate"]["order"]["id"].clone();
+    let rich_id = rich.body["data"]["orderCreate"]["order"]["id"].clone();
+    assert_eq!(minimal_id, rich_id);
+    assert_eq!(
+        read_selection_invariant_order(&mut minimal_proxy, minimal_id),
+        read_selection_invariant_order(&mut rich_proxy, rich_id)
+    );
+    assert_eq!(
+        rich.body["data"]["orderCreate"]["order"]["currentTotalPriceSet"],
+        json!({
+            "shopMoney": { "amount": "13.5", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "9.0", "currencyCode": "USD" }
+        })
+    );
+    assert_eq!(
+        rich.body["data"]["orderCreate"]["order"]["paymentTerms"],
+        Value::Null
+    );
+}
+
+#[test]
+fn refund_create_staging_does_not_depend_on_money_bag_response_fields() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_382_400)));
+    let mut minimal_proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+    let mut rich_proxy = snapshot_proxy_with_clock(clock);
+    let create_document = r#"
+        mutation CreateRefundSelectionInvariantOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let create_variables = json!({
+        "order": {
+            "currency": "CAD",
+            "presentmentCurrency": "USD",
+            "lineItems": [{
+                "title": "Refund selection invariant line",
+                "quantity": 1,
+                "priceSet": {
+                    "shopMoney": { "amount": "12.00", "currencyCode": "CAD" },
+                    "presentmentMoney": { "amount": "8.00", "currencyCode": "USD" }
+                }
+            }]
+        }
+    });
+    let minimal_create = minimal_proxy.process_request(json_graphql_request(
+        create_document,
+        create_variables.clone(),
+    ));
+    let rich_create =
+        rich_proxy.process_request(json_graphql_request(create_document, create_variables));
+    let minimal_id = minimal_create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let rich_id = rich_create.body["data"]["orderCreate"]["order"]["id"].clone();
+    assert_eq!(minimal_id, rich_id);
+
+    let minimal_document = r#"
+        mutation RefundSelectionInvariantOrder($input: RefundInput!) {
+          refundCreate(input: $input) {
+            refund { id }
+            order { id }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let rich_document = r#"
+        mutation RefundSelectionInvariantOrderRich($input: RefundInput!) {
+          refundCreate(input: $input) {
+            refund {
+              totalRefundedSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+            }
+            order {
+              totalRefundedSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let refund_variables = |order_id: Value| {
+        json!({
+            "input": {
+                "orderId": order_id.clone(),
+                "currency": "USD",
+                "allowOverRefunding": true,
+                "transactions": [{
+                    "amount": "5.00",
+                    "gateway": "manual",
+                    "kind": "REFUND",
+                    "orderId": order_id
+                }]
+            }
+        })
+    };
+    let minimal = minimal_proxy.process_request(json_graphql_request(
+        minimal_document,
+        refund_variables(minimal_id.clone()),
+    ));
+    let rich = rich_proxy.process_request(json_graphql_request(
+        rich_document,
+        refund_variables(rich_id.clone()),
+    ));
+    assert_eq!(
+        minimal.body["data"]["refundCreate"]["userErrors"],
+        rich.body["data"]["refundCreate"]["userErrors"]
+    );
+    assert_eq!(state_snapshot(&minimal_proxy), state_snapshot(&rich_proxy));
+    assert_eq!(
+        semantic_log_snapshot(&minimal_proxy),
+        semantic_log_snapshot(&rich_proxy)
+    );
+    assert_eq!(
+        read_selection_invariant_order(&mut minimal_proxy, minimal_id),
+        read_selection_invariant_order(&mut rich_proxy, rich_id)
+    );
+}
+
+#[test]
+fn order_edit_begin_and_noop_commit_do_not_depend_on_money_bag_response_fields() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_382_400)));
+    let mut minimal_proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+    let mut rich_proxy = snapshot_proxy_with_clock(clock);
+    let create_document = r#"
+        mutation CreateEditSelectionInvariantOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let create_variables = json!({
+        "order": {
+            "currency": "CAD",
+            "presentmentCurrency": "USD",
+            "lineItems": [{
+                "title": "Edit selection invariant line",
+                "quantity": 1,
+                "priceSet": {
+                    "shopMoney": { "amount": "12.00", "currencyCode": "CAD" },
+                    "presentmentMoney": { "amount": "8.00", "currencyCode": "USD" }
+                }
+            }]
+        }
+    });
+    let minimal_create = minimal_proxy.process_request(json_graphql_request(
+        create_document,
+        create_variables.clone(),
+    ));
+    let rich_create =
+        rich_proxy.process_request(json_graphql_request(create_document, create_variables));
+    let minimal_order_id = minimal_create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let rich_order_id = rich_create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let minimal_begin_document = r#"
+        mutation BeginSelectionInvariantOrderEdit($id: ID!) {
+          orderEditBegin(id: $id) {
+            calculatedOrder { id originalOrder { id } }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let rich_begin_document = r#"
+        mutation BeginSelectionInvariantOrderEditRich($id: ID!) {
+          orderEditBegin(id: $id) {
+            calculatedOrder {
+              id
+              originalOrder { id }
+              totalPriceSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let minimal_begin = minimal_proxy.process_request(json_graphql_request(
+        minimal_begin_document,
+        json!({ "id": minimal_order_id.clone() }),
+    ));
+    let rich_begin = rich_proxy.process_request(json_graphql_request(
+        rich_begin_document,
+        json!({ "id": rich_order_id.clone() }),
+    ));
+    assert_eq!(
+        minimal_begin.body["data"]["orderEditBegin"]["userErrors"],
+        rich_begin.body["data"]["orderEditBegin"]["userErrors"]
+    );
+    assert_eq!(state_snapshot(&minimal_proxy), state_snapshot(&rich_proxy));
+    assert_eq!(
+        semantic_log_snapshot(&minimal_proxy),
+        semantic_log_snapshot(&rich_proxy)
+    );
+
+    let minimal_calculated_id =
+        minimal_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+    let rich_calculated_id =
+        rich_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+    assert_eq!(minimal_calculated_id, rich_calculated_id);
+    let minimal_commit = minimal_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CommitSelectionInvariantOrderEdit($id: ID!) {
+          orderEditCommit(id: $id, notifyCustomer: false) {
+            order { id }
+            successMessages
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": minimal_calculated_id }),
+    ));
+    let rich_commit = rich_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CommitSelectionInvariantOrderEditRich($id: ID!) {
+          orderEditCommit(id: $id, notifyCustomer: false) {
+            order {
+              id
+              currentTotalPriceSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+            }
+            successMessages
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": rich_calculated_id }),
+    ));
+    assert_eq!(
+        minimal_commit.body["data"]["orderEditCommit"]["userErrors"],
+        json!([{
+            "field": ["id"],
+            "message": "There must be at least one change to be made."
+        }])
+    );
+    assert_eq!(
+        minimal_commit.body["data"]["orderEditCommit"]["userErrors"],
+        rich_commit.body["data"]["orderEditCommit"]["userErrors"]
+    );
+    assert_eq!(state_snapshot(&minimal_proxy), state_snapshot(&rich_proxy));
+    assert_eq!(
+        semantic_log_snapshot(&minimal_proxy),
+        semantic_log_snapshot(&rich_proxy)
+    );
+    assert_eq!(
+        read_selection_invariant_order(&mut minimal_proxy, minimal_order_id),
+        read_selection_invariant_order(&mut rich_proxy, rich_order_id)
+    );
+}
+
+#[test]
+fn changed_order_edit_commit_does_not_depend_on_presentment_response_fields() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_382_400)));
+    let mut minimal_proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+    let mut rich_proxy = snapshot_proxy_with_clock(clock);
+    let create_document = r#"
+        mutation CreateChangedEditSelectionInvariantOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let create_variables = json!({
+        "order": {
+            "currency": "USD",
+            "lineItems": [{
+                "title": "Changed edit selection invariant line",
+                "quantity": 2,
+                "priceSet": {
+                    "shopMoney": { "amount": "12.00", "currencyCode": "USD" }
+                }
+            }]
+        }
+    });
+    let minimal_create = minimal_proxy.process_request(json_graphql_request(
+        create_document,
+        create_variables.clone(),
+    ));
+    let rich_create =
+        rich_proxy.process_request(json_graphql_request(create_document, create_variables));
+    let minimal_order_id = minimal_create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let rich_order_id = rich_create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let begin_document = r#"
+        mutation BeginChangedEditSelectionInvariantOrder($id: ID!) {
+          orderEditBegin(id: $id) {
+            calculatedOrder { id lineItems(first: 1) { nodes { id } } }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let minimal_begin = minimal_proxy.process_request(json_graphql_request(
+        begin_document,
+        json!({ "id": minimal_order_id.clone() }),
+    ));
+    let rich_begin = rich_proxy.process_request(json_graphql_request(
+        begin_document,
+        json!({ "id": rich_order_id.clone() }),
+    ));
+    let minimal_calculated_id =
+        minimal_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+    let rich_calculated_id =
+        rich_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+    let minimal_line_id = minimal_begin.body["data"]["orderEditBegin"]["calculatedOrder"]
+        ["lineItems"]["nodes"][0]["id"]
+        .clone();
+    let rich_line_id = rich_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["lineItems"]
+        ["nodes"][0]["id"]
+        .clone();
+    let set_quantity_document = r#"
+        mutation ChangeSelectionInvariantOrderEdit($id: ID!, $lineItemId: ID!) {
+          orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: 1) {
+            calculatedOrder { id }
+            calculatedLineItem { id quantity }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let minimal_change = minimal_proxy.process_request(json_graphql_request(
+        set_quantity_document,
+        json!({ "id": minimal_calculated_id.clone(), "lineItemId": minimal_line_id }),
+    ));
+    let rich_change = rich_proxy.process_request(json_graphql_request(
+        set_quantity_document,
+        json!({ "id": rich_calculated_id.clone(), "lineItemId": rich_line_id }),
+    ));
+    assert_eq!(
+        minimal_change.body["data"]["orderEditSetQuantity"]["userErrors"],
+        rich_change.body["data"]["orderEditSetQuantity"]["userErrors"]
+    );
+
+    let minimal_commit = minimal_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CommitChangedSelectionInvariantOrderEdit($id: ID!) {
+          orderEditCommit(id: $id, notifyCustomer: false) {
+            order { id currentTotalPriceSet { shopMoney { amount currencyCode } } }
+            successMessages
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": minimal_calculated_id }),
+    ));
+    let rich_commit = rich_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CommitChangedSelectionInvariantOrderEditRich($id: ID!) {
+          orderEditCommit(id: $id, notifyCustomer: false) {
+            order {
+              id
+              currentTotalPriceSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+            }
+            successMessages
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": rich_calculated_id }),
+    ));
+    assert_eq!(
+        minimal_commit.body["data"]["orderEditCommit"]["userErrors"],
+        rich_commit.body["data"]["orderEditCommit"]["userErrors"]
+    );
+    assert_eq!(state_snapshot(&minimal_proxy), state_snapshot(&rich_proxy));
+    assert_eq!(
+        semantic_log_snapshot(&minimal_proxy),
+        semantic_log_snapshot(&rich_proxy)
+    );
+    assert_eq!(
+        read_selection_invariant_order(&mut minimal_proxy, minimal_order_id),
+        read_selection_invariant_order(&mut rich_proxy, rich_order_id)
+    );
 }
 
 #[test]
@@ -19043,6 +19594,30 @@ fn order_edit_commit_success_messages_reflect_notify_customer_and_balance() {
         let calculated_order_id =
             begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
 
+        let add = proxy.process_request(json_graphql_request(
+            r#"
+            mutation AddZeroPricedItemForSuccessMessages($id: ID!, $price: MoneyInput!) {
+              orderEditAddCustomItem(
+                id: $id
+                title: "Success message edit marker"
+                quantity: 1
+                price: $price
+              ) {
+                calculatedLineItem { id }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "id": calculated_order_id.clone(),
+                "price": { "amount": "0.00", "currencyCode": "USD" }
+            }),
+        ));
+        assert_eq!(
+            add.body["data"]["orderEditAddCustomItem"]["userErrors"],
+            json!([])
+        );
+
         let commit = match notify_customer {
             Some(notify_customer) => proxy.process_request(json_graphql_request(
                 r#"
@@ -19225,6 +19800,30 @@ fn order_edit_commit_success_messages_include_unarchived_before_notify_message()
         json!([])
     );
     let calculated_order_id = begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddZeroPricedItemBeforeUnarchiveCommit($id: ID!, $price: MoneyInput!) {
+          orderEditAddCustomItem(
+            id: $id
+            title: "Unarchive edit marker"
+            quantity: 1
+            price: $price
+          ) {
+            calculatedLineItem { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": calculated_order_id.clone(),
+            "price": { "amount": "0.00", "currencyCode": "USD" }
+        }),
+    ));
+    assert_eq!(
+        add.body["data"]["orderEditAddCustomItem"]["userErrors"],
+        json!([])
+    );
 
     let commit = proxy.process_request(json_graphql_request(
         r#"
