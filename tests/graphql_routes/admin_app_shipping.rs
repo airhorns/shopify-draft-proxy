@@ -13489,7 +13489,9 @@ fn location_local_pickup_enable_disable_stage_settings_and_downstream_reads() {
 
 #[test]
 fn location_local_pickup_enable_validates_pickup_time_and_location_status() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy().with_upstream_transport(|_| {
+        panic!("snapshot local-pickup validation must not call upstream")
+    });
     let add = proxy.process_request(json_graphql_request(
         r#"
         mutation SeedPickupLocation($input: LocationAddInput!) {
@@ -13716,6 +13718,293 @@ fn location_local_pickup_live_hybrid_mutations_are_local_and_overlay_observed_re
         json!({ "pickupTime": "TWO_HOURS", "instructions": "Desk pickup" })
     );
     assert_eq!(forwarded.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn location_local_pickup_cold_mutations_hydrate_each_target_with_caller_context() {
+    let enable_location_id = "gid://shopify/Location/cold-pickup-enable";
+    let enable_calls = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_enable_calls = Arc::clone(&enable_calls);
+    let mut enable_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_enable_calls.lock().unwrap().push(request.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "location": {
+                            "id": enable_location_id,
+                            "name": "Cold pickup enable",
+                            "isActive": true,
+                            "isFulfillmentService": true,
+                            "localPickupSettingsV2": null
+                        }
+                    }
+                }),
+            }
+        });
+    let enable_query = r#"
+        mutation ColdPickupEnable($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {
+          locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {
+            localPickupSettings { pickupTime instructions }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let mut enable_request = json_graphql_request(
+        enable_query,
+        json!({
+            "localPickupSettings": {
+                "locationId": enable_location_id,
+                "pickupTime": "TWO_HOURS",
+                "instructions": "Cold enable"
+            }
+        }),
+    );
+    enable_request.path = "/admin/api/2025-10/graphql.json".to_string();
+    enable_request.headers.insert(
+        "X-Shopify-Access-Token".to_string(),
+        "pickup-caller-token".to_string(),
+    );
+    let enable = enable_proxy.process_request(enable_request);
+    assert_eq!(
+        enable.body["data"]["locationLocalPickupEnable"],
+        json!({
+            "localPickupSettings": {
+                "pickupTime": "TWO_HOURS",
+                "instructions": "Cold enable"
+            },
+            "userErrors": []
+        })
+    );
+    let enable_read = enable_proxy.process_request(json_graphql_request(
+        r#"
+        query ColdPickupEnableRead($id: ID!) {
+          location(id: $id) {
+            id
+            name
+            isFulfillmentService
+            localPickupSettingsV2 { pickupTime instructions }
+          }
+        }
+        "#,
+        json!({ "id": enable_location_id }),
+    ));
+    assert_eq!(
+        enable_read.body["data"]["location"],
+        json!({
+            "id": enable_location_id,
+            "name": "Cold pickup enable",
+            "isFulfillmentService": true,
+            "localPickupSettingsV2": {
+                "pickupTime": "TWO_HOURS",
+                "instructions": "Cold enable"
+            }
+        })
+    );
+    let enable_calls = enable_calls.lock().unwrap();
+    assert_eq!(enable_calls.len(), 1);
+    assert_eq!(enable_calls[0].method, "POST");
+    assert_eq!(enable_calls[0].path, "/admin/api/2025-10/graphql.json");
+    assert_eq!(
+        enable_calls[0].headers.get("X-Shopify-Access-Token"),
+        Some(&"pickup-caller-token".to_string())
+    );
+    let enable_hydrate: Value = serde_json::from_str(&enable_calls[0].body).unwrap();
+    assert_eq!(
+        enable_hydrate["variables"],
+        json!({ "id": enable_location_id })
+    );
+    assert!(enable_hydrate["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query ")));
+    drop(enable_calls);
+
+    let disable_location_id = "gid://shopify/Location/cold-pickup-disable";
+    let disable_calls = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_disable_calls = Arc::clone(&disable_calls);
+    let mut disable_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_disable_calls.lock().unwrap().push(request.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "location": {
+                            "id": disable_location_id,
+                            "name": "Cold pickup disable",
+                            "isActive": true,
+                            "isFulfillmentService": true,
+                            "localPickupSettingsV2": {
+                                "pickupTime": "ONE_HOUR",
+                                "instructions": "Before disable"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+    let disable_query = r#"
+        mutation ColdPickupDisable($locationId: ID!) {
+          locationLocalPickupDisable(locationId: $locationId) {
+            locationId
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let mut disable_request =
+        json_graphql_request(disable_query, json!({ "locationId": disable_location_id }));
+    disable_request.path = "/admin/api/2025-10/graphql.json".to_string();
+    disable_request.headers.insert(
+        "X-Shopify-Access-Token".to_string(),
+        "pickup-caller-token".to_string(),
+    );
+    let disable = disable_proxy.process_request(disable_request);
+    assert_eq!(
+        disable.body["data"]["locationLocalPickupDisable"],
+        json!({ "locationId": disable_location_id, "userErrors": [] })
+    );
+    let disable_read = disable_proxy.process_request(json_graphql_request(
+        r#"
+        query ColdPickupDisableRead($id: ID!) {
+          location(id: $id) { id name isFulfillmentService localPickupSettingsV2 { pickupTime instructions } }
+        }
+        "#,
+        json!({ "id": disable_location_id }),
+    ));
+    assert_eq!(
+        disable_read.body["data"]["location"],
+        json!({
+            "id": disable_location_id,
+            "name": "Cold pickup disable",
+            "isFulfillmentService": true,
+            "localPickupSettingsV2": null
+        })
+    );
+    let disable_calls = disable_calls.lock().unwrap();
+    assert_eq!(disable_calls.len(), 1);
+    assert_eq!(disable_calls[0].path, "/admin/api/2025-10/graphql.json");
+    assert_eq!(
+        disable_calls[0].headers.get("X-Shopify-Access-Token"),
+        Some(&"pickup-caller-token".to_string())
+    );
+    let disable_hydrate: Value = serde_json::from_str(&disable_calls[0].body).unwrap();
+    assert_eq!(
+        disable_hydrate["variables"],
+        json!({ "id": disable_location_id })
+    );
+    assert!(disable_hydrate["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query ")));
+}
+
+#[test]
+fn location_local_pickup_cold_evidence_distinguishes_missing_inactive_and_unresolved() {
+    let missing_id = "gid://shopify/Location/cold-pickup-missing";
+    let inactive_id = "gid://shopify/Location/cold-pickup-inactive";
+    let unresolved_id = "gid://shopify/Location/cold-pickup-unresolved";
+    let graphql_error_id = "gid://shopify/Location/cold-pickup-graphql-error";
+    let calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap();
+            captured_calls.lock().unwrap().push(body.clone());
+            match body["variables"]["id"].as_str() {
+                Some(id) if id == missing_id => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "location": null } }),
+                },
+                Some(id) if id == inactive_id => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "location": {
+                                "id": inactive_id,
+                                "name": "Inactive pickup location",
+                                "isActive": false,
+                                "isFulfillmentService": false,
+                                "localPickupSettingsV2": null
+                            }
+                        }
+                    }),
+                },
+                Some(id) if id == unresolved_id => Response {
+                    status: 503,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "hydration unavailable" }] }),
+                },
+                Some(id) if id == graphql_error_id => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": { "location": null },
+                        "errors": [{ "message": "location lookup failed" }]
+                    }),
+                },
+                _ => Response {
+                    status: 599,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "unexpected hydration request" }] }),
+                },
+            }
+        });
+    let query = r#"
+        mutation ColdPickupEvidence($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {
+          locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {
+            localPickupSettings { pickupTime instructions }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    for id in [missing_id, inactive_id] {
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            json!({
+                "localPickupSettings": {
+                    "locationId": id,
+                    "pickupTime": "ONE_HOUR"
+                }
+            }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["locationLocalPickupEnable"]["userErrors"][0]["code"],
+            json!("ACTIVE_LOCATION_NOT_FOUND")
+        );
+    }
+    let unresolved = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "localPickupSettings": {
+                "locationId": unresolved_id,
+                "pickupTime": "ONE_HOUR"
+            }
+        }),
+    ));
+    assert_eq!(unresolved.status, 503);
+    assert!(unresolved.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("hydrate location validation target")));
+    let graphql_error = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "localPickupSettings": {
+                "locationId": graphql_error_id,
+                "pickupTime": "ONE_HOUR"
+            }
+        }),
+    ));
+    assert_eq!(graphql_error.status, 502);
+    assert!(graphql_error.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("hydrate location validation target")));
+    assert_eq!(calls.lock().unwrap().len(), 4);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]

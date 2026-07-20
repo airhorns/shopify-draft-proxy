@@ -1,7 +1,7 @@
 use super::*;
 
 impl DraftProxy {
-    pub(super) fn effective_inventory_level(
+    pub(in crate::proxy) fn effective_inventory_level(
         &self,
         key: &(String, String),
     ) -> Option<&BTreeMap<String, i64>> {
@@ -12,7 +12,7 @@ impl DraftProxy {
             .or_else(|| self.store.base.inventory_levels.get(key))
     }
 
-    pub(super) fn stage_inventory_level_for_write(&mut self, key: &(String, String)) {
+    pub(in crate::proxy) fn stage_inventory_level_for_write(&mut self, key: &(String, String)) {
         if self.store.staged.inventory_levels.contains_key(key) {
             return;
         }
@@ -29,7 +29,7 @@ impl DraftProxy {
             .or_else(|| self.store.base.inventory_level_ids.get(key))
     }
 
-    pub(super) fn inventory_level_is_active(&self, key: &(String, String)) -> bool {
+    pub(in crate::proxy) fn inventory_level_is_active(&self, key: &(String, String)) -> bool {
         if self.store.staged.active_inventory_levels.contains(key) {
             return true;
         }
@@ -1471,7 +1471,7 @@ impl DraftProxy {
         variant
     }
 
-    fn active_inventory_levels_for_item(
+    pub(in crate::proxy) fn active_inventory_levels_for_item(
         &self,
         inventory_item_id: &str,
     ) -> Vec<(String, BTreeMap<String, i64>)> {

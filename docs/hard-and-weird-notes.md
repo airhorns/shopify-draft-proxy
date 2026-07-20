@@ -2723,6 +2723,22 @@ Practical rule for the proxy:
 - require a valid active destination location before locally deactivating a stocked location, then move effective inventory levels to that destination
 - compute `locationDelete` guard userErrors from the effective local `Location` record and tombstone only successful deletes so downstream location and inventory-level reads stop exposing the deleted location while meta/log state retains the staged mutation evidence
 
+Cold 2026-04 mutation captures add an important evidence distinction. A
+`locationDeactivate` destination lookup that returned a real inactive Location
+produced `DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE`, while a successful
+`location(id:)` lookup returning `null` produced
+`DESTINATION_LOCATION_NOT_SHOPIFY_MANAGED`. Query transport or GraphQL failure
+does not prove either state. Local-pickup captures likewise show that
+mutation-first enable and disable must hydrate the submitted Location before
+returning `ACTIVE_LOCATION_NOT_FOUND`; an active fulfillment-service-managed
+Location remained eligible in the captured pickup flow.
+
+Practical rule: keep each submitted Location target in an independent found,
+confirmed-missing, or unresolved evidence state. Only a successful Shopify
+lookup may select a missing/inactive userError branch, and successful staging
+must merge over the hydrated record rather than replace its authoritative name
+or management fields.
+
 ### 47b. `location` detail reads should reuse the effective inventory graph
 
 HAR-168 promoted the first Store properties location detail read slice from scaffold to runtime support.

@@ -116,6 +116,9 @@ const localPickupReadQuery = `#graphql
   }
 `;
 
+const localPickupHydrateQuery =
+  'query ShippingLocationLocalPickupHydrate($id: ID!) { location(id: $id) { id name isActive isFulfillmentService localPickupSettingsV2 { pickupTime instructions } } }';
+
 const localPickupEnableMutation = `#graphql
   mutation ShippingLocalPickupEnable($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {
     locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {
@@ -236,6 +239,7 @@ if (!targetLocationId) {
 }
 
 const beforePickupRead = await runGraphqlCapture(localPickupReadQuery, { locationId: targetLocationId });
+const beforePickupEnableHydrate = await runGraphqlCapture(localPickupHydrateQuery, { id: targetLocationId });
 const beforePickupSettings = readRecord(
   readPath(capturePayload(beforePickupRead), ['data', 'location', 'localPickupSettingsV2']),
 );
@@ -256,6 +260,7 @@ const enableVariables = {
 };
 const enable = await runGraphqlCapture(localPickupEnableMutation, enableVariables);
 const afterEnableRead = await runGraphqlCapture(localPickupReadQuery, { locationId: targetLocationId });
+const beforePickupDisableHydrate = await runGraphqlCapture(localPickupHydrateQuery, { id: targetLocationId });
 const disable = await runGraphqlCapture(localPickupDisableMutation, { locationId: targetLocationId });
 const afterDisableRead = await runGraphqlCapture(localPickupReadQuery, { locationId: targetLocationId });
 
@@ -275,7 +280,13 @@ const unknownLocationVariables = {
     pickupTime: 'ONE_HOUR',
   },
 };
+const unknownLocationEnableHydrate = await runGraphqlCapture(localPickupHydrateQuery, {
+  id: unknownLocationVariables.localPickupSettings.locationId,
+});
 const unknownLocationEnable = await runGraphqlCapture(localPickupEnableMutation, unknownLocationVariables);
+const unknownLocationDisableHydrate = await runGraphqlCapture(localPickupHydrateQuery, {
+  id: unknownLocationVariables.localPickupSettings.locationId,
+});
 const unknownLocationDisable = await runGraphqlCapture(localPickupDisableMutation, {
   locationId: 'gid://shopify/Location/999999999999',
 });
@@ -339,16 +350,6 @@ const shippingPackageHydrateHardcodedDelete = await runGraphqlCapture(shippingPa
 const fulfillmentConstraintReadBlocker = await runGraphqlCapture(fulfillmentConstraintRulesQuery);
 const fulfillmentConstraintWriteBlocker = await runGraphqlCapture(fulfillmentConstraintRuleCreateMutation);
 
-const seedCarrierServices = readArray(readPath(availabilityPayload, ['data', 'availableCarrierServices']))
-  .map((entry) => readRecord(readRecord(entry)?.['carrierService']))
-  .filter((service): service is Record<string, unknown> => service !== null);
-const seedLocations = locationNodes.map((location) => ({
-  ...location,
-  isActive: true,
-  isFulfillmentService: false,
-  localPickupSettings: readRecord(location['localPickupSettingsV2']),
-}));
-
 const capture = {
   capturedAt: new Date().toISOString(),
   storeDomain,
@@ -370,19 +371,19 @@ const capture = {
     write:
       'Access denied for fulfillmentConstraintRuleCreate/Update/Delete fields. Required access: `write_fulfillment_constraint_rules` access scope.',
   },
-  seed: {
-    carrierServices: seedCarrierServices,
-    locations: seedLocations,
-  },
   captures: {
     availability,
     beforePickupRead,
+    beforePickupEnableHydrate,
     customPickupTimeEnable,
     enable,
     afterEnableRead,
+    beforePickupDisableHydrate,
     disable,
     afterDisableRead,
+    unknownLocationEnableHydrate,
     unknownLocationEnable,
+    unknownLocationDisableHydrate,
     unknownLocationDisable,
     shippingPackageUpdateUnknown,
     shippingPackageMakeDefaultUnknown,
@@ -394,6 +395,10 @@ const capture = {
     fulfillmentConstraintWriteBlocker,
   },
   upstreamCalls: [
+    beforePickupEnableHydrate,
+    beforePickupDisableHydrate,
+    unknownLocationEnableHydrate,
+    unknownLocationDisableHydrate,
     shippingPackageHydrateUnknownUpdate,
     shippingPackageHydrateUnknownMakeDefault,
     shippingPackageHydrateUnknownDelete,
@@ -401,7 +406,8 @@ const capture = {
     shippingPackageHydrateHardcodedMakeDefault,
     shippingPackageHydrateHardcodedDelete,
   ].map((capture) => ({
-    operationName: 'ShippingPackageHydrate',
+    operationName:
+      capture.query === localPickupHydrateQuery ? 'ShippingLocationLocalPickupHydrate' : 'ShippingPackageHydrate',
     variables: capture.variables,
     query: capture.query,
     response: {

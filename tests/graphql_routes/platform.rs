@@ -6160,6 +6160,245 @@ fn location_deactivate_hydrates_fixture_gid_instead_of_using_fixture_table() {
 }
 
 #[test]
+fn location_deactivate_cold_source_and_destination_hydrate_independently() {
+    let source_id = "gid://shopify/Location/cold-deactivate-source";
+    let destination_id = "gid://shopify/Location/cold-deactivate-destination";
+    let calls = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_calls = Arc::clone(&calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(request.clone());
+            let location = match body["variables"]["id"].as_str() {
+                Some(id) if id == source_id => json!({
+                    "id": source_id,
+                    "name": "Cold source",
+                    "isActive": true,
+                    "activatable": true,
+                    "deactivatable": true,
+                    "deletable": false,
+                    "fulfillsOnlineOrders": false,
+                    "hasActiveInventory": false,
+                    "hasUnfulfilledOrders": false,
+                    "isFulfillmentService": false,
+                    "isPrimary": false,
+                    "shipsInventory": true,
+                    "address": { "city": "Boston", "countryCode": "US" },
+                    "localPickupSettingsV2": null
+                }),
+                Some(id) if id == destination_id => json!({
+                    "id": destination_id,
+                    "name": "Cold destination",
+                    "isActive": true,
+                    "activatable": true,
+                    "deactivatable": true,
+                    "deletable": false,
+                    "fulfillsOnlineOrders": false,
+                    "hasActiveInventory": false,
+                    "hasUnfulfilledOrders": false,
+                    "isFulfillmentService": false,
+                    "isPrimary": false,
+                    "shipsInventory": true,
+                    "address": { "city": "Chicago", "countryCode": "US" },
+                    "localPickupSettingsV2": null
+                }),
+                _ => Value::Null,
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "location": location } }),
+            }
+        });
+    let mutation_query = r#"
+        mutation ColdLocationDeactivate($source: ID!, $destination: ID!) {
+          locationDeactivate(locationId: $source, destinationLocationId: $destination) {
+            location { id name isActive address { city countryCode } }
+            locationDeactivateUserErrors { field message code }
+          }
+        }
+    "#;
+    let mut mutation_request = json_graphql_request(
+        mutation_query,
+        json!({ "source": source_id, "destination": destination_id }),
+    );
+    mutation_request.path = "/admin/api/2025-10/graphql.json".to_string();
+    mutation_request.headers.insert(
+        "X-Shopify-Access-Token".to_string(),
+        "deactivate-caller-token".to_string(),
+    );
+    let deactivate = proxy.process_request(mutation_request);
+    assert_eq!(
+        deactivate.body["data"]["locationDeactivate"],
+        json!({
+            "location": {
+                "id": source_id,
+                "name": "Cold source",
+                "isActive": false,
+                "address": { "city": "Boston", "countryCode": "US" }
+            },
+            "locationDeactivateUserErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdLocationDeactivateRead($source: ID!, $destination: ID!) {
+          source: location(id: $source) { id name isActive address { city } }
+          destination: location(id: $destination) { id name isActive address { city } }
+        }
+        "#,
+        json!({ "source": source_id, "destination": destination_id }),
+    ));
+    assert_eq!(
+        read.body["data"],
+        json!({
+            "source": {
+                "id": source_id,
+                "name": "Cold source",
+                "isActive": false,
+                "address": { "city": "Boston" }
+            },
+            "destination": {
+                "id": destination_id,
+                "name": "Cold destination",
+                "isActive": true,
+                "address": { "city": "Chicago" }
+            }
+        })
+    );
+    let calls = calls.lock().unwrap();
+    assert_eq!(
+        calls.len(),
+        2,
+        "source and destination should each hydrate once"
+    );
+    for (call, id) in calls.iter().zip([source_id, destination_id]) {
+        assert_eq!(call.method, "POST");
+        assert_eq!(call.path, "/admin/api/2025-10/graphql.json");
+        assert_eq!(
+            call.headers.get("X-Shopify-Access-Token"),
+            Some(&"deactivate-caller-token".to_string())
+        );
+        let body: Value = serde_json::from_str(&call.body).unwrap();
+        assert_eq!(body["variables"], json!({ "id": id }));
+        assert!(body["query"]
+            .as_str()
+            .is_some_and(|query| query.trim_start().starts_with("query ")));
+    }
+    drop(calls);
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    let raw_body: Value =
+        serde_json::from_str(log["entries"][0]["rawBody"].as_str().unwrap()).unwrap();
+    assert_eq!(raw_body["query"], json!(mutation_query));
+}
+
+#[test]
+fn location_deactivate_cold_destination_evidence_distinguishes_inactive_missing_and_unresolved() {
+    let source_id = "gid://shopify/Location/cold-evidence-source";
+    let destination_id = "gid://shopify/Location/cold-evidence-destination";
+    for (destination_response, expected_status, expected_code) in [
+        (
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "location": {
+                            "id": destination_id,
+                            "name": "Inactive destination",
+                            "isActive": false,
+                            "isFulfillmentService": false
+                        }
+                    }
+                }),
+            },
+            200,
+            Some("DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE"),
+        ),
+        (
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "location": null } }),
+            },
+            200,
+            Some("DESTINATION_LOCATION_NOT_SHOPIFY_MANAGED"),
+        ),
+        (
+            Response {
+                status: 503,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "hydration unavailable" }] }),
+            },
+            503,
+            None,
+        ),
+    ] {
+        let calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let captured_calls = Arc::clone(&calls);
+        let destination_response = destination_response.clone();
+        let mut proxy =
+            configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+                let body = serde_json::from_str::<Value>(&request.body).unwrap();
+                captured_calls.lock().unwrap().push(body.clone());
+                if body["variables"]["id"] == source_id {
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({
+                            "data": {
+                                "location": {
+                                    "id": source_id,
+                                    "name": "Cold evidence source",
+                                    "isActive": true,
+                                    "deactivatable": true,
+                                    "deletable": false,
+                                    "fulfillsOnlineOrders": false,
+                                    "hasActiveInventory": false,
+                                    "hasUnfulfilledOrders": false,
+                                    "isFulfillmentService": false,
+                                    "isPrimary": false,
+                                    "shipsInventory": true
+                                }
+                            }
+                        }),
+                    }
+                } else {
+                    destination_response.clone()
+                }
+            });
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation ColdDestinationEvidence($source: ID!, $destination: ID!) {
+              locationDeactivate(locationId: $source, destinationLocationId: $destination)
+                @idempotent(key: "cold-destination-evidence") {
+                location { id isActive }
+                locationDeactivateUserErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "source": source_id, "destination": destination_id }),
+        ));
+        assert_eq!(response.status, expected_status);
+        if let Some(expected_code) = expected_code {
+            assert_eq!(
+                response.body["data"]["locationDeactivate"]["locationDeactivateUserErrors"][0]
+                    ["code"],
+                json!(expected_code)
+            );
+        } else {
+            assert!(response.body["errors"][0]["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("hydrate location validation target")));
+        }
+        assert_eq!(calls.lock().unwrap().len(), 2);
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    }
+}
+
+#[test]
 fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
     let product_id = "gid://shopify/Product/9102";
     let mut proxy = snapshot_proxy().with_base_products(vec![platform_inventory_base_product(
@@ -6642,7 +6881,9 @@ fn location_deactivate_recomputes_inventory_for_hydrated_base_location() {
 
 #[test]
 fn location_deactivate_with_destination_relocates_and_merges_inventory_quantities() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy().with_upstream_transport(|_| {
+        panic!("snapshot location deactivation must not call upstream")
+    });
     let source_location_id = create_location_for_platform_test(&mut proxy, "Source location");
     let destination_location_id =
         create_location_for_platform_test(&mut proxy, "Destination location");
