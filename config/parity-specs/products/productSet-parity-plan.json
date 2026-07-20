@@ -76,8 +76,8 @@
       },
       {
         "path": "$.product.onlineStorePreviewUrl",
-        "matcher": "non-empty-string",
-        "reason": "Shopify returns a store-specific signed preview URL; the proxy returns a stable synthetic local preview URL for staged local-only products."
+        "matcher": "null",
+        "reason": "Shopify returns a store- and product-specific signed preview URL. The locally staged product does not exist in Shopify, so the proxy must expose the nullable unsupported boundary instead of fabricating or copying an unusable URL."
       },
       {
         "path": "$.product.options[0].id",

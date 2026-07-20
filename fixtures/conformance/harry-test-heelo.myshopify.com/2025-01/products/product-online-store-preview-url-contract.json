@@ -1,0 +1,418 @@
+{
+  "scenarioId": "product-online-store-preview-url-contract",
+  "capturedAt": "2026-07-20T01:48:37.467Z",
+  "source": "live-shopify-admin-graphql",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "secondaryApiVersion": "2026-07",
+  "liveGatewaySideEffects": true,
+  "notes": [
+    "The configured store has Online Store preview context: extant DRAFT and ARCHIVED products returned signed shopifypreview.com URLs on both recorded Admin API versions.",
+    "Deleting the product changed the same product(id:) request to product: null on both recorded Admin API versions.",
+    "A malformed global id was rejected as a GraphQL variable error before product resolution.",
+    "The signed URL is authoritative only for the observed store/resource response; its host, preview_key, and signed _bt value are opaque capture data and are never production defaults."
+  ],
+  "create": {
+    "query": "mutation ProductOnlineStorePreviewUrlCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      status\n      publishedAt\n      onlineStorePreviewUrl\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "product": {
+        "title": "Hermes Preview URL Contract 20260720014835",
+        "status": "DRAFT"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10244028203314",
+              "status": "DRAFT",
+              "publishedAt": null,
+              "onlineStorePreviewUrl": "https://adwzshsg5sv0hlo4-92891250994.shopifypreview.com/products_preview?preview_key=75061b21c965ae0cef48bd4f2c041951&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0yMFQwMjo0ODozNi4xNjNaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--0add22eb62a84d11bdcf8fb679de790abc6742af"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "draftRead": {
+    "query": "query ProductOnlineStorePreviewUrlContract($id: ID!) {\n  product(id: $id) {\n    id\n    status\n    publishedAt\n    onlineStorePreviewUrl\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10244028203314"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10244028203314",
+            "status": "DRAFT",
+            "publishedAt": null,
+            "onlineStorePreviewUrl": "https://adwzshsg5sv0hlo4-92891250994.shopifypreview.com/products_preview?preview_key=75061b21c965ae0cef48bd4f2c041951&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0yMFQwMjo0ODozNi4zMTNaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--a7509fb458488039261d7643a8ab6be650d7fc11"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "secondaryDraftRead": {
+    "query": "query ProductOnlineStorePreviewUrlContract($id: ID!) {\n  product(id: $id) {\n    id\n    status\n    publishedAt\n    onlineStorePreviewUrl\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10244028203314"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10244028203314",
+            "status": "DRAFT",
+            "publishedAt": null,
+            "onlineStorePreviewUrl": "https://adwzshsg5sv0hlo4-92891250994.shopifypreview.com/products_preview?preview_key=75061b21c965ae0cef48bd4f2c041951&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0yMFQwMjo0ODozNi40MzBaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--3198ab4b640601d60854c2c0d0370ff53346929a"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "archive": {
+    "query": "mutation ProductOnlineStorePreviewUrlArchive($productId: ID!, $status: ProductStatus!) {\n  productChangeStatus(productId: $productId, status: $status) {\n    product {\n      id\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "productId": "gid://shopify/Product/10244028203314",
+      "status": "ARCHIVED"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productChangeStatus": {
+            "product": {
+              "id": "gid://shopify/Product/10244028203314",
+              "status": "ARCHIVED"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "archivedRead": {
+    "query": "query ProductOnlineStorePreviewUrlContract($id: ID!) {\n  product(id: $id) {\n    id\n    status\n    publishedAt\n    onlineStorePreviewUrl\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10244028203314"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10244028203314",
+            "status": "ARCHIVED",
+            "publishedAt": null,
+            "onlineStorePreviewUrl": "https://adwzshsg5sv0hlo4-92891250994.shopifypreview.com/products_preview?preview_key=75061b21c965ae0cef48bd4f2c041951&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0yMFQwMjo0ODozNi44MDhaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--6284af15599970f55bb83ddec7bd4e79c68ed63f"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "secondaryArchivedRead": {
+    "query": "query ProductOnlineStorePreviewUrlContract($id: ID!) {\n  product(id: $id) {\n    id\n    status\n    publishedAt\n    onlineStorePreviewUrl\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10244028203314"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10244028203314",
+            "status": "ARCHIVED",
+            "publishedAt": null,
+            "onlineStorePreviewUrl": "https://adwzshsg5sv0hlo4-92891250994.shopifypreview.com/products_preview?preview_key=75061b21c965ae0cef48bd4f2c041951&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0yMFQwMjo0ODozNi45MjBaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--04fe40f9ce3cfe56f9df5d37996b9a0d1dee2df5"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "delete": {
+    "query": "mutation ProductOnlineStorePreviewUrlDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Product/10244028203314"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10244028203314",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "deletedRead": {
+    "query": "query ProductOnlineStorePreviewUrlContract($id: ID!) {\n  product(id: $id) {\n    id\n    status\n    publishedAt\n    onlineStorePreviewUrl\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10244028203314"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "product": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "secondaryDeletedRead": {
+    "query": "query ProductOnlineStorePreviewUrlContract($id: ID!) {\n  product(id: $id) {\n    id\n    status\n    publishedAt\n    onlineStorePreviewUrl\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10244028203314"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "product": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "malformedIdRead": {
+    "query": "query ProductOnlineStorePreviewUrlContract($id: ID!) {\n  product(id: $id) {\n    id\n    status\n    publishedAt\n    onlineStorePreviewUrl\n  }\n}\n",
+    "variables": {
+      "id": "not-a-gid"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Variable $id of type ID! was provided invalid value",
+            "locations": [
+              {
+                "line": 1,
+                "column": 44
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": "not-a-gid",
+              "problems": [
+                {
+                  "path": [],
+                  "explanation": "Invalid global id 'not-a-gid'",
+                  "message": "Invalid global id 'not-a-gid'"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "ProductOnlineStorePreviewUrlContract",
+      "query": "query ProductOnlineStorePreviewUrlContract($id: ID!) {\n  product(id: $id) {\n    id\n    status\n    publishedAt\n    onlineStorePreviewUrl\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Product/10244028203314"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10244028203314",
+              "status": "DRAFT",
+              "publishedAt": null,
+              "onlineStorePreviewUrl": "https://adwzshsg5sv0hlo4-92891250994.shopifypreview.com/products_preview?preview_key=75061b21c965ae0cef48bd4f2c041951&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0yMFQwMjo0ODozNi4zMTNaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--a7509fb458488039261d7643a8ab6be650d7fc11"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "ProductOnlineStorePreviewUrlContract",
+      "query": "query ProductOnlineStorePreviewUrlContract($id: ID!) {\n  product(id: $id) {\n    id\n    status\n    publishedAt\n    onlineStorePreviewUrl\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Product/10244028203314"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10244028203314",
+              "status": "ARCHIVED",
+              "publishedAt": null,
+              "onlineStorePreviewUrl": "https://adwzshsg5sv0hlo4-92891250994.shopifypreview.com/products_preview?preview_key=75061b21c965ae0cef48bd4f2c041951&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0yMFQwMjo0ODozNi44MDhaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--6284af15599970f55bb83ddec7bd4e79c68ed63f"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "ProductOnlineStorePreviewUrlContract",
+      "query": "query ProductOnlineStorePreviewUrlContract($id: ID!) {\n  product(id: $id) {\n    id\n    status\n    publishedAt\n    onlineStorePreviewUrl\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Product/10244028203314"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

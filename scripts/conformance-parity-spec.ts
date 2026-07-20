@@ -45,6 +45,7 @@ function hasComparisonContract(paritySpec: ParitySpec | null | undefined): boole
 
 function isKnownMatcher(matcher: string): matcher is Matcher {
   return (
+    matcher === 'null' ||
     matcher === 'any-string' ||
     matcher === 'non-empty-string' ||
     matcher === 'jsonl-string' ||

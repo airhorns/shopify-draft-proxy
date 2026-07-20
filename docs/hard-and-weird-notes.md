@@ -4514,3 +4514,26 @@ Practical rule:
 - distinguish an authoritative null node from transport, GraphQL, or incomplete
   response failures; all failure classes must leave product/category state
   unchanged, but only the authoritative miss is proven invalid
+
+## 108. Product preview URLs are signed resource authority, not derivable links
+
+Live Admin GraphQL capture on an Online Store-enabled shop returned signed
+`shopifypreview.com/products_preview` URLs for the same extant product while it
+was DRAFT with `publishedAt: null` and after it became ARCHIVED. Admin API
+2025-01 and 2026-07 agreed on that availability boundary. After deletion, the
+same `product(id:)` query returned `product: null`; malformed global IDs failed
+at variable coercion.
+
+The URL contains opaque store/resource-specific preview and bypass material.
+It cannot be reconstructed from a product GID or safely reused for a different
+product. In particular, a staged `productDuplicate` must not inherit its
+hydrated source's URL, and a local-only `productSet` create has no Shopify URL
+to project.
+
+Practical rule:
+
+- preserve an exact observed URL only for the same effective product identity
+- keep locally created and duplicated product preview URLs `null`
+- let product tombstones resolve through the ordinary `product: null` boundary
+- never generate a preview hostname, copy a source product's signed URL, or
+  hardcode captured host, ID, preview key, or bypass material

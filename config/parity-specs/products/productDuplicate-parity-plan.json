@@ -22,8 +22,8 @@
       },
       {
         "path": "$.productDuplicate.newProduct.onlineStorePreviewUrl",
-        "matcher": "non-empty-string",
-        "reason": "Shopify returns a store-specific preview URL with a signed preview token; the proxy preserves the hydrated source preview URL for the staged duplicate."
+        "matcher": "null",
+        "reason": "Shopify returns a signed URL for the real duplicate. The locally staged duplicate has a different identity from its hydrated source, so the proxy must return null instead of reusing the source product's authoritative URL."
       },
       {
         "path": "$.productDuplicate.newProduct.options[0].id",
@@ -77,8 +77,8 @@
       },
       {
         "path": "$.product.onlineStorePreviewUrl",
-        "matcher": "non-empty-string",
-        "reason": "Shopify returns a store-specific preview URL with a signed preview token; the proxy preserves the hydrated source preview URL for the staged duplicate."
+        "matcher": "null",
+        "reason": "The downstream local duplicate still has no authoritative Shopify preview URL; null prevents the hydrated source product's signed URL from being projected for the duplicate identity."
       },
       {
         "path": "$.product.options[0].id",
