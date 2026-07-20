@@ -3395,6 +3395,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-automated-collection-dependency',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-automated-collection-dependency-conformance.mts',
+    purpose:
+      'metafieldDefinitionDelete dependency guards for product definitions referenced by automated collection rules.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-automated-collection-dependency.json`,
+      'config/parity-specs/metafields/metafield-definition-automated-collection-dependency.json',
+      'config/parity-requests/metafields/metafield-definition-automated-collection-dependency-product-create.graphql',
+      'config/parity-requests/metafields/metafield-definition-automated-collection-dependency-definition-create.graphql',
+      'config/parity-requests/metafields/metafield-definition-automated-collection-dependency-metafields-set.graphql',
+      'config/parity-requests/metafields/metafield-definition-automated-collection-dependency-collection-create.graphql',
+      'config/parity-requests/metafields/metafield-definition-automated-collection-dependency-delete.graphql',
+      'config/parity-requests/metafields/metafield-definition-automated-collection-dependency-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable product, product metafield definition/value, and automated collection rule; deletes the collection before the definition and product during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-protected-guards',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metafield-definition-protected-guards-conformance.mts',

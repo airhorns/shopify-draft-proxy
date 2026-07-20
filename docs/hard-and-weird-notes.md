@@ -4587,7 +4587,6 @@ Practical rule:
 - distinguish an authoritative null node from transport, GraphQL, or incomplete
   response failures; all failure classes must leave product/category state
   unchanged, but only the authoritative miss is proven invalid
-
 ## 108. A saved-search page is not an absence proof for mutation targets
 
 Saved-search connections are paginated, so observing one upstream page cannot
@@ -4629,3 +4628,31 @@ Practical rule:
   one row succeeds; associate that entry with only the successfully staged IDs
 - do not generalize this result to other validation buckets without equivalent
   captured mixed-batch evidence
+
+## 110. Automated collection dependencies override metafield definition deletion flags
+
+Admin GraphQL 2026-04 live capture created a disposable product definition with
+`smartCollectionCondition` enabled, set a matching product metafield, and
+created an automated collection whose `PRODUCT_METAFIELD_DEFINITION` rule used
+the definition as its `conditionObjectId`. Deleting the definition with
+`deleteAllAssociatedMetafields: false` and then `true` returned the same error:
+
+- `deletedDefinitionId: null` and `deletedDefinition: null`
+- `field: null`
+- code `METAFIELD_DEFINITION_IN_USE`
+- message `Cannot proceed with this action. This definition is used in one or more automated collections.`
+
+After both rejections, the definition, product metafield value, collection, and
+rule-to-definition condition object were unchanged. Removing the collection
+first allowed cleanup to delete the definition and product. The checked-in
+evidence and strict replay contract are
+`config/parity-specs/metafields/metafield-definition-automated-collection-dependency.json`.
+
+Practical rule:
+
+- retain `conditionObjectId` as normalized collection-rule relationship state;
+  the visible condition object alone is not enough when selection sets omit it
+- check effective, non-tombstoned automated collection rules before every
+  definition delete, regardless of `deleteAllAssociatedMetafields`
+- return the dependency error before changing definitions, metafields,
+  collections, synthetic identity, pin positions, or replayable mutation logs

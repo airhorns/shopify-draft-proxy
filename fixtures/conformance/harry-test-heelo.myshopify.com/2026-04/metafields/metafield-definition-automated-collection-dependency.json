@@ -1,0 +1,582 @@
+{
+  "capturedAt": "2026-07-19T21:38:22.153Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "suffix": "definition_collection_dependency_mrsbhy7p",
+  "namespace": "definition_collection_dependency_mrsbhy7p",
+  "key": "shade",
+  "productCreate": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-product-create.graphql",
+      "variables": {
+        "product": {
+          "title": "Metafield definition collection dependency definition_collection_dependency_mrsbhy7p"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10244001595698",
+            "title": "Metafield definition collection dependency definition_collection_dependency_mrsbhy7p"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "definitionCreate": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-definition-create.graphql",
+      "variables": {
+        "definition": {
+          "name": "Collection dependency definition_collection_dependency_mrsbhy7p",
+          "namespace": "definition_collection_dependency_mrsbhy7p",
+          "key": "shade",
+          "ownerType": "PRODUCT",
+          "type": "single_line_text_field",
+          "capabilities": {
+            "smartCollectionCondition": {
+              "enabled": true
+            }
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionCreate": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/227333079346",
+            "namespace": "definition_collection_dependency_mrsbhy7p",
+            "key": "shade",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field"
+            },
+            "capabilities": {
+              "smartCollectionCondition": {
+                "enabled": true,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "metafieldsSet": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-metafields-set.graphql",
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Product/10244001595698",
+            "namespace": "definition_collection_dependency_mrsbhy7p",
+            "key": "shade",
+            "type": "single_line_text_field",
+            "value": "blue"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [
+            {
+              "id": "gid://shopify/Metafield/45216720847154",
+              "ownerType": "PRODUCT",
+              "namespace": "definition_collection_dependency_mrsbhy7p",
+              "key": "shade",
+              "type": "single_line_text_field",
+              "value": "blue"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "collectionCreate": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-collection-create.graphql",
+      "variables": {
+        "input": {
+          "title": "Metafield definition collection dependency definition_collection_dependency_mrsbhy7p",
+          "ruleSet": {
+            "appliedDisjunctively": false,
+            "rules": [
+              {
+                "column": "PRODUCT_METAFIELD_DEFINITION",
+                "relation": "EQUALS",
+                "condition": "blue",
+                "conditionObjectId": "gid://shopify/MetafieldDefinition/227333079346"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "collectionCreate": {
+          "collection": {
+            "id": "gid://shopify/Collection/514588148018",
+            "title": "Metafield definition collection dependency definition_collection_dependency_mrsbhy7p",
+            "ruleSet": {
+              "appliedDisjunctively": false,
+              "rules": [
+                {
+                  "column": "PRODUCT_METAFIELD_DEFINITION",
+                  "relation": "EQUALS",
+                  "condition": "blue",
+                  "conditionObject": {
+                    "__typename": "CollectionRuleMetafieldCondition",
+                    "metafieldDefinition": {
+                      "id": "gid://shopify/MetafieldDefinition/227333079346",
+                      "namespace": "definition_collection_dependency_mrsbhy7p",
+                      "key": "shade"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readBeforeDelete": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-read.graphql",
+      "variables": {
+        "definitionId": "gid://shopify/MetafieldDefinition/227333079346",
+        "productId": "gid://shopify/Product/10244001595698",
+        "collectionId": "gid://shopify/Collection/514588148018",
+        "namespace": "definition_collection_dependency_mrsbhy7p",
+        "key": "shade"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinition": {
+          "id": "gid://shopify/MetafieldDefinition/227333079346",
+          "namespace": "definition_collection_dependency_mrsbhy7p",
+          "key": "shade",
+          "ownerType": "PRODUCT",
+          "capabilities": {
+            "smartCollectionCondition": {
+              "enabled": true,
+              "eligible": true
+            }
+          }
+        },
+        "product": {
+          "id": "gid://shopify/Product/10244001595698",
+          "metafield": {
+            "id": "gid://shopify/Metafield/45216720847154",
+            "namespace": "definition_collection_dependency_mrsbhy7p",
+            "key": "shade",
+            "type": "single_line_text_field",
+            "value": "blue"
+          }
+        },
+        "collection": {
+          "id": "gid://shopify/Collection/514588148018",
+          "title": "Metafield definition collection dependency definition_collection_dependency_mrsbhy7p",
+          "ruleSet": {
+            "appliedDisjunctively": false,
+            "rules": [
+              {
+                "column": "PRODUCT_METAFIELD_DEFINITION",
+                "relation": "EQUALS",
+                "condition": "blue",
+                "conditionObject": {
+                  "__typename": "CollectionRuleMetafieldCondition",
+                  "metafieldDefinition": {
+                    "id": "gid://shopify/MetafieldDefinition/227333079346",
+                    "namespace": "definition_collection_dependency_mrsbhy7p",
+                    "key": "shade"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 7,
+          "actualQueryCost": 7,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deleteFalse": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-delete.graphql",
+      "variables": {
+        "id": "gid://shopify/MetafieldDefinition/227333079346",
+        "deleteAllAssociatedMetafields": false
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": null,
+          "deletedDefinition": null,
+          "userErrors": [
+            {
+              "__typename": "MetafieldDefinitionDeleteUserError",
+              "field": null,
+              "message": "Cannot proceed with this action. This definition is used in one or more automated collections.",
+              "code": "METAFIELD_DEFINITION_IN_USE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterFalse": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-read.graphql",
+      "variables": {
+        "definitionId": "gid://shopify/MetafieldDefinition/227333079346",
+        "productId": "gid://shopify/Product/10244001595698",
+        "collectionId": "gid://shopify/Collection/514588148018",
+        "namespace": "definition_collection_dependency_mrsbhy7p",
+        "key": "shade"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinition": {
+          "id": "gid://shopify/MetafieldDefinition/227333079346",
+          "namespace": "definition_collection_dependency_mrsbhy7p",
+          "key": "shade",
+          "ownerType": "PRODUCT",
+          "capabilities": {
+            "smartCollectionCondition": {
+              "enabled": true,
+              "eligible": true
+            }
+          }
+        },
+        "product": {
+          "id": "gid://shopify/Product/10244001595698",
+          "metafield": {
+            "id": "gid://shopify/Metafield/45216720847154",
+            "namespace": "definition_collection_dependency_mrsbhy7p",
+            "key": "shade",
+            "type": "single_line_text_field",
+            "value": "blue"
+          }
+        },
+        "collection": {
+          "id": "gid://shopify/Collection/514588148018",
+          "title": "Metafield definition collection dependency definition_collection_dependency_mrsbhy7p",
+          "ruleSet": {
+            "appliedDisjunctively": false,
+            "rules": [
+              {
+                "column": "PRODUCT_METAFIELD_DEFINITION",
+                "relation": "EQUALS",
+                "condition": "blue",
+                "conditionObject": {
+                  "__typename": "CollectionRuleMetafieldCondition",
+                  "metafieldDefinition": {
+                    "id": "gid://shopify/MetafieldDefinition/227333079346",
+                    "namespace": "definition_collection_dependency_mrsbhy7p",
+                    "key": "shade"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 7,
+          "actualQueryCost": 7,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deleteTrue": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-delete.graphql",
+      "variables": {
+        "id": "gid://shopify/MetafieldDefinition/227333079346",
+        "deleteAllAssociatedMetafields": true
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": null,
+          "deletedDefinition": null,
+          "userErrors": [
+            {
+              "__typename": "MetafieldDefinitionDeleteUserError",
+              "field": null,
+              "message": "Cannot proceed with this action. This definition is used in one or more automated collections.",
+              "code": "METAFIELD_DEFINITION_IN_USE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterTrue": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-read.graphql",
+      "variables": {
+        "definitionId": "gid://shopify/MetafieldDefinition/227333079346",
+        "productId": "gid://shopify/Product/10244001595698",
+        "collectionId": "gid://shopify/Collection/514588148018",
+        "namespace": "definition_collection_dependency_mrsbhy7p",
+        "key": "shade"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinition": {
+          "id": "gid://shopify/MetafieldDefinition/227333079346",
+          "namespace": "definition_collection_dependency_mrsbhy7p",
+          "key": "shade",
+          "ownerType": "PRODUCT",
+          "capabilities": {
+            "smartCollectionCondition": {
+              "enabled": true,
+              "eligible": true
+            }
+          }
+        },
+        "product": {
+          "id": "gid://shopify/Product/10244001595698",
+          "metafield": {
+            "id": "gid://shopify/Metafield/45216720847154",
+            "namespace": "definition_collection_dependency_mrsbhy7p",
+            "key": "shade",
+            "type": "single_line_text_field",
+            "value": "blue"
+          }
+        },
+        "collection": {
+          "id": "gid://shopify/Collection/514588148018",
+          "title": "Metafield definition collection dependency definition_collection_dependency_mrsbhy7p",
+          "ruleSet": {
+            "appliedDisjunctively": false,
+            "rules": [
+              {
+                "column": "PRODUCT_METAFIELD_DEFINITION",
+                "relation": "EQUALS",
+                "condition": "blue",
+                "conditionObject": {
+                  "__typename": "CollectionRuleMetafieldCondition",
+                  "metafieldDefinition": {
+                    "id": "gid://shopify/MetafieldDefinition/227333079346",
+                    "namespace": "definition_collection_dependency_mrsbhy7p",
+                    "key": "shade"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 7,
+          "actualQueryCost": 7,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDefinitionAutomatedCollectionCleanupCollection($input: CollectionDeleteInput!) {\n    collectionDelete(input: $input) {\n      deletedCollectionId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Collection/514588148018"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "collectionDelete": {
+            "deletedCollectionId": "gid://shopify/Collection/514588148018",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDefinitionAutomatedCollectionCleanupDefinition($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/227333079346"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/227333079346",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDefinitionAutomatedCollectionCleanupProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10244001595698"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10244001595698",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
