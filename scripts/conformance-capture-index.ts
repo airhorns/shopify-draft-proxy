@@ -7233,12 +7233,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/storefront/storefront-discovery-publish-admin.graphql',
       'config/parity-requests/storefront/storefront-discovery-read.graphql',
       'config/parity-requests/storefront/storefront-discovery-setup-admin.graphql',
+      'config/parity-requests/storefront/storefront-node-overlay-read.graphql',
+      'config/parity-requests/storefront/storefront-node-unrelated-setup-admin.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable product, collection, blog, article, and two pages through Admin GraphQL; publishes catalog resources to Online Store; polls authenticated Storefront discovery until indexed; then deletes every created resource.',
+      'Creates two disposable products, two collections, one blog, one article, and three pages through Admin GraphQL; publishes catalog resources to Online Store; polls authenticated Storefront discovery and mixed Node reads until indexed; then deletes every created resource.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'The recorder captures exact publication hydration for proxy replay. Query suggestions use a stable broad prefix only as input; runtime behavior must derive suggestions and tracking parameters without response-keying on the captured term.',
+      'The recorder captures exact publication hydration plus a live Storefront mixed-Node cassette where a proxy-synthetic Product misses upstream while unrelated real Product, Collection, Page, and Menu IDs remain visible. Query suggestions use a stable broad prefix only as input; runtime behavior must derive suggestions and tracking parameters without response-keying on the captured term.',
   },
   {
     domain: 'storefront',

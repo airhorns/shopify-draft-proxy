@@ -3070,8 +3070,15 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let context = storefront_request_context(invocation.query, invocation.variables);
         let value = match invocation.root_name {
-            "node" => self.storefront_node_root_value(&invocation.arguments, &context),
-            "nodes" => self.storefront_nodes_root_value(&invocation.arguments, &context),
+            "node" | "nodes" => {
+                return self.storefront_node_root_outcome(
+                    invocation.root_name,
+                    &invocation.arguments,
+                    &context,
+                    invocation.request,
+                    invocation.response_key,
+                );
+            }
             "search" => self.storefront_search_root_json(&invocation.arguments, &context),
             "predictiveSearch" => {
                 self.storefront_predictive_search_root_json(&invocation.arguments, &context)
@@ -3186,6 +3193,7 @@ impl DraftProxy {
             root if STOREFRONT_CUSTOM_DATA_ROOTS.contains(&root) => {
                 self.storefront_custom_data_root_has_local_effect(root, arguments)
             }
+            "node" | "nodes" => true,
             root if STOREFRONT_DISCOVERY_ROOTS.contains(&root) => {
                 self.has_storefront_discovery_state()
             }
@@ -3421,41 +3429,99 @@ impl DraftProxy {
         self.store.base.storefront_menus.insert(id, menu);
     }
 
-    fn storefront_node_root_value(
-        &self,
+    fn storefront_node_root_outcome(
+        &mut self,
+        root_name: &str,
         arguments: &BTreeMap<String, Value>,
         context: &StorefrontRequestContext,
-    ) -> Value {
-        arguments
-            .get("id")
-            .and_then(Value::as_str)
-            .map(|id| self.storefront_node_by_id_value(id, context))
-            .unwrap_or(Value::Null)
-    }
-
-    fn storefront_nodes_root_value(
-        &self,
-        arguments: &BTreeMap<String, Value>,
-        context: &StorefrontRequestContext,
-    ) -> Value {
-        Value::Array(
-            arguments
+        request: &Request,
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
+        let ids = match root_name {
+            "node" => arguments
+                .get("id")
+                .and_then(Value::as_str)
+                .into_iter()
+                .map(str::to_string)
+                .collect::<Vec<_>>(),
+            "nodes" => arguments
                 .get("ids")
                 .and_then(Value::as_array)
                 .into_iter()
                 .flatten()
                 .filter_map(Value::as_str)
-                .map(|id| self.storefront_node_by_id_value(id, context))
+                .map(str::to_string)
                 .collect(),
-        )
+            _ => return ResolverOutcome::value(Value::Null),
+        };
+        let needs_upstream = self.config.read_mode == ReadMode::LiveHybrid
+            && ids.iter().any(|id| {
+                matches!(
+                    self.storefront_node_load_state(id, context),
+                    NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType
+                )
+            });
+        let mut outcome = if needs_upstream {
+            self.cached_or_forward_upstream_graphql_result(request, response_key)
+                .outcome
+        } else {
+            ResolverOutcome::value(match root_name {
+                "node" => Value::Null,
+                "nodes" => Value::Array(Vec::new()),
+                _ => Value::Null,
+            })
+        };
+        outcome.value = self.storefront_node_value_with_upstream_fallback(
+            root_name,
+            &ids,
+            &outcome.value,
+            context,
+        );
+        outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
+        outcome
     }
 
-    fn storefront_node_by_id_value(&self, id: &str, context: &StorefrontRequestContext) -> Value {
-        match self.storefront_node_load_state(id, context) {
-            NodeLoadState::Found(entity) => entity.value,
-            NodeLoadState::KnownMissing
-            | NodeLoadState::NeedsHydration
-            | NodeLoadState::UnsupportedType => Value::Null,
+    fn storefront_node_value_with_upstream_fallback(
+        &self,
+        root_name: &str,
+        ids: &[String],
+        upstream: &Value,
+        context: &StorefrontRequestContext,
+    ) -> Value {
+        match root_name {
+            "node" => {
+                let Some(id) = ids.first() else {
+                    return Value::Null;
+                };
+                match self.storefront_node_load_state(id, context) {
+                    NodeLoadState::Found(entity) => entity.value,
+                    NodeLoadState::KnownMissing => Value::Null,
+                    NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => {
+                        upstream.clone()
+                    }
+                }
+            }
+            "nodes" => {
+                let upstream_nodes = upstream.as_array();
+                let values = ids
+                    .iter()
+                    .enumerate()
+                    .map(
+                        |(index, id)| match self.storefront_node_load_state(id, context) {
+                            NodeLoadState::Found(entity) => entity.value,
+                            NodeLoadState::KnownMissing => Value::Null,
+                            NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => {
+                                upstream_nodes
+                                    .and_then(|nodes| nodes.get(index))
+                                    .cloned()
+                                    .unwrap_or(Value::Null)
+                            }
+                        },
+                    )
+                    .collect::<Vec<_>>();
+                Value::Array(values)
+            }
+            _ => Value::Null,
         }
     }
 
@@ -3470,7 +3536,17 @@ impl DraftProxy {
             context.key(),
         );
         self.cached_request_entity_load_state(key, || {
-            let value = self.uncached_storefront_node_by_id_value(id, context);
+            let Some(value) = self.uncached_storefront_node_by_id_value(id, context) else {
+                return if self.config.read_mode == ReadMode::Snapshot {
+                    NodeLoadState::KnownMissing
+                } else if crate::node_resolver_inventory::STOREFRONT_NODE_TYPE_NAMES
+                    .contains(&shopify_gid_resource_type(id).unwrap_or_default())
+                {
+                    NodeLoadState::NeedsHydration
+                } else {
+                    NodeLoadState::UnsupportedType
+                };
+            };
             if value.is_null() {
                 return NodeLoadState::KnownMissing;
             }
@@ -3490,51 +3566,55 @@ impl DraftProxy {
         &self,
         id: &str,
         context: &StorefrontRequestContext,
-    ) -> Value {
+    ) -> Option<Value> {
         match shopify_gid_resource_type(id) {
-            Some("Product") => {
-                self.storefront_visible_product_value(self.store.product_by_id(id), context)
-            }
-            Some("ProductVariant") => self
+            Some("Product") if self.store.product_is_tombstoned(id) => Some(Value::Null),
+            Some("Product") => self
                 .store
-                .product_variant_by_id(id)
-                .filter(|variant| {
-                    self.store
-                        .product_by_id(&variant.product_id)
-                        .is_some_and(|product| self.storefront_product_is_visible(product))
-                })
-                .map(|variant| {
-                    storefront_product_variant_value(
-                        self,
-                        variant,
-                        self.store.product_by_id(&variant.product_id),
-                        context,
-                        None,
-                    )
-                })
-                .unwrap_or(Value::Null),
-            Some("Collection") => {
-                self.storefront_visible_collection_value(self.store.collection_by_id(id))
+                .product_by_id(id)
+                .map(|product| self.storefront_visible_product_value(Some(product), context)),
+            Some("ProductVariant") if self.store.product_variants.staged.is_tombstoned(id) => {
+                Some(Value::Null)
             }
-            Some("Article") => self
-                .storefront_content_by_id(StorefrontContentKind::Article, id)
-                .unwrap_or(Value::Null),
-            Some("Blog") => self
-                .storefront_content_by_id(StorefrontContentKind::Blog, id)
-                .unwrap_or(Value::Null),
-            Some("Page") => self
-                .storefront_content_by_id(StorefrontContentKind::Page, id)
-                .unwrap_or(Value::Null),
-            Some("Metaobject") => self
-                .metaobject_by_id(id)
-                .and_then(|record| self.storefront_visible_metaobject(&record))
-                .map(|record| self.storefront_metaobject_value(&record))
-                .unwrap_or(Value::Null),
+            Some("ProductVariant") => self.store.product_variant_by_id(id).map(|variant| {
+                self.store
+                    .product_by_id(&variant.product_id)
+                    .filter(|product| self.storefront_product_is_visible(product))
+                    .map(|product| {
+                        storefront_product_variant_value(
+                            self,
+                            variant,
+                            Some(product),
+                            context,
+                            None,
+                        )
+                    })
+                    .unwrap_or(Value::Null)
+            }),
+            Some("Collection") if self.store.collection_is_deleted(id) => Some(Value::Null),
+            Some("Collection") => self
+                .store
+                .collection_by_id(id)
+                .map(|collection| self.storefront_visible_collection_value(Some(collection))),
+            Some("Article") => {
+                self.storefront_content_node_value(StorefrontContentKind::Article, id)
+            }
+            Some("Blog") => self.storefront_content_node_value(StorefrontContentKind::Blog, id),
+            Some("Page") => self.storefront_content_node_value(StorefrontContentKind::Page, id),
+            Some("Metaobject") => self.metaobject_node_value_by_id(id).map(|value| {
+                if value.is_null() {
+                    return Value::Null;
+                }
+                self.metaobject_by_id(id)
+                    .and_then(|record| self.storefront_visible_metaobject(&record))
+                    .map(|record| self.storefront_metaobject_value(&record))
+                    .unwrap_or(Value::Null)
+            }),
+            Some("Location") if self.store.staged.locations.is_tombstoned(id) => Some(Value::Null),
             Some("Location") => self
                 .storefront_location_records()
                 .into_iter()
-                .find(|record| record.get("id").and_then(Value::as_str) == Some(id))
-                .unwrap_or(Value::Null),
+                .find(|record| record.get("id").and_then(Value::as_str) == Some(id)),
             Some("Menu") => self
                 .store
                 .base
@@ -3542,10 +3622,24 @@ impl DraftProxy {
                 .ordered_values()
                 .into_iter()
                 .find(|record| record.get("id").and_then(Value::as_str) == Some(id))
-                .cloned()
-                .unwrap_or(Value::Null),
-            _ => Value::Null,
+                .cloned(),
+            _ => None,
         }
+    }
+
+    fn storefront_content_node_value(
+        &self,
+        kind: StorefrontContentKind,
+        id: &str,
+    ) -> Option<Value> {
+        self.online_store_content_node_value(id).map(|value| {
+            if value.is_null() {
+                Value::Null
+            } else {
+                self.storefront_content_by_id(kind, id)
+                    .unwrap_or(Value::Null)
+            }
+        })
     }
 
     fn storefront_search_root_json(
@@ -5456,6 +5550,10 @@ fn storefront_search_product_filters(
     proxy: &DraftProxy,
     items: &[StorefrontSearchItem],
 ) -> Vec<Value> {
+    let price_filter = json!({
+        "id": "filter.v.price", "label": "Price", "presentation": Value::Null, "type": "PRICE_RANGE",
+        "values": [{ "id": "filter.v.price", "label": "Price", "count": 0, "input": "{\"price\":{\"min\":0,\"max\":0.0}}" }]
+    });
     let products = items
         .iter()
         .filter_map(|item| match item {
@@ -5464,22 +5562,22 @@ fn storefront_search_product_filters(
         })
         .collect::<Vec<_>>();
     if products.is_empty() {
-        return vec![json!({
-            "id": "filter.v.price", "label": "Price", "presentation": Value::Null, "type": "PRICE_RANGE",
-            "values": [{ "id": "filter.v.price", "label": "Price", "count": 0, "input": "{\"price\":{\"min\":0,\"max\":0.0}}" }]
-        })];
+        return vec![price_filter];
     }
     let available_count = products
         .iter()
         .filter(|product| storefront_search_product_available(proxy, product))
         .count();
-    vec![json!({
-        "id": "filter.v.availability", "label": "Availability", "presentation": "TEXT", "type": "LIST",
-        "values": [
-            { "id": "filter.v.availability.1", "label": "In stock", "count": available_count, "input": "{\"available\":true}" },
-            { "id": "filter.v.availability.0", "label": "Out of stock", "count": products.len() - available_count, "input": "{\"available\":false}" }
-        ]
-    })]
+    vec![
+        json!({
+            "id": "filter.v.availability", "label": "Availability", "presentation": "TEXT", "type": "LIST",
+            "values": [
+                { "id": "filter.v.availability.1", "label": "In stock", "count": available_count, "input": "{\"available\":true}" },
+                { "id": "filter.v.availability.0", "label": "Out of stock", "count": products.len() - available_count, "input": "{\"available\":false}" }
+            ]
+        }),
+        price_filter,
+    ]
 }
 
 fn truncate_with_remaining<T>(values: &mut Vec<T>, remaining: &mut usize) {
