@@ -11681,6 +11681,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-terms-cold-delete',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-terms-cold-delete-conformance.ts',
+    purpose:
+      'Records mutation-first paymentTermsDelete for persisted DraftOrder-owned terms, exact query-only hydration, validation precedence, owner detachment, and deleted node reachability.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-cold-delete.json`,
+      'config/parity-specs/payments/payment-terms-cold-delete.json',
+      'config/parity-requests/payments/payment-terms-cold-delete-nodes-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable DraftOrder with real payment terms, deletes the terms during capture, verifies owner/terms/schedule reads, then deletes the DraftOrder.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'payment-terms-due-state',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-terms-due-state-conformance.ts',

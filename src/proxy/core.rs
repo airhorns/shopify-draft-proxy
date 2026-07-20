@@ -625,7 +625,11 @@ impl DraftProxy {
                 "deletedDiscountIds": self.store.staged.discounts.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone(),
                 "ownerMetafields": self.store.staged.owner_metafields.clone(),
-                "deletedOwnerMetafields": deleted_owner_metafields
+                "deletedOwnerMetafields": deleted_owner_metafields,
+                "paymentTerms": self.store.staged.payment_terms.clone(),
+                "paymentTermsOwnerIndex": self.store.staged.payment_terms_owner_index.clone(),
+                "deletedPaymentTermsIds": self.store.staged.deleted_payment_terms_ids.iter().cloned().collect::<Vec<_>>(),
+                "deletedPaymentScheduleIds": self.store.staged.deleted_payment_schedule_ids.iter().cloned().collect::<Vec<_>>()
         });
         let mut snapshot = json!({
             "baseState": base_state,
@@ -2331,6 +2335,34 @@ impl DraftProxy {
             .get("paymentCustomizationCatalogHydrated")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        self.store.staged.payment_terms =
+            value_map_from_json(state["stagedState"].get("paymentTerms"));
+        self.store.staged.payment_terms_owner_index = state["stagedState"]
+            .get("paymentTermsOwnerIndex")
+            .and_then(Value::as_object)
+            .map(|index| {
+                index
+                    .iter()
+                    .filter_map(|(owner_id, terms_id)| {
+                        terms_id
+                            .as_str()
+                            .map(|terms_id| (owner_id.clone(), terms_id.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.deleted_payment_terms_ids = state["stagedState"]
+            .get("deletedPaymentTermsIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.deleted_payment_schedule_ids = state["stagedState"]
+            .get("deletedPaymentScheduleIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.next_customer_payment_method_id =
             counter_from_json_with_floor(&state["stagedState"], "nextCustomerPaymentMethodId", 1);
         self.store.staged.abandonments =

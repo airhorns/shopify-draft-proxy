@@ -1,0 +1,20 @@
+query PaymentTermsColdDeleteNodesRead($paymentTermsId: ID!, $paymentScheduleId: ID!) {
+  paymentTerms: node(id: $paymentTermsId) {
+    ... on PaymentTerms {
+      id
+      paymentTermsName
+      paymentSchedules(first: 10) {
+        nodes {
+          id
+        }
+      }
+    }
+  }
+  paymentSchedule: node(id: $paymentScheduleId) {
+    ... on PaymentSchedule {
+      id
+      dueAt
+      issuedAt
+    }
+  }
+}
