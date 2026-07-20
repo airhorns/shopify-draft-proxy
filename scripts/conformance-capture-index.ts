@@ -12572,6 +12572,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'delivery-customization-function-reference-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-delivery-customization-function-reference-conformance.ts',
+    purpose:
+      'DeliveryCustomization missing and wrong-type Function reference errors plus the installed-app capability blocker for valid, wrong-app, cold-target, and active-limit capture.',
+    requiredAuthScopes: ['read_delivery_customizations', 'write_delivery_customizations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}delivery-customization-function-reference-validation.json`,
+      'config/parity-specs/shipping-fulfillments/delivery-customization-function-reference-validation.json',
+      'config/parity-requests/shipping-fulfillments/delivery-customization-function-reference-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture; every mutation is rejected before creating a delivery customization, so no cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Fails closed if an eligible delivery-customization Function or existing customization becomes visible, because those capabilities should replace the blocker with full lifecycle capture.',
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'orphaned-shipping-fulfillment-fixtures',
     scriptPath: 'scripts/capture-orphaned-shipping-fulfillment-fixtures-conformance.ts',
     purpose:
