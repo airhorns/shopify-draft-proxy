@@ -1954,9 +1954,11 @@ pub(in crate::proxy) const PRODUCT_SET_TARGET_HYDRATE_BY_HANDLE_QUERY: &str = in
 
 pub(in crate::proxy) const TAXONOMY_CATEGORY_HYDRATE_QUERY: &str = "query ProductTaxonomyCategoryHydrate($id: ID!) { node(id: $id) { __typename id ... on TaxonomyCategory { name fullName isLeaf level parentId } } }";
 
-pub(in crate::proxy) const COLLECTION_REORDER_PRODUCTS_COLLECTION_HYDRATE_QUERY: &str = include_str!(
-    "../../config/parity-requests/products/collectionReorderProducts-collection-hydrate.graphql"
-);
+pub(in crate::proxy) const COLLECTION_MEMBERSHIP_TARGETS_HYDRATE_QUERY: &str =
+    include_str!("product_helpers/collection_membership_targets_hydrate.graphql");
+
+pub(in crate::proxy) const COLLECTION_MEMBERSHIP_WINDOW_HYDRATE_QUERY: &str =
+    include_str!("product_helpers/collection_membership_window_hydrate.graphql");
 
 // The generic observation query above does not select product `options`, which the
 // productOptionsReorder graph needs. This options-aware node hydrate selects the

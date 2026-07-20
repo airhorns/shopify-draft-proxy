@@ -1,0 +1,36 @@
+mutation CollectionMembershipCrossPageAdd(
+  $id: ID!
+  $productIds: [ID!]!
+  $targetId: ID!
+) {
+  collectionAddProducts(id: $id, productIds: $productIds) {
+    collection {
+      id
+      products(first: 10, sortKey: MANUAL) {
+        edges {
+          cursor
+          node {
+            id
+            title
+            handle
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      productsCount {
+        count
+        precision
+      }
+      hasTarget: hasProduct(id: $targetId)
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

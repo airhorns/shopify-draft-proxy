@@ -894,6 +894,7 @@ impl DraftProxy {
                         )
                     })
                     && !self.should_route_owner_metafields_read(&document.root_fields, variables)
+                    && !self.store.has_collection_membership_deltas()
                     && self.product_read_needs_upstream(&document.root_fields)
             });
         let shop_original_query_passthrough =
@@ -1829,6 +1830,41 @@ fn root_field_errors_from_json_with_default_path(
 }
 
 impl DraftProxy {
+    /// Return one exact alias-shaped value from the caller's cached upstream
+    /// query response. The GraphQL engine supplies the response-key path; this
+    /// helper only follows it and never uses it to choose domain behavior.
+    /// Mutation documents are rejected here so a field resolver cannot bypass
+    /// the stage-locally write guard while looking for read evidence.
+    pub(in crate::proxy) fn cached_upstream_query_value_at_path(
+        &mut self,
+        request: &Request,
+        path: &[String],
+    ) -> Option<Value> {
+        let graphql_request = parse_graphql_request_body(&request.body)?;
+        let operation = parse_operation_with_variables_and_operation_name(
+            &graphql_request.query,
+            &graphql_request.variables,
+            graphql_request.operation_name.as_deref(),
+        )
+        .ok()?;
+        if operation.operation_type != OperationType::Query {
+            return None;
+        }
+        let response = self.cached_or_forward_upstream_response(request);
+        if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+            return None;
+        }
+        let mut value = response.body.get("data")?;
+        for segment in path {
+            value = match value {
+                Value::Array(values) => values.get(segment.parse::<usize>().ok()?)?,
+                Value::Object(values) => values.get(segment)?,
+                _ => return None,
+            };
+        }
+        Some(value.clone())
+    }
+
     /// Reuse the request-scoped upstream response when the executor already
     /// fetched the complete operation; otherwise perform the cold read once.
     pub(in crate::proxy) fn cached_or_forward_upstream_root_outcome(

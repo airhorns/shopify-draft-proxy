@@ -1,0 +1,187 @@
+{
+  "scenarioId": "collection-membership-cross-page",
+  "operationNames": ["collectionAddProducts", "collectionRemoveProducts", "collectionReorderProducts"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "relationship-parity", "pagination-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/collection-membership-cross-page.json"
+  ],
+  "runtimeTestFiles": ["tests/collection_membership_hydration.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/collection-membership-cross-page-add.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.add.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Real Shopify capture for a 13-member manual collection plus a staged add, later-member removal, and later-member reorder. The scenario compares the mutation payloads and downstream windows across the first-ten boundary, including exact order, counts, hasProduct, reverse Product.collections links, and pageInfo. Cursor token strings are compared as non-empty opaque values because Shopify rotates a moved row's manual-order cursor while the proxy preserves observed upstream cursors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "add-later-member-mutation-payload",
+        "capturePath": "$.add.mutation.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.collectionAddProducts.collection.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Collection product cursors are opaque Shopify tokens; staged overlays preserve or synthesize non-empty opaque cursors."
+          },
+          {
+            "path": "$.collectionAddProducts.collection.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Collection product page boundary cursors are opaque Shopify tokens."
+          },
+          {
+            "path": "$.collectionAddProducts.collection.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Collection product page boundary cursors are opaque Shopify tokens."
+          }
+        ]
+      },
+      {
+        "name": "add-later-member-downstream-window-and-links",
+        "capturePath": "$.add.downstreamRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-membership-cross-page-after-read.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.add.downstreamRead.variables"
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.collection.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Collection product cursors are opaque Shopify tokens."
+          },
+          {
+            "path": "$.collection.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Collection product page boundary cursors are opaque Shopify tokens."
+          },
+          {
+            "path": "$.collection.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Collection product page boundary cursors are opaque Shopify tokens."
+          }
+        ]
+      },
+      {
+        "name": "remove-member-beyond-first-page-mutation-payload",
+        "capturePath": "$.remove.mutation.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-membership-cross-page-remove.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.remove.mutation.variables"
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.collectionRemoveProducts.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "Shopify and the local proxy allocate asynchronous Job identifiers independently."
+          }
+        ]
+      },
+      {
+        "name": "remove-member-beyond-first-page-refilled-window-and-links",
+        "capturePath": "$.remove.downstreamRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-membership-cross-page-after-read.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.remove.downstreamRead.variables"
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.collection.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Collection product cursors are opaque Shopify tokens."
+          },
+          {
+            "path": "$.collection.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Collection product page boundary cursors are opaque Shopify tokens."
+          },
+          {
+            "path": "$.collection.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Collection product page boundary cursors are opaque Shopify tokens."
+          }
+        ]
+      },
+      {
+        "name": "reorder-member-beyond-first-page-mutation-payload",
+        "capturePath": "$.reorder.mutation.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-membership-cross-page-reorder.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.reorder.mutation.variables"
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.collectionReorderProducts.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "Shopify and the local proxy allocate asynchronous Job identifiers independently."
+          }
+        ]
+      },
+      {
+        "name": "reorder-member-beyond-first-page-first-window-order-and-links",
+        "capturePath": "$.reorder.firstRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-membership-cross-page-first-read.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.reorder.firstRead.variables"
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.collection.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify rotates manual-order cursors after a move; both sides must return non-empty opaque cursor tokens."
+          },
+          {
+            "path": "$.collection.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Collection product page boundary cursors are opaque Shopify tokens."
+          },
+          {
+            "path": "$.collection.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Collection product page boundary cursors are opaque Shopify tokens."
+          }
+        ]
+      },
+      {
+        "name": "reorder-member-beyond-first-page-after-window-relative-order",
+        "capturePath": "$.reorder.afterRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-membership-cross-page-after-read.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.reorder.afterRead.variables"
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.collection.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify rotates manual-order cursors after a move; both sides must return non-empty opaque cursor tokens."
+          },
+          {
+            "path": "$.collection.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Collection product page boundary cursors are opaque Shopify tokens."
+          },
+          {
+            "path": "$.collection.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Collection product page boundary cursors are opaque Shopify tokens."
+          }
+        ]
+      }
+    ]
+  }
+}

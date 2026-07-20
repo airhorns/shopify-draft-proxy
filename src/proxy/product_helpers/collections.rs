@@ -1,4 +1,5 @@
 use super::*;
+use base64::Engine as _;
 
 const COLLECTIONS_IDENTITY_HYDRATE_QUERY: &str = r#"
 query CollectionsIdentityHydrate(
@@ -47,6 +48,223 @@ query CollectionsIdentityHydrate(
 
 pub(in crate::proxy) const STOREFRONT_COLLECTION_BASELINE_UPDATED_AT_FIELD: &str =
     "__storefrontBaselineUpdatedAt";
+const COLLECTION_MEMBERSHIP_PAYLOAD_BASELINE_COUNT_FIELD: &str =
+    "__collectionMembershipPayloadBaselineCount";
+
+const COLLECTION_MEMBERSHIP_BASELINE_FIRST: usize = 11;
+const COLLECTION_MEMBERSHIP_MAX_PROBE_ROWS: usize = 250;
+
+impl CollectionMembershipState {
+    fn baseline_membership(&self, product_id: &str) -> Option<bool> {
+        self.known_membership
+            .get(product_id)
+            .copied()
+            .or_else(|| {
+                self.baseline_order
+                    .iter()
+                    .any(|id| id == product_id)
+                    .then_some(true)
+            })
+            .or(self.baseline_complete.then_some(false))
+    }
+
+    fn effective_membership(&self, product_id: &str) -> Option<bool> {
+        self.apply_deltas_to_membership(product_id, self.baseline_membership(product_id))
+    }
+
+    fn apply_deltas_to_membership(
+        &self,
+        product_id: &str,
+        mut membership: Option<bool>,
+    ) -> Option<bool> {
+        for delta in &self.deltas {
+            match delta {
+                CollectionMembershipDelta::Add { product_id: id } if id == product_id => {
+                    membership = Some(true);
+                }
+                CollectionMembershipDelta::Remove { product_id: id } if id == product_id => {
+                    membership = Some(false);
+                }
+                _ => {}
+            }
+        }
+        membership
+    }
+
+    fn effective_count(&self) -> Option<(u64, String)> {
+        let mut count = self.baseline_count.or_else(|| {
+            self.baseline_complete
+                .then_some(self.baseline_order.len() as u64)
+        })?;
+        let changed_ids = self
+            .deltas
+            .iter()
+            .map(|delta| match delta {
+                CollectionMembershipDelta::Add { product_id }
+                | CollectionMembershipDelta::Remove { product_id }
+                | CollectionMembershipDelta::Move { product_id, .. } => product_id,
+            })
+            .collect::<BTreeSet<_>>();
+        for product_id in changed_ids {
+            let Some(before) = self.baseline_membership(product_id) else {
+                continue;
+            };
+            let after = self.effective_membership(product_id).unwrap_or(before);
+            match (before, after) {
+                (false, true) => count = count.saturating_add(1),
+                (true, false) => count = count.saturating_sub(1),
+                _ => {}
+            }
+        }
+        Some((
+            count,
+            self.baseline_precision
+                .clone()
+                .unwrap_or_else(|| "EXACT".to_string()),
+        ))
+    }
+
+    fn effective_prefix_order(&self) -> Vec<String> {
+        let mut order = self.baseline_order.clone();
+        for delta in &self.deltas {
+            match delta {
+                CollectionMembershipDelta::Add { product_id } => {
+                    if self.baseline_complete && !order.contains(product_id) {
+                        order.push(product_id.clone());
+                    }
+                }
+                CollectionMembershipDelta::Remove { product_id } => {
+                    order.retain(|id| id != product_id);
+                }
+                CollectionMembershipDelta::Move {
+                    product_id,
+                    new_position,
+                } => {
+                    order.retain(|id| id != product_id);
+                    if *new_position <= order.len() {
+                        order.insert(*new_position, product_id.clone());
+                    }
+                }
+            }
+        }
+        order
+    }
+
+    fn stage_add(&mut self, product_id: &str) -> bool {
+        if self.effective_membership(product_id) == Some(true) {
+            return false;
+        }
+        self.deltas.push(CollectionMembershipDelta::Add {
+            product_id: product_id.to_string(),
+        });
+        true
+    }
+
+    fn stage_remove(&mut self, product_id: &str) -> bool {
+        if self.effective_membership(product_id) != Some(true) {
+            return false;
+        }
+        self.deltas.push(CollectionMembershipDelta::Remove {
+            product_id: product_id.to_string(),
+        });
+        true
+    }
+
+    fn stage_move(&mut self, product_id: &str, new_position: usize) {
+        self.deltas.push(CollectionMembershipDelta::Move {
+            product_id: product_id.to_string(),
+            new_position,
+        });
+    }
+}
+
+impl Store {
+    pub(in crate::proxy) fn observe_collection_membership(&mut self, collection: &Value) {
+        let Some(collection_id) = collection.get("id").and_then(Value::as_str) else {
+            return;
+        };
+        let state = self
+            .staged
+            .collection_memberships
+            .entry(collection_id.to_string())
+            .or_default();
+        if collection
+            .get(OBSERVED_COLLECTION_BASELINE_FIELD)
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            state.upstream_baseline = true;
+        }
+        if let Some(count) = collection
+            .pointer("/productsCount/count")
+            .and_then(Value::as_u64)
+        {
+            state.baseline_count.get_or_insert(count);
+            if state.baseline_precision.is_none() {
+                state.baseline_precision = collection
+                    .pointer("/productsCount/precision")
+                    .and_then(Value::as_str)
+                    .map(str::to_string);
+            }
+        }
+        let connection = collection
+            .get("manualProducts")
+            .or_else(|| collection.get("products"));
+        let Some(connection) = connection else {
+            return;
+        };
+        let rows = observed_connection_rows(connection);
+        let is_first_page = connection
+            .pointer("/pageInfo/hasPreviousPage")
+            .and_then(Value::as_bool)
+            != Some(true);
+        if is_first_page && rows.len() >= state.baseline_order.len() {
+            state.baseline_order = rows
+                .iter()
+                .filter_map(|row| {
+                    row.node
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                })
+                .collect();
+        }
+        for row in rows {
+            let Some(product_id) = row.node.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            state.known_membership.insert(product_id.to_string(), true);
+            if let Some(cursor) = row.cursor {
+                state
+                    .baseline_cursors
+                    .insert(product_id.to_string(), cursor);
+            }
+        }
+        if is_first_page
+            && (!state.upstream_baseline
+                || connection
+                    .pointer("/pageInfo/hasNextPage")
+                    .and_then(Value::as_bool)
+                    == Some(false))
+        {
+            state.baseline_complete = true;
+            state
+                .baseline_count
+                .get_or_insert(state.baseline_order.len() as u64);
+        }
+    }
+
+    fn collection_membership(&self, collection_id: &str) -> Option<&CollectionMembershipState> {
+        self.staged.collection_memberships.get(collection_id)
+    }
+
+    fn collection_membership_mut(&mut self, collection_id: &str) -> &mut CollectionMembershipState {
+        self.staged
+            .collection_memberships
+            .entry(collection_id.to_string())
+            .or_default()
+    }
+}
 
 pub(in crate::proxy) fn collection_summary_json(collection: &Value) -> Value {
     json!({
@@ -270,11 +488,20 @@ pub(in crate::proxy) fn collection_product_cursor(entry: &CollectionProductEntry
 
 pub(in crate::proxy) fn collection_products_field(
     proxy: &mut DraftProxy,
-    _request: &Request,
+    request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     let arguments = resolved_arguments_from_json(&invocation.arguments);
     let (collection, entries) = collection_field_product_entries(proxy, invocation);
+    if let Some(connection) = partial_collection_membership_connection(
+        proxy,
+        request,
+        invocation,
+        &collection,
+        &arguments,
+    ) {
+        return Ok(connection);
+    }
     if collection
         .get(OBSERVED_COLLECTION_BASELINE_FIELD)
         .and_then(Value::as_bool)
@@ -298,7 +525,7 @@ pub(in crate::proxy) fn collection_products_field(
 
 pub(in crate::proxy) fn collection_has_product_field(
     proxy: &mut DraftProxy,
-    _request: &Request,
+    request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     let product_id = invocation
@@ -306,6 +533,47 @@ pub(in crate::proxy) fn collection_has_product_field(
         .get("id")
         .and_then(Value::as_str)
         .unwrap_or_default();
+    let collection_id = invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let is_smart = proxy
+        .store
+        .collection_by_id(&collection_id)
+        .is_some_and(collection_is_smart);
+    if let Some(state) = (!is_smart)
+        .then(|| proxy.store.collection_membership(&collection_id))
+        .flatten()
+        .filter(|state| !state.deltas.is_empty())
+        .cloned()
+    {
+        let baseline = state.baseline_membership(product_id).or_else(|| {
+            proxy
+                .cached_upstream_query_value_at_path(request, &invocation.path)
+                .and_then(|value| value.as_bool())
+        });
+        if let Some(value) = state.apply_deltas_to_membership(product_id, baseline) {
+            return Ok(json!(value));
+        }
+        if proxy.config.read_mode == ReadMode::LiveHybrid
+            && proxy.hydrate_collection_membership_targets(
+                request,
+                &collection_id,
+                &[product_id.to_string()],
+                COLLECTION_MEMBERSHIP_BASELINE_FIRST,
+            )
+        {
+            if let Some(value) = proxy
+                .store
+                .collection_membership(&collection_id)
+                .and_then(|state| state.effective_membership(product_id))
+            {
+                return Ok(json!(value));
+            }
+        }
+    }
     let (_, entries) = collection_field_product_entries(proxy, invocation);
     Ok(json!(entries
         .iter()
@@ -314,10 +582,42 @@ pub(in crate::proxy) fn collection_has_product_field(
 
 pub(in crate::proxy) fn collection_products_count_field(
     proxy: &mut DraftProxy,
-    _request: &Request,
+    request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
+    if let Some(count) = invocation
+        .parent
+        .get(COLLECTION_MEMBERSHIP_PAYLOAD_BASELINE_COUNT_FIELD)
+    {
+        return Ok(count.clone());
+    }
     let (collection, entries) = collection_field_product_entries(proxy, invocation);
+    let collection_id = collection
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if let Some(mut state) = (!collection_is_smart(&collection))
+        .then(|| proxy.store.collection_membership(collection_id))
+        .flatten()
+        .filter(|state| !state.deltas.is_empty())
+        .cloned()
+    {
+        if state.baseline_count.is_none() {
+            if let Some(upstream) =
+                proxy.cached_upstream_query_value_at_path(request, &invocation.path)
+            {
+                if let Some(count) = upstream.get("count").and_then(Value::as_u64) {
+                    state.baseline_count = Some(count);
+                }
+                if let Some(precision) = upstream.get("precision").and_then(Value::as_str) {
+                    state.baseline_precision = Some(precision.to_string());
+                }
+            }
+        }
+        if let Some((count, precision)) = state.effective_count() {
+            return Ok(count_object_with_precision(count, &precision));
+        }
+    }
     if collection
         .get(OBSERVED_COLLECTION_BASELINE_FIELD)
         .and_then(Value::as_bool)
@@ -345,6 +645,376 @@ pub(in crate::proxy) fn collection_products_count_field(
                     .unwrap_or(0),
             )
         }))
+}
+
+fn partial_collection_membership_connection(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+    collection: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    if collection_is_smart(collection) {
+        return None;
+    }
+    let collection_id = collection.get("id").and_then(Value::as_str)?;
+    let state = proxy
+        .store
+        .collection_membership(collection_id)
+        .filter(|state| !state.deltas.is_empty())?
+        .clone();
+    if state.baseline_complete && !state.upstream_baseline {
+        return None;
+    }
+    let manual_order = resolved_string_field(arguments, "sortKey")
+        .is_some_and(|sort_key| sort_key == "MANUAL")
+        || (resolved_string_field(arguments, "sortKey")
+            .is_none_or(|sort_key| sort_key == "COLLECTION_DEFAULT")
+            && collection.get("sortOrder").and_then(Value::as_str) == Some("MANUAL"));
+    let forward_first_window = !arguments.contains_key("after")
+        && !arguments.contains_key("before")
+        && !arguments.contains_key("last")
+        && !resolved_bool_field(arguments, "reverse").unwrap_or(false);
+    let prefix_rows = state
+        .effective_prefix_order()
+        .into_iter()
+        .filter_map(|product_id| membership_row(proxy, &state, &product_id))
+        .collect::<Vec<_>>();
+    let use_prefix = manual_order
+        && !prefix_rows.is_empty()
+        && membership_prefix_covers_window(&state, &prefix_rows, arguments);
+
+    if use_prefix {
+        let (rows, mut page_info) = connection_window(&prefix_rows, arguments, |row| {
+            row.cursor.clone().unwrap_or_default()
+        });
+        extend_prefix_page_info(&state, &prefix_rows, &rows, &mut page_info);
+        return Some(membership_connection_value(proxy, rows, page_info));
+    }
+
+    let upstream_connection = proxy.cached_upstream_query_value_at_path(request, &invocation.path);
+    if upstream_connection.is_none() {
+        let mut available_rows = prefix_rows;
+        if !manual_order {
+            apply_partial_membership_deltas_to_rows(
+                proxy,
+                &state,
+                &mut available_rows,
+                false,
+                false,
+                true,
+            );
+            sort_partial_membership_rows(proxy, collection, arguments, &mut available_rows);
+        }
+        let (rows, mut page_info) = connection_window(&available_rows, arguments, |row| {
+            row.cursor.clone().unwrap_or_default()
+        });
+        extend_prefix_page_info(&state, &available_rows, &rows, &mut page_info);
+        return Some(membership_connection_value(proxy, rows, page_info));
+    }
+    let upstream_connection = upstream_connection?;
+    let mut rows = observed_connection_rows(&upstream_connection);
+    let source_has_next = upstream_connection
+        .pointer("/pageInfo/hasNextPage")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let source_has_previous = upstream_connection
+        .pointer("/pageInfo/hasPreviousPage")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    apply_partial_membership_deltas_to_rows(
+        proxy,
+        &state,
+        &mut rows,
+        manual_order,
+        forward_first_window,
+        manual_order && !source_has_next,
+    );
+    if !manual_order {
+        sort_partial_membership_rows(proxy, collection, arguments, &mut rows);
+    }
+    let wanted = resolved_int_field(arguments, "first")
+        .or_else(|| resolved_int_field(arguments, "last"))
+        .map(|value| value.max(0) as usize);
+    let backward = arguments.contains_key("last");
+    let mut terminal_page_info = upstream_connection
+        .get("pageInfo")
+        .cloned()
+        .unwrap_or_else(empty_page_info);
+    if let Some(wanted) = wanted {
+        let can_refill = if backward {
+            source_has_previous
+        } else {
+            source_has_next
+        };
+        if rows.len() < wanted && can_refill {
+            if let Some(extra) = proxy.hydrate_collection_membership_window(
+                request,
+                collection_id,
+                arguments,
+                &upstream_connection,
+                wanted.saturating_sub(rows.len()) + state.deltas.len() + 1,
+            ) {
+                terminal_page_info = extra.get("pageInfo").cloned().unwrap_or(terminal_page_info);
+                let mut extra_rows = observed_connection_rows(&extra);
+                if backward {
+                    extra_rows.extend(rows);
+                    rows = extra_rows;
+                } else {
+                    rows.extend(extra_rows);
+                }
+                dedupe_membership_rows(&mut rows);
+                apply_partial_membership_deltas_to_rows(
+                    proxy,
+                    &state,
+                    &mut rows,
+                    manual_order,
+                    forward_first_window,
+                    manual_order
+                        && !terminal_page_info
+                            .get("hasNextPage")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false),
+                );
+                if !manual_order {
+                    sort_partial_membership_rows(proxy, collection, arguments, &mut rows);
+                }
+            }
+        }
+    }
+    let had_extra_rows = wanted.is_some_and(|wanted| rows.len() > wanted);
+    if let Some(wanted) = wanted {
+        if backward && rows.len() > wanted {
+            rows.drain(..rows.len() - wanted);
+        } else {
+            rows.truncate(wanted);
+        }
+    }
+    let terminal_has_next = terminal_page_info
+        .get("hasNextPage")
+        .and_then(Value::as_bool)
+        .unwrap_or(source_has_next);
+    let terminal_has_previous = terminal_page_info
+        .get("hasPreviousPage")
+        .and_then(Value::as_bool)
+        .unwrap_or(source_has_previous);
+    let page_info = connection_page_info(
+        if backward {
+            source_has_next
+        } else {
+            had_extra_rows || terminal_has_next
+        },
+        if backward {
+            had_extra_rows || terminal_has_previous
+        } else {
+            source_has_previous
+        },
+        rows.first().and_then(|row| row.cursor.clone()),
+        rows.last().and_then(|row| row.cursor.clone()),
+    );
+    Some(membership_connection_value(proxy, rows, page_info))
+}
+
+fn membership_prefix_covers_window(
+    state: &CollectionMembershipState,
+    rows: &[ObservedConnectionRow],
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+        return false;
+    }
+    let cursors = rows
+        .iter()
+        .filter_map(|row| row.cursor.as_deref())
+        .collect::<BTreeSet<_>>();
+    for cursor_name in ["after", "before"] {
+        if let Some(cursor) = resolved_string_field(arguments, cursor_name) {
+            if !cursors.contains(cursor.as_str()) {
+                return false;
+            }
+        }
+    }
+    if arguments.contains_key("last")
+        && !arguments.contains_key("before")
+        && !state.baseline_complete
+    {
+        return false;
+    }
+    let wanted = resolved_int_field(arguments, "first")
+        .or_else(|| resolved_int_field(arguments, "last"))
+        .map(|value| value.max(0) as usize);
+    let Some(wanted) = wanted else {
+        return state.baseline_complete;
+    };
+    let (window, _) = connection_window(rows, arguments, |row| {
+        row.cursor.clone().unwrap_or_default()
+    });
+    window.len() == wanted
+        || state.baseline_complete
+        || state
+            .effective_count()
+            .is_some_and(|(count, _)| count as usize <= rows.len())
+}
+
+fn extend_prefix_page_info(
+    state: &CollectionMembershipState,
+    prefix_rows: &[ObservedConnectionRow],
+    window_rows: &[ObservedConnectionRow],
+    page_info: &mut Value,
+) {
+    if state.baseline_complete || window_rows.is_empty() {
+        return;
+    }
+    let reaches_observed_end = window_rows.last().and_then(|row| row.cursor.as_deref())
+        == prefix_rows.last().and_then(|row| row.cursor.as_deref());
+    if reaches_observed_end
+        && state
+            .effective_count()
+            .is_some_and(|(count, _)| count as usize > prefix_rows.len())
+    {
+        page_info["hasNextPage"] = json!(true);
+    }
+}
+
+fn membership_row(
+    proxy: &DraftProxy,
+    state: &CollectionMembershipState,
+    product_id: &str,
+) -> Option<ObservedConnectionRow> {
+    let node = proxy
+        .store
+        .product_by_id(product_id)
+        .map(|product| proxy.product_canonical_value(product))
+        .unwrap_or_else(|| json!({ "id": product_id }));
+    let cursor = state.baseline_cursors.get(product_id).cloned().or_else(|| {
+        Some(if state.upstream_baseline {
+            collection_membership_cursor(product_id)
+        } else {
+            product_id.to_string()
+        })
+    });
+    Some(ObservedConnectionRow { cursor, node })
+}
+
+fn apply_partial_membership_deltas_to_rows(
+    proxy: &DraftProxy,
+    state: &CollectionMembershipState,
+    rows: &mut Vec<ObservedConnectionRow>,
+    manual_order: bool,
+    allow_move_insertion: bool,
+    include_manual_tail_additions: bool,
+) {
+    for delta in &state.deltas {
+        match delta {
+            CollectionMembershipDelta::Add { product_id } => {
+                if (!manual_order || include_manual_tail_additions)
+                    && !rows
+                        .iter()
+                        .any(|row| row.node.get("id").and_then(Value::as_str) == Some(product_id))
+                {
+                    if let Some(row) = membership_row(proxy, state, product_id) {
+                        rows.push(row);
+                    }
+                }
+            }
+            CollectionMembershipDelta::Remove { product_id } => {
+                rows.retain(|row| row.node.get("id").and_then(Value::as_str) != Some(product_id));
+            }
+            CollectionMembershipDelta::Move {
+                product_id,
+                new_position,
+            } => {
+                if !manual_order {
+                    continue;
+                }
+                rows.retain(|row| row.node.get("id").and_then(Value::as_str) != Some(product_id));
+                if allow_move_insertion && *new_position <= rows.len() {
+                    if let Some(row) = membership_row(proxy, state, product_id) {
+                        rows.insert(*new_position, row);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn sort_partial_membership_rows(
+    proxy: &DraftProxy,
+    collection: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    rows: &mut [ObservedConnectionRow],
+) {
+    let sort_key = resolved_string_field(arguments, "sortKey");
+    let sort_plan = collection_product_sort_plan(collection, sort_key.as_deref());
+    let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
+    rows.sort_by(|left, right| {
+        partial_membership_row_sort_key(proxy, left, sort_plan.key)
+            .cmp(&partial_membership_row_sort_key(
+                proxy,
+                right,
+                sort_plan.key,
+            ))
+            .then_with(|| {
+                left.node
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .cmp(&right.node.get("id").and_then(Value::as_str))
+            })
+    });
+    if sort_plan.descending ^ reverse {
+        rows.reverse();
+    }
+}
+
+fn partial_membership_row_sort_key(
+    proxy: &DraftProxy,
+    row: &ObservedConnectionRow,
+    sort_key: CollectionProductSortKey,
+) -> StagedSortKey {
+    let product = row
+        .node
+        .get("id")
+        .and_then(Value::as_str)
+        .and_then(|id| proxy.store.product_by_id(id).cloned())
+        .or_else(|| product_state_from_json(&row.node))
+        .unwrap_or_default();
+    let entry = CollectionProductEntry {
+        position: 0,
+        variants: proxy.store.product_variants_for_product(&product.id),
+        product,
+    };
+    collection_product_sort_key(&entry, sort_key)
+}
+
+fn dedupe_membership_rows(rows: &mut Vec<ObservedConnectionRow>) {
+    let mut seen = BTreeSet::new();
+    rows.retain(|row| {
+        row.node
+            .get("id")
+            .and_then(Value::as_str)
+            .is_none_or(|id| seen.insert(id.to_string()))
+    });
+}
+
+fn membership_connection_value(
+    proxy: &DraftProxy,
+    mut rows: Vec<ObservedConnectionRow>,
+    page_info: Value,
+) -> Value {
+    for row in &mut rows {
+        replace_observed_collection_product_node(proxy, &mut row.node);
+    }
+    let nodes = rows.iter().map(|row| row.node.clone()).collect::<Vec<_>>();
+    let edges = rows
+        .into_iter()
+        .map(|row| json!({ "cursor": row.cursor, "node": row.node }))
+        .collect::<Vec<_>>();
+    json!({ "nodes": nodes, "edges": edges, "pageInfo": page_info })
+}
+
+fn collection_membership_cursor(product_id: &str) -> String {
+    base64::engine::general_purpose::STANDARD
+        .encode(json!({ "kind": "collection-membership", "productId": product_id }).to_string())
 }
 
 fn observed_collection_products_connection(
@@ -1744,9 +2414,7 @@ impl DraftProxy {
             "collectionCreate" => self.collection_create(&invocation, &arguments),
             "collectionUpdate" => self.collection_update(&invocation, &arguments),
             "collectionDelete" => self.collection_delete(&arguments),
-            "collectionAddProducts" => {
-                self.collection_add_products(invocation.root_name, &arguments)
-            }
+            "collectionAddProducts" => self.collection_add_products(&invocation, &arguments),
             "collectionAddProductsV2" => {
                 self.collection_async_membership(&invocation, &arguments, true)
             }
@@ -2040,30 +2708,54 @@ impl DraftProxy {
 
     fn collection_add_products(
         &mut self,
-        root_field: &str,
+        invocation: &RootInvocation<'_>,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> ResolverOutcome<Value> {
+        let root_field = invocation.root_name;
         let collection_id = resolved_string_field(arguments, "id").unwrap_or_default();
         let requested_product_ids = list_string_field(arguments, "productIds");
-        self.hydrate_missing_collection_baseline(&collection_id, &requested_product_ids);
+        let baseline_first = COLLECTION_MEMBERSHIP_BASELINE_FIRST
+            .saturating_add(requested_product_ids.len())
+            .min(COLLECTION_MEMBERSHIP_MAX_PROBE_ROWS);
+        if !self.hydrate_collection_membership_targets(
+            invocation.request,
+            &collection_id,
+            &requested_product_ids,
+            baseline_first,
+        ) {
+            return ResolverOutcome::value(self.collection_payload_value(
+                None,
+                None,
+                vec![collection_user_error(
+                    ["productIds"],
+                    "Collection membership could not be resolved",
+                )],
+            ));
+        }
         if let Some(errors) = self.collection_membership_guard_errors(root_field, &collection_id) {
             return ResolverOutcome::value(self.collection_payload_value(None, None, errors));
         }
-        let mut products = self.collection_products(&collection_id);
-        let mut product_ids = products
-            .iter()
-            .map(|product| product.id.clone())
-            .collect::<BTreeSet<_>>();
-        for product_id in requested_product_ids {
-            if product_ids.contains(&product_id) {
-                continue;
-            }
-            if let Some(product) = self.store.product_by_id(&product_id).cloned() {
-                product_ids.insert(product_id);
-                products.push(product);
+        let payload_baseline_count = self
+            .store
+            .collection_membership(&collection_id)
+            .and_then(CollectionMembershipState::effective_count)
+            .map(|(count, precision)| count_object_with_precision(count, &precision));
+        for product_id in &requested_product_ids {
+            if self.store.product_by_id(product_id).is_some() {
+                self.stage_collection_membership_add(&collection_id, product_id);
             }
         }
-        let collection = self.replace_collection_products(&collection_id, products);
+        let mut collection = self.refresh_collection_membership_projection(&collection_id);
+        if let (Some(collection), Some(payload_baseline_count)) =
+            (collection.as_mut(), payload_baseline_count)
+        {
+            if let Some(object) = collection.as_object_mut() {
+                object.insert(
+                    COLLECTION_MEMBERSHIP_PAYLOAD_BASELINE_COUNT_FIELD.to_string(),
+                    payload_baseline_count,
+                );
+            }
+        }
         ResolverOutcome::value(self.collection_payload_value(collection.as_ref(), None, Vec::new()))
             .with_log_draft(LogDraft::staged(
                 root_field,
@@ -2090,24 +2782,39 @@ impl DraftProxy {
                 invocation.response_key,
             );
         }
-        self.hydrate_missing_collection_baseline(&collection_id, &product_ids);
+        let baseline_first = COLLECTION_MEMBERSHIP_BASELINE_FIRST
+            .saturating_add(product_ids.len())
+            .min(COLLECTION_MEMBERSHIP_MAX_PROBE_ROWS);
+        if !self.hydrate_collection_membership_targets(
+            invocation.request,
+            &collection_id,
+            &product_ids,
+            baseline_first,
+        ) {
+            return ResolverOutcome::value(self.collection_payload_value(
+                None,
+                None,
+                vec![collection_user_error(
+                    ["productIds"],
+                    "Collection membership could not be resolved",
+                )],
+            ));
+        }
         if let Some(errors) = self.collection_membership_guard_errors(root_field, &collection_id) {
             return ResolverOutcome::value(self.collection_payload_value(None, None, errors));
         }
-        let mut products = self.collection_products(&collection_id);
         if add {
             for product_id in &product_ids {
-                if products.iter().any(|product| product.id == *product_id) {
-                    continue;
-                }
-                if let Some(product) = self.store.product_by_id(product_id).cloned() {
-                    products.push(product);
+                if self.store.product_by_id(product_id).is_some() {
+                    self.stage_collection_membership_add(&collection_id, product_id);
                 }
             }
         } else {
-            products.retain(|product| !product_ids.iter().any(|id| id == &product.id));
+            for product_id in &product_ids {
+                self.stage_collection_membership_remove(&collection_id, product_id);
+            }
         }
-        self.replace_collection_products(&collection_id, products);
+        self.refresh_collection_membership_projection(&collection_id);
         let job = self.stage_collection_job();
         let job_id = job
             .get("id")
@@ -2138,11 +2845,51 @@ impl DraftProxy {
                     .or_else(|| resolved_string_field(move_input, "productId"))
             })
             .collect::<Vec<_>>();
-        self.hydrate_missing_collection_baseline(&collection_id, &move_product_ids);
+        let parsed_moves = moves
+            .iter()
+            .map(|move_input| {
+                let product_id = resolved_string_field(move_input, "id")
+                    .or_else(|| resolved_string_field(move_input, "productId"))
+                    .unwrap_or_default();
+                let new_position = resolved_string_field(move_input, "newPosition")
+                    .and_then(|value| value.parse::<usize>().ok())
+                    .or_else(|| {
+                        resolved_int_field(move_input, "newPosition")
+                            .map(|value| value.max(0) as usize)
+                    })
+                    .unwrap_or(0);
+                (product_id, new_position)
+            })
+            .collect::<Vec<_>>();
+        let baseline_first = COLLECTION_MEMBERSHIP_BASELINE_FIRST
+            .saturating_add(move_product_ids.len())
+            .max(
+                parsed_moves
+                    .iter()
+                    .map(|(_, new_position)| new_position.saturating_add(1))
+                    .max()
+                    .unwrap_or(0),
+            )
+            .min(COLLECTION_MEMBERSHIP_MAX_PROBE_ROWS);
+        if !self.hydrate_collection_membership_targets(
+            invocation.request,
+            &collection_id,
+            &move_product_ids,
+            baseline_first,
+        ) {
+            return ResolverOutcome::value(self.collection_payload_value(
+                None,
+                None,
+                vec![collection_reorder_user_error(
+                    ["moves"],
+                    "Collection membership could not be resolved",
+                    "INVALID_MOVE",
+                )],
+            ));
+        }
         if let Some(errors) = self.collection_membership_guard_errors(root_field, &collection_id) {
             return ResolverOutcome::value(self.collection_payload_value(None, None, errors));
         }
-        self.hydrate_collection_reorder_sort_order(&collection_id);
         let manually_sorted =
             self.store
                 .collection_by_id(&collection_id)
@@ -2160,24 +2907,29 @@ impl DraftProxy {
                 )],
             ));
         }
-        let mut products = self.collection_products(&collection_id);
-        for move_input in moves {
-            let product_id = resolved_string_field(&move_input, "id")
-                .or_else(|| resolved_string_field(&move_input, "productId"))
-                .unwrap_or_default();
-            let new_position = resolved_string_field(&move_input, "newPosition")
-                .and_then(|value| value.parse::<usize>().ok())
-                .or_else(|| {
-                    resolved_int_field(&move_input, "newPosition")
-                        .map(|value| value.max(0) as usize)
-                })
-                .unwrap_or(0);
-            if let Some(index) = products.iter().position(|product| product.id == product_id) {
-                let product = products.remove(index);
-                products.insert(new_position.min(products.len()), product);
-            }
+        let invalid_move = parsed_moves.iter().find(|(product_id, _)| {
+            self.store
+                .collection_membership(&collection_id)
+                .and_then(|state| state.effective_membership(product_id))
+                != Some(true)
+        });
+        if invalid_move.is_some() {
+            return ResolverOutcome::value(self.collection_payload_value(
+                None,
+                None,
+                vec![collection_reorder_user_error(
+                    ["moves"],
+                    "The move is invalid",
+                    "INVALID_MOVE",
+                )],
+            ));
         }
-        self.replace_collection_products(&collection_id, products);
+        for (product_id, new_position) in parsed_moves {
+            self.store
+                .collection_membership_mut(&collection_id)
+                .stage_move(&product_id, new_position);
+        }
+        self.refresh_collection_membership_projection(&collection_id);
         let job = self.stage_collection_job();
         let job_id = job
             .get("id")
@@ -2308,23 +3060,6 @@ impl DraftProxy {
         })
     }
 
-    fn collection_products(&self, collection_id: &str) -> Vec<ProductRecord> {
-        self.store
-            .collection_by_id(collection_id)
-            .and_then(|collection| collection.get("products"))
-            .map(connection_nodes)
-            .unwrap_or_default()
-            .into_iter()
-            .filter_map(|product| {
-                product
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .and_then(|id| self.store.product_by_id(id).cloned())
-                    .or_else(|| product_state_from_json(&product))
-            })
-            .collect()
-    }
-
     pub(in crate::proxy) fn collection_product_entries(
         &self,
         collection: &Value,
@@ -2390,22 +3125,11 @@ impl DraftProxy {
             .collect()
     }
 
-    fn replace_collection_products(
-        &mut self,
-        collection_id: &str,
-        products: Vec<ProductRecord>,
-    ) -> Option<Value> {
-        let mut collection = self.store.collection_by_id(collection_id)?.clone();
-        apply_collection_products(&mut collection, &products);
-        self.store.stage_collection(collection.clone());
-        self.sync_collection_products(collection_id, products);
-        Some(collection)
-    }
-
     fn sync_collection_products(&mut self, collection_id: &str, products: Vec<ProductRecord>) {
         let Some(collection) = self.store.collection_by_id(collection_id).cloned() else {
             return;
         };
+        self.store.observe_collection_membership(&collection);
         let product_ids = products
             .iter()
             .map(|product| product.id.clone())
@@ -2441,6 +3165,277 @@ impl DraftProxy {
         }
     }
 
+    fn hydrate_collection_membership_targets(
+        &mut self,
+        request: &Request,
+        collection_id: &str,
+        product_ids: &[String],
+        first: usize,
+    ) -> bool {
+        if collection_id.is_empty() {
+            return true;
+        }
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return true;
+        }
+        if self.store.collection_membership(collection_id).is_none() {
+            if let Some(collection) = self.store.collection_by_id(collection_id).cloned() {
+                self.store.observe_collection_membership(&collection);
+            }
+        }
+        let mut unprobed_product_ids = product_ids
+            .iter()
+            .filter(|product_id| {
+                let target_is_known = self.store.product_by_id(product_id).is_some()
+                    || self
+                        .store
+                        .collection_membership(collection_id)
+                        .is_some_and(|state| state.probed_product_ids.contains(*product_id));
+                let membership_is_known = self
+                    .store
+                    .collection_membership(collection_id)
+                    .and_then(|state| state.effective_membership(product_id))
+                    .is_some();
+                !target_is_known || !membership_is_known
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        unprobed_product_ids.sort();
+        unprobed_product_ids.dedup();
+        let needs_baseline = self.store.collection_by_id(collection_id).is_none()
+            || self
+                .store
+                .collection_membership(collection_id)
+                .is_none_or(|state| state.baseline_order.len() < first && !state.baseline_complete);
+        if !needs_baseline && unprobed_product_ids.is_empty() {
+            return true;
+        }
+        let has_local_authoritative_baseline = self
+            .store
+            .collection_membership(collection_id)
+            .is_some_and(|state| !state.upstream_baseline && state.baseline_complete);
+        if has_local_authoritative_baseline && !unprobed_product_ids.is_empty() {
+            self.hydrate_product_nodes_for_observation_with_request(
+                request,
+                unprobed_product_ids.clone(),
+            );
+            let state = self.store.collection_membership_mut(collection_id);
+            state
+                .probed_product_ids
+                .extend(unprobed_product_ids.iter().cloned());
+            return true;
+        }
+
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": COLLECTION_MEMBERSHIP_TARGETS_HYDRATE_QUERY,
+                "operationName": "CollectionMembershipTargetsHydrate",
+                "variables": {
+                    "collectionId": collection_id,
+                    "productIds": unprobed_product_ids,
+                    "collectionQuery": format!("id:{}", resource_id_tail(collection_id)),
+                    "first": first,
+                }
+            }),
+        );
+        if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+            return false;
+        }
+        let Some(collection) = response.body.pointer("/data/collection") else {
+            return false;
+        };
+        let Some(target_nodes) = response
+            .body
+            .pointer("/data/nodes")
+            .and_then(Value::as_array)
+            .filter(|nodes| nodes.len() == unprobed_product_ids.len())
+            .cloned()
+        else {
+            return false;
+        };
+        let mut observed_membership = BTreeMap::<String, bool>::new();
+        let mut observed_products = Vec::new();
+        for (requested_id, node) in unprobed_product_ids.iter().zip(&target_nodes) {
+            if node.is_null() {
+                observed_membership.insert(requested_id.clone(), false);
+                continue;
+            }
+            let Some(product_id) = node.get("id").and_then(Value::as_str) else {
+                return false;
+            };
+            if product_id != requested_id {
+                return false;
+            }
+            let is_member = connection_nodes(&node["collections"])
+                .iter()
+                .any(|collection| {
+                    collection.get("id").and_then(Value::as_str) == Some(collection_id)
+                });
+            observed_membership.insert(product_id.to_string(), is_member);
+            observed_products.push(node.clone());
+        }
+        if !collection.is_null() {
+            self.stage_collection_from_observed_json(collection);
+        }
+        for product in &observed_products {
+            self.store.stage_observed_product_json(product);
+        }
+        let state = self.store.collection_membership_mut(collection_id);
+        for product_id in unprobed_product_ids {
+            state.probed_product_ids.insert(product_id.clone());
+            state.known_membership.insert(
+                product_id.clone(),
+                observed_membership
+                    .get(&product_id)
+                    .copied()
+                    .unwrap_or(false),
+            );
+        }
+        self.refresh_collection_membership_reverse_links(collection_id);
+        true
+    }
+
+    fn hydrate_collection_membership_window(
+        &self,
+        request: &Request,
+        collection_id: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        observed_connection: &Value,
+        refill_size: usize,
+    ) -> Option<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid || refill_size == 0 {
+            return None;
+        }
+        let backward = arguments.contains_key("last");
+        let after = if backward {
+            arguments
+                .get("after")
+                .map(resolved_value_json)
+                .unwrap_or(Value::Null)
+        } else {
+            observed_connection
+                .pointer("/pageInfo/endCursor")
+                .cloned()
+                .unwrap_or(Value::Null)
+        };
+        let before = if backward {
+            observed_connection
+                .pointer("/pageInfo/startCursor")
+                .cloned()
+                .unwrap_or(Value::Null)
+        } else {
+            arguments
+                .get("before")
+                .map(resolved_value_json)
+                .unwrap_or(Value::Null)
+        };
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": COLLECTION_MEMBERSHIP_WINDOW_HYDRATE_QUERY,
+                "operationName": "CollectionMembershipWindowHydrate",
+                "variables": {
+                    "id": collection_id,
+                    "first": (!backward).then_some(refill_size),
+                    "after": after,
+                    "last": backward.then_some(refill_size),
+                    "before": before,
+                    "reverse": resolved_bool_field(arguments, "reverse").unwrap_or(false),
+                    "sortKey": resolved_string_field(arguments, "sortKey"),
+                }
+            }),
+        );
+        if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+            return None;
+        }
+        response.body.pointer("/data/collection/products").cloned()
+    }
+
+    fn stage_collection_membership_add(&mut self, collection_id: &str, product_id: &str) {
+        let changed = self
+            .store
+            .collection_membership_mut(collection_id)
+            .stage_add(product_id);
+        if !changed {
+            return;
+        }
+        let Some(collection) = self.store.collection_by_id(collection_id).cloned() else {
+            return;
+        };
+        let Some(mut product) = self.store.product_by_id(product_id).cloned() else {
+            return;
+        };
+        upsert_minimal_collection(&mut product.collections, &collection);
+        self.store.stage_product(product);
+    }
+
+    fn stage_collection_membership_remove(&mut self, collection_id: &str, product_id: &str) {
+        let changed = self
+            .store
+            .collection_membership_mut(collection_id)
+            .stage_remove(product_id);
+        if !changed {
+            return;
+        }
+        let Some(mut product) = self.store.product_by_id(product_id).cloned() else {
+            return;
+        };
+        remove_minimal_collection(&mut product.collections, collection_id);
+        self.store.stage_product(product);
+    }
+
+    fn refresh_collection_membership_reverse_links(&mut self, collection_id: &str) {
+        let Some(collection) = self.store.collection_by_id(collection_id).cloned() else {
+            return;
+        };
+        let Some(state) = self.store.collection_membership(collection_id).cloned() else {
+            return;
+        };
+        let touched = state
+            .deltas
+            .iter()
+            .map(|delta| match delta {
+                CollectionMembershipDelta::Add { product_id }
+                | CollectionMembershipDelta::Remove { product_id }
+                | CollectionMembershipDelta::Move { product_id, .. } => product_id.clone(),
+            })
+            .collect::<BTreeSet<_>>();
+        for product_id in touched {
+            let Some(mut product) = self.store.product_by_id(&product_id).cloned() else {
+                continue;
+            };
+            if state.effective_membership(&product_id) == Some(true) {
+                upsert_minimal_collection(&mut product.collections, &collection);
+            } else {
+                remove_minimal_collection(&mut product.collections, collection_id);
+            }
+            self.store.stage_product(product);
+        }
+    }
+
+    fn refresh_collection_membership_projection(&mut self, collection_id: &str) -> Option<Value> {
+        let state = self.store.collection_membership(collection_id)?.clone();
+        let mut collection = self.store.collection_by_id(collection_id)?.clone();
+        if state.baseline_complete {
+            let products = state
+                .effective_prefix_order()
+                .into_iter()
+                .filter_map(|product_id| self.store.product_by_id(&product_id).cloned())
+                .collect::<Vec<_>>();
+            apply_collection_products(&mut collection, &products);
+        } else if let Some((count, precision)) = state.effective_count() {
+            if let Some(object) = collection.as_object_mut() {
+                object.insert(
+                    "productsCount".to_string(),
+                    count_object_with_precision(count, &precision),
+                );
+            }
+        }
+        self.store.stage_collection(collection.clone());
+        Some(collection)
+    }
+
     fn hydrate_missing_collection_baseline(&mut self, collection_id: &str, product_ids: &[String]) {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
@@ -2458,43 +3453,6 @@ impl DraftProxy {
         ids.sort();
         ids.dedup();
         self.hydrate_product_nodes_for_observation(ids);
-    }
-
-    fn hydrate_collection_reorder_sort_order(&mut self, collection_id: &str) {
-        if self.config.read_mode != ReadMode::LiveHybrid
-            || collection_id.is_empty()
-            || self
-                .store
-                .collection_by_id(collection_id)
-                .and_then(|collection| collection.get("sortOrder"))
-                .and_then(Value::as_str)
-                .is_some()
-        {
-            return;
-        }
-        let path = self
-            .log_entries
-            .last()
-            .and_then(|entry| entry.get("path"))
-            .and_then(Value::as_str)
-            .unwrap_or("/admin/api/2025-01/graphql.json")
-            .to_string();
-        let response = self.upstream_post(
-            &Request {
-                method: "POST".to_string(),
-                path,
-                headers: BTreeMap::new(),
-                body: String::new(),
-            },
-            json!({
-                "query": COLLECTION_REORDER_PRODUCTS_COLLECTION_HYDRATE_QUERY,
-                "operationName": "CollectionReorderProductsCollectionHydrate",
-                "variables": { "id": collection_id }
-            }),
-        );
-        if let Some(collection) = response.body.pointer("/data/collection") {
-            self.stage_collection_from_observed_json(collection);
-        }
     }
 
     fn stage_collection_job(&mut self) -> Value {
@@ -3191,6 +4149,14 @@ fn collection_sort_orders_message() -> String {
 
 fn collection_user_error<const N: usize>(field: [&str; N], message: &str) -> Value {
     user_error_omit_code(field, message, None)
+}
+
+fn collection_reorder_user_error<const N: usize>(
+    field: [&str; N],
+    message: &str,
+    code: &str,
+) -> Value {
+    user_error_omit_code(field, message, Some(code))
 }
 
 fn collection_user_error_null_field(message: &str) -> Value {

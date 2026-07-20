@@ -415,6 +415,48 @@ struct Store {
     shop_policies: ResourceStore<ShopPolicyRecord>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CollectionMembershipState {
+    /// Whether the baseline came from Shopify rather than a fully local
+    /// collection. This controls cursor fallback without inventing a Shopify
+    /// cursor for local-only rows.
+    upstream_baseline: bool,
+    /// A bounded authoritative prefix (or the complete order when
+    /// `baseline_complete` is true) observed from Shopify before local writes.
+    baseline_order: Vec<String>,
+    /// Shopify's opaque edge cursor for each observed baseline member.
+    baseline_cursors: BTreeMap<String, String>,
+    baseline_complete: bool,
+    baseline_count: Option<u64>,
+    baseline_precision: Option<String>,
+    /// Exact membership facts learned from the bounded target probe. Absence is
+    /// deliberately distinct from a proven non-member.
+    known_membership: BTreeMap<String, bool>,
+    /// Includes missing products so repeated writes do not re-probe the same
+    /// target within one proxy session.
+    probed_product_ids: BTreeSet<String>,
+    /// Shopify applies collection membership writes in request order. Keep the
+    /// operations symbolic when the upstream baseline is incomplete so unseen
+    /// members are never mistaken for deletions.
+    deltas: Vec<CollectionMembershipDelta>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+enum CollectionMembershipDelta {
+    Add {
+        product_id: String,
+    },
+    Remove {
+        product_id: String,
+    },
+    Move {
+        product_id: String,
+        new_position: usize,
+    },
+}
+
 #[derive(Clone, Default)]
 struct BaseState {
     delivery_profiles: OrderedRecords<Value>,
@@ -555,6 +597,7 @@ struct StagedState {
     delivery_customizations: StagedRecords<Value>,
     segments: StagedRecords<Value>,
     collections: StagedRecords<Value>,
+    collection_memberships: BTreeMap<String, CollectionMembershipState>,
     deleted_collection_handles: BTreeSet<String>,
     collection_jobs: BTreeMap<String, Value>,
     fulfillment_order_deadlines: BTreeMap<String, String>,
@@ -1755,6 +1798,13 @@ impl Store {
             || !self.staged.collection_jobs.is_empty()
     }
 
+    fn has_collection_membership_deltas(&self) -> bool {
+        self.staged
+            .collection_memberships
+            .values()
+            .any(|membership| !membership.deltas.is_empty())
+    }
+
     fn product_feed_by_id(&self, id: &str) -> Option<&Value> {
         self.staged.product_feeds.get(id)
     }
@@ -1979,6 +2029,7 @@ impl Store {
         else {
             return;
         };
+        self.observe_collection_membership(&collection);
         let mut normalized_products = Vec::new();
         for mut product in products {
             upsert_minimal_collection(&mut product.collections, &collection);
@@ -2098,6 +2149,7 @@ impl Store {
             .and_then(Value::as_str)
             .and_then(normalized_collection_handle);
         let existed = self.staged.collections.tombstone_staged(id);
+        self.staged.collection_memberships.remove(id);
         if existed {
             if let Some(handle) = deleted_handle {
                 self.staged.deleted_collection_handles.insert(handle);

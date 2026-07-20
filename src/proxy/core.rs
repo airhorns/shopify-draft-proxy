@@ -533,6 +533,7 @@ impl DraftProxy {
                 "productFeedOrder": self.store.staged.product_feeds.order,
                 "deletedProductFeedIds": self.store.staged.product_feeds.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "collections": self.store.staged.collections.records.clone(),
+                "collectionMemberships": self.store.staged.collection_memberships.clone(),
                 "deletedCollectionIds": self.store.staged.collections.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "deletedCollectionHandles": self.store.staged.deleted_collection_handles.iter().cloned().collect::<Vec<_>>(),
                 "collectionJobs": self.store.staged.collection_jobs.clone(),
@@ -1578,6 +1579,10 @@ impl DraftProxy {
             None,
             Some("deletedCollectionIds"),
         );
+        self.store.staged.collection_memberships = state["stagedState"]
+            .get("collectionMemberships")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
         self.store.staged.deleted_collection_handles =
             string_array_from_json(&state["stagedState"]["deletedCollectionHandles"])
                 .into_iter()
