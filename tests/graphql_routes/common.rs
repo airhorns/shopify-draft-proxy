@@ -14,6 +14,108 @@ pub(super) fn snapshot_proxy() -> DraftProxy {
     configured_proxy(ReadMode::Snapshot, None)
 }
 
+pub(super) fn create_metafield_product_owner(proxy: &mut DraftProxy, title: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetafieldProductOwner($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": title } }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("productCreate should return a metafield owner id")
+        .to_string()
+}
+
+pub(super) fn create_metafield_product_and_variant_owners(
+    proxy: &mut DraftProxy,
+    title: &str,
+) -> (String, String) {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetafieldProductAndVariantOwners($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id variants(first: 1) { nodes { id } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": title } }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product = &response.body["data"]["productCreate"]["product"];
+    (
+        product["id"]
+            .as_str()
+            .expect("productCreate should return a metafield owner id")
+            .to_string(),
+        product["variants"]["nodes"][0]["id"]
+            .as_str()
+            .expect("productCreate should return its default variant id")
+            .to_string(),
+    )
+}
+
+pub(super) fn create_metafield_collection_owner(proxy: &mut DraftProxy, title: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetafieldCollectionOwner($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": title } }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .expect("collectionCreate should return a metafield owner id")
+        .to_string()
+}
+
+pub(super) fn create_metafield_customer_owner(proxy: &mut DraftProxy, email: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetafieldCustomerOwner($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "email": email } }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("customerCreate should return a metafield owner id")
+        .to_string()
+}
+
 pub(super) fn utc_time(unix_seconds: i64) -> time::OffsetDateTime {
     time::OffsetDateTime::from_unix_timestamp(unix_seconds)
         .expect("test timestamp should be representable")

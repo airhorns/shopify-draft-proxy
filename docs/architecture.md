@@ -269,6 +269,15 @@ The runtime should use normalized state rather than raw GraphQL blobs.
 
 `DraftProxy` owns a typed Rust `Store` for runtime resource state. Products, saved searches, and Storefront carts/lines use normalized records with shared effective-read helpers or deterministic order indexes, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary. Order and gift-card LiveHybrid hydration also stores known base records and related baseline/configuration data in `BaseState` so supported local mutations can overlay real upstream reads without runtime Shopify writes.
 
+Canonical record presence is not a completeness signal. When a query-only
+hydration observes a parent only to resolve owner metafields, staged state keeps
+the observed parent field paths separately from the record and child effects.
+Domain roots and generic Node loading use those paths to hydrate later disjoint
+selections. Generic Node planning retains fragment-aware paths per concrete
+resource type so selections on sibling implementations do not trigger or
+suppress hydration. Exact tombstones remain authoritative. The completeness
+map round-trips through dump/restore with the associated partial records.
+
 The normalized product and saved-search portions currently include:
 
 - `BaseState` for snapshot, fixture, or restored upstream state

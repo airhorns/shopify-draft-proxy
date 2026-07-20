@@ -471,6 +471,34 @@ describe('Rust parity runner CLI', () => {
   );
 
   it(
+    'uses a directly captured GraphQL response target as the fallback for parent hydration',
+    async () => {
+      const output = await runCorepackPnpm([
+        'parity',
+        '--',
+        '--spec',
+        'config/parity-specs/products/metafieldsSet-owner-isolation.json',
+      ]);
+      expect(output).toContain('metafieldsSet-owner-isolation.json passed');
+    },
+    parityCliTimeoutMs,
+  );
+
+  it(
+    'does not replay a directly captured aggregate response as a parent hydration fallback',
+    async () => {
+      const output = await runCorepackPnpm([
+        'parity',
+        '--',
+        '--spec',
+        'config/parity-specs/discounts/discount-class-inference.json',
+      ]);
+      expect(output).toContain('discount-class-inference.json passed');
+    },
+    parityCliTimeoutMs,
+  );
+
+  it(
     'resolves capture-path variables before replaying recorded passthrough node reads',
     async () => {
       const output = await runCorepackPnpm([

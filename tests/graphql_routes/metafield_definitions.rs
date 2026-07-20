@@ -3620,7 +3620,7 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
 fn metafield_definition_validation_update_gates_later_metafields_set() {
     let mut proxy = snapshot_proxy();
     let namespace = "validation_affects_values";
-    let owner_id = "gid://shopify/Product/10173064872242";
+    let owner_id = create_metafield_product_owner(&mut proxy, "Definition validation owner");
 
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -3777,7 +3777,7 @@ fn metafield_definition_validation_update_gates_later_metafields_set() {
 #[test]
 fn metafields_set_and_owner_reads_project_matching_definition() {
     let mut proxy = snapshot_proxy();
-    let owner_id = "gid://shopify/Product/10173064872243";
+    let owner_id = create_metafield_product_owner(&mut proxy, "Definition association owner");
 
     let create = proxy.process_request(json_graphql_request(
         r#"

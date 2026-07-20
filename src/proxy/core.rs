@@ -642,6 +642,15 @@ impl DraftProxy {
             base_metafield_definition_namespaces_value;
         snapshot["stagedState"]["deletedMetafieldDefinitions"] =
             deleted_metafield_definitions_value;
+        if !self
+            .store
+            .staged
+            .owner_parent_observed_field_paths
+            .is_empty()
+        {
+            snapshot["stagedState"]["ownerParentObservedFieldPaths"] =
+                json!(self.store.staged.owner_parent_observed_field_paths.clone());
+        }
         if !self.store.base.b2b_companies.records.is_empty()
             || !self.store.base.b2b_companies.order.is_empty()
             || !self.store.base.b2b_company_count_baselines.is_empty()
@@ -2669,6 +2678,10 @@ impl DraftProxy {
                     })
                     .collect()
             })
+            .unwrap_or_default();
+        self.store.staged.owner_parent_observed_field_paths = state["stagedState"]
+            .get("ownerParentObservedFieldPaths")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
             .unwrap_or_default();
         self.store.staged.deleted_owner_metafields = state["stagedState"]
             .get("deletedOwnerMetafields")

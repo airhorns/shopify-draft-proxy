@@ -211,6 +211,7 @@ impl StorefrontRootExecutor {
                 raw_arguments: call.field.raw_arguments.clone(),
                 arguments,
                 requested_field_paths,
+                requested_field_paths_by_type: BTreeMap::new(),
                 upstream_value: None,
                 request: &call.request,
                 query: &call.query,

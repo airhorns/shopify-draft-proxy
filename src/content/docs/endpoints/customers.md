@@ -78,6 +78,12 @@ Local staged mutations:
   `customerSet(identifier.customId)` path also stages and preserves the
   identifier metafield when a valid CUSTOMER `id` definition exists. The
   metafields connection uses shared cursor windowing and honors `reverse`.
+- A customer record observed only to resolve owner metafields remains a partial
+  parent observation. A later `customer(id:)` or generic Node selection for
+  unobserved customer fields hydrates those fields from Shopify and preserves
+  the local metafield overlay. A customer metafield effect without an observed
+  customer does not make the customer root non-null, and customer tombstones
+  remain authoritative.
 - `customerByIdentifier(identifier:)` resolves from the same effective normalized customer graph as `customer(id:)` and `customers`, including staged customer creates/updates and hydrated live-hybrid customers.
 - In LiveHybrid mode, staged customer reads hydrate the relevant upstream/base
   customer slice and overlay staged customer records instead of replacing the

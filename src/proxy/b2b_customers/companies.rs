@@ -1680,6 +1680,11 @@ impl DraftProxy {
     /// surface-qualified field resolvers own relationship expansion and selection.
     pub(in crate::proxy) fn b2b_node_value_by_id(&self, id: &str) -> Option<Value> {
         let staged = &self.store.staged;
+        if shopify_gid_resource_type(id) == Some("Company")
+            && staged.deleted_b2b_company_ids.contains(id)
+        {
+            return Some(Value::Null);
+        }
         if let Some(assignment) = self.b2b_effective_role_assignment(id) {
             return Some(assignment);
         }
@@ -1715,7 +1720,15 @@ impl DraftProxy {
         operation_type: OperationType,
         response_key: &str,
     ) -> Option<ResolverOutcome<Value>> {
-        if operation_type == OperationType::Query && !self.b2b_root_has_staged_match(field) {
+        let partial_company_needs_hydration = operation_type == OperationType::Query
+            && field.name == "company"
+            && resolved_string_field(&field.arguments, "id").is_some_and(|id| {
+                self.owner_parent_is_partial(&id)
+                    && !self.owner_parent_shape_is_complete(&id, &field.requested_field_paths)
+            });
+        if operation_type == OperationType::Query
+            && (!self.b2b_root_has_staged_match(field) || partial_company_needs_hydration)
+        {
             let singular_root = matches!(
                 field.name.as_str(),
                 "company" | "companyContact" | "companyLocation"
@@ -4125,6 +4138,14 @@ impl DraftProxy {
                 }
             }
             "company" => {
+                if value.is_object()
+                    && value
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .is_some_and(|id| self.owner_parent_is_partial(id))
+                {
+                    self.stage_observed_owner_metafield_node(value);
+                }
                 self.observe_b2b_company_record(value);
             }
             "companyLocations" => self.observe_b2b_location_connection(value, None),

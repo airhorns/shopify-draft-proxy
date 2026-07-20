@@ -32,6 +32,7 @@ pub(in crate::proxy) struct B2bRootInput {
     location: SourceLocation,
     raw_arguments: BTreeMap<String, RawArgumentValue>,
     arguments: BTreeMap<String, ResolvedValue>,
+    requested_field_paths: BTreeSet<Vec<String>>,
 }
 
 fn b2b_root_input(invocation: &RootInvocation<'_>) -> B2bRootInput {
@@ -41,6 +42,7 @@ fn b2b_root_input(invocation: &RootInvocation<'_>) -> B2bRootInput {
         location: invocation.root_location,
         raw_arguments: invocation.raw_arguments.clone(),
         arguments: resolved_arguments_from_json(&invocation.arguments),
+        requested_field_paths: invocation.requested_field_paths.clone(),
     }
 }
 
@@ -169,9 +171,13 @@ impl DraftProxy {
         let mut upstream_value = invocation.upstream_value;
         if upstream_value.is_none()
             && handle_customers
-            && self.customer_overlay_needs_upstream_data(invocation.root_name, &arguments)
+            && self.customer_overlay_needs_upstream_data(
+                invocation.root_name,
+                &arguments,
+                &invocation.requested_field_paths,
+            )
         {
-            let upstream = self.cached_or_forward_upstream_root_outcome(
+            let upstream = self.cached_or_forward_upstream_graphql_result(
                 invocation.request,
                 invocation.response_key,
             );
@@ -180,8 +186,25 @@ impl DraftProxy {
             // be fetched; the legacy overlay path likewise treated an
             // unsuccessful hydrate as an empty baseline rather than replacing
             // authoritative local state with an upstream transport error.
-            if upstream.errors.is_empty() {
-                upstream_value = Some(upstream.value);
+            if upstream.outcome.errors.is_empty() {
+                let value = upstream
+                    .data
+                    .get(invocation.response_key)
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                upstream_value = Some(value);
+            }
+        }
+        if invocation.root_name == "customer"
+            && resolved_string_field(&arguments, "id")
+                .is_some_and(|id| self.owner_parent_is_partial(&id))
+        {
+            if let Some(customer) = upstream_value
+                .as_ref()
+                .filter(|value| value.is_object())
+                .cloned()
+            {
+                self.stage_observed_owner_metafield_node(&customer);
             }
         }
         let value = if handle_customers {
