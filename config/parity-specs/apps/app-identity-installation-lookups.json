@@ -1,0 +1,56 @@
+{
+  "scenarioId": "app-identity-installation-lookups",
+  "operationNames": ["app", "appByHandle", "appByKey", "appInstallation", "appInstallations"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "null-empty-behavior", "upstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/apps/app-billing-access-read.json"],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/app-identity-lookups.graphql",
+    "variablesPath": "config/parity-requests/apps/app-identity-lookups.variables.json",
+    "apiVersion": "2025-01"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "lookup-app-by-id-and-missing-id",
+        "capturePath": "$.appLookups.payload.data.appById",
+        "proxyPath": "$.data.appById"
+      },
+      {
+        "name": "lookup-app-by-handle-and-missing-handle",
+        "capturePath": "$.appLookups.payload.data.appByHandle",
+        "proxyPath": "$.data.appByHandle"
+      },
+      {
+        "name": "lookup-app-by-key-and-missing-key",
+        "capturePath": "$.appLookups.payload.data.appByKey",
+        "proxyPath": "$.data.appByKey"
+      },
+      {
+        "name": "lookup-app-installation-by-id",
+        "capturePath": "$.appInstallationDetail.payload.data.appInstallation",
+        "proxyPath": "$.data.appInstallation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/app-installation-detail.graphql",
+          "variablesPath": "config/parity-requests/apps/app-installation-detail.variables.json",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "installation-catalog-access-denied-blocker",
+        "capturePath": "$.appInstallationsAccessProbe.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/app-installations-access-probe.graphql",
+          "variablesPath": "config/parity-requests/apps/app-installations-access-probe.variables.json",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "Captured Shopify lookup parity for app ID, handle, API key, installation ID, and missing singular values. The current credential still returns ACCESS_DENIED for appInstallations, so a non-empty catalog comparison remains explicitly blocked and no catalog payload is synthesized."
+}

@@ -47,7 +47,9 @@ impl DraftProxy {
 
         let purchase_id = self.next_proxy_synthetic_gid("AppPurchaseOneTime");
         let confirmation_url = app_domain_confirmation_url_from_arguments(&arguments);
+        let app_id = self.ensure_current_app_installation(invocation.request);
         let purchase = json!({
+            "__draftProxyAppId": app_id,
             "id": purchase_id,
             "name": name,
             "status": "ACTIVE",

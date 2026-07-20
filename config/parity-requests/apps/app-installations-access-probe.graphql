@@ -1,0 +1,14 @@
+#graphql
+  query AppInstallationsAccessProbe($first: Int!) {
+    appInstallations(first: $first) {
+      nodes {
+        id
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }

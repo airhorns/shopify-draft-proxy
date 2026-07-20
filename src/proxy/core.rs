@@ -504,6 +504,13 @@ impl DraftProxy {
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
                 "giftCardCompleteQueries": self.store.base.gift_card_complete_queries.iter().cloned().collect::<Vec<_>>(),
+                "apps": self.store.base.apps.records.clone(),
+                "appOrder": self.store.base.apps.order.clone(),
+                "appInstallations": self.store.base.app_installations.records.clone(),
+                "appInstallationOrder": self.store.base.app_installations.order.clone(),
+                "currentAppIdsByRequestContext": self.store.base.current_app_ids_by_request_context.clone(),
+                "appInstallationCatalogScopes": self.store.base.app_installation_catalog_scopes.clone(),
+                "backupRegionAccessScopesByRequestContext": self.store.base.backup_region_access_scopes_by_request_context.clone(),
                 "shop": self.store.base.shop.clone(),
                 "storefrontShop": self.store.base.storefront_shop.clone(),
                 "storefrontLocalizations": self.store.base.storefront_localizations.clone(),
@@ -1546,6 +1553,38 @@ impl DraftProxy {
             .get("bulkOperationsObserved")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        self.store.base.apps.replace_with_order(
+            value_map_from_json(state["baseState"].get("apps")),
+            state["baseState"]
+                .get("appOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.app_installations.replace_with_order(
+            value_map_from_json(state["baseState"].get("appInstallations")),
+            state["baseState"]
+                .get("appInstallationOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.current_app_ids_by_request_context =
+            value_map_from_json(state["baseState"].get("currentAppIdsByRequestContext"))
+                .into_iter()
+                .filter_map(|(context, app_id)| {
+                    app_id.as_str().map(|app_id| (context, app_id.to_string()))
+                })
+                .collect();
+        self.store.base.app_installation_catalog_scopes = state["baseState"]
+            .get("appInstallationCatalogScopes")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
+        self.store
+            .base
+            .backup_region_access_scopes_by_request_context = state["baseState"]
+            .get("backupRegionAccessScopesByRequestContext")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
+        self.rebuild_app_graph_indexes();
         self.store.products.staged.replace_with_order(
             product_state_map_from_json(&state["stagedState"]["products"]),
             string_array_from_json(&state["stagedState"]["productOrder"]),
