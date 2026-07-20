@@ -14839,12 +14839,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/customers/customer_delete_no_orders_control.json',
       'config/parity-specs/customers/customer_delete_blocked_by_orders.json',
       'config/parity-requests/customers/customer-delete-order-precondition-read.graphql',
+      'config/parity-requests/customers/customer-hydrate.graphql',
     ],
     cleanupBehavior:
-      'Creates disposable customers plus one disposable order, records delete behavior, then best-effort cancels/deletes the order and deletes remaining customers.',
+      'Creates disposable customers plus one disposable order, records delete behavior, then best-effort cancels/deletes the order and retries customer cleanup; Shopify may retain the blocked customer because deleted order history still keeps canDelete false.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'The local-runtime customerDelete fixture outputs are retained only to register deletion of forged parity evidence; the recorder writes live Shopify replacements.',
+      'The live recorder captures the exact CustomerHydrate prerequisite used by cold mutation-first customerDelete replay. The local-runtime customerDelete fixture outputs are retained only to register deletion of forged parity evidence; the recorder writes live Shopify replacements.',
   },
   {
     domain: 'customers',

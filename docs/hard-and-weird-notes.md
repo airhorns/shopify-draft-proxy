@@ -2467,6 +2467,8 @@ Observed live behavior on this host:
 - `defaultPhoneNumber.phoneNumber` was masked in the write payloads too; do not invent an unmasked local phone echo just because the input phone is known locally
 - `customerUpdate` against an unknown id returned `customer: null` with `userErrors[{ field: ['id'], message: 'Customer does not exist' }]`
 - `customerDelete` against an unknown id returned `deletedCustomerId: null` with `userErrors[{ field: ['id'], message: "Customer can't be found" }]`
+- a cold `customerDelete` target with real order history returned `canDelete: false` from the narrow preflight Customer read, then returned `deletedCustomerId: null` with `userErrors[{ field: ['id'], message: 'Customer can’t be deleted because they have associated orders' }]`; a no-order control returned `canDelete: true` and deleted successfully
+- deleting the disposable real order during cleanup did not make the customer deletable on the immediate follow-up attempt, so the captured `canDelete` decision reflects authoritative order history rather than only the currently listable order row
 - `customerCreate(input: { email: "" })` did not complain specifically about email format on this host; instead it returned a broader validation message with `field: null`: `A name, phone number, or email address must be present`
 
 Practical rule for the proxy:
@@ -2476,6 +2478,7 @@ Practical rule for the proxy:
 - rebuild `displayName` from effective name/email state after staged create/update so downstream `customer` and `customers` reads stay aligned
 - mask staged `defaultPhoneNumber.phoneNumber` in the same practical style as the captured live payload instead of echoing raw phone input
 - preserve the captured validation distinctions exactly: null-field missing-identity create error, `Customer does not exist` for unknown-id update, and `Customer can't be found` for unknown-id delete
+- for mutation-first deletes, use the hydrated Customer `canDelete` decision instead of fetching an entire order catalog; keep locally indexed order blockers for staged customers, and only tombstone/log the mutation after the precondition succeeds
 
 ### 44a. CustomerInput validation failures are payload userErrors and must be state-invariant
 
