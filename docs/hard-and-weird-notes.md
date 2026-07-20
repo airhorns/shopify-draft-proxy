@@ -3607,10 +3607,12 @@ Captured facts:
 - Closing an `OPEN` fulfillment order assigned to an API fulfillment-service location is still rejected by Shopify with `The fulfillment order is not in an in progress state.`; do not treat API-service assignment alone as sufficient for close success.
 - `fulfillmentOrderReschedule` has a local scheduled success model and read-after-write runtime tests, but the checked-in Shopify capture still only proves the non-scheduled reschedule guardrail. Do not present the scheduled reschedule success branch as live-captured parity until a real scheduled fulfillment-order setup and cassette exists.
 - `fulfillmentOrdersSetFulfillmentDeadline` accepts an existing fulfillment order after `fulfillmentOrderCancel` leaves it `CLOSED`; Shopify writes `fulfillBy` and returns `success: true` with empty `userErrors`. For syntactically valid but never-created fulfillment-order IDs, Admin GraphQL 2025-01 and 2026-04 return `success: false` with message `Fulfillment orders could not be found.`, `field: null`, and `code: null`; `gid://shopify/FulfillmentOrder/0` is a different top-level invalid-id branch. The checked-in anchor is `config/parity-specs/shipping-fulfillments/fulfillment-order-set-deadline-closed-not-found.json`.
+- Admin GraphQL 2026-04 rejects an entire `fulfillmentOrderSplit` or `fulfillmentOrderMerge` input batch when a valid first entry is followed by an excessive-quantity second entry. Both payloads return a null result list plus `field: null`, `code: null`, and `Invalid fulfillment order line item quantity requested.`; full downstream reads of both owning orders remain unchanged.
 
 Practical rule:
 
 - do not model fulfillment-order lifecycle roots as simple status patches; partial hold/move/cancel behavior affects line-item quantities and replacement fulfillment-order identities
+- validate split/merge batches against isolated state and publish the transaction only when every entry succeeds; rejected batches must not retain hydrated records, line changes, synthetic identities, timestamps, or replay entries
 - keep `fulfillmentOrdersReroute` unimplemented for full support until success-path fixtures exist, even if local guardrails are mirrored; `fulfillmentOrderClose` has captured API-service success parity, and `fulfillmentOrderReschedule` has local scheduled staging but still needs a live scheduled success cassette before broadening beyond that modeled slice
 
 ## 71. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
