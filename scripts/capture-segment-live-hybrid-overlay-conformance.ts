@@ -20,6 +20,9 @@ type CapturedStep = {
   };
 };
 
+const segmentCreatePrerequisitesDocument =
+  'query SegmentAuthoritativePrerequisites($name0: String!) {\n  count: segmentsCount(limit: 6000) { count precision }\n  name0: segments(first: 101, query: $name0) {\n    nodes { id name query creationDate lastEditDate }\n    pageInfo { hasNextPage }\n  }\n}';
+
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   exitOnMissing: true,
 });
@@ -335,6 +338,21 @@ try {
     throw new Error(`base read did not return totalCount: ${JSON.stringify(baseRead, null, 2)}`);
   }
 
+  const createPrerequisites = await captureStep(
+    'SegmentAuthoritativePrerequisites',
+    segmentCreatePrerequisitesDocument,
+    { name0: `name:"${stagedName}"` },
+  );
+  const createPrerequisiteData = responseData(createPrerequisites);
+  if (
+    readCount(createPrerequisiteData, 'count') === null ||
+    connectionNodeNames(createPrerequisiteData, 'name0').includes(stagedName)
+  ) {
+    throw new Error(
+      `create prerequisites did not prove the expected count/name state: ${JSON.stringify(createPrerequisites, null, 2)}`,
+    );
+  }
+
   const liveStagedCreate = await captureStep('SegmentLiveHybridOverlayCreate', createDocument, stagedCreateVariables);
   assertNoCreateUserErrors(liveStagedCreate);
   liveStagedSegmentId = readSegmentId(liveStagedCreate);
@@ -372,10 +390,10 @@ try {
         liveStagedCreate,
         finalRead,
         cleanup,
-        upstreamCalls: [baseRead].map(upstreamCall),
+        upstreamCalls: [createPrerequisites, baseRead].map(upstreamCall),
         notes: [
           'Live Shopify evidence for LiveHybrid segment overlay after segmentCreate.',
-          'Proxy replay stages only the second segment locally, while the upstreamCalls cassette records the base-only segment(id:)/segments/segmentsCount read captured before the second segment existed.',
+          'Proxy replay stages only the second segment locally, while the upstreamCalls cassette records its authoritative count/name prerequisites and the base-only segment(id:)/segments/segmentsCount read captured before the second segment existed.',
         ],
       },
       null,
