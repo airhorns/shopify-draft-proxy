@@ -4486,7 +4486,11 @@ fn location_overlay_preserves_hydrated_catalog_for_reads_validation_and_limits()
                                         "isActive": true,
                                         "isFulfillmentService": false
                                     }
-                                ]
+                                ],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false
+                                }
                             }
                         }
                     }),
