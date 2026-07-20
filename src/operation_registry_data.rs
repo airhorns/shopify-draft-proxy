@@ -169,7 +169,7 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("channel", Query, Products, DraftProxy::channel_root, []),
         entry!("channels", Query, Products, DraftProxy::channels_root, []),
         entry!("publication", Query, Products, DraftProxy::publication_root, []),
-        unimplemented_entry!("publications", Query, Products, []),
+        entry!("publications", Query, Products, DraftProxy::publications_root, ["tests/graphql_routes.rs"]),
         entry!("publicationsCount", Query, Products, DraftProxy::publications_count_root, []),
         entry!("publishedProductsCount", Query, Products, DraftProxy::published_products_count_root, []),
         entry!("storeCreditAccount", Query, Customers, DraftProxy::customer_query_root, []),

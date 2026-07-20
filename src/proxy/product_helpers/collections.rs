@@ -79,6 +79,90 @@ fn remove_minimal_collection(collections: &mut Vec<Value>, collection_id: &str) 
         .retain(|collection| collection.get("id").and_then(Value::as_str) != Some(collection_id));
 }
 
+fn publication_matches_catalog_type(
+    publication: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    let Some(catalog_type) = resolved_string_field(arguments, "catalogType") else {
+        return true;
+    };
+    let typename = publication
+        .pointer("/catalog/__typename")
+        .and_then(Value::as_str);
+    matches!(
+        (catalog_type.as_str(), typename),
+        ("APP", Some("AppCatalog"))
+            | ("MARKET", Some("MarketCatalog"))
+            | ("COMPANY_LOCATION", Some("CompanyLocationCatalog"))
+    )
+}
+
+fn filter_publication_connection_tombstones(connection: &mut Value, tombstones: &BTreeSet<String>) {
+    if let Some(nodes) = connection.get_mut("nodes").and_then(Value::as_array_mut) {
+        nodes.retain(|node| {
+            node.get("id")
+                .and_then(Value::as_str)
+                .is_none_or(|id| !tombstones.contains(id))
+        });
+    }
+    if let Some(edges) = connection.get_mut("edges").and_then(Value::as_array_mut) {
+        edges.retain(|edge| {
+            edge.pointer("/node/id")
+                .and_then(Value::as_str)
+                .is_none_or(|id| !tombstones.contains(id))
+        });
+    }
+}
+
+fn append_created_publications_to_connection(
+    connection: &mut Value,
+    publications: impl IntoIterator<Item = Value>,
+) {
+    let publications = publications.into_iter().collect::<Vec<_>>();
+    if publications.is_empty() {
+        return;
+    }
+    let mut known_ids = connection
+        .get("nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|node| node.get("id").and_then(Value::as_str).map(str::to_string))
+        .collect::<BTreeSet<_>>();
+    known_ids.extend(
+        connection
+            .get("edges")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|edge| {
+                edge.pointer("/node/id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            }),
+    );
+    let publications = publications
+        .into_iter()
+        .filter(|publication| {
+            publication
+                .get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| known_ids.insert(id.to_string()))
+        })
+        .collect::<Vec<_>>();
+    if let Some(nodes) = connection.get_mut("nodes").and_then(Value::as_array_mut) {
+        nodes.extend(publications.iter().cloned());
+    }
+    if let Some(edges) = connection.get_mut("edges").and_then(Value::as_array_mut) {
+        edges.extend(publications.into_iter().map(|publication| {
+            json!({
+                "cursor": value_id_cursor(&publication),
+                "node": publication,
+            })
+        }));
+    }
+}
+
 #[derive(Clone)]
 pub(in crate::proxy) struct CollectionProductEntry {
     pub(in crate::proxy) position: usize,
@@ -975,7 +1059,9 @@ impl DraftProxy {
     /// `publication`/`channel`/`channels`/`publicationsCount`/
     /// `publishedProductsCount` roots from upstream passthrough to local replay.
     pub(in crate::proxy) fn publication_engine_active(&self) -> bool {
-        !self.store.staged.publications.is_empty()
+        !self.store.base.publications.is_empty()
+            || !self.store.staged.publications.is_empty()
+            || !self.store.staged.deleted_publication_ids.is_empty()
     }
 
     pub(crate) fn publication_root(
@@ -993,14 +1079,76 @@ impl DraftProxy {
             .get("id")
             .and_then(Value::as_str)
             .unwrap_or_default();
+        if self.store.publication_is_deleted(id) {
+            return ResolverOutcome::value(Value::Null);
+        }
+        if self.store.publication_by_id(id).is_none()
+            && self.config.read_mode == ReadMode::LiveHybrid
+        {
+            let outcome = self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+            if outcome.errors.is_empty() {
+                self.observe_publication(&outcome.value);
+            }
+            return outcome;
+        }
         ResolverOutcome::value(
             self.store
-                .staged
-                .publications
-                .get(id)
+                .publication_by_id(id)
                 .map(|record| self.publication_canonical_value(record))
                 .unwrap_or(Value::Null),
         )
+    }
+
+    pub(crate) fn publications_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        if self.config.read_mode == ReadMode::Snapshot {
+            let publications = self
+                .store
+                .publications()
+                .into_iter()
+                .filter(|publication| publication_matches_catalog_type(publication, &arguments))
+                .map(|publication| self.publication_canonical_value(&publication))
+                .collect::<Vec<_>>();
+            return ResolverOutcome::value(connection_value_with_args(
+                publications,
+                &arguments,
+                value_id_cursor,
+            ));
+        }
+        if self.config.read_mode != ReadMode::LiveHybrid || !self.store.has_publication_overlay() {
+            return self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+        }
+        let mut outcome = self
+            .cached_or_forward_upstream_root_outcome(invocation.request, invocation.response_key);
+        if !outcome.errors.is_empty() {
+            return outcome;
+        }
+        self.observe_publication_connection(&outcome.value);
+        filter_publication_connection_tombstones(
+            &mut outcome.value,
+            &self.store.staged.deleted_publication_ids,
+        );
+        append_created_publications_to_connection(
+            &mut outcome.value,
+            self.store
+                .staged
+                .created_publication_ids
+                .iter()
+                .filter_map(|id| self.store.publication_by_id(id))
+                .filter(|publication| publication_matches_catalog_type(publication, &arguments))
+                .map(|publication| self.publication_canonical_value(publication)),
+        );
+        outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
+        outcome
     }
 
     pub(crate) fn channel_root(
@@ -1039,9 +1187,8 @@ impl DraftProxy {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let mut channels = self
             .store
-            .staged
-            .publications
-            .values()
+            .publications()
+            .iter()
             .filter_map(|record| record.get("channel").cloned())
             .map(|channel| self.channel_canonical_value(channel))
             .collect::<Vec<_>>();
@@ -1072,7 +1219,7 @@ impl DraftProxy {
         }
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         ResolverOutcome::value(snapshot_count_with_limit_precision(
-            self.store.staged.publications.len(),
+            self.store.effective_publication_count(),
             &arguments,
         ))
     }
@@ -1186,12 +1333,15 @@ impl DraftProxy {
 
     /// The set of publication gids a resource (product/collection) is published on.
     fn resource_publication_set(&self, resource_id: &str) -> BTreeSet<String> {
-        self.store
+        let mut publications = self
+            .store
             .staged
             .resource_publications
             .get(resource_id)
             .cloned()
-            .unwrap_or_default()
+            .unwrap_or_default();
+        publications.retain(|id| !self.store.publication_is_deleted(id));
+        publications
     }
 
     pub(in crate::proxy) fn publishable_resource_exists(
@@ -1316,8 +1466,8 @@ impl DraftProxy {
             .filter(|(resource_id, pubs)| {
                 resource_id.contains(&needle)
                     && match publication_id {
-                        Some(pid) => pubs.contains(pid),
-                        None => !pubs.is_empty(),
+                        Some(pid) => !self.store.publication_is_deleted(pid) && pubs.contains(pid),
+                        None => pubs.iter().any(|id| !self.store.publication_is_deleted(id)),
                     }
             })
             .map(|(resource_id, _)| resource_id.clone())
@@ -1325,18 +1475,56 @@ impl DraftProxy {
     }
 
     fn publication_by_channel_id(&self, channel_id: &str) -> Option<(String, Value)> {
-        self.store
-            .staged
-            .publications
-            .iter()
-            .find_map(|(id, record)| {
-                let matches = record
-                    .get("channel")
-                    .and_then(|channel| channel.get("id"))
+        self.store.publications().into_iter().find_map(|record| {
+            let matches = record
+                .get("channel")
+                .and_then(|channel| channel.get("id"))
+                .and_then(Value::as_str)
+                == Some(channel_id);
+            matches.then(|| {
+                let id = record
+                    .get("id")
                     .and_then(Value::as_str)
-                    == Some(channel_id);
-                matches.then(|| (id.clone(), record.clone()))
+                    .unwrap_or_default()
+                    .to_string();
+                (id, record)
             })
+        })
+    }
+
+    fn observe_publication_connection(&mut self, connection: &Value) {
+        for publication in connection
+            .get("nodes")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            let Some(id) = publication.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            if self.store.publication_is_deleted(id) {
+                continue;
+            }
+            self.store.base.publication_ids.insert(id.to_string());
+            self.store
+                .base
+                .publications
+                .insert(id.to_string(), publication.clone());
+        }
+    }
+
+    fn observe_publication(&mut self, publication: &Value) {
+        let Some(id) = publication.get("id").and_then(Value::as_str) else {
+            return;
+        };
+        if self.store.publication_is_deleted(id) {
+            return;
+        }
+        self.store.base.publication_ids.insert(id.to_string());
+        self.store
+            .base
+            .publications
+            .insert(id.to_string(), publication.clone());
     }
 
     fn publication_product_entries(&self, publication_id: &str) -> Vec<CollectionProductEntry> {

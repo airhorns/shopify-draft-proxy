@@ -517,6 +517,7 @@ impl DraftProxy {
                 "storefrontMenus": self.store.base.storefront_menus.records.clone(),
                 "storefrontMenuOrder": self.store.base.storefront_menus.order.clone(),
                 "publicationIds": self.store.base.publication_ids.iter().cloned().collect::<Vec<_>>(),
+                "publications": self.store.base.publications.clone(),
                 "publicationCount": self.store.base.publication_count,
                 "availableLocales": available_locales,
                 "shopLocales": self.store.base.shop_locales.clone(),
@@ -613,6 +614,11 @@ impl DraftProxy {
                 "deletedSegmentIds": self.store.staged.segments.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "createdPublicationIds": self.store.staged.created_publication_ids.iter().cloned().collect::<Vec<_>>(),
+                "deletedPublicationIds": self.store.staged.deleted_publication_ids.iter().cloned().collect::<Vec<_>>(),
+                "deletedPublicationResourceIds": self.store.staged.deleted_publication_resource_ids.iter().map(|(publication, resources)| {
+                    (publication.clone(), resources.iter().cloned().collect::<Vec<String>>())
+                }).collect::<std::collections::BTreeMap<String, Vec<String>>>(),
+                "deletedPublicationResourceIdsComplete": self.store.staged.deleted_publication_resource_ids_complete.iter().cloned().collect::<Vec<_>>(),
                 "publications": self.store.staged.publications.clone(),
                 "currentChannelPublicationId": self.store.staged.current_channel_publication_id.clone(),
                 "currentChannelPublicationResolved": self.store.staged.current_channel_publication_resolved,
@@ -1913,6 +1919,7 @@ impl DraftProxy {
             string_array_from_json(&state["baseState"]["publicationIds"])
                 .into_iter()
                 .collect();
+        self.store.base.publications = value_map_from_json(state["baseState"].get("publications"));
         self.store.base.publication_count = state["baseState"]["publicationCount"]
             .as_u64()
             .map(|count| count as usize);
@@ -2086,6 +2093,28 @@ impl DraftProxy {
                 .collect();
         self.store.staged.created_publication_ids =
             string_array_from_json(&state["stagedState"]["createdPublicationIds"])
+                .into_iter()
+                .collect();
+        self.store.staged.deleted_publication_ids =
+            string_array_from_json(&state["stagedState"]["deletedPublicationIds"])
+                .into_iter()
+                .collect();
+        self.store.staged.deleted_publication_resource_ids = state["stagedState"]
+            ["deletedPublicationResourceIds"]
+            .as_object()
+            .map(|map| {
+                map.iter()
+                    .map(|(publication, resources)| {
+                        (
+                            publication.clone(),
+                            string_array_from_json(resources).into_iter().collect(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.deleted_publication_resource_ids_complete =
+            string_array_from_json(&state["stagedState"]["deletedPublicationResourceIdsComplete"])
                 .into_iter()
                 .collect();
         self.store.staged.publications =

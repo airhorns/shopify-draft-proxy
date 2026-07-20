@@ -4775,6 +4775,374 @@ fn assert_current_publication_reads_require_observed_current_publication() {
 }
 
 #[test]
+fn publication_delete_hydrates_and_tombstones_an_ordinary_persisted_publication() {
+    let publication_id = "gid://shopify/Publication/persisted-ordinary";
+    let retained_publication_id = "gid://shopify/Publication/retained";
+    let product_id = "gid://shopify/Product/persisted-publication-member";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream request body should parse");
+            captured_requests.lock().unwrap().push(body.clone());
+            match body["operationName"].as_str() {
+                Some("PublicationDeleteHydrate") => {
+                    assert_eq!(body["variables"], json!({ "id": publication_id }));
+                    assert!(body["query"]
+                        .as_str()
+                        .is_some_and(|query| !query.contains("mutation")));
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({
+                            "data": {
+                                "publication": {
+                                    "__typename": "Publication",
+                                    "id": publication_id,
+                                    "name": "Persisted ordinary publication",
+                                    "autoPublish": false,
+                                    "supportsFuturePublishing": false,
+                                    "catalog": Value::Null,
+                                    "channels": {
+                                        "nodes": [{
+                                            "id": "gid://shopify/Channel/persisted-ordinary",
+                                            "name": "Persisted ordinary channel",
+                                            "handle": "persisted-ordinary"
+                                        }]
+                                    },
+                                    "products": {
+                                        "nodes": [{ "id": product_id }],
+                                        "pageInfo": { "hasNextPage": false }
+                                    }
+                                },
+                                "publicationsCount": { "count": 3, "precision": "EXACT" }
+                            }
+                        }),
+                    }
+                }
+                _ => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "publication": {
+                                "id": publication_id,
+                                "name": "Persisted ordinary publication"
+                            },
+                            "retainedPublication": {
+                                "id": retained_publication_id,
+                                "name": "Retained publication"
+                            },
+                            "publications": {
+                                "nodes": [
+                                    {
+                                        "id": publication_id,
+                                        "name": "Persisted ordinary publication"
+                                    },
+                                    {
+                                        "id": retained_publication_id,
+                                        "name": "Retained publication"
+                                    }
+                                ]
+                            },
+                            "publicationsCount": { "count": 3, "precision": "EXACT" },
+                            "product": {
+                                "id": product_id,
+                                "title": "Persisted publication member",
+                                "status": "ACTIVE",
+                                "publishedOnPublication": true,
+                                "availablePublicationsCount": { "count": 1, "precision": "EXACT" },
+                                "resourcePublicationsCount": { "count": 1, "precision": "EXACT" },
+                                "resourcePublicationsV2": {
+                                    "nodes": [{
+                                        "publication": { "id": publication_id },
+                                        "isPublished": true,
+                                        "publishDate": Value::Null
+                                    }]
+                                }
+                            }
+                        }
+                    }),
+                },
+            }
+        });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeletePersistedOrdinaryPublication($id: ID!) {
+          publicationDelete(id: $id) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": publication_id }),
+    ));
+
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["publicationDelete"],
+        json!({ "deletedId": publication_id, "userErrors": [] })
+    );
+    let staged_state = state_snapshot(&proxy)["stagedState"].clone();
+    assert_eq!(
+        staged_state["deletedPublicationIds"],
+        json!([publication_id])
+    );
+    assert_eq!(staged_state["createdPublicationIds"], json!([]));
+    let entries = log_snapshot(&proxy)["entries"]
+        .as_array()
+        .expect("log entries should be an array")
+        .clone();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["status"], json!("staged"));
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query PublicationDeleteDownstreamRead($id: ID!, $retainedId: ID!, $productId: ID!) {
+          publication(id: $id) { id name }
+          retainedPublication: publication(id: $retainedId) { id name }
+          publications(first: 10) { nodes { id name } }
+          publicationsCount { count precision }
+          product(id: $productId) {
+            id
+            title
+            status
+            availablePublicationsCount { count precision }
+            resourcePublicationsCount { count precision }
+            resourcePublicationsV2(first: 10) {
+              nodes { publication { id } isPublished publishDate }
+            }
+          }
+        }
+        "#,
+        json!({
+            "id": publication_id,
+            "retainedId": retained_publication_id,
+            "productId": product_id
+        }),
+    ));
+
+    assert_eq!(downstream.status, 200);
+    assert_eq!(
+        downstream.body["data"]["publication"],
+        Value::Null,
+        "downstream response: {}",
+        downstream.body
+    );
+    assert_eq!(
+        downstream.body["data"]["retainedPublication"],
+        json!({ "id": retained_publication_id, "name": "Retained publication" })
+    );
+    assert_eq!(
+        downstream.body["data"]["publications"]["nodes"],
+        json!([{ "id": retained_publication_id, "name": "Retained publication" }])
+    );
+    assert_eq!(
+        downstream.body["data"]["publicationsCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        downstream.body["data"]["product"],
+        json!({
+            "id": product_id,
+            "title": "Persisted publication member",
+            "status": "ACTIVE",
+            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" },
+            "resourcePublicationsV2": { "nodes": [] }
+        })
+    );
+
+    let deleted_membership = proxy.process_request(json_graphql_request(
+        r#"
+        query DeletedPublicationMembership($id: ID!, $productId: ID!) {
+          product(id: $productId) {
+            id
+            publishedOnPublication(publicationId: $id)
+          }
+        }
+        "#,
+        json!({ "id": publication_id, "productId": product_id }),
+    ));
+    assert_eq!(
+        deleted_membership.body["data"],
+        json!({ "product": Value::Null })
+    );
+    assert_eq!(
+        deleted_membership.body["errors"][0]["message"],
+        json!("Invalid publication id.")
+    );
+    assert_eq!(
+        deleted_membership.body["errors"][0]["extensions"]["code"],
+        json!("NOT_FOUND")
+    );
+    assert_eq!(
+        deleted_membership.body["errors"][0]["path"],
+        json!(["product", "publishedOnPublication"])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert!(requests.iter().all(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| !query.contains("mutation"))));
+}
+
+#[test]
+fn publication_delete_uses_hydrated_protection_metadata_without_staging_failures() {
+    let cases = [
+        (
+            "gid://shopify/Publication/default-online-store",
+            "Default Online Store",
+            Value::Null,
+            json!([{
+                "id": "gid://shopify/Channel/default-online-store",
+                "name": "Online Store",
+                "handle": "online_store"
+            }]),
+            "UNSUPPORTED_PUBLICATION_ACTION",
+            "Cannot delete the default publication",
+        ),
+        (
+            "gid://shopify/Publication/online-store",
+            "Online Store",
+            json!({
+                "__typename": "AppCatalog",
+                "id": "gid://shopify/AppCatalog/online-store",
+                "title": "Online Store catalog"
+            }),
+            json!([{
+                "id": "gid://shopify/Channel/online-store",
+                "name": "Online Store",
+                "handle": "online_store"
+            }]),
+            "CANNOT_MODIFY_APP_CATALOG_PUBLICATION",
+            "Can't modify a publication that belongs to an app catalog.",
+        ),
+        (
+            "gid://shopify/Publication/app-catalog",
+            "App publication",
+            json!({
+                "__typename": "AppCatalog",
+                "id": "gid://shopify/AppCatalog/app",
+                "title": "App catalog"
+            }),
+            json!([{
+                "id": "gid://shopify/Channel/app",
+                "name": "App channel",
+                "handle": "app-channel"
+            }]),
+            "CANNOT_MODIFY_APP_CATALOG_PUBLICATION",
+            "Can't modify a publication that belongs to an app catalog.",
+        ),
+        (
+            "gid://shopify/Publication/market-catalog",
+            "Market publication",
+            json!({
+                "__typename": "MarketCatalog",
+                "id": "gid://shopify/MarketCatalog/market",
+                "title": "Market catalog"
+            }),
+            json!([]),
+            "CANNOT_MODIFY_MARKET_CATALOG_PUBLICATION",
+            "Can't modify a publication that belongs to a market catalog.",
+        ),
+    ];
+
+    for (publication_id, name, catalog, channels, expected_code, expected_message) in cases {
+        let publication_id_for_transport = publication_id.to_string();
+        let name_for_transport = name.to_string();
+        let catalog_for_transport = catalog.clone();
+        let channels_for_transport = channels.clone();
+        let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+            .with_upstream_transport(move |request| {
+                let body: Value = serde_json::from_str(&request.body)
+                    .expect("publication protection hydrate request should parse");
+                assert_eq!(body["operationName"], json!("PublicationDeleteHydrate"));
+                assert_eq!(
+                    body["variables"],
+                    json!({ "id": publication_id_for_transport })
+                );
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "publication": {
+                                "__typename": "Publication",
+                                "id": publication_id_for_transport,
+                                "name": name_for_transport,
+                                "autoPublish": false,
+                                "supportsFuturePublishing": false,
+                                "catalog": catalog_for_transport,
+                                "channels": { "nodes": channels_for_transport }
+                            },
+                            "publicationsCount": { "count": 5, "precision": "EXACT" }
+                        }
+                    }),
+                }
+            })
+            .with_commit_transport(|_| {
+                panic!("a rejected publication delete must not be replayable")
+            });
+        if publication_id.ends_with("/online-store") {
+            restore_state_with(&mut proxy, |state| {
+                state["baseState"]["publications"] = json!({
+                    (publication_id): {
+                        "id": publication_id,
+                        "name": name,
+                        "channel": {
+                            "id": "gid://shopify/Channel/partially-observed",
+                            "name": "Partially observed channel",
+                            "handle": "partially_observed"
+                        }
+                    }
+                });
+            });
+        }
+        let staged_before = state_snapshot(&proxy)["stagedState"].clone();
+
+        let delete = proxy.process_request(json_graphql_request(
+            r#"
+            mutation DeleteProtectedPersistedPublication($id: ID!) {
+              publicationDelete(id: $id) {
+                deletedId
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "id": publication_id }),
+        ));
+
+        assert_eq!(delete.status, 200, "{publication_id}");
+        assert_eq!(
+            delete.body["data"]["publicationDelete"],
+            json!({
+                "deletedId": Value::Null,
+                "userErrors": [{
+                    "field": ["id"],
+                    "message": expected_message,
+                    "code": expected_code
+                }]
+            }),
+            "{publication_id}"
+        );
+        assert_eq!(
+            state_snapshot(&proxy)["stagedState"],
+            staged_before,
+            "failed deletion must not change staged state for {publication_id}"
+        );
+        assert!(log_snapshot(&proxy)["entries"]
+            .as_array()
+            .is_some_and(|entries| entries.iter().all(|entry| entry["status"] != "staged")));
+        let commit = proxy.process_request(request_with_body("POST", "/__meta/commit", ""));
+        assert_eq!(commit.body["committed"], json!(0));
+    }
+}
+
+#[test]
 fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavior() {
     assert_publication_create_uses_allocator_without_materializing_default_publication();
 

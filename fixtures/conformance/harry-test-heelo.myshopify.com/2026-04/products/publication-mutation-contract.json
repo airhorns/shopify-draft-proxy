@@ -2,35 +2,35 @@
   "scenarioId": "publication-mutation-contract",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-07-08T14:34:49.303Z",
+  "capturedAt": "2026-07-20T04:41:40.631Z",
   "setup": {
     "product": {
-      "id": "gid://shopify/Product/10234426065202",
-      "title": "Publication mutation contract mrc6iuwk",
-      "handle": "publication-mutation-contract-mrc6iuwk",
+      "id": "gid://shopify/Product/10244063265074",
+      "title": "Publication mutation contract mrsqm9vd",
+      "handle": "publication-mutation-contract-mrsqm9vd",
       "status": "ACTIVE",
-      "createdAt": "2026-07-08T14:34:44Z",
-      "updatedAt": "2026-07-08T14:34:45Z",
+      "createdAt": "2026-07-20T04:41:35Z",
+      "updatedAt": "2026-07-20T04:41:35Z",
       "variants": {
         "nodes": [
           {
-            "id": "gid://shopify/ProductVariant/51444758774066",
+            "id": "gid://shopify/ProductVariant/51488887013682",
             "title": "Default Title"
           }
         ]
       }
     },
     "secondProduct": {
-      "id": "gid://shopify/Product/10234426097970",
-      "title": "Publication products connection mrc6iuwk",
-      "handle": "publication-products-connection-mrc6iuwk",
+      "id": "gid://shopify/Product/10244063297842",
+      "title": "Publication products connection mrsqm9vd",
+      "handle": "publication-products-connection-mrsqm9vd",
       "status": "ACTIVE",
-      "createdAt": "2026-07-08T14:34:45Z",
-      "updatedAt": "2026-07-08T14:34:45Z",
+      "createdAt": "2026-07-20T04:41:35Z",
+      "updatedAt": "2026-07-20T04:41:36Z",
       "variants": {
         "nodes": [
           {
-            "id": "gid://shopify/ProductVariant/51444758806834",
+            "id": "gid://shopify/ProductVariant/51488887046450",
             "title": "Default Title"
           }
         ]
@@ -42,7 +42,7 @@
       "query": "#graphql\n  mutation PublicationContractProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n        status\n        createdAt\n        updatedAt\n        variants(first: 1) {\n          nodes {\n            id\n            title\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "product": {
-          "title": "Publication mutation contract mrc6iuwk",
+          "title": "Publication mutation contract mrsqm9vd",
           "status": "ACTIVE"
         }
       },
@@ -52,16 +52,16 @@
           "data": {
             "productCreate": {
               "product": {
-                "id": "gid://shopify/Product/10234426065202",
-                "title": "Publication mutation contract mrc6iuwk",
-                "handle": "publication-mutation-contract-mrc6iuwk",
+                "id": "gid://shopify/Product/10244063265074",
+                "title": "Publication mutation contract mrsqm9vd",
+                "handle": "publication-mutation-contract-mrsqm9vd",
                 "status": "ACTIVE",
-                "createdAt": "2026-07-08T14:34:44Z",
-                "updatedAt": "2026-07-08T14:34:45Z",
+                "createdAt": "2026-07-20T04:41:35Z",
+                "updatedAt": "2026-07-20T04:41:35Z",
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51444758774066",
+                      "id": "gid://shopify/ProductVariant/51488887013682",
                       "title": "Default Title"
                     }
                   ]
@@ -88,7 +88,7 @@
       "query": "#graphql\n  mutation PublicationContractProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n        status\n        createdAt\n        updatedAt\n        variants(first: 1) {\n          nodes {\n            id\n            title\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "product": {
-          "title": "Publication products connection mrc6iuwk",
+          "title": "Publication products connection mrsqm9vd",
           "status": "ACTIVE"
         }
       },
@@ -98,16 +98,16 @@
           "data": {
             "productCreate": {
               "product": {
-                "id": "gid://shopify/Product/10234426097970",
-                "title": "Publication products connection mrc6iuwk",
-                "handle": "publication-products-connection-mrc6iuwk",
+                "id": "gid://shopify/Product/10244063297842",
+                "title": "Publication products connection mrsqm9vd",
+                "handle": "publication-products-connection-mrsqm9vd",
                 "status": "ACTIVE",
-                "createdAt": "2026-07-08T14:34:45Z",
-                "updatedAt": "2026-07-08T14:34:45Z",
+                "createdAt": "2026-07-20T04:41:35Z",
+                "updatedAt": "2026-07-20T04:41:36Z",
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51444758806834",
+                      "id": "gid://shopify/ProductVariant/51488887046450",
                       "title": "Default Title"
                     }
                   ]
@@ -133,7 +133,7 @@
     "variantNode": {
       "query": "#graphql\n  query PublicationContractVariantNode($id: ID!) {\n    node(id: $id) {\n      __typename\n      id\n      ... on ProductVariant {\n        title\n        product {\n          id\n          title\n        }\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/ProductVariant/51444758774066"
+        "id": "gid://shopify/ProductVariant/51488887013682"
       },
       "response": {
         "status": 200,
@@ -141,11 +141,11 @@
           "data": {
             "node": {
               "__typename": "ProductVariant",
-              "id": "gid://shopify/ProductVariant/51444758774066",
+              "id": "gid://shopify/ProductVariant/51488887013682",
               "title": "Default Title",
               "product": {
-                "id": "gid://shopify/Product/10234426065202",
-                "title": "Publication mutation contract mrc6iuwk"
+                "id": "gid://shopify/Product/10244063265074",
+                "title": "Publication mutation contract mrsqm9vd"
               }
             }
           },
@@ -174,7 +174,7 @@
           "data": {
             "publicationCreate": {
               "publication": {
-                "id": "gid://shopify/Publication/302900543794",
+                "id": "gid://shopify/Publication/304006824242",
                 "autoPublish": false,
                 "supportsFuturePublishing": false
               },
@@ -198,14 +198,14 @@
     "createdPublicationRead": {
       "query": "query PublicationCreatedRead($id: ID!) {\n  publication(id: $id) {\n    id\n    autoPublish\n    supportsFuturePublishing\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Publication/302900543794"
+        "id": "gid://shopify/Publication/304006824242"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "publication": {
-              "id": "gid://shopify/Publication/302900543794",
+              "id": "gid://shopify/Publication/304006824242",
               "autoPublish": false,
               "supportsFuturePublishing": false
             }
@@ -216,7 +216,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1998,
+                "currentlyAvailable": 1999,
                 "restoreRate": 100
               }
             }
@@ -341,9 +341,9 @@
     "updateAddProduct": {
       "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Publication/302900543794",
+        "id": "gid://shopify/Publication/304006824242",
         "input": {
-          "publishablesToAdd": ["gid://shopify/Product/10234426065202"],
+          "publishablesToAdd": ["gid://shopify/Product/10244063265074"],
           "autoPublish": true
         }
       },
@@ -353,7 +353,7 @@
           "data": {
             "publicationUpdate": {
               "publication": {
-                "id": "gid://shopify/Publication/302900543794",
+                "id": "gid://shopify/Publication/304006824242",
                 "autoPublish": true,
                 "supportsFuturePublishing": false
               },
@@ -377,9 +377,9 @@
     "updateAddSecondProduct": {
       "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Publication/302900543794",
+        "id": "gid://shopify/Publication/304006824242",
         "input": {
-          "publishablesToAdd": ["gid://shopify/Product/10234426097970"]
+          "publishablesToAdd": ["gid://shopify/Product/10244063297842"]
         }
       },
       "response": {
@@ -388,7 +388,7 @@
           "data": {
             "publicationUpdate": {
               "publication": {
-                "id": "gid://shopify/Publication/302900543794",
+                "id": "gid://shopify/Publication/304006824242",
                 "autoPublish": true,
                 "supportsFuturePublishing": false
               },
@@ -412,7 +412,7 @@
     "publicationProductsFirstPage": {
       "query": "query PublicationProductsConnectionRead(\n  $publicationId: ID!\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n) {\n  publication(id: $publicationId) {\n    id\n    includedProductsCount {\n      count\n      precision\n    }\n    products(first: $first, after: $after, last: $last, before: $before) {\n      nodes {\n        id\n        title\n        handle\n        status\n        totalInventory\n        tracksInventory\n        publishedOnPublication(publicationId: $publicationId)\n      }\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          status\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  publishedProductsCount(publicationId: $publicationId) {\n    count\n    precision\n  }\n}\n",
       "variables": {
-        "publicationId": "gid://shopify/Publication/302900543794",
+        "publicationId": "gid://shopify/Publication/304006824242",
         "first": 1
       },
       "response": {
@@ -420,7 +420,7 @@
         "payload": {
           "data": {
             "publication": {
-              "id": "gid://shopify/Publication/302900543794",
+              "id": "gid://shopify/Publication/304006824242",
               "includedProductsCount": {
                 "count": 2,
                 "precision": "EXACT"
@@ -428,9 +428,9 @@
               "products": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Product/10234426065202",
-                    "title": "Publication mutation contract mrc6iuwk",
-                    "handle": "publication-mutation-contract-mrc6iuwk",
+                    "id": "gid://shopify/Product/10244063265074",
+                    "title": "Publication mutation contract mrsqm9vd",
+                    "handle": "publication-mutation-contract-mrsqm9vd",
                     "status": "ACTIVE",
                     "totalInventory": 0,
                     "tracksInventory": false,
@@ -439,11 +439,11 @@
                 ],
                 "edges": [
                   {
-                    "cursor": "eyJsYXN0X2lkIjoxMDIzNDQyNjA2NTIwMiwibGFzdF92YWx1ZSI6IjEwMjM0NDI2MDY1MjAyIn0=",
+                    "cursor": "eyJsYXN0X2lkIjoxMDI0NDA2MzI2NTA3NCwibGFzdF92YWx1ZSI6IjEwMjQ0MDYzMjY1MDc0In0=",
                     "node": {
-                      "id": "gid://shopify/Product/10234426065202",
-                      "title": "Publication mutation contract mrc6iuwk",
-                      "handle": "publication-mutation-contract-mrc6iuwk",
+                      "id": "gid://shopify/Product/10244063265074",
+                      "title": "Publication mutation contract mrsqm9vd",
+                      "handle": "publication-mutation-contract-mrsqm9vd",
                       "status": "ACTIVE",
                       "totalInventory": 0,
                       "tracksInventory": false
@@ -453,8 +453,8 @@
                 "pageInfo": {
                   "hasNextPage": true,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoxMDIzNDQyNjA2NTIwMiwibGFzdF92YWx1ZSI6IjEwMjM0NDI2MDY1MjAyIn0=",
-                  "endCursor": "eyJsYXN0X2lkIjoxMDIzNDQyNjA2NTIwMiwibGFzdF92YWx1ZSI6IjEwMjM0NDI2MDY1MjAyIn0="
+                  "startCursor": "eyJsYXN0X2lkIjoxMDI0NDA2MzI2NTA3NCwibGFzdF92YWx1ZSI6IjEwMjQ0MDYzMjY1MDc0In0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDI0NDA2MzI2NTA3NCwibGFzdF92YWx1ZSI6IjEwMjQ0MDYzMjY1MDc0In0="
                 }
               }
             },
@@ -480,16 +480,16 @@
     "publicationProductsAfterPage": {
       "query": "query PublicationProductsConnectionRead(\n  $publicationId: ID!\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n) {\n  publication(id: $publicationId) {\n    id\n    includedProductsCount {\n      count\n      precision\n    }\n    products(first: $first, after: $after, last: $last, before: $before) {\n      nodes {\n        id\n        title\n        handle\n        status\n        totalInventory\n        tracksInventory\n        publishedOnPublication(publicationId: $publicationId)\n      }\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          status\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  publishedProductsCount(publicationId: $publicationId) {\n    count\n    precision\n  }\n}\n",
       "variables": {
-        "publicationId": "gid://shopify/Publication/302900543794",
+        "publicationId": "gid://shopify/Publication/304006824242",
         "first": 1,
-        "after": "eyJsYXN0X2lkIjoxMDIzNDQyNjA2NTIwMiwibGFzdF92YWx1ZSI6IjEwMjM0NDI2MDY1MjAyIn0="
+        "after": "eyJsYXN0X2lkIjoxMDI0NDA2MzI2NTA3NCwibGFzdF92YWx1ZSI6IjEwMjQ0MDYzMjY1MDc0In0="
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "publication": {
-              "id": "gid://shopify/Publication/302900543794",
+              "id": "gid://shopify/Publication/304006824242",
               "includedProductsCount": {
                 "count": 2,
                 "precision": "EXACT"
@@ -497,9 +497,9 @@
               "products": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Product/10234426097970",
-                    "title": "Publication products connection mrc6iuwk",
-                    "handle": "publication-products-connection-mrc6iuwk",
+                    "id": "gid://shopify/Product/10244063297842",
+                    "title": "Publication products connection mrsqm9vd",
+                    "handle": "publication-products-connection-mrsqm9vd",
                     "status": "ACTIVE",
                     "totalInventory": 0,
                     "tracksInventory": false,
@@ -508,11 +508,11 @@
                 ],
                 "edges": [
                   {
-                    "cursor": "eyJsYXN0X2lkIjoxMDIzNDQyNjA5Nzk3MCwibGFzdF92YWx1ZSI6IjEwMjM0NDI2MDk3OTcwIn0=",
+                    "cursor": "eyJsYXN0X2lkIjoxMDI0NDA2MzI5Nzg0MiwibGFzdF92YWx1ZSI6IjEwMjQ0MDYzMjk3ODQyIn0=",
                     "node": {
-                      "id": "gid://shopify/Product/10234426097970",
-                      "title": "Publication products connection mrc6iuwk",
-                      "handle": "publication-products-connection-mrc6iuwk",
+                      "id": "gid://shopify/Product/10244063297842",
+                      "title": "Publication products connection mrsqm9vd",
+                      "handle": "publication-products-connection-mrsqm9vd",
                       "status": "ACTIVE",
                       "totalInventory": 0,
                       "tracksInventory": false
@@ -522,8 +522,8 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": true,
-                  "startCursor": "eyJsYXN0X2lkIjoxMDIzNDQyNjA5Nzk3MCwibGFzdF92YWx1ZSI6IjEwMjM0NDI2MDk3OTcwIn0=",
-                  "endCursor": "eyJsYXN0X2lkIjoxMDIzNDQyNjA5Nzk3MCwibGFzdF92YWx1ZSI6IjEwMjM0NDI2MDk3OTcwIn0="
+                  "startCursor": "eyJsYXN0X2lkIjoxMDI0NDA2MzI5Nzg0MiwibGFzdF92YWx1ZSI6IjEwMjQ0MDYzMjk3ODQyIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDI0NDA2MzI5Nzg0MiwibGFzdF92YWx1ZSI6IjEwMjQ0MDYzMjk3ODQyIn0="
                 }
               }
             },
@@ -538,7 +538,7 @@
               "actualQueryCost": 25,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1963,
+                "currentlyAvailable": 1960,
                 "restoreRate": 100
               }
             }
@@ -549,16 +549,16 @@
     "publicationProductsBeforePage": {
       "query": "query PublicationProductsConnectionRead(\n  $publicationId: ID!\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n) {\n  publication(id: $publicationId) {\n    id\n    includedProductsCount {\n      count\n      precision\n    }\n    products(first: $first, after: $after, last: $last, before: $before) {\n      nodes {\n        id\n        title\n        handle\n        status\n        totalInventory\n        tracksInventory\n        publishedOnPublication(publicationId: $publicationId)\n      }\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          status\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  publishedProductsCount(publicationId: $publicationId) {\n    count\n    precision\n  }\n}\n",
       "variables": {
-        "publicationId": "gid://shopify/Publication/302900543794",
+        "publicationId": "gid://shopify/Publication/304006824242",
         "last": 1,
-        "before": "eyJsYXN0X2lkIjoxMDIzNDQyNjA5Nzk3MCwibGFzdF92YWx1ZSI6IjEwMjM0NDI2MDk3OTcwIn0="
+        "before": "eyJsYXN0X2lkIjoxMDI0NDA2MzI5Nzg0MiwibGFzdF92YWx1ZSI6IjEwMjQ0MDYzMjk3ODQyIn0="
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "publication": {
-              "id": "gid://shopify/Publication/302900543794",
+              "id": "gid://shopify/Publication/304006824242",
               "includedProductsCount": {
                 "count": 2,
                 "precision": "EXACT"
@@ -566,9 +566,9 @@
               "products": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Product/10234426065202",
-                    "title": "Publication mutation contract mrc6iuwk",
-                    "handle": "publication-mutation-contract-mrc6iuwk",
+                    "id": "gid://shopify/Product/10244063265074",
+                    "title": "Publication mutation contract mrsqm9vd",
+                    "handle": "publication-mutation-contract-mrsqm9vd",
                     "status": "ACTIVE",
                     "totalInventory": 0,
                     "tracksInventory": false,
@@ -577,11 +577,11 @@
                 ],
                 "edges": [
                   {
-                    "cursor": "eyJsYXN0X2lkIjoxMDIzNDQyNjA2NTIwMiwibGFzdF92YWx1ZSI6IjEwMjM0NDI2MDY1MjAyIn0=",
+                    "cursor": "eyJsYXN0X2lkIjoxMDI0NDA2MzI2NTA3NCwibGFzdF92YWx1ZSI6IjEwMjQ0MDYzMjY1MDc0In0=",
                     "node": {
-                      "id": "gid://shopify/Product/10234426065202",
-                      "title": "Publication mutation contract mrc6iuwk",
-                      "handle": "publication-mutation-contract-mrc6iuwk",
+                      "id": "gid://shopify/Product/10244063265074",
+                      "title": "Publication mutation contract mrsqm9vd",
+                      "handle": "publication-mutation-contract-mrsqm9vd",
                       "status": "ACTIVE",
                       "totalInventory": 0,
                       "tracksInventory": false
@@ -591,8 +591,8 @@
                 "pageInfo": {
                   "hasNextPage": true,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoxMDIzNDQyNjA2NTIwMiwibGFzdF92YWx1ZSI6IjEwMjM0NDI2MDY1MjAyIn0=",
-                  "endCursor": "eyJsYXN0X2lkIjoxMDIzNDQyNjA2NTIwMiwibGFzdF92YWx1ZSI6IjEwMjM0NDI2MDY1MjAyIn0="
+                  "startCursor": "eyJsYXN0X2lkIjoxMDI0NDA2MzI2NTA3NCwibGFzdF92YWx1ZSI6IjEwMjQ0MDYzMjY1MDc0In0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDI0NDA2MzI2NTA3NCwibGFzdF92YWx1ZSI6IjEwMjQ0MDYzMjY1MDc0In0="
                 }
               }
             },
@@ -607,7 +607,7 @@
               "actualQueryCost": 25,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1949,
+                "currentlyAvailable": 1947,
                 "restoreRate": 100
               }
             }
@@ -618,9 +618,9 @@
     "updateRemoveProduct": {
       "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Publication/302900543794",
+        "id": "gid://shopify/Publication/304006824242",
         "input": {
-          "publishablesToRemove": ["gid://shopify/Product/10234426065202"]
+          "publishablesToRemove": ["gid://shopify/Product/10244063265074"]
         }
       },
       "response": {
@@ -629,12 +629,98 @@
           "data": {
             "publicationUpdate": {
               "publication": {
-                "id": "gid://shopify/Publication/302900543794",
+                "id": "gid://shopify/Publication/304006824242",
                 "autoPublish": true,
                 "supportsFuturePublishing": false
               },
               "userErrors": []
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1948,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateAddVariant": {
+      "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Publication/304006824242",
+        "input": {
+          "publishablesToAdd": ["gid://shopify/ProductVariant/51488887013682"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid id: gid://shopify/ProductVariant/51488887013682",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["publicationUpdate"]
+            }
+          ],
+          "data": {
+            "publicationUpdate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1954,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateAddProductAndVariant": {
+      "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Publication/304006824242",
+        "input": {
+          "publishablesToAdd": ["gid://shopify/Product/10244063265074", "gid://shopify/ProductVariant/51488887013682"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid id: gid://shopify/ProductVariant/51488887013682",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["publicationUpdate"]
+            }
+          ],
+          "data": {
+            "publicationUpdate": null
           },
           "extensions": {
             "cost": {
@@ -650,96 +736,10 @@
         }
       }
     },
-    "updateAddVariant": {
-      "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
-      "variables": {
-        "id": "gid://shopify/Publication/302900543794",
-        "input": {
-          "publishablesToAdd": ["gid://shopify/ProductVariant/51444758774066"]
-        }
-      },
-      "response": {
-        "status": 200,
-        "payload": {
-          "errors": [
-            {
-              "message": "Invalid id: gid://shopify/ProductVariant/51444758774066",
-              "locations": [
-                {
-                  "line": 3,
-                  "column": 3
-                }
-              ],
-              "extensions": {
-                "code": "RESOURCE_NOT_FOUND"
-              },
-              "path": ["publicationUpdate"]
-            }
-          ],
-          "data": {
-            "publicationUpdate": null
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1959,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    "updateAddProductAndVariant": {
-      "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
-      "variables": {
-        "id": "gid://shopify/Publication/302900543794",
-        "input": {
-          "publishablesToAdd": ["gid://shopify/Product/10234426065202", "gid://shopify/ProductVariant/51444758774066"]
-        }
-      },
-      "response": {
-        "status": 200,
-        "payload": {
-          "errors": [
-            {
-              "message": "Invalid id: gid://shopify/ProductVariant/51444758774066",
-              "locations": [
-                {
-                  "line": 3,
-                  "column": 3
-                }
-              ],
-              "extensions": {
-                "code": "RESOURCE_NOT_FOUND"
-              },
-              "path": ["publicationUpdate"]
-            }
-          ],
-          "data": {
-            "publicationUpdate": null
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1957,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
     "updateInvalidProduct": {
       "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Publication/302900543794",
+        "id": "gid://shopify/Publication/304006824242",
         "input": {
           "publishablesToAdd": ["gid://shopify/Product/999999999999"]
         }
@@ -765,7 +765,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1954,
+                "currentlyAvailable": 1949,
                 "restoreRate": 100
               }
             }
@@ -776,7 +776,7 @@
     "updateTooManyProducts": {
       "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Publication/302900543794",
+        "id": "gid://shopify/Publication/304006824242",
         "input": {
           "publishablesToAdd": [
             "gid://shopify/Product/900000000000",
@@ -854,7 +854,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1953,
+                "currentlyAvailable": 1948,
                 "restoreRate": 100
               }
             }
@@ -891,7 +891,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1952,
+                "currentlyAvailable": 1946,
                 "restoreRate": 100
               }
             }
@@ -925,7 +925,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1952,
+                "currentlyAvailable": 1945,
                 "restoreRate": 100
               }
             }
@@ -936,14 +936,14 @@
     "deleteCreatedPublication": {
       "query": "#graphql\nmutation PublicationDeleteContract($id: ID!) {\n  publicationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Publication/302900543794"
+        "id": "gid://shopify/Publication/304006824242"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "publicationDelete": {
-              "deletedId": "gid://shopify/Publication/302900543794",
+              "deletedId": "gid://shopify/Publication/304006824242",
               "userErrors": []
             }
           },
@@ -953,7 +953,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1950,
+                "currentlyAvailable": 1944,
                 "restoreRate": 100
               }
             }
@@ -964,7 +964,7 @@
     "afterDeletePublicationRead": {
       "query": "query PublicationCreatedRead($id: ID!) {\n  publication(id: $id) {\n    id\n    autoPublish\n    supportsFuturePublishing\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Publication/302900543794"
+        "id": "gid://shopify/Publication/304006824242"
       },
       "response": {
         "status": 200,
@@ -978,7 +978,1310 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1960,
+                "currentlyAvailable": 1955,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "persistedPublicationCreate": {
+      "query": "#graphql\nmutation PublicationCreateValidation($input: PublicationCreateInput!) {\n  publicationCreate(input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationCreate": {
+              "publication": {
+                "id": "gid://shopify/Publication/304006857010",
+                "autoPublish": false,
+                "supportsFuturePublishing": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1955,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "persistedPublicationAddProduct": {
+      "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Publication/304006857010",
+        "input": {
+          "publishablesToAdd": ["gid://shopify/Product/10244063265074"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationUpdate": {
+              "publication": {
+                "id": "gid://shopify/Publication/304006857010",
+                "autoPublish": false,
+                "supportsFuturePublishing": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1956,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "persistedPublicationHydrateBeforeDelete": {
+      "query": "query PublicationDeleteHydrate($id: ID!) {\n  publication(id: $id) {\n    id\n    name\n    autoPublish\n    supportsFuturePublishing\n    catalog {\n      __typename\n      id\n      title\n    }\n    channels(first: 5) {\n      nodes {\n        id\n        name\n        handle\n      }\n    }\n    products(first: 250) {\n      nodes {\n        id\n      }\n      pageInfo {\n        hasNextPage\n      }\n    }\n  }\n  publicationsCount {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Publication/304006857010"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publication": {
+              "id": "gid://shopify/Publication/304006857010",
+              "name": "",
+              "autoPublish": false,
+              "supportsFuturePublishing": false,
+              "catalog": null,
+              "channels": {
+                "nodes": []
+              },
+              "products": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/10244063265074"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false
+                }
+              }
+            },
+            "publicationsCount": {
+              "count": 5,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1953,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "persistedPublicationDownstreamBeforeDelete": {
+      "query": "query PublicationDeleteDownstreamRead($publicationId: ID!, $productId: ID!) {\n  publication(id: $publicationId) {\n    id\n    name\n    autoPublish\n    supportsFuturePublishing\n    catalog {\n      __typename\n      id\n      title\n    }\n  }\n  publications(first: 100) {\n    nodes {\n      id\n      name\n      autoPublish\n      supportsFuturePublishing\n      catalog {\n        __typename\n        id\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  publicationsCount {\n    count\n    precision\n  }\n  product(id: $productId) {\n    id\n    availablePublicationsCount {\n      count\n      precision\n    }\n    resourcePublicationsCount {\n      count\n      precision\n    }\n    resourcePublicationsV2(first: 100) {\n      nodes {\n        publication {\n          id\n        }\n        isPublished\n        publishDate\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "publicationId": "gid://shopify/Publication/304006857010",
+        "productId": "gid://shopify/Product/10244063265074"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publication": {
+              "id": "gid://shopify/Publication/304006857010",
+              "name": "",
+              "autoPublish": false,
+              "supportsFuturePublishing": false,
+              "catalog": null
+            },
+            "publications": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Publication/268039389490",
+                  "name": "Online Store",
+                  "autoPublish": false,
+                  "supportsFuturePublishing": true,
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/Publication/268039455026",
+                  "name": "Point of Sale",
+                  "autoPublish": false,
+                  "supportsFuturePublishing": false,
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/Publication/268039487794",
+                  "name": "Shop",
+                  "autoPublish": false,
+                  "supportsFuturePublishing": false,
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/Publication/273897881906",
+                  "name": "Shopify GraphiQL App",
+                  "autoPublish": false,
+                  "supportsFuturePublishing": false,
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/Publication/302536393010",
+                  "name": "example.com",
+                  "autoPublish": false,
+                  "supportsFuturePublishing": true,
+                  "catalog": null
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyNjgwMzkzODk0OTAsImxhc3RfdmFsdWUiOjI2ODAzOTM4OTQ5MH0=",
+                "endCursor": "eyJsYXN0X2lkIjozMDI1MzYzOTMwMTAsImxhc3RfdmFsdWUiOjMwMjUzNjM5MzAxMH0="
+              }
+            },
+            "publicationsCount": {
+              "count": 5,
+              "precision": "EXACT"
+            },
+            "product": {
+              "id": "gid://shopify/Product/10244063265074",
+              "availablePublicationsCount": {
+                "count": 2,
+                "precision": "EXACT"
+              },
+              "resourcePublicationsCount": {
+                "count": 2,
+                "precision": "EXACT"
+              },
+              "resourcePublicationsV2": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 55,
+              "actualQueryCost": 29,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1935,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "deletePersistedPublication": {
+      "query": "#graphql\nmutation PublicationDeleteContract($id: ID!) {\n  publicationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Publication/304006857010"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationDelete": {
+              "deletedId": "gid://shopify/Publication/304006857010",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1941,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "persistedPublicationDownstreamAfterDelete": {
+      "query": "query PublicationDeleteDownstreamRead($publicationId: ID!, $productId: ID!) {\n  publication(id: $publicationId) {\n    id\n    name\n    autoPublish\n    supportsFuturePublishing\n    catalog {\n      __typename\n      id\n      title\n    }\n  }\n  publications(first: 100) {\n    nodes {\n      id\n      name\n      autoPublish\n      supportsFuturePublishing\n      catalog {\n        __typename\n        id\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  publicationsCount {\n    count\n    precision\n  }\n  product(id: $productId) {\n    id\n    availablePublicationsCount {\n      count\n      precision\n    }\n    resourcePublicationsCount {\n      count\n      precision\n    }\n    resourcePublicationsV2(first: 100) {\n      nodes {\n        publication {\n          id\n        }\n        isPublished\n        publishDate\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "publicationId": "gid://shopify/Publication/304006857010",
+        "productId": "gid://shopify/Product/10244063265074"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publication": null,
+            "publications": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Publication/268039389490",
+                  "name": "Online Store",
+                  "autoPublish": false,
+                  "supportsFuturePublishing": true,
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/Publication/268039455026",
+                  "name": "Point of Sale",
+                  "autoPublish": false,
+                  "supportsFuturePublishing": false,
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/Publication/268039487794",
+                  "name": "Shop",
+                  "autoPublish": false,
+                  "supportsFuturePublishing": false,
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/Publication/273897881906",
+                  "name": "Shopify GraphiQL App",
+                  "autoPublish": false,
+                  "supportsFuturePublishing": false,
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/Publication/302536393010",
+                  "name": "example.com",
+                  "autoPublish": false,
+                  "supportsFuturePublishing": true,
+                  "catalog": null
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyNjgwMzkzODk0OTAsImxhc3RfdmFsdWUiOjI2ODAzOTM4OTQ5MH0=",
+                "endCursor": "eyJsYXN0X2lkIjozMDI1MzYzOTMwMTAsImxhc3RfdmFsdWUiOjMwMjUzNjM5MzAxMH0="
+              }
+            },
+            "publicationsCount": {
+              "count": 5,
+              "precision": "EXACT"
+            },
+            "product": {
+              "id": "gid://shopify/Product/10244063265074",
+              "availablePublicationsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "resourcePublicationsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "resourcePublicationsV2": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 55,
+              "actualQueryCost": 28,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1925,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "persistedPublicationMembershipAfterDelete": {
+      "query": "query PublicationDeleteMembershipRead($publicationId: ID!, $productId: ID!) {\n  product(id: $productId) {\n    id\n    publishedOnPublication(publicationId: $publicationId)\n  }\n}\n",
+      "variables": {
+        "publicationId": "gid://shopify/Publication/304006857010",
+        "productId": "gid://shopify/Product/10244063265074"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid publication id.",
+              "locations": [
+                {
+                  "line": 4,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "NOT_FOUND"
+              },
+              "path": ["product", "publishedOnPublication"]
+            }
+          ],
+          "data": {
+            "product": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1939,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "protectedPublicationCandidates": {
+      "query": "#graphql\n  query PublicationDeleteProtectedCandidate {\n    publications(first: 100) {\n      nodes {\n        id\n        name\n        catalog {\n          __typename\n          id\n          title\n        }\n        channels(first: 5) {\n          nodes {\n            id\n            name\n            handle\n          }\n        }\n      }\n    }\n  }\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publications": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Publication/268039389490",
+                  "name": "Online Store",
+                  "catalog": null,
+                  "channels": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Channel/268039389490",
+                        "name": "Online Store",
+                        "handle": "online_store"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Publication/268039455026",
+                  "name": "Point of Sale",
+                  "catalog": null,
+                  "channels": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Channel/268039455026",
+                        "name": "Point of Sale",
+                        "handle": "pos"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Publication/268039487794",
+                  "name": "Shop",
+                  "catalog": null,
+                  "channels": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Channel/268039487794",
+                        "name": "Shop",
+                        "handle": "shop-72"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Publication/273897881906",
+                  "name": "Shopify GraphiQL App",
+                  "catalog": null,
+                  "channels": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Channel/273897881906",
+                        "name": "Shopify GraphiQL App",
+                        "handle": "shopify-graphiql-app"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Publication/302536393010",
+                  "name": "example.com",
+                  "catalog": null,
+                  "channels": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Channel/302536393010",
+                        "name": "example.com",
+                        "handle": "example-us-har-381-conformance"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 65,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1944,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "protectedPublicationHydrateBeforeDelete": {
+      "query": "query PublicationDeleteHydrate($id: ID!) {\n  publication(id: $id) {\n    id\n    name\n    autoPublish\n    supportsFuturePublishing\n    catalog {\n      __typename\n      id\n      title\n    }\n    channels(first: 5) {\n      nodes {\n        id\n        name\n        handle\n      }\n    }\n    products(first: 250) {\n      nodes {\n        id\n      }\n      pageInfo {\n        hasNextPage\n      }\n    }\n  }\n  publicationsCount {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Publication/268039389490"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publication": {
+              "id": "gid://shopify/Publication/268039389490",
+              "name": "Online Store",
+              "autoPublish": false,
+              "supportsFuturePublishing": true,
+              "catalog": {
+                "__typename": "AppCatalog",
+                "id": "gid://shopify/AppCatalog/128893255986",
+                "title": "Channel Catalog 268039389490 for Online Store"
+              },
+              "channels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Channel/268039389490",
+                    "name": "Online Store",
+                    "handle": "online_store"
+                  }
+                ]
+              },
+              "products": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/9801098789170"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801098821938"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801098887474"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801098985778"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099018546"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099051314"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099116850"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099149618"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099182386"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099215154"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099247922"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099280690"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099313458"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885482844466"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885482877234"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885482910002"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885482942770"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885482975538"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483008306"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483041074"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483073842"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483106610"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483139378"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483172146"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483204914"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483237682"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483270450"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483303218"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483335986"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483368754"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483401522"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483434290"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483467058"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483499826"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483532594"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483565362"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483598130"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483630898"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483663666"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483696434"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483729202"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483761970"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483794738"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483827506"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483860274"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483893042"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483925810"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483958578"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483991346"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885484024114"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885484056882"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885484089650"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885484122418"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501096242"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501129010"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501161778"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501194546"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501227314"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501292850"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501325618"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501358386"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501391154"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501456690"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501489458"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501522226"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501554994"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501587762"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501653298"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501686066"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501718834"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501751602"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501784370"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501817138"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885503521074"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885503553842"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885503586610"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885503619378"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885503717682"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885503783218"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885503848754"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885503914290"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504078130"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504176434"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504274738"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504340274"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504373042"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504405810"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504471346"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504536882"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504602418"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504667954"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504733490"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504766258"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504799026"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504831794"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504864562"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504930098"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504962866"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505061170"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505093938"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505126706"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505159474"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505225010"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505257778"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505323314"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505388850"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505454386"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505487154"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505552690"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505618226"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505716530"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505749298"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505782066"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505880370"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505978674"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506011442"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506076978"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506142514"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506371890"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506404658"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506470194"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506502962"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506535730"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506797874"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506994482"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507125554"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507191090"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507256626"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507322162"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507486002"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507551538"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507617074"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507682610"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507748146"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507813682"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507879218"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885508141362"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885508239666"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885508337970"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885508567346"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885508698418"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885508862258"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885509026098"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885509189938"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885509386546"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885509484850"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885509746994"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885509845298"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885509910834"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885509976370"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885510041906"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885510074674"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885510172978"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885510238514"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885510664498"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885510861106"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885510959410"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511057714"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511254322"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511319858"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511385394"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511483698"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511549234"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511680306"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511778610"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511811378"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511844146"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511909682"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511942450"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512073522"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512106290"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512171826"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512270130"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512335666"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512368434"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512433970"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512466738"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512663346"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512696114"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512827186"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512892722"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512925490"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512958258"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513056562"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513089330"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513122098"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513253170"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513285938"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513351474"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513449778"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513482546"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513548082"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513613618"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513679154"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513711922"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513777458"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513875762"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514268978"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514301746"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514367282"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514432818"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514465586"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514498354"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514563890"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514596658"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514694962"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514727730"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514760498"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514826034"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514891570"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514957106"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515055410"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515120946"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515153714"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515186482"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515219250"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515252018"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515284786"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515317554"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515350322"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515383090"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515481394"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515514162"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515546930"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515579698"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515612466"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515645234"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515678002"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515743538"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515841842"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515874610"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515907378"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515940146"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516038450"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516071218"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516103986"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516169522"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516235058"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516267826"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516300594"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516333362"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516366130"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516398898"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516464434"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516562738"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516595506"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516628274"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516661042"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516726578"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516759346"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true
+                }
+              }
+            },
+            "publicationsCount": {
+              "count": 5,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 29,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1925,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "deleteProtectedAppPublication": {
+      "query": "#graphql\nmutation PublicationDeleteContract($id: ID!) {\n  publicationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Publication/268039389490"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Can't modify a publication that belongs to an app catalog.",
+                  "code": "CANNOT_MODIFY_APP_CATALOG_PUBLICATION"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1930,
                 "restoreRate": 100
               }
             }
@@ -994,7 +2297,7 @@
       "payload": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10234426065202",
+            "deletedProductId": "gid://shopify/Product/10244063265074",
             "userErrors": []
           }
         },
@@ -1004,7 +2307,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1958,
+              "currentlyAvailable": 1929,
               "restoreRate": 100
             }
           }
@@ -1016,7 +2319,7 @@
       "payload": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10234426097970",
+            "deletedProductId": "gid://shopify/Product/10244063297842",
             "userErrors": []
           }
         },
@@ -1026,7 +2329,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1979,
+              "currentlyAvailable": 1947,
               "restoreRate": 100
             }
           }
@@ -1041,13 +2344,16 @@
     "Live Publication.products returns a ProductConnection with edges, pageInfo, cursor windowing, includedProductsCount, and full selected Product node projection after publicationUpdate adds products.",
     "Live ProductVariant IDs resolved through node(id:) but publicationUpdate returned top-level RESOURCE_NOT_FOUND for ProductVariant-only and Product+ProductVariant publishablesToAdd inputs.",
     "publicationDelete payload exposes deletedId and userErrors only.",
-    "publication(id:) returns the created publication before delete and null immediately after deleting that publication."
+    "publication(id:) returns the created publication before delete and null immediately after deleting that publication.",
+    "A publication created upstream before proxy replay is classified from query-only catalog/channel hydration and can be deleted locally from a fresh proxy session.",
+    "The persisted deletion removes the publication from detail/list/count and Product publication-membership reads.",
+    "The Online Store/AppCatalog publication rejects deletion with CANNOT_MODIFY_APP_CATALOG_PUBLICATION."
   ],
   "upstreamCalls": [
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10234426065202"]
+        "ids": ["gid://shopify/Product/10244063265074"]
       },
       "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
@@ -1056,16 +2362,16 @@
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10234426065202",
-                "title": "Publication mutation contract mrc6iuwk",
-                "handle": "publication-mutation-contract-mrc6iuwk",
+                "id": "gid://shopify/Product/10244063265074",
+                "title": "Publication mutation contract mrsqm9vd",
+                "handle": "publication-mutation-contract-mrsqm9vd",
                 "status": "ACTIVE",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51444758774066",
+                      "id": "gid://shopify/ProductVariant/51488887013682",
                       "title": "Default Title",
                       "sku": null,
                       "barcode": null,
@@ -1081,7 +2387,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53549945061682",
+                        "id": "gid://shopify/InventoryItem/53594488144178",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -1115,7 +2421,7 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10234426097970"]
+        "ids": ["gid://shopify/Product/10244063297842"]
       },
       "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
@@ -1124,16 +2430,16 @@
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10234426097970",
-                "title": "Publication products connection mrc6iuwk",
-                "handle": "publication-products-connection-mrc6iuwk",
+                "id": "gid://shopify/Product/10244063297842",
+                "title": "Publication products connection mrsqm9vd",
+                "handle": "publication-products-connection-mrsqm9vd",
                 "status": "ACTIVE",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51444758806834",
+                      "id": "gid://shopify/ProductVariant/51488887046450",
                       "title": "Default Title",
                       "sku": null,
                       "barcode": null,
@@ -1149,7 +2455,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53549945094450",
+                        "id": "gid://shopify/InventoryItem/53594488176946",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -1183,7 +2489,7 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/ProductVariant/51444758774066"]
+        "ids": ["gid://shopify/ProductVariant/51488887013682"]
       },
       "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
@@ -1192,7 +2498,7 @@
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51444758774066",
+                "id": "gid://shopify/ProductVariant/51488887013682",
                 "title": "Default Title",
                 "sku": null,
                 "barcode": null,
@@ -1208,21 +2514,21 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53549945061682",
+                  "id": "gid://shopify/InventoryItem/53594488144178",
                   "tracked": false,
                   "requiresShipping": true
                 },
                 "product": {
-                  "id": "gid://shopify/Product/10234426065202",
-                  "title": "Publication mutation contract mrc6iuwk",
-                  "handle": "publication-mutation-contract-mrc6iuwk",
+                  "id": "gid://shopify/Product/10244063265074",
+                  "title": "Publication mutation contract mrsqm9vd",
+                  "handle": "publication-mutation-contract-mrsqm9vd",
                   "status": "ACTIVE",
                   "totalInventory": 0,
                   "tracksInventory": false,
                   "variants": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/ProductVariant/51444758774066",
+                        "id": "gid://shopify/ProductVariant/51488887013682",
                         "title": "Default Title",
                         "sku": null,
                         "barcode": null,
@@ -1238,7 +2544,7 @@
                           }
                         ],
                         "inventoryItem": {
-                          "id": "gid://shopify/InventoryItem/53549945061682",
+                          "id": "gid://shopify/InventoryItem/53594488144178",
                           "tracked": false,
                           "requiresShipping": true
                         }
@@ -1282,6 +2588,957 @@
               "throttleStatus": {
                 "maximumAvailable": 2000,
                 "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PublicationDeleteHydrate",
+      "variables": {
+        "id": "gid://shopify/Publication/304006857010"
+      },
+      "query": "query PublicationDeleteHydrate($id: ID!) {\n  publication(id: $id) {\n    id\n    name\n    autoPublish\n    supportsFuturePublishing\n    catalog {\n      __typename\n      id\n      title\n    }\n    channels(first: 5) {\n      nodes {\n        id\n        name\n        handle\n      }\n    }\n    products(first: 250) {\n      nodes {\n        id\n      }\n      pageInfo {\n        hasNextPage\n      }\n    }\n  }\n  publicationsCount {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "publication": {
+              "id": "gid://shopify/Publication/304006857010",
+              "name": "",
+              "autoPublish": false,
+              "supportsFuturePublishing": false,
+              "catalog": null,
+              "channels": {
+                "nodes": []
+              },
+              "products": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/10244063265074"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false
+                }
+              }
+            },
+            "publicationsCount": {
+              "count": 5,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1953,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PublicationDeleteDownstreamRead",
+      "variables": {
+        "publicationId": "gid://shopify/Publication/304006857010",
+        "productId": "gid://shopify/Product/10244063265074"
+      },
+      "query": "query PublicationDeleteDownstreamRead($publicationId: ID!, $productId: ID!) {\n  publication(id: $publicationId) {\n    id\n    name\n    autoPublish\n    supportsFuturePublishing\n    catalog {\n      __typename\n      id\n      title\n    }\n  }\n  publications(first: 100) {\n    nodes {\n      id\n      name\n      autoPublish\n      supportsFuturePublishing\n      catalog {\n        __typename\n        id\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  publicationsCount {\n    count\n    precision\n  }\n  product(id: $productId) {\n    id\n    availablePublicationsCount {\n      count\n      precision\n    }\n    resourcePublicationsCount {\n      count\n      precision\n    }\n    resourcePublicationsV2(first: 100) {\n      nodes {\n        publication {\n          id\n        }\n        isPublished\n        publishDate\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "publication": {
+              "id": "gid://shopify/Publication/304006857010",
+              "name": "",
+              "autoPublish": false,
+              "supportsFuturePublishing": false,
+              "catalog": null
+            },
+            "publications": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Publication/268039389490",
+                  "name": "Online Store",
+                  "autoPublish": false,
+                  "supportsFuturePublishing": true,
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/Publication/268039455026",
+                  "name": "Point of Sale",
+                  "autoPublish": false,
+                  "supportsFuturePublishing": false,
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/Publication/268039487794",
+                  "name": "Shop",
+                  "autoPublish": false,
+                  "supportsFuturePublishing": false,
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/Publication/273897881906",
+                  "name": "Shopify GraphiQL App",
+                  "autoPublish": false,
+                  "supportsFuturePublishing": false,
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/Publication/302536393010",
+                  "name": "example.com",
+                  "autoPublish": false,
+                  "supportsFuturePublishing": true,
+                  "catalog": null
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyNjgwMzkzODk0OTAsImxhc3RfdmFsdWUiOjI2ODAzOTM4OTQ5MH0=",
+                "endCursor": "eyJsYXN0X2lkIjozMDI1MzYzOTMwMTAsImxhc3RfdmFsdWUiOjMwMjUzNjM5MzAxMH0="
+              }
+            },
+            "publicationsCount": {
+              "count": 5,
+              "precision": "EXACT"
+            },
+            "product": {
+              "id": "gid://shopify/Product/10244063265074",
+              "availablePublicationsCount": {
+                "count": 2,
+                "precision": "EXACT"
+              },
+              "resourcePublicationsCount": {
+                "count": 2,
+                "precision": "EXACT"
+              },
+              "resourcePublicationsV2": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 55,
+              "actualQueryCost": 29,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1935,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PublicationDeleteHydrate",
+      "variables": {
+        "id": "gid://shopify/Publication/268039389490"
+      },
+      "query": "query PublicationDeleteHydrate($id: ID!) {\n  publication(id: $id) {\n    id\n    name\n    autoPublish\n    supportsFuturePublishing\n    catalog {\n      __typename\n      id\n      title\n    }\n    channels(first: 5) {\n      nodes {\n        id\n        name\n        handle\n      }\n    }\n    products(first: 250) {\n      nodes {\n        id\n      }\n      pageInfo {\n        hasNextPage\n      }\n    }\n  }\n  publicationsCount {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "publication": {
+              "id": "gid://shopify/Publication/268039389490",
+              "name": "Online Store",
+              "autoPublish": false,
+              "supportsFuturePublishing": true,
+              "catalog": {
+                "__typename": "AppCatalog",
+                "id": "gid://shopify/AppCatalog/128893255986",
+                "title": "Channel Catalog 268039389490 for Online Store"
+              },
+              "channels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Channel/268039389490",
+                    "name": "Online Store",
+                    "handle": "online_store"
+                  }
+                ]
+              },
+              "products": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/9801098789170"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801098821938"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801098887474"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801098985778"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099018546"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099051314"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099116850"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099149618"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099182386"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099215154"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099247922"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099280690"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9801099313458"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885482844466"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885482877234"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885482910002"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885482942770"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885482975538"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483008306"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483041074"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483073842"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483106610"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483139378"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483172146"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483204914"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483237682"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483270450"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483303218"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483335986"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483368754"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483401522"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483434290"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483467058"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483499826"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483532594"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483565362"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483598130"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483630898"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483663666"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483696434"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483729202"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483761970"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483794738"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483827506"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483860274"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483893042"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483925810"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483958578"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885483991346"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885484024114"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885484056882"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885484089650"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885484122418"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501096242"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501129010"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501161778"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501194546"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501227314"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501292850"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501325618"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501358386"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501391154"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501456690"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501489458"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501522226"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501554994"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501587762"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501653298"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501686066"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501718834"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501751602"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501784370"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885501817138"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885503521074"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885503553842"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885503586610"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885503619378"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885503717682"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885503783218"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885503848754"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885503914290"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504078130"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504176434"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504274738"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504340274"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504373042"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504405810"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504471346"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504536882"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504602418"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504667954"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504733490"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504766258"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504799026"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504831794"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504864562"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504930098"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885504962866"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505061170"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505093938"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505126706"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505159474"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505225010"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505257778"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505323314"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505388850"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505454386"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505487154"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505552690"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505618226"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505716530"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505749298"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505782066"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505880370"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885505978674"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506011442"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506076978"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506142514"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506371890"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506404658"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506470194"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506502962"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506535730"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506797874"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885506994482"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507125554"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507191090"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507256626"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507322162"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507486002"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507551538"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507617074"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507682610"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507748146"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507813682"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885507879218"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885508141362"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885508239666"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885508337970"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885508567346"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885508698418"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885508862258"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885509026098"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885509189938"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885509386546"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885509484850"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885509746994"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885509845298"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885509910834"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885509976370"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885510041906"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885510074674"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885510172978"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885510238514"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885510664498"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885510861106"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885510959410"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511057714"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511254322"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511319858"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511385394"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511483698"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511549234"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511680306"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511778610"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511811378"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511844146"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511909682"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885511942450"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512073522"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512106290"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512171826"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512270130"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512335666"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512368434"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512433970"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512466738"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512663346"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512696114"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512827186"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512892722"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512925490"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885512958258"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513056562"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513089330"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513122098"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513253170"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513285938"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513351474"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513449778"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513482546"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513548082"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513613618"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513679154"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513711922"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513777458"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885513875762"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514268978"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514301746"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514367282"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514432818"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514465586"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514498354"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514563890"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514596658"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514694962"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514727730"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514760498"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514826034"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514891570"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885514957106"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515055410"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515120946"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515153714"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515186482"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515219250"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515252018"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515284786"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515317554"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515350322"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515383090"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515481394"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515514162"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515546930"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515579698"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515612466"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515645234"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515678002"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515743538"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515841842"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515874610"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515907378"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885515940146"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516038450"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516071218"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516103986"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516169522"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516235058"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516267826"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516300594"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516333362"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516366130"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516398898"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516464434"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516562738"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516595506"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516628274"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516661042"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516726578"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9885516759346"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true
+                }
+              }
+            },
+            "publicationsCount": {
+              "count": 5,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 29,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1925,
                 "restoreRate": 100
               }
             }

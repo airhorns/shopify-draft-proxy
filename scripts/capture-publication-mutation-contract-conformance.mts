@@ -59,6 +59,19 @@ type PublicationDeleteData = {
   } | null;
 };
 
+type PublicationSeed = {
+  id: string;
+  name?: string | null;
+  catalog?: { __typename?: string; id?: string | null; title?: string | null } | null;
+  channels?: {
+    nodes?: Array<{ id: string; name?: string | null; handle?: string | null }>;
+  } | null;
+};
+
+type PublicationsData = {
+  publications?: { nodes?: PublicationSeed[] } | null;
+};
+
 type PublicationProductsConnectionData = {
   publication?: {
     products?: {
@@ -110,12 +123,33 @@ const publicationProductsConnectionDocumentPath = path.join(
   'products',
   'publication-products-connection-read.graphql',
 );
+const publicationDeleteHydrateDocumentPath = path.join(
+  'config',
+  'parity-requests',
+  'products',
+  'publication-delete-hydrate.graphql',
+);
+const publicationDeleteDownstreamReadDocumentPath = path.join(
+  'config',
+  'parity-requests',
+  'products',
+  'publication-delete-downstream-read.graphql',
+);
+const publicationDeleteMembershipReadDocumentPath = path.join(
+  'config',
+  'parity-requests',
+  'products',
+  'publication-delete-membership-read.graphql',
+);
 
 const publicationCreateMutation = await readFile(publicationCreateDocumentPath, 'utf8');
 const publicationUpdateMutation = await readFile(publicationUpdateDocumentPath, 'utf8');
 const publicationDeleteMutation = await readFile(publicationDeleteDocumentPath, 'utf8');
 const publicationReadQuery = await readFile(publicationReadDocumentPath, 'utf8');
 const publicationProductsConnectionQuery = await readFile(publicationProductsConnectionDocumentPath, 'utf8');
+const publicationDeleteHydrateQuery = await readFile(publicationDeleteHydrateDocumentPath, 'utf8');
+const publicationDeleteDownstreamReadQuery = await readFile(publicationDeleteDownstreamReadDocumentPath, 'utf8');
+const publicationDeleteMembershipReadQuery = await readFile(publicationDeleteMembershipReadDocumentPath, 'utf8');
 
 // The node-hydrate query the proxy forwards in live-hybrid to prove a publishable
 // product/variant exists before staging a publicationUpdate. Shared verbatim with
@@ -200,6 +234,29 @@ const variantNodeQuery = `#graphql
   }
 `;
 
+const protectedPublicationQuery = `#graphql
+  query PublicationDeleteProtectedCandidate {
+    publications(first: 100) {
+      nodes {
+        id
+        name
+        catalog {
+          __typename
+          id
+          title
+        }
+        channels(first: 5) {
+          nodes {
+            id
+            name
+            handle
+          }
+        }
+      }
+    }
+  }
+`;
+
 async function captureCase(query: string, variables: JsonObject): Promise<CaptureCase> {
   return {
     query,
@@ -222,11 +279,13 @@ const runId = Date.now().toString(36);
 let product: ProductSeed | null = null;
 let secondProduct: ProductSeed | null = null;
 let publicationId: string | null = null;
+let persistedPublicationId: string | null = null;
 let variantId: string | null = null;
 let productCleanup: ConformanceGraphqlResult<ProductDeleteData> | null = null;
 let secondProductCleanup: ConformanceGraphqlResult<ProductDeleteData> | null = null;
 let publicationCleanup: ConformanceGraphqlResult<PublicationDeleteData> | null = null;
 let deleteCreated: CaptureCase | null = null;
+let deletePersisted: CaptureCase | null = null;
 const cases: Record<string, CaptureCase> = {};
 const upstreamCalls: UpstreamCall[] = [];
 
@@ -407,6 +466,99 @@ try {
   cases['deleteCreatedPublication'] = deleteCreated;
   cases['afterDeletePublicationRead'] = await captureCase(publicationReadQuery, { id: publicationId });
   publicationId = null;
+
+  const persistedPublicationCreate = await captureCase(publicationCreateMutation, { input: {} });
+  cases['persistedPublicationCreate'] = persistedPublicationCreate;
+  persistedPublicationId = getCreatedPublicationId(
+    persistedPublicationCreate.response as ConformanceGraphqlResult<PublicationCreateData>,
+  );
+  if (!persistedPublicationId) {
+    throw new Error(
+      `publicationCreate(input: {}) did not return the persisted-delete publication id: ${JSON.stringify(
+        persistedPublicationCreate,
+      )}`,
+    );
+  }
+  cases['persistedPublicationAddProduct'] = await captureCase(publicationUpdateMutation, {
+    id: persistedPublicationId,
+    input: { publishablesToAdd: [product.id] },
+  });
+
+  const persistedHydrateVariables = { id: persistedPublicationId };
+  const persistedHydrate = await captureCase(publicationDeleteHydrateQuery, persistedHydrateVariables);
+  cases['persistedPublicationHydrateBeforeDelete'] = persistedHydrate;
+  upstreamCalls.push({
+    operationName: 'PublicationDeleteHydrate',
+    variables: persistedHydrateVariables,
+    query: publicationDeleteHydrateQuery,
+    response: { status: persistedHydrate.response.status, body: persistedHydrate.response.payload },
+  });
+
+  const persistedDownstreamVariables = {
+    publicationId: persistedPublicationId,
+    productId: product.id,
+  };
+  const persistedDownstreamBefore = await captureCase(
+    publicationDeleteDownstreamReadQuery,
+    persistedDownstreamVariables,
+  );
+  cases['persistedPublicationDownstreamBeforeDelete'] = persistedDownstreamBefore;
+  upstreamCalls.push({
+    operationName: 'PublicationDeleteDownstreamRead',
+    variables: persistedDownstreamVariables,
+    query: publicationDeleteDownstreamReadQuery,
+    response: {
+      status: persistedDownstreamBefore.response.status,
+      body: persistedDownstreamBefore.response.payload,
+    },
+  });
+
+  deletePersisted = await captureCase(publicationDeleteMutation, { id: persistedPublicationId });
+  cases['deletePersistedPublication'] = deletePersisted;
+  cases['persistedPublicationDownstreamAfterDelete'] = await captureCase(
+    publicationDeleteDownstreamReadQuery,
+    persistedDownstreamVariables,
+  );
+  cases['persistedPublicationMembershipAfterDelete'] = await captureCase(
+    publicationDeleteMembershipReadQuery,
+    persistedDownstreamVariables,
+  );
+  persistedPublicationId = null;
+
+  const protectedCandidates = await captureCase(protectedPublicationQuery, {});
+  cases['protectedPublicationCandidates'] = protectedCandidates;
+  const protectedNodes = (protectedCandidates.response as ConformanceGraphqlResult<PublicationsData>).payload.data
+    ?.publications?.nodes;
+  const protectedPublication =
+    protectedNodes?.find((publication) =>
+      publication.channels?.nodes?.some((channel) => channel.handle === 'online_store'),
+    ) ?? protectedNodes?.find((publication) => publication.catalog?.__typename === 'AppCatalog');
+  if (!protectedPublication?.id) {
+    throw new Error(
+      `publication deletion capture could not resolve a protected app publication: ${JSON.stringify(
+        protectedCandidates,
+      )}`,
+    );
+  }
+  const protectedHydrateVariables = { id: protectedPublication.id };
+  const protectedHydrate = await captureCase(publicationDeleteHydrateQuery, protectedHydrateVariables);
+  cases['protectedPublicationHydrateBeforeDelete'] = protectedHydrate;
+  upstreamCalls.push({
+    operationName: 'PublicationDeleteHydrate',
+    variables: protectedHydrateVariables,
+    query: publicationDeleteHydrateQuery,
+    response: { status: protectedHydrate.response.status, body: protectedHydrate.response.payload },
+  });
+  const protectedDelete = await captureCase(publicationDeleteMutation, { id: protectedPublication.id });
+  cases['deleteProtectedAppPublication'] = protectedDelete;
+  const protectedDeletePayload = (protectedDelete.response as ConformanceGraphqlResult<PublicationDeleteData>).payload
+    .data?.publicationDelete;
+  if (
+    protectedDeletePayload?.deletedId != null ||
+    !protectedDeletePayload.userErrors?.some((error) => error.code === 'CANNOT_MODIFY_APP_CATALOG_PUBLICATION')
+  ) {
+    throw new Error(`expected the protected app publication delete to be rejected: ${JSON.stringify(protectedDelete)}`);
+  }
 } finally {
   if (publicationId) {
     try {
@@ -418,6 +570,26 @@ try {
             ok: false,
             cleanup: 'publicationDelete',
             publicationId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          null,
+          2,
+        ),
+      );
+    }
+  }
+  if (persistedPublicationId) {
+    try {
+      publicationCleanup = await runGraphqlRaw<PublicationDeleteData>(publicationDeleteMutation, {
+        id: persistedPublicationId,
+      });
+    } catch (error) {
+      console.warn(
+        JSON.stringify(
+          {
+            ok: false,
+            cleanup: 'publicationDelete',
+            publicationId: persistedPublicationId,
             error: error instanceof Error ? error.message : String(error),
           },
           null,
@@ -468,7 +640,7 @@ try {
   }
 }
 
-if (!product?.id || !deleteCreated || Object.keys(cases).length === 0) {
+if (!product?.id || !deleteCreated || !deletePersisted || Object.keys(cases).length === 0) {
   throw new Error('publication mutation contract capture did not produce required setup/cases.');
 }
 
@@ -498,6 +670,9 @@ await writeFile(
         'Live ProductVariant IDs resolved through node(id:) but publicationUpdate returned top-level RESOURCE_NOT_FOUND for ProductVariant-only and Product+ProductVariant publishablesToAdd inputs.',
         'publicationDelete payload exposes deletedId and userErrors only.',
         'publication(id:) returns the created publication before delete and null immediately after deleting that publication.',
+        'A publication created upstream before proxy replay is classified from query-only catalog/channel hydration and can be deleted locally from a fresh proxy session.',
+        'The persisted deletion removes the publication from detail/list/count and Product publication-membership reads.',
+        'The Online Store/AppCatalog publication rejects deletion with CANNOT_MODIFY_APP_CATALOG_PUBLICATION.',
       ],
       upstreamCalls,
     },
@@ -518,6 +693,9 @@ console.log(
       caseCount: Object.keys(cases).length,
       deletedPublicationId:
         (deleteCreated.response as ConformanceGraphqlResult<PublicationDeleteData>).payload.data?.publicationDelete
+          ?.deletedId ?? null,
+      deletedPersistedPublicationId:
+        (deletePersisted.response as ConformanceGraphqlResult<PublicationDeleteData>).payload.data?.publicationDelete
           ?.deletedId ?? null,
       cleanupDeletedProductId: productCleanup?.payload.data?.productDelete?.deletedProductId ?? null,
       cleanupDeletedSecondProductId: secondProductCleanup?.payload.data?.productDelete?.deletedProductId ?? null,

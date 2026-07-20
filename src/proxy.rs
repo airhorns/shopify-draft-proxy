@@ -461,6 +461,7 @@ struct BaseState {
     storefront_public_api_versions: Vec<Value>,
     storefront_menus: OrderedRecords<Value>,
     publication_ids: BTreeSet<String>,
+    publications: BTreeMap<String, Value>,
     publication_count: Option<usize>,
     available_locales: BTreeMap<String, String>,
     shop_locales: BTreeMap<String, Value>,
@@ -578,6 +579,9 @@ struct StagedState {
     markets_dirty_families: BTreeSet<String>,
     publication_ids: BTreeSet<String>,
     created_publication_ids: BTreeSet<String>,
+    deleted_publication_ids: BTreeSet<String>,
+    deleted_publication_resource_ids: BTreeMap<String, BTreeSet<String>>,
+    deleted_publication_resource_ids_complete: BTreeSet<String>,
     // Full publication records staged this scenario, keyed by publication gid.
     // Seeded from `seedPublications` (base/default publications) and extended by
     // `publicationCreate`. Drives the local `publication`/`channel`/`channels`/
@@ -1334,6 +1338,7 @@ impl Store {
     }
 
     fn stage_created_publication_id(&mut self, id: String) {
+        self.staged.deleted_publication_ids.remove(&id);
         self.staged.created_publication_ids.insert(id.clone());
         self.staged.publication_ids.insert(id);
     }
@@ -1343,32 +1348,73 @@ impl Store {
             .base
             .publication_count
             .unwrap_or(self.base.publication_ids.len());
-        base_count
-            + self
-                .staged
-                .created_publication_ids
+        base_count.saturating_sub(
+            self.staged
+                .deleted_publication_ids
                 .iter()
-                .filter(|id| !self.base.publication_ids.contains(*id))
-                .count()
+                .filter(|id| self.base.publication_ids.contains(*id))
+                .count(),
+        ) + self
+            .staged
+            .created_publication_ids
+            .iter()
+            .filter(|id| {
+                !self.base.publication_ids.contains(*id)
+                    && !self.staged.deleted_publication_ids.contains(*id)
+            })
+            .count()
     }
 
     fn has_known_publication_catalog(&self) -> bool {
         self.base.publication_count.is_some()
             || !self.base.publication_ids.is_empty()
+            || !self.base.publications.is_empty()
             || !self.staged.publication_ids.is_empty()
             || !self.staged.publications.is_empty()
+            || !self.staged.deleted_publication_ids.is_empty()
     }
 
     fn has_known_publication_ids(&self) -> bool {
         !self.base.publication_ids.is_empty()
+            || !self.base.publications.is_empty()
             || !self.staged.publication_ids.is_empty()
             || !self.staged.publications.is_empty()
     }
 
     fn has_publication_id(&self, id: &str) -> bool {
-        self.base.publication_ids.contains(id)
-            || self.staged.publication_ids.contains(id)
-            || self.staged.publications.contains_key(id)
+        !self.staged.deleted_publication_ids.contains(id)
+            && (self.base.publication_ids.contains(id)
+                || self.base.publications.contains_key(id)
+                || self.staged.publication_ids.contains(id)
+                || self.staged.publications.contains_key(id))
+    }
+
+    fn publication_is_deleted(&self, id: &str) -> bool {
+        self.staged.deleted_publication_ids.contains(id)
+    }
+
+    fn publication_by_id(&self, id: &str) -> Option<&Value> {
+        if self.publication_is_deleted(id) {
+            return None;
+        }
+        self.staged
+            .publications
+            .get(id)
+            .or_else(|| self.base.publications.get(id))
+    }
+
+    fn publications(&self) -> Vec<Value> {
+        let mut publications = self.base.publications.clone();
+        publications.extend(self.staged.publications.clone());
+        for id in &self.staged.deleted_publication_ids {
+            publications.remove(id);
+        }
+        publications.into_values().collect()
+    }
+
+    fn has_publication_overlay(&self) -> bool {
+        !self.staged.created_publication_ids.is_empty()
+            || !self.staged.deleted_publication_ids.is_empty()
     }
 
     fn current_publication_ids(&self) -> Vec<&str> {

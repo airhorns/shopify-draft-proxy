@@ -654,7 +654,13 @@ pub(in crate::proxy) fn product_field_resolver_registrations() -> Vec<FieldResol
             field,
         ));
     }
-    for field in ["autoPublish", "id", "name", "supportsFuturePublishing"] {
+    for field in [
+        "autoPublish",
+        "catalog",
+        "id",
+        "name",
+        "supportsFuturePublishing",
+    ] {
         registrations.push(FieldResolverRegistration::property(
             ApiSurface::Admin,
             "Publication",
@@ -785,10 +791,6 @@ pub(in crate::proxy) fn product_field_resolver_registrations() -> Vec<FieldResol
             product_published_on_current_publication_field,
         ),
         (
-            "publishedOnPublication",
-            product_published_on_publication_field,
-        ),
-        (
             "resourcePublicationOnCurrentPublication",
             product_resource_publication_on_current_publication_field,
         ),
@@ -812,6 +814,12 @@ pub(in crate::proxy) fn product_field_resolver_registrations() -> Vec<FieldResol
             FieldResolverRegistration::explicit(ApiSurface::Admin, "Product", field, handler);
         registrations.push(registration);
     }
+    registrations.push(FieldResolverRegistration::explicit_outcome_terminal(
+        ApiSurface::Admin,
+        "Product",
+        "publishedOnPublication",
+        product_published_on_publication_field_outcome,
+    ));
     registrations.extend([
         FieldResolverRegistration::explicit(
             ApiSurface::Admin,
@@ -934,6 +942,13 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> bool {
+        // Publication creates/deletes need the executable local root and field
+        // resolvers so they can overlay the caller's single shared upstream
+        // response. A direct full-document passthrough would bypass those
+        // tombstones and surface deleted publications or memberships again.
+        if self.store.has_publication_overlay() {
+            return false;
+        }
         if Self::product_query_needs_upstream_catalog_search(fields) {
             return true;
         }
@@ -1148,6 +1163,25 @@ impl DraftProxy {
                 .execution_session
                 .owner_metafield_hydrated_ids
                 .contains(id);
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && !has_local_answer
+            && !self.store.staged.deleted_publication_ids.is_empty()
+        {
+            let upstream = self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
+            if !upstream.errors.is_empty() {
+                return upstream;
+            }
+            self.store.observe_base_product_json(&upstream.value);
+            return ResolverOutcome::value(
+                self.store
+                    .product_by_id(id)
+                    .map(|product| self.product_canonical_value(product))
+                    .unwrap_or(Value::Null),
+            );
+        }
         if self.config.read_mode == ReadMode::Live
             || (self.config.read_mode == ReadMode::LiveHybrid && !has_local_answer)
         {
@@ -1828,6 +1862,30 @@ fn product_published_on_publication_field(
         .unwrap_or(Value::Bool(false)))
 }
 
+fn product_published_on_publication_field_outcome(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<crate::admin_graphql::FieldResolverResult, String> {
+    let publication_id = invocation
+        .arguments
+        .get("publicationId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if proxy.store.publication_is_deleted(publication_id) {
+        return Ok(crate::admin_graphql::FieldResolverResult::Error(
+            crate::admin_graphql::RootFieldError {
+                message: "Invalid publication id.".to_string(),
+                extensions: BTreeMap::from([("code".to_string(), json!("NOT_FOUND"))]),
+                path: None,
+                locations: Vec::new(),
+            },
+        ));
+    }
+    product_published_on_publication_field(proxy, request, invocation)
+        .map(crate::admin_graphql::FieldResolverResult::Resolved)
+}
+
 fn product_resource_publication_on_current_publication_field(
     _proxy: &mut DraftProxy,
     _request: &Request,
@@ -1844,11 +1902,56 @@ fn product_publication_count_field(
     let Some(product) = product_field_record(proxy, invocation) else {
         return Ok(count_object(0));
     };
-    Ok(product
-        .extra_fields
-        .get(&invocation.field_name)
-        .cloned()
-        .unwrap_or_else(|| count_object(product_visible_publication_entries(&product).len())))
+    let deleted_membership_count = proxy
+        .store
+        .staged
+        .deleted_publication_resource_ids
+        .values()
+        .filter(|resource_ids| resource_ids.contains(&product.id))
+        .count();
+    let deleted_memberships_are_known = proxy
+        .store
+        .staged
+        .deleted_publication_resource_ids
+        .keys()
+        .all(|publication_id| {
+            proxy
+                .store
+                .staged
+                .deleted_publication_resource_ids_complete
+                .contains(publication_id)
+                || proxy
+                    .store
+                    .staged
+                    .deleted_publication_resource_ids
+                    .get(publication_id)
+                    .is_some_and(|resource_ids| resource_ids.contains(&product.id))
+        });
+    if !proxy
+        .store
+        .staged
+        .deleted_publication_resource_ids
+        .is_empty()
+        && deleted_memberships_are_known
+    {
+        if let Some(mut value) = product.extra_fields.get(&invocation.field_name).cloned() {
+            if let Some(count) = value.get("count").and_then(Value::as_u64) {
+                value["count"] = json!(count.saturating_sub(deleted_membership_count as u64));
+                return Ok(value);
+            }
+        }
+    }
+    if proxy.store.staged.deleted_publication_ids.is_empty() {
+        if let Some(value) = product.extra_fields.get(&invocation.field_name) {
+            return Ok(value.clone());
+        }
+    }
+    Ok(count_object(
+        product_visible_publication_entries(&product)
+            .into_iter()
+            .filter(|entry| !proxy.store.publication_is_deleted(&entry.publication_id))
+            .count(),
+    ))
 }
 
 pub(in crate::proxy) fn canonical_product_publication_node(
@@ -1887,15 +1990,20 @@ fn product_publication_connection_field(
     let Some(product) = product_field_record(proxy, invocation) else {
         return Ok(connection_json(Vec::new()));
     };
-    if let Some(value) = product.extra_fields.get(&invocation.field_name) {
-        if matches!(
-            invocation.field_name.as_str(),
-            "publications" | "resourcePublicationsV2"
-        ) {
-            return Ok(value.clone());
+    if proxy.store.staged.deleted_publication_ids.is_empty() {
+        if let Some(value) = product.extra_fields.get(&invocation.field_name) {
+            if matches!(
+                invocation.field_name.as_str(),
+                "publications" | "resourcePublicationsV2"
+            ) {
+                return Ok(value.clone());
+            }
         }
     }
-    let entries = product_visible_publication_entries(&product);
+    let entries = product_visible_publication_entries(&product)
+        .into_iter()
+        .filter(|entry| !proxy.store.publication_is_deleted(&entry.publication_id))
+        .collect::<Vec<_>>();
     let nodes = entries
         .iter()
         .map(|entry| match invocation.field_name.as_str() {

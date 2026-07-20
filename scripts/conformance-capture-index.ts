@@ -1641,21 +1641,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-publication-mutation-contract-conformance.mts',
     purpose:
-      'publicationCreate/publicationUpdate/publicationDelete 2026-04 input shape, userErrors, and delete payload contract.',
+      'publicationCreate/publicationUpdate/publicationDelete 2026-04 input shape, userErrors, persisted deletion overlays, protected app rejection, and delete payload contract.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_publications', 'write_publications'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}publication-mutation-contract.json`,
       'config/parity-specs/products/publication_create_validation.json',
       'config/parity-specs/products/publication-update-delete-contract.json',
+      'config/parity-specs/products/publication-persisted-delete-contract.json',
       'config/parity-requests/products/publicationCreate-validation.graphql',
       'config/parity-requests/products/publicationUpdate-contract.graphql',
       'config/parity-requests/products/publicationDelete-contract.graphql',
       'config/parity-requests/products/publication-created-read.graphql',
       'config/parity-requests/products/publication-products-connection-read.graphql',
+      'config/parity-requests/products/publication-delete-hydrate.graphql',
+      'config/parity-requests/products/publication-delete-downstream-read.graphql',
+      'config/parity-requests/products/publication-delete-membership-read.graphql',
       'config/parity-requests/products/products-hydrate-nodes-observation.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable draft product and one disposable publication, deletes the publication as the asserted delete case, then deletes the product in best-effort cleanup.',
+      'Creates two disposable products plus ordinary disposable publications, deletes the publications as asserted cases, verifies a protected app publication rejection, then deletes the products in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

@@ -1037,6 +1037,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     },
                     "publicationCount": null,
                     "publicationIds": [],
+                    "publications": {},
                     "savedSearchOrder": [],
                     "savedSearches": {},
                     "segmentOrder": [],
@@ -1081,6 +1082,9 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                 "stagedState": {
                     "abandonments": {},
                     "createdPublicationIds": [],
+                    "deletedPublicationIds": [],
+                    "deletedPublicationResourceIds": {},
+                    "deletedPublicationResourceIdsComplete": [],
                     "currentChannelPublicationId": null,
                     "currentChannelPublicationResolved": false,
                     "customerAddressOrder": {},

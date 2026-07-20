@@ -4514,3 +4514,36 @@ Practical rule:
 - distinguish an authoritative null node from transport, GraphQL, or incomplete
   response failures; all failure classes must leave product/category state
   unchanged, but only the authoritative miss is proven invalid
+
+## 108. Publication deletion protection comes from catalog metadata, not observation age
+
+Live Admin GraphQL 2026-04 capture created an ordinary channel-less
+publication, attached a disposable Product, and deleted the publication after
+recording its detail and membership state. A fresh proxy therefore cannot use
+"created in this session" as the deletion boundary: the same ordinary row is
+persisted upstream before local replay begins and remains deletable.
+
+The capture also exposed three less obvious contracts:
+
+- a channel-less ordinary publication is available through `publication(id:)`
+  but is absent from top-level `publications` and `publicationsCount`; deleting
+  it leaves that catalog list/count unchanged
+- Product publication counts decrement after deletion, while
+  `publishedOnPublication(publicationId: deletedId)` raises
+  `Invalid publication id.` with `extensions.code: NOT_FOUND` and null-propagates
+  the Product
+- Online Store hydrates as an `AppCatalog` and rejects deletion with
+  `CANNOT_MODIFY_APP_CATALOG_PUBLICATION`
+
+The same disposable shop returned successful `publicationDelete` payloads for
+its `MarketCatalog` publication on 2026-04, 2026-07, and unstable. Each probe
+was repaired immediately with `publicationCreate(catalogId:)`. That public API
+behavior conflicts with the Core-backed market-catalog protection contract, so
+the proxy keeps the Core guard while the captured parity scenario asserts only
+the reproducible AppCatalog rejection. Do not manufacture a MarketCatalog
+rejection fixture to hide this version boundary.
+
+Practical rule: hydrate the targeted publication's catalog/channel and bounded
+membership metadata with queries, validate protection before staging, and only
+then atomically add the tombstone plus derived membership deltas. Never infer
+protection from whether the proxy happened to create or observe the ID.
