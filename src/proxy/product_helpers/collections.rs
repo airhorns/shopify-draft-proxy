@@ -2871,22 +2871,13 @@ impl DraftProxy {
                     .unwrap_or(0),
             )
             .min(COLLECTION_MEMBERSHIP_MAX_PROBE_ROWS);
-        if !self.hydrate_collection_membership_targets(
+        let membership_resolved = self.hydrate_collection_membership_targets(
             invocation.request,
             &collection_id,
             &move_product_ids,
             baseline_first,
-        ) {
-            return ResolverOutcome::value(self.collection_payload_value(
-                None,
-                None,
-                vec![collection_reorder_user_error(
-                    ["moves"],
-                    "Collection membership could not be resolved",
-                    "INVALID_MOVE",
-                )],
-            ));
-        }
+        );
+        self.hydrate_collection_reorder_sort_order(invocation.request, &collection_id);
         if let Some(errors) = self.collection_membership_guard_errors(root_field, &collection_id) {
             return ResolverOutcome::value(self.collection_payload_value(None, None, errors));
         }
@@ -2904,6 +2895,26 @@ impl DraftProxy {
                 vec![collection_user_error(
                     ["id"],
                     "Can't reorder products unless collection is manually sorted",
+                )],
+            ));
+        }
+        let membership_resolved = membership_resolved
+            || move_product_ids.iter().all(|product_id| {
+                self.store.product_by_id(product_id).is_some()
+                    && self
+                        .store
+                        .collection_membership(&collection_id)
+                        .and_then(|state| state.effective_membership(product_id))
+                        .is_some()
+            });
+        if !membership_resolved {
+            return ResolverOutcome::value(self.collection_payload_value(
+                None,
+                None,
+                vec![collection_reorder_user_error(
+                    ["moves"],
+                    "Collection membership could not be resolved",
+                    "INVALID_MOVE",
                 )],
             ));
         }
@@ -3240,23 +3251,158 @@ impl DraftProxy {
             }),
         );
         if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
-            return false;
+            return self.hydrate_collection_membership_targets_from_legacy_observation(
+                request,
+                collection_id,
+                &unprobed_product_ids,
+            );
         }
         let Some(collection) = response.body.pointer("/data/collection") else {
-            return false;
+            return self.hydrate_collection_membership_targets_from_legacy_observation(
+                request,
+                collection_id,
+                &unprobed_product_ids,
+            );
         };
         let Some(target_nodes) = response
             .body
             .pointer("/data/nodes")
             .and_then(Value::as_array)
             .filter(|nodes| nodes.len() == unprobed_product_ids.len())
-            .cloned()
+        else {
+            return self.hydrate_collection_membership_targets_from_legacy_observation(
+                request,
+                collection_id,
+                &unprobed_product_ids,
+            );
+        };
+        if self.stage_collection_membership_target_observation(
+            collection_id,
+            &unprobed_product_ids,
+            collection,
+            target_nodes,
+            true,
+        ) {
+            return true;
+        }
+        self.hydrate_collection_membership_targets_from_legacy_observation(
+            request,
+            collection_id,
+            &unprobed_product_ids,
+        )
+    }
+
+    fn hydrate_collection_membership_targets_from_legacy_observation(
+        &mut self,
+        request: &Request,
+        collection_id: &str,
+        product_ids: &[String],
+    ) -> bool {
+        let mut ids = Vec::with_capacity(product_ids.len() + 1);
+        ids.push(collection_id.to_string());
+        ids.extend(product_ids.iter().cloned());
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": PRODUCTS_HYDRATE_NODES_OBSERVATION_QUERY,
+                "operationName": "ProductsHydrateNodes",
+                "variables": { "ids": ids }
+            }),
+        );
+        if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+            return false;
+        }
+        let Some(nodes) = response
+            .body
+            .pointer("/data/nodes")
+            .and_then(Value::as_array)
+            .filter(|nodes| nodes.len() == product_ids.len() + 1)
         else {
             return false;
         };
+        self.stage_collection_membership_target_observation(
+            collection_id,
+            product_ids,
+            &nodes[0],
+            &nodes[1..],
+            false,
+        )
+    }
+
+    fn hydrate_collection_reorder_sort_order(&mut self, request: &Request, collection_id: &str) {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || collection_id.is_empty()
+            || self
+                .store
+                .collection_by_id(collection_id)
+                .and_then(|collection| collection.get("sortOrder"))
+                .and_then(Value::as_str)
+                .is_some()
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": COLLECTION_REORDER_PRODUCTS_COLLECTION_HYDRATE_QUERY,
+                "operationName": "CollectionReorderProductsCollectionHydrate",
+                "variables": { "id": collection_id }
+            }),
+        );
+        if (200..300).contains(&response.status) && response.body.get("errors").is_none() {
+            if let Some(collection) = response.body.pointer("/data/collection") {
+                self.stage_collection_from_observed_json(collection);
+            }
+        }
+    }
+
+    fn stage_collection_membership_target_observation(
+        &mut self,
+        collection_id: &str,
+        product_ids: &[String],
+        collection: &Value,
+        target_nodes: &[Value],
+        exact_target_filter: bool,
+    ) -> bool {
+        if collection.get("id").and_then(Value::as_str) != Some(collection_id)
+            || target_nodes.len() != product_ids.len()
+        {
+            return false;
+        }
+        let collection_connection = collection
+            .get("manualProducts")
+            .or_else(|| collection.get("products"));
+        let collection_members = collection_connection
+            .map(connection_nodes)
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|product| {
+                product
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .collect::<BTreeSet<_>>();
+        let collection_window_complete = collection_connection.is_some_and(|connection| {
+            connection
+                .pointer("/pageInfo/hasNextPage")
+                .and_then(Value::as_bool)
+                != Some(true)
+                && connection
+                    .pointer("/pageInfo/hasPreviousPage")
+                    .and_then(Value::as_bool)
+                    != Some(true)
+        });
         let mut observed_membership = BTreeMap::<String, bool>::new();
         let mut observed_products = Vec::new();
-        for (requested_id, node) in unprobed_product_ids.iter().zip(&target_nodes) {
+        for (index, requested_id) in product_ids.iter().enumerate() {
+            let Some(node) = target_nodes
+                .iter()
+                .find(|node| node.get("id").and_then(Value::as_str) == Some(requested_id))
+                .or_else(|| target_nodes.get(index).filter(|node| node.is_null()))
+            else {
+                return false;
+            };
             if node.is_null() {
                 observed_membership.insert(requested_id.clone(), false);
                 continue;
@@ -3267,27 +3413,46 @@ impl DraftProxy {
             if product_id != requested_id {
                 return false;
             }
-            let is_member = connection_nodes(&node["collections"])
+            let target_collections = node.get("collections");
+            let is_member = target_collections
+                .map(connection_nodes)
+                .unwrap_or_default()
                 .iter()
                 .any(|collection| {
                     collection.get("id").and_then(Value::as_str) == Some(collection_id)
-                });
+                })
+                || collection_members.contains(product_id);
+            let target_window_complete = target_collections.is_some_and(|connection| {
+                connection
+                    .pointer("/pageInfo/hasNextPage")
+                    .and_then(Value::as_bool)
+                    != Some(true)
+                    && connection
+                        .pointer("/pageInfo/hasPreviousPage")
+                        .and_then(Value::as_bool)
+                        != Some(true)
+            });
+            if !is_member
+                && !exact_target_filter
+                && !target_window_complete
+                && !collection_window_complete
+            {
+                return false;
+            }
             observed_membership.insert(product_id.to_string(), is_member);
             observed_products.push(node.clone());
         }
-        if !collection.is_null() {
-            self.stage_collection_from_observed_json(collection);
-        }
+        self.stage_collection_from_observed_json(collection);
         for product in &observed_products {
             self.store.stage_observed_product_json(product);
         }
         let state = self.store.collection_membership_mut(collection_id);
-        for product_id in unprobed_product_ids {
+        for product_id in product_ids {
             state.probed_product_ids.insert(product_id.clone());
             state.known_membership.insert(
                 product_id.clone(),
                 observed_membership
-                    .get(&product_id)
+                    .get(product_id)
                     .copied()
                     .unwrap_or(false),
             );

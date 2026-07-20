@@ -437,6 +437,85 @@ fn unresolved_membership_hydration_is_atomic_and_does_not_log_success() {
 }
 
 #[test]
+fn collection_add_accepts_complete_legacy_membership_evidence_after_probe_failure() {
+    let collection_id = "gid://shopify/Collection/legacy";
+    let first_product_id = "gid://shopify/Product/16";
+    let second_product_id = "gid://shopify/Product/17";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body)
+                .expect("upstream GraphQL request parses");
+            captured_calls.lock().unwrap().push(body.clone());
+            if body["operationName"] == json!("CollectionMembershipTargetsHydrate") {
+                return Response {
+                    status: 502,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "probe unavailable" }] }),
+                };
+            }
+            assert_eq!(body["operationName"], json!("ProductsHydrateNodes"));
+            assert_eq!(
+                body["variables"]["ids"],
+                json!([collection_id, first_product_id, second_product_id])
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [
+                            observed_collection(collection_id, 0, std::iter::empty()),
+                            observed_product(17),
+                            observed_product(16)
+                        ]
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LegacyEvidenceAdd($id: ID!, $productIds: [ID!]!) {
+          collectionAddProducts(id: $id, productIds: $productIds) {
+            collection {
+              id
+              products(first: 10) { nodes { id } }
+              productsCount { count precision }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": collection_id,
+            "productIds": [first_product_id, second_product_id]
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["collectionAddProducts"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["collectionAddProducts"]["collection"]["products"]["nodes"],
+        json!([{ "id": first_product_id }, { "id": second_product_id }])
+    );
+    assert_eq!(
+        response.body["data"]["collectionAddProducts"]["collection"]["productsCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert!(calls.iter().all(|call| !call["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("collectionAddProducts(")));
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
 fn collection_reorder_moves_a_later_member_without_losing_untouched_members() {
     let collection_id = "gid://shopify/Collection/large";
     let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
