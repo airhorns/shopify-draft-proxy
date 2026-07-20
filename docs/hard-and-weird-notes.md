@@ -65,6 +65,22 @@ Change-level error that can be emitted alongside a name error. The checked-in
 anchor is
 `config/parity-specs/segments/segment-create-name-failure-short-circuits-query-grammar.json`.
 
+## Current: Deleted Segment detail reads return `NOT_FOUND`, while catalog reads omit the row
+
+Live Admin GraphQL 2025-01 capture showed two distinct post-delete read shapes
+for the same segment. A direct `segment(id:)` selection returned `null` plus a
+top-level `NOT_FOUND` error whose message is `Segment does not exist`. In the
+same request, `segments(query: "id:<gid>")` returned no matching nodes and
+`segmentsCount(query: "id:<gid>")` excluded the deleted segment without adding
+another error.
+
+Practical rule: an effective segment tombstone must remain authoritative in
+LiveHybrid. Detail projection synthesizes Shopify's error envelope locally and
+must not refetch the deleted row upstream; catalog and count overlays suppress
+the row without turning ordinary absence into a GraphQL error. The captured
+anchor is
+`config/parity-specs/segments/segment-mutation-first-hydration.json`.
+
 ## Current: Shopify empty-data behavior is field-specific, not generic
 
 "Return empty data when missing" sounds simple, but in practice Shopify behavior depends on the field shape:

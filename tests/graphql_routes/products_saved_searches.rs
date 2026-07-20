@@ -12646,10 +12646,475 @@ fn staged_segment_detail_miss_forwards_upstream_and_tombstone_wins() {
     assert_eq!(after_delete.status, 200);
     assert_eq!(after_delete.body["data"]["realSegment"], Value::Null);
     assert_eq!(
+        after_delete.body["errors"],
+        json!([{
+            "message": "Segment does not exist",
+            "locations": [{ "line": 3, "column": 11 }],
+            "path": ["realSegment"],
+            "extensions": { "code": "NOT_FOUND" }
+        }])
+    );
+    assert_eq!(
         upstream_requests.lock().unwrap().len(),
         1,
         "local segment tombstone should be authoritative"
     );
+}
+
+#[test]
+fn segment_mutation_first_update_hydrates_persisted_target_before_local_staging() {
+    let segment_id = "gid://shopify/Segment/3000";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(request);
+            if body["operationName"] == json!("SegmentMutationTargetHydrate") {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "segment": {
+                                "id": segment_id,
+                                "name": "Persisted segment before update",
+                                "query": "number_of_orders >= 2",
+                                "creationDate": "2026-07-01T12:00:00Z",
+                                "lastEditDate": "2026-07-01T12:00:00Z"
+                            }
+                        }
+                    }),
+                }
+            } else if body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("query SegmentMutationFirstUpdateRead"))
+            {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "current": {
+                                "id": segment_id,
+                                "name": "Persisted segment before update",
+                                "query": "number_of_orders >= 2",
+                                "creationDate": "2026-07-01T12:00:00Z",
+                                "lastEditDate": "2026-07-01T12:00:00Z"
+                            },
+                            "matching": {
+                                "nodes": [],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null,
+                                    "endCursor": null
+                                }
+                            },
+                            "total": { "count": 1, "precision": "EXACT" }
+                        }
+                    }),
+                }
+            } else {
+                panic!("unexpected upstream request: {body}")
+            }
+        });
+
+    let update_query = r#"
+        mutation SegmentMutationFirstUpdate($id: ID!, $name: String!, $query: String!) {
+          segmentUpdate(id: $id, name: $name, query: $query) {
+            segment { id name query creationDate lastEditDate }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let variables = json!({
+        "id": segment_id,
+        "name": "Persisted segment after local update",
+        "query": "number_of_orders >= 4"
+    });
+    let mut update_request = json_graphql_request(update_query, variables.clone());
+    update_request.path = "/admin/api/2026-04/graphql.json".to_string();
+    update_request.headers.insert(
+        "x-shopify-access-token".to_string(),
+        "mutation-first-test-token".to_string(),
+    );
+    let raw_update_body = update_request.body.clone();
+    let updated = proxy.process_request(update_request);
+
+    assert_eq!(updated.status, 200);
+    assert_eq!(
+        updated.body["data"]["segmentUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        updated.body["data"]["segmentUpdate"]["segment"]["id"],
+        json!(segment_id)
+    );
+    assert_eq!(
+        updated.body["data"]["segmentUpdate"]["segment"]["name"],
+        json!("Persisted segment after local update")
+    );
+    assert_eq!(
+        updated.body["data"]["segmentUpdate"]["segment"]["query"],
+        json!("number_of_orders >= 4")
+    );
+    assert_eq!(
+        updated.body["data"]["segmentUpdate"]["segment"]["creationDate"],
+        json!("2026-07-01T12:00:00Z")
+    );
+
+    let read_query = r#"
+        query SegmentMutationFirstUpdateRead($id: ID!, $name: String!) {
+          current: segment(id: $id) { id name query creationDate lastEditDate }
+          matching: segments(first: 10, query: $name) {
+            nodes { id name query creationDate lastEditDate }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          total: segmentsCount { count precision }
+        }
+    "#;
+    let mut read_request = json_graphql_request(
+        read_query,
+        json!({ "id": segment_id, "name": "Persisted segment after local update" }),
+    );
+    read_request.path = "/admin/api/2026-04/graphql.json".to_string();
+    read_request.headers.insert(
+        "x-shopify-access-token".to_string(),
+        "mutation-first-test-token".to_string(),
+    );
+    let read = proxy.process_request(read_request);
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["current"]["name"],
+        json!("Persisted segment after local update"),
+        "{}",
+        read.body
+    );
+    assert_eq!(
+        read.body["data"]["matching"]["nodes"],
+        json!([updated.body["data"]["segmentUpdate"]["segment"].clone()])
+    );
+    assert_eq!(
+        read.body["data"]["total"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    for request in requests.iter() {
+        assert_eq!(request.method, "POST");
+        assert_eq!(request.path, "/admin/api/2026-04/graphql.json");
+        assert_eq!(
+            request.headers.get("x-shopify-access-token"),
+            Some(&"mutation-first-test-token".to_string())
+        );
+        let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+        assert_eq!(
+            body["query"]
+                .as_str()
+                .unwrap()
+                .trim_start()
+                .starts_with("query"),
+            true
+        );
+        assert!(!body["query"].as_str().unwrap().contains("segmentUpdate"));
+    }
+    assert_eq!(
+        serde_json::from_str::<Value>(&requests[0].body).unwrap()["variables"],
+        json!({ "id": segment_id })
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(log["entries"][0]["rawBody"], raw_update_body);
+    assert_eq!(log["entries"][0]["stagedResourceIds"], json!([segment_id]));
+}
+
+#[test]
+fn segment_mutation_first_delete_hydrates_target_and_hides_downstream_reads() {
+    let segment_id = "gid://shopify/Segment/4000";
+    let survivor_id = "gid://shopify/Segment/4001";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(request);
+            if body["operationName"] == json!("SegmentMutationTargetHydrate") {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "segment": {
+                                "id": segment_id,
+                                "name": "Persisted segment before delete",
+                                "query": "number_of_orders >= 3",
+                                "creationDate": "2026-07-02T12:00:00Z",
+                                "lastEditDate": "2026-07-02T12:00:00Z"
+                            }
+                        }
+                    }),
+                }
+            } else if body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("query SegmentMutationFirstDeleteRead"))
+            {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "deleted": {
+                                "id": segment_id,
+                                "name": "Persisted segment before delete"
+                            },
+                            "matching": {
+                                "nodes": [
+                                    {
+                                        "id": segment_id,
+                                        "name": "Persisted segment before delete",
+                                        "query": "number_of_orders >= 3"
+                                    },
+                                    {
+                                        "id": survivor_id,
+                                        "name": "Persisted segment survivor",
+                                        "query": "number_of_orders >= 5"
+                                    }
+                                ],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": "segment-4000",
+                                    "endCursor": "segment-4001"
+                                }
+                            },
+                            "total": { "count": 2, "precision": "EXACT" }
+                        }
+                    }),
+                }
+            } else {
+                panic!("unexpected upstream request: {body}")
+            }
+        });
+
+    let delete_query = r#"
+        mutation SegmentMutationFirstDelete($id: ID!) {
+          segmentDelete(id: $id) {
+            deletedSegmentId
+            userErrors { field message }
+          }
+        }
+    "#;
+    let mut delete_request = json_graphql_request(delete_query, json!({ "id": segment_id }));
+    delete_request.path = "/admin/api/2025-10/graphql.json".to_string();
+    delete_request.headers.insert(
+        "x-shopify-access-token".to_string(),
+        "delete-mutation-first-test-token".to_string(),
+    );
+    let raw_delete_body = delete_request.body.clone();
+    let deleted = proxy.process_request(delete_request);
+
+    assert_eq!(deleted.status, 200);
+    assert_eq!(
+        deleted.body["data"]["segmentDelete"],
+        json!({ "deletedSegmentId": segment_id, "userErrors": [] })
+    );
+
+    let read_query = r#"
+        query SegmentMutationFirstDeleteRead($id: ID!, $query: String!) {
+          deleted: segment(id: $id) { id name query }
+          matching: segments(first: 10, query: $query) {
+            nodes { id name query }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          total: segmentsCount { count precision }
+        }
+    "#;
+    let mut read_request = json_graphql_request(
+        read_query,
+        json!({ "id": segment_id, "query": "Persisted segment" }),
+    );
+    read_request.path = "/admin/api/2025-10/graphql.json".to_string();
+    read_request.headers.insert(
+        "x-shopify-access-token".to_string(),
+        "delete-mutation-first-test-token".to_string(),
+    );
+    let read = proxy.process_request(read_request);
+
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["deleted"], Value::Null, "{}", read.body);
+    assert_eq!(
+        read.body["errors"],
+        json!([{
+            "message": "Segment does not exist",
+            "locations": [{ "line": 3, "column": 11 }],
+            "path": ["deleted"],
+            "extensions": { "code": "NOT_FOUND" }
+        }]),
+        "{}",
+        read.body
+    );
+    assert_eq!(
+        read.body["data"]["matching"]["nodes"],
+        json!([{
+            "id": survivor_id,
+            "name": "Persisted segment survivor",
+            "query": "number_of_orders >= 5"
+        }]),
+        "{}",
+        read.body
+    );
+    assert_eq!(
+        read.body["data"]["total"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    for request in requests.iter() {
+        assert_eq!(request.method, "POST");
+        assert_eq!(request.path, "/admin/api/2025-10/graphql.json");
+        assert_eq!(
+            request.headers.get("x-shopify-access-token"),
+            Some(&"delete-mutation-first-test-token".to_string())
+        );
+        let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+        assert!(body["query"]
+            .as_str()
+            .unwrap()
+            .trim_start()
+            .starts_with("query"));
+        assert!(!body["query"].as_str().unwrap().contains("segmentDelete"));
+    }
+
+    let state = state_snapshot(&proxy);
+    assert_eq!(state["stagedState"]["segments"], json!({}));
+    assert_eq!(
+        state["stagedState"]["deletedSegmentIds"],
+        json!([segment_id])
+    );
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(log["entries"][0]["rawBody"], raw_delete_body);
+    assert_eq!(log["entries"][0]["stagedResourceIds"], json!([segment_id]));
+}
+
+#[test]
+fn segment_mutation_hydration_preserves_error_precedence_and_failed_state() {
+    let persisted_id = "gid://shopify/Segment/5000";
+    let unknown_id = "gid://shopify/Segment/5999";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            assert_eq!(body["operationName"], json!("SegmentMutationTargetHydrate"));
+            captured_requests.lock().unwrap().push(body.clone());
+            let id = body["variables"]["id"].as_str().unwrap();
+            let segment = if id == persisted_id {
+                json!({
+                    "id": persisted_id,
+                    "name": "Persisted validation target",
+                    "query": "number_of_orders >= 1",
+                    "creationDate": "2026-07-03T12:00:00Z",
+                    "lastEditDate": "2026-07-03T12:00:00Z"
+                })
+            } else {
+                Value::Null
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "segment": segment } }),
+            }
+        });
+
+    let invalid_existing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SegmentMutationFirstFailedUpdate($id: ID!, $name: String) {
+          segmentUpdate(id: $id, name: $name) {
+            segment { id name }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": persisted_id, "name": "" }),
+    ));
+    assert_eq!(
+        invalid_existing.body["data"]["segmentUpdate"],
+        json!({
+            "segment": null,
+            "userErrors": [{ "field": ["name"], "message": "Name can't be blank" }]
+        })
+    );
+    assert_eq!(state_snapshot(&proxy)["stagedState"]["segments"], json!({}));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let unknown_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SegmentMutationFirstUnknownUpdate($id: ID!) {
+          segmentUpdate(id: $id) {
+            segment { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": unknown_id }),
+    ));
+    assert_eq!(
+        unknown_update.body["data"]["segmentUpdate"],
+        json!({
+            "segment": null,
+            "userErrors": [{ "field": ["id"], "message": "Segment does not exist" }]
+        })
+    );
+
+    let unknown_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SegmentMutationFirstUnknownDelete($id: ID!) {
+          segmentDelete(id: $id) {
+            deletedSegmentId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": unknown_id }),
+    ));
+    assert_eq!(
+        unknown_delete.body["data"]["segmentDelete"],
+        json!({
+            "deletedSegmentId": null,
+            "userErrors": [{ "field": ["id"], "message": "Segment does not exist" }]
+        })
+    );
+
+    for (query, id, error_code) in [
+        (
+            r#"mutation SegmentMalformedUpdate($id: ID!) { segmentUpdate(id: $id, name: "Nope") { segment { id } userErrors { field message } } }"#,
+            "not-a-gid",
+            "INVALID_VARIABLE",
+        ),
+        (
+            r#"mutation SegmentWrongTypeDelete($id: ID!) { segmentDelete(id: $id) { deletedSegmentId userErrors { field message } } }"#,
+            "gid://shopify/Order/1",
+            "RESOURCE_NOT_FOUND",
+        ),
+    ] {
+        let malformed = proxy.process_request(json_graphql_request(query, json!({ "id": id })));
+        assert_eq!(
+            malformed.body["errors"][0]["extensions"]["code"],
+            json!(error_code)
+        );
+    }
+
+    assert_eq!(upstream_requests.lock().unwrap().len(), 3);
+    let state = state_snapshot(&proxy);
+    assert_eq!(state["stagedState"]["segments"], json!({}));
+    assert_eq!(state["stagedState"]["deletedSegmentIds"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
