@@ -1,0 +1,100 @@
+query ReturnLifecycleHydrate($id: ID!) {
+  return(id: $id) {
+    id
+    name
+    status
+    closedAt
+    decline {
+      reason
+      note
+    }
+    totalQuantity
+    refunds(first: 250) {
+      nodes {
+        id
+      }
+    }
+    order {
+      id
+      name
+      updatedAt
+    }
+    returnLineItems(first: 250) {
+      nodes {
+        id
+        quantity
+        processableQuantity
+        processedQuantity
+        refundableQuantity
+        refundedQuantity
+        unprocessedQuantity
+        ... on ReturnLineItem {
+          returnReason
+          returnReasonNote
+          fulfillmentLineItem {
+            id
+            quantity
+            lineItem {
+              id
+              title
+              variant {
+                id
+              }
+            }
+          }
+        }
+      }
+    }
+    returnShippingFees {
+      id
+      amountSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    reverseFulfillmentOrders(first: 250) {
+      nodes {
+        id
+        status
+        order {
+          id
+        }
+        lineItems(first: 250) {
+          nodes {
+            id
+            totalQuantity
+            fulfillmentLineItem {
+              id
+              quantity
+              lineItem {
+                id
+                title
+                variant {
+                  id
+                }
+              }
+            }
+            dispositions {
+              type
+              quantity
+              location {
+                id
+              }
+            }
+          }
+        }
+        reverseDeliveries(first: 250) {
+          nodes {
+            id
+          }
+        }
+      }
+    }
+  }
+}

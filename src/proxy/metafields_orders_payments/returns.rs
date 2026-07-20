@@ -88,6 +88,8 @@ fn reverse_fulfillment_order_deliveries_field(
 
 const RETURN_CALCULATION_ORDER_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/orders/return-calculation-order-hydrate.graphql");
+const RETURN_LIFECYCLE_HYDRATE_QUERY: &str =
+    include_str!("../../../config/parity-requests/orders/return-lifecycle-hydrate.graphql");
 
 fn return_matches_id(return_value: &Value, value: &str) -> bool {
     let value = value.trim_matches('"').trim_matches('\'');
@@ -664,6 +666,84 @@ fn find_nested_node_by_id(value: &Value, id: &str) -> Option<Value> {
     }
 }
 
+fn normalize_hydrated_return_record(record: &mut Value) {
+    if record.get("closedAt").is_none() {
+        record["closedAt"] = Value::Null;
+    }
+    if record.get("decline").is_none() {
+        record["decline"] = Value::Null;
+    }
+    if record.get("refunds").is_none() {
+        record["refunds"] = json!([]);
+    }
+    if record.get("returnShippingFees").is_none() {
+        record["returnShippingFees"] = json!([]);
+    }
+    if record.get("reverseFulfillmentOrders").is_none() {
+        record["reverseFulfillmentOrders"] = connection_json(Vec::new());
+    }
+    if let Some(lines) = record["returnLineItems"]["nodes"].as_array_mut() {
+        for line in lines {
+            let quantity = line["quantity"].as_i64().unwrap_or(0);
+            let processed = line["processedQuantity"].as_i64().unwrap_or(0);
+            let refunded = line["refundedQuantity"].as_i64().unwrap_or(0);
+            if line.get("processedQuantity").is_none() {
+                line["processedQuantity"] = json!(processed);
+            }
+            if line.get("processableQuantity").is_none() {
+                line["processableQuantity"] = json!((quantity - processed).max(0));
+            }
+            if line.get("unprocessedQuantity").is_none() {
+                line["unprocessedQuantity"] = json!((quantity - processed).max(0));
+            }
+            if line.get("refundedQuantity").is_none() {
+                line["refundedQuantity"] = json!(refunded);
+            }
+            if line.get("refundableQuantity").is_none() {
+                line["refundableQuantity"] = json!((quantity - refunded).max(0));
+            }
+        }
+    }
+    let return_lines_by_fulfillment_line = record["returnLineItems"]["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|line| {
+            let fulfillment_line_id = line["fulfillmentLineItem"]["id"].as_str()?.to_string();
+            let return_line_id = line["id"].as_str()?.to_string();
+            let remaining = line["unprocessedQuantity"].as_i64().unwrap_or(0);
+            Some((fulfillment_line_id, (return_line_id, remaining)))
+        })
+        .collect::<BTreeMap<_, _>>();
+    if let Some(reverse_orders) = record["reverseFulfillmentOrders"]["nodes"].as_array_mut() {
+        for reverse_order in reverse_orders {
+            if reverse_order.get("reverseDeliveries").is_none() {
+                reverse_order["reverseDeliveries"] = connection_json(Vec::new());
+            }
+            if let Some(lines) = reverse_order["lineItems"]["nodes"].as_array_mut() {
+                for line in lines {
+                    let return_line = line["fulfillmentLineItem"]["id"]
+                        .as_str()
+                        .and_then(|id| return_lines_by_fulfillment_line.get(id));
+                    if line.get("remainingQuantity").is_none() {
+                        line["remainingQuantity"] = return_line
+                            .map(|(_, remaining)| json!(remaining))
+                            .unwrap_or_else(|| line["totalQuantity"].clone());
+                    }
+                    if line.get("returnLineItem").is_none() {
+                        line["returnLineItem"] = return_line
+                            .map(|(id, _)| json!({ "id": id }))
+                            .unwrap_or(Value::Null);
+                    }
+                    if line.get("dispositions").is_none() {
+                        line["dispositions"] = json!([]);
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// `returnDeclineRequest` reaches the handler only after public Admin schema
 /// input validation has accepted the required `declineReason` enum.
 fn return_decline_reason(input: &BTreeMap<String, ResolvedValue>) -> String {
@@ -695,11 +775,13 @@ fn return_status_transition_error(
             }
         }
         "CANCELED" => {
-            let has_processed = return_line_items_array(record)
-                .iter()
-                .any(|line| line["processedQuantity"].as_i64().unwrap_or(0) > 0);
+            let has_processed_or_refunded = return_line_items_array(record).iter().any(|line| {
+                line["processedQuantity"].as_i64().unwrap_or(0) > 0
+                    || line["refundedQuantity"].as_i64().unwrap_or(0) > 0
+            }) || !node_array(&record["refunds"]).is_empty();
             if status == "CANCELED"
-                || (!has_processed && matches!(status, "OPEN" | "REQUESTED" | "DECLINED"))
+                || (!has_processed_or_refunded
+                    && matches!(status, "OPEN" | "REQUESTED" | "DECLINED"))
             {
                 None
             } else {
@@ -711,6 +793,27 @@ fn return_status_transition_error(
 }
 
 impl DraftProxy {
+    fn effective_return_record(&self, id: &str) -> Option<&Value> {
+        self.store
+            .staged
+            .returns
+            .get(id)
+            .or_else(|| self.store.base.returns.get(id))
+    }
+
+    fn effective_reverse_fulfillment_order_record(&self, id: &str) -> Option<&Value> {
+        self.store
+            .staged
+            .reverse_fulfillment_orders
+            .get(id)
+            .or_else(|| self.store.base.reverse_fulfillment_orders.get(id))
+    }
+
+    fn effective_return_order_record(&self, id: &str) -> Option<Value> {
+        self.staged_order_record_for_id(id)
+            .or_else(|| self.store.base.orders.get(id).cloned())
+    }
+
     pub(in crate::proxy) fn fulfillment_return_node_value_by_id(&self, id: &str) -> Option<Value> {
         let resource_type = shopify_gid_resource_type(id)?;
         match resource_type {
@@ -721,10 +824,7 @@ impl DraftProxy {
             "FulfillmentHold" => self.fulfillment_hold_node_record_by_id(id),
             "FulfillmentOrderLineItem" => self.fulfillment_order_line_item_node_record_by_id(id),
             "Return" => self
-                .store
-                .staged
-                .returns
-                .get(id)
+                .effective_return_record(id)
                 .map(|record| self.return_record_with_effective_reverse_orders(record)),
             "ReturnableFulfillment" => self.returnable_fulfillment_node_value_by_id(id),
             "ReturnLineItem" => self.return_line_item_node_record_by_id(id),
@@ -737,10 +837,7 @@ impl DraftProxy {
                 .map(|record| self.expanded_reverse_delivery_record(record)),
             "ReverseDeliveryLineItem" => self.reverse_delivery_line_item_node_record_by_id(id),
             "ReverseFulfillmentOrder" => self
-                .store
-                .staged
-                .reverse_fulfillment_orders
-                .get(id)
+                .effective_reverse_fulfillment_order_record(id)
                 .map(|record| self.expanded_reverse_fulfillment_order_record(record)),
             "ReverseFulfillmentOrderLineItem" => {
                 self.reverse_fulfillment_order_line_item_node_record_by_id(id)
@@ -884,6 +981,18 @@ impl DraftProxy {
                 return Some(line_item);
             }
         }
+        for (return_id, return_record) in &self.store.base.returns {
+            if self.store.staged.returns.contains_key(return_id) {
+                continue;
+            }
+            for mut line_item in return_line_items_array(return_record) {
+                if !value_id_matches(&line_item, id) {
+                    continue;
+                }
+                line_item["return"] = return_record.clone();
+                return Some(line_item);
+            }
+        }
         for order in self.store.staged.orders.values() {
             for return_record in order_returns_array(order) {
                 for mut line_item in return_line_items_array(&return_record) {
@@ -906,6 +1015,14 @@ impl DraftProxy {
             .find_map(|return_record| find_nested_node_by_id(return_record, id))
             .or_else(|| {
                 self.store
+                    .base
+                    .returns
+                    .iter()
+                    .filter(|(return_id, _)| !self.store.staged.returns.contains_key(*return_id))
+                    .find_map(|(_, return_record)| find_nested_node_by_id(return_record, id))
+            })
+            .or_else(|| {
+                self.store
                     .staged
                     .orders
                     .values()
@@ -916,11 +1033,8 @@ impl DraftProxy {
     fn expanded_reverse_delivery_record(&self, record: &Value) -> Value {
         let mut delivery = record.clone();
         if let Some(reverse_order_id) = delivery["reverseFulfillmentOrder"]["id"].as_str() {
-            if let Some(reverse_order) = self
-                .store
-                .staged
-                .reverse_fulfillment_orders
-                .get(reverse_order_id)
+            if let Some(reverse_order) =
+                self.effective_reverse_fulfillment_order_record(reverse_order_id)
             {
                 delivery["reverseFulfillmentOrder"] =
                     self.expanded_reverse_fulfillment_order_record(reverse_order);
@@ -991,6 +1105,23 @@ impl DraftProxy {
                 return Some(line_item);
             }
         }
+        for (reverse_order_id, reverse_order) in &self.store.base.reverse_fulfillment_orders {
+            if self
+                .store
+                .staged
+                .reverse_fulfillment_orders
+                .contains_key(reverse_order_id)
+            {
+                continue;
+            }
+            for mut line_item in node_array(&reverse_order["lineItems"]) {
+                if !value_id_matches(&line_item, id) {
+                    continue;
+                }
+                line_item["reverseFulfillmentOrder"] = reverse_order.clone();
+                return Some(line_item);
+            }
+        }
         None
     }
 
@@ -1012,6 +1143,20 @@ impl DraftProxy {
                     positions.insert(id, returns.len());
                 }
                 returns.push(return_value);
+            }
+        }
+
+        if let Some(ids) = self.store.base.returns_by_order.get(order_id) {
+            for id in ids {
+                let Some(return_value) = self.effective_return_record(id).cloned() else {
+                    continue;
+                };
+                if let Some(position) = positions.get(id).copied() {
+                    returns[position] = return_value;
+                } else {
+                    positions.insert(id.clone(), returns.len());
+                    returns.push(return_value);
+                }
             }
         }
 
@@ -1059,7 +1204,7 @@ impl DraftProxy {
         base["__typename"] = json!("Return");
         if let Some(order_id) = return_value["order"]["id"].as_str() {
             let mut order = self
-                .staged_order_record_for_id(order_id)
+                .effective_return_order_record(order_id)
                 .unwrap_or_else(|| return_value["order"].clone());
             if order.get("id").is_none() {
                 order["id"] = json!(order_id);
@@ -1076,7 +1221,7 @@ impl DraftProxy {
             .map(|node| {
                 node.get("id")
                     .and_then(Value::as_str)
-                    .and_then(|id| self.store.staged.reverse_fulfillment_orders.get(id))
+                    .and_then(|id| self.effective_reverse_fulfillment_order_record(id))
                     .map(|reverse_order| {
                         self.expanded_reverse_fulfillment_order_record(reverse_order)
                     })
@@ -1131,10 +1276,7 @@ impl DraftProxy {
                 .get(&id)
                 .map(|record| self.expanded_reverse_delivery_record(record)),
             "reverseFulfillmentOrder" => self
-                .store
-                .staged
-                .reverse_fulfillment_orders
-                .get(&id)
+                .effective_reverse_fulfillment_order_record(&id)
                 .map(|record| self.expanded_reverse_fulfillment_order_record(record)),
             _ => None,
         };
@@ -1184,6 +1326,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn order_return_local_runtime_outcome(
         &mut self,
         request: &Request,
+        response_key: &str,
         root_field: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
         requested_field_paths: &BTreeSet<Vec<String>>,
@@ -1208,46 +1351,72 @@ impl DraftProxy {
             "returnApproveRequest" => {
                 let id = resolved_object_field(arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "id"))?;
+                if let Err(outcome) = self.hydrate_return_for_lifecycle(request, &id, response_key)
+                {
+                    return Some(outcome);
+                }
                 let value = self.approve_return_request(&id);
-                Some(ResolverOutcome::value(value))
+                Some(self.return_mutation_outcome(root_field, &id, value))
             }
             "returnDeclineRequest" => {
                 let id = resolved_object_field(arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "id"))?;
+                if let Err(outcome) = self.hydrate_return_for_lifecycle(request, &id, response_key)
+                {
+                    return Some(outcome);
+                }
                 let value = self.decline_return_request(&id, arguments);
-                Some(ResolverOutcome::value(value))
+                Some(self.return_mutation_outcome(root_field, &id, value))
             }
             "returnClose" => {
                 let id = resolved_string_field(arguments, "id")?;
+                if let Err(outcome) = self.hydrate_return_for_lifecycle(request, &id, response_key)
+                {
+                    return Some(outcome);
+                }
                 let value = self.apply_return_lifecycle_transition(&id, "CLOSED");
-                Some(ResolverOutcome::value(value))
+                Some(self.return_mutation_outcome(root_field, &id, value))
             }
             "returnReopen" => {
                 let id = resolved_string_field(arguments, "id")?;
+                if let Err(outcome) = self.hydrate_return_for_lifecycle(request, &id, response_key)
+                {
+                    return Some(outcome);
+                }
                 let value = self.apply_return_lifecycle_transition(&id, "OPEN");
-                Some(ResolverOutcome::value(value))
+                Some(self.return_mutation_outcome(root_field, &id, value))
             }
             "returnCancel" => {
                 let id = resolved_string_field(arguments, "id")?;
+                if let Err(outcome) = self.hydrate_return_for_lifecycle(request, &id, response_key)
+                {
+                    return Some(outcome);
+                }
                 let value = self.apply_return_lifecycle_transition(&id, "CANCELED");
-                Some(ResolverOutcome::value(value))
+                Some(self.return_mutation_outcome(root_field, &id, value))
             }
             "removeFromReturn" => {
+                let id = resolved_string_field(arguments, "returnId")?;
+                if let Err(outcome) = self.hydrate_return_for_lifecycle(request, &id, response_key)
+                {
+                    return Some(outcome);
+                }
                 let value = self.remove_from_return(arguments);
-                Some(ResolverOutcome::value(value))
+                Some(self.return_mutation_outcome(root_field, &id, value))
             }
             "returnProcess" => {
                 let id = resolved_object_field(arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "returnId"))?;
-                let value = self.process_return(&id);
-                Some(ResolverOutcome::value(value))
+                if let Err(outcome) = self.hydrate_return_for_lifecycle(request, &id, response_key)
+                {
+                    return Some(outcome);
+                }
+                let value = self.process_return(&id, arguments);
+                Some(self.return_mutation_outcome(root_field, &id, value))
             }
             "return" => {
                 let id = resolved_string_field(arguments, "id")?;
-                self.store
-                    .staged
-                    .returns
-                    .get(&id)
+                self.effective_return_record(&id)
                     .map(|record| ResolverOutcome::value(self.canonical_return_value(record)))
             }
             "order" => {
@@ -1258,7 +1427,9 @@ impl DraftProxy {
                 });
                 (requests_return_fields
                     && (self.store.staged.returns_by_order.contains_key(&id)
+                        || self.store.base.returns_by_order.contains_key(&id)
                         || self.store.staged.orders.contains_key(&id)
+                        || self.store.base.orders.get(&id).is_some()
                         || self.store.staged.orders.is_tombstoned(&id)))
                 .then(|| ResolverOutcome::value(self.return_order_value(&id)))
             }
@@ -1270,10 +1441,7 @@ impl DraftProxy {
             }
             "reverseFulfillmentOrder" => {
                 let id = resolved_string_field(arguments, "id")?;
-                self.store
-                    .staged
-                    .reverse_fulfillment_orders
-                    .get(&id)
+                self.effective_reverse_fulfillment_order_record(&id)
                     .map(|record| {
                         ResolverOutcome::value(
                             self.expanded_reverse_fulfillment_order_record(record),
@@ -1281,6 +1449,142 @@ impl DraftProxy {
                     })
             }
             _ => None,
+        }
+    }
+
+    fn hydrate_return_for_lifecycle(
+        &mut self,
+        request: &Request,
+        id: &str,
+        response_key: &str,
+    ) -> Result<(), ResolverOutcome<Value>> {
+        if id.is_empty()
+            || self.effective_return_record(id).is_some()
+            || self.store.base.return_missing_ids.contains(id)
+            || self.config.read_mode != ReadMode::LiveHybrid
+        {
+            return Ok(());
+        }
+
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": RETURN_LIFECYCLE_HYDRATE_QUERY,
+                "operationName": "ReturnLifecycleHydrate",
+                "variables": { "id": id }
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            let message = response
+                .body
+                .get("errors")
+                .and_then(Value::as_array)
+                .and_then(|errors| errors.first())
+                .and_then(|error| error.get("message"))
+                .and_then(Value::as_str)
+                .unwrap_or("Return lifecycle hydration failed")
+                .to_string();
+            return Err(resolver_http_error_outcome(response.status, message));
+        }
+        let errors = response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        if !errors.is_empty() {
+            let errors = errors
+                .into_iter()
+                .map(|mut error| {
+                    if error["path"]
+                        .as_array()
+                        .and_then(|path| path.first())
+                        .and_then(Value::as_str)
+                        == Some("return")
+                    {
+                        error["path"][0] = json!(response_key);
+                    }
+                    error
+                })
+                .collect();
+            return Err(graphql_error_outcome(errors, response_key));
+        }
+        let Some(return_value) = response
+            .body
+            .get("data")
+            .and_then(Value::as_object)
+            .and_then(|data| data.get("return"))
+            .cloned()
+        else {
+            return Err(resolver_http_error_outcome(
+                502,
+                "Return lifecycle hydration response did not include data.return",
+            ));
+        };
+        if return_value.is_null() {
+            self.store.base.return_missing_ids.insert(id.to_string());
+            return Ok(());
+        }
+        if !return_value.is_object() || return_value.get("id").and_then(Value::as_str) != Some(id) {
+            return Err(resolver_http_error_outcome(
+                502,
+                "Return lifecycle hydration returned an invalid target",
+            ));
+        }
+
+        let mut return_value = return_value;
+        normalize_hydrated_return_record(&mut return_value);
+        if let Some(order_id) = return_value["order"]["id"].as_str().map(str::to_string) {
+            let observed_order = return_value["order"].clone();
+            let order = self
+                .store
+                .base
+                .orders
+                .get(&order_id)
+                .cloned()
+                .map(|existing| shallow_merged_object(existing, observed_order.clone()))
+                .unwrap_or(observed_order);
+            self.store.base.orders.insert(order_id.clone(), order);
+            push_unique_string(
+                self.store
+                    .base
+                    .returns_by_order
+                    .entry(order_id)
+                    .or_default(),
+                id,
+            );
+        }
+        for reverse_order in node_array(&return_value["reverseFulfillmentOrders"]) {
+            let Some(reverse_order_id) = reverse_order["id"].as_str().map(str::to_string) else {
+                continue;
+            };
+            self.store
+                .base
+                .reverse_fulfillment_orders
+                .insert(reverse_order_id, reverse_order);
+        }
+        self.store.base.return_missing_ids.remove(id);
+        self.store.base.returns.insert(id.to_string(), return_value);
+        Ok(())
+    }
+
+    fn return_mutation_outcome(
+        &self,
+        root_field: &str,
+        return_id: &str,
+        value: Value,
+    ) -> ResolverOutcome<Value> {
+        let successful = value["return"].is_object()
+            && value["userErrors"].as_array().is_some_and(Vec::is_empty);
+        let outcome = ResolverOutcome::value(value);
+        if successful {
+            outcome.with_log_draft(LogDraft::staged(
+                root_field,
+                "orders",
+                vec![return_id.to_string()],
+            ))
+        } else {
+            outcome
         }
     }
 
@@ -1598,7 +1902,7 @@ impl DraftProxy {
     }
 
     fn return_order_value(&self, order_id: &str) -> Value {
-        let order = self.staged_order_record_for_id(order_id);
+        let order = self.effective_return_order_record(order_id);
         if let Some(order) = order.as_ref() {
             return self.order_with_return_status_value(order);
         }
@@ -1631,7 +1935,7 @@ impl DraftProxy {
     /// Shopify's INVALID_STATE `ReturnNotApprovable` shape and leaves state
     /// untouched.
     fn approve_return_request(&mut self, id: &str) -> Value {
-        let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
+        let Some(mut record) = self.effective_return_record(id).cloned() else {
             return self.return_payload(Value::Null, vec![return_request_not_found_error()]);
         };
         if record["status"].as_str() != Some("REQUESTED") {
@@ -1658,14 +1962,19 @@ impl DraftProxy {
     ) -> Value {
         let input = resolved_object_field(arguments, "input").unwrap_or_default();
         let reason = return_decline_reason(&input);
-        let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
+        let Some(mut record) = self.effective_return_record(id).cloned() else {
             return self.return_payload(Value::Null, vec![return_request_not_found_error()]);
         };
         let status = record["status"].as_str();
         if status == Some("DECLINED") {
             return self.return_payload(Value::Null, vec![return_already_declined_error()]);
         }
-        if status != Some("REQUESTED") {
+        if status != Some("REQUESTED")
+            || !node_array(&record["refunds"]).is_empty()
+            || return_line_items_array(&record)
+                .iter()
+                .any(|line| line["refundedQuantity"].as_i64().unwrap_or(0) > 0)
+        {
             return self.return_payload(Value::Null, vec![return_not_declinable_error()]);
         }
         let note = resolved_string_field(&input, "declineNote").unwrap_or_default();
@@ -1685,7 +1994,7 @@ impl DraftProxy {
     /// transitions return INVALID_STATE with the reference message and leave
     /// state untouched; same-status requests are idempotent no-ops.
     fn apply_return_lifecycle_transition(&mut self, id: &str, target_status: &str) -> Value {
-        let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
+        let Some(mut record) = self.effective_return_record(id).cloned() else {
             return self.return_payload(
                 Value::Null,
                 vec![user_error(
@@ -1723,7 +2032,7 @@ impl DraftProxy {
     fn remove_from_return(&mut self, arguments: &BTreeMap<String, ResolvedValue>) -> Value {
         let return_id = resolved_string_field(arguments, "returnId").unwrap_or_default();
         let removals = resolved_object_list_field(arguments, "returnLineItems");
-        let Some(mut record) = self.store.staged.returns.get(&return_id).cloned() else {
+        let Some(mut record) = self.effective_return_record(&return_id).cloned() else {
             return self.return_payload(
                 Value::Null,
                 vec![user_error(
@@ -1862,7 +2171,8 @@ impl DraftProxy {
     /// Rebuild the return's reverse fulfillment order line items from its
     /// current return line items (used after `removeFromReturn`). Existing RFO
     /// line ids are reused when their return line survives; removed return lines
-    /// drop their RFO line. The reverse fulfillment order's `totalQuantity` /
+    /// drop their RFO line. The effective RFO remains authoritative for status,
+    /// dispositions, and reverse deliveries while `totalQuantity` /
     /// `remainingQuantity` are recomputed and the staged RFO is kept in sync.
     fn sync_reverse_fulfillment_line_items(&mut self, return_record: &mut Value) {
         let return_lines = return_record["returnLineItems"]["nodes"]
@@ -1874,7 +2184,12 @@ impl DraftProxy {
             .cloned()
             .unwrap_or_default();
         for rfo in &mut rfos {
-            let existing = rfo["lineItems"]["nodes"]
+            let mut effective_rfo = rfo["id"]
+                .as_str()
+                .and_then(|id| self.effective_reverse_fulfillment_order_record(id))
+                .cloned()
+                .unwrap_or_else(|| rfo.clone());
+            let existing = effective_rfo["lineItems"]["nodes"]
                 .as_array()
                 .cloned()
                 .unwrap_or_default();
@@ -1899,12 +2214,14 @@ impl DraftProxy {
                 rfo_line["remainingQuantity"] = json!((quantity - processed).max(0));
                 rebuilt.push(rfo_line);
             }
-            rfo["lineItems"] = json!({ "nodes": rebuilt });
-            if let Some(id) = rfo["id"].as_str() {
-                if let Some(staged) = self.store.staged.reverse_fulfillment_orders.get_mut(id) {
-                    staged["lineItems"] = rfo["lineItems"].clone();
-                }
+            effective_rfo["lineItems"] = json!({ "nodes": rebuilt });
+            if let Some(id) = effective_rfo["id"].as_str().map(str::to_string) {
+                self.store
+                    .staged
+                    .reverse_fulfillment_orders
+                    .insert(id, effective_rfo.clone());
             }
+            *rfo = effective_rfo;
         }
         return_record["reverseFulfillmentOrders"] = json!({ "nodes": rfos });
     }
@@ -2185,8 +2502,8 @@ impl DraftProxy {
         json!({ "reverseFulfillmentOrderLineItems": line_items, "userErrors": [] })
     }
 
-    fn process_return(&mut self, id: &str) -> Value {
-        let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
+    fn process_return(&mut self, id: &str, arguments: &BTreeMap<String, ResolvedValue>) -> Value {
+        let Some(mut record) = self.effective_return_record(id).cloned() else {
             return self.return_payload(
                 Value::Null,
                 vec![user_error(
@@ -2196,25 +2513,74 @@ impl DraftProxy {
                 )],
             );
         };
+        if record["status"].as_str() != Some("OPEN") {
+            return self.return_payload(
+                Value::Null,
+                vec![user_error(
+                    ["input", "returnId"],
+                    "Return status is invalid.",
+                    Some("INVALID_STATE"),
+                )],
+            );
+        }
+        let input = resolved_object_field(arguments, "input").unwrap_or_default();
+        let requested_lines = resolved_object_list_field(&input, "returnLineItems");
+        let existing_lines = return_line_items_array(&record);
+        let mut plans = Vec::new();
+        let mut user_errors = Vec::new();
+        let mut requested_by_id = BTreeMap::<String, i64>::new();
+        for (index, input_line) in requested_lines.iter().enumerate() {
+            let line_id = resolved_string_field(input_line, "id").unwrap_or_default();
+            let quantity = resolved_int_field(input_line, "quantity").unwrap_or(0);
+            let Some(line) = existing_lines
+                .iter()
+                .find(|line| line["id"].as_str() == Some(line_id.as_str()))
+            else {
+                user_errors.push(user_error(
+                    ["input", "returnLineItems", &index.to_string(), "id"],
+                    "Return line item was not found.",
+                    Some("NOT_FOUND"),
+                ));
+                continue;
+            };
+            let already_requested = requested_by_id.get(&line_id).copied().unwrap_or(0);
+            let processable = line["processableQuantity"]
+                .as_i64()
+                .unwrap_or_else(|| line["unprocessedQuantity"].as_i64().unwrap_or(0));
+            if quantity <= 0 || quantity + already_requested > processable {
+                user_errors.push(user_error(
+                    ["input", "returnLineItems", &index.to_string(), "quantity"],
+                    "Return line item has an invalid quantity.",
+                    Some("INVALID"),
+                ));
+                continue;
+            }
+            requested_by_id.insert(line_id.clone(), already_requested + quantity);
+            plans.push((line_id, quantity));
+        }
+        if !user_errors.is_empty() {
+            return self.return_payload(Value::Null, user_errors);
+        }
         record["status"] = json!("OPEN");
         if let Some(nodes) = record["returnLineItems"]["nodes"].as_array_mut() {
-            for node in nodes {
-                node["processedQuantity"] = node["quantity"].clone();
-                node["processableQuantity"] = json!(0);
-                node["unprocessedQuantity"] = json!(0);
-            }
-        }
-        if let Some(nodes) = record["reverseFulfillmentOrders"]["nodes"].as_array_mut() {
-            for node in nodes {
-                let Some(id) = node["id"].as_str() else {
+            for (line_id, quantity) in plans {
+                let Some(node) = nodes
+                    .iter_mut()
+                    .find(|node| node["id"].as_str() == Some(line_id.as_str()))
+                else {
                     continue;
                 };
-                if let Some(reverse_order) = self.store.staged.reverse_fulfillment_orders.get(id) {
-                    node["status"] = reverse_order["status"].clone();
-                    node["lineItems"] = reverse_order["lineItems"].clone();
-                }
+                let processed = node["processedQuantity"].as_i64().unwrap_or(0);
+                let processable = node["processableQuantity"]
+                    .as_i64()
+                    .unwrap_or_else(|| node["unprocessedQuantity"].as_i64().unwrap_or(0));
+                let unprocessed = node["unprocessedQuantity"].as_i64().unwrap_or(processable);
+                node["processedQuantity"] = json!(processed + quantity);
+                node["processableQuantity"] = json!((processable - quantity).max(0));
+                node["unprocessedQuantity"] = json!((unprocessed - quantity).max(0));
             }
         }
+        self.sync_reverse_fulfillment_line_items(&mut record);
         self.store
             .staged
             .returns

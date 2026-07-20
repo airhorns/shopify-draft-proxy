@@ -247,6 +247,7 @@ const returnRequestMutation = await readRequest('return-request-recorded.graphql
 const returnApproveRequestRecordedMutation = await readRequest('return-approve-request-recorded.graphql');
 const returnDeclineRequestMutation = await readRequest('return-decline-request-local-staging.graphql');
 const returnOrderHydrateQuery = await readRequest('return-order-hydrate.graphql');
+const returnLifecycleHydrateQuery = await readRequest('return-lifecycle-hydrate.graphql');
 
 const stamp = new Date()
   .toISOString()
@@ -375,6 +376,8 @@ const declineInput = {
   declineNote: `return approve decline state precondition ${stamp}`,
   notifyCustomer: false,
 };
+const approveMissingReturnId = 'gid://shopify/Return/999999999991';
+const declineMissingReturnId = 'gid://shopify/Return/999999999992';
 
 const openSeed = await createFulfilledReturnSeed('open');
 const declinedSeed = await createFulfilledReturnSeed('declined');
@@ -413,12 +416,26 @@ const declineDeclinedInvalid = await capture(returnDeclineRequestMutation, {
 });
 requireUserErrors(declineDeclinedInvalid, 'returnDeclineRequest');
 
+const approveMissingHydrate = await capture(returnLifecycleHydrateQuery, { id: approveMissingReturnId });
+const declineMissingHydrate = await capture(returnLifecycleHydrateQuery, { id: declineMissingReturnId });
+const missingHydrates: Array<[string, GraphqlCapture]> = [
+  ['approve missing', approveMissingHydrate],
+  ['decline missing', declineMissingHydrate],
+];
+for (const [label, hydrate] of missingHydrates) {
+  const payload = readRecord(hydrate.response.payload) ?? {};
+  const data = readRecord(payload['data']);
+  if (payload['errors'] || data?.['return'] !== null) {
+    throw new Error(`Expected ${label} lifecycle hydrate to confirm a missing Return: ${JSON.stringify(payload)}`);
+  }
+}
+
 const approveMissing = await capture(returnApproveRequestRecordedMutation, {
-  input: { id: 'gid://shopify/Return/999999999991' },
+  input: { id: approveMissingReturnId },
 });
 requireUserErrors(approveMissing, 'returnApproveRequest');
 const declineMissing = await capture(returnDeclineRequestMutation, {
-  input: { id: 'gid://shopify/Return/999999999992', ...declineInput },
+  input: { id: declineMissingReturnId, ...declineInput },
 });
 requireUserErrors(declineMissing, 'returnDeclineRequest');
 
@@ -467,19 +484,37 @@ await writeJson(fixturePath, {
     declineDeclinedInvalid,
   },
   unknownIdCase: {
+    approveMissingHydrate,
+    declineMissingHydrate,
     approveMissing,
     declineMissing,
   },
   cleanup,
-  upstreamCalls: returnSeeds.map((seed) => ({
-    operationName: 'OrdersReturnOrderHydrate',
-    variables: { id: seed.orderId },
-    query: returnOrderHydrateQuery,
-    response: {
-      status: seed.returnOrderHydrate.status,
-      body: seed.returnOrderHydrate.payload,
-    },
-  })),
+  upstreamCalls: [
+    ...returnSeeds.map((seed) => ({
+      operationName: 'OrdersReturnOrderHydrate',
+      variables: { id: seed.orderId },
+      query: returnOrderHydrateQuery,
+      response: {
+        status: seed.returnOrderHydrate.status,
+        body: seed.returnOrderHydrate.payload,
+      },
+    })),
+    ...(
+      [
+        [approveMissingReturnId, approveMissingHydrate],
+        [declineMissingReturnId, declineMissingHydrate],
+      ] satisfies Array<[string, GraphqlCapture]>
+    ).map(([id, hydrate]) => ({
+      operationName: 'ReturnLifecycleHydrate',
+      variables: { id },
+      query: returnLifecycleHydrateQuery,
+      response: {
+        status: hydrate.response.status,
+        body: hydrate.response.payload,
+      },
+    })),
+  ],
 });
 
 console.log(
