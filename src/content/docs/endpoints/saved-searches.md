@@ -64,7 +64,7 @@ The saved-searches group is scoped to Shopify Admin `SavedSearch` records for pr
 ### Boundaries
 
 - Shopify 2026-04 resource-root evidence showed `query:` arguments are rejected on most saved-search connection roots, so executable parity for resource roots uses valid first-only reads. Runtime tests still cover local query filtering as a compatibility surface for hydrated or staged records, but version-specific GraphQL argument validation is not modeled in this endpoint.
-- `customerSavedSearches` and `discountRedeemCodeSavedSearches` expose additional `query` and `sortKey` arguments in the captured schema. The bounded LiveHybrid overlay slice covers the default ID order only; filtered or non-ID sorted overlays remain outside the supported connection slice.
+- `customerSavedSearches` and `discountRedeemCodeSavedSearches` expose additional `query` and `sortKey` arguments in the captured schema. The bounded LiveHybrid overlay slice covers unfiltered default ID order only. A filtered read or a read with a non-ID sort key preserves the authoritative caller response unchanged, including cursors and `pageInfo`; staged connection membership is not projected into that unsupported scope.
 
 ### Registry-only URL redirect roots
 

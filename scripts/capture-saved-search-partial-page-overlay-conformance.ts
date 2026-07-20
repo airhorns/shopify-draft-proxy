@@ -321,13 +321,11 @@ try {
     beforePage: path.join(requestDir, 'saved-search-partial-page-before.graphql'),
   };
   const fixture = {
-    metadata: {
-      source: 'live-shopify-admin-graphql',
-      storeDomain,
-      apiVersion,
-      capturedAt: new Date().toISOString(),
-      scenario: 'saved-search-partial-page-overlay',
-    },
+    capturedAt: new Date().toISOString(),
+    storeDomain,
+    apiVersion,
+    source: 'live-shopify-admin-graphql',
+    scenario: 'saved-search-partial-page-overlay',
     setup,
     partialPage,
     preUpdateCallerPage,

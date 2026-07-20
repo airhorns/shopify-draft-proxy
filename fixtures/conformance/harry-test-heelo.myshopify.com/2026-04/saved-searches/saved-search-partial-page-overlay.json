@@ -1,29 +1,27 @@
 {
-  "metadata": {
-    "source": "live-shopify-admin-graphql",
-    "storeDomain": "harry-test-heelo.myshopify.com",
-    "apiVersion": "2026-04",
-    "capturedAt": "2026-07-20T15:21:47.410Z",
-    "scenario": "saved-search-partial-page-overlay"
-  },
+  "capturedAt": "2026-07-20T22:15:40.627Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "source": "live-shopify-admin-graphql",
+  "scenario": "saved-search-partial-page-overlay",
   "setup": {
     "request": {
       "query": "mutation SavedSearchPartialPageSetup(\n  $first: SavedSearchCreateInput!\n  $second: SavedSearchCreateInput!\n  $third: SavedSearchCreateInput!\n) {\n  first: savedSearchCreate(input: $first) {\n    savedSearch { id name query resourceType }\n    userErrors { field message }\n  }\n  second: savedSearchCreate(input: $second) {\n    savedSearch { id name query resourceType }\n    userErrors { field message }\n  }\n  third: savedSearchCreate(input: $third) {\n    savedSearch { id name query resourceType }\n    userErrors { field message }\n  }\n}\n",
       "variables": {
         "first": {
           "resourceType": "PRODUCT",
-          "name": "Partial window mrtdhj92 A",
-          "query": "title:mrtdhj92a"
+          "name": "Partial window mrts9slj A",
+          "query": "title:mrts9slja"
         },
         "second": {
           "resourceType": "PRODUCT",
-          "name": "Partial window mrtdhj92 B",
-          "query": "title:mrtdhj92b"
+          "name": "Partial window mrts9slj B",
+          "query": "title:mrts9sljb"
         },
         "third": {
           "resourceType": "PRODUCT",
-          "name": "Partial window mrtdhj92 C",
-          "query": "title:mrtdhj92c"
+          "name": "Partial window mrts9slj C",
+          "query": "title:mrts9sljc"
         }
       }
     },
@@ -32,27 +30,27 @@
       "data": {
         "first": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4088988762418",
-            "name": "Partial window mrtdhj92 A",
-            "query": "title:mrtdhj92a",
+            "id": "gid://shopify/SavedSearch/4089174917426",
+            "name": "Partial window mrts9slj A",
+            "query": "title:mrts9slja",
             "resourceType": "PRODUCT"
           },
           "userErrors": []
         },
         "second": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4088988795186",
-            "name": "Partial window mrtdhj92 B",
-            "query": "title:mrtdhj92b",
+            "id": "gid://shopify/SavedSearch/4089174950194",
+            "name": "Partial window mrts9slj B",
+            "query": "title:mrts9sljb",
             "resourceType": "PRODUCT"
           },
           "userErrors": []
         },
         "third": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4088988827954",
-            "name": "Partial window mrtdhj92 C",
-            "query": "title:mrtdhj92c",
+            "id": "gid://shopify/SavedSearch/4089174982962",
+            "name": "Partial window mrts9slj C",
+            "query": "title:mrts9sljc",
             "resourceType": "PRODUCT"
           },
           "userErrors": []
@@ -64,7 +62,7 @@
           "actualQueryCost": 30,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1965,
+            "currentlyAvailable": 1966,
             "restoreRate": 100
           }
         }
@@ -82,11 +80,11 @@
         "productSavedSearches": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+              "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9",
               "node": {
-                "id": "gid://shopify/SavedSearch/4088988762418",
-                "name": "Partial window mrtdhj92 A",
-                "query": "title:mrtdhj92a",
+                "id": "gid://shopify/SavedSearch/4089174917426",
+                "name": "Partial window mrts9slj A",
+                "query": "title:mrts9slja",
                 "resourceType": "PRODUCT"
               }
             }
@@ -94,8 +92,8 @@
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9"
           }
         }
       },
@@ -105,7 +103,7 @@
           "actualQueryCost": 3,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1980,
+            "currentlyAvailable": 1983,
             "restoreRate": 100
           }
         }
@@ -123,11 +121,11 @@
         "productSavedSearches": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+              "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9",
               "node": {
-                "id": "gid://shopify/SavedSearch/4088988762418",
-                "name": "Partial window mrtdhj92 A",
-                "query": "title:mrtdhj92a",
+                "id": "gid://shopify/SavedSearch/4089174917426",
+                "name": "Partial window mrts9slj A",
+                "query": "title:mrts9slja",
                 "resourceType": "PRODUCT"
               }
             }
@@ -135,8 +133,8 @@
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9"
           }
         }
       },
@@ -146,7 +144,7 @@
           "actualQueryCost": 3,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1988,
+            "currentlyAvailable": 1989,
             "restoreRate": 100
           }
         }
@@ -158,8 +156,8 @@
       "query": "mutation SavedSearchPartialPageUpdate($input: SavedSearchUpdateInput!) {\n  savedSearchUpdate(input: $input) {\n    savedSearch { id name query resourceType }\n    userErrors { field message }\n  }\n}\n",
       "variables": {
         "input": {
-          "id": "gid://shopify/SavedSearch/4088988762418",
-          "name": "Partial window mrtdhj92 A updated"
+          "id": "gid://shopify/SavedSearch/4089174917426",
+          "name": "Partial window mrts9slj A updated"
         }
       }
     },
@@ -168,9 +166,9 @@
       "data": {
         "savedSearchUpdate": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4088988762418",
-            "name": "Partial window mrtdhj92 A updated",
-            "query": "title:mrtdhj92a",
+            "id": "gid://shopify/SavedSearch/4089174917426",
+            "name": "Partial window mrts9slj A updated",
+            "query": "title:mrts9slja",
             "resourceType": "PRODUCT"
           },
           "userErrors": []
@@ -200,11 +198,11 @@
         "productSavedSearches": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+              "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9",
               "node": {
-                "id": "gid://shopify/SavedSearch/4088988762418",
-                "name": "Partial window mrtdhj92 A updated",
-                "query": "title:mrtdhj92a",
+                "id": "gid://shopify/SavedSearch/4089174917426",
+                "name": "Partial window mrts9slj A updated",
+                "query": "title:mrts9slja",
                 "resourceType": "PRODUCT"
               }
             }
@@ -212,8 +210,8 @@
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9"
           }
         }
       },
@@ -235,7 +233,7 @@
       "query": "mutation SavedSearchPartialPageDelete($input: SavedSearchDeleteInput!) {\n  savedSearchDelete(input: $input) {\n    deletedSavedSearchId\n    userErrors { field message }\n  }\n}\n",
       "variables": {
         "input": {
-          "id": "gid://shopify/SavedSearch/4088988762418"
+          "id": "gid://shopify/SavedSearch/4089174917426"
         }
       }
     },
@@ -243,7 +241,7 @@
     "response": {
       "data": {
         "savedSearchDelete": {
-          "deletedSavedSearchId": "gid://shopify/SavedSearch/4088988762418",
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4089174917426",
           "userErrors": []
         }
       },
@@ -271,11 +269,11 @@
         "productSavedSearches": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+              "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9",
               "node": {
-                "id": "gid://shopify/SavedSearch/4088988795186",
-                "name": "Partial window mrtdhj92 B",
-                "query": "title:mrtdhj92b",
+                "id": "gid://shopify/SavedSearch/4089174950194",
+                "name": "Partial window mrts9slj B",
+                "query": "title:mrts9sljb",
                 "resourceType": "PRODUCT"
               }
             }
@@ -283,8 +281,8 @@
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9"
           }
         }
       },
@@ -312,11 +310,11 @@
         "productSavedSearches": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+              "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9",
               "node": {
-                "id": "gid://shopify/SavedSearch/4088988827954",
-                "name": "Partial window mrtdhj92 C",
-                "query": "title:mrtdhj92c",
+                "id": "gid://shopify/SavedSearch/4089174982962",
+                "name": "Partial window mrts9slj C",
+                "query": "title:mrts9sljc",
                 "resourceType": "PRODUCT"
               }
             }
@@ -324,8 +322,8 @@
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9"
           }
         }
       },
@@ -346,7 +344,7 @@
     "request": {
       "query": "query SavedSearchPartialPageAfter($after: String!) {\n  productSavedSearches(first: 1, after: $after) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
       "variables": {
-        "after": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+        "after": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9"
       }
     },
     "status": 200,
@@ -355,11 +353,11 @@
         "productSavedSearches": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+              "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9",
               "node": {
-                "id": "gid://shopify/SavedSearch/4088988827954",
-                "name": "Partial window mrtdhj92 C",
-                "query": "title:mrtdhj92c",
+                "id": "gid://shopify/SavedSearch/4089174982962",
+                "name": "Partial window mrts9slj C",
+                "query": "title:mrts9sljc",
                 "resourceType": "PRODUCT"
               }
             }
@@ -367,8 +365,8 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": true,
-            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9"
           }
         }
       },
@@ -389,7 +387,7 @@
     "request": {
       "query": "query SavedSearchPartialPageBefore($before: String!) {\n  productSavedSearches(last: 1, before: $before) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
       "variables": {
-        "before": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+        "before": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9"
       }
     },
     "status": 200,
@@ -398,11 +396,11 @@
         "productSavedSearches": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+              "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9",
               "node": {
-                "id": "gid://shopify/SavedSearch/4088988795186",
-                "name": "Partial window mrtdhj92 B",
-                "query": "title:mrtdhj92b",
+                "id": "gid://shopify/SavedSearch/4089174950194",
+                "name": "Partial window mrts9slj B",
+                "query": "title:mrts9sljb",
                 "resourceType": "PRODUCT"
               }
             }
@@ -410,8 +408,8 @@
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9"
           }
         }
       },
@@ -434,8 +432,8 @@
       "variables": {
         "input": {
           "resourceType": "PRODUCT",
-          "name": "Partial window mrtdhj92 D",
-          "query": "title:mrtdhj92d"
+          "name": "Partial window mrts9slj D",
+          "query": "title:mrts9sljd"
         }
       }
     },
@@ -444,9 +442,9 @@
       "data": {
         "savedSearchCreate": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4088988860722",
-            "name": "Partial window mrtdhj92 D",
-            "query": "title:mrtdhj92d",
+            "id": "gid://shopify/SavedSearch/4089175015730",
+            "name": "Partial window mrts9slj D",
+            "query": "title:mrts9sljd",
             "resourceType": "PRODUCT"
           },
           "userErrors": []
@@ -476,11 +474,11 @@
         "productSavedSearches": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODYwNzIyLCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODg2MDcyMiJ9",
+              "cursor": "eyJsYXN0X2lkIjo0MDg5MTc1MDE1NzMwLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NTAxNTczMCJ9",
               "node": {
-                "id": "gid://shopify/SavedSearch/4088988860722",
-                "name": "Partial window mrtdhj92 D",
-                "query": "title:mrtdhj92d",
+                "id": "gid://shopify/SavedSearch/4089175015730",
+                "name": "Partial window mrts9slj D",
+                "query": "title:mrts9sljd",
                 "resourceType": "PRODUCT"
               }
             }
@@ -488,8 +486,8 @@
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODYwNzIyLCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODg2MDcyMiJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODYwNzIyLCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODg2MDcyMiJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc1MDE1NzMwLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NTAxNTczMCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc1MDE1NzMwLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NTAxNTczMCJ9"
           }
         }
       },
@@ -510,7 +508,7 @@
     "request": {
       "query": "query SavedSearchPartialPageAfter($after: String!) {\n  productSavedSearches(first: 1, after: $after) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
       "variables": {
-        "after": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+        "after": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9"
       }
     },
     "status": 200,
@@ -519,11 +517,11 @@
         "productSavedSearches": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+              "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9",
               "node": {
-                "id": "gid://shopify/SavedSearch/4088988827954",
-                "name": "Partial window mrtdhj92 C",
-                "query": "title:mrtdhj92c",
+                "id": "gid://shopify/SavedSearch/4089174982962",
+                "name": "Partial window mrts9slj C",
+                "query": "title:mrts9sljc",
                 "resourceType": "PRODUCT"
               }
             }
@@ -531,8 +529,8 @@
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": true,
-            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9"
           }
         }
       },
@@ -553,7 +551,7 @@
     "request": {
       "query": "query SavedSearchPartialPageBefore($before: String!) {\n  productSavedSearches(last: 1, before: $before) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
       "variables": {
-        "before": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+        "before": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9"
       }
     },
     "status": 200,
@@ -562,11 +560,11 @@
         "productSavedSearches": {
           "edges": [
             {
-              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+              "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9",
               "node": {
-                "id": "gid://shopify/SavedSearch/4088988795186",
-                "name": "Partial window mrtdhj92 B",
-                "query": "title:mrtdhj92b",
+                "id": "gid://shopify/SavedSearch/4089174950194",
+                "name": "Partial window mrts9slj B",
+                "query": "title:mrts9sljb",
                 "resourceType": "PRODUCT"
               }
             }
@@ -574,8 +572,8 @@
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
-            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+            "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9"
           }
         }
       },
@@ -603,11 +601,11 @@
             "productSavedSearches": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+                  "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9",
                   "node": {
-                    "id": "gid://shopify/SavedSearch/4088988762418",
-                    "name": "Partial window mrtdhj92 A",
-                    "query": "title:mrtdhj92a",
+                    "id": "gid://shopify/SavedSearch/4089174917426",
+                    "name": "Partial window mrts9slj A",
+                    "query": "title:mrts9slja",
                     "resourceType": "PRODUCT"
                   }
                 }
@@ -615,8 +613,8 @@
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
-                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9"
+                "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9"
               }
             }
           },
@@ -626,7 +624,7 @@
               "actualQueryCost": 3,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1980,
+                "currentlyAvailable": 1983,
                 "restoreRate": 100
               }
             }
@@ -644,11 +642,11 @@
             "productSavedSearches": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+                  "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9",
                   "node": {
-                    "id": "gid://shopify/SavedSearch/4088988762418",
-                    "name": "Partial window mrtdhj92 A",
-                    "query": "title:mrtdhj92a",
+                    "id": "gid://shopify/SavedSearch/4089174917426",
+                    "name": "Partial window mrts9slj A",
+                    "query": "title:mrts9slja",
                     "resourceType": "PRODUCT"
                   }
                 }
@@ -656,8 +654,8 @@
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
-                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9"
+                "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9"
               }
             }
           },
@@ -667,7 +665,7 @@
               "actualQueryCost": 3,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1988,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }
@@ -691,20 +689,20 @@
             "savedSearchWindow": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+                  "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9",
                   "node": {
-                    "id": "gid://shopify/SavedSearch/4088988762418",
-                    "name": "Partial window mrtdhj92 A",
-                    "query": "title:mrtdhj92a",
+                    "id": "gid://shopify/SavedSearch/4089174917426",
+                    "name": "Partial window mrts9slj A",
+                    "query": "title:mrts9slja",
                     "resourceType": "PRODUCT"
                   }
                 },
                 {
-                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+                  "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9",
                   "node": {
-                    "id": "gid://shopify/SavedSearch/4088988795186",
-                    "name": "Partial window mrtdhj92 B",
-                    "query": "title:mrtdhj92b",
+                    "id": "gid://shopify/SavedSearch/4089174950194",
+                    "name": "Partial window mrts9slj B",
+                    "query": "title:mrts9sljb",
                     "resourceType": "PRODUCT"
                   }
                 }
@@ -712,8 +710,8 @@
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
-                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+                "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9"
               }
             }
           },
@@ -723,7 +721,7 @@
               "actualQueryCost": 3,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1996,
+                "currentlyAvailable": 1994,
                 "restoreRate": 100
               }
             }
@@ -741,11 +739,11 @@
             "productSavedSearches": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+                  "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9",
                   "node": {
-                    "id": "gid://shopify/SavedSearch/4088988762418",
-                    "name": "Partial window mrtdhj92 A updated",
-                    "query": "title:mrtdhj92a",
+                    "id": "gid://shopify/SavedSearch/4089174917426",
+                    "name": "Partial window mrts9slj A updated",
+                    "query": "title:mrts9slja",
                     "resourceType": "PRODUCT"
                   }
                 }
@@ -753,8 +751,8 @@
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
-                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9"
+                "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9"
               }
             }
           },
@@ -788,20 +786,20 @@
             "savedSearchWindow": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+                  "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9",
                   "node": {
-                    "id": "gid://shopify/SavedSearch/4088988762418",
-                    "name": "Partial window mrtdhj92 A updated",
-                    "query": "title:mrtdhj92a",
+                    "id": "gid://shopify/SavedSearch/4089174917426",
+                    "name": "Partial window mrts9slj A updated",
+                    "query": "title:mrts9slja",
                     "resourceType": "PRODUCT"
                   }
                 },
                 {
-                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+                  "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9",
                   "node": {
-                    "id": "gid://shopify/SavedSearch/4088988795186",
-                    "name": "Partial window mrtdhj92 B",
-                    "query": "title:mrtdhj92b",
+                    "id": "gid://shopify/SavedSearch/4089174950194",
+                    "name": "Partial window mrts9slj B",
+                    "query": "title:mrts9sljb",
                     "resourceType": "PRODUCT"
                   }
                 }
@@ -809,8 +807,8 @@
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
-                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+                "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTE3NDI2LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDkxNzQyNiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9"
               }
             }
           },
@@ -838,11 +836,11 @@
             "productSavedSearches": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+                  "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9",
                   "node": {
-                    "id": "gid://shopify/SavedSearch/4088988827954",
-                    "name": "Partial window mrtdhj92 C",
-                    "query": "title:mrtdhj92c",
+                    "id": "gid://shopify/SavedSearch/4089174982962",
+                    "name": "Partial window mrts9slj C",
+                    "query": "title:mrts9sljc",
                     "resourceType": "PRODUCT"
                   }
                 }
@@ -850,8 +848,8 @@
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
-                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+                "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9"
               }
             }
           },
@@ -885,20 +883,20 @@
             "savedSearchWindow": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+                  "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9",
                   "node": {
-                    "id": "gid://shopify/SavedSearch/4088988827954",
-                    "name": "Partial window mrtdhj92 C",
-                    "query": "title:mrtdhj92c",
+                    "id": "gid://shopify/SavedSearch/4089174982962",
+                    "name": "Partial window mrts9slj C",
+                    "query": "title:mrts9sljc",
                     "resourceType": "PRODUCT"
                   }
                 },
                 {
-                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+                  "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9",
                   "node": {
-                    "id": "gid://shopify/SavedSearch/4088988795186",
-                    "name": "Partial window mrtdhj92 B",
-                    "query": "title:mrtdhj92b",
+                    "id": "gid://shopify/SavedSearch/4089174950194",
+                    "name": "Partial window mrts9slj B",
+                    "query": "title:mrts9sljb",
                     "resourceType": "PRODUCT"
                   }
                 }
@@ -906,8 +904,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
-                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+                "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9"
               }
             }
           },
@@ -928,7 +926,7 @@
     {
       "query": "query SavedSearchPartialPageAfter($after: String!) {\n  productSavedSearches(first: 1, after: $after) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
       "variables": {
-        "after": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+        "after": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9"
       },
       "response": {
         "status": 200,
@@ -937,11 +935,11 @@
             "productSavedSearches": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+                  "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9",
                   "node": {
-                    "id": "gid://shopify/SavedSearch/4088988827954",
-                    "name": "Partial window mrtdhj92 C",
-                    "query": "title:mrtdhj92c",
+                    "id": "gid://shopify/SavedSearch/4089174982962",
+                    "name": "Partial window mrts9slj C",
+                    "query": "title:mrts9sljc",
                     "resourceType": "PRODUCT"
                   }
                 }
@@ -949,8 +947,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": true,
-                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
-                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+                "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9"
               }
             }
           },
@@ -973,7 +971,7 @@
       "query": "query SavedSearchConnectionWindow($first: Int!, $after: String, $before: String, $reverse: Boolean!) {\n  savedSearchWindow: productSavedSearches(first: $first, after: $after, before: $before, reverse: $reverse) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}",
       "variables": {
         "first": 3,
-        "after": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+        "after": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9",
         "before": null,
         "reverse": false
       },
@@ -984,11 +982,11 @@
             "savedSearchWindow": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+                  "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9",
                   "node": {
-                    "id": "gid://shopify/SavedSearch/4088988827954",
-                    "name": "Partial window mrtdhj92 C",
-                    "query": "title:mrtdhj92c",
+                    "id": "gid://shopify/SavedSearch/4089174982962",
+                    "name": "Partial window mrts9slj C",
+                    "query": "title:mrts9sljc",
                     "resourceType": "PRODUCT"
                   }
                 }
@@ -996,8 +994,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": true,
-                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
-                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+                "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9"
               }
             }
           },
@@ -1018,7 +1016,7 @@
     {
       "query": "query SavedSearchPartialPageBefore($before: String!) {\n  productSavedSearches(last: 1, before: $before) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
       "variables": {
-        "before": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+        "before": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9"
       },
       "response": {
         "status": 200,
@@ -1027,11 +1025,11 @@
             "productSavedSearches": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+                  "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9",
                   "node": {
-                    "id": "gid://shopify/SavedSearch/4088988795186",
-                    "name": "Partial window mrtdhj92 B",
-                    "query": "title:mrtdhj92b",
+                    "id": "gid://shopify/SavedSearch/4089174950194",
+                    "name": "Partial window mrts9slj B",
+                    "query": "title:mrts9sljb",
                     "resourceType": "PRODUCT"
                   }
                 }
@@ -1039,8 +1037,8 @@
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
-                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+                "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9"
               }
             }
           },
@@ -1064,7 +1062,7 @@
       "variables": {
         "last": 3,
         "after": null,
-        "before": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+        "before": "eyJsYXN0X2lkIjo0MDg5MTc0OTgyOTYyLCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk4Mjk2MiJ9",
         "reverse": false
       },
       "response": {
@@ -1074,11 +1072,11 @@
             "savedSearchWindow": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+                  "cursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9",
                   "node": {
-                    "id": "gid://shopify/SavedSearch/4088988795186",
-                    "name": "Partial window mrtdhj92 B",
-                    "query": "title:mrtdhj92b",
+                    "id": "gid://shopify/SavedSearch/4089174950194",
+                    "name": "Partial window mrts9slj B",
+                    "query": "title:mrts9sljb",
                     "resourceType": "PRODUCT"
                   }
                 }
@@ -1086,8 +1084,8 @@
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
-                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+                "startCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg5MTc0OTUwMTk0LCJsYXN0X3ZhbHVlIjoiNDA4OTE3NDk1MDE5NCJ9"
               }
             }
           },

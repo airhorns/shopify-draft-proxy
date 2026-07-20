@@ -11879,6 +11879,145 @@ fn saved_search_live_hybrid_overlay_keeps_partial_page_work_bounded() {
 }
 
 #[test]
+fn saved_search_live_hybrid_filtered_or_sorted_overlay_preserves_authoritative_scope() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let filtered_connection = json!({
+        "edges": [{
+            "cursor": "opaque-filtered-discount-search",
+            "node": {
+                "id": "gid://shopify/SavedSearch/3101",
+                "name": "Authoritative filtered search"
+            }
+        }],
+        "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "opaque-filtered-discount-search",
+            "endCursor": "opaque-filtered-discount-search"
+        }
+    });
+    let sorted_connection = json!({
+        "edges": [{
+            "cursor": "opaque-code-sorted-discount-search",
+            "node": {
+                "id": "gid://shopify/SavedSearch/3201",
+                "name": "Authoritative code-sorted search"
+            }
+        }],
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "opaque-code-sorted-discount-search",
+            "endCursor": "opaque-code-sorted-discount-search"
+        }
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let filtered_connection = filtered_connection.clone();
+        let sorted_connection = sorted_connection.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().expect("upstream query");
+            let data = if query.contains("FilteredDiscountSavedSearchScope") {
+                json!({"discountRedeemCodeSavedSearches": filtered_connection})
+            } else if query.contains("SortedDiscountSavedSearchScope") {
+                json!({"discountRedeemCodeSavedSearches": sorted_connection})
+            } else if query.contains("SavedSearchConnectionWindow") {
+                json!({
+                    "savedSearchWindow": {
+                        "edges": [{
+                            "cursor": "opaque-unscoped-window",
+                            "node": {
+                                "id": "gid://shopify/SavedSearch/3301",
+                                "name": "Unscoped authoritative search",
+                                "query": "times_used:0",
+                                "resourceType": "DISCOUNT_REDEEM_CODE"
+                            }
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-unscoped-window",
+                            "endCursor": "opaque-unscoped-window"
+                        }
+                    }
+                })
+            } else {
+                panic!("unexpected upstream saved-search document: {query}")
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": data}),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDiscountSavedSearchOverlay($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "resourceType": "DISCOUNT_REDEEM_CODE",
+            "name": "Local discount search",
+            "query": ""
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+
+    let filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query FilteredDiscountSavedSearchScope {
+          discountRedeemCodeSavedSearches(first: 1, query: "Authoritative") {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        filtered.body["data"]["discountRedeemCodeSavedSearches"],
+        filtered_connection
+    );
+
+    let sorted = proxy.process_request(json_graphql_request(
+        r#"
+        query SortedDiscountSavedSearchScope {
+          discountRedeemCodeSavedSearches(first: 1, sortKey: CODE) {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        sorted.body["data"]["discountRedeemCodeSavedSearches"],
+        sorted_connection
+    );
+
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "filtered and non-ID sorted reads each forward only their caller document"
+    );
+    assert!(requests.iter().all(|body| !body["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("SavedSearchConnectionWindow"))));
+}
+
+#[test]
 fn saved_search_live_hybrid_overlay_windows_a_complete_opaque_baseline() {
     let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_requests = Arc::clone(&upstream_requests);
@@ -12348,9 +12487,9 @@ fn saved_search_update_live_hybrid_hydrates_a_mutation_first_target_by_id() {
                         ]
                     }
                 })
-            } else if query.contains("SavedSearchConnectionBaseline") {
+            } else if query.contains("SavedSearchConnectionWindow") {
                 json!({
-                    "savedSearchBaseline": {
+                    "savedSearchWindow": {
                         "edges": [
                             {
                                 "cursor": "authoritative-products",
@@ -12547,7 +12686,7 @@ fn saved_search_update_live_hybrid_hydrates_a_mutation_first_target_by_id() {
     assert_eq!(
         bodies.len(),
         3,
-        "cold mutation hydrates once, singular readback stays local, and list overlay fetches a complete baseline"
+        "cold mutation hydrates once, singular readback stays local, and list overlay fetches one bounded window"
     );
     assert_eq!(bodies[0]["variables"], json!({ "id": saved_search_id }));
     assert!(bodies.iter().all(|body| body["query"]
@@ -12578,9 +12717,9 @@ fn saved_search_delete_live_hybrid_hydrates_then_tombstones_singular_and_list_re
                         "filters": [{ "key": "tag", "value": "delete-me" }]
                     }
                 })
-            } else if query.contains("SavedSearchConnectionBaseline") {
+            } else if query.contains("SavedSearchConnectionWindow") {
                 json!({
-                    "savedSearchBaseline": {
+                    "savedSearchWindow": {
                         "edges": [
                             {
                                 "cursor": "delete-target",
@@ -12687,7 +12826,7 @@ fn saved_search_delete_live_hybrid_hydrates_then_tombstones_singular_and_list_re
     assert_eq!(
         bodies.len(),
         3,
-        "delete hydration and complete list baseline are reads; tombstoned singular read stays local"
+        "delete hydration and one bounded list window are reads; tombstoned singular read stays local"
     );
     assert!(bodies.iter().all(|body| body["query"]
         .as_str()

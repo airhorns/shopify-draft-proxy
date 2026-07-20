@@ -29,6 +29,9 @@ impl DraftProxy {
                     );
                     return outcome;
                 }
+                if saved_search_connection_has_unsupported_overlay_scope(&invocation.arguments) {
+                    return outcome;
+                }
                 let Some(window) = self.saved_search_upstream_window(
                     invocation.request,
                     invocation.root_name,
@@ -361,10 +364,8 @@ impl DraftProxy {
             if record.cursor.is_none() {
                 record.cursor = row.cursor;
             }
-            if saved_search_matches_connection_query(&record, arguments) {
-                semantic_keys.insert(saved_search_semantic_key(&record));
-                records.push(record);
-            }
+            semantic_keys.insert(saved_search_semantic_key(&record));
+            records.push(record);
         }
 
         let mut created = self
@@ -377,7 +378,6 @@ impl DraftProxy {
                 let record = self.store.saved_searches.staged.get(id)?;
                 (record.resource_type == resource_type
                     && !self.store.saved_searches.base.records.contains_key(id)
-                    && saved_search_matches_connection_query(record, arguments)
                     && semantic_keys.insert(saved_search_semantic_key(record)))
                 .then(|| record.clone())
             })
@@ -1235,15 +1235,14 @@ fn saved_search_observed_window_value(
     })
 }
 
-fn saved_search_matches_connection_query(
-    record: &SavedSearchRecord,
+fn saved_search_connection_has_unsupported_overlay_scope(
     arguments: &BTreeMap<String, Value>,
 ) -> bool {
-    let Some(query) = arguments.get("query").and_then(Value::as_str) else {
-        return true;
-    };
-    let needle = query.to_lowercase();
-    record.name.to_lowercase().contains(&needle) || record.query.to_lowercase().contains(&needle)
+    arguments.get("query").is_some_and(|query| !query.is_null())
+        || arguments
+            .get("sortKey")
+            .and_then(Value::as_str)
+            .is_some_and(|sort_key| sort_key != "ID")
 }
 
 pub(in crate::proxy) fn saved_search_resource_type(root: &str) -> &'static str {
