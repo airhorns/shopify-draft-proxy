@@ -1,14 +1,33 @@
 {
   "scenarioId": "standard-metafield-definition-enable-material",
-  "operationNames": ["standardMetafieldDefinitionEnable"],
-  "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "runtime-staging", "template-catalog-parity"],
-  "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/standard-metafield-definition-enable-material.json"
+  "operationNames": [
+    "standardMetafieldDefinitionEnable",
+    "productCreate",
+    "metaobjectDefinition",
+    "metaobjectDefinitionByType",
+    "node",
+    "metaobjectCreate",
+    "metafieldsSet",
+    "productOptionsCreate",
+    "product",
+    "metaobject"
   ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "runtime-staging",
+    "downstream-read-parity",
+    "referential-integrity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/standard-metafield-definition-enable-material.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-material.graphql",
-    "apiVersion": "2025-01"
+    "variablesCapturePath": "$.setup.request.variables",
+    "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -16,23 +35,308 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "material-standard-template-enable-shape-and-constraints",
-        "capturePath": "$.materialEnable.response.data.standardMetafieldDefinitionEnable",
-        "proxyPath": "$.data.standardMetafieldDefinitionEnable",
+        "name": "material-and-color-pattern-enable-stage-backed-definition-identities",
+        "capturePath": "$.setup.response.data",
+        "proxyPath": "$.data",
         "expectedDifferences": [
           {
-            "path": "$.createdDefinition.id",
+            "path": "$.material.createdDefinition.id",
             "matcher": "shopify-gid:MetafieldDefinition",
-            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+            "reason": "The proxy stages a deterministic local metafield definition while Shopify returns the live-shop identity."
           },
           {
-            "path": "$.createdDefinition.validations[0].value",
+            "path": "$.material.createdDefinition.validations[0].value",
             "matcher": "shopify-gid:MetaobjectDefinition",
-            "reason": "The standard product-attribute template points at a shop-local standard metaobject definition ID; the proxy uses a deterministic synthetic MetaobjectDefinition GID."
+            "reason": "The proxy stages the captured material definition template under a session-local resolvable identity."
+          },
+          {
+            "path": "$.colorPattern.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic local metafield definition while Shopify returns the live-shop identity."
+          },
+          {
+            "path": "$.colorPattern.createdDefinition.validations[0].value",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy stages the captured color-pattern definition template under a session-local resolvable identity."
+          }
+        ]
+      },
+      {
+        "name": "linked-lifecycle-product-stages-locally",
+        "capturePath": "$.productSetup.response.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-linked-product-create.graphql",
+          "variablesCapturePath": "$.productSetup.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy stages the lifecycle product locally while Shopify returns the disposable live product identity."
+          }
+        ]
+      },
+      {
+        "name": "linked-definition-ids-resolve-through-direct-by-type-and-node-reads",
+        "capturePath": "$.definitionRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-linked-read.graphql",
+          "variables": {
+            "materialId": {
+              "fromPrimaryProxyPath": "$.data.material.createdDefinition.validations[0].value"
+            },
+            "colorPatternId": {
+              "fromPrimaryProxyPath": "$.data.colorPattern.createdDefinition.validations[0].value"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.materialById.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The direct read resolves the proxy's session-local material definition identity."
+          },
+          {
+            "path": "$.materialByType.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The by-type read resolves the proxy's session-local material definition identity."
+          },
+          {
+            "path": "$.materialNode.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "Generic Node resolves the proxy's session-local material definition identity."
+          },
+          {
+            "path": "$.colorPatternById.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The direct read resolves the proxy's session-local color-pattern definition identity."
+          },
+          {
+            "path": "$.colorPatternByType.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The by-type read resolves the proxy's session-local color-pattern definition identity."
+          },
+          {
+            "path": "$.colorPatternNode.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "Generic Node resolves the proxy's session-local color-pattern definition identity."
+          }
+        ]
+      },
+      {
+        "name": "linked-material-and-color-pattern-values-use-effective-definitions",
+        "capturePath": "$.valuesCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-linked-values-create.graphql",
+          "variablesCapturePath": "$.valuesCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.material.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy stages the material value locally."
+          },
+          {
+            "path": "$.material.metaobject.definition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The staged material value references the proxy's effective standard definition."
+          },
+          {
+            "path": "$.colorPattern.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy stages the color-pattern value locally."
+          },
+          {
+            "path": "$.colorPattern.metaobject.definition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The staged color-pattern value references the proxy's effective standard definition."
+          }
+        ]
+      },
+      {
+        "name": "linked-metafields-and-product-options-share-staged-values",
+        "capturePath": "$.attach.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-linked-attach.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "linked-lifecycle-product-stages-locally",
+              "path": "$.data.productCreate.product.id"
+            },
+            "metafields": [
+              {
+                "ownerId": {
+                  "fromProxyResponse": "linked-lifecycle-product-stages-locally",
+                  "path": "$.data.productCreate.product.id"
+                },
+                "namespace": "shopify",
+                "key": "material",
+                "type": "list.metaobject_reference",
+                "value": {
+                  "fromProxyResponse": "linked-material-and-color-pattern-values-use-effective-definitions",
+                  "path": "$.data.material.metaobject.id",
+                  "prefix": "[\"",
+                  "suffix": "\"]"
+                }
+              },
+              {
+                "ownerId": {
+                  "fromProxyResponse": "linked-lifecycle-product-stages-locally",
+                  "path": "$.data.productCreate.product.id"
+                },
+                "namespace": "shopify",
+                "key": "color-pattern",
+                "type": "list.metaobject_reference",
+                "value": {
+                  "fromProxyResponse": "linked-material-and-color-pattern-values-use-effective-definitions",
+                  "path": "$.data.colorPattern.metaobject.id",
+                  "prefix": "[\"",
+                  "suffix": "\"]"
+                }
+              }
+            ],
+            "options": [
+              {
+                "name": "Material",
+                "linkedMetafield": {
+                  "namespace": "shopify",
+                  "key": "material",
+                  "values": [
+                    {
+                      "fromProxyResponse": "linked-material-and-color-pattern-values-use-effective-definitions",
+                      "path": "$.data.material.metaobject.id"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "Color",
+                "linkedMetafield": {
+                  "namespace": "shopify",
+                  "key": "color-pattern",
+                  "values": [
+                    {
+                      "fromProxyResponse": "linked-material-and-color-pattern-values-use-effective-definitions",
+                      "path": "$.data.colorPattern.metaobject.id"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafieldsSet.metafields[*].value",
+            "matcher": "regex:^\\[\"gid://shopify/Metaobject/.+\"\\]$",
+            "reason": "Each local metafield stores the JSON list containing its staged Metaobject GID."
+          },
+          {
+            "path": "$.productOptionsCreate.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The option workflow targets the locally staged product."
+          },
+          {
+            "path": "$.productOptionsCreate.product.options[*].optionValues[*].linkedMetafieldValue",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "Each linked option value uses its locally staged Metaobject GID."
+          }
+        ]
+      },
+      {
+        "name": "linked-metafield-references-and-options-read-back-the-same-graph",
+        "capturePath": "$.readback.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-linked-readback.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "linked-lifecycle-product-stages-locally",
+              "path": "$.data.productCreate.product.id"
+            },
+            "materialId": {
+              "fromProxyResponse": "linked-material-and-color-pattern-values-use-effective-definitions",
+              "path": "$.data.material.metaobject.id"
+            },
+            "colorPatternId": {
+              "fromProxyResponse": "linked-material-and-color-pattern-values-use-effective-definitions",
+              "path": "$.data.colorPattern.metaobject.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The readback targets the locally staged lifecycle product."
+          },
+          {
+            "path": "$.product.material.value",
+            "matcher": "regex:^\\[\"gid://shopify/Metaobject/.+\"\\]$",
+            "reason": "The material metafield contains the staged material Metaobject GID as a JSON list."
+          },
+          {
+            "path": "$.product.material.references.nodes[0].id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The material reference resolves the locally staged value."
+          },
+          {
+            "path": "$.product.material.references.nodes[0].definition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The referenced material resolves to the effective staged standard definition."
+          },
+          {
+            "path": "$.product.colorPattern.value",
+            "matcher": "regex:^\\[\"gid://shopify/Metaobject/.+\"\\]$",
+            "reason": "The color-pattern metafield contains the staged color-pattern Metaobject GID as a JSON list."
+          },
+          {
+            "path": "$.product.colorPattern.references.nodes[0].id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The color-pattern reference resolves the locally staged value."
+          },
+          {
+            "path": "$.product.colorPattern.references.nodes[0].definition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The referenced color-pattern resolves to the effective staged standard definition."
+          },
+          {
+            "path": "$.product.options[*].optionValues[*].linkedMetafieldValue",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "Product options retain the same staged linked values."
+          },
+          {
+            "path": "$.material.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The direct material read resolves the locally staged value."
+          },
+          {
+            "path": "$.material.definition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The direct material read uses the effective staged standard definition."
+          },
+          {
+            "path": "$.colorPattern.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The direct color-pattern read resolves the locally staged value."
+          },
+          {
+            "path": "$.colorPattern.definition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The direct color-pattern read uses the effective staged standard definition."
           }
         ]
       }
     ]
   },
-  "notes": "Captured Shopify Admin API 2025-01 behavior for enabling the PRODUCT `shopify.material` standard metafield definition. The target strictly compares the mutation payload shape, access defaults, list.metaobject_reference type, category constraint key and first five category constraint values; live definition and metaobject-definition IDs are carved out as volatile."
+  "notes": "Captured Shopify Admin API 2026-04 material and color-pattern lifecycle. The scenario enables both standard metafield definitions, resolves each linked MetaobjectDefinition through direct, by-type, and generic Node reads, creates taxonomy-backed linked values, attaches them through metafieldsSet and productOptionsCreate, and compares downstream references. Only shop-local resource identities are carved out."
 }

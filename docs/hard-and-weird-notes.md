@@ -4514,3 +4514,30 @@ Practical rule:
 - distinguish an authoritative null node from transport, GraphQL, or incomplete
   response failures; all failure classes must leave product/category state
   unchanged, but only the authoritative miss is proven invalid
+
+## 108. Standard linked metafield validation IDs are graph edges
+
+Admin GraphQL 2026-04 material and color-pattern lifecycle capture showed that
+the `metaobject_definition_id` returned by
+`standardMetafieldDefinitionEnable` is the shop-local definition identity, not
+an opaque validation hint. For each template, the same ID was returned by
+`metaobjectDefinition(id:)`, `metaobjectDefinitionByType(type:)`, generic
+`node(id:)`, created linked metaobjects, product metafield references, and the
+linked product-option workflow. The two templates had distinct definition IDs,
+and every downstream value retained its matching definition.
+
+This also makes an invented validation-only ID unsafe. A plausible GID that has
+no definition record breaks generic Node reads, field validation, and linked
+option semantics even when the initial metafield-definition payload looks
+correct.
+
+Practical rule:
+
+- in LiveHybrid, hydrate the shop-local standard definition by type before
+  staging a linked standard metafield definition
+- in snapshot mode, allocate an identity only when a captured standard template
+  can materialize the complete local definition record
+- use that one effective definition for validation, direct/by-type/Node reads,
+  linked values, metafield references, and product options
+- return the captured `TEMPLATE_NOT_FOUND` null/error shape when no backed
+  definition is available; never emit a sentinel graph edge
