@@ -1,0 +1,117 @@
+{
+  "scenarioId": "payment-terms-cold-delete",
+  "operationNames": ["paymentTermsDelete", "order", "draftOrder", "node"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "runtime-staging",
+    "downstream-read-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-cold-delete.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-delete.graphql",
+    "variablesCapturePath": "$.order.deleteVariables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cold-order-delete",
+        "capturePath": "$.order.expected.delete.data.paymentTermsDelete",
+        "proxyPath": "$.data.paymentTermsDelete"
+      },
+      {
+        "name": "cold-order-owner-detached",
+        "capturePath": "$.order.expected.ownerRead.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-owner-cascade-order-read.graphql",
+          "variables": {
+            "id": { "fromCapturePath": "$.order.ownerId" }
+          }
+        }
+      },
+      {
+        "name": "cold-order-payment-terms-node-removed",
+        "capturePath": "$.order.expected.paymentTermsNodeRead.data.node",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-cold-delete-node-read.graphql",
+          "variables": {
+            "id": { "fromCapturePath": "$.order.paymentTermsId" }
+          }
+        }
+      },
+      {
+        "name": "cold-order-payment-schedule-node-removed",
+        "capturePath": "$.order.expected.paymentScheduleNodeRead.data.node",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-cold-delete-node-read.graphql",
+          "variables": {
+            "id": { "fromCapturePath": "$.order.paymentScheduleId" }
+          }
+        }
+      },
+      {
+        "name": "cold-draft-delete",
+        "capturePath": "$.draft.expected.delete.data.paymentTermsDelete",
+        "proxyPath": "$.data.paymentTermsDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-delete.graphql",
+          "variablesCapturePath": "$.draft.deleteVariables"
+        }
+      },
+      {
+        "name": "cold-draft-owner-detached",
+        "capturePath": "$.draft.expected.ownerRead.data.draftOrder",
+        "proxyPath": "$.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-owner-cascade-draft-read.graphql",
+          "variables": {
+            "id": { "fromCapturePath": "$.draft.ownerId" }
+          }
+        }
+      },
+      {
+        "name": "cold-draft-payment-terms-node-removed",
+        "capturePath": "$.draft.expected.paymentTermsNodeRead.data.node",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-cold-delete-node-read.graphql",
+          "variables": {
+            "id": { "fromCapturePath": "$.draft.paymentTermsId" }
+          }
+        }
+      },
+      {
+        "name": "cold-draft-payment-schedule-node-removed",
+        "capturePath": "$.draft.expected.paymentScheduleNodeRead.data.node",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-cold-delete-node-read.graphql",
+          "variables": {
+            "id": { "fromCapturePath": "$.draft.paymentScheduleId" }
+          }
+        }
+      },
+      {
+        "name": "confirmed-missing-delete",
+        "capturePath": "$.missing.expected.delete.data.paymentTermsDelete",
+        "proxyPath": "$.data.paymentTermsDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-delete.graphql",
+          "variablesCapturePath": "$.missing.deleteVariables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 mutation-first paymentTermsDelete capture for cold Order and DraftOrder terms. Exact PaymentTermsHydrate cassettes provide owner and schedule context; strict targets compare delete payloads, owner detachment, PaymentTerms and PaymentSchedule Node removal, and a confirmed-missing control."
+}

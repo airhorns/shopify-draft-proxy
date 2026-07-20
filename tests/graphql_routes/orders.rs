@@ -13327,6 +13327,365 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
     );
 }
 
+fn cold_payment_terms_delete_proxy(
+    payment_terms: Value,
+    upstream_status: u16,
+    upstream_hits: Arc<Mutex<Vec<Value>>>,
+) -> DraftProxy {
+    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+        let body: Value =
+            serde_json::from_str(&request.body).expect("payment terms hydration body should parse");
+        upstream_hits.lock().unwrap().push(body.clone());
+        if body["operationName"] != json!("PaymentTermsHydrate") {
+            return Response {
+                status: 500,
+                headers: Default::default(),
+                body: json!({
+                    "errors": [{
+                        "message": format!("unexpected payment terms upstream request: {body}")
+                    }]
+                }),
+            };
+        }
+        Response {
+            status: upstream_status,
+            headers: Default::default(),
+            body: if (200..300).contains(&upstream_status) {
+                json!({ "data": { "paymentTerms": payment_terms } })
+            } else {
+                json!({ "errors": [{ "message": "payment terms hydrate unavailable" }] })
+            },
+        }
+    })
+}
+
+fn delete_cold_payment_terms(
+    proxy: &mut DraftProxy,
+    terms_id: &str,
+    owner_root: &str,
+    owner_id: &str,
+    schedule_id: &str,
+) {
+    let delete_document = include_str!(
+        "../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"
+    );
+    let variables = json!({ "input": { "paymentTermsId": terms_id } });
+    let delete = proxy.process_request(json_graphql_request(delete_document, variables.clone()));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["paymentTermsDelete"],
+        json!({ "deletedId": terms_id, "userErrors": [] })
+    );
+
+    let owner_read = proxy.process_request(json_graphql_request(
+        &format!(
+            "query ColdPaymentTermsOwnerAfterDelete($id: ID!) {{ {owner_root}(id: $id) {{ id paymentTerms {{ id }} }} }}"
+        ),
+        json!({ "id": owner_id }),
+    ));
+    assert_eq!(owner_read.status, 200);
+    assert_eq!(
+        owner_read.body["data"][owner_root]["paymentTerms"],
+        Value::Null
+    );
+
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdPaymentTermsNodesAfterDelete($termsId: ID!, $scheduleId: ID!) {
+          terms: node(id: $termsId) { __typename }
+          schedule: node(id: $scheduleId) { __typename }
+        }
+        "#,
+        json!({ "termsId": terms_id, "scheduleId": schedule_id }),
+    ));
+    assert_eq!(node_read.status, 200);
+    assert_eq!(node_read.body["data"]["terms"], Value::Null);
+    assert_eq!(node_read.body["data"]["schedule"], Value::Null);
+
+    let state = state_snapshot(proxy);
+    assert_eq!(
+        state["stagedState"]["deletedPaymentTermsIds"],
+        json!([terms_id])
+    );
+    assert_eq!(
+        state["stagedState"]["deletedPaymentScheduleIds"],
+        json!([schedule_id])
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_owner = proxy.process_request(json_graphql_request(
+        &format!(
+            "query RestoredColdPaymentTermsOwner($id: ID!) {{ {owner_root}(id: $id) {{ id paymentTerms {{ id }} }} }}"
+        ),
+        json!({ "id": owner_id }),
+    ));
+    assert_eq!(restored_owner.status, 200);
+    assert_eq!(
+        restored_owner.body["data"][owner_root]["paymentTerms"],
+        Value::Null
+    );
+    let restored_nodes = proxy.process_request(json_graphql_request(
+        r#"
+        query RestoredColdPaymentTermsNodes($termsId: ID!, $scheduleId: ID!) {
+          terms: node(id: $termsId) { __typename }
+          schedule: node(id: $scheduleId) { __typename }
+        }
+        "#,
+        json!({ "termsId": terms_id, "scheduleId": schedule_id }),
+    ));
+    assert_eq!(restored_nodes.status, 200);
+    assert_eq!(restored_nodes.body["data"]["terms"], Value::Null);
+    assert_eq!(restored_nodes.body["data"]["schedule"], Value::Null);
+
+    let log = log_snapshot(proxy);
+    let entries = log["entries"]
+        .as_array()
+        .expect("cold delete should produce a replay entry");
+    assert_eq!(entries.len(), 1);
+    assert_eq!(
+        entries[0]["interpreted"]["primaryRootField"],
+        json!("paymentTermsDelete")
+    );
+    assert_eq!(entries[0]["variables"], variables);
+    assert!(entries[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("paymentTermsDelete")));
+}
+
+#[test]
+fn payment_terms_delete_hydrates_cold_order_and_cascades_owner_and_schedule() {
+    let terms_id = "gid://shopify/PaymentTerms/42001";
+    let schedule_id = "gid://shopify/PaymentSchedule/42002";
+    let owner_id = "gid://shopify/Order/42003";
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = cold_payment_terms_delete_proxy(
+        json!({
+            "id": terms_id,
+            "due": false,
+            "overdue": false,
+            "dueInDays": 30,
+            "paymentTermsName": "Net 30",
+            "paymentTermsType": "NET",
+            "translatedName": "Net 30",
+            "order": {
+                "id": owner_id,
+                "email": "cold-order@example.test",
+                "closed": false,
+                "closedAt": Value::Null,
+                "cancelledAt": Value::Null,
+                "displayFinancialStatus": "PENDING",
+                "totalOutstandingSet": {
+                    "shopMoney": { "amount": "42.5", "currencyCode": "USD" },
+                    "presentmentMoney": { "amount": "42.5", "currencyCode": "USD" }
+                },
+                "currentTotalPriceSet": {
+                    "shopMoney": { "amount": "42.5", "currencyCode": "USD" },
+                    "presentmentMoney": { "amount": "42.5", "currencyCode": "USD" }
+                },
+                "totalPriceSet": {
+                    "shopMoney": { "amount": "42.5", "currencyCode": "USD" },
+                    "presentmentMoney": { "amount": "42.5", "currencyCode": "USD" }
+                }
+            },
+            "draftOrder": Value::Null,
+            "paymentSchedules": {
+                "nodes": [{
+                    "id": schedule_id,
+                    "dueAt": "2026-08-20T00:00:00Z",
+                    "issuedAt": "2026-07-21T00:00:00Z",
+                    "completedAt": Value::Null,
+                    "due": false,
+                    "amount": { "amount": "42.5", "currencyCode": "USD" },
+                    "balanceDue": { "amount": "42.5", "currencyCode": "USD" },
+                    "totalBalance": { "amount": "42.5", "currencyCode": "USD" }
+                }]
+            }
+        }),
+        200,
+        Arc::clone(&upstream_hits),
+    );
+
+    delete_cold_payment_terms(&mut proxy, terms_id, "order", owner_id, schedule_id);
+
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(
+        hits.len(),
+        1,
+        "cold delete should issue one bounded hydrate"
+    );
+    assert_eq!(hits[0]["variables"], json!({ "id": terms_id }));
+    assert!(hits[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query PaymentTermsHydrate")));
+}
+
+#[test]
+fn payment_terms_delete_hydrates_cold_draft_order_and_cascades_owner_and_schedule() {
+    let terms_id = "gid://shopify/PaymentTerms/43001";
+    let schedule_id = "gid://shopify/PaymentSchedule/43002";
+    let owner_id = "gid://shopify/DraftOrder/43003";
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = cold_payment_terms_delete_proxy(
+        json!({
+            "id": terms_id,
+            "due": false,
+            "overdue": false,
+            "dueInDays": 30,
+            "paymentTermsName": "Net 30",
+            "paymentTermsType": "NET",
+            "translatedName": "Net 30",
+            "order": Value::Null,
+            "draftOrder": {
+                "id": owner_id,
+                "status": "OPEN",
+                "completedAt": Value::Null,
+                "subtotalPriceSet": {
+                    "shopMoney": { "amount": "18.5", "currencyCode": "CAD" },
+                    "presentmentMoney": { "amount": "18.5", "currencyCode": "CAD" }
+                },
+                "totalPriceSet": {
+                    "shopMoney": { "amount": "18.5", "currencyCode": "CAD" },
+                    "presentmentMoney": { "amount": "18.5", "currencyCode": "CAD" }
+                }
+            },
+            "paymentSchedules": {
+                "nodes": [{
+                    "id": schedule_id,
+                    "dueAt": "2026-08-20T00:00:00Z",
+                    "issuedAt": "2026-07-21T00:00:00Z",
+                    "completedAt": Value::Null,
+                    "due": false,
+                    "amount": { "amount": "18.5", "currencyCode": "CAD" },
+                    "balanceDue": { "amount": "18.5", "currencyCode": "CAD" },
+                    "totalBalance": { "amount": "18.5", "currencyCode": "CAD" }
+                }]
+            }
+        }),
+        200,
+        Arc::clone(&upstream_hits),
+    );
+
+    delete_cold_payment_terms(&mut proxy, terms_id, "draftOrder", owner_id, schedule_id);
+
+    assert_eq!(upstream_hits.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn payment_terms_delete_distinguishes_confirmed_missing_from_transport_failure() {
+    let missing_terms_id = "gid://shopify/PaymentTerms/44001";
+    let missing_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut missing_proxy =
+        cold_payment_terms_delete_proxy(Value::Null, 200, Arc::clone(&missing_hits));
+    let missing = missing_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"
+        ),
+        json!({ "input": { "paymentTermsId": missing_terms_id } }),
+    ));
+    assert_eq!(missing.status, 200);
+    assert_eq!(
+        missing.body["data"]["paymentTermsDelete"],
+        json!({
+            "deletedId": Value::Null,
+            "userErrors": [{
+                "field": Value::Null,
+                "message": "Could not find payment terms.",
+                "code": "PAYMENT_TERMS_DELETE_UNSUCCESSFUL"
+            }]
+        })
+    );
+    assert_eq!(missing_hits.lock().unwrap().len(), 1);
+    assert_eq!(
+        log_snapshot(&missing_proxy)["entries"],
+        json!([]),
+        "confirmed missing deletes must not be replayed"
+    );
+
+    let failed_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut failed_proxy =
+        cold_payment_terms_delete_proxy(Value::Null, 503, Arc::clone(&failed_hits));
+    let failed = failed_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"
+        ),
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/44002" } }),
+    ));
+    assert_eq!(failed.status, 503);
+    assert_eq!(
+        failed.body["data"]["paymentTermsDelete"],
+        Value::Null,
+        "transport uncertainty must not become a not-found userError payload"
+    );
+    assert_eq!(
+        failed.body["errors"][0]["message"],
+        json!("payment terms hydrate unavailable")
+    );
+    assert_eq!(failed_hits.lock().unwrap().len(), 1);
+    assert_eq!(log_snapshot(&failed_proxy)["entries"], json!([]));
+
+    let graphql_error_hits = Arc::new(AtomicUsize::new(0));
+    let mut graphql_error_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let graphql_error_hits = Arc::clone(&graphql_error_hits);
+        move |_request| {
+            graphql_error_hits.fetch_add(1, Ordering::SeqCst);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "payment terms hydrate GraphQL error" }] }),
+            }
+        }
+    });
+    let graphql_error = graphql_error_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"
+        ),
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/44004" } }),
+    ));
+    assert_eq!(graphql_error.status, 200);
+    assert_eq!(
+        graphql_error.body["data"]["paymentTermsDelete"],
+        Value::Null
+    );
+    assert_eq!(
+        graphql_error.body["errors"][0]["message"],
+        json!("payment terms hydrate GraphQL error")
+    );
+    assert_eq!(graphql_error_hits.load(Ordering::SeqCst), 1);
+    assert_eq!(log_snapshot(&graphql_error_proxy)["entries"], json!([]));
+
+    let snapshot_upstream_hits = Arc::new(AtomicUsize::new(0));
+    let mut snapshot = snapshot_proxy().with_upstream_transport({
+        let snapshot_upstream_hits = Arc::clone(&snapshot_upstream_hits);
+        move |_request| {
+            snapshot_upstream_hits.fetch_add(1, Ordering::SeqCst);
+            Response {
+                status: 500,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "snapshot must stay local" }] }),
+            }
+        }
+    });
+    let snapshot_missing = snapshot.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"
+        ),
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/44003" } }),
+    ));
+    assert_eq!(snapshot_missing.status, 200);
+    assert_eq!(
+        snapshot_missing.body["data"]["paymentTermsDelete"]["userErrors"][0]["code"],
+        json!("PAYMENT_TERMS_DELETE_UNSUCCESSFUL")
+    );
+    assert_eq!(snapshot_upstream_hits.load(Ordering::SeqCst), 0);
+}
+
 #[test]
 fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
     let mut proxy = snapshot_proxy();

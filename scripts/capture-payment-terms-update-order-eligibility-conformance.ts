@@ -170,6 +170,7 @@ const paymentTermsHydrateDocument = `#graphql
         translatedName
         order {
           id
+          name
           email
           closed
           closedAt
@@ -197,6 +198,7 @@ const paymentTermsHydrateDocument = `#graphql
         }
         draftOrder {
           id
+          name
           status
           completedAt
           subtotalPriceSet {

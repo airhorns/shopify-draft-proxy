@@ -11823,6 +11823,33 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-terms-cold-delete',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-terms-cold-delete-conformance.ts',
+    purpose:
+      'Mutation-first paymentTermsDelete hydration and owner/schedule cascade for Order and DraftOrder terms, plus a confirmed-missing control.',
+    requiredAuthScopes: [
+      'read_orders',
+      'write_orders',
+      'read_draft_orders',
+      'write_draft_orders',
+      'read_payment_terms',
+      'write_payment_terms',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-cold-delete.json`,
+      'config/parity-specs/payments/payment-terms-cold-delete.json',
+      'config/parity-requests/payments/payment-terms-lifecycle-delete.graphql',
+      'config/parity-requests/payments/payment-terms-owner-cascade-order-read.graphql',
+      'config/parity-requests/payments/payment-terms-owner-cascade-draft-read.graphql',
+      'config/parity-requests/payments/payment-terms-cold-delete-node-read.graphql',
+    ],
+    cleanupBehavior:
+      'Deletes the disposable DraftOrder and cancels the disposable test Order after payment terms are deleted.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'payment-terms-multiple-schedules',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-terms-multiple-schedules-conformance.ts',

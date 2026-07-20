@@ -43,7 +43,13 @@ pub(in crate::proxy) const PAYMENT_TERMS_DRAFT_HYDRATE_QUERY: &str = "query Paym
 /// Exact GraphQL document the proxy issues to hydrate a **PaymentTerms node** by
 /// id for the cold update-eligibility path (no local owner link). Must match the
 /// recorded `PaymentTermsHydrate` cassette byte-for-byte.
-pub(in crate::proxy) const PAYMENT_TERMS_NODE_HYDRATE_QUERY: &str = "query PaymentTermsHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }";
+pub(in crate::proxy) const PAYMENT_TERMS_NODE_HYDRATE_QUERY: &str = "query PaymentTermsHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          name\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          name\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }";
+
+enum PaymentTermsNodeHydration {
+    Found(Value),
+    Missing,
+    Unresolved(Response),
+}
 
 pub(in crate::proxy) fn payment_terms_user_error(field: Value, message: &str, code: &str) -> Value {
     user_error(field, message, Some(code))
@@ -481,6 +487,65 @@ pub(in crate::proxy) fn payment_terms_delete_payload_value(
     })
 }
 
+fn payment_terms_delete_missing_result() -> (Value, Option<String>) {
+    (
+        payment_terms_delete_payload_value(
+            Value::Null,
+            vec![payment_terms_user_error(
+                Value::Null,
+                "Could not find payment terms.",
+                "PAYMENT_TERMS_DELETE_UNSUCCESSFUL",
+            )],
+        ),
+        None,
+    )
+}
+
+fn payment_terms_hydration_error_outcome(response: Response) -> ResolverOutcome<Value> {
+    let message = response
+        .body
+        .pointer("/errors/0/message")
+        .and_then(Value::as_str)
+        .unwrap_or("Payment terms hydration failed")
+        .to_string();
+    if (200..300).contains(&response.status) {
+        ResolverOutcome::error(message)
+    } else {
+        resolver_http_error_outcome(response.status, message)
+    }
+}
+
+fn payment_terms_node_owner(node: &Value) -> Option<(String, Value)> {
+    let order = node
+        .get("order")
+        .filter(|owner| owner.is_object() && !owner.is_null());
+    let draft_order = node
+        .get("draftOrder")
+        .filter(|owner| owner.is_object() && !owner.is_null());
+    let owner = match (order, draft_order) {
+        (Some(owner), None) => ("Order", owner),
+        (None, Some(owner)) => ("DraftOrder", owner),
+        _ => return None,
+    };
+    let owner_id = owner.1.get("id").and_then(Value::as_str)?;
+    is_shopify_gid_of_type(owner_id, owner.0).then(|| (owner_id.to_string(), owner.1.clone()))
+}
+
+fn payment_terms_schedule_ids(payment_terms: &Value) -> Vec<String> {
+    payment_terms
+        .pointer("/paymentSchedules/nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|schedule| {
+            schedule
+                .get("id")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .collect()
+}
+
 pub(in crate::proxy) fn payment_terms_attrs_from_create_arguments(
     arguments: &BTreeMap<String, ResolvedValue>,
 ) -> BTreeMap<String, ResolvedValue> {
@@ -643,7 +708,12 @@ impl DraftProxy {
             "paymentTermsUpdate" => {
                 self.payment_terms_update_payload(invocation.request, &arguments)
             }
-            "paymentTermsDelete" => self.payment_terms_delete_payload(&arguments),
+            "paymentTermsDelete" => {
+                match self.payment_terms_delete_payload(invocation.request, &arguments) {
+                    Ok(value) => value,
+                    Err(response) => return payment_terms_hydration_error_outcome(response),
+                }
+            }
             root => {
                 return ResolverOutcome::error(format!(
                     "Unknown payment-terms mutation root `{root}`"
@@ -709,6 +779,10 @@ impl DraftProxy {
             .insert(terms_id.clone(), record.clone());
         self.store
             .staged
+            .deleted_payment_terms_ids
+            .remove(&terms_id);
+        self.store
+            .staged
             .payment_terms_owner_index
             .insert(owner_id.clone(), terms_id.clone());
         self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
@@ -732,15 +806,25 @@ impl DraftProxy {
         };
         let owner_id = self.payment_terms_owner_id(&terms_id);
         let has_staged_record = self.store.staged.payment_terms.contains_key(&terms_id);
+        let is_deleted = self
+            .store
+            .staged
+            .deleted_payment_terms_ids
+            .contains(&terms_id);
         let owner_record = owner_id
             .as_deref()
             .and_then(|owner| self.payment_terms_owner_record(request, owner));
-        let cold_node = if owner_id.is_none() && !has_staged_record {
-            self.hydrate_payment_terms_node(request, &terms_id)
+        let cold_node = if owner_id.is_none() && !has_staged_record && !is_deleted {
+            match self.hydrate_payment_terms_node(request, &terms_id) {
+                PaymentTermsNodeHydration::Found(node) => Some(node),
+                PaymentTermsNodeHydration::Missing | PaymentTermsNodeHydration::Unresolved(_) => {
+                    None
+                }
+            }
         } else {
             None
         };
-        if owner_id.is_none() && !has_staged_record && cold_node.is_none() {
+        if is_deleted || owner_id.is_none() && !has_staged_record && cold_node.is_none() {
             return (
                 payment_terms_payload_value(
                     Value::Null,
@@ -816,36 +900,60 @@ impl DraftProxy {
 
     fn payment_terms_delete_payload(
         &mut self,
+        request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
-    ) -> (Value, Option<String>) {
+    ) -> Result<(Value, Option<String>), Response> {
         let input = resolved_object_field(arguments, "input").unwrap_or_default();
         let payment_terms_id = resolved_string_field(&input, "paymentTermsId").unwrap_or_default();
         if self
             .store
             .staged
-            .payment_terms
-            .remove(&payment_terms_id)
-            .is_some()
+            .deleted_payment_terms_ids
+            .contains(&payment_terms_id)
         {
-            if let Some(owner_id) = self.remove_payment_terms_owner_link(&payment_terms_id) {
-                self.attach_payment_terms_to_owner(&owner_id, None);
-            }
-            return (
-                payment_terms_delete_payload_value(json!(payment_terms_id), Vec::new()),
-                Some(payment_terms_id),
-            );
+            return Ok(payment_terms_delete_missing_result());
         }
-        (
-            payment_terms_delete_payload_value(
-                Value::Null,
-                vec![payment_terms_user_error(
-                    Value::Null,
-                    "Could not find payment terms.",
-                    "PAYMENT_TERMS_DELETE_UNSUCCESSFUL",
-                )],
-            ),
-            None,
-        )
+
+        let has_record = self
+            .store
+            .staged
+            .payment_terms
+            .contains_key(&payment_terms_id);
+        let has_owner = self.payment_terms_owner_id(&payment_terms_id).is_some();
+        if !has_record || !has_owner {
+            match self.hydrate_payment_terms_node(request, &payment_terms_id) {
+                PaymentTermsNodeHydration::Found(node) => {
+                    if !self.observe_payment_terms_node(&payment_terms_id, node) {
+                        return Ok(payment_terms_delete_missing_result());
+                    }
+                }
+                PaymentTermsNodeHydration::Missing => {
+                    return Ok(payment_terms_delete_missing_result());
+                }
+                PaymentTermsNodeHydration::Unresolved(response) => return Err(response),
+            }
+        }
+
+        let Some(record) = self.store.staged.payment_terms.remove(&payment_terms_id) else {
+            return Ok(payment_terms_delete_missing_result());
+        };
+        self.store
+            .staged
+            .deleted_payment_terms_ids
+            .insert(payment_terms_id.clone());
+        for schedule_id in payment_terms_schedule_ids(&record) {
+            self.store
+                .staged
+                .deleted_payment_schedule_ids
+                .insert(schedule_id);
+        }
+        if let Some(owner_id) = self.remove_payment_terms_owner_link(&payment_terms_id) {
+            self.attach_payment_terms_to_owner(&owner_id, None);
+        }
+        Ok((
+            payment_terms_delete_payload_value(json!(payment_terms_id), Vec::new()),
+            Some(payment_terms_id),
+        ))
     }
 
     pub(in crate::proxy) fn payment_terms_local_outcome(
@@ -972,12 +1080,16 @@ impl DraftProxy {
             .cloned()
     }
 
-    /// Cassette-backed PaymentTerms-node hydration for the cold update path:
+    /// Cassette-backed PaymentTerms-node hydration for cold update/delete paths:
     /// issues the exact recorded `PaymentTermsHydrate` document and returns the
     /// resolved `paymentTerms` node. Gated on LiveHybrid.
-    fn hydrate_payment_terms_node(&self, request: &Request, terms_id: &str) -> Option<Value> {
+    fn hydrate_payment_terms_node(
+        &self,
+        request: &Request,
+        terms_id: &str,
+    ) -> PaymentTermsNodeHydration {
         if self.config.read_mode != ReadMode::LiveHybrid {
-            return None;
+            return PaymentTermsNodeHydration::Missing;
         }
         let response = self.upstream_post(
             request,
@@ -987,15 +1099,54 @@ impl DraftProxy {
                 "variables": { "id": terms_id }
             }),
         );
-        if response.status >= 400 {
-            return None;
-        }
-        response
+        let has_errors = response
             .body
-            .get("data")?
-            .get("paymentTerms")
-            .filter(|node| !node.is_null())
-            .cloned()
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_some_and(|errors| !errors.is_empty());
+        if !(200..300).contains(&response.status) || has_errors {
+            return PaymentTermsNodeHydration::Unresolved(response);
+        }
+        match response.body.pointer("/data/paymentTerms") {
+            Some(Value::Null) => PaymentTermsNodeHydration::Missing,
+            Some(node) if node.is_object() => PaymentTermsNodeHydration::Found(node.clone()),
+            _ => PaymentTermsNodeHydration::Unresolved(Response {
+                status: 502,
+                headers: BTreeMap::new(),
+                body: json!({
+                    "errors": [{
+                        "message": "Payment terms hydration response did not include data.paymentTerms"
+                    }]
+                }),
+            }),
+        }
+    }
+
+    fn observe_payment_terms_node(&mut self, terms_id: &str, node: Value) -> bool {
+        if node.get("id").and_then(Value::as_str) != Some(terms_id) {
+            return false;
+        }
+        let Some((owner_id, owner)) = payment_terms_node_owner(&node) else {
+            return false;
+        };
+        if is_shopify_gid_of_type(&owner_id, "DraftOrder") {
+            self.store
+                .staged
+                .draft_orders
+                .insert(owner_id.clone(), owner);
+        } else {
+            self.store.staged.orders.insert(owner_id.clone(), owner);
+        }
+        self.store
+            .staged
+            .payment_terms
+            .insert(terms_id.to_string(), node.clone());
+        self.store
+            .staged
+            .payment_terms_owner_index
+            .insert(owner_id.clone(), terms_id.to_string());
+        self.attach_payment_terms_to_owner(&owner_id, Some(node));
+        true
     }
 
     /// Reads the money already materialized on a staged payment-terms record's
