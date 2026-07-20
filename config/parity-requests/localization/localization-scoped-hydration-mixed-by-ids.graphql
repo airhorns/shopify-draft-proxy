@@ -1,0 +1,37 @@
+#graphql
+query LocalizationScopedHydrationMixedByIds($first: Int!, $resourceIds: [ID!]!) {
+  translatableResourcesByIds(first: $first, resourceIds: $resourceIds) {
+    nodes {
+      resourceId
+      translatableContent {
+        key
+        value
+        digest
+        locale
+        type
+      }
+      translations(locale: "af") {
+        key
+        value
+        locale
+        outdated
+        updatedAt
+        market {
+          id
+        }
+      }
+    }
+    edges {
+      cursor
+      node {
+        resourceId
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

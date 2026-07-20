@@ -988,45 +988,6 @@ impl DraftProxy {
                 )
             })
         });
-        let localization_context_preflight =
-            prepared.as_ref().and_then(|(document, variables, _)| {
-                let mixed_surface = capabilities
-                    .iter()
-                    .any(|capability| capability.domain == CapabilityDomain::Localization)
-                    && capabilities
-                        .iter()
-                        .any(|capability| capability.domain == CapabilityDomain::Markets)
-                    && capabilities.iter().all(|capability| {
-                        matches!(
-                            capability.domain,
-                            CapabilityDomain::Localization | CapabilityDomain::Markets
-                        )
-                    });
-                let has_local_localization_root = document.root_fields.iter().any(|field| {
-                    matches!(
-                        field.name.as_str(),
-                        "translatableResource"
-                            | "translatableResources"
-                            | "translatableResourcesByIds"
-                    ) && !self.localization_should_fetch_upstream(&field.name)
-                });
-                let has_locale_catalog = document
-                    .root_fields
-                    .iter()
-                    .any(|field| matches!(field.name.as_str(), "shopLocales" | "availableLocales"));
-                (self.config.read_mode == ReadMode::LiveHybrid
-                    && document.operation_type == OperationType::Query
-                    && mixed_surface
-                    && has_local_localization_root
-                    && self.markets_should_fetch_upstream(&document.root_fields, variables))
-                .then(|| {
-                    (
-                        request.clone(),
-                        document.root_fields.clone(),
-                        has_locale_catalog,
-                    )
-                })
-            });
         let node_query_preflight = prepared.as_ref().and_then(|(document, _, _)| {
             (document.operation_type == OperationType::Query
                 && document.root_fields.len() > 1
@@ -1084,15 +1045,6 @@ impl DraftProxy {
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
                 if let Some((request, fields, variables)) = &owner_metafield_preflight {
                     proxy.hydrate_owner_metafield_read_fields(request, fields, variables);
-                }
-                if let Some((request, fields, use_original_request)) =
-                    &localization_context_preflight
-                {
-                    proxy.preflight_localization_markets_context(
-                        request,
-                        fields,
-                        *use_original_request,
-                    );
                 }
                 if let Some((request, fields)) = &node_query_preflight {
                     proxy.preflight_node_query_entities(request, fields);

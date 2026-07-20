@@ -1,0 +1,19 @@
+#graphql
+mutation LocalizationScopedHydrationTranslationsRemove(
+  $resourceId: ID!
+  $translationKeys: [String!]!
+  $locales: [String!]!
+) {
+  translationsRemove(resourceId: $resourceId, translationKeys: $translationKeys, locales: $locales) {
+    translations {
+      key
+      value
+      locale
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

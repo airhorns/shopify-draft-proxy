@@ -1,0 +1,2509 @@
+{
+  "scenarioId": "localization-scoped-hydration-lifecycle",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-07-20T09:16:37.871Z",
+  "setup": {
+    "initialLocales": {
+      "request": {
+        "query": "#graphql\nquery LocalizationScopedHydrationShopLocalesSetup {\n  shopLocales {\n    locale\n    name\n    primary\n    published\n    marketWebPresences {\n      id\n      subfolderSuffix\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "response": {
+        "data": {
+          "shopLocales": [
+            {
+              "locale": "en",
+              "name": "English",
+              "primary": true,
+              "published": true,
+              "marketWebPresences": [
+                {
+                  "id": "gid://shopify/MarketWebPresence/62842765618",
+                  "subfolderSuffix": null
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/69720899890",
+                  "subfolderSuffix": "harerhkjdulik"
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/69720998194",
+                  "subfolderSuffix": "harsipqvpnehc"
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/70628245810",
+                  "subfolderSuffix": "harprobebb"
+                }
+              ]
+            },
+            {
+              "locale": "es",
+              "name": "Spanish",
+              "primary": false,
+              "published": false,
+              "marketWebPresences": []
+            },
+            {
+              "locale": "fr",
+              "name": "French",
+              "primary": false,
+              "published": false,
+              "marketWebPresences": []
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "translationLocaleEnable": {
+      "request": {
+        "query": "#graphql\nmutation LocalizationScopedHydrationShopLocaleEnable($locale: String!, $marketWebPresenceIds: [ID!]) {\n  shopLocaleEnable(locale: $locale, marketWebPresenceIds: $marketWebPresenceIds) {\n    shopLocale {\n      locale\n      name\n      primary\n      published\n      marketWebPresences {\n        id\n        subfolderSuffix\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "locale": "af",
+          "marketWebPresenceIds": []
+        }
+      },
+      "response": {
+        "data": {
+          "shopLocaleEnable": {
+            "shopLocale": {
+              "locale": "af",
+              "name": "Afrikaans",
+              "primary": false,
+              "published": false,
+              "marketWebPresences": []
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "disabledLocaleEnable": {
+      "request": {
+        "query": "#graphql\nmutation LocalizationScopedHydrationShopLocaleEnable($locale: String!, $marketWebPresenceIds: [ID!]) {\n  shopLocaleEnable(locale: $locale, marketWebPresenceIds: $marketWebPresenceIds) {\n    shopLocale {\n      locale\n      name\n      primary\n      published\n      marketWebPresences {\n        id\n        subfolderSuffix\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "locale": "zu",
+          "marketWebPresenceIds": []
+        }
+      },
+      "response": {
+        "data": {
+          "shopLocaleEnable": {
+            "shopLocale": {
+              "locale": "zu",
+              "name": "Zulu",
+              "primary": false,
+              "published": false,
+              "marketWebPresences": []
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productCreate": {
+      "request": {
+        "query": "#graphql\nmutation LocalizationScopedHydrationProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "product": {
+            "title": "Localization scoped hydration 20260720091634",
+            "handle": "localization-scoped-hydration-20260720091634",
+            "status": "DRAFT"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10244172906802",
+              "title": "Localization scoped hydration 20260720091634",
+              "handle": "localization-scoped-hydration-20260720091634",
+              "status": "DRAFT"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "collectionCreate": {
+      "request": {
+        "query": "#graphql\nmutation LocalizationScopedHydrationCollectionCreate($input: CollectionInput!) {\n  collectionCreate(input: $input) {\n    collection {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "title": "Localization scoped collection 20260720091634",
+            "handle": "localization-scoped-collection-20260720091634"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": {
+              "id": "gid://shopify/Collection/514596864306",
+              "title": "Localization scoped collection 20260720091634",
+              "handle": "localization-scoped-collection-20260720091634"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "localePrerequisites": {
+    "request": {
+      "query": "query LocalizationMutationPrerequisites { availableLocales { isoCode name } shopLocales { locale name primary published marketWebPresences { id subfolderSuffix } } }",
+      "variables": {}
+    },
+    "response": {
+      "data": {
+        "availableLocales": [
+          {
+            "isoCode": "af",
+            "name": "Afrikaans"
+          },
+          {
+            "isoCode": "ak",
+            "name": "Akan"
+          },
+          {
+            "isoCode": "sq",
+            "name": "Albanian"
+          },
+          {
+            "isoCode": "am",
+            "name": "Amharic"
+          },
+          {
+            "isoCode": "ar",
+            "name": "Arabic"
+          },
+          {
+            "isoCode": "hy",
+            "name": "Armenian"
+          },
+          {
+            "isoCode": "as",
+            "name": "Assamese"
+          },
+          {
+            "isoCode": "az",
+            "name": "Azerbaijani"
+          },
+          {
+            "isoCode": "bm",
+            "name": "Bambara"
+          },
+          {
+            "isoCode": "bn",
+            "name": "Bangla"
+          },
+          {
+            "isoCode": "eu",
+            "name": "Basque"
+          },
+          {
+            "isoCode": "be",
+            "name": "Belarusian"
+          },
+          {
+            "isoCode": "bs",
+            "name": "Bosnian"
+          },
+          {
+            "isoCode": "br",
+            "name": "Breton"
+          },
+          {
+            "isoCode": "bg",
+            "name": "Bulgarian"
+          },
+          {
+            "isoCode": "my",
+            "name": "Burmese"
+          },
+          {
+            "isoCode": "ca",
+            "name": "Catalan"
+          },
+          {
+            "isoCode": "ckb",
+            "name": "Central Kurdish"
+          },
+          {
+            "isoCode": "ce",
+            "name": "Chechen"
+          },
+          {
+            "isoCode": "zh-CN",
+            "name": "Chinese (Simplified)"
+          },
+          {
+            "isoCode": "zh-TW",
+            "name": "Chinese (Traditional)"
+          },
+          {
+            "isoCode": "kw",
+            "name": "Cornish"
+          },
+          {
+            "isoCode": "hr",
+            "name": "Croatian"
+          },
+          {
+            "isoCode": "cs",
+            "name": "Czech"
+          },
+          {
+            "isoCode": "da",
+            "name": "Danish"
+          },
+          {
+            "isoCode": "nl",
+            "name": "Dutch"
+          },
+          {
+            "isoCode": "dz",
+            "name": "Dzongkha"
+          },
+          {
+            "isoCode": "en",
+            "name": "English"
+          },
+          {
+            "isoCode": "eo",
+            "name": "Esperanto"
+          },
+          {
+            "isoCode": "et",
+            "name": "Estonian"
+          },
+          {
+            "isoCode": "ee",
+            "name": "Ewe"
+          },
+          {
+            "isoCode": "fo",
+            "name": "Faroese"
+          },
+          {
+            "isoCode": "fil",
+            "name": "Filipino"
+          },
+          {
+            "isoCode": "fi",
+            "name": "Finnish"
+          },
+          {
+            "isoCode": "fr",
+            "name": "French"
+          },
+          {
+            "isoCode": "ff",
+            "name": "Fulah"
+          },
+          {
+            "isoCode": "gl",
+            "name": "Galician"
+          },
+          {
+            "isoCode": "lg",
+            "name": "Ganda"
+          },
+          {
+            "isoCode": "ka",
+            "name": "Georgian"
+          },
+          {
+            "isoCode": "de",
+            "name": "German"
+          },
+          {
+            "isoCode": "el",
+            "name": "Greek"
+          },
+          {
+            "isoCode": "gu",
+            "name": "Gujarati"
+          },
+          {
+            "isoCode": "ha",
+            "name": "Hausa"
+          },
+          {
+            "isoCode": "he",
+            "name": "Hebrew"
+          },
+          {
+            "isoCode": "hi",
+            "name": "Hindi"
+          },
+          {
+            "isoCode": "hu",
+            "name": "Hungarian"
+          },
+          {
+            "isoCode": "is",
+            "name": "Icelandic"
+          },
+          {
+            "isoCode": "ig",
+            "name": "Igbo"
+          },
+          {
+            "isoCode": "id",
+            "name": "Indonesian"
+          },
+          {
+            "isoCode": "ia",
+            "name": "Interlingua"
+          },
+          {
+            "isoCode": "ga",
+            "name": "Irish"
+          },
+          {
+            "isoCode": "it",
+            "name": "Italian"
+          },
+          {
+            "isoCode": "ja",
+            "name": "Japanese"
+          },
+          {
+            "isoCode": "jv",
+            "name": "Javanese"
+          },
+          {
+            "isoCode": "kl",
+            "name": "Kalaallisut"
+          },
+          {
+            "isoCode": "kn",
+            "name": "Kannada"
+          },
+          {
+            "isoCode": "ks",
+            "name": "Kashmiri"
+          },
+          {
+            "isoCode": "kk",
+            "name": "Kazakh"
+          },
+          {
+            "isoCode": "km",
+            "name": "Khmer"
+          },
+          {
+            "isoCode": "ki",
+            "name": "Kikuyu"
+          },
+          {
+            "isoCode": "rw",
+            "name": "Kinyarwanda"
+          },
+          {
+            "isoCode": "ko",
+            "name": "Korean"
+          },
+          {
+            "isoCode": "ku",
+            "name": "Kurdish"
+          },
+          {
+            "isoCode": "ky",
+            "name": "Kyrgyz"
+          },
+          {
+            "isoCode": "lo",
+            "name": "Lao"
+          },
+          {
+            "isoCode": "lv",
+            "name": "Latvian"
+          },
+          {
+            "isoCode": "ln",
+            "name": "Lingala"
+          },
+          {
+            "isoCode": "lt",
+            "name": "Lithuanian"
+          },
+          {
+            "isoCode": "lu",
+            "name": "Luba-Katanga"
+          },
+          {
+            "isoCode": "lb",
+            "name": "Luxembourgish"
+          },
+          {
+            "isoCode": "mk",
+            "name": "Macedonian"
+          },
+          {
+            "isoCode": "mg",
+            "name": "Malagasy"
+          },
+          {
+            "isoCode": "ms",
+            "name": "Malay"
+          },
+          {
+            "isoCode": "ml",
+            "name": "Malayalam"
+          },
+          {
+            "isoCode": "mt",
+            "name": "Maltese"
+          },
+          {
+            "isoCode": "gv",
+            "name": "Manx"
+          },
+          {
+            "isoCode": "mr",
+            "name": "Marathi"
+          },
+          {
+            "isoCode": "mn",
+            "name": "Mongolian"
+          },
+          {
+            "isoCode": "mi",
+            "name": "Māori"
+          },
+          {
+            "isoCode": "ne",
+            "name": "Nepali"
+          },
+          {
+            "isoCode": "nd",
+            "name": "North Ndebele"
+          },
+          {
+            "isoCode": "se",
+            "name": "Northern Sami"
+          },
+          {
+            "isoCode": "no",
+            "name": "Norwegian"
+          },
+          {
+            "isoCode": "nb",
+            "name": "Norwegian (Bokmål)"
+          },
+          {
+            "isoCode": "nn",
+            "name": "Norwegian Nynorsk"
+          },
+          {
+            "isoCode": "or",
+            "name": "Odia"
+          },
+          {
+            "isoCode": "om",
+            "name": "Oromo"
+          },
+          {
+            "isoCode": "os",
+            "name": "Ossetic"
+          },
+          {
+            "isoCode": "ps",
+            "name": "Pashto"
+          },
+          {
+            "isoCode": "fa",
+            "name": "Persian"
+          },
+          {
+            "isoCode": "pl",
+            "name": "Polish"
+          },
+          {
+            "isoCode": "pt-BR",
+            "name": "Portuguese (Brazil)"
+          },
+          {
+            "isoCode": "pt-PT",
+            "name": "Portuguese (Portugal)"
+          },
+          {
+            "isoCode": "pa",
+            "name": "Punjabi"
+          },
+          {
+            "isoCode": "qu",
+            "name": "Quechua"
+          },
+          {
+            "isoCode": "ro",
+            "name": "Romanian"
+          },
+          {
+            "isoCode": "rm",
+            "name": "Romansh"
+          },
+          {
+            "isoCode": "rn",
+            "name": "Rundi"
+          },
+          {
+            "isoCode": "ru",
+            "name": "Russian"
+          },
+          {
+            "isoCode": "sg",
+            "name": "Sango"
+          },
+          {
+            "isoCode": "sa",
+            "name": "Sanskrit"
+          },
+          {
+            "isoCode": "sc",
+            "name": "Sardinian"
+          },
+          {
+            "isoCode": "gd",
+            "name": "Scottish Gaelic"
+          },
+          {
+            "isoCode": "sr",
+            "name": "Serbian"
+          },
+          {
+            "isoCode": "sn",
+            "name": "Shona"
+          },
+          {
+            "isoCode": "ii",
+            "name": "Sichuan Yi"
+          },
+          {
+            "isoCode": "sd",
+            "name": "Sindhi"
+          },
+          {
+            "isoCode": "si",
+            "name": "Sinhala"
+          },
+          {
+            "isoCode": "sk",
+            "name": "Slovak"
+          },
+          {
+            "isoCode": "sl",
+            "name": "Slovenian"
+          },
+          {
+            "isoCode": "so",
+            "name": "Somali"
+          },
+          {
+            "isoCode": "es",
+            "name": "Spanish"
+          },
+          {
+            "isoCode": "su",
+            "name": "Sundanese"
+          },
+          {
+            "isoCode": "sw",
+            "name": "Swahili"
+          },
+          {
+            "isoCode": "sv",
+            "name": "Swedish"
+          },
+          {
+            "isoCode": "tg",
+            "name": "Tajik"
+          },
+          {
+            "isoCode": "ta",
+            "name": "Tamil"
+          },
+          {
+            "isoCode": "tt",
+            "name": "Tatar"
+          },
+          {
+            "isoCode": "te",
+            "name": "Telugu"
+          },
+          {
+            "isoCode": "th",
+            "name": "Thai"
+          },
+          {
+            "isoCode": "bo",
+            "name": "Tibetan"
+          },
+          {
+            "isoCode": "ti",
+            "name": "Tigrinya"
+          },
+          {
+            "isoCode": "to",
+            "name": "Tongan"
+          },
+          {
+            "isoCode": "tr",
+            "name": "Turkish"
+          },
+          {
+            "isoCode": "tk",
+            "name": "Turkmen"
+          },
+          {
+            "isoCode": "uk",
+            "name": "Ukrainian"
+          },
+          {
+            "isoCode": "ur",
+            "name": "Urdu"
+          },
+          {
+            "isoCode": "ug",
+            "name": "Uyghur"
+          },
+          {
+            "isoCode": "uz",
+            "name": "Uzbek"
+          },
+          {
+            "isoCode": "vi",
+            "name": "Vietnamese"
+          },
+          {
+            "isoCode": "cy",
+            "name": "Welsh"
+          },
+          {
+            "isoCode": "fy",
+            "name": "Western Frisian"
+          },
+          {
+            "isoCode": "wo",
+            "name": "Wolof"
+          },
+          {
+            "isoCode": "xh",
+            "name": "Xhosa"
+          },
+          {
+            "isoCode": "yi",
+            "name": "Yiddish"
+          },
+          {
+            "isoCode": "yo",
+            "name": "Yoruba"
+          },
+          {
+            "isoCode": "zu",
+            "name": "Zulu"
+          }
+        ],
+        "shopLocales": [
+          {
+            "locale": "af",
+            "name": "Afrikaans",
+            "primary": false,
+            "published": false,
+            "marketWebPresences": []
+          },
+          {
+            "locale": "en",
+            "name": "English",
+            "primary": true,
+            "published": true,
+            "marketWebPresences": [
+              {
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "subfolderSuffix": null
+              },
+              {
+                "id": "gid://shopify/MarketWebPresence/69720899890",
+                "subfolderSuffix": "harerhkjdulik"
+              },
+              {
+                "id": "gid://shopify/MarketWebPresence/69720998194",
+                "subfolderSuffix": "harsipqvpnehc"
+              },
+              {
+                "id": "gid://shopify/MarketWebPresence/70628245810",
+                "subfolderSuffix": "harprobebb"
+              }
+            ]
+          },
+          {
+            "locale": "es",
+            "name": "Spanish",
+            "primary": false,
+            "published": false,
+            "marketWebPresences": []
+          },
+          {
+            "locale": "fr",
+            "name": "French",
+            "primary": false,
+            "published": false,
+            "marketWebPresences": []
+          },
+          {
+            "locale": "zu",
+            "name": "Zulu",
+            "primary": false,
+            "published": false,
+            "marketWebPresences": []
+          }
+        ]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "localeUpdate": {
+    "request": {
+      "query": "#graphql\nmutation LocalizationScopedHydrationShopLocaleUpdate($locale: String!, $shopLocale: ShopLocaleInput!) {\n  shopLocaleUpdate(locale: $locale, shopLocale: $shopLocale) {\n    shopLocale {\n      locale\n      name\n      primary\n      published\n      marketWebPresences {\n        id\n        subfolderSuffix\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "locale": "af",
+        "shopLocale": {
+          "published": true
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "shopLocaleUpdate": {
+          "shopLocale": {
+            "locale": "af",
+            "name": "Afrikaans",
+            "primary": false,
+            "published": true,
+            "marketWebPresences": []
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "localeDisable": {
+    "request": {
+      "query": "#graphql\nmutation LocalizationScopedHydrationShopLocaleDisable($locale: String!) {\n  shopLocaleDisable(locale: $locale) {\n    locale\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "locale": "zu"
+      }
+    },
+    "response": {
+      "data": {
+        "shopLocaleDisable": {
+          "locale": "zu",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "coldTranslationPrerequisites": {
+    "request": {
+      "query": "query LocalizationMutationPrerequisites($resourceId: ID!, $locale0: String!) { shopLocales { locale name primary published marketWebPresences { id subfolderSuffix } } translatableResource(resourceId: $resourceId) { resourceId translatableContent { key value digest locale type } translations0: translations(locale: $locale0) { key value locale outdated updatedAt market { id } } } }",
+      "variables": {
+        "resourceId": "gid://shopify/Product/10244172906802",
+        "locale0": "af"
+      }
+    },
+    "response": {
+      "data": {
+        "shopLocales": [
+          {
+            "locale": "af",
+            "name": "Afrikaans",
+            "primary": false,
+            "published": true,
+            "marketWebPresences": []
+          },
+          {
+            "locale": "en",
+            "name": "English",
+            "primary": true,
+            "published": true,
+            "marketWebPresences": [
+              {
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "subfolderSuffix": null
+              },
+              {
+                "id": "gid://shopify/MarketWebPresence/69720899890",
+                "subfolderSuffix": "harerhkjdulik"
+              },
+              {
+                "id": "gid://shopify/MarketWebPresence/69720998194",
+                "subfolderSuffix": "harsipqvpnehc"
+              },
+              {
+                "id": "gid://shopify/MarketWebPresence/70628245810",
+                "subfolderSuffix": "harprobebb"
+              }
+            ]
+          },
+          {
+            "locale": "es",
+            "name": "Spanish",
+            "primary": false,
+            "published": false,
+            "marketWebPresences": []
+          },
+          {
+            "locale": "fr",
+            "name": "French",
+            "primary": false,
+            "published": false,
+            "marketWebPresences": []
+          }
+        ],
+        "translatableResource": {
+          "resourceId": "gid://shopify/Product/10244172906802",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Localization scoped hydration 20260720091634",
+              "digest": "35dd1259f673a3f37f911c9b7dc70f1f586b90d3c222908c0f32fed57f6d5edc",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "handle",
+              "value": "localization-scoped-hydration-20260720091634",
+              "digest": "abf7a7effe8fa3de2cf0c0eb80a07060953b48cd8532729f7a3793cf2f19cbd9",
+              "locale": "en",
+              "type": "URI"
+            },
+            {
+              "key": "product_type",
+              "value": "",
+              "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            }
+          ],
+          "translations0": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "register": {
+    "request": {
+      "query": "#graphql\nmutation LocalizationScopedHydrationTranslationsRegister(\n  $resourceId: ID!\n  $translations: [TranslationInput!]!\n) {\n  translationsRegister(resourceId: $resourceId, translations: $translations) {\n    translations {\n      key\n      value\n      locale\n      outdated\n      updatedAt\n      market {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "resourceId": "gid://shopify/Product/10244172906802",
+        "translations": [
+          {
+            "locale": "af",
+            "key": "title",
+            "value": "Afrikaanse titel 20260720091634",
+            "translatableContentDigest": "35dd1259f673a3f37f911c9b7dc70f1f586b90d3c222908c0f32fed57f6d5edc"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "translationsRegister": {
+          "translations": [
+            {
+              "key": "title",
+              "value": "Afrikaanse titel 20260720091634",
+              "locale": "af",
+              "outdated": false,
+              "updatedAt": "2026-07-20T09:16:36Z",
+              "market": null
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mixedByIdsProductFirst": {
+    "request": {
+      "query": "#graphql\nquery LocalizationScopedHydrationMixedByIds($first: Int!, $resourceIds: [ID!]!) {\n  translatableResourcesByIds(first: $first, resourceIds: $resourceIds) {\n    nodes {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n      translations(locale: \"af\") {\n        key\n        value\n        locale\n        outdated\n        updatedAt\n        market {\n          id\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        resourceId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "first": 4,
+        "resourceIds": [
+          "gid://shopify/Product/10244172906802",
+          "gid://shopify/Collection/514596864306",
+          "gid://shopify/Product/10244172906802",
+          "gid://shopify/Product/99920260720091634"
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "translatableResourcesByIds": {
+          "nodes": [
+            {
+              "resourceId": "gid://shopify/Collection/514596864306",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Localization scoped collection 20260720091634",
+                  "digest": "bf89f5aa697bb1cab750975e4acbb5110578dd386cb7a93ef10bab8eba624cf9",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "localization-scoped-collection-20260720091634",
+                  "digest": "c82cd3ddeb9d5a833962c6ff00776a0281dc0d6e5549ade0adf758842360844d",
+                  "locale": "en",
+                  "type": "URI"
+                }
+              ],
+              "translations": []
+            },
+            {
+              "resourceId": "gid://shopify/Product/10244172906802",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Localization scoped hydration 20260720091634",
+                  "digest": "35dd1259f673a3f37f911c9b7dc70f1f586b90d3c222908c0f32fed57f6d5edc",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "localization-scoped-hydration-20260720091634",
+                  "digest": "abf7a7effe8fa3de2cf0c0eb80a07060953b48cd8532729f7a3793cf2f19cbd9",
+                  "locale": "en",
+                  "type": "URI"
+                },
+                {
+                  "key": "product_type",
+                  "value": "",
+                  "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                }
+              ],
+              "translations": [
+                {
+                  "key": "title",
+                  "value": "Afrikaanse titel 20260720091634",
+                  "locale": "af",
+                  "outdated": false,
+                  "updatedAt": "2026-07-20T09:16:36Z",
+                  "market": null
+                }
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjo1MTQ1OTY4NjQzMDYsImxhc3RfdmFsdWUiOjUxNDU5Njg2NDMwNn0=",
+              "node": {
+                "resourceId": "gid://shopify/Collection/514596864306"
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMDI0NDE3MjkwNjgwMiwibGFzdF92YWx1ZSI6MTAyNDQxNzI5MDY4MDJ9",
+              "node": {
+                "resourceId": "gid://shopify/Product/10244172906802"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY4NjQzMDYsImxhc3RfdmFsdWUiOjUxNDU5Njg2NDMwNn0=",
+            "endCursor": "eyJsYXN0X2lkIjoxMDI0NDE3MjkwNjgwMiwibGFzdF92YWx1ZSI6MTAyNDQxNzI5MDY4MDJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1992,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mixedByIdsCollectionFirst": {
+    "request": {
+      "query": "#graphql\nquery LocalizationScopedHydrationMixedByIds($first: Int!, $resourceIds: [ID!]!) {\n  translatableResourcesByIds(first: $first, resourceIds: $resourceIds) {\n    nodes {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n      translations(locale: \"af\") {\n        key\n        value\n        locale\n        outdated\n        updatedAt\n        market {\n          id\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        resourceId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "first": 4,
+        "resourceIds": [
+          "gid://shopify/Collection/514596864306",
+          "gid://shopify/Product/10244172906802",
+          "gid://shopify/Collection/514596864306",
+          "gid://shopify/Product/99920260720091634"
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "translatableResourcesByIds": {
+          "nodes": [
+            {
+              "resourceId": "gid://shopify/Collection/514596864306",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Localization scoped collection 20260720091634",
+                  "digest": "bf89f5aa697bb1cab750975e4acbb5110578dd386cb7a93ef10bab8eba624cf9",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "localization-scoped-collection-20260720091634",
+                  "digest": "c82cd3ddeb9d5a833962c6ff00776a0281dc0d6e5549ade0adf758842360844d",
+                  "locale": "en",
+                  "type": "URI"
+                }
+              ],
+              "translations": []
+            },
+            {
+              "resourceId": "gid://shopify/Product/10244172906802",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Localization scoped hydration 20260720091634",
+                  "digest": "35dd1259f673a3f37f911c9b7dc70f1f586b90d3c222908c0f32fed57f6d5edc",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "localization-scoped-hydration-20260720091634",
+                  "digest": "abf7a7effe8fa3de2cf0c0eb80a07060953b48cd8532729f7a3793cf2f19cbd9",
+                  "locale": "en",
+                  "type": "URI"
+                },
+                {
+                  "key": "product_type",
+                  "value": "",
+                  "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                }
+              ],
+              "translations": [
+                {
+                  "key": "title",
+                  "value": "Afrikaanse titel 20260720091634",
+                  "locale": "af",
+                  "outdated": false,
+                  "updatedAt": "2026-07-20T09:16:36Z",
+                  "market": null
+                }
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjo1MTQ1OTY4NjQzMDYsImxhc3RfdmFsdWUiOjUxNDU5Njg2NDMwNn0=",
+              "node": {
+                "resourceId": "gid://shopify/Collection/514596864306"
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMDI0NDE3MjkwNjgwMiwibGFzdF92YWx1ZSI6MTAyNDQxNzI5MDY4MDJ9",
+              "node": {
+                "resourceId": "gid://shopify/Product/10244172906802"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY4NjQzMDYsImxhc3RfdmFsdWUiOjUxNDU5Njg2NDMwNn0=",
+            "endCursor": "eyJsYXN0X2lkIjoxMDI0NDE3MjkwNjgwMiwibGFzdF92YWx1ZSI6MTAyNDQxNzI5MDY4MDJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1992,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "warmTranslationPrerequisites": {
+    "request": {
+      "query": "query LocalizationMutationPrerequisites($resourceId: ID!, $locale0: String!) { translatableResource(resourceId: $resourceId) { resourceId translatableContent { key value digest locale type } translations0: translations(locale: $locale0) { key value locale outdated updatedAt market { id } } } }",
+      "variables": {
+        "resourceId": "gid://shopify/Product/10244172906802",
+        "locale0": "af"
+      }
+    },
+    "response": {
+      "data": {
+        "translatableResource": {
+          "resourceId": "gid://shopify/Product/10244172906802",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Localization scoped hydration 20260720091634",
+              "digest": "35dd1259f673a3f37f911c9b7dc70f1f586b90d3c222908c0f32fed57f6d5edc",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "handle",
+              "value": "localization-scoped-hydration-20260720091634",
+              "digest": "abf7a7effe8fa3de2cf0c0eb80a07060953b48cd8532729f7a3793cf2f19cbd9",
+              "locale": "en",
+              "type": "URI"
+            },
+            {
+              "key": "product_type",
+              "value": "",
+              "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            }
+          ],
+          "translations0": [
+            {
+              "key": "title",
+              "value": "Afrikaanse titel 20260720091634",
+              "locale": "af",
+              "outdated": false,
+              "updatedAt": "2026-07-20T09:16:36Z",
+              "market": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "remove": {
+    "request": {
+      "query": "#graphql\nmutation LocalizationScopedHydrationTranslationsRemove(\n  $resourceId: ID!\n  $translationKeys: [String!]!\n  $locales: [String!]!\n) {\n  translationsRemove(resourceId: $resourceId, translationKeys: $translationKeys, locales: $locales) {\n    translations {\n      key\n      value\n      locale\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "resourceId": "gid://shopify/Product/10244172906802",
+        "translationKeys": ["title"],
+        "locales": ["af"]
+      }
+    },
+    "response": {
+      "data": {
+        "translationsRemove": {
+          "translations": [
+            {
+              "key": "title",
+              "value": "Afrikaanse titel 20260720091634",
+              "locale": "af"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "postRemoveRead": {
+    "request": {
+      "query": "#graphql\nquery LocalizationScopedHydrationPostRemoveRead($resourceId: ID!) {\n  translatableResource(resourceId: $resourceId) {\n    resourceId\n    translations(locale: \"af\") {\n      key\n      value\n      locale\n      outdated\n      updatedAt\n      market {\n        id\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "resourceId": "gid://shopify/Product/10244172906802"
+      }
+    },
+    "response": {
+      "data": {
+        "translatableResource": {
+          "resourceId": "gid://shopify/Product/10244172906802",
+          "translations": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "productDelete": {
+      "request": {
+        "query": "#graphql\nmutation LocalizationScopedHydrationProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10244172906802"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10244172906802",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "collectionDelete": {
+      "request": {
+        "query": "#graphql\nmutation LocalizationScopedHydrationCollectionDelete($input: CollectionDeleteInput!) {\n  collectionDelete(input: $input) {\n    deletedCollectionId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Collection/514596864306"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "collectionDelete": {
+            "deletedCollectionId": "gid://shopify/Collection/514596864306",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "translationLocale": [
+      {
+        "request": {
+          "query": "#graphql\nmutation LocalizationScopedHydrationShopLocaleDisable($locale: String!) {\n  shopLocaleDisable(locale: $locale) {\n    locale\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+          "variables": {
+            "locale": "af"
+          }
+        },
+        "response": {
+          "data": {
+            "shopLocaleDisable": {
+              "locale": "af",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "disabledLocale": []
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "LocalizationMutationPrerequisites",
+      "variables": {},
+      "query": "query LocalizationMutationPrerequisites { availableLocales { isoCode name } shopLocales { locale name primary published marketWebPresences { id subfolderSuffix } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "availableLocales": [
+              {
+                "isoCode": "af",
+                "name": "Afrikaans"
+              },
+              {
+                "isoCode": "ak",
+                "name": "Akan"
+              },
+              {
+                "isoCode": "sq",
+                "name": "Albanian"
+              },
+              {
+                "isoCode": "am",
+                "name": "Amharic"
+              },
+              {
+                "isoCode": "ar",
+                "name": "Arabic"
+              },
+              {
+                "isoCode": "hy",
+                "name": "Armenian"
+              },
+              {
+                "isoCode": "as",
+                "name": "Assamese"
+              },
+              {
+                "isoCode": "az",
+                "name": "Azerbaijani"
+              },
+              {
+                "isoCode": "bm",
+                "name": "Bambara"
+              },
+              {
+                "isoCode": "bn",
+                "name": "Bangla"
+              },
+              {
+                "isoCode": "eu",
+                "name": "Basque"
+              },
+              {
+                "isoCode": "be",
+                "name": "Belarusian"
+              },
+              {
+                "isoCode": "bs",
+                "name": "Bosnian"
+              },
+              {
+                "isoCode": "br",
+                "name": "Breton"
+              },
+              {
+                "isoCode": "bg",
+                "name": "Bulgarian"
+              },
+              {
+                "isoCode": "my",
+                "name": "Burmese"
+              },
+              {
+                "isoCode": "ca",
+                "name": "Catalan"
+              },
+              {
+                "isoCode": "ckb",
+                "name": "Central Kurdish"
+              },
+              {
+                "isoCode": "ce",
+                "name": "Chechen"
+              },
+              {
+                "isoCode": "zh-CN",
+                "name": "Chinese (Simplified)"
+              },
+              {
+                "isoCode": "zh-TW",
+                "name": "Chinese (Traditional)"
+              },
+              {
+                "isoCode": "kw",
+                "name": "Cornish"
+              },
+              {
+                "isoCode": "hr",
+                "name": "Croatian"
+              },
+              {
+                "isoCode": "cs",
+                "name": "Czech"
+              },
+              {
+                "isoCode": "da",
+                "name": "Danish"
+              },
+              {
+                "isoCode": "nl",
+                "name": "Dutch"
+              },
+              {
+                "isoCode": "dz",
+                "name": "Dzongkha"
+              },
+              {
+                "isoCode": "en",
+                "name": "English"
+              },
+              {
+                "isoCode": "eo",
+                "name": "Esperanto"
+              },
+              {
+                "isoCode": "et",
+                "name": "Estonian"
+              },
+              {
+                "isoCode": "ee",
+                "name": "Ewe"
+              },
+              {
+                "isoCode": "fo",
+                "name": "Faroese"
+              },
+              {
+                "isoCode": "fil",
+                "name": "Filipino"
+              },
+              {
+                "isoCode": "fi",
+                "name": "Finnish"
+              },
+              {
+                "isoCode": "fr",
+                "name": "French"
+              },
+              {
+                "isoCode": "ff",
+                "name": "Fulah"
+              },
+              {
+                "isoCode": "gl",
+                "name": "Galician"
+              },
+              {
+                "isoCode": "lg",
+                "name": "Ganda"
+              },
+              {
+                "isoCode": "ka",
+                "name": "Georgian"
+              },
+              {
+                "isoCode": "de",
+                "name": "German"
+              },
+              {
+                "isoCode": "el",
+                "name": "Greek"
+              },
+              {
+                "isoCode": "gu",
+                "name": "Gujarati"
+              },
+              {
+                "isoCode": "ha",
+                "name": "Hausa"
+              },
+              {
+                "isoCode": "he",
+                "name": "Hebrew"
+              },
+              {
+                "isoCode": "hi",
+                "name": "Hindi"
+              },
+              {
+                "isoCode": "hu",
+                "name": "Hungarian"
+              },
+              {
+                "isoCode": "is",
+                "name": "Icelandic"
+              },
+              {
+                "isoCode": "ig",
+                "name": "Igbo"
+              },
+              {
+                "isoCode": "id",
+                "name": "Indonesian"
+              },
+              {
+                "isoCode": "ia",
+                "name": "Interlingua"
+              },
+              {
+                "isoCode": "ga",
+                "name": "Irish"
+              },
+              {
+                "isoCode": "it",
+                "name": "Italian"
+              },
+              {
+                "isoCode": "ja",
+                "name": "Japanese"
+              },
+              {
+                "isoCode": "jv",
+                "name": "Javanese"
+              },
+              {
+                "isoCode": "kl",
+                "name": "Kalaallisut"
+              },
+              {
+                "isoCode": "kn",
+                "name": "Kannada"
+              },
+              {
+                "isoCode": "ks",
+                "name": "Kashmiri"
+              },
+              {
+                "isoCode": "kk",
+                "name": "Kazakh"
+              },
+              {
+                "isoCode": "km",
+                "name": "Khmer"
+              },
+              {
+                "isoCode": "ki",
+                "name": "Kikuyu"
+              },
+              {
+                "isoCode": "rw",
+                "name": "Kinyarwanda"
+              },
+              {
+                "isoCode": "ko",
+                "name": "Korean"
+              },
+              {
+                "isoCode": "ku",
+                "name": "Kurdish"
+              },
+              {
+                "isoCode": "ky",
+                "name": "Kyrgyz"
+              },
+              {
+                "isoCode": "lo",
+                "name": "Lao"
+              },
+              {
+                "isoCode": "lv",
+                "name": "Latvian"
+              },
+              {
+                "isoCode": "ln",
+                "name": "Lingala"
+              },
+              {
+                "isoCode": "lt",
+                "name": "Lithuanian"
+              },
+              {
+                "isoCode": "lu",
+                "name": "Luba-Katanga"
+              },
+              {
+                "isoCode": "lb",
+                "name": "Luxembourgish"
+              },
+              {
+                "isoCode": "mk",
+                "name": "Macedonian"
+              },
+              {
+                "isoCode": "mg",
+                "name": "Malagasy"
+              },
+              {
+                "isoCode": "ms",
+                "name": "Malay"
+              },
+              {
+                "isoCode": "ml",
+                "name": "Malayalam"
+              },
+              {
+                "isoCode": "mt",
+                "name": "Maltese"
+              },
+              {
+                "isoCode": "gv",
+                "name": "Manx"
+              },
+              {
+                "isoCode": "mr",
+                "name": "Marathi"
+              },
+              {
+                "isoCode": "mn",
+                "name": "Mongolian"
+              },
+              {
+                "isoCode": "mi",
+                "name": "Māori"
+              },
+              {
+                "isoCode": "ne",
+                "name": "Nepali"
+              },
+              {
+                "isoCode": "nd",
+                "name": "North Ndebele"
+              },
+              {
+                "isoCode": "se",
+                "name": "Northern Sami"
+              },
+              {
+                "isoCode": "no",
+                "name": "Norwegian"
+              },
+              {
+                "isoCode": "nb",
+                "name": "Norwegian (Bokmål)"
+              },
+              {
+                "isoCode": "nn",
+                "name": "Norwegian Nynorsk"
+              },
+              {
+                "isoCode": "or",
+                "name": "Odia"
+              },
+              {
+                "isoCode": "om",
+                "name": "Oromo"
+              },
+              {
+                "isoCode": "os",
+                "name": "Ossetic"
+              },
+              {
+                "isoCode": "ps",
+                "name": "Pashto"
+              },
+              {
+                "isoCode": "fa",
+                "name": "Persian"
+              },
+              {
+                "isoCode": "pl",
+                "name": "Polish"
+              },
+              {
+                "isoCode": "pt-BR",
+                "name": "Portuguese (Brazil)"
+              },
+              {
+                "isoCode": "pt-PT",
+                "name": "Portuguese (Portugal)"
+              },
+              {
+                "isoCode": "pa",
+                "name": "Punjabi"
+              },
+              {
+                "isoCode": "qu",
+                "name": "Quechua"
+              },
+              {
+                "isoCode": "ro",
+                "name": "Romanian"
+              },
+              {
+                "isoCode": "rm",
+                "name": "Romansh"
+              },
+              {
+                "isoCode": "rn",
+                "name": "Rundi"
+              },
+              {
+                "isoCode": "ru",
+                "name": "Russian"
+              },
+              {
+                "isoCode": "sg",
+                "name": "Sango"
+              },
+              {
+                "isoCode": "sa",
+                "name": "Sanskrit"
+              },
+              {
+                "isoCode": "sc",
+                "name": "Sardinian"
+              },
+              {
+                "isoCode": "gd",
+                "name": "Scottish Gaelic"
+              },
+              {
+                "isoCode": "sr",
+                "name": "Serbian"
+              },
+              {
+                "isoCode": "sn",
+                "name": "Shona"
+              },
+              {
+                "isoCode": "ii",
+                "name": "Sichuan Yi"
+              },
+              {
+                "isoCode": "sd",
+                "name": "Sindhi"
+              },
+              {
+                "isoCode": "si",
+                "name": "Sinhala"
+              },
+              {
+                "isoCode": "sk",
+                "name": "Slovak"
+              },
+              {
+                "isoCode": "sl",
+                "name": "Slovenian"
+              },
+              {
+                "isoCode": "so",
+                "name": "Somali"
+              },
+              {
+                "isoCode": "es",
+                "name": "Spanish"
+              },
+              {
+                "isoCode": "su",
+                "name": "Sundanese"
+              },
+              {
+                "isoCode": "sw",
+                "name": "Swahili"
+              },
+              {
+                "isoCode": "sv",
+                "name": "Swedish"
+              },
+              {
+                "isoCode": "tg",
+                "name": "Tajik"
+              },
+              {
+                "isoCode": "ta",
+                "name": "Tamil"
+              },
+              {
+                "isoCode": "tt",
+                "name": "Tatar"
+              },
+              {
+                "isoCode": "te",
+                "name": "Telugu"
+              },
+              {
+                "isoCode": "th",
+                "name": "Thai"
+              },
+              {
+                "isoCode": "bo",
+                "name": "Tibetan"
+              },
+              {
+                "isoCode": "ti",
+                "name": "Tigrinya"
+              },
+              {
+                "isoCode": "to",
+                "name": "Tongan"
+              },
+              {
+                "isoCode": "tr",
+                "name": "Turkish"
+              },
+              {
+                "isoCode": "tk",
+                "name": "Turkmen"
+              },
+              {
+                "isoCode": "uk",
+                "name": "Ukrainian"
+              },
+              {
+                "isoCode": "ur",
+                "name": "Urdu"
+              },
+              {
+                "isoCode": "ug",
+                "name": "Uyghur"
+              },
+              {
+                "isoCode": "uz",
+                "name": "Uzbek"
+              },
+              {
+                "isoCode": "vi",
+                "name": "Vietnamese"
+              },
+              {
+                "isoCode": "cy",
+                "name": "Welsh"
+              },
+              {
+                "isoCode": "fy",
+                "name": "Western Frisian"
+              },
+              {
+                "isoCode": "wo",
+                "name": "Wolof"
+              },
+              {
+                "isoCode": "xh",
+                "name": "Xhosa"
+              },
+              {
+                "isoCode": "yi",
+                "name": "Yiddish"
+              },
+              {
+                "isoCode": "yo",
+                "name": "Yoruba"
+              },
+              {
+                "isoCode": "zu",
+                "name": "Zulu"
+              }
+            ],
+            "shopLocales": [
+              {
+                "locale": "af",
+                "name": "Afrikaans",
+                "primary": false,
+                "published": false,
+                "marketWebPresences": []
+              },
+              {
+                "locale": "en",
+                "name": "English",
+                "primary": true,
+                "published": true,
+                "marketWebPresences": [
+                  {
+                    "id": "gid://shopify/MarketWebPresence/62842765618",
+                    "subfolderSuffix": null
+                  },
+                  {
+                    "id": "gid://shopify/MarketWebPresence/69720899890",
+                    "subfolderSuffix": "harerhkjdulik"
+                  },
+                  {
+                    "id": "gid://shopify/MarketWebPresence/69720998194",
+                    "subfolderSuffix": "harsipqvpnehc"
+                  },
+                  {
+                    "id": "gid://shopify/MarketWebPresence/70628245810",
+                    "subfolderSuffix": "harprobebb"
+                  }
+                ]
+              },
+              {
+                "locale": "es",
+                "name": "Spanish",
+                "primary": false,
+                "published": false,
+                "marketWebPresences": []
+              },
+              {
+                "locale": "fr",
+                "name": "French",
+                "primary": false,
+                "published": false,
+                "marketWebPresences": []
+              },
+              {
+                "locale": "zu",
+                "name": "Zulu",
+                "primary": false,
+                "published": false,
+                "marketWebPresences": []
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "LocalizationMutationPrerequisites",
+      "variables": {
+        "resourceId": "gid://shopify/Product/10244172906802",
+        "locale0": "af"
+      },
+      "query": "query LocalizationMutationPrerequisites($resourceId: ID!, $locale0: String!) { shopLocales { locale name primary published marketWebPresences { id subfolderSuffix } } translatableResource(resourceId: $resourceId) { resourceId translatableContent { key value digest locale type } translations0: translations(locale: $locale0) { key value locale outdated updatedAt market { id } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopLocales": [
+              {
+                "locale": "af",
+                "name": "Afrikaans",
+                "primary": false,
+                "published": true,
+                "marketWebPresences": []
+              },
+              {
+                "locale": "en",
+                "name": "English",
+                "primary": true,
+                "published": true,
+                "marketWebPresences": [
+                  {
+                    "id": "gid://shopify/MarketWebPresence/62842765618",
+                    "subfolderSuffix": null
+                  },
+                  {
+                    "id": "gid://shopify/MarketWebPresence/69720899890",
+                    "subfolderSuffix": "harerhkjdulik"
+                  },
+                  {
+                    "id": "gid://shopify/MarketWebPresence/69720998194",
+                    "subfolderSuffix": "harsipqvpnehc"
+                  },
+                  {
+                    "id": "gid://shopify/MarketWebPresence/70628245810",
+                    "subfolderSuffix": "harprobebb"
+                  }
+                ]
+              },
+              {
+                "locale": "es",
+                "name": "Spanish",
+                "primary": false,
+                "published": false,
+                "marketWebPresences": []
+              },
+              {
+                "locale": "fr",
+                "name": "French",
+                "primary": false,
+                "published": false,
+                "marketWebPresences": []
+              }
+            ],
+            "translatableResource": {
+              "resourceId": "gid://shopify/Product/10244172906802",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Localization scoped hydration 20260720091634",
+                  "digest": "35dd1259f673a3f37f911c9b7dc70f1f586b90d3c222908c0f32fed57f6d5edc",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "localization-scoped-hydration-20260720091634",
+                  "digest": "abf7a7effe8fa3de2cf0c0eb80a07060953b48cd8532729f7a3793cf2f19cbd9",
+                  "locale": "en",
+                  "type": "URI"
+                },
+                {
+                  "key": "product_type",
+                  "value": "",
+                  "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                }
+              ],
+              "translations0": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "LocalizationScopedHydrationMixedByIds",
+      "variables": {
+        "first": 4,
+        "resourceIds": [
+          "gid://shopify/Product/10244172906802",
+          "gid://shopify/Collection/514596864306",
+          "gid://shopify/Product/10244172906802",
+          "gid://shopify/Product/99920260720091634"
+        ]
+      },
+      "query": "#graphql\nquery LocalizationScopedHydrationMixedByIds($first: Int!, $resourceIds: [ID!]!) {\n  translatableResourcesByIds(first: $first, resourceIds: $resourceIds) {\n    nodes {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n      translations(locale: \"af\") {\n        key\n        value\n        locale\n        outdated\n        updatedAt\n        market {\n          id\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        resourceId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "translatableResourcesByIds": {
+              "nodes": [
+                {
+                  "resourceId": "gid://shopify/Collection/514596864306",
+                  "translatableContent": [
+                    {
+                      "key": "title",
+                      "value": "Localization scoped collection 20260720091634",
+                      "digest": "bf89f5aa697bb1cab750975e4acbb5110578dd386cb7a93ef10bab8eba624cf9",
+                      "locale": "en",
+                      "type": "SINGLE_LINE_TEXT_FIELD"
+                    },
+                    {
+                      "key": "handle",
+                      "value": "localization-scoped-collection-20260720091634",
+                      "digest": "c82cd3ddeb9d5a833962c6ff00776a0281dc0d6e5549ade0adf758842360844d",
+                      "locale": "en",
+                      "type": "URI"
+                    }
+                  ],
+                  "translations": []
+                },
+                {
+                  "resourceId": "gid://shopify/Product/10244172906802",
+                  "translatableContent": [
+                    {
+                      "key": "title",
+                      "value": "Localization scoped hydration 20260720091634",
+                      "digest": "35dd1259f673a3f37f911c9b7dc70f1f586b90d3c222908c0f32fed57f6d5edc",
+                      "locale": "en",
+                      "type": "SINGLE_LINE_TEXT_FIELD"
+                    },
+                    {
+                      "key": "handle",
+                      "value": "localization-scoped-hydration-20260720091634",
+                      "digest": "abf7a7effe8fa3de2cf0c0eb80a07060953b48cd8532729f7a3793cf2f19cbd9",
+                      "locale": "en",
+                      "type": "URI"
+                    },
+                    {
+                      "key": "product_type",
+                      "value": "",
+                      "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "locale": "en",
+                      "type": "SINGLE_LINE_TEXT_FIELD"
+                    }
+                  ],
+                  "translations": [
+                    {
+                      "key": "title",
+                      "value": "Afrikaanse titel 20260720091634",
+                      "locale": "af",
+                      "outdated": false,
+                      "updatedAt": "2026-07-20T09:16:36Z",
+                      "market": null
+                    }
+                  ]
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo1MTQ1OTY4NjQzMDYsImxhc3RfdmFsdWUiOjUxNDU5Njg2NDMwNn0=",
+                  "node": {
+                    "resourceId": "gid://shopify/Collection/514596864306"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDI0NDE3MjkwNjgwMiwibGFzdF92YWx1ZSI6MTAyNDQxNzI5MDY4MDJ9",
+                  "node": {
+                    "resourceId": "gid://shopify/Product/10244172906802"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY4NjQzMDYsImxhc3RfdmFsdWUiOjUxNDU5Njg2NDMwNn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMDI0NDE3MjkwNjgwMiwibGFzdF92YWx1ZSI6MTAyNDQxNzI5MDY4MDJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "LocalizationScopedHydrationMixedByIds",
+      "variables": {
+        "first": 4,
+        "resourceIds": [
+          "gid://shopify/Collection/514596864306",
+          "gid://shopify/Product/10244172906802",
+          "gid://shopify/Collection/514596864306",
+          "gid://shopify/Product/99920260720091634"
+        ]
+      },
+      "query": "#graphql\nquery LocalizationScopedHydrationMixedByIds($first: Int!, $resourceIds: [ID!]!) {\n  translatableResourcesByIds(first: $first, resourceIds: $resourceIds) {\n    nodes {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n      translations(locale: \"af\") {\n        key\n        value\n        locale\n        outdated\n        updatedAt\n        market {\n          id\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        resourceId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "translatableResourcesByIds": {
+              "nodes": [
+                {
+                  "resourceId": "gid://shopify/Collection/514596864306",
+                  "translatableContent": [
+                    {
+                      "key": "title",
+                      "value": "Localization scoped collection 20260720091634",
+                      "digest": "bf89f5aa697bb1cab750975e4acbb5110578dd386cb7a93ef10bab8eba624cf9",
+                      "locale": "en",
+                      "type": "SINGLE_LINE_TEXT_FIELD"
+                    },
+                    {
+                      "key": "handle",
+                      "value": "localization-scoped-collection-20260720091634",
+                      "digest": "c82cd3ddeb9d5a833962c6ff00776a0281dc0d6e5549ade0adf758842360844d",
+                      "locale": "en",
+                      "type": "URI"
+                    }
+                  ],
+                  "translations": []
+                },
+                {
+                  "resourceId": "gid://shopify/Product/10244172906802",
+                  "translatableContent": [
+                    {
+                      "key": "title",
+                      "value": "Localization scoped hydration 20260720091634",
+                      "digest": "35dd1259f673a3f37f911c9b7dc70f1f586b90d3c222908c0f32fed57f6d5edc",
+                      "locale": "en",
+                      "type": "SINGLE_LINE_TEXT_FIELD"
+                    },
+                    {
+                      "key": "handle",
+                      "value": "localization-scoped-hydration-20260720091634",
+                      "digest": "abf7a7effe8fa3de2cf0c0eb80a07060953b48cd8532729f7a3793cf2f19cbd9",
+                      "locale": "en",
+                      "type": "URI"
+                    },
+                    {
+                      "key": "product_type",
+                      "value": "",
+                      "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "locale": "en",
+                      "type": "SINGLE_LINE_TEXT_FIELD"
+                    }
+                  ],
+                  "translations": [
+                    {
+                      "key": "title",
+                      "value": "Afrikaanse titel 20260720091634",
+                      "locale": "af",
+                      "outdated": false,
+                      "updatedAt": "2026-07-20T09:16:36Z",
+                      "market": null
+                    }
+                  ]
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo1MTQ1OTY4NjQzMDYsImxhc3RfdmFsdWUiOjUxNDU5Njg2NDMwNn0=",
+                  "node": {
+                    "resourceId": "gid://shopify/Collection/514596864306"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDI0NDE3MjkwNjgwMiwibGFzdF92YWx1ZSI6MTAyNDQxNzI5MDY4MDJ9",
+                  "node": {
+                    "resourceId": "gid://shopify/Product/10244172906802"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY4NjQzMDYsImxhc3RfdmFsdWUiOjUxNDU5Njg2NDMwNn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMDI0NDE3MjkwNjgwMiwibGFzdF92YWx1ZSI6MTAyNDQxNzI5MDY4MDJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "LocalizationMutationPrerequisites",
+      "variables": {
+        "resourceId": "gid://shopify/Product/10244172906802",
+        "locale0": "af"
+      },
+      "query": "query LocalizationMutationPrerequisites($resourceId: ID!, $locale0: String!) { translatableResource(resourceId: $resourceId) { resourceId translatableContent { key value digest locale type } translations0: translations(locale: $locale0) { key value locale outdated updatedAt market { id } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "translatableResource": {
+              "resourceId": "gid://shopify/Product/10244172906802",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Localization scoped hydration 20260720091634",
+                  "digest": "35dd1259f673a3f37f911c9b7dc70f1f586b90d3c222908c0f32fed57f6d5edc",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "localization-scoped-hydration-20260720091634",
+                  "digest": "abf7a7effe8fa3de2cf0c0eb80a07060953b48cd8532729f7a3793cf2f19cbd9",
+                  "locale": "en",
+                  "type": "URI"
+                },
+                {
+                  "key": "product_type",
+                  "value": "",
+                  "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                }
+              ],
+              "translations0": [
+                {
+                  "key": "title",
+                  "value": "Afrikaanse titel 20260720091634",
+                  "locale": "af",
+                  "outdated": false,
+                  "updatedAt": "2026-07-20T09:16:36Z",
+                  "market": null
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "LocalizationScopedHydrationPostRemoveRead",
+      "variables": {
+        "resourceId": "gid://shopify/Product/10244172906802"
+      },
+      "query": "#graphql\nquery LocalizationScopedHydrationPostRemoveRead($resourceId: ID!) {\n  translatableResource(resourceId: $resourceId) {\n    resourceId\n    translations(locale: \"af\") {\n      key\n      value\n      locale\n      outdated\n      updatedAt\n      market {\n        id\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "translatableResource": {
+              "resourceId": "gid://shopify/Product/10244172906802",
+              "translations": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

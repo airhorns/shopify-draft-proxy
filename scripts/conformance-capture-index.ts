@@ -5493,6 +5493,35 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-scoped-hydration-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-scoped-hydration-conformance.mts',
+    purpose:
+      'Argument-scoped locale and translation mutation prerequisite hydration plus mixed Product/Collection translatableResourcesByIds ordering, deduplication, and confirmed-miss behavior.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_translations',
+      'write_translations',
+      'read_locales',
+      'write_locales',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-scoped-hydration-lifecycle.json`,
+      'config/parity-specs/localization/localization-scoped-hydration-lifecycle.json',
+      'config/parity-requests/localization/localization-scoped-hydration-shop-locale-update.graphql',
+      'config/parity-requests/localization/localization-scoped-hydration-shop-locale-disable.graphql',
+      'config/parity-requests/localization/localization-scoped-hydration-translations-register.graphql',
+      'config/parity-requests/localization/localization-scoped-hydration-mixed-by-ids.graphql',
+      'config/parity-requests/localization/localization-scoped-hydration-translations-remove.graphql',
+      'config/parity-requests/localization/localization-scoped-hydration-post-remove-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable Product and Collection, temporarily enables Afrikaans and Zulu when absent, captures locale update/disable and Product translation register/remove behavior, deletes both resources, and restores both locales to their exact pre-capture enabled, published, and MarketWebPresence state.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-translatable-resources-reverse',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-translatable-resources-reverse-conformance.mts',

@@ -10,12 +10,8 @@ translatable-resource, and translation roots.
 
 ### Supported roots
 
-The current Rust operation registry does not mark any localization root as fully
-implemented. Registry presence is a local-model commitment only; it is not a
-claim that the whole localization lifecycle is supported for arbitrary
-documents.
-
-The registry-only read roots are:
+The operation registry routes these read roots to the local Rust model and
+declares executable runtime coverage for them:
 
 - `availableLocales`
 - `shopLocales`
@@ -23,7 +19,7 @@ The registry-only read roots are:
 - `translatableResources`
 - `translatableResourcesByIds`
 
-The registry-only mutation roots are:
+These mutations also route locally and have executable runtime coverage:
 
 - `shopLocaleEnable`
 - `shopLocaleUpdate`
@@ -31,17 +27,26 @@ The registry-only mutation roots are:
 - `translationsRegister`
 - `translationsRemove`
 
+Support is scoped to the locale and Product/Collection translation behavior
+described below. Registry implementation means the roots do not 501 or write to
+Shopify during ordinary handling; it is not a claim of complete coverage for
+every `TranslatableResourceType`.
+
 ### Local behavior
 
-The Rust runtime has a store-backed locale-catalog slice plus scenario-backed
-translation branches for parity requests and runtime tests.
-`availableLocales` and `shopLocales` project from the proxy store's baseline
-locale state plus staged shop-locale rows; plain catalog reads are not selected
-by document name. The runtime stages selected `shopLocaleEnable`,
+The Rust runtime has store-backed locale catalogs, canonical translatable
+resource observations, and staged locale/translation overlays.
+`availableLocales` and `shopLocales` project from the proxy store's baseline or
+argument-scoped LiveHybrid observations plus staged shop-locale rows; plain
+catalog reads are not selected by document name. Completeness is tracked per
+root and normalized arguments/selection, so observing `availableLocales`, one
+`shopLocales(published:)` filter, or one resource never suppresses an unrelated
+cold read. The runtime stages `shopLocaleEnable`,
 `shopLocaleUpdate`, and `shopLocaleDisable` requests locally, and exposes
 downstream `shopLocales` read-after-write behavior for the staged locale rows.
-Supported staged shop-locale mutations append replay-ready mutation-log entries
-with the original raw GraphQL request.
+Only effective staged changes append the original raw GraphQL request for
+ordered commit replay; validation failures and successful no-stage results do
+not enter the mutation log.
 
 The staged shop-locale slice rejects primary-locale mutation attempts,
 unsupported locale codes, duplicate enables, missing locales whenever
@@ -54,9 +59,11 @@ as a top-level GraphQL `undefinedField` validation error.
 Market-web-presence IDs are filtered to known local, staged, captured, or
 upstream-hydrated WebPresence IDs, and accepted rows project selected
 `marketWebPresences`, `defaultLocale`, and locale scalar fields. In LiveHybrid
-mode, localization mutation preflight hydrates referenced `Market` and
-`MarketWebPresence` target IDs before local shop-locale and market-scoped
-translation validation.
+mode, locale mutation preflight uses one query-only batch for the authoritative
+locale catalog and only referenced, still-unknown `MarketWebPresence` IDs before
+local validation. Translation mutation preflight similarly batches the exact
+resource, locale, translation scope, and unknown Market prerequisites. These
+preflights never forward the mutation to Shopify.
 For `shopLocaleUpdate`, the primary-locale guard uses the primary row in the
 proxy's baseline plus staged shop-locale state and applies when the input
 supplies a non-null `published` value, whether `true` or `false`;
@@ -85,11 +92,15 @@ removed rows. Staged `Translation` rows include a synthetic DateTime-shaped
 `updatedAt` value from the proxy's mutation clock in the `translationsRegister`
 echo and in downstream `translatableResource(...).translations` reads;
 re-registering an existing row refreshes that timestamp. Validation failures
-that do not stage rows leave existing staged timestamps unchanged.
+that do not stage rows leave existing staged timestamps, allocators, and replay
+log unchanged. Partially successful registration appends exactly one replay
+entry when at least one row stages.
 `translationsRemove` removes every requested
-translation-key/locale/market combination that exists in staged state. An empty
+translation-key/locale/market combination that exists in the authoritative
+observed baseline or staged state, and records tombstones so removed baseline
+rows stay absent. An empty
 `translationKeys` list matches no rows and returns Shopify's no-op
-`translations: null, userErrors: []` payload.
+`translations: null, userErrors: []` payload without entering replay.
 For `handle` translations, normalization lowercases ASCII alphanumerics,
 collapses separators to single dashes, trims edge dashes, and uses a
 deterministic `localized-<hash>` fallback derived from the submitted value when
@@ -132,26 +143,46 @@ Unknown or omitted singular `translatableResource` IDs return `null`, and
 empty `translatableResources` connections remain empty instead of fabricating a
 default resource ID. `translatableResources(first:/last:/after:/before:,
 reverse:)` applies `reverse` to the local resource-ID order before computing
-the requested cursor window and selected `pageInfo`.
+the requested cursor window and selected `pageInfo`. In LiveHybrid mode, cold
+reads forward the caller's complete document once per request and cache only
+the exact completed root scope. Staged insertions, updates, and tombstones are
+overlaid on the observed window. If a tombstone underfills a partial page, the
+runtime issues at most one adjacent-cursor refill sized to the missing rows plus
+relevant staged removals, preserving upstream opaque cursors and page
+boundaries instead of hydrating the complete catalog.
 
-Collection translation lifecycle and market-scoped translation read support
-remain fixture-backed. Product and product-metafield translation behavior has
-runtime coverage for guardrails that the generic parity replay cannot isolate
-cleanly.
+`translatableResourcesByIds` forwards one batched caller document for unknown
+IDs, deduplicates repeated IDs, preserves the Shopify-observed canonical order
+when applying the effective local overlay, omits confirmed missing resources
+with Shopify's empty-connection/null semantics, and caches proven misses. A
+captured mixed Product/Collection request returned Collection then Product for
+both caller input orders. The runtime retains that observed connection order
+instead of sorting staged overlays by the input list. It does not issue per-ID
+hydration calls.
+Observed resources and translations remain separate from canonical
+Product/Collection records, so a narrow localization selection cannot erase
+unselected product or collection fields. Dump/restore preserves observations,
+exact completeness scopes, staged rows, tombstones, counters, and mutation log;
+reset clears the resettable observations and overlays while retaining the
+configured snapshot baseline.
+
+Product and Collection source-content and translation lifecycles have runtime
+coverage plus captured Shopify comparisons for the documented validation and
+read-after-write slices. Generic observed resources can retain captured
+translatable content and translations, but their resource-specific validation
+rules remain partial unless listed above.
 
 ### Boundaries
 
-- Localization roots are handled locally for the modeled request families and are
-  marked `implemented` in the operation registry (i.e. they answer locally rather
-  than 501), but that flag is not a broad-support claim: documents outside the
-  modeled request families fall through to passthrough and must not be treated as
-  supported local behavior.
+- Localization roots are handled locally and marked `implemented` in the
+  operation registry. Unmodeled resource families return the documented
+  null/empty/user-error boundary; registered localization mutations do not fall
+  through to runtime Shopify writes.
 - `TranslatableResource` support is limited to product, collection, and
   product-metafield evidence. Product existence checks use localization baseline
-  resources and normalized product state; collection and product-metafield
-  translation scenarios remain fixture-backed. Other resource families return
-  null/empty results and do not emit synthetic `title` content until local
-  lifecycle behavior is modeled.
+  resources, normalized Product/Collection state, and exact upstream
+  observations. Other resource families return null/empty results and do not
+  emit synthetic `title` content until local lifecycle behavior is modeled.
 - Validation-only localization specs prove guardrail payloads and no-stage
   behavior for those inputs only. They do not make unmodeled translation or
   resource families generally supported.

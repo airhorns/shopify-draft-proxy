@@ -1269,6 +1269,82 @@ impl DraftProxy {
             snapshot["stagedState"]["localizationTranslations"] =
                 json!(self.store.staged.localization_translations.clone());
         }
+        if !self.store.staged.observed_available_locales.is_empty() {
+            snapshot["stagedState"]["observedAvailableLocales"] =
+                json!(self.store.staged.observed_available_locales.clone());
+        }
+        if !self.store.staged.observed_shop_locales.is_empty() {
+            snapshot["stagedState"]["observedShopLocales"] =
+                json!(self.store.staged.observed_shop_locales.clone());
+        }
+        if !self.store.staged.observed_translatable_resources.is_empty() {
+            snapshot["stagedState"]["observedTranslatableResources"] =
+                json!(self.store.staged.observed_translatable_resources.clone());
+        }
+        if !self
+            .store
+            .staged
+            .observed_localization_translations
+            .is_empty()
+        {
+            snapshot["stagedState"]["observedLocalizationTranslations"] =
+                json!(self.store.staged.observed_localization_translations.clone());
+        }
+        if !self
+            .store
+            .staged
+            .missing_translatable_resource_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["missingTranslatableResourceIds"] = json!(self
+                .store
+                .staged
+                .missing_translatable_resource_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self.store.staged.localization_complete_scopes.is_empty() {
+            snapshot["stagedState"]["localizationCompleteScopes"] = json!(self
+                .store
+                .staged
+                .localization_complete_scopes
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self
+            .store
+            .staged
+            .localization_observed_read_values
+            .is_empty()
+        {
+            snapshot["stagedState"]["localizationObservedReadValues"] =
+                json!(self.store.staged.localization_observed_read_values.clone());
+        }
+        if !self.store.staged.deleted_shop_locale_codes.is_empty() {
+            snapshot["stagedState"]["deletedShopLocaleCodes"] = json!(self
+                .store
+                .staged
+                .deleted_shop_locale_codes
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self
+            .store
+            .staged
+            .localization_translation_tombstones
+            .is_empty()
+        {
+            snapshot["stagedState"]["localizationTranslationTombstones"] = json!(self
+                .store
+                .staged
+                .localization_translation_tombstones
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.localization_resources.is_empty() {
             snapshot["stagedState"]["localizationResources"] =
                 json!(self.store.staged.localization_resources.clone());
@@ -2807,6 +2883,53 @@ impl DraftProxy {
             .as_array()
             .cloned()
             .unwrap_or_default();
+        self.store.staged.observed_available_locales = state["stagedState"]
+            .get("observedAvailableLocales")
+            .and_then(Value::as_object)
+            .map(|locales| {
+                locales
+                    .iter()
+                    .filter_map(|(locale, name)| {
+                        name.as_str().map(|name| (locale.clone(), name.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.observed_shop_locales =
+            value_map_from_json(state["stagedState"].get("observedShopLocales"));
+        self.store.staged.observed_translatable_resources =
+            value_map_from_json(state["stagedState"].get("observedTranslatableResources"));
+        self.store.staged.observed_localization_translations = state["stagedState"]
+            .get("observedLocalizationTranslations")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        self.store.staged.missing_translatable_resource_ids = state["stagedState"]
+            .get("missingTranslatableResourceIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.localization_complete_scopes = state["stagedState"]
+            .get("localizationCompleteScopes")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.localization_observed_read_values =
+            value_map_from_json(state["stagedState"].get("localizationObservedReadValues"));
+        self.store.staged.deleted_shop_locale_codes = state["stagedState"]
+            .get("deletedShopLocaleCodes")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.localization_translation_tombstones = state["stagedState"]
+            .get("localizationTranslationTombstones")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.localization_resources = state["stagedState"]["localizationResources"]
             .as_object()
             .map(|resources| {
