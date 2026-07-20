@@ -255,5 +255,105 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreBlogHandleReservationHydrate",
+      "query": "query OnlineStoreBlogHandleReservationHydrate($query: String!, $after: String) {\n  blogs(first: 250, after: $after, query: $query) {\n    nodes {\n      __typename\n      id\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "after": null,
+        "query": "handle:article-blog-not-found-blog-20260507155829"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "blogs": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreBlogMutationHydrate",
+      "query": "query OnlineStoreBlogMutationHydrate($id: ID!, $after: String) {\n  blog(id: $id) {\n    __typename\n    id\n    title\n    handle\n    commentPolicy\n    tags\n    templateSuffix\n    createdAt\n    updatedAt\n    articlesCount {\n      count\n      precision\n    }\n    metafields(first: 250, after: $after) {\n      nodes {\n        __typename\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "after": null,
+        "id": "gid://shopify/Blog/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "blog": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreBlogMutationHydrate",
+      "query": "query OnlineStoreBlogMutationHydrate($id: ID!, $after: String) {\n  blog(id: $id) {\n    __typename\n    id\n    title\n    handle\n    commentPolicy\n    tags\n    templateSuffix\n    createdAt\n    updatedAt\n    articlesCount {\n      count\n      precision\n    }\n    metafields(first: 250, after: $after) {\n      nodes {\n        __typename\n        id\n        namespace\n        key\n        type\n        value\n        jsonValue\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "after": null,
+        "id": "gid://shopify/Blog/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "blog": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
