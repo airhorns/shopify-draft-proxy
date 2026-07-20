@@ -508,6 +508,12 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         load_fulfillment_return,
     ),
     node_entry!(
+        "SavedSearch",
+        "Store::saved_search_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+        load_saved_search,
+    ),
+    node_entry!(
         "Segment",
         "Store::segment_by_id",
         NodeResolverBehavior::ProjectLocalRecord,

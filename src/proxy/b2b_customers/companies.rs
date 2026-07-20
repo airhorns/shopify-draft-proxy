@@ -2181,15 +2181,29 @@ impl DraftProxy {
         id
     }
 
-    /// Handles companyAssignCustomerAsContact against locally-staged b2b state.
-    /// Returns None when the target company is not in local state, so callers can
-    /// defer to other handlers that may own non-B2B company fixtures.
+    /// Handles companyAssignCustomerAsContact against staged or hydrated B2B state.
+    /// A cold LiveHybrid prerequisite miss is authoritative for this supported root,
+    /// so it returns Shopify's company-first not-found payload instead of falling
+    /// through to an unrelated compatibility handler.
     pub(in crate::proxy) fn b2b_assign_customer_as_contact_outcome(
         &mut self,
         field: &B2bRootInput,
     ) -> Option<ResolverOutcome<Value>> {
         let company_id = resolved_string_field(&field.arguments, "companyId")?;
-        let _ = self.b2b_effective_company(&company_id)?;
+        if self.b2b_effective_company(&company_id).is_none() {
+            let error = b2b_company_user_error(
+                vec!["companyId"],
+                "Company does not exist.",
+                "RESOURCE_NOT_FOUND",
+                None,
+            );
+            return Some(b2b_resolver_outcome(
+                json!({ "companyContact": null, "userErrors": [error] }),
+                &field.name,
+                "failed",
+                Vec::new(),
+            ));
+        }
         let (payload, status, staged_ids) =
             self.b2b_company_assign_customer_as_contact_payload(field);
         if status == "staged" {
@@ -4693,6 +4707,28 @@ impl DraftProxy {
             .or_else(|| self.store.base.b2b_contacts.get(id).cloned())
     }
 
+    pub(in crate::proxy) fn b2b_contacts_for_customer(&self, customer_id: &str) -> Vec<Value> {
+        let mut contacts = Vec::new();
+        let mut seen = BTreeSet::new();
+        for id in &self.store.base.b2b_contacts.order {
+            if let Some(contact) = self.b2b_effective_contact(id) {
+                seen.insert(id.clone());
+                if contact["customerId"].as_str() == Some(customer_id) {
+                    contacts.push(contact);
+                }
+            }
+        }
+        for (id, contact) in &self.store.staged.b2b_contacts {
+            if seen.contains(id) || self.store.staged.deleted_b2b_contact_ids.contains(id) {
+                continue;
+            }
+            if contact["customerId"].as_str() == Some(customer_id) {
+                contacts.push(contact.clone());
+            }
+        }
+        contacts
+    }
+
     fn b2b_effective_contact_role(&self, id: &str) -> Option<Value> {
         self.store
             .staged
@@ -6674,6 +6710,7 @@ fn b2b_sort_key_with_id(mut first: StagedSortValue, record: &Value) -> StagedSor
 fn b2b_id_sort_key(record: &Value) -> StagedSortKey {
     let id = record["id"].as_str().unwrap_or_default();
     vec![
+        StagedSortValue::I64(i64::from(is_synthetic_gid(id))),
         resource_id_tail(id)
             .parse::<i64>()
             .map(StagedSortValue::I64)

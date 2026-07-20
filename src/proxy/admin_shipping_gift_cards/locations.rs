@@ -2086,6 +2086,120 @@ pub(in crate::proxy) fn country_name_for_code(country_code: &str) -> Option<&'st
         .find_map(|(candidate, name)| (*candidate == country_code).then_some(*name))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::proxy) enum CountryAddressSupport {
+    Supported,
+    Unsupported,
+    Missing,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::proxy) struct CountryAddressRequirements {
+    pub last_name: bool,
+    pub address1: bool,
+    pub province: bool,
+    pub postal_code: bool,
+    pub city: bool,
+    pub support: CountryAddressSupport,
+}
+
+const STRICT_ADDRESS_PROVINCE_COUNTRIES: &[&str] = &[
+    "AR", "AU", "BR", "CA", "CL", "CN", "CO", "CR", "EG", "SV", "GT", "HK", "IN", "ID", "IE", "IT",
+    "JP", "KW", "MY", "MX", "NG", "PA", "PE", "PH", "PT", "RO", "RU", "ZA", "KR", "ES", "TH", "AE",
+    "US", "UY", "VE",
+];
+
+const STRICT_ADDRESS_POSTAL_OPTIONAL_COUNTRIES: &[&str] = &[
+    "AF", "AL", "DZ", "AO", "AI", "AG", "AM", "AW", "AC", "AZ", "BS", "BH", "BD", "BB", "BY", "BZ",
+    "BJ", "BT", "BO", "BW", "BV", "IO", "BF", "BI", "KH", "CV", "BQ", "KY", "CF", "TD", "CL", "CX",
+    "CC", "CO", "KM", "CG", "CD", "CK", "CR", "CU", "CW", "CI", "DJ", "DM", "DO", "EC", "EG", "SV",
+    "GQ", "ER", "SZ", "ET", "FK", "FJ", "TF", "GA", "GM", "GH", "GI", "GD", "GT", "GN", "GW", "GY",
+    "HT", "HM", "VA", "HN", "HK", "IR", "IQ", "IL", "JM", "JO", "KZ", "KE", "KI", "KP", "XK", "KW",
+    "KG", "LA", "LB", "LS", "LR", "LY", "MO", "MW", "MV", "ML", "MR", "MU", "MD", "MN", "MA", "MZ",
+    "MM", "NA", "NR", "NP", "AN", "NI", "NE", "NG", "NU", "NF", "OM", "PK", "PS", "PA", "PG", "PY",
+    "PE", "PN", "QA", "CM", "RO", "RW", "SH", "KN", "LC", "WS", "ST", "SA", "SN", "SC", "SL", "SX",
+    "SB", "SO", "GS", "SS", "LK", "VC", "SD", "SR", "SY", "TW", "TJ", "TZ", "TL", "TG", "TK", "TO",
+    "TT", "TA", "TN", "TR", "TM", "TC", "TV", "UG", "AE", "UY", "UZ", "VU", "VE", "VN", "EH", "YE",
+    "ZM", "ZW", "ZZ",
+];
+
+const STRICT_ADDRESS_CITY_OPTIONAL_COUNTRIES: &[&str] = &["GI", "VA", "PN", "SG", "GS", "TA"];
+const STRICT_ADDRESS_UNSUPPORTED_COUNTRIES: &[&str] = &["CU", "IR", "KP", "SY"];
+
+/// Country-specific required fields captured from Storefront cart STRICT
+/// validation for every Storefront `CountryCode` value. Admin/customer/B2B
+/// callers can share the country and subdivision helpers below where their
+/// independently captured semantics match, without acquiring Storefront-only
+/// required-field behavior by accident.
+pub(in crate::proxy) fn country_address_requirements(
+    country_code: &str,
+) -> CountryAddressRequirements {
+    let country_code = country_code.trim().to_ascii_uppercase();
+    let support = if country_code == "ZZ" || !location_country_code_is_valid(&country_code) {
+        CountryAddressSupport::Missing
+    } else if STRICT_ADDRESS_UNSUPPORTED_COUNTRIES.contains(&country_code.as_str()) {
+        CountryAddressSupport::Unsupported
+    } else {
+        CountryAddressSupport::Supported
+    };
+    CountryAddressRequirements {
+        last_name: true,
+        address1: true,
+        province: STRICT_ADDRESS_PROVINCE_COUNTRIES.contains(&country_code.as_str()),
+        postal_code: !STRICT_ADDRESS_POSTAL_OPTIONAL_COUNTRIES.contains(&country_code.as_str()),
+        city: !STRICT_ADDRESS_CITY_OPTIONAL_COUNTRIES.contains(&country_code.as_str()),
+        support,
+    }
+}
+
+/// Normalize a supplied subdivision through shared Admin location/customer/B2B
+/// metadata. Countries whose complete zone catalog is not modeled yet preserve
+/// the caller's canonical uppercase value; required-field semantics still come
+/// from the exhaustive Storefront capture above.
+pub(in crate::proxy) fn normalize_strict_address_province_code(
+    country_code: &str,
+    province_code: Option<&str>,
+    postal_code: Option<&str>,
+) -> Option<String> {
+    let province_code = province_code?.trim().to_ascii_uppercase();
+    if province_code.is_empty() {
+        return None;
+    }
+    let country_code = country_code.trim().to_ascii_uppercase();
+    if province_name_for_code(&country_code, &province_code).is_some() {
+        return Some(province_code);
+    }
+    if country_code == "AU" {
+        if let Some(inferred) = australian_province_code_from_postal_code(postal_code?) {
+            return Some(inferred.to_string());
+        }
+    }
+    if matches!(country_code.as_str(), "AU" | "AE") {
+        None
+    } else {
+        Some(province_code)
+    }
+}
+
+fn australian_province_code_from_postal_code(postal_code: &str) -> Option<&'static str> {
+    let postal_code = postal_code.trim();
+    if postal_code.len() != 4 || !postal_code.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    let value = postal_code.parse::<u16>().ok()?;
+    Some(match value {
+        200..=299 | 2600..=2618 | 2900..=2920 => "ACT",
+        1000..=2599 | 2619..=2899 | 2921..=2999 => "NSW",
+        3000..=3999 | 8000..=8999 => "VIC",
+        4000..=4999 | 9000..=9999 => "QLD",
+        5000..=5999 => "SA",
+        6000..=6999 => "WA",
+        7000..=7999 => "TAS",
+        800..=999 => "NT",
+        _ => return None,
+    })
+}
+
 fn location_country_codes_error_list() -> String {
     LOCATION_COUNTRIES
         .iter()
@@ -2171,7 +2285,13 @@ pub(in crate::proxy) fn province_name_for_code(
         ("AU", "TAS") => "Tasmania",
         ("AU", "VIC") => "Victoria",
         ("AU", "WA") => "Western Australia",
+        ("AE", "AZ") => "Abu Dhabi",
+        ("AE", "AJ") => "Ajman",
         ("AE", "DU") => "Dubai",
+        ("AE", "FU") => "Fujairah",
+        ("AE", "RK") => "Ras al-Khaimah",
+        ("AE", "SH") => "Sharjah",
+        ("AE", "UQ") => "Umm al-Quwain",
         _ => return None,
     })
 }

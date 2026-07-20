@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI capture scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -251,6 +251,13 @@ const productHydrateNodesQuery = `#graphql
 const parityRunnerInventoryHydrateNodesQuery =
   'query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } } } }';
 
+const orderCreateInventoryPreflightQuery = (
+  await readFile('config/parity-requests/orders/order-create-inventory-preflight.graphql', 'utf8')
+).trimEnd();
+const coldVariantProductReadQuery = (
+  await readFile('config/parity-requests/products/inventory-cold-variant-product-read.graphql', 'utf8')
+).trimEnd();
+
 const orderCreateMutation = `#graphql
   mutation InventoryDefaultLocationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
     orderCreate(order: $order, options: $options) {
@@ -269,6 +276,22 @@ const orderCreateMutation = `#graphql
       userErrors {
         field
         message
+      }
+    }
+  }
+`;
+
+const orderReadQuery = `#graphql
+  query InventoryColdVariantOrderRead($id: ID!) {
+    order(id: $id) {
+      id
+      name
+      lineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          variant { id }
+        }
       }
     }
   }
@@ -560,6 +583,15 @@ function readStringPath(value: unknown, pathSegments: Array<string | number>, la
   throw new Error(`${label} was missing string path ${pathSegments.join('.')}: ${JSON.stringify(value)}`);
 }
 
+function readOptionalStringPath(value: unknown, pathSegments: Array<string | number>): string | null {
+  try {
+    const candidate = readPath(value, pathSegments, 'optional string path');
+    return typeof candidate === 'string' && candidate.length > 0 ? candidate : null;
+  } catch {
+    return null;
+  }
+}
+
 function readArrayPath(value: unknown, pathSegments: Array<string | number>, label: string): unknown[] {
   const candidate = readPath(value, pathSegments, label);
   return Array.isArray(candidate) ? candidate : [];
@@ -758,13 +790,17 @@ async function createShipmentSetup(runId: string): Promise<ShipmentSetup> {
   };
 }
 
-async function hydrateCall(query: string, ids: string[]): Promise<UpstreamCall> {
+async function hydrateCall(
+  query: string,
+  ids: string[],
+  operationName = 'ProductsHydrateNodes',
+): Promise<UpstreamCall> {
   const response = await runGraphqlRequest(query, { ids });
   if (response.status < 200 || response.status >= 300) {
     throw new Error(`Hydration call failed: ${JSON.stringify(response, null, 2)}`);
   }
   return {
-    operationName: 'ProductsHydrateNodes',
+    operationName,
     variables: { ids },
     query,
     response: {
@@ -796,6 +832,8 @@ const runId = `${Date.now()}`;
 let defaultProductIdForCleanup: string | null = null;
 let shipmentProductIdForCleanup: string | null = null;
 let orderIdForCleanup: string | null = null;
+let coldVariantOrderIdForCleanup: string | null = null;
+let unresolvedVariantOrderIdForCleanup: string | null = null;
 let shipmentIdForCleanup: string | null = null;
 let inTransitShipmentIdForCleanup: string | null = null;
 let transferIdForCleanup: string | null = null;
@@ -868,6 +906,111 @@ try {
   const afterOrderInventoryRead = await runGraphqlAllowGraphqlErrors(
     inventoryItemReadQuery,
     afterOrderInventoryReadVariables,
+  );
+
+  upstreamCalls.push(
+    await hydrateCall(
+      orderCreateInventoryPreflightQuery,
+      [shipmentProduct.variantId],
+      'OrdersOrderCreateInventoryPreflight',
+    ),
+  );
+  const coldVariantOrderCreateVariables = {
+    order: {
+      email: `inventory-cold-variant-${runId}@example.com`,
+      test: true,
+      currency: 'USD',
+      lineItems: [
+        {
+          variantId: shipmentProduct.variantId,
+          quantity: 2,
+          priceSet: {
+            shopMoney: {
+              amount: '10.00',
+              currencyCode: 'USD',
+            },
+          },
+        },
+      ],
+    },
+    options: {
+      inventoryBehaviour: 'DECREMENT_IGNORING_POLICY',
+      sendReceipt: false,
+      sendFulfillmentReceipt: false,
+    },
+  };
+  const coldVariantOrderCreate = await runGraphqlAllowGraphqlErrors(
+    orderCreateMutation,
+    coldVariantOrderCreateVariables,
+  );
+  expectNoUserErrors(coldVariantOrderCreate, ['data', 'orderCreate', 'userErrors'], 'cold variant orderCreate');
+  coldVariantOrderIdForCleanup = readStringPath(
+    coldVariantOrderCreate,
+    ['data', 'orderCreate', 'order', 'id'],
+    'cold variant orderCreate',
+  );
+
+  const afterColdVariantOrderInventoryReadVariables = {
+    item: shipmentProduct.inventoryItemId,
+  };
+  const afterColdVariantOrderInventoryRead = await runGraphqlAllowGraphqlErrors(
+    inventoryItemReadQuery,
+    afterColdVariantOrderInventoryReadVariables,
+  );
+  const afterColdVariantOrderProductReadVariables = {
+    id: shipmentProduct.productId,
+  };
+  const afterColdVariantOrderProductRead = await runGraphqlAllowGraphqlErrors(
+    coldVariantProductReadQuery,
+    afterColdVariantOrderProductReadVariables,
+  );
+  const coldVariantOrderReadVariables = { id: coldVariantOrderIdForCleanup };
+  const coldVariantOrderRead = await runGraphqlAllowGraphqlErrors(orderReadQuery, coldVariantOrderReadVariables);
+
+  const unresolvedVariantId = `gid://shopify/ProductVariant/${resourceTail(shipmentProduct.inventoryItemId)}`;
+  upstreamCalls.push(
+    await hydrateCall(orderCreateInventoryPreflightQuery, [unresolvedVariantId], 'OrdersOrderCreateInventoryPreflight'),
+  );
+  const unresolvedVariantOrderCreateVariables = {
+    order: {
+      email: `inventory-unresolved-variant-${runId}@example.com`,
+      test: true,
+      currency: 'USD',
+      lineItems: [
+        {
+          variantId: unresolvedVariantId,
+          quantity: 1,
+          priceSet: {
+            shopMoney: {
+              amount: '10.00',
+              currencyCode: 'USD',
+            },
+          },
+        },
+      ],
+    },
+    options: {
+      inventoryBehaviour: 'DECREMENT_IGNORING_POLICY',
+      sendReceipt: false,
+      sendFulfillmentReceipt: false,
+    },
+  };
+  const unresolvedVariantOrderCreate = await runGraphqlAllowGraphqlErrors(
+    orderCreateMutation,
+    unresolvedVariantOrderCreateVariables,
+  );
+  unresolvedVariantOrderIdForCleanup = readOptionalStringPath(unresolvedVariantOrderCreate, [
+    'data',
+    'orderCreate',
+    'order',
+    'id',
+  ]);
+  const afterUnresolvedVariantOrderInventoryReadVariables = {
+    item: shipmentProduct.inventoryItemId,
+  };
+  const afterUnresolvedVariantOrderInventoryRead = await runGraphqlAllowGraphqlErrors(
+    inventoryItemReadQuery,
+    afterUnresolvedVariantOrderInventoryReadVariables,
   );
 
   const transferCreateVariables = {
@@ -1036,6 +1179,10 @@ try {
   const cleanup: JsonRecord = {};
   cleanup['orderCancel'] = await cancelOrder(orderIdForCleanup);
   orderIdForCleanup = null;
+  cleanup['coldVariantOrderCancel'] = await cancelOrder(coldVariantOrderIdForCleanup);
+  coldVariantOrderIdForCleanup = null;
+  cleanup['unresolvedVariantOrderCancel'] = await cancelOrder(unresolvedVariantOrderIdForCleanup);
+  unresolvedVariantOrderIdForCleanup = null;
   cleanup['inTransitShipmentDelete'] = await runGraphqlAllowGraphqlErrors(inventoryShipmentDeleteMutation, {
     id: inTransitShipmentIdForCleanup,
   });
@@ -1091,6 +1238,30 @@ try {
       afterOrderInventoryRead: {
         variables: afterOrderInventoryReadVariables,
         response: afterOrderInventoryRead,
+      },
+      coldVariantOrderCreate: {
+        variables: coldVariantOrderCreateVariables,
+        response: coldVariantOrderCreate,
+      },
+      afterColdVariantOrderInventoryRead: {
+        variables: afterColdVariantOrderInventoryReadVariables,
+        response: afterColdVariantOrderInventoryRead,
+      },
+      afterColdVariantOrderProductRead: {
+        variables: afterColdVariantOrderProductReadVariables,
+        response: afterColdVariantOrderProductRead,
+      },
+      coldVariantOrderRead: {
+        variables: coldVariantOrderReadVariables,
+        response: coldVariantOrderRead,
+      },
+      unresolvedVariantOrderCreate: {
+        variables: unresolvedVariantOrderCreateVariables,
+        response: unresolvedVariantOrderCreate,
+      },
+      afterUnresolvedVariantOrderInventoryRead: {
+        variables: afterUnresolvedVariantOrderInventoryReadVariables,
+        response: afterUnresolvedVariantOrderInventoryRead,
       },
       transferCreate: {
         variables: transferCreateVariables,
@@ -1184,6 +1355,8 @@ try {
       );
     }
   }
+  await cancelOrder(unresolvedVariantOrderIdForCleanup);
+  await cancelOrder(coldVariantOrderIdForCleanup);
   await cancelOrder(orderIdForCleanup);
   await deleteProduct(defaultProductIdForCleanup);
   await deleteProduct(shipmentProductIdForCleanup);

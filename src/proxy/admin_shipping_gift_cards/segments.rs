@@ -1,4 +1,8 @@
 use super::*;
+
+pub(in crate::proxy) const SEGMENT_MUTATION_TARGET_HYDRATE_QUERY: &str =
+    "query SegmentMutationTargetHydrate($id: ID!) {\n  segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n}";
+
 struct SegmentReadRootInput {
     name: String,
     response_key: String,
@@ -68,6 +72,7 @@ impl DraftProxy {
             arguments,
             request,
             root_name,
+            root_location,
             ..
         } = invocation;
         let field = SegmentReadRootInput {
@@ -75,6 +80,22 @@ impl DraftProxy {
             response_key: response_key.to_string(),
             arguments: resolved_arguments_from_json(&arguments),
         };
+        if field.name == "segment" {
+            let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+            if self.store.staged.segments.is_tombstoned(&id) {
+                return ResolverOutcome::value(Value::Null).with_errors(vec![
+                    crate::admin_graphql::RootFieldError {
+                        message: "Segment does not exist".to_string(),
+                        extensions: BTreeMap::from([("code".to_string(), json!("NOT_FOUND"))]),
+                        path: Some(Vec::new()),
+                        locations: vec![async_graphql::Pos {
+                            line: root_location.line,
+                            column: root_location.column,
+                        }],
+                    },
+                ]);
+            }
+        }
         let fields = std::slice::from_ref(&field);
         if self.store.staged.segments.is_empty() {
             // With no local segment lifecycle effects, Shopify owns the
@@ -247,6 +268,7 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        let request = invocation.request;
         let field = SegmentMutationInput {
             name: invocation.root_name.to_string(),
             response_key: invocation.response_key.to_string(),
@@ -319,6 +341,7 @@ impl DraftProxy {
                 {
                     return graphql_error_outcome(errors, &field.response_key);
                 }
+                self.hydrate_segment_mutation_target(request, &id);
                 match self.store.segment_by_id(&id).cloned() {
                     None => (
                         Value::Null,
@@ -392,6 +415,7 @@ impl DraftProxy {
                 {
                     return graphql_error_outcome(errors, &field.response_key);
                 }
+                self.hydrate_segment_mutation_target(request, &id);
                 if self.store.segment_by_id(&id).is_some() {
                     self.store.staged.segments.remove_staged(&id);
                     self.store.staged.segments.tombstone(id.clone());
@@ -416,6 +440,31 @@ impl DraftProxy {
             outcome
         } else {
             outcome.with_log_draft(LogDraft::staged(&field.name, "segments", staged_ids))
+        }
+    }
+
+    fn hydrate_segment_mutation_target(&mut self, request: &Request, id: &str) {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || self.store.staged.segments.is_tombstoned(id)
+            || self.store.segment_by_id(id).is_some()
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": SEGMENT_MUTATION_TARGET_HYDRATE_QUERY,
+                "operationName": "SegmentMutationTargetHydrate",
+                "variables": { "id": id },
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let segment = response.body["data"]["segment"].clone();
+        if !segment.is_null() {
+            self.store
+                .observe_base_segment(normalize_segment_record(segment));
         }
     }
 

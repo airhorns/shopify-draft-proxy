@@ -1,0 +1,15 @@
+mutation MediaFileUpdateMixedBatch($files: [FileUpdateInput!]!) {
+  fileUpdate(files: $files) {
+    files {
+      id
+      __typename
+      alt
+      fileStatus
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

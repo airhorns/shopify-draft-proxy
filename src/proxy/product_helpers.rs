@@ -1624,6 +1624,7 @@ fn product_variant_inventory_item_field(
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     Ok(product_variant_record(proxy, invocation)
+        .filter(|variant| is_shopify_gid_of_type(&variant.inventory_item.id, "InventoryItem"))
         .map(|variant| {
             let variant = proxy.variant_with_inventory_levels(&variant);
             product_variant_state_json(&variant)["inventoryItem"].clone()
@@ -2425,11 +2426,21 @@ impl DraftProxy {
                 invocation.response_key,
             );
         };
-        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
-            invocation.root_name,
-            "products",
-            Vec::new(),
-        ))
+        let reorder_failed_validation = invocation.root_name == "productReorderMedia"
+            && payload
+                .get("mediaUserErrors")
+                .and_then(Value::as_array)
+                .is_some_and(|errors| !errors.is_empty());
+        let outcome = ResolverOutcome::value(payload);
+        if reorder_failed_validation {
+            outcome
+        } else {
+            outcome.with_log_draft(LogDraft::staged(
+                invocation.root_name,
+                "products",
+                Vec::new(),
+            ))
+        }
     }
 
     /// productCreateMedia stages newly uploaded media on a product. Each media
@@ -2673,7 +2684,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
         let product_id = resolved_string_field(arguments, "id")?;
-        let mut moves = resolved_object_list_field(arguments, "moves");
+        let moves = resolved_object_list_field(arguments, "moves");
 
         // Reorder operates on media that already exists on the product. If the
         // product has not been staged locally yet, hydrate it from upstream so
@@ -2686,22 +2697,28 @@ impl DraftProxy {
             ));
         }
 
-        moves.sort_by_key(|media_move| {
-            resolved_string_field(media_move, "newPosition")
+        let mut media = self.product_known_media(&product_id);
+        for media_move in moves {
+            let Some(id) = resolved_string_field(&media_move, "id") else {
+                continue;
+            };
+            let new_position = resolved_string_field(&media_move, "newPosition")
                 .and_then(|position| position.parse::<usize>().ok())
-                .unwrap_or(usize::MAX)
-        });
-        let move_ids = moves
-            .iter()
-            .filter_map(|media_move| resolved_string_field(media_move, "id"))
-            .collect::<Vec<_>>();
-        for id in &move_ids {
-            self.store.staged.media_ready_on_read.remove(id);
+                .or_else(|| {
+                    resolved_int_field(&media_move, "newPosition")
+                        .map(|position| position.max(0) as usize)
+                })
+                .unwrap_or(0);
+            let Some(current_position) = media
+                .iter()
+                .position(|node| node.get("id").and_then(Value::as_str) == Some(id.as_str()))
+            else {
+                continue;
+            };
+            let node = media.remove(current_position);
+            media.insert(new_position.min(media.len()), node);
+            self.store.staged.media_ready_on_read.remove(&id);
         }
-        let media = move_ids
-            .iter()
-            .map(|id| self.product_reorder_media_node(&product_id, id))
-            .collect();
         self.stage_product_media_nodes(&product_id, media);
         Some(json!({
             "job": {
@@ -2787,39 +2804,6 @@ impl DraftProxy {
             vec![product_id.to_string()],
         );
         self.store.product_staged_or_base(product_id).is_some()
-    }
-
-    /// Build a reordered media node. Alt text is preserved from any media
-    /// already staged/observed for this product so the proxy honours real
-    /// asset metadata instead of hardcoding GID-specific captions.
-    fn product_reorder_media_node(&self, product_id: &str, id: &str) -> Value {
-        let known = self
-            .store
-            .product_staged_or_base(product_id)
-            .and_then(|product| {
-                product
-                    .media
-                    .into_iter()
-                    .find(|node| node.get("id").and_then(Value::as_str) == Some(id))
-            });
-        let mut node = known.unwrap_or_else(|| {
-            let alt = self
-                .store
-                .product_staged_or_base(product_id)
-                .and_then(|product| {
-                    product.media.iter().find_map(|node| {
-                        if node.get("id").and_then(Value::as_str) == Some(id) {
-                            node.get("alt").and_then(Value::as_str).map(str::to_string)
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .unwrap_or_default();
-            product_media_node_with_type(id, &alt, "IMAGE", "PROCESSING", None, None)
-        });
-        node["status"] = json!("PROCESSING");
-        node
     }
 }
 
@@ -3783,7 +3767,7 @@ fn product_variant_state_from_json_parts(
             .and_then(|item| item.get("id"))
             .and_then(Value::as_str)
             .map(str::to_string)
-            .unwrap_or_else(|| shopify_gid("InventoryItem", resource_id_tail(&id))),
+            .unwrap_or_default(),
         ProductVariantInventoryItemMode::Required => {
             inventory_item?.get("id")?.as_str()?.to_string()
         }
@@ -5362,6 +5346,23 @@ pub(in crate::proxy) fn variant_media_ids_from_json(value: &Value) -> Vec<String
 #[cfg(test)]
 mod product_variant_connection_tests {
     use super::*;
+
+    #[test]
+    fn observed_variant_without_inventory_item_does_not_invent_cross_resource_identity() {
+        let variant = product_variant_state_from_observed_json(&json!({
+            "id": "gid://shopify/ProductVariant/424242",
+            "product": { "id": "gid://shopify/Product/1" },
+            "title": "Partially observed variant",
+            "price": "10.00",
+        }))
+        .expect("partially observed variant should normalize");
+
+        assert_eq!(variant.inventory_item.id, "");
+        assert_ne!(
+            variant.inventory_item.id,
+            "gid://shopify/InventoryItem/424242"
+        );
+    }
 
     #[test]
     fn staged_variant_overlays_its_observed_connection_position() {
