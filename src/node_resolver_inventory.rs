@@ -574,6 +574,12 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         load_tax_app_configuration,
     ),
     node_entry!(
+        "TaxonomyCategory",
+        "DraftProxy::taxonomy_category_node_value",
+        NodeResolverBehavior::ProjectLocalRecord,
+        load_taxonomy_category,
+    ),
+    node_entry!(
         "UnverifiedReturnLineItem",
         "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,

@@ -222,6 +222,13 @@ describe('Rust HTTP adapter route surface', { timeout: adapterTestTimeoutMs }, (
             storefrontMenus: {},
             storefrontMenuOrder: [],
             storefrontPublicApiVersions: [],
+            adminPublicApiVersions: [],
+            adminPublicApiVersionsObserved: false,
+            taxonomyCategories: {},
+            taxonomyCategoryOrder: [],
+            taxonomyConnectionWindows: {},
+            taxonomyCompleteScopes: {},
+            taxonomyMissingCategoryIds: [],
           },
           // This mirrors the authoritative empty staged-state serialization in
           // src/proxy/core.rs (the `/__meta/state` snapshot, which is also the

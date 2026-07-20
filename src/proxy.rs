@@ -460,6 +460,12 @@ struct BaseState {
     storefront_location_cursors: BTreeMap<String, String>,
     storefront_public_api_versions: Vec<Value>,
     storefront_menus: OrderedRecords<Value>,
+    admin_public_api_versions: Vec<Value>,
+    admin_public_api_versions_observed: bool,
+    taxonomy_categories: OrderedRecords<Value>,
+    taxonomy_connection_windows: BTreeMap<String, Value>,
+    taxonomy_complete_scopes: BTreeMap<String, Value>,
+    taxonomy_missing_category_ids: BTreeSet<String>,
     publication_ids: BTreeSet<String>,
     publication_count: Option<usize>,
     available_locales: BTreeMap<String, String>,
@@ -2700,6 +2706,7 @@ pub struct DraftProxy {
     storefront_upstream_transport: UpstreamTransport,
 }
 
+mod admin_platform;
 mod admin_shipping_gift_cards;
 mod app_shipping_helpers;
 mod b2b_customers;

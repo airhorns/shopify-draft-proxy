@@ -516,6 +516,13 @@ impl DraftProxy {
                 "storefrontPublicApiVersions": self.store.base.storefront_public_api_versions.clone(),
                 "storefrontMenus": self.store.base.storefront_menus.records.clone(),
                 "storefrontMenuOrder": self.store.base.storefront_menus.order.clone(),
+                "adminPublicApiVersions": self.store.base.admin_public_api_versions.clone(),
+                "adminPublicApiVersionsObserved": self.store.base.admin_public_api_versions_observed,
+                "taxonomyCategories": self.store.base.taxonomy_categories.records.clone(),
+                "taxonomyCategoryOrder": self.store.base.taxonomy_categories.order.clone(),
+                "taxonomyConnectionWindows": self.store.base.taxonomy_connection_windows.clone(),
+                "taxonomyCompleteScopes": self.store.base.taxonomy_complete_scopes.clone(),
+                "taxonomyMissingCategoryIds": self.store.base.taxonomy_missing_category_ids.iter().cloned().collect::<Vec<_>>(),
                 "publicationIds": self.store.base.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publicationCount": self.store.base.publication_count,
                 "availableLocales": available_locales,
@@ -1811,6 +1818,28 @@ impl DraftProxy {
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
+        self.store.base.admin_public_api_versions = state["baseState"]
+            .get("adminPublicApiVersions")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        self.store.base.admin_public_api_versions_observed = state["baseState"]
+            .get("adminPublicApiVersionsObserved")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        self.store.base.taxonomy_categories.replace_with_order(
+            value_map_from_json(state["baseState"].get("taxonomyCategories")),
+            state["baseState"]
+                .get("taxonomyCategoryOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.taxonomy_connection_windows =
+            value_map_from_json(state["baseState"].get("taxonomyConnectionWindows"));
+        self.store.base.taxonomy_complete_scopes =
+            value_map_from_json(state["baseState"].get("taxonomyCompleteScopes"));
+        self.store.base.taxonomy_missing_category_ids =
+            string_set_from_json(state["baseState"].get("taxonomyMissingCategoryIds"));
         self.store.base.storefront_menus.replace_with_order(
             value_map_from_json(state["baseState"].get("storefrontMenus")),
             state["baseState"]
