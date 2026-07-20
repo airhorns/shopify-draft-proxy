@@ -3,15 +3,15 @@
     "scenario": "Cold LiveHybrid selling-plan group read and existing-resource mutation replay",
     "storeDomain": "harry-test-heelo.myshopify.com",
     "apiVersion": "2026-04",
-    "capturedAt": "2026-07-19T14:26:58.764Z",
+    "capturedAt": "2026-07-20T21:47:17.937Z",
     "createdResources": {
-      "productId": "gid://shopify/Product/10243931799858",
-      "variantId": "gid://shopify/ProductVariant/51488139608370",
-      "groupId": "gid://shopify/SellingPlanGroup/3159130418",
-      "planId": "gid://shopify/SellingPlan/7322665266"
+      "productId": "gid://shopify/Product/10245406982450",
+      "variantId": "gid://shopify/ProductVariant/51492544020786",
+      "groupId": "gid://shopify/SellingPlanGroup/3161030962",
+      "planId": "gid://shopify/SellingPlan/7324565810"
     },
     "notes": [
-      "The proxy starts cold in parity replay; the group/product/variant context comes only from the recorded sellingPlanGroupHydrateNodes upstreamCalls entry.",
+      "The proxy starts cold in parity replay; group scalars/counts, relationship memberships/windows, and the downstream mixed Product/ProductVariant read come from their exact recorded upstreamCalls entries.",
       "The update target uses isolatedProxy so a pre-fix proxy would forward the caller mutation upstream instead of hydrating and staging locally."
     ]
   },
@@ -21,7 +21,7 @@
       "query": "#graphql\n  mutation CreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        variants(first: 1) {\n          nodes {\n            id\n            title\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "product": {
-          "title": "Selling plan LiveHybrid parity 20260719142656"
+          "title": "Selling plan LiveHybrid parity 20260720214715"
         }
       },
       "status": 200,
@@ -29,12 +29,12 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10243931799858",
-              "title": "Selling plan LiveHybrid parity 20260719142656",
+              "id": "gid://shopify/Product/10245406982450",
+              "title": "Selling plan LiveHybrid parity 20260720214715",
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51488139608370",
+                    "id": "gid://shopify/ProductVariant/51492544020786",
                     "title": "Default Title"
                   }
                 ]
@@ -61,8 +61,8 @@
       "query": "mutation CreateSellingPlanGroup(\n  $input: SellingPlanGroupInput!\n  $resources: SellingPlanGroupResourceInput\n  $productId: ID!\n  $variantId: ID!\n) {\n  sellingPlanGroupCreate(input: $input, resources: $resources) {\n    sellingPlanGroup {\n      id\n      appId\n      name\n      merchantCode\n      description\n      options\n      position\n      summary\n      createdAt\n      productsCount {\n        count\n        precision\n      }\n      productVariantsCount {\n        count\n        precision\n      }\n      appliesToProduct(productId: $productId)\n      appliesToProductVariant(productVariantId: $variantId)\n      appliesToProductVariants(productId: $productId)\n      products(first: 5) {\n        nodes {\n          id\n          title\n        }\n      }\n      productVariants(first: 5) {\n        nodes {\n          id\n          title\n          product {\n            id\n          }\n        }\n      }\n      sellingPlans(first: 5) {\n        nodes {\n          id\n          name\n          description\n          options\n          position\n          category\n          createdAt\n          billingPolicy {\n            __typename\n            ... on SellingPlanRecurringBillingPolicy {\n              interval\n              intervalCount\n              minCycles\n              maxCycles\n            }\n          }\n          deliveryPolicy {\n            __typename\n            ... on SellingPlanRecurringDeliveryPolicy {\n              interval\n              intervalCount\n              cutoff\n              intent\n              preAnchorBehavior\n            }\n          }\n          inventoryPolicy {\n            reserve\n          }\n          pricingPolicies {\n            __typename\n            ... on SellingPlanFixedPricingPolicy {\n              adjustmentType\n              adjustmentValue {\n                __typename\n                ... on SellingPlanPricingPolicyPercentageValue {\n                  percentage\n                }\n                ... on MoneyV2 {\n                  amount\n                  currencyCode\n                }\n              }\n            }\n            ... on SellingPlanRecurringPricingPolicy {\n              afterCycle\n              createdAt\n              adjustmentType\n              adjustmentValue {\n                __typename\n                ... on SellingPlanPricingPolicyPercentageValue {\n                  percentage\n                }\n                ... on MoneyV2 {\n                  amount\n                  currencyCode\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "LiveHybrid existing 20260719142656",
-          "merchantCode": "live-hybrid-existing-20260719142656",
+          "name": "LiveHybrid existing 20260720214715",
+          "merchantCode": "live-hybrid-existing-20260720214715",
           "description": "Disposable selling-plan group for cold LiveHybrid parity",
           "options": ["Delivery frequency"],
           "position": 1,
@@ -105,25 +105,25 @@
           ]
         },
         "resources": {
-          "productIds": ["gid://shopify/Product/10243931799858"]
+          "productIds": ["gid://shopify/Product/10245406982450"]
         },
-        "productId": "gid://shopify/Product/10243931799858",
-        "variantId": "gid://shopify/ProductVariant/51488139608370"
+        "productId": "gid://shopify/Product/10245406982450",
+        "variantId": "gid://shopify/ProductVariant/51492544020786"
       },
       "status": 200,
       "response": {
         "data": {
           "sellingPlanGroupCreate": {
             "sellingPlanGroup": {
-              "id": "gid://shopify/SellingPlanGroup/3159130418",
+              "id": "gid://shopify/SellingPlanGroup/3161030962",
               "appId": null,
-              "name": "LiveHybrid existing 20260719142656",
-              "merchantCode": "live-hybrid-existing-20260719142656",
+              "name": "LiveHybrid existing 20260720214715",
+              "merchantCode": "live-hybrid-existing-20260720214715",
               "description": "Disposable selling-plan group for cold LiveHybrid parity",
               "options": ["Delivery frequency"],
               "position": 1,
               "summary": "1 delivery frequency, 10% discount",
-              "createdAt": "2026-07-19T14:26:57Z",
+              "createdAt": "2026-07-20T21:47:16Z",
               "productsCount": {
                 "count": 1,
                 "precision": "EXACT"
@@ -138,8 +138,8 @@
               "products": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Product/10243931799858",
-                    "title": "Selling plan LiveHybrid parity 20260719142656"
+                    "id": "gid://shopify/Product/10245406982450",
+                    "title": "Selling plan LiveHybrid parity 20260720214715"
                   }
                 ]
               },
@@ -149,13 +149,13 @@
               "sellingPlans": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/SellingPlan/7322665266",
+                    "id": "gid://shopify/SellingPlan/7324565810",
                     "name": "Monthly delivery",
                     "description": "Ships every month",
                     "options": ["Monthly"],
                     "position": 1,
                     "category": "SUBSCRIPTION",
-                    "createdAt": "2026-07-19T14:26:57Z",
+                    "createdAt": "2026-07-20T21:47:16Z",
                     "billingPolicy": {
                       "__typename": "SellingPlanRecurringBillingPolicy",
                       "interval": "MONTH",
@@ -208,23 +208,23 @@
       "label": "coldGroupRead",
       "query": "query ReadSellingPlanGroup($id: ID!, $productId: ID!, $variantId: ID!) {\n  sellingPlanGroup(id: $id) {\n    id\n    appId\n    name\n    merchantCode\n    description\n    options\n    position\n    summary\n    createdAt\n    productsCount {\n      count\n      precision\n    }\n    productVariantsCount {\n      count\n      precision\n    }\n    appliesToProduct(productId: $productId)\n    appliesToProductVariant(productVariantId: $variantId)\n    appliesToProductVariants(productId: $productId)\n    products(first: 5) {\n      nodes {\n        id\n        title\n      }\n    }\n    productVariants(first: 5) {\n      nodes {\n        id\n        title\n        product {\n          id\n        }\n      }\n    }\n    sellingPlans(first: 5) {\n      nodes {\n        id\n        name\n        description\n        options\n        position\n        category\n        createdAt\n        billingPolicy {\n          __typename\n          ... on SellingPlanRecurringBillingPolicy {\n            interval\n            intervalCount\n            minCycles\n            maxCycles\n          }\n        }\n        deliveryPolicy {\n          __typename\n          ... on SellingPlanRecurringDeliveryPolicy {\n            interval\n            intervalCount\n            cutoff\n            intent\n            preAnchorBehavior\n          }\n        }\n        inventoryPolicy {\n          reserve\n        }\n        pricingPolicies {\n          __typename\n          ... on SellingPlanFixedPricingPolicy {\n            adjustmentType\n            adjustmentValue {\n              __typename\n              ... on SellingPlanPricingPolicyPercentageValue {\n                percentage\n              }\n              ... on MoneyV2 {\n                amount\n                currencyCode\n              }\n            }\n          }\n          ... on SellingPlanRecurringPricingPolicy {\n            afterCycle\n            createdAt\n            adjustmentType\n            adjustmentValue {\n              __typename\n              ... on SellingPlanPricingPolicyPercentageValue {\n                percentage\n              }\n              ... on MoneyV2 {\n                amount\n                currencyCode\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/SellingPlanGroup/3159130418",
-        "productId": "gid://shopify/Product/10243931799858",
-        "variantId": "gid://shopify/ProductVariant/51488139608370"
+        "id": "gid://shopify/SellingPlanGroup/3161030962",
+        "productId": "gid://shopify/Product/10245406982450",
+        "variantId": "gid://shopify/ProductVariant/51492544020786"
       },
       "status": 200,
       "response": {
         "data": {
           "sellingPlanGroup": {
-            "id": "gid://shopify/SellingPlanGroup/3159130418",
+            "id": "gid://shopify/SellingPlanGroup/3161030962",
             "appId": null,
-            "name": "LiveHybrid existing 20260719142656",
-            "merchantCode": "live-hybrid-existing-20260719142656",
+            "name": "LiveHybrid existing 20260720214715",
+            "merchantCode": "live-hybrid-existing-20260720214715",
             "description": "Disposable selling-plan group for cold LiveHybrid parity",
             "options": ["Delivery frequency"],
             "position": 1,
             "summary": "1 delivery frequency, 10% discount",
-            "createdAt": "2026-07-19T14:26:57Z",
+            "createdAt": "2026-07-20T21:47:16Z",
             "productsCount": {
               "count": 1,
               "precision": "EXACT"
@@ -239,8 +239,8 @@
             "products": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Product/10243931799858",
-                  "title": "Selling plan LiveHybrid parity 20260719142656"
+                  "id": "gid://shopify/Product/10245406982450",
+                  "title": "Selling plan LiveHybrid parity 20260720214715"
                 }
               ]
             },
@@ -250,13 +250,13 @@
             "sellingPlans": {
               "nodes": [
                 {
-                  "id": "gid://shopify/SellingPlan/7322665266",
+                  "id": "gid://shopify/SellingPlan/7324565810",
                   "name": "Monthly delivery",
                   "description": "Ships every month",
                   "options": ["Monthly"],
                   "position": 1,
                   "category": "SUBSCRIPTION",
-                  "createdAt": "2026-07-19T14:26:57Z",
+                  "createdAt": "2026-07-20T21:47:16Z",
                   "billingPolicy": {
                     "__typename": "SellingPlanRecurringBillingPolicy",
                     "interval": "MONTH",
@@ -296,7 +296,7 @@
             "actualQueryCost": 20,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1974,
+              "currentlyAvailable": 1978,
               "restoreRate": 100
             }
           }
@@ -305,9 +305,9 @@
     },
     "hydrateBeforeLocalReplay": {
       "label": "hydrateBeforeLocalReplay",
-      "query": "\nquery sellingPlanGroupHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on SellingPlanGroup {\n      appId\n      name\n      merchantCode\n      description\n      options\n      position\n      createdAt\n      products(first: 250) {\n        edges {\n          cursor\n          node {\n          __typename\n          id\n          title\n          handle\n          status\n          createdAt\n          updatedAt\n          variants(first: 50) {\n            edges {\n              cursor\n              node {\n              __typename\n              id\n              title\n              sku\n              barcode\n              price\n              compareAtPrice\n              taxable\n              inventoryPolicy\n              inventoryQuantity\n              selectedOptions { name value }\n              inventoryItem { id tracked requiresShipping }\n              }\n            }\n            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n          }\n          }\n        }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n      productVariants(first: 250) {\n        edges {\n          cursor\n          node {\n          __typename\n          id\n          title\n          sku\n          barcode\n          price\n          compareAtPrice\n          taxable\n          inventoryPolicy\n          inventoryQuantity\n          selectedOptions { name value }\n          inventoryItem { id tracked requiresShipping }\n          product { id title handle status createdAt updatedAt }\n          }\n        }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n      sellingPlans(first: 250) {\n        edges {\n          cursor\n          node {\n          __typename\n          id\n          name\n          description\n          options\n          position\n          category\n          createdAt\n          billingPolicy {\n            __typename\n            ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n          }\n          deliveryPolicy {\n            __typename\n            ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n          }\n          inventoryPolicy { reserve }\n          pricingPolicies {\n            __typename\n            ... on SellingPlanFixedPricingPolicy {\n              adjustmentType\n              adjustmentValue {\n                __typename\n                ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                ... on MoneyV2 { amount currencyCode }\n              }\n            }\n            ... on SellingPlanRecurringPricingPolicy {\n              afterCycle\n              createdAt\n              adjustmentType\n              adjustmentValue {\n                __typename\n                ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                ... on MoneyV2 { amount currencyCode }\n              }\n            }\n          }\n          }\n        }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n    }\n  }\n}\n",
+      "query": "\nquery sellingPlanGroupHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on SellingPlanGroup {\n      appId\n      name\n      merchantCode\n      description\n      options\n      position\n      createdAt\n      productsCount { count precision }\n      productVariantsCount { count precision }\n      sellingPlans(first: 250) {\n        edges {\n          cursor\n          node {\n          __typename\n          id\n          name\n          description\n          options\n          position\n          category\n          createdAt\n          billingPolicy {\n            __typename\n            ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n          }\n          deliveryPolicy {\n            __typename\n            ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n          }\n          inventoryPolicy { reserve }\n          pricingPolicies {\n            __typename\n            ... on SellingPlanFixedPricingPolicy {\n              adjustmentType\n              adjustmentValue {\n                __typename\n                ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                ... on MoneyV2 { amount currencyCode }\n              }\n            }\n            ... on SellingPlanRecurringPricingPolicy {\n              afterCycle\n              createdAt\n              adjustmentType\n              adjustmentValue {\n                __typename\n                ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                ... on MoneyV2 { amount currencyCode }\n              }\n            }\n          }\n          }\n        }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n    }\n  }\n}\n",
       "variables": {
-        "ids": ["gid://shopify/SellingPlanGroup/3159130418"]
+        "ids": ["gid://shopify/SellingPlanGroup/3161030962"]
       },
       "status": 200,
       "response": {
@@ -315,94 +315,35 @@
           "nodes": [
             {
               "__typename": "SellingPlanGroup",
-              "id": "gid://shopify/SellingPlanGroup/3159130418",
+              "id": "gid://shopify/SellingPlanGroup/3161030962",
               "appId": null,
-              "name": "LiveHybrid existing 20260719142656",
-              "merchantCode": "live-hybrid-existing-20260719142656",
+              "name": "LiveHybrid existing 20260720214715",
+              "merchantCode": "live-hybrid-existing-20260720214715",
               "description": "Disposable selling-plan group for cold LiveHybrid parity",
               "options": ["Delivery frequency"],
               "position": 1,
-              "createdAt": "2026-07-19T14:26:57Z",
-              "products": {
-                "edges": [
-                  {
-                    "cursor": "eyJsYXN0X2lkIjoxMDI0MzkzMTc5OTg1OCwibGFzdF92YWx1ZSI6IjEwMjQzOTMxNzk5ODU4In0=",
-                    "node": {
-                      "__typename": "Product",
-                      "id": "gid://shopify/Product/10243931799858",
-                      "title": "Selling plan LiveHybrid parity 20260719142656",
-                      "handle": "selling-plan-livehybrid-parity-20260719142656",
-                      "status": "ACTIVE",
-                      "createdAt": "2026-07-19T14:26:57Z",
-                      "updatedAt": "2026-07-19T14:26:57Z",
-                      "variants": {
-                        "edges": [
-                          {
-                            "cursor": "eyJsYXN0X2lkIjo1MTQ4ODEzOTYwODM3MCwibGFzdF92YWx1ZSI6MX0=",
-                            "node": {
-                              "__typename": "ProductVariant",
-                              "id": "gid://shopify/ProductVariant/51488139608370",
-                              "title": "Default Title",
-                              "sku": null,
-                              "barcode": null,
-                              "price": "0.00",
-                              "compareAtPrice": null,
-                              "taxable": true,
-                              "inventoryPolicy": "DENY",
-                              "inventoryQuantity": 0,
-                              "selectedOptions": [
-                                {
-                                  "name": "Title",
-                                  "value": "Default Title"
-                                }
-                              ],
-                              "inventoryItem": {
-                                "id": "gid://shopify/InventoryItem/53593736937778",
-                                "tracked": false,
-                                "requiresShipping": true
-                              }
-                            }
-                          }
-                        ],
-                        "pageInfo": {
-                          "hasNextPage": false,
-                          "hasPreviousPage": false,
-                          "startCursor": "eyJsYXN0X2lkIjo1MTQ4ODEzOTYwODM3MCwibGFzdF92YWx1ZSI6MX0=",
-                          "endCursor": "eyJsYXN0X2lkIjo1MTQ4ODEzOTYwODM3MCwibGFzdF92YWx1ZSI6MX0="
-                        }
-                      }
-                    }
-                  }
-                ],
-                "pageInfo": {
-                  "hasNextPage": false,
-                  "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoxMDI0MzkzMTc5OTg1OCwibGFzdF92YWx1ZSI6IjEwMjQzOTMxNzk5ODU4In0=",
-                  "endCursor": "eyJsYXN0X2lkIjoxMDI0MzkzMTc5OTg1OCwibGFzdF92YWx1ZSI6IjEwMjQzOTMxNzk5ODU4In0="
-                }
+              "createdAt": "2026-07-20T21:47:16Z",
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
               },
-              "productVariants": {
-                "edges": [],
-                "pageInfo": {
-                  "hasNextPage": false,
-                  "hasPreviousPage": false,
-                  "startCursor": null,
-                  "endCursor": null
-                }
+              "productVariantsCount": {
+                "count": 0,
+                "precision": "EXACT"
               },
               "sellingPlans": {
                 "edges": [
                   {
-                    "cursor": "eyJsYXN0X2lkIjo3MzIyNjY1MjY2LCJsYXN0X3ZhbHVlIjoiNzMyMjY2NTI2NiJ9",
+                    "cursor": "eyJsYXN0X2lkIjo3MzI0NTY1ODEwLCJsYXN0X3ZhbHVlIjoiNzMyNDU2NTgxMCJ9",
                     "node": {
                       "__typename": "SellingPlan",
-                      "id": "gid://shopify/SellingPlan/7322665266",
+                      "id": "gid://shopify/SellingPlan/7324565810",
                       "name": "Monthly delivery",
                       "description": "Ships every month",
                       "options": ["Monthly"],
                       "position": 1,
                       "category": "SUBSCRIPTION",
-                      "createdAt": "2026-07-19T14:26:57Z",
+                      "createdAt": "2026-07-20T21:47:16Z",
                       "billingPolicy": {
                         "__typename": "SellingPlanRecurringBillingPolicy",
                         "interval": "MONTH",
@@ -437,8 +378,8 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo3MzIyNjY1MjY2LCJsYXN0X3ZhbHVlIjoiNzMyMjY2NTI2NiJ9",
-                  "endCursor": "eyJsYXN0X2lkIjo3MzIyNjY1MjY2LCJsYXN0X3ZhbHVlIjoiNzMyMjY2NTI2NiJ9"
+                  "startCursor": "eyJsYXN0X2lkIjo3MzI0NTY1ODEwLCJsYXN0X3ZhbHVlIjoiNzMyNDU2NTgxMCJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo3MzI0NTY1ODEwLCJsYXN0X3ZhbHVlIjoiNzMyNDU2NTgxMCJ9"
                 }
               }
             }
@@ -446,11 +387,176 @@
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 381,
-            "actualQueryCost": 11,
+            "requestedQueryCost": 71,
+            "actualQueryCost": 8,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1976,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productMembershipBeforeLocalReplay": {
+      "label": "productMembershipBeforeLocalReplay",
+      "query": "query SellingPlanGroupProductMembershipProbe($groupId0: ID!, $resourceId0: ID!) { probe0: sellingPlanGroup(id: $groupId0) { id membership: appliesToProduct(productId: $resourceId0) productsCount { count precision } } }",
+      "variables": {
+        "groupId0": "gid://shopify/SellingPlanGroup/3161030962",
+        "resourceId0": "gid://shopify/Product/10245406982450"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "probe0": {
+            "id": "gid://shopify/SellingPlanGroup/3161030962",
+            "membership": true,
+            "productsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1991,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "variantMembershipBeforeLocalReplay": {
+      "label": "variantMembershipBeforeLocalReplay",
+      "query": "query SellingPlanGroupProductVariantMembershipProbe($groupId0: ID!, $resourceId0: ID!) { probe0: sellingPlanGroup(id: $groupId0) { id membership: appliesToProductVariant(productVariantId: $resourceId0) productVariantsCount { count precision } } }",
+      "variables": {
+        "groupId0": "gid://shopify/SellingPlanGroup/3161030962",
+        "resourceId0": "gid://shopify/ProductVariant/51492544020786"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "probe0": {
+            "id": "gid://shopify/SellingPlanGroup/3161030962",
+            "membership": false,
+            "productVariantsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productWindowBeforeLocalReplay": {
+      "label": "productWindowBeforeLocalReplay",
+      "query": "\nquery SellingPlanGroupProductsWindow(\n  $id: ID!\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n  $reverse: Boolean!\n) {\n  sellingPlanGroup(id: $id) {\n    products(first: $first, after: $after, last: $last, before: $before, reverse: $reverse) {\n      edges {\n        cursor\n        node {\n          __typename\n          id\n          title\n          handle\n          status\n          createdAt\n          updatedAt\n        }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    productsCount { count precision }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/3161030962",
+        "productId": null,
+        "first": 5,
+        "after": null,
+        "last": null,
+        "before": null,
+        "reverse": false
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroup": {
+            "products": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDI0NTQwNjk4MjQ1MCwibGFzdF92YWx1ZSI6IjEwMjQ1NDA2OTgyNDUwIn0=",
+                  "node": {
+                    "__typename": "Product",
+                    "id": "gid://shopify/Product/10245406982450",
+                    "title": "Selling plan LiveHybrid parity 20260720214715",
+                    "handle": "selling-plan-livehybrid-parity-20260720214715",
+                    "status": "ACTIVE",
+                    "createdAt": "2026-07-20T21:47:15Z",
+                    "updatedAt": "2026-07-20T21:47:16Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDI0NTQwNjk4MjQ1MCwibGFzdF92YWx1ZSI6IjEwMjQ1NDA2OTgyNDUwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMDI0NTQwNjk4MjQ1MCwibGFzdF92YWx1ZSI6IjEwMjQ1NDA2OTgyNDUwIn0="
+              }
+            },
+            "productsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "variantWindowBeforeLocalReplay": {
+      "label": "variantWindowBeforeLocalReplay",
+      "query": "\nquery SellingPlanGroupProductVariantsWindow(\n  $id: ID!\n  $productId: ID\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n  $reverse: Boolean!\n) {\n  sellingPlanGroup(id: $id) {\n    productVariants(\n      productId: $productId\n      first: $first\n      after: $after\n      last: $last\n      before: $before\n      reverse: $reverse\n    ) {\n      edges {\n        cursor\n        node {\n          __typename\n          id\n          title\n          sku\n          barcode\n          price\n          compareAtPrice\n          taxable\n          inventoryPolicy\n          inventoryQuantity\n          selectedOptions { name value }\n          inventoryItem { id tracked requiresShipping }\n          product { id title handle status createdAt updatedAt }\n        }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    productVariantsCount(productId: $productId) { count precision }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/3161030962",
+        "productId": null,
+        "first": 5,
+        "after": null,
+        "last": null,
+        "before": null,
+        "reverse": false
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroup": {
+            "productVariants": {
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "productVariantsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
               "restoreRate": 100
             }
           }
@@ -461,18 +567,18 @@
       "label": "updateExistingGroup",
       "query": "mutation UpdateSellingPlanGroup($id: ID!, $input: SellingPlanGroupInput!, $productId: ID!, $variantId: ID!) {\n  sellingPlanGroupUpdate(id: $id, input: $input) {\n    deletedSellingPlanIds\n    sellingPlanGroup {\n      id\n      appId\n      name\n      merchantCode\n      description\n      options\n      position\n      summary\n      createdAt\n      productsCount {\n        count\n        precision\n      }\n      productVariantsCount {\n        count\n        precision\n      }\n      appliesToProduct(productId: $productId)\n      appliesToProductVariant(productVariantId: $variantId)\n      appliesToProductVariants(productId: $productId)\n      products(first: 5) {\n        nodes {\n          id\n          title\n        }\n      }\n      productVariants(first: 5) {\n        nodes {\n          id\n          title\n          product {\n            id\n          }\n        }\n      }\n      sellingPlans(first: 5) {\n        nodes {\n          id\n          name\n          description\n          options\n          position\n          category\n          createdAt\n          billingPolicy {\n            __typename\n            ... on SellingPlanRecurringBillingPolicy {\n              interval\n              intervalCount\n              minCycles\n              maxCycles\n            }\n          }\n          deliveryPolicy {\n            __typename\n            ... on SellingPlanRecurringDeliveryPolicy {\n              interval\n              intervalCount\n              cutoff\n              intent\n              preAnchorBehavior\n            }\n          }\n          inventoryPolicy {\n            reserve\n          }\n          pricingPolicies {\n            __typename\n            ... on SellingPlanFixedPricingPolicy {\n              adjustmentType\n              adjustmentValue {\n                __typename\n                ... on SellingPlanPricingPolicyPercentageValue {\n                  percentage\n                }\n                ... on MoneyV2 {\n                  amount\n                  currencyCode\n                }\n              }\n            }\n            ... on SellingPlanRecurringPricingPolicy {\n              afterCycle\n              createdAt\n              adjustmentType\n              adjustmentValue {\n                __typename\n                ... on SellingPlanPricingPolicyPercentageValue {\n                  percentage\n                }\n                ... on MoneyV2 {\n                  amount\n                  currencyCode\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/SellingPlanGroup/3159130418",
-        "productId": "gid://shopify/Product/10243931799858",
-        "variantId": "gid://shopify/ProductVariant/51488139608370",
+        "id": "gid://shopify/SellingPlanGroup/3161030962",
+        "productId": "gid://shopify/Product/10245406982450",
+        "variantId": "gid://shopify/ProductVariant/51492544020786",
         "input": {
-          "name": "LiveHybrid existing updated 20260719142656",
-          "merchantCode": "live-hybrid-existing-updated-20260719142656",
+          "name": "LiveHybrid existing updated 20260720214715",
+          "merchantCode": "live-hybrid-existing-updated-20260720214715",
           "description": "Updated by live Shopify capture before local replay",
           "options": ["Delivery cadence"],
           "position": 2,
           "sellingPlansToUpdate": [
             {
-              "id": "gid://shopify/SellingPlan/7322665266",
+              "id": "gid://shopify/SellingPlan/7324565810",
               "name": "Monthly delivery updated",
               "options": ["Monthly"],
               "position": 1,
@@ -496,15 +602,15 @@
           "sellingPlanGroupUpdate": {
             "deletedSellingPlanIds": [],
             "sellingPlanGroup": {
-              "id": "gid://shopify/SellingPlanGroup/3159130418",
+              "id": "gid://shopify/SellingPlanGroup/3161030962",
               "appId": null,
-              "name": "LiveHybrid existing updated 20260719142656",
-              "merchantCode": "live-hybrid-existing-updated-20260719142656",
+              "name": "LiveHybrid existing updated 20260720214715",
+              "merchantCode": "live-hybrid-existing-updated-20260720214715",
               "description": "Updated by live Shopify capture before local replay",
               "options": ["Delivery cadence"],
               "position": 2,
               "summary": "1 delivery frequency, 10% discount",
-              "createdAt": "2026-07-19T14:26:57Z",
+              "createdAt": "2026-07-20T21:47:16Z",
               "productsCount": {
                 "count": 1,
                 "precision": "EXACT"
@@ -519,8 +625,8 @@
               "products": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Product/10243931799858",
-                    "title": "Selling plan LiveHybrid parity 20260719142656"
+                    "id": "gid://shopify/Product/10245406982450",
+                    "title": "Selling plan LiveHybrid parity 20260720214715"
                   }
                 ]
               },
@@ -530,13 +636,13 @@
               "sellingPlans": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/SellingPlan/7322665266",
+                    "id": "gid://shopify/SellingPlan/7324565810",
                     "name": "Monthly delivery updated",
                     "description": "Ships every month",
                     "options": ["Monthly"],
                     "position": 1,
                     "category": "SUBSCRIPTION",
-                    "createdAt": "2026-07-19T14:26:57Z",
+                    "createdAt": "2026-07-20T21:47:16Z",
                     "billingPolicy": {
                       "__typename": "SellingPlanRecurringBillingPolicy",
                       "interval": "MONTH",
@@ -578,7 +684,7 @@
             "actualQueryCost": 29,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1961,
+              "currentlyAvailable": 1971,
               "restoreRate": 100
             }
           }
@@ -589,15 +695,15 @@
       "label": "downstreamAfterUpdate",
       "query": "query DownstreamSellingPlanRead($productId: ID!, $variantId: ID!) {\n  product(id: $productId) {\n    id\n    title\n    requiresSellingPlan\n    sellingPlanGroupsCount {\n      count\n      precision\n    }\n    sellingPlanGroups(first: 5) {\n      nodes {\n        id\n        name\n        merchantCode\n      }\n    }\n  }\n  productVariant(id: $variantId) {\n    id\n    title\n    sellingPlanGroupsCount {\n      count\n      precision\n    }\n    sellingPlanGroups(first: 5) {\n      nodes {\n        id\n        name\n        merchantCode\n      }\n    }\n  }\n}\n",
       "variables": {
-        "productId": "gid://shopify/Product/10243931799858",
-        "variantId": "gid://shopify/ProductVariant/51488139608370"
+        "productId": "gid://shopify/Product/10245406982450",
+        "variantId": "gid://shopify/ProductVariant/51492544020786"
       },
       "status": 200,
       "response": {
         "data": {
           "product": {
-            "id": "gid://shopify/Product/10243931799858",
-            "title": "Selling plan LiveHybrid parity 20260719142656",
+            "id": "gid://shopify/Product/10245406982450",
+            "title": "Selling plan LiveHybrid parity 20260720214715",
             "requiresSellingPlan": false,
             "sellingPlanGroupsCount": {
               "count": 1,
@@ -606,15 +712,15 @@
             "sellingPlanGroups": {
               "nodes": [
                 {
-                  "id": "gid://shopify/SellingPlanGroup/3159130418",
-                  "name": "LiveHybrid existing updated 20260719142656",
-                  "merchantCode": "live-hybrid-existing-updated-20260719142656"
+                  "id": "gid://shopify/SellingPlanGroup/3161030962",
+                  "name": "LiveHybrid existing updated 20260720214715",
+                  "merchantCode": "live-hybrid-existing-updated-20260720214715"
                 }
               ]
             }
           },
           "productVariant": {
-            "id": "gid://shopify/ProductVariant/51488139608370",
+            "id": "gid://shopify/ProductVariant/51492544020786",
             "title": "Default Title",
             "sellingPlanGroupsCount": {
               "count": 0,
@@ -623,9 +729,9 @@
             "sellingPlanGroups": {
               "nodes": [
                 {
-                  "id": "gid://shopify/SellingPlanGroup/3159130418",
-                  "name": "LiveHybrid existing updated 20260719142656",
-                  "merchantCode": "live-hybrid-existing-updated-20260719142656"
+                  "id": "gid://shopify/SellingPlanGroup/3161030962",
+                  "name": "LiveHybrid existing updated 20260720214715",
+                  "merchantCode": "live-hybrid-existing-updated-20260720214715"
                 }
               ]
             }
@@ -637,7 +743,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1971,
+              "currentlyAvailable": 1981,
               "restoreRate": 100
             }
           }
@@ -650,13 +756,13 @@
       "label": "cleanup sellingPlanGroupDelete",
       "query": "#graphql\n  mutation DeleteSellingPlanGroup($id: ID!) {\n    sellingPlanGroupDelete(id: $id) {\n      deletedSellingPlanGroupId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/SellingPlanGroup/3159130418"
+        "id": "gid://shopify/SellingPlanGroup/3161030962"
       },
       "status": 200,
       "response": {
         "data": {
           "sellingPlanGroupDelete": {
-            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3159130418",
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3161030962",
             "userErrors": []
           }
         },
@@ -666,7 +772,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1972,
+              "currentlyAvailable": 1983,
               "restoreRate": 100
             }
           }
@@ -678,14 +784,14 @@
       "query": "#graphql\n  mutation DeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "id": "gid://shopify/Product/10243931799858"
+          "id": "gid://shopify/Product/10245406982450"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10243931799858",
+            "deletedProductId": "gid://shopify/Product/10245406982450",
             "userErrors": []
           }
         },
@@ -695,7 +801,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1982,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -705,11 +811,112 @@
   },
   "upstreamCalls": [
     {
+      "operationName": "ReadSellingPlanGroup",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/3161030962",
+        "productId": "gid://shopify/Product/10245406982450",
+        "variantId": "gid://shopify/ProductVariant/51492544020786"
+      },
+      "query": "query ReadSellingPlanGroup($id: ID!, $productId: ID!, $variantId: ID!) {\n  sellingPlanGroup(id: $id) {\n    id\n    appId\n    name\n    merchantCode\n    description\n    options\n    position\n    summary\n    createdAt\n    productsCount {\n      count\n      precision\n    }\n    productVariantsCount {\n      count\n      precision\n    }\n    appliesToProduct(productId: $productId)\n    appliesToProductVariant(productVariantId: $variantId)\n    appliesToProductVariants(productId: $productId)\n    products(first: 5) {\n      nodes {\n        id\n        title\n      }\n    }\n    productVariants(first: 5) {\n      nodes {\n        id\n        title\n        product {\n          id\n        }\n      }\n    }\n    sellingPlans(first: 5) {\n      nodes {\n        id\n        name\n        description\n        options\n        position\n        category\n        createdAt\n        billingPolicy {\n          __typename\n          ... on SellingPlanRecurringBillingPolicy {\n            interval\n            intervalCount\n            minCycles\n            maxCycles\n          }\n        }\n        deliveryPolicy {\n          __typename\n          ... on SellingPlanRecurringDeliveryPolicy {\n            interval\n            intervalCount\n            cutoff\n            intent\n            preAnchorBehavior\n          }\n        }\n        inventoryPolicy {\n          reserve\n        }\n        pricingPolicies {\n          __typename\n          ... on SellingPlanFixedPricingPolicy {\n            adjustmentType\n            adjustmentValue {\n              __typename\n              ... on SellingPlanPricingPolicyPercentageValue {\n                percentage\n              }\n              ... on MoneyV2 {\n                amount\n                currencyCode\n              }\n            }\n          }\n          ... on SellingPlanRecurringPricingPolicy {\n            afterCycle\n            createdAt\n            adjustmentType\n            adjustmentValue {\n              __typename\n              ... on SellingPlanPricingPolicyPercentageValue {\n                percentage\n              }\n              ... on MoneyV2 {\n                amount\n                currencyCode\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "sellingPlanGroup": {
+              "id": "gid://shopify/SellingPlanGroup/3161030962",
+              "appId": null,
+              "name": "LiveHybrid existing 20260720214715",
+              "merchantCode": "live-hybrid-existing-20260720214715",
+              "description": "Disposable selling-plan group for cold LiveHybrid parity",
+              "options": ["Delivery frequency"],
+              "position": 1,
+              "summary": "1 delivery frequency, 10% discount",
+              "createdAt": "2026-07-20T21:47:16Z",
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "productVariantsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "appliesToProduct": true,
+              "appliesToProductVariant": false,
+              "appliesToProductVariants": false,
+              "products": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/10245406982450",
+                    "title": "Selling plan LiveHybrid parity 20260720214715"
+                  }
+                ]
+              },
+              "productVariants": {
+                "nodes": []
+              },
+              "sellingPlans": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/SellingPlan/7324565810",
+                    "name": "Monthly delivery",
+                    "description": "Ships every month",
+                    "options": ["Monthly"],
+                    "position": 1,
+                    "category": "SUBSCRIPTION",
+                    "createdAt": "2026-07-20T21:47:16Z",
+                    "billingPolicy": {
+                      "__typename": "SellingPlanRecurringBillingPolicy",
+                      "interval": "MONTH",
+                      "intervalCount": 1,
+                      "minCycles": 1,
+                      "maxCycles": 12
+                    },
+                    "deliveryPolicy": {
+                      "__typename": "SellingPlanRecurringDeliveryPolicy",
+                      "interval": "MONTH",
+                      "intervalCount": 1,
+                      "cutoff": 0,
+                      "intent": "FULFILLMENT_BEGIN",
+                      "preAnchorBehavior": "ASAP"
+                    },
+                    "inventoryPolicy": {
+                      "reserve": "ON_FULFILLMENT"
+                    },
+                    "pricingPolicies": [
+                      {
+                        "__typename": "SellingPlanFixedPricingPolicy",
+                        "adjustmentType": "PERCENTAGE",
+                        "adjustmentValue": {
+                          "__typename": "SellingPlanPricingPolicyPercentageValue",
+                          "percentage": 10
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 36,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "operationName": "sellingPlanGroupHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/SellingPlanGroup/3159130418"]
+        "ids": ["gid://shopify/SellingPlanGroup/3161030962"]
       },
-      "query": "\nquery sellingPlanGroupHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on SellingPlanGroup {\n      appId\n      name\n      merchantCode\n      description\n      options\n      position\n      createdAt\n      products(first: 250) {\n        edges {\n          cursor\n          node {\n          __typename\n          id\n          title\n          handle\n          status\n          createdAt\n          updatedAt\n          variants(first: 50) {\n            edges {\n              cursor\n              node {\n              __typename\n              id\n              title\n              sku\n              barcode\n              price\n              compareAtPrice\n              taxable\n              inventoryPolicy\n              inventoryQuantity\n              selectedOptions { name value }\n              inventoryItem { id tracked requiresShipping }\n              }\n            }\n            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n          }\n          }\n        }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n      productVariants(first: 250) {\n        edges {\n          cursor\n          node {\n          __typename\n          id\n          title\n          sku\n          barcode\n          price\n          compareAtPrice\n          taxable\n          inventoryPolicy\n          inventoryQuantity\n          selectedOptions { name value }\n          inventoryItem { id tracked requiresShipping }\n          product { id title handle status createdAt updatedAt }\n          }\n        }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n      sellingPlans(first: 250) {\n        edges {\n          cursor\n          node {\n          __typename\n          id\n          name\n          description\n          options\n          position\n          category\n          createdAt\n          billingPolicy {\n            __typename\n            ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n          }\n          deliveryPolicy {\n            __typename\n            ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n          }\n          inventoryPolicy { reserve }\n          pricingPolicies {\n            __typename\n            ... on SellingPlanFixedPricingPolicy {\n              adjustmentType\n              adjustmentValue {\n                __typename\n                ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                ... on MoneyV2 { amount currencyCode }\n              }\n            }\n            ... on SellingPlanRecurringPricingPolicy {\n              afterCycle\n              createdAt\n              adjustmentType\n              adjustmentValue {\n                __typename\n                ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                ... on MoneyV2 { amount currencyCode }\n              }\n            }\n          }\n          }\n        }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n    }\n  }\n}\n",
+      "query": "\nquery sellingPlanGroupHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on SellingPlanGroup {\n      appId\n      name\n      merchantCode\n      description\n      options\n      position\n      createdAt\n      productsCount { count precision }\n      productVariantsCount { count precision }\n      sellingPlans(first: 250) {\n        edges {\n          cursor\n          node {\n          __typename\n          id\n          name\n          description\n          options\n          position\n          category\n          createdAt\n          billingPolicy {\n            __typename\n            ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n          }\n          deliveryPolicy {\n            __typename\n            ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n          }\n          inventoryPolicy { reserve }\n          pricingPolicies {\n            __typename\n            ... on SellingPlanFixedPricingPolicy {\n              adjustmentType\n              adjustmentValue {\n                __typename\n                ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                ... on MoneyV2 { amount currencyCode }\n              }\n            }\n            ... on SellingPlanRecurringPricingPolicy {\n              afterCycle\n              createdAt\n              adjustmentType\n              adjustmentValue {\n                __typename\n                ... on SellingPlanPricingPolicyPercentageValue { percentage }\n                ... on MoneyV2 { amount currencyCode }\n              }\n            }\n          }\n          }\n        }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -717,94 +924,35 @@
             "nodes": [
               {
                 "__typename": "SellingPlanGroup",
-                "id": "gid://shopify/SellingPlanGroup/3159130418",
+                "id": "gid://shopify/SellingPlanGroup/3161030962",
                 "appId": null,
-                "name": "LiveHybrid existing 20260719142656",
-                "merchantCode": "live-hybrid-existing-20260719142656",
+                "name": "LiveHybrid existing 20260720214715",
+                "merchantCode": "live-hybrid-existing-20260720214715",
                 "description": "Disposable selling-plan group for cold LiveHybrid parity",
                 "options": ["Delivery frequency"],
                 "position": 1,
-                "createdAt": "2026-07-19T14:26:57Z",
-                "products": {
-                  "edges": [
-                    {
-                      "cursor": "eyJsYXN0X2lkIjoxMDI0MzkzMTc5OTg1OCwibGFzdF92YWx1ZSI6IjEwMjQzOTMxNzk5ODU4In0=",
-                      "node": {
-                        "__typename": "Product",
-                        "id": "gid://shopify/Product/10243931799858",
-                        "title": "Selling plan LiveHybrid parity 20260719142656",
-                        "handle": "selling-plan-livehybrid-parity-20260719142656",
-                        "status": "ACTIVE",
-                        "createdAt": "2026-07-19T14:26:57Z",
-                        "updatedAt": "2026-07-19T14:26:57Z",
-                        "variants": {
-                          "edges": [
-                            {
-                              "cursor": "eyJsYXN0X2lkIjo1MTQ4ODEzOTYwODM3MCwibGFzdF92YWx1ZSI6MX0=",
-                              "node": {
-                                "__typename": "ProductVariant",
-                                "id": "gid://shopify/ProductVariant/51488139608370",
-                                "title": "Default Title",
-                                "sku": null,
-                                "barcode": null,
-                                "price": "0.00",
-                                "compareAtPrice": null,
-                                "taxable": true,
-                                "inventoryPolicy": "DENY",
-                                "inventoryQuantity": 0,
-                                "selectedOptions": [
-                                  {
-                                    "name": "Title",
-                                    "value": "Default Title"
-                                  }
-                                ],
-                                "inventoryItem": {
-                                  "id": "gid://shopify/InventoryItem/53593736937778",
-                                  "tracked": false,
-                                  "requiresShipping": true
-                                }
-                              }
-                            }
-                          ],
-                          "pageInfo": {
-                            "hasNextPage": false,
-                            "hasPreviousPage": false,
-                            "startCursor": "eyJsYXN0X2lkIjo1MTQ4ODEzOTYwODM3MCwibGFzdF92YWx1ZSI6MX0=",
-                            "endCursor": "eyJsYXN0X2lkIjo1MTQ4ODEzOTYwODM3MCwibGFzdF92YWx1ZSI6MX0="
-                          }
-                        }
-                      }
-                    }
-                  ],
-                  "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": "eyJsYXN0X2lkIjoxMDI0MzkzMTc5OTg1OCwibGFzdF92YWx1ZSI6IjEwMjQzOTMxNzk5ODU4In0=",
-                    "endCursor": "eyJsYXN0X2lkIjoxMDI0MzkzMTc5OTg1OCwibGFzdF92YWx1ZSI6IjEwMjQzOTMxNzk5ODU4In0="
-                  }
+                "createdAt": "2026-07-20T21:47:16Z",
+                "productsCount": {
+                  "count": 1,
+                  "precision": "EXACT"
                 },
-                "productVariants": {
-                  "edges": [],
-                  "pageInfo": {
-                    "hasNextPage": false,
-                    "hasPreviousPage": false,
-                    "startCursor": null,
-                    "endCursor": null
-                  }
+                "productVariantsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
                 },
                 "sellingPlans": {
                   "edges": [
                     {
-                      "cursor": "eyJsYXN0X2lkIjo3MzIyNjY1MjY2LCJsYXN0X3ZhbHVlIjoiNzMyMjY2NTI2NiJ9",
+                      "cursor": "eyJsYXN0X2lkIjo3MzI0NTY1ODEwLCJsYXN0X3ZhbHVlIjoiNzMyNDU2NTgxMCJ9",
                       "node": {
                         "__typename": "SellingPlan",
-                        "id": "gid://shopify/SellingPlan/7322665266",
+                        "id": "gid://shopify/SellingPlan/7324565810",
                         "name": "Monthly delivery",
                         "description": "Ships every month",
                         "options": ["Monthly"],
                         "position": 1,
                         "category": "SUBSCRIPTION",
-                        "createdAt": "2026-07-19T14:26:57Z",
+                        "createdAt": "2026-07-20T21:47:16Z",
                         "billingPolicy": {
                           "__typename": "SellingPlanRecurringBillingPolicy",
                           "interval": "MONTH",
@@ -839,8 +987,8 @@
                   "pageInfo": {
                     "hasNextPage": false,
                     "hasPreviousPage": false,
-                    "startCursor": "eyJsYXN0X2lkIjo3MzIyNjY1MjY2LCJsYXN0X3ZhbHVlIjoiNzMyMjY2NTI2NiJ9",
-                    "endCursor": "eyJsYXN0X2lkIjo3MzIyNjY1MjY2LCJsYXN0X3ZhbHVlIjoiNzMyMjY2NTI2NiJ9"
+                    "startCursor": "eyJsYXN0X2lkIjo3MzI0NTY1ODEwLCJsYXN0X3ZhbHVlIjoiNzMyNDU2NTgxMCJ9",
+                    "endCursor": "eyJsYXN0X2lkIjo3MzI0NTY1ODEwLCJsYXN0X3ZhbHVlIjoiNzMyNDU2NTgxMCJ9"
                   }
                 }
               }
@@ -848,11 +996,245 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 381,
-              "actualQueryCost": 11,
+              "requestedQueryCost": 71,
+              "actualQueryCost": 8,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1976,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "SellingPlanGroupProductMembershipProbe",
+      "variables": {
+        "groupId0": "gid://shopify/SellingPlanGroup/3161030962",
+        "resourceId0": "gid://shopify/Product/10245406982450"
+      },
+      "query": "query SellingPlanGroupProductMembershipProbe($groupId0: ID!, $resourceId0: ID!) { probe0: sellingPlanGroup(id: $groupId0) { id membership: appliesToProduct(productId: $resourceId0) productsCount { count precision } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "probe0": {
+              "id": "gid://shopify/SellingPlanGroup/3161030962",
+              "membership": true,
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "SellingPlanGroupProductVariantMembershipProbe",
+      "variables": {
+        "groupId0": "gid://shopify/SellingPlanGroup/3161030962",
+        "resourceId0": "gid://shopify/ProductVariant/51492544020786"
+      },
+      "query": "query SellingPlanGroupProductVariantMembershipProbe($groupId0: ID!, $resourceId0: ID!) { probe0: sellingPlanGroup(id: $groupId0) { id membership: appliesToProductVariant(productVariantId: $resourceId0) productVariantsCount { count precision } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "probe0": {
+              "id": "gid://shopify/SellingPlanGroup/3161030962",
+              "membership": false,
+              "productVariantsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "SellingPlanGroupProductsWindow",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/3161030962",
+        "productId": null,
+        "first": 5,
+        "after": null,
+        "last": null,
+        "before": null,
+        "reverse": false
+      },
+      "query": "\nquery SellingPlanGroupProductsWindow(\n  $id: ID!\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n  $reverse: Boolean!\n) {\n  sellingPlanGroup(id: $id) {\n    products(first: $first, after: $after, last: $last, before: $before, reverse: $reverse) {\n      edges {\n        cursor\n        node {\n          __typename\n          id\n          title\n          handle\n          status\n          createdAt\n          updatedAt\n        }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    productsCount { count precision }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "sellingPlanGroup": {
+              "products": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjoxMDI0NTQwNjk4MjQ1MCwibGFzdF92YWx1ZSI6IjEwMjQ1NDA2OTgyNDUwIn0=",
+                    "node": {
+                      "__typename": "Product",
+                      "id": "gid://shopify/Product/10245406982450",
+                      "title": "Selling plan LiveHybrid parity 20260720214715",
+                      "handle": "selling-plan-livehybrid-parity-20260720214715",
+                      "status": "ACTIVE",
+                      "createdAt": "2026-07-20T21:47:15Z",
+                      "updatedAt": "2026-07-20T21:47:16Z"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMDI0NTQwNjk4MjQ1MCwibGFzdF92YWx1ZSI6IjEwMjQ1NDA2OTgyNDUwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDI0NTQwNjk4MjQ1MCwibGFzdF92YWx1ZSI6IjEwMjQ1NDA2OTgyNDUwIn0="
+                }
+              },
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "SellingPlanGroupProductVariantsWindow",
+      "variables": {
+        "id": "gid://shopify/SellingPlanGroup/3161030962",
+        "productId": null,
+        "first": 5,
+        "after": null,
+        "last": null,
+        "before": null,
+        "reverse": false
+      },
+      "query": "\nquery SellingPlanGroupProductVariantsWindow(\n  $id: ID!\n  $productId: ID\n  $first: Int\n  $after: String\n  $last: Int\n  $before: String\n  $reverse: Boolean!\n) {\n  sellingPlanGroup(id: $id) {\n    productVariants(\n      productId: $productId\n      first: $first\n      after: $after\n      last: $last\n      before: $before\n      reverse: $reverse\n    ) {\n      edges {\n        cursor\n        node {\n          __typename\n          id\n          title\n          sku\n          barcode\n          price\n          compareAtPrice\n          taxable\n          inventoryPolicy\n          inventoryQuantity\n          selectedOptions { name value }\n          inventoryItem { id tracked requiresShipping }\n          product { id title handle status createdAt updatedAt }\n        }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n    productVariantsCount(productId: $productId) { count precision }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "sellingPlanGroup": {
+              "productVariants": {
+                "edges": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "productVariantsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DownstreamSellingPlanRead",
+      "variables": {
+        "productId": "gid://shopify/Product/10245406982450",
+        "variantId": "gid://shopify/ProductVariant/51492544020786"
+      },
+      "query": "query DownstreamSellingPlanRead($productId: ID!, $variantId: ID!) {\n  product(id: $productId) {\n    id\n    title\n    requiresSellingPlan\n    sellingPlanGroupsCount {\n      count\n      precision\n    }\n    sellingPlanGroups(first: 5) {\n      nodes {\n        id\n        name\n        merchantCode\n      }\n    }\n  }\n  productVariant(id: $variantId) {\n    id\n    title\n    sellingPlanGroupsCount {\n      count\n      precision\n    }\n    sellingPlanGroups(first: 5) {\n      nodes {\n        id\n        name\n        merchantCode\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10245406982450",
+              "title": "Selling plan LiveHybrid parity 20260720214715",
+              "requiresSellingPlan": false,
+              "sellingPlanGroupsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "sellingPlanGroups": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/SellingPlanGroup/3161030962",
+                    "name": "LiveHybrid existing updated 20260720214715",
+                    "merchantCode": "live-hybrid-existing-updated-20260720214715"
+                  }
+                ]
+              }
+            },
+            "productVariant": {
+              "id": "gid://shopify/ProductVariant/51492544020786",
+              "title": "Default Title",
+              "sellingPlanGroupsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              },
+              "sellingPlanGroups": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/SellingPlanGroup/3161030962",
+                    "name": "LiveHybrid existing updated 20260720214715",
+                    "merchantCode": "live-hybrid-existing-updated-20260720214715"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
                 "restoreRate": 100
               }
             }
