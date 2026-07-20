@@ -4,6 +4,7 @@
     "inventoryItemUpdate",
     "inventoryItems",
     "orderCreate",
+    "order",
     "inventoryItem",
     "inventoryTransferCreate",
     "inventoryTransferMarkAsReadyToShip",
@@ -67,6 +68,106 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/inventory-default-location-item-read.graphql",
           "variablesCapturePath": "$.workflow.afterOrderInventoryRead.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "order-create-cold-variant-inventory-payload",
+        "capturePath": "$.workflow.coldVariantOrderCreate.response.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-default-location-order-create.graphql",
+          "variablesCapturePath": "$.workflow.coldVariantOrderCreate.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.order.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "Live Shopify and the local draft proxy allocate different order ids."
+          },
+          {
+            "path": "$.order.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:LineItem",
+            "reason": "Live Shopify and the local draft proxy allocate different line item ids."
+          }
+        ]
+      },
+      {
+        "name": "after-order-cold-variant-multi-location-inventory-read",
+        "capturePath": "$.workflow.afterColdVariantOrderInventoryRead.response.data.inventoryItem",
+        "proxyPath": "$.data.inventoryItem",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-default-location-item-read.graphql",
+          "variablesCapturePath": "$.workflow.afterColdVariantOrderInventoryRead.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "after-order-cold-variant-product-read",
+        "capturePath": "$.workflow.afterColdVariantOrderProductRead.response.data.product",
+        "proxyPath": "$.data.product",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-cold-variant-product-read.graphql",
+          "variablesCapturePath": "$.workflow.afterColdVariantOrderProductRead.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "order-create-cold-variant-downstream-order-read",
+        "capturePath": "$.workflow.coldVariantOrderRead.response.data.order",
+        "proxyPath": "$.data.order",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-cold-variant-order-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "order-create-cold-variant-inventory-payload",
+              "path": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "Live Shopify and the local draft proxy allocate different order ids."
+          },
+          {
+            "path": "$.name",
+            "matcher": "non-empty-string",
+            "reason": "Live Shopify and the local draft proxy allocate order names from different session sequences."
+          },
+          {
+            "path": "$.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:LineItem",
+            "reason": "Live Shopify and the local draft proxy allocate different line item ids."
+          }
+        ]
+      },
+      {
+        "name": "order-create-unresolved-variant-payload",
+        "capturePath": "$.workflow.unresolvedVariantOrderCreate.response.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-default-location-order-create.graphql",
+          "variablesCapturePath": "$.workflow.unresolvedVariantOrderCreate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "after-unresolved-variant-inventory-unchanged",
+        "capturePath": "$.workflow.afterUnresolvedVariantOrderInventoryRead.response.data.inventoryItem",
+        "proxyPath": "$.data.inventoryItem",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-default-location-item-read.graphql",
+          "variablesCapturePath": "$.workflow.afterUnresolvedVariantOrderInventoryRead.variables",
           "apiVersion": "2025-01"
         }
       },
@@ -241,5 +342,5 @@
     ]
   },
   "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
-  "notes": "Live 2025-01 capture for inventory item staging, inventoryItems connection readback, explicit order inventory decrement at the real default inventory location, inventoryShipmentCreate accepting a carrier company label outside the old local allowlist, and inventoryTransfer read quantities after draft plus in-transit shipment consumption. The scenario uses captured disposable Shopify setup records and cassette-backed hydration; replayed mutations still stage locally without runtime Shopify writes."
+  "notes": "Live 2025-01 capture for inventory item staging, inventoryItems connection readback, explicit warm and cold order inventory decrement, inventoryShipmentCreate accepting a carrier company label outside the old local allowlist, and inventoryTransfer read quantities after draft plus in-transit shipment consumption. The cold order branch records a ProductVariant and InventoryItem with deliberately different numeric tails, hydrates three inventory locations before local orderCreate staging, and strictly compares the resulting inventory item plus downstream order reads. Shopify decremented the only stocked location while leaving zero-quantity locations unchanged. An unresolved ProductVariant whose numeric tail matches that real InventoryItem is rejected without creating an order or changing inventory. The scenario uses captured disposable Shopify setup records and cassette-backed hydration; replayed mutations still stage locally without runtime Shopify writes."
 }

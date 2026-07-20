@@ -343,9 +343,17 @@ struct SavedSearchRecord {
     id: String,
     #[serde(default)]
     cursor: Option<String>,
+    #[serde(default)]
+    legacy_resource_id: String,
     name: String,
     query: String,
     resource_type: String,
+    #[serde(default)]
+    search_terms: String,
+    #[serde(default)]
+    filters: Vec<(String, String)>,
+    #[serde(default)]
+    api_client_id: String,
 }
 
 #[derive(Clone)]

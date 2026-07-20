@@ -967,6 +967,29 @@ pub(crate) fn load_segment(
     )
 }
 
+pub(crate) fn load_saved_search(
+    proxy: &DraftProxy,
+    id: &str,
+    request: Option<&Request>,
+) -> NodeLoadState<EntityRef> {
+    if proxy.store.saved_searches.staged.is_tombstoned(id) {
+        return NodeLoadState::KnownMissing;
+    }
+    let api_client_id = request
+        .map(saved_search_request_api_client_id)
+        .unwrap_or_default();
+    proxy
+        .store
+        .saved_search_by_id(id)
+        .map_or(NodeLoadState::NeedsHydration, |record| {
+            NodeLoadState::Found(EntityRef::new(
+                "SavedSearch",
+                id,
+                saved_search_full_value(&record, &api_client_id),
+            ))
+        })
+}
+
 pub(crate) fn load_customer_segment_members_query(
     proxy: &DraftProxy,
     id: &str,

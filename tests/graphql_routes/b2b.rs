@@ -2276,6 +2276,222 @@ fn b2b_mutation_first_hydrates_contact_role_staff_address_and_customer_relations
 }
 
 #[test]
+fn b2b_assign_customer_as_contact_mutation_first_hydrates_and_reads_relationship() {
+    let captured = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        move |request| {
+            assert_eq!(request.method, "POST");
+            assert_eq!(request.path, "/admin/api/2026-04/graphql.json");
+            assert_eq!(
+                request.headers.get("X-Shopify-Access-Token"),
+                Some(&"assign-customer-token".to_string())
+            );
+            let body = serde_json::from_str::<Value>(&request.body).expect("upstream body");
+            assert_eq!(body["operationName"], json!("B2BMutationTargetsHydrate"));
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| !query.contains("mutation")));
+            captured
+                .lock()
+                .expect("captured upstream")
+                .push(request.clone());
+            b2b_mutation_first_hydrate_test_response(&body)
+        }
+    });
+
+    let mutation = r#"
+        mutation B2BAssignCustomerAsContactMutationFirst($companyId: ID!, $customerId: ID!) {
+          companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {
+            companyContact {
+              id
+              isMainContact
+              company { id name }
+              customer { id email firstName lastName }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let mut request = json_graphql_request(
+        mutation,
+        json!({
+            "companyId": B2B_HYDRATE_TEST_COMPANY_ID,
+            "customerId": B2B_HYDRATE_TEST_ASSIGNABLE_CUSTOMER_ID
+        }),
+    );
+    request.headers.insert(
+        "X-Shopify-Access-Token".to_string(),
+        "assign-customer-token".to_string(),
+    );
+    let assigned = proxy.process_request(request);
+    assert_eq!(assigned.status, 200);
+    assert_eq!(
+        assigned.body["data"]["companyAssignCustomerAsContact"]["userErrors"],
+        json!([])
+    );
+    let contact_id = assigned.body["data"]["companyAssignCustomerAsContact"]["companyContact"]
+        ["id"]
+        .as_str()
+        .expect("assigned contact id")
+        .to_string();
+
+    let calls = captured.lock().expect("captured upstream");
+    assert_eq!(calls.len(), 2);
+    let hydrated_ids = calls
+        .iter()
+        .map(|request| {
+            serde_json::from_str::<Value>(&request.body).expect("upstream body")["variables"]["ids"]
+                [0]
+            .as_str()
+            .expect("hydrate id")
+            .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        hydrated_ids,
+        vec![
+            B2B_HYDRATE_TEST_COMPANY_ID.to_string(),
+            B2B_HYDRATE_TEST_ASSIGNABLE_CUSTOMER_ID.to_string()
+        ]
+    );
+    drop(calls);
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BAssignCustomerAsContactMutationFirstReadback(
+          $companyId: ID!
+          $companyContactId: ID!
+          $customerId: ID!
+        ) {
+          company(id: $companyId) {
+            id
+            contacts(first: 5) { nodes { id } }
+          }
+          companyContact(id: $companyContactId) {
+            id
+            company { id }
+            customer { id email }
+          }
+          customer(id: $customerId) {
+            id
+            companyContactProfiles { id company { id } }
+          }
+        }
+        "#,
+        json!({
+            "companyId": B2B_HYDRATE_TEST_COMPANY_ID,
+            "companyContactId": contact_id,
+            "customerId": B2B_HYDRATE_TEST_ASSIGNABLE_CUSTOMER_ID
+        }),
+    ));
+    assert_eq!(readback.status, 200);
+    assert_eq!(
+        readback.body["errors"],
+        Value::Null,
+        "readback: {}",
+        readback.body
+    );
+    assert_eq!(
+        readback.body["data"]["company"]["contacts"]["nodes"][1]["id"],
+        json!(contact_id)
+    );
+    assert_eq!(
+        readback.body["data"]["companyContact"]["customer"]["id"],
+        json!(B2B_HYDRATE_TEST_ASSIGNABLE_CUSTOMER_ID)
+    );
+    assert_eq!(
+        readback.body["data"]["customer"]["companyContactProfiles"][0]["id"],
+        json!(contact_id)
+    );
+    assert_eq!(captured.lock().expect("captured upstream").len(), 2);
+
+    let log = log_snapshot(&proxy);
+    let entry = log["entries"]
+        .as_array()
+        .expect("log entries")
+        .iter()
+        .find(|entry| {
+            entry["interpreted"]["primaryRootField"] == json!("companyAssignCustomerAsContact")
+        })
+        .expect("assign customer log entry");
+    assert_eq!(entry["status"], json!("staged"));
+    let raw_body = serde_json::from_str::<Value>(
+        entry["rawBody"]
+            .as_str()
+            .expect("assign customer raw request body"),
+    )
+    .expect("assign customer raw request JSON");
+    assert_eq!(raw_body["query"], json!(mutation));
+}
+
+#[test]
+fn b2b_assign_customer_as_contact_mutation_first_returns_captured_missing_resource_errors() {
+    let cases = [
+        (
+            "gid://shopify/Company/does-not-exist",
+            B2B_HYDRATE_TEST_ASSIGNABLE_CUSTOMER_ID,
+            json!({
+                "companyContact": null,
+                "userErrors": [{
+                    "field": ["companyId"],
+                    "message": "Company does not exist.",
+                    "code": "RESOURCE_NOT_FOUND"
+                }]
+            }),
+        ),
+        (
+            B2B_HYDRATE_TEST_COMPANY_ID,
+            "gid://shopify/Customer/does-not-exist",
+            json!({
+                "companyContact": null,
+                "userErrors": [{
+                    "field": ["customerId"],
+                    "message": "Customer does not exist.",
+                    "code": "RESOURCE_NOT_FOUND"
+                }]
+            }),
+        ),
+        (
+            "gid://shopify/Company/does-not-exist",
+            "gid://shopify/Customer/does-not-exist",
+            json!({
+                "companyContact": null,
+                "userErrors": [{
+                    "field": ["companyId"],
+                    "message": "Company does not exist.",
+                    "code": "RESOURCE_NOT_FOUND"
+                }]
+            }),
+        ),
+    ];
+
+    for (company_id, customer_id, expected) in cases {
+        let mut proxy =
+            configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+                let body = serde_json::from_str::<Value>(&request.body).expect("upstream body");
+                b2b_mutation_first_hydrate_test_response(&body)
+            });
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation B2BAssignCustomerAsContactMissingResources($companyId: ID!, $customerId: ID!) {
+              companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {
+                companyContact { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "companyId": company_id, "customerId": customer_id }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["companyAssignCustomerAsContact"], expected,
+            "unexpected missing-resource result for company={company_id} customer={customer_id}"
+        );
+    }
+}
+
+#[test]
 fn b2b_mutation_hydration_pages_partial_company_memberships_before_delete_decisions() {
     let company_id = "gid://shopify/Company/991100";
     let deleted_location_id = "gid://shopify/CompanyLocation/992100";
