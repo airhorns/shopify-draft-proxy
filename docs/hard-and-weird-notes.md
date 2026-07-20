@@ -198,6 +198,29 @@ accepted payment terms, and later rapid attempts hit Shopify's order-create rate
 guard. The checked-in paid-update anchor is
 `config/parity-specs/payments/payment-terms-update-order-eligibility.json`.
 
+## Current: paymentTermsDelete has resolver-error precedence and needs schedule tombstones
+
+A cold-start 2026-04 capture against disposable DraftOrder-owned payment terms
+showed that `paymentTermsDelete` can resolve a persisted shop-owned target from
+only its full `PaymentTerms` GID. The proxy prerequisite is an exact query-only
+`node(id:)` read carrying the request's API version and auth context; the delete
+mutation itself remains local until explicit commit replay.
+
+The captured validation precedence is type-sensitive. A Shopify GID for a
+different resource returns a top-level `RESOURCE_NOT_FOUND` error with
+`Invalid id: <gid>` and a null mutation payload, without hydrating. An unknown
+but well-typed `PaymentTerms` GID hydrates to null and returns the payload-level
+`PAYMENT_TERMS_DELETE_UNSUCCESSFUL` / `Could not find payment terms.` userError.
+Neither failure changes staged state or appends a commit entry.
+
+Successful deletion must preserve more than owner detachment. Shopify returns
+the deleted terms GID, the owner's `paymentTerms` becomes null, and generic
+`node(id:)` reads for both the deleted `PaymentTerms` and its hydrated
+`PaymentSchedule` return null. Practical rule: retain explicit terms and
+schedule tombstones so base/hydrated records cannot reappear through node reads
+or meta dump/restore. The checked-in anchor is
+`config/parity-specs/payments/payment-terms-cold-delete.json`.
+
 ## Current: Draft-order percentage discounts accept negative values
 
 Admin GraphQL 2025-01 and 2026-04 probes against

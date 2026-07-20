@@ -418,6 +418,18 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         load_online_store,
     ),
     node_entry!(
+        "PaymentSchedule",
+        "DraftProxy::payment_terms_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+        load_payment_terms,
+    ),
+    node_entry!(
+        "PaymentTerms",
+        "DraftProxy::payment_terms_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+        load_payment_terms,
+    ),
+    node_entry!(
         "PointOfSaleDevice",
         "NodeLoadState::KnownMissing",
         NodeResolverBehavior::ReturnKnownNull,

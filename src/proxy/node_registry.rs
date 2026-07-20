@@ -725,6 +725,11 @@ simple_loader!(
 );
 simple_loader!(load_gift_card, gift_card_node_value_by_id, ["GiftCard"]);
 simple_loader!(
+    load_payment_terms,
+    payment_terms_node_value_by_id,
+    ["PaymentSchedule", "PaymentTerms"]
+);
+simple_loader!(
     load_gift_card_transaction,
     gift_card_transaction_node_value_by_id,
     ["GiftCardCreditTransaction", "GiftCardDebitTransaction"]
