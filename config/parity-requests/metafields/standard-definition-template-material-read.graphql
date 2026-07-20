@@ -1,0 +1,36 @@
+query StandardDefinitionTemplateMaterialRead($id: ID!) {
+  metafieldDefinition(id: $id) {
+    id
+    namespace
+    key
+    ownerType
+    name
+    description
+    type {
+      name
+      category
+    }
+    validations {
+      name
+      value
+    }
+    constraints {
+      key
+      values(first: 5) {
+        nodes {
+          value
+        }
+      }
+    }
+    access {
+      admin
+      storefront
+      customerAccount
+    }
+    standardTemplate {
+      id
+      namespace
+      key
+    }
+  }
+}

@@ -1,9 +1,8 @@
 {
-  "capturedAt": "2026-05-05T17:15:03.180Z",
+  "capturedAt": "2026-07-20T09:31:50.957Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "scenarioId": "standard-metaobject-definition-enable-catalog",
-  "issue": "HAR-682",
   "summary": "standardMetaobjectDefinitionEnable catalog, unknown-template RECORD_NOT_FOUND, idempotent duplicate enable, and read-after-enable behavior.",
   "qaPair": {
     "name": "qaPair",
@@ -18,7 +17,7 @@
       "data": {
         "standardMetaobjectDefinitionEnable": {
           "metaobjectDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17868423474",
+            "id": "gid://shopify/MetaobjectDefinition/19976618290",
             "type": "shopify--qa-pair",
             "name": "Question and Answer Pairs",
             "description": "Question and answer pairs that describe a merchant's shop.",
@@ -104,7 +103,7 @@
     "request": {
       "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  query StandardMetaobjectDefinitionEnableRead($id: ID!, $type: String!) {\n    byId: metaobjectDefinition(id: $id) {\n      ...StandardMetaobjectDefinitionEnableFields\n    }\n    byType: metaobjectDefinitionByType(type: $type) {\n      ...StandardMetaobjectDefinitionEnableFields\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/MetaobjectDefinition/17868423474",
+        "id": "gid://shopify/MetaobjectDefinition/19976618290",
         "type": "shopify--qa-pair"
       }
     },
@@ -112,7 +111,7 @@
     "response": {
       "data": {
         "byId": {
-          "id": "gid://shopify/MetaobjectDefinition/17868423474",
+          "id": "gid://shopify/MetaobjectDefinition/19976618290",
           "type": "shopify--qa-pair",
           "name": "Question and Answer Pairs",
           "description": "Question and answer pairs that describe a merchant's shop.",
@@ -178,7 +177,7 @@
           }
         },
         "byType": {
-          "id": "gid://shopify/MetaobjectDefinition/17868423474",
+          "id": "gid://shopify/MetaobjectDefinition/19976618290",
           "type": "shopify--qa-pair",
           "name": "Question and Answer Pairs",
           "description": "Question and answer pairs that describe a merchant's shop.",
@@ -270,7 +269,7 @@
       "data": {
         "standardMetaobjectDefinitionEnable": {
           "metaobjectDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17868456242",
+            "id": "gid://shopify/MetaobjectDefinition/17880285490",
             "type": "shopify--color-pattern",
             "name": "Color",
             "description": "Defines the primary color or pattern, such as blue or striped",
@@ -406,7 +405,7 @@
     "request": {
       "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  query StandardMetaobjectDefinitionEnableRead($id: ID!, $type: String!) {\n    byId: metaobjectDefinition(id: $id) {\n      ...StandardMetaobjectDefinitionEnableFields\n    }\n    byType: metaobjectDefinitionByType(type: $type) {\n      ...StandardMetaobjectDefinitionEnableFields\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/MetaobjectDefinition/17868456242",
+        "id": "gid://shopify/MetaobjectDefinition/17880285490",
         "type": "shopify--color-pattern"
       }
     },
@@ -414,7 +413,7 @@
     "response": {
       "data": {
         "byId": {
-          "id": "gid://shopify/MetaobjectDefinition/17868456242",
+          "id": "gid://shopify/MetaobjectDefinition/17880285490",
           "type": "shopify--color-pattern",
           "name": "Color",
           "description": "Defines the primary color or pattern, such as blue or striped",
@@ -530,7 +529,7 @@
           }
         },
         "byType": {
-          "id": "gid://shopify/MetaobjectDefinition/17868456242",
+          "id": "gid://shopify/MetaobjectDefinition/17880285490",
           "type": "shopify--color-pattern",
           "name": "Color",
           "description": "Defines the primary color or pattern, such as blue or striped",
@@ -652,7 +651,7 @@
           "actualQueryCost": 22,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1978,
+            "currentlyAvailable": 1976,
             "restoreRate": 100
           }
         }
@@ -672,7 +671,7 @@
       "data": {
         "standardMetaobjectDefinitionEnable": {
           "metaobjectDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17868489010",
+            "id": "gid://shopify/MetaobjectDefinition/19338920242",
             "type": "shopify--material",
             "name": "Material",
             "description": "Defines a product's primary material, such as cotton or wool",
@@ -745,7 +744,7 @@
           "actualQueryCost": 20,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1980,
+            "currentlyAvailable": 1978,
             "restoreRate": 100
           }
         }
@@ -757,7 +756,7 @@
     "request": {
       "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  query StandardMetaobjectDefinitionEnableRead($id: ID!, $type: String!) {\n    byId: metaobjectDefinition(id: $id) {\n      ...StandardMetaobjectDefinitionEnableFields\n    }\n    byType: metaobjectDefinitionByType(type: $type) {\n      ...StandardMetaobjectDefinitionEnableFields\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/MetaobjectDefinition/17868489010",
+        "id": "gid://shopify/MetaobjectDefinition/19338920242",
         "type": "shopify--material"
       }
     },
@@ -765,7 +764,7 @@
     "response": {
       "data": {
         "byId": {
-          "id": "gid://shopify/MetaobjectDefinition/17868489010",
+          "id": "gid://shopify/MetaobjectDefinition/19338920242",
           "type": "shopify--material",
           "name": "Material",
           "description": "Defines a product's primary material, such as cotton or wool",
@@ -830,7 +829,7 @@
           }
         },
         "byType": {
-          "id": "gid://shopify/MetaobjectDefinition/17868489010",
+          "id": "gid://shopify/MetaobjectDefinition/19338920242",
           "type": "shopify--material",
           "name": "Material",
           "description": "Defines a product's primary material, such as cotton or wool",
@@ -901,7 +900,7 @@
           "actualQueryCost": 22,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1978,
+            "currentlyAvailable": 1973,
             "restoreRate": 100
           }
         }
@@ -938,7 +937,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
+            "currentlyAvailable": 1979,
             "restoreRate": 100
           }
         }
@@ -958,7 +957,7 @@
       "data": {
         "standardMetaobjectDefinitionEnable": {
           "metaobjectDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17868521778",
+            "id": "gid://shopify/MetaobjectDefinition/19976651058",
             "type": "shopify--qa-pair",
             "name": "Question and Answer Pairs",
             "description": "Question and answer pairs that describe a merchant's shop.",
@@ -1032,7 +1031,7 @@
           "actualQueryCost": 20,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1980,
+            "currentlyAvailable": 1975,
             "restoreRate": 100
           }
         }
@@ -1052,7 +1051,7 @@
       "data": {
         "standardMetaobjectDefinitionEnable": {
           "metaobjectDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17868521778",
+            "id": "gid://shopify/MetaobjectDefinition/19976651058",
             "type": "shopify--qa-pair",
             "name": "Question and Answer Pairs",
             "description": "Question and answer pairs that describe a merchant's shop.",
@@ -1139,14 +1138,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17867538738"
+          "id": "gid://shopify/MetaobjectDefinition/19975766322"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17867538738",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19975766322",
             "userErrors": []
           }
         },
@@ -1168,14 +1167,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17867571506"
+          "id": "gid://shopify/MetaobjectDefinition/19975799090"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17867571506",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19975799090",
             "userErrors": []
           }
         },
@@ -1197,14 +1196,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17867604274"
+          "id": "gid://shopify/MetaobjectDefinition/19975831858"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17867604274",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19975831858",
             "userErrors": []
           }
         },
@@ -1226,43 +1225,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17867637042"
+          "id": "gid://shopify/MetaobjectDefinition/19975864626"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17867637042",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "catalog-cleanup-shopify--color-pattern",
-      "request": {
-        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
-        "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17867669810"
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17867669810",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19975864626",
             "userErrors": []
           }
         },
@@ -1284,14 +1254,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17867702578"
+          "id": "gid://shopify/MetaobjectDefinition/19975897394"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17867702578",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19975897394",
             "userErrors": []
           }
         },
@@ -1313,14 +1283,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17867735346"
+          "id": "gid://shopify/MetaobjectDefinition/19975930162"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17867735346",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19975930162",
             "userErrors": []
           }
         },
@@ -1342,14 +1312,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17867768114"
+          "id": "gid://shopify/MetaobjectDefinition/19975962930"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17867768114",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19975962930",
             "userErrors": []
           }
         },
@@ -1371,43 +1341,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17867800882"
+          "id": "gid://shopify/MetaobjectDefinition/19975995698"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17867800882",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "catalog-cleanup-shopify--material",
-      "request": {
-        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
-        "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17867833650"
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17867833650",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19975995698",
             "userErrors": []
           }
         },
@@ -1429,14 +1370,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17867866418"
+          "id": "gid://shopify/MetaobjectDefinition/19976028466"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17867866418",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976028466",
             "userErrors": []
           }
         },
@@ -1458,14 +1399,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17867899186"
+          "id": "gid://shopify/MetaobjectDefinition/19976061234"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17867899186",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976061234",
             "userErrors": []
           }
         },
@@ -1487,14 +1428,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17867931954"
+          "id": "gid://shopify/MetaobjectDefinition/19976094002"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17867931954",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976094002",
             "userErrors": []
           }
         },
@@ -1516,14 +1457,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17867964722"
+          "id": "gid://shopify/MetaobjectDefinition/19976126770"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17867964722",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976126770",
             "userErrors": []
           }
         },
@@ -1545,14 +1486,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17867997490"
+          "id": "gid://shopify/MetaobjectDefinition/19976159538"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17867997490",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976159538",
             "userErrors": []
           }
         },
@@ -1574,14 +1515,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17868030258"
+          "id": "gid://shopify/MetaobjectDefinition/19976192306"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17868030258",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976192306",
             "userErrors": []
           }
         },
@@ -1603,14 +1544,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17868063026"
+          "id": "gid://shopify/MetaobjectDefinition/19976225074"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17868063026",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976225074",
             "userErrors": []
           }
         },
@@ -1632,14 +1573,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17868095794"
+          "id": "gid://shopify/MetaobjectDefinition/19976257842"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17868095794",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976257842",
             "userErrors": []
           }
         },
@@ -1661,14 +1602,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17868128562"
+          "id": "gid://shopify/MetaobjectDefinition/19976290610"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17868128562",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976290610",
             "userErrors": []
           }
         },
@@ -1690,14 +1631,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17868161330"
+          "id": "gid://shopify/MetaobjectDefinition/19976323378"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17868161330",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976323378",
             "userErrors": []
           }
         },
@@ -1719,14 +1660,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17868194098"
+          "id": "gid://shopify/MetaobjectDefinition/19976356146"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17868194098",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976356146",
             "userErrors": []
           }
         },
@@ -1748,14 +1689,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17868226866"
+          "id": "gid://shopify/MetaobjectDefinition/19976388914"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17868226866",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976388914",
             "userErrors": []
           }
         },
@@ -1777,14 +1718,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17868259634"
+          "id": "gid://shopify/MetaobjectDefinition/19976454450"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17868259634",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976454450",
             "userErrors": []
           }
         },
@@ -1806,14 +1747,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17868292402"
+          "id": "gid://shopify/MetaobjectDefinition/19976487218"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17868292402",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976487218",
             "userErrors": []
           }
         },
@@ -1835,14 +1776,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17868325170"
+          "id": "gid://shopify/MetaobjectDefinition/19976519986"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17868325170",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976519986",
             "userErrors": []
           }
         },
@@ -1864,14 +1805,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17868357938"
+          "id": "gid://shopify/MetaobjectDefinition/19976552754"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17868357938",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976552754",
             "userErrors": []
           }
         },
@@ -1893,14 +1834,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17868390706"
+          "id": "gid://shopify/MetaobjectDefinition/19976585522"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17868390706",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976585522",
             "userErrors": []
           }
         },
@@ -1922,14 +1863,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17868423474"
+          "id": "gid://shopify/MetaobjectDefinition/19976618290"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17868423474",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976618290",
             "userErrors": []
           }
         },
@@ -1939,65 +1880,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1979,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "colorPatternCleanup",
-      "request": {
-        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
-        "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17868456242"
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17868456242",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1981,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "materialCleanup",
-      "request": {
-        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
-        "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17868489010"
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17868489010",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1983,
+              "currentlyAvailable": 1985,
               "restoreRate": 100
             }
           }
@@ -2009,14 +1892,14 @@
       "request": {
         "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17868521778"
+          "id": "gid://shopify/MetaobjectDefinition/19976651058"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17868521778",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19976651058",
             "userErrors": []
           }
         },
@@ -2026,7 +1909,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1983,
+              "currentlyAvailable": 1988,
               "restoreRate": 100
             }
           }

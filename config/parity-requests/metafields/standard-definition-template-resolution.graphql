@@ -1,0 +1,160 @@
+query StandardDefinitionTemplateResolution(
+  $first: Int!
+  $after: String!
+  $last: Int!
+  $before: String!
+  $constraintSubtype: MetafieldDefinitionConstraintSubtypeIdentifier!
+) {
+  firstPage: standardMetafieldDefinitionTemplates(first: $first, excludeActivated: false) {
+    edges {
+      cursor
+      node {
+        id
+        namespace
+        key
+        name
+        description
+        ownerTypes
+        type {
+          name
+          category
+        }
+        validations {
+          name
+          value
+        }
+        visibleToStorefrontApi
+      }
+    }
+    nodes {
+      id
+      namespace
+      key
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  afterPage: standardMetafieldDefinitionTemplates(
+    first: 3
+    after: $after
+    excludeActivated: false
+  ) {
+    edges {
+      cursor
+      node {
+        id
+        namespace
+        key
+      }
+    }
+    nodes {
+      id
+      namespace
+      key
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  backwardPage: standardMetafieldDefinitionTemplates(
+    last: $last
+    before: $before
+    excludeActivated: false
+  ) {
+    edges {
+      cursor
+      node {
+        id
+        namespace
+        key
+      }
+    }
+    nodes {
+      id
+      namespace
+      key
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  reversed: standardMetafieldDefinitionTemplates(
+    first: $first
+    reverse: true
+    excludeActivated: false
+  ) {
+    nodes {
+      id
+      namespace
+      key
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  constrained: standardMetafieldDefinitionTemplates(
+    first: 3
+    constraintStatus: CONSTRAINED_ONLY
+    excludeActivated: false
+  ) {
+    nodes {
+      id
+      namespace
+      key
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  constrainedAvailable: standardMetafieldDefinitionTemplates(
+    first: 3
+    constraintStatus: CONSTRAINED_ONLY
+    excludeActivated: true
+  ) {
+    nodes {
+      id
+      namespace
+      key
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  subtype: standardMetafieldDefinitionTemplates(
+    first: 3
+    constraintStatus: CONSTRAINED_ONLY
+    constraintSubtype: $constraintSubtype
+    excludeActivated: false
+  ) {
+    nodes {
+      id
+      namespace
+      key
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

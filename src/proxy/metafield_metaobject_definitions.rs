@@ -1,7 +1,5 @@
 use super::*;
 use crate::graphql::ParsedDocument;
-use serde::Deserialize;
-use std::sync::OnceLock;
 
 // Source: fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-resource-type-limit.json
 const METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT: usize = 256;
@@ -9,7 +7,6 @@ const METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT: usize = 256;
 const PINNED_DEFINITION_LIMIT: usize = 20;
 // Source: fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-capability-eligibility.json
 const ADMIN_FILTERABLE_DEFINITION_LIMIT: usize = 50;
-const STANDARD_TEMPLATE_MARKER_FIELD: &str = "__shopifyDraftProxyStandardTemplateId";
 const RESERVED_NAMESPACE_ORPHANED_METAFIELDS_MESSAGE: &str =
     "Deleting a definition in a reserved namespace must have deleteAllAssociatedMetafields set to true.";
 const METAFIELD_DEFINITION_HYDRATE_BY_ID_QUERY: &str = include_str!(
@@ -36,6 +33,12 @@ pub(in crate::proxy) fn metafield_definition_field_resolver_registrations(
             "MetafieldDefinition",
             "metafields",
             metafield_definition_metafields_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "MetafieldDefinition",
+            "standardTemplate",
+            metafield_definition_standard_template_field,
         ),
         FieldResolverRegistration::explicit(
             ApiSurface::Admin,
@@ -72,6 +75,18 @@ pub(in crate::proxy) fn metafield_definition_field_resolver_type_policies(
         "metafield interface fields require an explicit canonical resolver",
     ));
     policies
+}
+
+fn metafield_definition_standard_template_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(invocation
+        .parent
+        .get("standardTemplate")
+        .cloned()
+        .unwrap_or(Value::Null))
 }
 
 fn metafield_definition_count_field(
@@ -159,7 +174,11 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         if invocation.root_name == "standardMetafieldDefinitionEnable" {
-            self.standard_metafield_definition_enable_outcome(invocation.request, &arguments)
+            self.standard_metafield_definition_enable_outcome(
+                invocation.request,
+                invocation.api_version.as_str(),
+                &arguments,
+            )
         } else {
             self.metafield_definition_pinning_mutation_outcome(
                 invocation.request,
@@ -1029,6 +1048,7 @@ impl DraftProxy {
         apply_metafield_definition_capability_derived_fields(&mut definition);
         if let Some(template) = template {
             definition[STANDARD_TEMPLATE_MARKER_FIELD] = json!(&template.id);
+            definition["standardTemplate"] = template.catalog_value.clone();
         }
         if let Some(constraints) = resolved_object_field(input, "constraints") {
             definition["constraints"] = metafield_definition_constraints(&constraints);
@@ -1665,6 +1685,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn standard_metafield_definition_enable_outcome(
         &mut self,
         request: &Request,
+        api_version: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> ResolverOutcome<Value> {
         let mut staged_ids = Vec::new();
@@ -1699,6 +1720,7 @@ impl DraftProxy {
             } else {
                 self.standard_metafield_definition_enable_payload(
                     request,
+                    api_version,
                     arguments,
                     StandardMetafieldDefinitionSelector {
                         id: id.as_deref(),
@@ -1712,6 +1734,7 @@ impl DraftProxy {
         } else {
             self.standard_metafield_definition_enable_payload(
                 request,
+                api_version,
                 arguments,
                 StandardMetafieldDefinitionSelector {
                     id: id.as_deref(),
@@ -1722,35 +1745,106 @@ impl DraftProxy {
                 &mut staged_ids,
             )
         };
-        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
-            "standardMetafieldDefinitionEnable",
-            "metafields",
-            staged_ids,
-        ))
+        let outcome = ResolverOutcome::value(payload.clone());
+        if payload["userErrors"].as_array().is_some_and(Vec::is_empty) {
+            outcome.with_log_draft(LogDraft::staged(
+                "standardMetafieldDefinitionEnable",
+                "metafields",
+                staged_ids,
+            ))
+        } else {
+            outcome
+        }
     }
 
     fn standard_metafield_definition_enable_payload(
         &mut self,
         request: &Request,
+        api_version: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
         selector: StandardMetafieldDefinitionSelector<'_>,
         owner_type: &str,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let template = match standard_metafield_definition_template_by_selector(
+        let template = match self.resolved_standard_metafield_template(
+            request,
+            api_version,
             selector.id,
             selector.namespace,
             selector.key,
-            owner_type,
         ) {
-            Ok(template) => template,
-            Err(error) => {
+            StandardMetafieldTemplateResolution::Found(template) => template,
+            StandardMetafieldTemplateResolution::MissingSelector => {
                 return json!({
                     "createdDefinition": Value::Null,
-                    "userErrors": [error]
+                    "userErrors": [metafield_definition_user_error(
+                        "StandardMetafieldDefinitionEnableUserError",
+                        Value::Null,
+                        "A namespace and key or standard metafield definition template id must be provided.",
+                        "TEMPLATE_NOT_FOUND",
+                    )]
+                });
+            }
+            StandardMetafieldTemplateResolution::NotFound { selected_by_id } => {
+                let (field, message) = if selected_by_id {
+                    (
+                        json!(["id"]),
+                        "Id is not a valid standard metafield definition template id",
+                    )
+                } else {
+                    (
+                        Value::Null,
+                        "A standard definition wasn't found for the specified owner type, namespace, and key.",
+                    )
+                };
+                return json!({
+                    "createdDefinition": Value::Null,
+                    "userErrors": [metafield_definition_user_error(
+                        "StandardMetafieldDefinitionEnableUserError",
+                        field,
+                        message,
+                        "TEMPLATE_NOT_FOUND",
+                    )]
+                });
+            }
+            StandardMetafieldTemplateResolution::EnablementUnavailable => {
+                return json!({
+                    "createdDefinition": Value::Null,
+                    "userErrors": [metafield_definition_user_error(
+                        "StandardMetafieldDefinitionEnableUserError",
+                        selector.id.map_or(Value::Null, |_| json!(["id"])),
+                        "Standard definition enablement metadata is unavailable for this shop and API version.",
+                        "TEMPLATE_NOT_FOUND",
+                    )]
+                });
+            }
+            StandardMetafieldTemplateResolution::ContextUnavailable => {
+                return json!({
+                    "createdDefinition": Value::Null,
+                    "userErrors": [metafield_definition_user_error(
+                        "StandardMetafieldDefinitionEnableUserError",
+                        selector.id.map_or(Value::Null, |_| json!(["id"])),
+                        "Standard definition template availability is unavailable for this shop and API version.",
+                        "TEMPLATE_NOT_FOUND",
+                    )]
                 });
             }
         };
+        if !template
+            .owner_types
+            .iter()
+            .any(|template_owner_type| template_owner_type == owner_type)
+        {
+            return json!({
+                "createdDefinition": Value::Null,
+                "userErrors": [metafield_definition_user_error(
+                    "StandardMetafieldDefinitionEnableUserError",
+                    json!(["id"]),
+                    "Id is not a valid standard metafield definition template id",
+                    "TEMPLATE_NOT_FOUND",
+                )]
+            });
+        }
         // Deprecated standardMetafieldDefinitionEnable inputs translate into
         // their modern capability/access equivalents before validation, matching
         // Shopify's behavior of mapping the legacy flags onto the structured
@@ -1849,12 +1943,20 @@ impl DraftProxy {
                 "userErrors": []
             });
         }
-        let mut definition = self.metafield_definition_from_input(request, &args, Some(template));
+        let mut definition = self.metafield_definition_from_input(request, &args, Some(&template));
         definition["ownerType"] = json!(owner_type);
         if template.namespace == "shopify" && resolved_object_field(&args, "access").is_none() {
+            let storefront_access = if template.catalog_value["visibleToStorefrontApi"]
+                .as_bool()
+                .unwrap_or(false)
+            {
+                "PUBLIC_READ"
+            } else {
+                "NONE"
+            };
             definition["access"] = json!({
                 "admin": "PUBLIC_READ_WRITE",
-                "storefront": "PUBLIC_READ",
+                "storefront": storefront_access,
                 "customerAccount": "NONE"
             });
         }
@@ -1974,57 +2076,10 @@ impl DraftProxy {
     }
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct StandardMetafieldDefinitionCatalog {
-    templates: Vec<StandardMetafieldDefinitionTemplate>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct StandardMetafieldDefinitionTemplate {
-    id: String,
-    namespace: String,
-    key: String,
-    name: String,
-    description: Option<String>,
-    owner_types: Vec<String>,
-    #[serde(rename = "type")]
-    metafield_type: String,
-    validations: Vec<StandardMetafieldDefinitionValidation>,
-    #[serde(default)]
-    derived_validations: Vec<StandardMetafieldDefinitionValidation>,
-    constraints: Option<StandardMetafieldDefinitionTemplateConstraints>,
-}
-
 struct StandardMetafieldDefinitionSelector<'a> {
     id: Option<&'a str>,
     namespace: Option<&'a str>,
     key: Option<&'a str>,
-}
-
-#[derive(Deserialize)]
-struct StandardMetafieldDefinitionValidation {
-    name: String,
-    value: String,
-}
-
-#[derive(Deserialize)]
-struct StandardMetafieldDefinitionTemplateConstraints {
-    key: String,
-    values: Vec<String>,
-}
-
-static STANDARD_METAFIELD_DEFINITION_CATALOG: OnceLock<StandardMetafieldDefinitionCatalog> =
-    OnceLock::new();
-
-fn standard_metafield_definition_templates() -> &'static [StandardMetafieldDefinitionTemplate] {
-    &STANDARD_METAFIELD_DEFINITION_CATALOG
-        .get_or_init(|| {
-            serde_json::from_str(include_str!("standard_metafield_definition_templates.json"))
-                .expect("standard metafield definition template catalog must be valid JSON")
-        })
-        .templates
 }
 
 // Translates deprecated standardMetafieldDefinitionEnable arguments into their
@@ -3080,65 +3135,6 @@ fn remove_associated_metafields(
                 || metafield.get("key").and_then(Value::as_str) != Some(key)
         });
     }
-}
-
-fn standard_metafield_definition_template_by_selector(
-    id: Option<&str>,
-    namespace: Option<&str>,
-    key: Option<&str>,
-    owner_type: &str,
-) -> Result<&'static StandardMetafieldDefinitionTemplate, Value> {
-    if id.is_none() && (namespace.is_none() || key.is_none()) {
-        return Err(metafield_definition_user_error(
-            "StandardMetafieldDefinitionEnableUserError",
-            Value::Null,
-            "A namespace and key or standard metafield definition template id must be provided.",
-            "TEMPLATE_NOT_FOUND",
-        ));
-    }
-    let template = if let Some(id) = id {
-        standard_metafield_definition_templates()
-            .iter()
-            .find(|template| template.id == id)
-    } else {
-        standard_metafield_definition_templates()
-            .iter()
-            .find(|template| {
-                Some(template.namespace.as_str()) == namespace && Some(template.key.as_str()) == key
-            })
-    };
-    let Some(template) = template else {
-        let (field, message) = if id.is_some() {
-            (
-                json!(["id"]),
-                "Id is not a valid standard metafield definition template id",
-            )
-        } else {
-            (
-                Value::Null,
-                "A standard definition wasn't found for the specified owner type, namespace, and key.",
-            )
-        };
-        return Err(metafield_definition_user_error(
-            "StandardMetafieldDefinitionEnableUserError",
-            field,
-            message,
-            "TEMPLATE_NOT_FOUND",
-        ));
-    };
-    if !template
-        .owner_types
-        .iter()
-        .any(|template_owner_type| template_owner_type == owner_type)
-    {
-        return Err(metafield_definition_user_error(
-            "StandardMetafieldDefinitionEnableUserError",
-            json!(["id"]),
-            "Id is not a valid standard metafield definition template id",
-            "TEMPLATE_NOT_FOUND",
-        ));
-    }
-    Ok(template)
 }
 
 fn metafield_definition_search_decision(

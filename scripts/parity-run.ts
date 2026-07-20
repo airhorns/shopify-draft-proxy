@@ -88,6 +88,7 @@ type ParitySpec = {
   liveCaptureFiles?: string[];
   proxyConfig?: {
     readMode?: ReadMode;
+    shopifyAdminOrigin?: string;
   };
   proxyRequest?: ProxyRequestSpec;
   comparison?: {
@@ -1241,12 +1242,13 @@ async function main(): Promise<void> {
   if (args.dryRun) return;
 
   const cassette = await startCassetteServer();
-  const proxyContexts = new Map<ReadMode, ProxyContext>();
-  function proxyContextFor(readMode: ReadMode): ProxyContext {
-    const existing = proxyContexts.get(readMode);
+  const proxyContexts = new Map<string, ProxyContext>();
+  function proxyContextFor(readMode: ReadMode, shopifyAdminOrigin: string): ProxyContext {
+    const cacheKey = `${readMode}\u0000${shopifyAdminOrigin}`;
+    const existing = proxyContexts.get(cacheKey);
     if (existing) return existing;
-    const context = createProxyContext(readMode, cassette.origin);
-    proxyContexts.set(readMode, context);
+    const context = createProxyContext(readMode, shopifyAdminOrigin);
+    proxyContexts.set(cacheKey, context);
     return context;
   }
 
@@ -1256,6 +1258,7 @@ async function main(): Promise<void> {
     for (const specPath of specPaths) {
       const spec = await readJsonFile<ParitySpec>(specPath);
       const readMode = spec.proxyConfig?.readMode ?? defaultReadMode;
+      const shopifyAdminOrigin = spec.proxyConfig?.shopifyAdminOrigin ?? cassette.origin;
       const capturePath = spec.liveCaptureFiles?.[0];
       const capture =
         capturePath === undefined
@@ -1263,8 +1266,8 @@ async function main(): Promise<void> {
           : await readJsonFile<Record<string, unknown>>(path.resolve(repoRoot, capturePath));
       const fixedNow = capture === undefined ? undefined : scenarioClockFromCapture(capture);
       const temporaryContext =
-        fixedNow === undefined ? undefined : createProxyContext(readMode, cassette.origin, fixedNow);
-      const { proxy, cleanState } = temporaryContext ?? proxyContextFor(readMode);
+        fixedNow === undefined ? undefined : createProxyContext(readMode, shopifyAdminOrigin, fixedNow);
+      const { proxy, cleanState } = temporaryContext ?? proxyContextFor(readMode, shopifyAdminOrigin);
       let errors: string[];
       try {
         errors = await runSpec(specPath, args.debug, proxy, cassette, cleanState);

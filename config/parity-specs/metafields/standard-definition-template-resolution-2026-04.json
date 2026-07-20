@@ -1,0 +1,134 @@
+{
+  "scenarioId": "standard-definition-template-resolution-2026-04",
+  "operationNames": [
+    "standardMetafieldDefinitionTemplates",
+    "standardMetafieldDefinitionEnable",
+    "metafieldDefinition"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "pagination-parity",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "version-context-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/standard-definition-template-resolution.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
+  "proxyConfig": {
+    "readMode": "snapshot",
+    "shopifyAdminOrigin": "https://harry-test-heelo.myshopify.com"
+  },
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/standard-definition-template-resolution.graphql",
+    "apiVersion": "2026-04",
+    "variables": {
+      "first": 2,
+      "after": "eyJsYXN0X2lkIjoyLCJsYXN0X3ZhbHVlIjoyfQ==",
+      "last": 1,
+      "before": "eyJsYXN0X2lkIjozLCJsYXN0X3ZhbHVlIjozfQ==",
+      "constraintSubtype": {
+        "key": "category",
+        "value": "aa-2"
+      }
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "catalog-filters-pagination-and-cursors-2026-04",
+        "capturePath": "$.captures.scenario.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": []
+      },
+      {
+        "name": "invalid-backward-bad-request-2026-04",
+        "capturePath": "$.captures.invalidBackward.response.errors[0]",
+        "proxyPath": "$.errors[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/standard-definition-template-invalid-backward.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "last": 2
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.locations[0].line",
+            "matcher": "any-number",
+            "reason": "GraphQL source line numbers reflect harmless formatting differences between the captured and checked-in documents."
+          },
+          {
+            "path": "$.locations[0].column",
+            "matcher": "any-number",
+            "reason": "GraphQL source columns reflect harmless formatting differences between the captured and checked-in documents."
+          }
+        ]
+      },
+      {
+        "name": "material-enable-fields-access-validations-constraints-2026-04",
+        "capturePath": "$.captures.materialEnable.response.data.standardMetafieldDefinitionEnable",
+        "proxyPath": "$.data.standardMetafieldDefinitionEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/standard-definition-template-material-enable.graphql",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a synthetic definition ID while Shopify returns the disposable shop definition ID."
+          },
+          {
+            "path": "$.createdDefinition.validations[0].value",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The referenced standard metaobject definition ID is shop-local; the proxy uses its session-owned synthetic equivalent."
+          }
+        ]
+      },
+      {
+        "name": "material-read-after-enable-2026-04",
+        "capturePath": "$.captures.materialRead.response.data.metafieldDefinition",
+        "proxyPath": "$.data.metafieldDefinition",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/standard-definition-template-material-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "material-enable-fields-access-validations-constraints-2026-04",
+              "path": "$.data.standardMetafieldDefinitionEnable.createdDefinition.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The downstream proxy read returns the staged synthetic definition ID."
+          },
+          {
+            "path": "$.validations[0].value",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The referenced standard metaobject definition ID is shop-local; the proxy uses its session-owned synthetic equivalent."
+          }
+        ]
+      },
+      {
+        "name": "unknown-template-not-found-2026-04",
+        "capturePath": "$.captures.unknownEnable.response.data.standardMetafieldDefinitionEnable",
+        "proxyPath": "$.data.standardMetafieldDefinitionEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/standard-definition-template-unknown-enable.graphql",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": []
+      }
+    ]
+  },
+  "notes": "Captured Shopify Admin API 2026-04 catalog, filtering, opaque pagination, invalid backward pagination, material enable/readback, and unknown-template behavior for the configured public Admin context. The capture records that no second shop or beta-flag context was available; the proxy therefore scopes Snapshot use to this exact shop and version instead of universalizing eligibility."
+}

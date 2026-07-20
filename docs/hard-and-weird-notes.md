@@ -4514,3 +4514,9 @@ Practical rule:
 - distinguish an authoritative null node from transport, GraphQL, or incomplete
   response failures; all failure classes must leave product/category state
   unchanged, but only the authoritative miss is proven invalid
+
+## Standard definition templates are shop- and version-contextual
+
+The public `standardMetafieldDefinitionTemplates` catalog cannot be treated as a process-global constant. A fresh capture on the configured public Admin shop returned 8,517 templates on both 2025-01 and 2026-04, while the older 2025-01 runtime catalog contained 8,516 and omitted valid template ID `29` (`shopify.unavailable_reason`). Both fresh captures reported 8,515 templates through `excludeActivated: true`, 8,444 constrained templates, and eight templates in the proven `category=aa-2` subtype slice.
+
+Those equal counts do not prove universal availability. The capture environment exposes one shop and no second beta/eligibility flag context. Snapshot catalog use must therefore be keyed by both shop and API version, with empty/context-unavailable behavior outside the recorded boundary. LiveHybrid reads can preserve the caller's complete catalog request, while enablement by template ID can use the bounded `node(id:)` lookup because `StandardMetafieldDefinitionTemplate` implements `Node`. Namespace/key enablement has no equivalent bounded template lookup and must not enumerate the full catalog to guess eligibility.

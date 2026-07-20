@@ -66,6 +66,7 @@ type ParitySpec = {
   liveCaptureFiles?: string[];
   proxyConfig?: {
     readMode?: string;
+    shopifyAdminOrigin?: string;
   };
   proxyRequest?: SpecTargetRequest;
   comparison?: {
@@ -420,7 +421,7 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
     proxy = shim.createDraftProxy({
       readMode: spec.proxyConfig?.readMode ?? 'live-hybrid',
       port: 4000,
-      shopifyAdminOrigin: 'https://invalid.shopify-draft-proxy.local',
+      shopifyAdminOrigin: spec.proxyConfig?.shopifyAdminOrigin ?? 'https://invalid.shopify-draft-proxy.local',
       unsupportedMutationMode: 'reject',
     });
     const runtimeProxy = proxy as {

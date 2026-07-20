@@ -14,6 +14,14 @@ pub(super) fn snapshot_proxy() -> DraftProxy {
     configured_proxy(ReadMode::Snapshot, None)
 }
 
+pub(super) fn standard_definition_snapshot_proxy() -> DraftProxy {
+    configured_proxy_with_admin_origin(
+        ReadMode::Snapshot,
+        None,
+        "https://harry-test-heelo.myshopify.com",
+    )
+}
+
 pub(super) fn utc_time(unix_seconds: i64) -> time::OffsetDateTime {
     time::OffsetDateTime::from_unix_timestamp(unix_seconds)
         .expect("test timestamp should be representable")
@@ -31,7 +39,20 @@ pub(super) fn configured_proxy(
     read_mode: ReadMode,
     unsupported_mutation_mode: Option<shopify_draft_proxy::proxy::UnsupportedMutationMode>,
 ) -> DraftProxy {
-    configured_proxy_with_bulk_mutation_max(read_mode, unsupported_mutation_mode, None)
+    configured_proxy_with_admin_origin(read_mode, unsupported_mutation_mode, "https://shopify.com")
+}
+
+pub(super) fn configured_proxy_with_admin_origin(
+    read_mode: ReadMode,
+    unsupported_mutation_mode: Option<shopify_draft_proxy::proxy::UnsupportedMutationMode>,
+    shopify_admin_origin: &str,
+) -> DraftProxy {
+    configured_proxy_with_bulk_mutation_max_and_admin_origin(
+        read_mode,
+        unsupported_mutation_mode,
+        None,
+        shopify_admin_origin,
+    )
 }
 
 pub(super) fn configured_proxy_with_bulk_mutation_max(
@@ -39,12 +60,26 @@ pub(super) fn configured_proxy_with_bulk_mutation_max(
     unsupported_mutation_mode: Option<shopify_draft_proxy::proxy::UnsupportedMutationMode>,
     bulk_operation_run_mutation_max_input_file_size_bytes: Option<u64>,
 ) -> DraftProxy {
+    configured_proxy_with_bulk_mutation_max_and_admin_origin(
+        read_mode,
+        unsupported_mutation_mode,
+        bulk_operation_run_mutation_max_input_file_size_bytes,
+        "https://shopify.com",
+    )
+}
+
+fn configured_proxy_with_bulk_mutation_max_and_admin_origin(
+    read_mode: ReadMode,
+    unsupported_mutation_mode: Option<shopify_draft_proxy::proxy::UnsupportedMutationMode>,
+    bulk_operation_run_mutation_max_input_file_size_bytes: Option<u64>,
+    shopify_admin_origin: &str,
+) -> DraftProxy {
     DraftProxy::new(Config {
         read_mode,
         unsupported_mutation_mode,
         bulk_operation_run_mutation_max_input_file_size_bytes,
         port: 0,
-        shopify_admin_origin: "https://shopify.com".to_string(),
+        shopify_admin_origin: shopify_admin_origin.to_string(),
         snapshot_path: None,
     })
 }
