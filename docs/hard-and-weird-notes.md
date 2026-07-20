@@ -110,6 +110,17 @@ store setup:
 - over-disposing a custom-line RFO with `NOT_RESTOCKED` was accepted and appended
   another disposition, even after a prior disposal.
 
+A later authoritative cold-target capture established the surrounding ID
+precedence. A GID of the wrong resource type fails at the mutation root with
+`RESOURCE_NOT_FOUND` and `Invalid id: <gid>`. A typed-but-missing reverse
+fulfillment order or reverse delivery instead returns a payload `NOT_FOUND`.
+Missing and unrelated delivery lines return `must exist`; duplicate and
+over-quantity delivery lines return `cannot deliver more items than are
+returned`. A missing disposal location returns indexed `NOT_FOUND` and can be
+reported alongside the custom-line `RESTOCKED` error. The public store again
+returned the multiple-RFO error for a typed-but-missing disposal line and again
+accepted over-disposal.
+
 Practical rule: keep focused runtime tests for the stricter local validation
 contract when product requirements call for it, and use
 `return-reverse-logistics-dispose-validation` as the public parity anchor only

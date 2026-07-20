@@ -12305,6 +12305,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}return-reverse-logistics-recorded.json`,
       'config/parity-specs/orders/return-reverse-logistics-recorded.json',
+      'config/parity-requests/orders/reverse-delivery-create-with-shipping-recorded.graphql',
+      'config/parity-requests/orders/reverse-delivery-shipping-update-recorded.graphql',
+      'config/parity-requests/orders/reverse-fulfillment-order-dispose-recorded.graphql',
+      'config/parity-requests/orders/reverse-logistics-rfo-mutation-hydrate.graphql',
+      'config/parity-requests/orders/reverse-logistics-delivery-mutation-hydrate.graphql',
+      'config/parity-requests/orders/reverse-logistics-dispose-mutation-hydrate.graphql',
       'config/parity-requests/orders/return-reverse-logistics-read-recorded.graphql',
     ],
     cleanupBehavior:
