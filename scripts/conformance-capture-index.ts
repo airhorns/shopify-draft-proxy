@@ -8517,6 +8517,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-deactivate-cold-targets',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-location-deactivate-cold-targets-conformance.mts',
+    purpose:
+      'locationDeactivate mutation-first hydration for independent source and active, inactive, or missing destination targets plus downstream readback.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-deactivate-cold-targets.json`,
+      'config/parity-specs/store-properties/location-deactivate-cold-targets.json',
+      'config/parity-requests/store-properties/location-deactivate-cold-targets.graphql',
+      'config/parity-requests/store-properties/location-deactivate-cold-target-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable source plus active and inactive destination locations, captures the controls and successful deactivation, then deactivates/deletes every disposable location.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'location-delete-inventory-level-cascade',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-location-delete-inventory-level-cascade-conformance.mts',
