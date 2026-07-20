@@ -1,0 +1,3623 @@
+{
+  "capturedAt": "2026-07-19T22:01:20.702Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "adminOrigin": "https://harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "setup": {
+    "locations": {
+      "query": "query FulfillmentCreateMultiGroupLocations($first: Int!) {\n  locations(first: $first) {\n    nodes { id name fulfillsOnlineOrders isFulfillmentService }\n  }\n}",
+      "variables": {
+        "first": 20
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Location/113884102962",
+                "name": "HAR-2332 Probe Destination 1783701294047",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113884070194",
+                "name": "HAR-2332 Probe Source 1783701294047",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/112829759794",
+                "name": "HAR-571 transfer destination 20260505000619",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/112829956402",
+                "name": "HAR-571 transfer destination 20260505000856",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/112833036594",
+                "name": "HAR-654 Main 20260505044352",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/112833069362",
+                "name": "HAR-654 Sub 20260505044352",
+                "fulfillsOnlineOrders": false,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/112831103282",
+                "name": "HAR-658 lifecycle 20260505013332",
+                "fulfillsOnlineOrders": false,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113792155954",
+                "name": "Inventory Connection 1783176639366",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113792188722",
+                "name": "Inventory Connection 1783176661046",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113792254258",
+                "name": "Inventory Connection Destination 1783176696678",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113792319794",
+                "name": "Inventory Connection Destination 1783176724719",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113792385330",
+                "name": "Inventory Connection Destination 1783176747737",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113792450866",
+                "name": "Inventory Connection Destination 1783176762212",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113792581938",
+                "name": "Inventory Connection Destination 1783177091466",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113977196850",
+                "name": "Inventory Connection Destination 1784165946236",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113977262386",
+                "name": "Inventory Connection Destination 1784166037734",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113977360690",
+                "name": "Inventory Connection Destination 1784166098587",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113977524530",
+                "name": "Inventory Connection Destination 1784166408372",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113977655602",
+                "name": "Inventory Connection Destination 1784166496235",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              },
+              {
+                "id": "gid://shopify/Location/113883939122",
+                "name": "Inventory Item Levels Destination 1783700896198",
+                "fulfillsOnlineOrders": true,
+                "isFulfillmentService": false
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7,
+            "actualQueryCost": 7,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1993,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "orders": {
+      "unknown": {
+        "query": "#graphql\nfragment FulfillmentCreateMultiGroupOrderFields on FulfillmentOrder {\n  id\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location { id name }\n  }\n  lineItems(first: 10) {\n    nodes {\n      id\n      totalQuantity\n      remainingQuantity\n      lineItem {\n        id\n        title\n        quantity\n        fulfillableQuantity\n      }\n    }\n  }\n}\n\nmutation FulfillmentCreateMultiGroupOrderCreate(\n  $order: OrderCreateOrderInput!\n  $options: OrderCreateOptionsInput\n) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes { ...FulfillmentCreateMultiGroupOrderFields }\n      }\n    }\n    userErrors { field message }\n  }\n}",
+        "variables": {
+          "order": {
+            "email": "fulfillment-create-multi-group-unknown-later-1784498466446@example.com",
+            "note": "fulfillmentCreate multi-group unknown-later 1784498466446",
+            "tags": ["parity-probe", "fulfillment-create-multi-group"],
+            "test": true,
+            "currency": "USD",
+            "shippingAddress": {
+              "firstName": "Conformance",
+              "lastName": "Probe",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCode": "CA",
+              "zip": "M5H 2M9"
+            },
+            "lineItems": [
+              {
+                "title": "fulfillmentCreate multi-group unknown-later",
+                "quantity": 1,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "10.00",
+                    "currencyCode": "USD"
+                  }
+                },
+                "requiresShipping": true,
+                "taxable": false,
+                "sku": "FULFILLMENT-CREATE-MULTI-GROUP-unknown-later-1784498466446"
+              }
+            ],
+            "transactions": [
+              {
+                "kind": "SALE",
+                "status": "SUCCESS",
+                "gateway": "manual",
+                "test": true,
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "10",
+                    "currencyCode": "USD"
+                  }
+                }
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8979519635762",
+                "name": "#1855",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9921139736882",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "assignedLocation": {
+                        "name": "Storefront Enrichment 20260719125625",
+                        "location": {
+                          "id": "gid://shopify/Location/114038047026",
+                          "name": "Storefront Enrichment 20260719125625"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/20282998653234",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/20109840777522",
+                              "title": "fulfillmentCreate multi-group unknown-later",
+                              "quantity": 1,
+                              "fulfillableQuantity": 1
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 64,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "differentOrderFirst": {
+        "query": "#graphql\nfragment FulfillmentCreateMultiGroupOrderFields on FulfillmentOrder {\n  id\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location { id name }\n  }\n  lineItems(first: 10) {\n    nodes {\n      id\n      totalQuantity\n      remainingQuantity\n      lineItem {\n        id\n        title\n        quantity\n        fulfillableQuantity\n      }\n    }\n  }\n}\n\nmutation FulfillmentCreateMultiGroupOrderCreate(\n  $order: OrderCreateOrderInput!\n  $options: OrderCreateOptionsInput\n) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes { ...FulfillmentCreateMultiGroupOrderFields }\n      }\n    }\n    userErrors { field message }\n  }\n}",
+        "variables": {
+          "order": {
+            "email": "fulfillment-create-multi-group-different-order-first-1784498466446@example.com",
+            "note": "fulfillmentCreate multi-group different-order-first 1784498466446",
+            "tags": ["parity-probe", "fulfillment-create-multi-group"],
+            "test": true,
+            "currency": "USD",
+            "shippingAddress": {
+              "firstName": "Conformance",
+              "lastName": "Probe",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCode": "CA",
+              "zip": "M5H 2M9"
+            },
+            "lineItems": [
+              {
+                "title": "fulfillmentCreate multi-group different-order-first",
+                "quantity": 1,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "10.00",
+                    "currencyCode": "USD"
+                  }
+                },
+                "requiresShipping": true,
+                "taxable": false,
+                "sku": "FULFILLMENT-CREATE-MULTI-GROUP-different-order-first-1784498466446"
+              }
+            ],
+            "transactions": [
+              {
+                "kind": "SALE",
+                "status": "SUCCESS",
+                "gateway": "manual",
+                "test": true,
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "10",
+                    "currencyCode": "USD"
+                  }
+                }
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8979519799602",
+                "name": "#1856",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9921139802418",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "assignedLocation": {
+                        "name": "Storefront Enrichment 20260719125625",
+                        "location": {
+                          "id": "gid://shopify/Location/114038047026",
+                          "name": "Storefront Enrichment 20260719125625"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/20282998751538",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/20109840875826",
+                              "title": "fulfillmentCreate multi-group different-order-first",
+                              "quantity": 1,
+                              "fulfillableQuantity": 1
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 64,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "differentOrderSecond": {
+        "query": "#graphql\nfragment FulfillmentCreateMultiGroupOrderFields on FulfillmentOrder {\n  id\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location { id name }\n  }\n  lineItems(first: 10) {\n    nodes {\n      id\n      totalQuantity\n      remainingQuantity\n      lineItem {\n        id\n        title\n        quantity\n        fulfillableQuantity\n      }\n    }\n  }\n}\n\nmutation FulfillmentCreateMultiGroupOrderCreate(\n  $order: OrderCreateOrderInput!\n  $options: OrderCreateOptionsInput\n) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes { ...FulfillmentCreateMultiGroupOrderFields }\n      }\n    }\n    userErrors { field message }\n  }\n}",
+        "variables": {
+          "order": {
+            "email": "fulfillment-create-multi-group-different-order-second-1784498466446@example.com",
+            "note": "fulfillmentCreate multi-group different-order-second 1784498466446",
+            "tags": ["parity-probe", "fulfillment-create-multi-group"],
+            "test": true,
+            "currency": "USD",
+            "shippingAddress": {
+              "firstName": "Conformance",
+              "lastName": "Probe",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCode": "CA",
+              "zip": "M5H 2M9"
+            },
+            "lineItems": [
+              {
+                "title": "fulfillmentCreate multi-group different-order-second",
+                "quantity": 1,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "10.00",
+                    "currencyCode": "USD"
+                  }
+                },
+                "requiresShipping": true,
+                "taxable": false,
+                "sku": "FULFILLMENT-CREATE-MULTI-GROUP-different-order-second-1784498466446"
+              }
+            ],
+            "transactions": [
+              {
+                "kind": "SALE",
+                "status": "SUCCESS",
+                "gateway": "manual",
+                "test": true,
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "10",
+                    "currencyCode": "USD"
+                  }
+                }
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8979519865138",
+                "name": "#1857",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9921139867954",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "assignedLocation": {
+                        "name": "Storefront Enrichment 20260719125625",
+                        "location": {
+                          "id": "gid://shopify/Location/114038047026",
+                          "name": "Storefront Enrichment 20260719125625"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/20282998849842",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/20109840974130",
+                              "title": "fulfillmentCreate multi-group different-order-second",
+                              "quantity": 1,
+                              "fulfillableQuantity": 1
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 64,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "differentLocation": {
+        "query": "#graphql\nfragment FulfillmentCreateMultiGroupOrderFields on FulfillmentOrder {\n  id\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location { id name }\n  }\n  lineItems(first: 10) {\n    nodes {\n      id\n      totalQuantity\n      remainingQuantity\n      lineItem {\n        id\n        title\n        quantity\n        fulfillableQuantity\n      }\n    }\n  }\n}\n\nmutation FulfillmentCreateMultiGroupOrderCreate(\n  $order: OrderCreateOrderInput!\n  $options: OrderCreateOptionsInput\n) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes { ...FulfillmentCreateMultiGroupOrderFields }\n      }\n    }\n    userErrors { field message }\n  }\n}",
+        "variables": {
+          "order": {
+            "email": "fulfillment-create-multi-group-different-location-1784498466446@example.com",
+            "note": "fulfillmentCreate multi-group different-location 1784498466446",
+            "tags": ["parity-probe", "fulfillment-create-multi-group"],
+            "test": true,
+            "currency": "USD",
+            "shippingAddress": {
+              "firstName": "Conformance",
+              "lastName": "Probe",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCode": "CA",
+              "zip": "M5H 2M9"
+            },
+            "lineItems": [
+              {
+                "title": "fulfillmentCreate multi-group different-location",
+                "quantity": 2,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "10.00",
+                    "currencyCode": "USD"
+                  }
+                },
+                "requiresShipping": true,
+                "taxable": false,
+                "sku": "FULFILLMENT-CREATE-MULTI-GROUP-different-location-1784498466446"
+              }
+            ],
+            "transactions": [
+              {
+                "kind": "SALE",
+                "status": "SUCCESS",
+                "gateway": "manual",
+                "test": true,
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "20",
+                    "currencyCode": "USD"
+                  }
+                }
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8979519963442",
+                "name": "#1858",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9921139933490",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "assignedLocation": {
+                        "name": "Storefront Enrichment 20260719125625",
+                        "location": {
+                          "id": "gid://shopify/Location/114038047026",
+                          "name": "Storefront Enrichment 20260719125625"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/20282998980914",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/20109841269042",
+                              "title": "fulfillmentCreate multi-group different-location",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 64,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "valid": {
+        "query": "#graphql\nfragment FulfillmentCreateMultiGroupOrderFields on FulfillmentOrder {\n  id\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location { id name }\n  }\n  lineItems(first: 10) {\n    nodes {\n      id\n      totalQuantity\n      remainingQuantity\n      lineItem {\n        id\n        title\n        quantity\n        fulfillableQuantity\n      }\n    }\n  }\n}\n\nmutation FulfillmentCreateMultiGroupOrderCreate(\n  $order: OrderCreateOrderInput!\n  $options: OrderCreateOptionsInput\n) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      displayFulfillmentStatus\n      fulfillmentOrders(first: 10) {\n        nodes { ...FulfillmentCreateMultiGroupOrderFields }\n      }\n    }\n    userErrors { field message }\n  }\n}",
+        "variables": {
+          "order": {
+            "email": "fulfillment-create-multi-group-valid-1784498466446@example.com",
+            "note": "fulfillmentCreate multi-group valid 1784498466446",
+            "tags": ["parity-probe", "fulfillment-create-multi-group"],
+            "test": true,
+            "currency": "USD",
+            "shippingAddress": {
+              "firstName": "Conformance",
+              "lastName": "Probe",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCode": "CA",
+              "zip": "M5H 2M9"
+            },
+            "lineItems": [
+              {
+                "title": "fulfillmentCreate multi-group valid",
+                "quantity": 2,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "10.00",
+                    "currencyCode": "USD"
+                  }
+                },
+                "requiresShipping": true,
+                "taxable": false,
+                "sku": "FULFILLMENT-CREATE-MULTI-GROUP-valid-1784498466446"
+              }
+            ],
+            "transactions": [
+              {
+                "kind": "SALE",
+                "status": "SUCCESS",
+                "gateway": "manual",
+                "test": true,
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "20",
+                    "currencyCode": "USD"
+                  }
+                }
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8979520028978",
+                "name": "#1859",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9921140097330",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "assignedLocation": {
+                        "name": "Storefront Enrichment 20260719125625",
+                        "location": {
+                          "id": "gid://shopify/Location/114038047026",
+                          "name": "Storefront Enrichment 20260719125625"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/20282999177522",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/20109841301810",
+                              "title": "fulfillmentCreate multi-group valid",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 64,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "differentLocation": {
+      "move": {
+        "query": "#graphql\nfragment FulfillmentCreateMultiGroupOrderFields on FulfillmentOrder {\n  id\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location { id name }\n  }\n  lineItems(first: 10) {\n    nodes {\n      id\n      totalQuantity\n      remainingQuantity\n      lineItem {\n        id\n        title\n        quantity\n        fulfillableQuantity\n      }\n    }\n  }\n}\n\nmutation FulfillmentCreateMultiGroupMove(\n  $id: ID!\n  $newLocationId: ID!\n  $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]\n) {\n  fulfillmentOrderMove(\n    id: $id\n    newLocationId: $newLocationId\n    fulfillmentOrderLineItems: $fulfillmentOrderLineItems\n  ) {\n    movedFulfillmentOrder { ...FulfillmentCreateMultiGroupOrderFields }\n    originalFulfillmentOrder { ...FulfillmentCreateMultiGroupOrderFields }\n    remainingFulfillmentOrder { ...FulfillmentCreateMultiGroupOrderFields }\n    userErrors { field message code }\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/FulfillmentOrder/9921139933490",
+          "newLocationId": "gid://shopify/Location/113884102962",
+          "fulfillmentOrderLineItems": [
+            {
+              "id": "gid://shopify/FulfillmentOrderLineItem/20282998980914",
+              "quantity": 1
+            }
+          ]
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "fulfillmentOrderMove": {
+              "movedFulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9921140162866",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "assignedLocation": {
+                  "name": "HAR-2332 Probe Destination 1783701294047",
+                  "location": {
+                    "id": "gid://shopify/Location/113884102962",
+                    "name": "HAR-2332 Probe Destination 1783701294047"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/20282999243058",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/20109841269042",
+                        "title": "fulfillmentCreate multi-group different-location",
+                        "quantity": 2,
+                        "fulfillableQuantity": 2
+                      }
+                    }
+                  ]
+                }
+              },
+              "originalFulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9921139933490",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "assignedLocation": {
+                  "name": "Storefront Enrichment 20260719125625",
+                  "location": {
+                    "id": "gid://shopify/Location/114038047026",
+                    "name": "Storefront Enrichment 20260719125625"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/20282998980914",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/20109841269042",
+                        "title": "fulfillmentCreate multi-group different-location",
+                        "quantity": 2,
+                        "fulfillableQuantity": 2
+                      }
+                    }
+                  ]
+                }
+              },
+              "remainingFulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9921139933490",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "assignedLocation": {
+                  "name": "Storefront Enrichment 20260719125625",
+                  "location": {
+                    "id": "gid://shopify/Location/114038047026",
+                    "name": "Storefront Enrichment 20260719125625"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/20282998980914",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/20109841269042",
+                        "title": "fulfillmentCreate multi-group different-location",
+                        "quantity": 2,
+                        "fulfillableQuantity": 2
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 46,
+              "actualQueryCost": 28,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1972,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "read": {
+        "query": "#graphql\nfragment FulfillmentCreateMultiGroupOrderFields on FulfillmentOrder {\n  id\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location { id name }\n  }\n  lineItems(first: 10) {\n    nodes {\n      id\n      totalQuantity\n      remainingQuantity\n      lineItem {\n        id\n        title\n        quantity\n        fulfillableQuantity\n      }\n    }\n  }\n}\n\nquery FulfillmentCreateMultiGroupOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFulfillmentStatus\n    fulfillmentOrders(first: 10) {\n      nodes { ...FulfillmentCreateMultiGroupOrderFields }\n    }\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/Order/8979519963442"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8979519963442",
+              "name": "#1858",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921139933490",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20282998980914",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109841269042",
+                            "title": "fulfillmentCreate multi-group different-location",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921140162866",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-2332 Probe Destination 1783701294047",
+                      "location": {
+                        "id": "gid://shopify/Location/113884102962",
+                        "name": "HAR-2332 Probe Destination 1783701294047"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20282999243058",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109841269042",
+                            "title": "fulfillmentCreate multi-group different-location",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 55,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "valid": {
+      "split": {
+        "query": "#graphql\nfragment FulfillmentCreateMultiGroupOrderFields on FulfillmentOrder {\n  id\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location { id name }\n  }\n  lineItems(first: 10) {\n    nodes {\n      id\n      totalQuantity\n      remainingQuantity\n      lineItem {\n        id\n        title\n        quantity\n        fulfillableQuantity\n      }\n    }\n  }\n}\n\nmutation FulfillmentCreateMultiGroupSplit($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {\n  fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {\n    fulfillmentOrderSplits {\n      fulfillmentOrder { ...FulfillmentCreateMultiGroupOrderFields }\n      remainingFulfillmentOrder { ...FulfillmentCreateMultiGroupOrderFields }\n      replacementFulfillmentOrder { ...FulfillmentCreateMultiGroupOrderFields }\n    }\n    userErrors { field message code }\n  }\n}",
+        "variables": {
+          "fulfillmentOrderSplits": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921140097330",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282999177522",
+                  "quantity": 1
+                }
+              ]
+            }
+          ]
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "fulfillmentOrderSplit": {
+              "fulfillmentOrderSplits": [
+                {
+                  "fulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9921140097330",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20282999177522",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109841301810",
+                            "title": "fulfillmentCreate multi-group valid",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "remainingFulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9921140228402",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20282999308594",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109841301810",
+                            "title": "fulfillmentCreate multi-group valid",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "replacementFulfillmentOrder": null
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 49,
+              "actualQueryCost": 25,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "read": {
+        "query": "#graphql\nfragment FulfillmentCreateMultiGroupOrderFields on FulfillmentOrder {\n  id\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location { id name }\n  }\n  lineItems(first: 10) {\n    nodes {\n      id\n      totalQuantity\n      remainingQuantity\n      lineItem {\n        id\n        title\n        quantity\n        fulfillableQuantity\n      }\n    }\n  }\n}\n\nquery FulfillmentCreateMultiGroupOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFulfillmentStatus\n    fulfillmentOrders(first: 10) {\n      nodes { ...FulfillmentCreateMultiGroupOrderFields }\n    }\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/Order/8979520028978"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8979520028978",
+              "name": "#1859",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921140097330",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20282999177522",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109841301810",
+                            "title": "fulfillmentCreate multi-group valid",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9921140228402",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Storefront Enrichment 20260719125625",
+                      "location": {
+                        "id": "gid://shopify/Location/114038047026",
+                        "name": "Storefront Enrichment 20260719125625"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20282999308594",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/20109841301810",
+                            "title": "fulfillmentCreate multi-group valid",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 55,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "unknownLater": {
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "FCMG-UNKNOWN-LATER-1784498466446",
+            "url": "https://example.com/track/FCMG-UNKNOWN-LATER-1784498466446",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921139736882",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282998653234",
+                  "quantity": 1
+                }
+              ]
+            },
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/999999999999999"
+            }
+          ]
+        },
+        "message": "fulfillmentCreate multi-group unknown-later"
+      },
+      "response": {
+        "data": {
+          "fulfillmentCreate": {
+            "fulfillment": null,
+            "userErrors": [
+              {
+                "field": ["fulfillment"],
+                "message": "Fulfillment order does not exist."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "differentOrderLater": {
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "FCMG-DIFFERENT-ORDER-LATER-1784498466446",
+            "url": "https://example.com/track/FCMG-DIFFERENT-ORDER-LATER-1784498466446",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921139802418",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282998751538",
+                  "quantity": 1
+                }
+              ]
+            },
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921139867954",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282998849842",
+                  "quantity": 1
+                }
+              ]
+            }
+          ]
+        },
+        "message": "fulfillmentCreate multi-group different-order-later"
+      },
+      "response": {
+        "data": {
+          "fulfillmentCreate": {
+            "fulfillment": null,
+            "userErrors": [
+              {
+                "field": ["fulfillment"],
+                "message": "All fulfillment orders must belong to the same order. Multiple orders with ids [8979519799602, 8979519865138] were found."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "differentLocationLater": {
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "FCMG-DIFFERENT-LOCATION-LATER-1784498466446",
+            "url": "https://example.com/track/FCMG-DIFFERENT-LOCATION-LATER-1784498466446",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921139933490",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282998980914",
+                  "quantity": 1
+                }
+              ]
+            },
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921140162866",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282999243058",
+                  "quantity": 1
+                }
+              ]
+            }
+          ]
+        },
+        "message": "fulfillmentCreate multi-group different-location-later"
+      },
+      "response": {
+        "data": {
+          "fulfillmentCreate": {
+            "fulfillment": null,
+            "userErrors": [
+              {
+                "field": ["fulfillment"],
+                "message": "All fulfillment orders must be assigned to a single location. Multiple locations with ids [113884102962, 114038047026] were found."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "laterNonPositive": {
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "FCMG-LATER-NON-POSITIVE-1784498466446",
+            "url": "https://example.com/track/FCMG-LATER-NON-POSITIVE-1784498466446",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921140097330",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282999177522",
+                  "quantity": 1
+                }
+              ]
+            },
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921140228402",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282999308594",
+                  "quantity": 0
+                }
+              ]
+            }
+          ]
+        },
+        "message": "fulfillmentCreate multi-group later-non-positive"
+      },
+      "response": {
+        "data": {
+          "fulfillmentCreate": {
+            "fulfillment": null,
+            "userErrors": [
+              {
+                "field": [
+                  "fulfillment",
+                  "lineItemsByFulfillmentOrder",
+                  "1",
+                  "fulfillmentOrderLineItems",
+                  "0",
+                  "quantity"
+                ],
+                "message": "Quantity must be greater than 0"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "laterMissingLine": {
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "FCMG-LATER-MISSING-LINE-1784498466446",
+            "url": "https://example.com/track/FCMG-LATER-MISSING-LINE-1784498466446",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921140097330",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282999177522",
+                  "quantity": 1
+                }
+              ]
+            },
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921140228402",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/999999999999999",
+                  "quantity": 1
+                }
+              ]
+            }
+          ]
+        },
+        "message": "fulfillmentCreate multi-group later-missing-line"
+      },
+      "response": {
+        "data": {
+          "fulfillmentCreate": {
+            "fulfillment": null,
+            "userErrors": [
+              {
+                "field": ["fulfillment"],
+                "message": "Fulfillment order line item does not exist."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "laterOverQuantity": {
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "FCMG-LATER-OVER-QUANTITY-1784498466446",
+            "url": "https://example.com/track/FCMG-LATER-OVER-QUANTITY-1784498466446",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921140097330",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282999177522",
+                  "quantity": 1
+                }
+              ]
+            },
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921140228402",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282999308594",
+                  "quantity": 2
+                }
+              ]
+            }
+          ]
+        },
+        "message": "fulfillmentCreate multi-group later-over-quantity"
+      },
+      "response": {
+        "data": {
+          "fulfillmentCreate": {
+            "fulfillment": null,
+            "userErrors": [
+              {
+                "field": ["fulfillment"],
+                "message": "Invalid fulfillment order line item quantity requested."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "unknownBeforeQuantity": {
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "FCMG-UNKNOWN-BEFORE-QUANTITY-1784498466446",
+            "url": "https://example.com/track/FCMG-UNKNOWN-BEFORE-QUANTITY-1784498466446",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921139736882",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282998653234",
+                  "quantity": 1
+                }
+              ]
+            },
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/999999999999999",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/999999999999999",
+                  "quantity": 0
+                }
+              ]
+            }
+          ]
+        },
+        "message": "fulfillmentCreate multi-group unknown-before-quantity"
+      },
+      "response": {
+        "data": {
+          "fulfillmentCreate": {
+            "fulfillment": null,
+            "userErrors": [
+              {
+                "field": [
+                  "fulfillment",
+                  "lineItemsByFulfillmentOrder",
+                  "1",
+                  "fulfillmentOrderLineItems",
+                  "0",
+                  "quantity"
+                ],
+                "message": "Quantity must be greater than 0"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "differentOrderBeforeQuantity": {
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "FCMG-DIFFERENT-ORDER-BEFORE-QUANTITY-1784498466446",
+            "url": "https://example.com/track/FCMG-DIFFERENT-ORDER-BEFORE-QUANTITY-1784498466446",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921139802418",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282998751538",
+                  "quantity": 1
+                }
+              ]
+            },
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921139867954",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282998849842",
+                  "quantity": 0
+                }
+              ]
+            }
+          ]
+        },
+        "message": "fulfillmentCreate multi-group different-order-before-quantity"
+      },
+      "response": {
+        "data": {
+          "fulfillmentCreate": {
+            "fulfillment": null,
+            "userErrors": [
+              {
+                "field": [
+                  "fulfillment",
+                  "lineItemsByFulfillmentOrder",
+                  "1",
+                  "fulfillmentOrderLineItems",
+                  "0",
+                  "quantity"
+                ],
+                "message": "Quantity must be greater than 0"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "differentLocationBeforeQuantity": {
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "FCMG-DIFFERENT-LOCATION-BEFORE-QUANTITY-1784498466446",
+            "url": "https://example.com/track/FCMG-DIFFERENT-LOCATION-BEFORE-QUANTITY-1784498466446",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921139933490",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282998980914",
+                  "quantity": 1
+                }
+              ]
+            },
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921140162866",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282999243058",
+                  "quantity": 0
+                }
+              ]
+            }
+          ]
+        },
+        "message": "fulfillmentCreate multi-group different-location-before-quantity"
+      },
+      "response": {
+        "data": {
+          "fulfillmentCreate": {
+            "fulfillment": null,
+            "userErrors": [
+              {
+                "field": [
+                  "fulfillment",
+                  "lineItemsByFulfillmentOrder",
+                  "1",
+                  "fulfillmentOrderLineItems",
+                  "0",
+                  "quantity"
+                ],
+                "message": "Quantity must be greater than 0"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "validMultiGroup": {
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "FCMG-VALID-1784498466446",
+            "url": "https://example.com/track/FCMG-VALID-1784498466446",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921140097330",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282999177522",
+                  "quantity": 1
+                }
+              ]
+            },
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9921140228402",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/20282999308594",
+                  "quantity": 1
+                }
+              ]
+            }
+          ]
+        },
+        "message": "fulfillmentCreate multi-group valid"
+      },
+      "response": {
+        "data": {
+          "fulfillmentCreate": {
+            "fulfillment": {
+              "id": "gid://shopify/Fulfillment/8123962229042",
+              "status": "SUCCESS",
+              "displayStatus": "FULFILLED",
+              "trackingInfo": [
+                {
+                  "number": "FCMG-VALID-1784498466446",
+                  "url": "https://example.com/track/FCMG-VALID-1784498466446",
+                  "company": "Hermes"
+                }
+              ],
+              "fulfillmentLineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentLineItem/17862522339634",
+                    "quantity": 2,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109841301810",
+                      "title": "fulfillmentCreate multi-group valid"
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 15,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "query": "query FulfillmentCreateMultiGroupRead($orderId: ID!) {\n  order(id: $orderId) {\n    displayFulfillmentStatus\n    fulfillments(first: 5) {\n      status\n      displayStatus\n      fulfillmentLineItems(first: 10) {\n        nodes {\n          quantity\n          lineItem { title }\n        }\n      }\n    }\n    fulfillmentOrders(first: 10) {\n      nodes {\n        status\n        lineItems(first: 10) {\n          nodes {\n            remainingQuantity\n            lineItem { title }\n          }\n        }\n      }\n    }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8979520028978"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "order": {
+              "displayFulfillmentStatus": "FULFILLED",
+              "fulfillments": [
+                {
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "quantity": 2,
+                        "lineItem": {
+                          "title": "fulfillmentCreate multi-group valid"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "status": "CLOSED",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "remainingQuantity": 0,
+                          "lineItem": {
+                            "title": "fulfillmentCreate multi-group valid"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "status": "CLOSED",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "remainingQuantity": 0,
+                          "lineItem": {
+                            "title": "fulfillmentCreate multi-group valid"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 58,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921139736882"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921139736882",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:07Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282998653234",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109840777522",
+                      "title": "fulfillmentCreate multi-group unknown-later",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979519635762",
+                "name": "#1855",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/999999999999999"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921139802418"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921139802418",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:08Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282998751538",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109840875826",
+                      "title": "fulfillmentCreate multi-group different-order-first",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979519799602",
+                "name": "#1856",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921139867954"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921139867954",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:09Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282998849842",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109840974130",
+                      "title": "fulfillmentCreate multi-group different-order-second",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979519865138",
+                "name": "#1857",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921139933490"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921139933490",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:10Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282998980914",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109841269042",
+                      "title": "fulfillmentCreate multi-group different-location",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979519963442",
+                "name": "#1858",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921140162866"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921140162866",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:11Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "HAR-2332 Probe Destination 1783701294047",
+                "location": {
+                  "id": "gid://shopify/Location/113884102962",
+                  "name": "HAR-2332 Probe Destination 1783701294047"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282999243058",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109841269042",
+                      "title": "fulfillmentCreate multi-group different-location",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979519963442",
+                "name": "#1858",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921140097330"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921140097330",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:12Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282999177522",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109841301810",
+                      "title": "fulfillmentCreate multi-group valid",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979520028978",
+                "name": "#1859",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921140228402"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921140228402",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:12Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282999308594",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109841301810",
+                      "title": "fulfillmentCreate multi-group valid",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979520028978",
+                "name": "#1859",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921140097330"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921140097330",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:12Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282999177522",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109841301810",
+                      "title": "fulfillmentCreate multi-group valid",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979520028978",
+                "name": "#1859",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921140228402"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921140228402",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:12Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282999308594",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109841301810",
+                      "title": "fulfillmentCreate multi-group valid",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979520028978",
+                "name": "#1859",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921140097330"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921140097330",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:12Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282999177522",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109841301810",
+                      "title": "fulfillmentCreate multi-group valid",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979520028978",
+                "name": "#1859",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921140228402"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921140228402",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:12Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282999308594",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109841301810",
+                      "title": "fulfillmentCreate multi-group valid",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979520028978",
+                "name": "#1859",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921139736882"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921139736882",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:07Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282998653234",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109840777522",
+                      "title": "fulfillmentCreate multi-group unknown-later",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979519635762",
+                "name": "#1855",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/999999999999999"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921139802418"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921139802418",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:08Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282998751538",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109840875826",
+                      "title": "fulfillmentCreate multi-group different-order-first",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979519799602",
+                "name": "#1856",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921139867954"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921139867954",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:09Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282998849842",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109840974130",
+                      "title": "fulfillmentCreate multi-group different-order-second",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979519865138",
+                "name": "#1857",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921139933490"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921139933490",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:10Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282998980914",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109841269042",
+                      "title": "fulfillmentCreate multi-group different-location",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979519963442",
+                "name": "#1858",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921140162866"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921140162866",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:11Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "HAR-2332 Probe Destination 1783701294047",
+                "location": {
+                  "id": "gid://shopify/Location/113884102962",
+                  "name": "HAR-2332 Probe Destination 1783701294047"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282999243058",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109841269042",
+                      "title": "fulfillmentCreate multi-group different-location",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979519963442",
+                "name": "#1858",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921140097330"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921140097330",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:12Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282999177522",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109841301810",
+                      "title": "fulfillmentCreate multi-group valid",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979520028978",
+                "name": "#1859",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2026-04/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9921140228402"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9921140228402",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-19T22:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-19T22:01:12Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Storefront Enrichment 20260719125625",
+                "location": {
+                  "id": "gid://shopify/Location/114038047026",
+                  "name": "Storefront Enrichment 20260719125625"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20282999308594",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/20109841301810",
+                      "title": "fulfillmentCreate multi-group valid",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8979520028978",
+                "name": "#1859",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "gid://shopify/Order/8979520028978": {
+      "cancel": {
+        "query": "mutation FulfillmentCreateMultiGroupOrderCancel(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job { id done }\n    orderCancelUserErrors { field message code }\n    userErrors { field message }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8979520028978",
+          "reason": "OTHER",
+          "notifyCustomer": false,
+          "restock": true
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderCancel": {
+              "job": null,
+              "orderCancelUserErrors": [
+                {
+                  "field": ["orderId"],
+                  "message": "Cannot cancel an order that has outstanding fulfillments",
+                  "code": "INVALID"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["orderId"],
+                  "message": "Cannot cancel an order that has outstanding fulfillments"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "query": "mutation FulfillmentCreateMultiGroupOrderDelete($orderId: ID!) {\n  orderDelete(orderId: $orderId) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8979520028978"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8979520028978",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "gid://shopify/Order/8979519963442": {
+      "cancel": {
+        "query": "mutation FulfillmentCreateMultiGroupOrderCancel(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job { id done }\n    orderCancelUserErrors { field message code }\n    userErrors { field message }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8979519963442",
+          "reason": "OTHER",
+          "notifyCustomer": false,
+          "restock": true
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/1d40a8ce-c934-4ff2-8838-c21aa9972994",
+                "done": false
+              },
+              "orderCancelUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "query": "mutation FulfillmentCreateMultiGroupOrderDelete($orderId: ID!) {\n  orderDelete(orderId: $orderId) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8979519963442"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8979519963442",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "gid://shopify/Order/8979519865138": {
+      "cancel": {
+        "query": "mutation FulfillmentCreateMultiGroupOrderCancel(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job { id done }\n    orderCancelUserErrors { field message code }\n    userErrors { field message }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8979519865138",
+          "reason": "OTHER",
+          "notifyCustomer": false,
+          "restock": true
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/20939a89-6393-4801-b5cf-6e5e5866ce46",
+                "done": false
+              },
+              "orderCancelUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "query": "mutation FulfillmentCreateMultiGroupOrderDelete($orderId: ID!) {\n  orderDelete(orderId: $orderId) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8979519865138"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8979519865138",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "gid://shopify/Order/8979519799602": {
+      "cancel": {
+        "query": "mutation FulfillmentCreateMultiGroupOrderCancel(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job { id done }\n    orderCancelUserErrors { field message code }\n    userErrors { field message }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8979519799602",
+          "reason": "OTHER",
+          "notifyCustomer": false,
+          "restock": true
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/5a80fcc3-e28a-4376-a65c-bfa78b639f09",
+                "done": false
+              },
+              "orderCancelUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "query": "mutation FulfillmentCreateMultiGroupOrderDelete($orderId: ID!) {\n  orderDelete(orderId: $orderId) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8979519799602"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8979519799602",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "gid://shopify/Order/8979519635762": {
+      "cancel": {
+        "query": "mutation FulfillmentCreateMultiGroupOrderCancel(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job { id done }\n    orderCancelUserErrors { field message code }\n    userErrors { field message }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8979519635762",
+          "reason": "OTHER",
+          "notifyCustomer": false,
+          "restock": true
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/9021bcd9-8358-4dbd-9d8f-5f244f89134f",
+                "done": false
+              },
+              "orderCancelUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "query": "mutation FulfillmentCreateMultiGroupOrderDelete($orderId: ID!) {\n  orderDelete(orderId: $orderId) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8979519635762"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8979519635762",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

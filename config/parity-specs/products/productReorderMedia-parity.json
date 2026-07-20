@@ -1,47 +1,229 @@
 {
   "scenarioId": "product-reorder-media-live-parity",
-  "operationNames": ["productReorderMedia"],
+  "operationNames": ["productCreate", "productCreateMedia", "productReorderMedia"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "media-user-errors-parity", "downstream-read-parity", "sort-order-semantics"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-reorder-media-parity.json"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/products/productReorderMedia-parity.graphql",
-    "variablesCapturePath": "$.mutation.variables"
+    "documentPath": "config/parity-requests/products/productReorderMedia-product-create.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.setup.productCreate.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["tests/integration/product-draft-flow.test.ts"],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.job.id",
-        "matcher": "shopify-gid:Job",
-        "reason": "The proxy allocates a stable synthetic async Job GID while Shopify returns the live job from the captured reorder."
-      }
-    ],
+    "expectedDifferences": [],
     "targets": [
       {
-        "name": "mutation-payload",
-        "capturePath": "$.mutation.response.data.productReorderMedia",
-        "proxyPath": "$.data.productReorderMedia"
+        "name": "setup-product-create-user-errors",
+        "capturePath": "$.setup.productCreate.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
       },
       {
-        "name": "downstream-product",
-        "capturePath": "$.downstreamRead.data.product",
+        "name": "setup-four-product-media-items",
+        "capturePath": "$.setup.productCreateMedia.response.data.productCreateMedia.mediaUserErrors",
+        "proxyPath": "$.data.productCreateMedia.mediaUserErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreateMedia-parity-plan.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "media": {
+              "fromCapturePath": "$.setup.productCreateMedia.variables.media"
+            }
+          }
+        }
+      },
+      {
+        "name": "setup-four-product-media-ready-order",
+        "capturePath": "$.setup.readyRead.data.product",
+        "proxyPath": "$.data.product",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/productReorderMedia-downstream-read.graphql",
+          "apiVersion": "2025-01",
           "variables": {
             "id": {
-              "fromCapturePath": "$.mutation.variables.id"
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
             }
           }
         },
-        "upstreamCapturePath": null,
-        "proxyPath": "$.data.product"
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy creates a stable synthetic product for public-surface scenario setup."
+          },
+          {
+            "path": "$.media.nodes[*].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy creates stable synthetic media IDs while preserving the full selected nodes and order."
+          },
+          {
+            "path": "$.images.nodes[*].id",
+            "matcher": "shopify-gid:ProductImage",
+            "reason": "The proxy derives stable synthetic ProductImage IDs from the staged media library."
+          }
+        ]
+      },
+      {
+        "name": "single-move-mutation-payload",
+        "capturePath": "$.singleMove.mutation.response.data.productReorderMedia",
+        "proxyPath": "$.data.productReorderMedia",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productReorderMedia-parity.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "moves": [
+              {
+                "id": {
+                  "fromProxyResponse": "setup-four-product-media-items",
+                  "path": "$.data.productCreateMedia.media[3].id"
+                },
+                "newPosition": {
+                  "fromCapturePath": "$.singleMove.mutation.variables.moves[0].newPosition"
+                }
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The proxy allocates a stable synthetic async Job GID for the staged reorder."
+          }
+        ]
+      },
+      {
+        "name": "single-move-complete-downstream-order",
+        "capturePath": "$.singleMove.downstreamRead.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productReorderMedia-downstream-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy creates a stable synthetic product for public-surface scenario setup."
+          },
+          {
+            "path": "$.media.nodes[*].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "Media IDs are synthetic locally; all four selected nodes, metadata, and their order remain strict."
+          },
+          {
+            "path": "$.images.nodes[*].id",
+            "matcher": "shopify-gid:ProductImage",
+            "reason": "ProductImage IDs are synthetic locally; all four image nodes and their order remain strict."
+          }
+        ]
+      },
+      {
+        "name": "ordered-repeated-moves-mutation-payload",
+        "capturePath": "$.orderedMoves.mutation.response.data.productReorderMedia",
+        "proxyPath": "$.data.productReorderMedia",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productReorderMedia-parity.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "moves": [
+              {
+                "id": {
+                  "fromProxyResponse": "setup-four-product-media-items",
+                  "path": "$.data.productCreateMedia.media[1].id"
+                },
+                "newPosition": {
+                  "fromCapturePath": "$.orderedMoves.mutation.variables.moves[0].newPosition"
+                }
+              },
+              {
+                "id": {
+                  "fromProxyResponse": "setup-four-product-media-items",
+                  "path": "$.data.productCreateMedia.media[3].id"
+                },
+                "newPosition": {
+                  "fromCapturePath": "$.orderedMoves.mutation.variables.moves[1].newPosition"
+                }
+              },
+              {
+                "id": {
+                  "fromProxyResponse": "setup-four-product-media-items",
+                  "path": "$.data.productCreateMedia.media[1].id"
+                },
+                "newPosition": {
+                  "fromCapturePath": "$.orderedMoves.mutation.variables.moves[2].newPosition"
+                }
+              },
+              {
+                "id": {
+                  "fromProxyResponse": "setup-four-product-media-items",
+                  "path": "$.data.productCreateMedia.media[1].id"
+                },
+                "newPosition": {
+                  "fromCapturePath": "$.orderedMoves.mutation.variables.moves[3].newPosition"
+                }
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The proxy allocates a stable synthetic async Job GID for the staged reorder."
+          }
+        ]
+      },
+      {
+        "name": "ordered-repeated-moves-complete-downstream-order",
+        "capturePath": "$.orderedMoves.downstreamRead.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productReorderMedia-downstream-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy creates a stable synthetic product for public-surface scenario setup."
+          },
+          {
+            "path": "$.media.nodes[*].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "Media IDs are synthetic locally; all four selected nodes, metadata, and their order remain strict."
+          },
+          {
+            "path": "$.images.nodes[*].id",
+            "matcher": "shopify-gid:ProductImage",
+            "reason": "ProductImage IDs are synthetic locally; all four image nodes and their order remain strict."
+          }
+        ]
       }
     ]
   },
-  "notes": "Executable parity for `productReorderMedia`: the generic parity runner now seeds product media from the captured setup `productCreateMedia` response, replays the captured reorder against the local proxy, and compares the mutation payload plus downstream product media/image reads. Live Admin GraphQL 2025-01 returned an async `Job` with `done: false`; the proxy also stages an async-style job with a synthetic ID. Downstream media IDs, statuses, alt text, media type, zero-based `MoveInput.newPosition` ordering, and empty `images` nodes remain strict comparison evidence."
+  "notes": "Live Admin GraphQL 2025-01 evidence creates four ready image media items through public mutations, records a single move over the complete list, then records repeated and same-position moves in request order. Both named downstream targets compare the complete selected product media and images arrays; only locally synthetic resource IDs are matcher-scoped."
 }

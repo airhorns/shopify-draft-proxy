@@ -1,0 +1,26 @@
+query FulfillmentCreateMultiGroupRead($orderId: ID!) {
+  order(id: $orderId) {
+    displayFulfillmentStatus
+    fulfillments(first: 5) {
+      status
+      displayStatus
+      fulfillmentLineItems(first: 10) {
+        nodes {
+          quantity
+          lineItem { title }
+        }
+      }
+    }
+    fulfillmentOrders(first: 10) {
+      nodes {
+        status
+        lineItems(first: 10) {
+          nodes {
+            remainingQuantity
+            lineItem { title }
+          }
+        }
+      }
+    }
+  }
+}

@@ -392,7 +392,7 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("inventoryShipmentMarkInTransit", Mutation, Products, DraftProxy::inventory_shipment_mark_in_transit, ["tests/graphql_routes.rs"]),
         entry!("inventoryShipmentReceive", Mutation, Products, DraftProxy::inventory_shipment_receive, ["tests/graphql_routes.rs"]),
         entry!("inventoryShipmentDelete", Mutation, Products, DraftProxy::inventory_shipment_delete, ["tests/graphql_routes.rs"]),
-        entry!("metafieldsSet", Mutation, Products, DraftProxy::owner_metafields_set, []),
+        entry!("metafieldsSet", Mutation, Products, DraftProxy::owner_metafields_set, ["tests/graphql_routes/metafields_markets_products_tail.rs"]),
         entry!("metafieldsDelete", Mutation, Products, DraftProxy::owner_metafields_delete, []),
         entry!("metafieldDefinition", Query, Metafields, DraftProxy::metafield_definition_query_root, []),
         entry!("metafieldDefinitions", Query, Metafields, DraftProxy::metafield_definition_query_root, []),

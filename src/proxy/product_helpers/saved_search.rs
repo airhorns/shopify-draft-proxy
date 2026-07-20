@@ -1,6 +1,9 @@
 use super::*;
 use crate::proxy::search::split_search_query_terms;
 
+const SAVED_SEARCH_MUTATION_TARGET_HYDRATE_QUERY: &str =
+    "query SavedSearchMutationTargetHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on SavedSearch {\n      id\n      legacyResourceId\n      name\n      query\n      resourceType\n      searchTerms\n      filters {\n        key\n        value\n      }\n    }\n  }\n}";
+
 impl DraftProxy {
     pub(crate) fn saved_search_query_root(
         &mut self,
@@ -61,6 +64,12 @@ impl DraftProxy {
         debug_assert_eq!(invocation.operation.operation_type, OperationType::Mutation);
         let api_client_id = saved_search_request_api_client_id(invocation.request);
         let input = invocation.arguments.get("input").and_then(Value::as_object);
+        if matches!(
+            invocation.root_name,
+            "savedSearchUpdate" | "savedSearchDelete"
+        ) {
+            self.hydrate_saved_search_mutation_target(invocation.request, input, &api_client_id);
+        }
         match invocation.root_name {
             "savedSearchCreate" => self.saved_search_create_outcome(input, &api_client_id),
             "savedSearchUpdate" => self.saved_search_update_outcome(input, &api_client_id),
@@ -69,6 +78,54 @@ impl DraftProxy {
                 ResolverOutcome::error(format!("Unknown saved-search mutation root `{root_name}`"))
             }
         }
+    }
+
+    fn hydrate_saved_search_mutation_target(
+        &mut self,
+        request: &Request,
+        input: Option<&serde_json::Map<String, Value>>,
+        api_client_id: &str,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let Some(id) = input
+            .and_then(|input| input.get("id"))
+            .and_then(Value::as_str)
+            .filter(|id| !id.is_empty())
+        else {
+            return;
+        };
+        if self.store.saved_searches.staged.is_tombstoned(id)
+            || self.store.saved_search_by_id(id).is_some()
+        {
+            return;
+        }
+
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": SAVED_SEARCH_MUTATION_TARGET_HYDRATE_QUERY,
+                "variables": { "id": id },
+            }),
+        );
+        if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+            return;
+        }
+        let node = &response.body["data"]["node"];
+        if node.get("__typename").and_then(Value::as_str) != Some("SavedSearch") {
+            return;
+        }
+        let Some(record) = saved_search_record_from_node(node, "", api_client_id) else {
+            return;
+        };
+        if record.id != id || self.store.saved_searches.staged.is_tombstoned(id) {
+            return;
+        }
+        self.store
+            .saved_searches
+            .base
+            .insert(record.id.clone(), record);
     }
 
     fn observe_saved_search_connection(
@@ -414,13 +471,15 @@ impl DraftProxy {
             ));
         }
         let id = self.next_proxy_synthetic_gid("SavedSearch");
-        let record = SavedSearchRecord {
-            id: id.clone(),
-            cursor: None,
-            name: name.to_string(),
-            query: normalize_saved_search_query_for_api_client(search_query, api_client_id),
-            resource_type: resource_type.to_string(),
-        };
+        let normalized_query =
+            normalize_saved_search_query_for_api_client(search_query, api_client_id);
+        let record = saved_search_record_with_api_client(
+            &id,
+            name,
+            &normalized_query,
+            resource_type,
+            api_client_id,
+        );
         self.store.stage_saved_search(record.clone());
         ResolverOutcome::value(saved_search_full_mutation_payload(
             Some(&record),
@@ -464,6 +523,11 @@ impl DraftProxy {
             .unwrap_or(&existing.query);
         let mut updated = existing.clone();
         updated.query = normalize_saved_search_query_for_api_client(requested_query, api_client_id);
+        if input.get("query").is_some() {
+            updated.search_terms = saved_search_search_terms(&updated.query);
+            updated.filters = saved_search_filters_for_api_client(&updated.query, api_client_id);
+            updated.api_client_id = api_client_id.to_string();
+        }
         let mut user_errors = self.saved_search_field_user_errors(
             SavedSearchQueryValidationOperation::Update,
             &existing.resource_type,
@@ -523,7 +587,10 @@ impl DraftProxy {
     }
 }
 
-fn saved_search_full_value(record: &SavedSearchRecord, api_client_id: &str) -> Value {
+pub(in crate::proxy) fn saved_search_full_value(
+    record: &SavedSearchRecord,
+    api_client_id: &str,
+) -> Value {
     let query = saved_search_read_query_for_api_client(&record.query, api_client_id);
     saved_search_value_with_query(record, query, api_client_id)
 }
@@ -542,7 +609,10 @@ fn saved_search_value_with_query(
         "name": record.name,
         "query": query,
         "resourceType": record.resource_type,
-        "_apiClientId": api_client_id
+        "_legacyResourceId": record.legacy_resource_id,
+        "_searchTerms": record.search_terms,
+        "_filters": record.filters.iter().map(|(key, value)| json!({ "key": key, "value": value })).collect::<Vec<_>>(),
+        "_apiClientId": if record.api_client_id.is_empty() { api_client_id } else { &record.api_client_id }
     })
 }
 
@@ -619,6 +689,13 @@ fn saved_search_legacy_resource_id_field(
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation,
 ) -> Result<Value, String> {
+    if let Some(legacy_resource_id) = invocation
+        .parent
+        .get("_legacyResourceId")
+        .and_then(Value::as_str)
+    {
+        return Ok(json!(legacy_resource_id));
+    }
     Ok(json!(saved_search_legacy_resource_id(
         saved_search_parent_string(invocation, "id")?
     )))
@@ -629,6 +706,9 @@ fn saved_search_search_terms_field(
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation,
 ) -> Result<Value, String> {
+    if let Some(search_terms) = invocation.parent.get("_searchTerms") {
+        return Ok(search_terms.clone());
+    }
     Ok(json!(saved_search_search_terms(
         saved_search_parent_string(invocation, "query")?
     )))
@@ -639,6 +719,9 @@ fn saved_search_filters_field(
     _request: &Request,
     invocation: &crate::admin_graphql::FieldResolverInvocation,
 ) -> Result<Value, String> {
+    if let Some(filters) = invocation.parent.get("_filters") {
+        return Ok(filters.clone());
+    }
     let query = saved_search_parent_string(invocation, "query")?;
     let api_client_id = invocation
         .parent
@@ -689,16 +772,30 @@ pub(in crate::proxy) fn saved_search_state_map_from_json(
 }
 
 pub(in crate::proxy) fn saved_search_state_from_json(value: &Value) -> Option<SavedSearchRecord> {
-    Some(SavedSearchRecord {
-        id: value.get("id")?.as_str()?.to_string(),
-        cursor: value
-            .get("cursor")
-            .and_then(Value::as_str)
-            .map(str::to_string),
-        name: value.get("name")?.as_str()?.to_string(),
-        query: value.get("query")?.as_str()?.to_string(),
-        resource_type: value.get("resourceType")?.as_str()?.to_string(),
-    })
+    let id = value.get("id")?.as_str()?;
+    let name = value.get("name")?.as_str()?;
+    let query = value.get("query")?.as_str()?;
+    let resource_type = value.get("resourceType")?.as_str()?;
+    let api_client_id = value
+        .get("apiClientId")
+        .and_then(Value::as_str)
+        .unwrap_or(DEFAULT_SAVED_SEARCH_API_CLIENT_ID);
+    let mut record =
+        saved_search_record_with_api_client(id, name, query, resource_type, api_client_id);
+    record.cursor = value
+        .get("cursor")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    if let Some(legacy_resource_id) = value.get("legacyResourceId").and_then(Value::as_str) {
+        record.legacy_resource_id = legacy_resource_id.to_string();
+    }
+    if let Some(search_terms) = value.get("searchTerms").and_then(Value::as_str) {
+        record.search_terms = search_terms.to_string();
+    }
+    if let Some(filters) = saved_search_filter_records_from_value(value.get("filters")) {
+        record.filters = filters;
+    }
+    Some(record)
 }
 
 pub(in crate::proxy) fn saved_search_record_from_node(
@@ -711,30 +808,56 @@ pub(in crate::proxy) fn saved_search_record_from_node(
         .and_then(Value::as_str)
         .map(|query| normalize_saved_search_query_for_api_client(query, api_client_id))
         .unwrap_or_default();
-    Some(SavedSearchRecord {
-        id: node.get("id")?.as_str()?.to_string(),
-        cursor: None,
-        name: node.get("name")?.as_str()?.to_string(),
-        query,
-        resource_type: node
-            .get("resourceType")
-            .and_then(Value::as_str)
-            .unwrap_or(fallback_resource_type)
-            .to_string(),
-    })
+    let id = node.get("id")?.as_str()?;
+    let name = node.get("name")?.as_str()?;
+    let resource_type = node
+        .get("resourceType")
+        .and_then(Value::as_str)
+        .unwrap_or(fallback_resource_type);
+    let mut record =
+        saved_search_record_with_api_client(id, name, &query, resource_type, api_client_id);
+    if let Some(legacy_resource_id) = node.get("legacyResourceId").and_then(Value::as_str) {
+        record.legacy_resource_id = legacy_resource_id.to_string();
+    }
+    if let Some(search_terms) = node.get("searchTerms").and_then(Value::as_str) {
+        record.search_terms = search_terms.to_string();
+    }
+    if let Some(filters) = saved_search_filter_records_from_value(node.get("filters")) {
+        record.filters = filters;
+    }
+    Some(record)
 }
 
 pub(in crate::proxy) fn saved_search_state_json(record: &SavedSearchRecord) -> Value {
     let mut value = json!({
         "id": record.id,
+        "legacyResourceId": record.legacy_resource_id,
         "name": record.name,
         "query": record.query,
-        "resourceType": record.resource_type
+        "resourceType": record.resource_type,
+        "searchTerms": record.search_terms,
+        "filters": record.filters.iter().map(|(key, value)| json!({ "key": key, "value": value })).collect::<Vec<_>>(),
+        "apiClientId": record.api_client_id
     });
     if let Some(cursor) = &record.cursor {
         value["cursor"] = json!(cursor);
     }
     value
+}
+
+fn saved_search_filter_records_from_value(value: Option<&Value>) -> Option<Vec<(String, String)>> {
+    Some(
+        value?
+            .as_array()?
+            .iter()
+            .filter_map(|filter| {
+                Some((
+                    filter.get("key")?.as_str()?.to_string(),
+                    filter.get("value")?.as_str()?.to_string(),
+                ))
+            })
+            .collect(),
+    )
 }
 
 pub(in crate::proxy) fn saved_search_name_taken_user_error() -> Value {
@@ -1219,12 +1342,32 @@ pub(in crate::proxy) fn saved_search_record(
     query: &str,
     resource_type: &str,
 ) -> SavedSearchRecord {
+    saved_search_record_with_api_client(
+        id,
+        name,
+        query,
+        resource_type,
+        DEFAULT_SAVED_SEARCH_API_CLIENT_ID,
+    )
+}
+
+fn saved_search_record_with_api_client(
+    id: &str,
+    name: &str,
+    query: &str,
+    resource_type: &str,
+    api_client_id: &str,
+) -> SavedSearchRecord {
     SavedSearchRecord {
         id: id.to_string(),
         cursor: None,
+        legacy_resource_id: saved_search_legacy_resource_id(id),
         name: name.to_string(),
         query: query.to_string(),
         resource_type: resource_type.to_string(),
+        search_terms: saved_search_search_terms(query),
+        filters: saved_search_filters_for_api_client(query, api_client_id),
+        api_client_id: api_client_id.to_string(),
     }
 }
 

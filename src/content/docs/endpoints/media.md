@@ -194,6 +194,15 @@ Local staged mutations:
   weekly video/model3d throttle or per-shop non-image media limit; no synthetic
   Shopify fixture is checked in for those branches.
 - `fileUpdate` validates file ids, URL fields, alt text length, product references, Shopify's mutually exclusive `originalSource` / `previewImageSource` update rule, READY state, type-specific `originalSource` / `filename` support, filename extension preservation, and typed-GID mismatches before updating staged records. Captured public Admin GraphQL 2026-04 behavior keeps the 512-character `alt` ceiling, reports non-URL source values as `INVALID_IMAGE_SOURCE_URL` on `previewImageSource`, rejects over-length `originalSource` as a top-level `INVALID_FIELD_ARGUMENTS` error, and accepts over-length `previewImageSource`. For a READY `MediaImage`, Shopify interprets `originalSource` as a preview image source update: the original `image.url` remains unchanged while `preview.image.url` moves to the replacement image. For a READY `GenericFile`, `originalSource` updates the file's direct `url`/source instead. `referencesToAdd` can attach a READY file to product media, and `referencesToRemove` can remove the file from product media while keeping the file visible through Files API reads. Successful updates preserve the existing file status rather than promoting files to `READY`.
+- A mixed READY `fileUpdate` batch applies the captured 512-character `alt`
+  validation per input. Rows within the limit are updated and returned in input
+  order while over-limit rows remain unchanged and contribute indexed
+  `ALT_VALUE_LIMIT_EXCEEDED` userErrors. Immediate `files` and `node` / `nodes`
+  reads expose only the successful subset. The original mutation is retained
+  once for commit replay, with only successful file IDs attached to that log
+  entry. Missing-file, non-READY, simultaneous-source, target/reference, and
+  other validation buckets keep their existing whole-batch failure boundary;
+  the proxy does not infer row-level success for uncaptured branches.
 - Files API validation userErrors follow captured aggregate behavior. `fileDelete`
   missing IDs aggregate into one `FILE_DOES_NOT_EXIST` entry on `["fileIds"]`
   with comma-joined GIDs. `fileUpdate` missing IDs also aggregate into one
