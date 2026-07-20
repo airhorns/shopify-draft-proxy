@@ -1,0 +1,198 @@
+{
+  "scenarioId": "metafields-set-malformed-existing-digest",
+  "operationNames": ["productCreate", "metafieldsSet", "product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "compare-digest-parity",
+    "idempotent-write-parity",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-malformed-existing-digest.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/metafieldsSet-malformed-existing-product-create.graphql",
+    "variablesCapturePath": "$.setup.productCreate.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-product-create",
+        "capturePath": "$.setup.productCreate.response.body.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local staging allocator create independent disposable product IDs."
+          }
+        ]
+      },
+      {
+        "name": "setup-existing-metafield",
+        "capturePath": "$.setup.initialSet.response.body.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafieldsSet-malformed-existing-mutation.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "metafields": [
+              {
+                "ownerId": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                },
+                "namespace": {
+                  "fromCapturePath": "$.setup.initialSet.request.variables.metafields[0].namespace"
+                },
+                "key": {
+                  "fromCapturePath": "$.setup.initialSet.request.variables.metafields[0].key"
+                },
+                "type": {
+                  "fromCapturePath": "$.setup.initialSet.request.variables.metafields[0].type"
+                },
+                "value": {
+                  "fromCapturePath": "$.setup.initialSet.request.variables.metafields[0].value"
+                }
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafields[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "Shopify and the local staging allocator create independent metafield IDs."
+          },
+          {
+            "path": "$.metafields[0].compareDigest",
+            "matcher": "non-empty-string",
+            "reason": "Shopify compareDigest values are opaque while local staged values use deterministic draft digests."
+          }
+        ]
+      },
+      {
+        "name": "malformed-existing-identical-row-accepted",
+        "capturePath": "$.malformedExistingSet.response.body.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafieldsSet-malformed-existing-mutation.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "metafields": [
+              {
+                "ownerId": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                },
+                "namespace": {
+                  "fromCapturePath": "$.malformedExistingSet.request.variables.metafields[0].namespace"
+                },
+                "key": {
+                  "fromCapturePath": "$.malformedExistingSet.request.variables.metafields[0].key"
+                },
+                "type": {
+                  "fromCapturePath": "$.malformedExistingSet.request.variables.metafields[0].type"
+                },
+                "value": {
+                  "fromCapturePath": "$.malformedExistingSet.request.variables.metafields[0].value"
+                },
+                "compareDigest": {
+                  "fromCapturePath": "$.malformedExistingSet.request.variables.metafields[0].compareDigest"
+                }
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafields[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The accepted idempotent write preserves each environment's independently allocated metafield ID."
+          },
+          {
+            "path": "$.metafields[0].compareDigest",
+            "matcher": "non-empty-string",
+            "reason": "The accepted idempotent write preserves Shopify's opaque digest and the local deterministic draft digest."
+          }
+        ]
+      },
+      {
+        "name": "malformed-existing-changing-row-rejected",
+        "capturePath": "$.malformedChangingSet.response.body.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafieldsSet-malformed-existing-mutation.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "metafields": [
+              {
+                "ownerId": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                },
+                "namespace": {
+                  "fromCapturePath": "$.malformedChangingSet.request.variables.metafields[0].namespace"
+                },
+                "key": {
+                  "fromCapturePath": "$.malformedChangingSet.request.variables.metafields[0].key"
+                },
+                "type": {
+                  "fromCapturePath": "$.malformedChangingSet.request.variables.metafields[0].type"
+                },
+                "value": {
+                  "fromCapturePath": "$.malformedChangingSet.request.variables.metafields[0].value"
+                },
+                "compareDigest": {
+                  "fromCapturePath": "$.malformedChangingSet.request.variables.metafields[0].compareDigest"
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "malformed-existing-identical-row-downstream-state",
+        "capturePath": "$.downstreamRead.response.body.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafieldsSet-malformed-existing-downstream-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "namespace": {
+              "fromCapturePath": "$.downstreamRead.request.variables.namespace"
+            },
+            "key": {
+              "fromCapturePath": "$.downstreamRead.request.variables.key"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The downstream read addresses each environment's independently allocated product ID."
+          },
+          {
+            "path": "$.malformedDigest.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The downstream read preserves each environment's independently allocated metafield ID."
+          },
+          {
+            "path": "$.malformedDigest.compareDigest",
+            "matcher": "non-empty-string",
+            "reason": "The downstream read exposes the environment-specific opaque digest after the accepted write."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Captured Admin GraphQL 2025-01 evidence that an existing product metafield whose submitted type and value are already identical is accepted with a malformed non-hex compareDigest and empty userErrors. A second captured request changes the value with that exact malformed token and returns STALE_OBJECT, proving this is an idempotent-write short-circuit rather than a general malformed-digest bypass. The downstream product.metafield read preserves the original row after the rejection. Replay creates both the product and initial metafield through public mutations, so no hidden state or upstream cassette is required."
+}

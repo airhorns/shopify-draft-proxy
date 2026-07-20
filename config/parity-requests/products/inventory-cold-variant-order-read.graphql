@@ -1,0 +1,15 @@
+query InventoryColdVariantOrderRead($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    lineItems(first: 5) {
+      nodes {
+        id
+        quantity
+        variant {
+          id
+        }
+      }
+    }
+  }
+}

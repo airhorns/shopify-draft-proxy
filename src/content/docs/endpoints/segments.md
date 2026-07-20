@@ -37,7 +37,7 @@ Segment reads use an effective base/staged segment set:
 - `segmentsCount` preserves Shopify's upstream `count` and `precision` as the base total, then applies known local creates, updates, and tombstones. Without an upstream count response, local fallback counts use the shared `limit`/precision helper.
 - Locally projected `segments(sortKey:)` supports `CREATION_DATE`, `ID`, and `LAST_EDIT_DATE`, applies `query`, `reverse`, and cursor windows through the shared connection helper, and uses id as the stable secondary tiebreaker. `RELEVANCE` uses deterministic id ordering for local staged/base segments because Shopify's search score is opaque.
 - Snapshot mode returns Shopify-like empty connections and exact zero counts when no segment data has been hydrated.
-- `segment(id:)` local misses forward upstream in LiveHybrid instead of fabricating `NOT_FOUND`. Local tombstones remain authoritative and return `null`.
+- `segment(id:)` local misses forward upstream in LiveHybrid instead of fabricating `NOT_FOUND`. Local tombstones remain authoritative and return `null` with Shopify's top-level `NOT_FOUND` error; list and count reads omit tombstoned segments without that detail-read error.
 - `segmentFilters`, `segmentFilterSuggestions`, `segmentValueSuggestions`, and `segmentMigrations` preserve captured metadata/suggestion payloads. They are not dynamic suggestion engines.
 
 Segment lifecycle mutations stage locally and retain the original raw mutation for ordered commit replay:
@@ -47,8 +47,9 @@ Segment lifecycle mutations stage locally and retain the original raw mutation f
 - Missing required top-level mutation arguments fail as GraphQL coercion errors before resolver behavior. Blank strings still reach the resolver and return payload-level userErrors.
 - `segmentCreate` and `segmentUpdate` enforce stripped-name and raw-query length limits, segment count limits, duplicate-name behavior, and query grammar validation before staging. Query grammar validation runs only after the Change-level name/query presence and length checks pass; query blank/too-long errors can still aggregate with name errors, but grammatically invalid query text is not reported when the name itself is blank or too long.
 - Accepted query strings are stored with Shopify-like whitespace behavior: blankness is checked on the trimmed string, length is measured before trimming, and accepted query values are returned verbatim.
+- In LiveHybrid, `segmentUpdate` and `segmentDelete` hydrate a target that is absent from effective state with one targeted, query-only upstream lookup before local validation. The lookup preserves the caller's versioned path and auth headers, observes the result as base state, and never forwards the caller mutation. Snapshot mode performs no supplemental upstream lookup.
 - `segmentUpdate` updates an existing base or staged segment, preserves the creation timestamp, and advances `lastEditDate`.
-- `segmentDelete` records local deletion state and removes the segment from detail, catalog, and count reads.
+- `segmentDelete` records local deletion state; subsequent detail reads return Shopify's null-plus-`NOT_FOUND` envelope, while catalog and count reads hide the target.
 
 Segment query grammar support has two tiers:
 

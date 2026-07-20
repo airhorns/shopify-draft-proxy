@@ -1,15 +1,241 @@
 {
   "scenarioId": "b2b-company-contact-main-delete",
-  "capturedAt": "2026-05-05T18:28:11.110Z",
+  "capturedAt": "2026-07-19T19:55:34.496Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "upstreamCalls": [],
+  "upstreamCalls": [
+    {
+      "operationName": "B2BMutationTargetsHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Company/5758353714"]
+      },
+      "query": "\nquery B2BMutationTargetsHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Company {\n      ...B2BHydrateCompany\n    }\n    ... on CompanyLocation {\n      ...B2BHydrateLocation\n      company { ...B2BHydrateCompanyReference }\n    }\n    ... on CompanyContact {\n      ...B2BHydrateContact\n      company { ...B2BHydrateCompanyReference }\n    }\n    ... on CompanyContactRole {\n      ...B2BHydrateRole\n    }\n    ... on CompanyContactRoleAssignment {\n      ...B2BHydrateRoleAssignment\n      companyContact {\n        ...B2BHydrateContact\n        company { ...B2BHydrateCompanyReference }\n      }\n      companyLocation {\n        ...B2BHydrateLocation\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on CompanyLocationStaffMemberAssignment {\n      ...B2BHydrateStaffAssignment\n      companyLocation {\n        ...B2BHydrateLocation\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on CompanyAddress {\n      ...B2BHydrateAddress\n    }\n    ... on Customer {\n      ...B2BHydrateCustomer\n      companyContactProfiles {\n        ...B2BHydrateContact\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on StaffMember {\n      id\n    }\n  }\n}\n\nfragment B2BHydrateCompany on Company {\n  __typename\n  id\n  name\n  createdAt\n  customerSince\n  externalId\n  note\n  locations(first: 50) {\n    nodes { id name }\n    pageInfo { hasNextPage endCursor }\n  }\n  contacts(first: 50) {\n    nodes { id title isMainContact }\n    pageInfo { hasNextPage endCursor }\n  }\n  contactRoles(first: 50) {\n    nodes { ...B2BHydrateRole }\n    pageInfo { hasNextPage endCursor }\n  }\n  mainContact { ...B2BHydrateContact }\n}\n\nfragment B2BHydrateCompanyReference on Company {\n  __typename\n  id\n  name\n  mainContact { id title isMainContact }\n  locations(first: 50) {\n    nodes { id name }\n    pageInfo { hasNextPage endCursor }\n  }\n  contacts(first: 50) {\n    nodes { id title isMainContact }\n    pageInfo { hasNextPage endCursor }\n  }\n  contactRoles(first: 50) {\n    nodes { ...B2BHydrateRole }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateLocation on CompanyLocation {\n  __typename\n  id\n  name\n  externalId\n  note\n  locale\n  phone\n  currency\n  billingAddress { ...B2BHydrateAddress }\n  shippingAddress { ...B2BHydrateAddress }\n  taxSettings {\n    taxRegistrationId\n    taxExempt\n    taxExemptions\n  }\n  buyerExperienceConfiguration {\n    editableShippingAddress\n    checkoutToDraft\n    paymentTermsTemplate { id }\n    deposit { __typename }\n  }\n  company { id name }\n  roleAssignments(first: 50) {\n    nodes { ...B2BHydrateRoleAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n  staffMemberAssignments(first: 50) {\n    nodes { ...B2BHydrateStaffAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateContact on CompanyContact {\n  __typename\n  id\n  createdAt\n  title\n  locale\n  isMainContact\n  customer { ...B2BHydrateCustomer }\n  company { id name }\n  roleAssignments(first: 50) {\n    nodes { ...B2BHydrateRoleAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateCustomer on Customer {\n  __typename\n  id\n  firstName\n  lastName\n  displayName\n  email\n  phone\n  locale\n  defaultEmailAddress { emailAddress }\n  defaultPhoneNumber { phoneNumber }\n}\n\nfragment B2BHydrateRole on CompanyContactRole {\n  __typename\n  id\n  name\n  note\n}\n\nfragment B2BHydrateRoleAssignment on CompanyContactRoleAssignment {\n  __typename\n  id\n  companyContact { id title }\n  companyLocation { id name }\n  role { id name note }\n}\n\nfragment B2BHydrateStaffAssignment on CompanyLocationStaffMemberAssignment {\n  __typename\n  id\n  companyLocation { id name }\n  staffMember { id }\n}\n\nfragment B2BHydrateAddress on CompanyAddress {\n  __typename\n  id\n  address1\n  address2\n  city\n  companyName\n  country\n  countryCode\n  firstName\n  lastName\n  phone\n  province\n  recipient\n  zip\n  zoneCode\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Company",
+                "id": "gid://shopify/Company/5758353714",
+                "name": "B2B lifecycle main company 1784490930108 updated",
+                "createdAt": "2026-07-19T19:55:30Z",
+                "customerSince": "2026-07-19T19:55:30Z",
+                "externalId": "b2b-lifecycle-main-updated-1784490930108",
+                "note": "B2B lifecycle parity updated",
+                "locations": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/CompanyLocation/8632238386",
+                      "name": "B2B lifecycle main company 1784490930108 HQ"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "endCursor": "eyJsaW1pdCI6NTAsInNvcnRfZmllbGRzIjoiaWQiLCJzb3J0X2RpciI6ImFzYyIsImxhc3RfaWQiOjg2MzIyMzgzODYsImxhc3RfdmFsdWUiOlsiODYzMjIzODM4NiJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                  }
+                },
+                "contacts": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/CompanyContact/10443489586",
+                      "title": "Buyer",
+                      "isMainContact": true
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "endCursor": "eyJsaW1pdCI6NTAsInNvcnRfZmllbGRzIjoiaWQiLCJzb3J0X2RpciI6ImFzYyIsImxhc3RfaWQiOjEwNDQzNDg5NTg2LCJsYXN0X3ZhbHVlIjpbIjEwNDQzNDg5NTg2Il0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                  }
+                },
+                "contactRoles": {
+                  "nodes": [
+                    {
+                      "__typename": "CompanyContactRole",
+                      "id": "gid://shopify/CompanyContactRole/11303551282",
+                      "name": "Location admin",
+                      "note": "System-defined Location admin role"
+                    },
+                    {
+                      "__typename": "CompanyContactRole",
+                      "id": "gid://shopify/CompanyContactRole/11303584050",
+                      "name": "Ordering only",
+                      "note": "System-defined Ordering only role"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "endCursor": "eyJsaW1pdCI6NTAsInNvcnRfZmllbGRzIjoiaWQiLCJzb3J0X2RpciI6ImFzYyIsInNvcnRfbWlzc2luZ192YWx1ZXMiOm51bGwsImxhc3RfaWQiOjExMzAzNTg0MDUwLCJsYXN0X3ZhbHVlIjoiMTEzMDM1ODQwNTAiLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                  }
+                },
+                "mainContact": {
+                  "__typename": "CompanyContact",
+                  "id": "gid://shopify/CompanyContact/10443489586",
+                  "createdAt": "2026-07-19T19:55:30Z",
+                  "title": "Buyer",
+                  "locale": "en",
+                  "isMainContact": true,
+                  "customer": {
+                    "__typename": "Customer",
+                    "id": "gid://shopify/Customer/10994248810802",
+                    "firstName": "Har",
+                    "lastName": "Main",
+                    "displayName": "Har Main",
+                    "email": "b2b-lifecycle-main-1784490930108@example.com",
+                    "phone": null,
+                    "locale": "en",
+                    "defaultEmailAddress": {
+                      "emailAddress": "b2b-lifecycle-main-1784490930108@example.com"
+                    },
+                    "defaultPhoneNumber": null
+                  },
+                  "company": {
+                    "id": "gid://shopify/Company/5758353714",
+                    "name": "B2B lifecycle main company 1784490930108 updated"
+                  },
+                  "roleAssignments": {
+                    "nodes": [
+                      {
+                        "__typename": "CompanyContactRoleAssignment",
+                        "id": "gid://shopify/CompanyContactRoleAssignment/44951732530",
+                        "companyContact": {
+                          "id": "gid://shopify/CompanyContact/10443489586",
+                          "title": "Buyer"
+                        },
+                        "companyLocation": {
+                          "id": "gid://shopify/CompanyLocation/8632238386",
+                          "name": "B2B lifecycle main company 1784490930108 HQ"
+                        },
+                        "role": {
+                          "id": "gid://shopify/CompanyContactRole/11303584050",
+                          "name": "Ordering only",
+                          "note": "System-defined Ordering only role"
+                        }
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "endCursor": "eyJsaW1pdCI6NTAsInNvcnRfZmllbGRzIjoiaWQiLCJzb3J0X2RpciI6ImFzYyIsInNvcnRfbWlzc2luZ192YWx1ZXMiOm51bGwsImxhc3RfaWQiOjQ0OTUxNzMyNTMwLCJsYXN0X3ZhbHVlIjoiNDQ5NTE3MzI1MzAiLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 154,
+              "actualQueryCost": 21,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "B2BMutationTargetsHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Customer/10994248876338"]
+      },
+      "query": "\nquery B2BMutationTargetsHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Company {\n      ...B2BHydrateCompany\n    }\n    ... on CompanyLocation {\n      ...B2BHydrateLocation\n      company { ...B2BHydrateCompanyReference }\n    }\n    ... on CompanyContact {\n      ...B2BHydrateContact\n      company { ...B2BHydrateCompanyReference }\n    }\n    ... on CompanyContactRole {\n      ...B2BHydrateRole\n    }\n    ... on CompanyContactRoleAssignment {\n      ...B2BHydrateRoleAssignment\n      companyContact {\n        ...B2BHydrateContact\n        company { ...B2BHydrateCompanyReference }\n      }\n      companyLocation {\n        ...B2BHydrateLocation\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on CompanyLocationStaffMemberAssignment {\n      ...B2BHydrateStaffAssignment\n      companyLocation {\n        ...B2BHydrateLocation\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on CompanyAddress {\n      ...B2BHydrateAddress\n    }\n    ... on Customer {\n      ...B2BHydrateCustomer\n      companyContactProfiles {\n        ...B2BHydrateContact\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on StaffMember {\n      id\n    }\n  }\n}\n\nfragment B2BHydrateCompany on Company {\n  __typename\n  id\n  name\n  createdAt\n  customerSince\n  externalId\n  note\n  locations(first: 50) {\n    nodes { id name }\n    pageInfo { hasNextPage endCursor }\n  }\n  contacts(first: 50) {\n    nodes { id title isMainContact }\n    pageInfo { hasNextPage endCursor }\n  }\n  contactRoles(first: 50) {\n    nodes { ...B2BHydrateRole }\n    pageInfo { hasNextPage endCursor }\n  }\n  mainContact { ...B2BHydrateContact }\n}\n\nfragment B2BHydrateCompanyReference on Company {\n  __typename\n  id\n  name\n  mainContact { id title isMainContact }\n  locations(first: 50) {\n    nodes { id name }\n    pageInfo { hasNextPage endCursor }\n  }\n  contacts(first: 50) {\n    nodes { id title isMainContact }\n    pageInfo { hasNextPage endCursor }\n  }\n  contactRoles(first: 50) {\n    nodes { ...B2BHydrateRole }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateLocation on CompanyLocation {\n  __typename\n  id\n  name\n  externalId\n  note\n  locale\n  phone\n  currency\n  billingAddress { ...B2BHydrateAddress }\n  shippingAddress { ...B2BHydrateAddress }\n  taxSettings {\n    taxRegistrationId\n    taxExempt\n    taxExemptions\n  }\n  buyerExperienceConfiguration {\n    editableShippingAddress\n    checkoutToDraft\n    paymentTermsTemplate { id }\n    deposit { __typename }\n  }\n  company { id name }\n  roleAssignments(first: 50) {\n    nodes { ...B2BHydrateRoleAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n  staffMemberAssignments(first: 50) {\n    nodes { ...B2BHydrateStaffAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateContact on CompanyContact {\n  __typename\n  id\n  createdAt\n  title\n  locale\n  isMainContact\n  customer { ...B2BHydrateCustomer }\n  company { id name }\n  roleAssignments(first: 50) {\n    nodes { ...B2BHydrateRoleAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateCustomer on Customer {\n  __typename\n  id\n  firstName\n  lastName\n  displayName\n  email\n  phone\n  locale\n  defaultEmailAddress { emailAddress }\n  defaultPhoneNumber { phoneNumber }\n}\n\nfragment B2BHydrateRole on CompanyContactRole {\n  __typename\n  id\n  name\n  note\n}\n\nfragment B2BHydrateRoleAssignment on CompanyContactRoleAssignment {\n  __typename\n  id\n  companyContact { id title }\n  companyLocation { id name }\n  role { id name note }\n}\n\nfragment B2BHydrateStaffAssignment on CompanyLocationStaffMemberAssignment {\n  __typename\n  id\n  companyLocation { id name }\n  staffMember { id }\n}\n\nfragment B2BHydrateAddress on CompanyAddress {\n  __typename\n  id\n  address1\n  address2\n  city\n  companyName\n  country\n  countryCode\n  firstName\n  lastName\n  phone\n  province\n  recipient\n  zip\n  zoneCode\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Customer",
+                "id": "gid://shopify/Customer/10994248876338",
+                "firstName": "Har",
+                "lastName": "Assigned",
+                "displayName": "Har Assigned",
+                "email": "b2b-lifecycle-1784490930108@example.com",
+                "phone": null,
+                "locale": "en",
+                "defaultEmailAddress": {
+                  "emailAddress": "b2b-lifecycle-1784490930108@example.com"
+                },
+                "defaultPhoneNumber": null,
+                "companyContactProfiles": []
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 154,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "B2BMutationTargetsHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Company/1784490930108"]
+      },
+      "query": "\nquery B2BMutationTargetsHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Company {\n      ...B2BHydrateCompany\n    }\n    ... on CompanyLocation {\n      ...B2BHydrateLocation\n      company { ...B2BHydrateCompanyReference }\n    }\n    ... on CompanyContact {\n      ...B2BHydrateContact\n      company { ...B2BHydrateCompanyReference }\n    }\n    ... on CompanyContactRole {\n      ...B2BHydrateRole\n    }\n    ... on CompanyContactRoleAssignment {\n      ...B2BHydrateRoleAssignment\n      companyContact {\n        ...B2BHydrateContact\n        company { ...B2BHydrateCompanyReference }\n      }\n      companyLocation {\n        ...B2BHydrateLocation\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on CompanyLocationStaffMemberAssignment {\n      ...B2BHydrateStaffAssignment\n      companyLocation {\n        ...B2BHydrateLocation\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on CompanyAddress {\n      ...B2BHydrateAddress\n    }\n    ... on Customer {\n      ...B2BHydrateCustomer\n      companyContactProfiles {\n        ...B2BHydrateContact\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on StaffMember {\n      id\n    }\n  }\n}\n\nfragment B2BHydrateCompany on Company {\n  __typename\n  id\n  name\n  createdAt\n  customerSince\n  externalId\n  note\n  locations(first: 50) {\n    nodes { id name }\n    pageInfo { hasNextPage endCursor }\n  }\n  contacts(first: 50) {\n    nodes { id title isMainContact }\n    pageInfo { hasNextPage endCursor }\n  }\n  contactRoles(first: 50) {\n    nodes { ...B2BHydrateRole }\n    pageInfo { hasNextPage endCursor }\n  }\n  mainContact { ...B2BHydrateContact }\n}\n\nfragment B2BHydrateCompanyReference on Company {\n  __typename\n  id\n  name\n  mainContact { id title isMainContact }\n  locations(first: 50) {\n    nodes { id name }\n    pageInfo { hasNextPage endCursor }\n  }\n  contacts(first: 50) {\n    nodes { id title isMainContact }\n    pageInfo { hasNextPage endCursor }\n  }\n  contactRoles(first: 50) {\n    nodes { ...B2BHydrateRole }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateLocation on CompanyLocation {\n  __typename\n  id\n  name\n  externalId\n  note\n  locale\n  phone\n  currency\n  billingAddress { ...B2BHydrateAddress }\n  shippingAddress { ...B2BHydrateAddress }\n  taxSettings {\n    taxRegistrationId\n    taxExempt\n    taxExemptions\n  }\n  buyerExperienceConfiguration {\n    editableShippingAddress\n    checkoutToDraft\n    paymentTermsTemplate { id }\n    deposit { __typename }\n  }\n  company { id name }\n  roleAssignments(first: 50) {\n    nodes { ...B2BHydrateRoleAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n  staffMemberAssignments(first: 50) {\n    nodes { ...B2BHydrateStaffAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateContact on CompanyContact {\n  __typename\n  id\n  createdAt\n  title\n  locale\n  isMainContact\n  customer { ...B2BHydrateCustomer }\n  company { id name }\n  roleAssignments(first: 50) {\n    nodes { ...B2BHydrateRoleAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateCustomer on Customer {\n  __typename\n  id\n  firstName\n  lastName\n  displayName\n  email\n  phone\n  locale\n  defaultEmailAddress { emailAddress }\n  defaultPhoneNumber { phoneNumber }\n}\n\nfragment B2BHydrateRole on CompanyContactRole {\n  __typename\n  id\n  name\n  note\n}\n\nfragment B2BHydrateRoleAssignment on CompanyContactRoleAssignment {\n  __typename\n  id\n  companyContact { id title }\n  companyLocation { id name }\n  role { id name note }\n}\n\nfragment B2BHydrateStaffAssignment on CompanyLocationStaffMemberAssignment {\n  __typename\n  id\n  companyLocation { id name }\n  staffMember { id }\n}\n\nfragment B2BHydrateAddress on CompanyAddress {\n  __typename\n  id\n  address1\n  address2\n  city\n  companyName\n  country\n  countryCode\n  firstName\n  lastName\n  phone\n  province\n  recipient\n  zip\n  zoneCode\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 154,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "B2BMutationTargetsHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Customer/1784490930108"]
+      },
+      "query": "\nquery B2BMutationTargetsHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Company {\n      ...B2BHydrateCompany\n    }\n    ... on CompanyLocation {\n      ...B2BHydrateLocation\n      company { ...B2BHydrateCompanyReference }\n    }\n    ... on CompanyContact {\n      ...B2BHydrateContact\n      company { ...B2BHydrateCompanyReference }\n    }\n    ... on CompanyContactRole {\n      ...B2BHydrateRole\n    }\n    ... on CompanyContactRoleAssignment {\n      ...B2BHydrateRoleAssignment\n      companyContact {\n        ...B2BHydrateContact\n        company { ...B2BHydrateCompanyReference }\n      }\n      companyLocation {\n        ...B2BHydrateLocation\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on CompanyLocationStaffMemberAssignment {\n      ...B2BHydrateStaffAssignment\n      companyLocation {\n        ...B2BHydrateLocation\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on CompanyAddress {\n      ...B2BHydrateAddress\n    }\n    ... on Customer {\n      ...B2BHydrateCustomer\n      companyContactProfiles {\n        ...B2BHydrateContact\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on StaffMember {\n      id\n    }\n  }\n}\n\nfragment B2BHydrateCompany on Company {\n  __typename\n  id\n  name\n  createdAt\n  customerSince\n  externalId\n  note\n  locations(first: 50) {\n    nodes { id name }\n    pageInfo { hasNextPage endCursor }\n  }\n  contacts(first: 50) {\n    nodes { id title isMainContact }\n    pageInfo { hasNextPage endCursor }\n  }\n  contactRoles(first: 50) {\n    nodes { ...B2BHydrateRole }\n    pageInfo { hasNextPage endCursor }\n  }\n  mainContact { ...B2BHydrateContact }\n}\n\nfragment B2BHydrateCompanyReference on Company {\n  __typename\n  id\n  name\n  mainContact { id title isMainContact }\n  locations(first: 50) {\n    nodes { id name }\n    pageInfo { hasNextPage endCursor }\n  }\n  contacts(first: 50) {\n    nodes { id title isMainContact }\n    pageInfo { hasNextPage endCursor }\n  }\n  contactRoles(first: 50) {\n    nodes { ...B2BHydrateRole }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateLocation on CompanyLocation {\n  __typename\n  id\n  name\n  externalId\n  note\n  locale\n  phone\n  currency\n  billingAddress { ...B2BHydrateAddress }\n  shippingAddress { ...B2BHydrateAddress }\n  taxSettings {\n    taxRegistrationId\n    taxExempt\n    taxExemptions\n  }\n  buyerExperienceConfiguration {\n    editableShippingAddress\n    checkoutToDraft\n    paymentTermsTemplate { id }\n    deposit { __typename }\n  }\n  company { id name }\n  roleAssignments(first: 50) {\n    nodes { ...B2BHydrateRoleAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n  staffMemberAssignments(first: 50) {\n    nodes { ...B2BHydrateStaffAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateContact on CompanyContact {\n  __typename\n  id\n  createdAt\n  title\n  locale\n  isMainContact\n  customer { ...B2BHydrateCustomer }\n  company { id name }\n  roleAssignments(first: 50) {\n    nodes { ...B2BHydrateRoleAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateCustomer on Customer {\n  __typename\n  id\n  firstName\n  lastName\n  displayName\n  email\n  phone\n  locale\n  defaultEmailAddress { emailAddress }\n  defaultPhoneNumber { phoneNumber }\n}\n\nfragment B2BHydrateRole on CompanyContactRole {\n  __typename\n  id\n  name\n  note\n}\n\nfragment B2BHydrateRoleAssignment on CompanyContactRoleAssignment {\n  __typename\n  id\n  companyContact { id title }\n  companyLocation { id name }\n  role { id name note }\n}\n\nfragment B2BHydrateStaffAssignment on CompanyLocationStaffMemberAssignment {\n  __typename\n  id\n  companyLocation { id name }\n  staffMember { id }\n}\n\nfragment B2BHydrateAddress on CompanyAddress {\n  __typename\n  id\n  address1\n  address2\n  city\n  companyName\n  country\n  countryCode\n  firstName\n  lastName\n  phone\n  province\n  recipient\n  zip\n  zoneCode\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 154,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "intent": {
-    "tickets": ["HAR-445", "HAR-618"],
-    "plan": "Create disposable B2B companies and a customer; record company update, customer-as-contact assignment, main-contact assignment/revocation, wrong-company main-contact validation, main-contact delete clearing, bulk delete, explicit delete, and post-delete empty reads."
+    "plan": "Create disposable B2B companies and a customer; record cold company/customer prerequisite reads, missing-resource controls, customer-as-contact assignment and downstream reads, company update, main-contact assignment/revocation, wrong-company main-contact validation, main-contact delete clearing, bulk delete, explicit delete, and post-delete empty reads."
   },
   "proxyVariables": {
-    "mainCompanyQuery": "name:\"HAR-445 main company 1778005687709\""
+    "mainCompanyQuery": "name:\"B2B lifecycle main company 1784490930108\""
   },
   "companyCreate": {
     "request": {
@@ -17,18 +243,18 @@
       "variables": {
         "input": {
           "company": {
-            "name": "HAR-445 main company 1778005687709",
-            "note": "HAR-445 B2B lifecycle parity",
-            "externalId": "har-445-main-1778005687709"
+            "name": "B2B lifecycle main company 1784490930108",
+            "note": "B2B lifecycle parity",
+            "externalId": "b2b-lifecycle-main-1784490930108"
           },
           "companyContact": {
             "firstName": "Har",
             "lastName": "Main",
-            "email": "har-445-main-1778005687709@example.com",
+            "email": "b2b-lifecycle-main-1784490930108@example.com",
             "title": "Buyer"
           },
           "companyLocation": {
-            "name": "HAR-445 main company 1778005687709 HQ",
+            "name": "B2B lifecycle main company 1784490930108 HQ",
             "phone": "+16135550101",
             "billingAddress": {
               "address1": "1 B2B Way",
@@ -44,10 +270,10 @@
       "data": {
         "companyCreate": {
           "company": {
-            "id": "gid://shopify/Company/5437292850",
-            "name": "HAR-445 main company 1778005687709",
-            "note": "HAR-445 B2B lifecycle parity",
-            "externalId": "har-445-main-1778005687709",
+            "id": "gid://shopify/Company/5758353714",
+            "name": "B2B lifecycle main company 1784490930108",
+            "note": "B2B lifecycle parity",
+            "externalId": "b2b-lifecycle-main-1784490930108",
             "contactsCount": {
               "count": 1
             },
@@ -55,14 +281,14 @@
               "count": 1
             },
             "mainContact": {
-              "id": "gid://shopify/CompanyContact/10147889458",
+              "id": "gid://shopify/CompanyContact/10443489586",
               "title": "Buyer",
               "isMainContact": true
             },
             "contacts": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContact/10147889458",
+                  "id": "gid://shopify/CompanyContact/10443489586",
                   "title": "Buyer",
                   "isMainContact": true
                 }
@@ -71,19 +297,19 @@
             "locations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8245772594",
-                  "name": "HAR-445 main company 1778005687709 HQ"
+                  "id": "gid://shopify/CompanyLocation/8632238386",
+                  "name": "B2B lifecycle main company 1784490930108 HQ"
                 }
               ]
             },
             "contactRoles": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContactRole/10666017074",
+                  "id": "gid://shopify/CompanyContactRole/11303551282",
                   "name": "Location admin"
                 },
                 {
-                  "id": "gid://shopify/CompanyContactRole/10666049842",
+                  "id": "gid://shopify/CompanyContactRole/11303584050",
                   "name": "Ordering only"
                 }
               ]
@@ -109,11 +335,11 @@
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleUpdate($companyId: ID!, $input: CompanyInput!) {\n    companyUpdate(companyId: $companyId, input: $input) {\n      company { id name note externalId }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5437292850",
+        "companyId": "gid://shopify/Company/5758353714",
         "input": {
-          "name": "HAR-445 main company 1778005687709 updated",
-          "note": "HAR-445 B2B lifecycle parity updated",
-          "externalId": "har-445-main-updated-1778005687709"
+          "name": "B2B lifecycle main company 1784490930108 updated",
+          "note": "B2B lifecycle parity updated",
+          "externalId": "b2b-lifecycle-main-updated-1784490930108"
         }
       }
     },
@@ -122,10 +348,10 @@
       "data": {
         "companyUpdate": {
           "company": {
-            "id": "gid://shopify/Company/5437292850",
-            "name": "HAR-445 main company 1778005687709 updated",
-            "note": "HAR-445 B2B lifecycle parity updated",
-            "externalId": "har-445-main-updated-1778005687709"
+            "id": "gid://shopify/Company/5758353714",
+            "name": "B2B lifecycle main company 1784490930108 updated",
+            "note": "B2B lifecycle parity updated",
+            "externalId": "b2b-lifecycle-main-updated-1784490930108"
           },
           "userErrors": []
         }
@@ -148,10 +374,10 @@
       "query": "#graphql\n  mutation B2BCompanyLifecycleCustomerCreate($input: CustomerInput!) {\n    customerCreate(input: $input) {\n      customer { id email }\n      userErrors { field message }\n    }\n  }\n",
       "variables": {
         "input": {
-          "email": "har-445-b2b-1778005687709@example.com",
+          "email": "b2b-lifecycle-1784490930108@example.com",
           "firstName": "Har",
           "lastName": "Assigned",
-          "tags": ["har-445-b2b-lifecycle"]
+          "tags": ["b2b-lifecycle"]
         }
       }
     },
@@ -160,8 +386,8 @@
       "data": {
         "customerCreate": {
           "customer": {
-            "id": "gid://shopify/Customer/10582467969330",
-            "email": "har-445-b2b-1778005687709@example.com"
+            "id": "gid://shopify/Customer/10994248876338",
+            "email": "b2b-lifecycle-1784490930108@example.com"
           },
           "userErrors": []
         }
@@ -179,13 +405,340 @@
       }
     }
   },
+  "hydrateAssignCompany": {
+    "request": {
+      "query": "\nquery B2BMutationTargetsHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Company {\n      ...B2BHydrateCompany\n    }\n    ... on CompanyLocation {\n      ...B2BHydrateLocation\n      company { ...B2BHydrateCompanyReference }\n    }\n    ... on CompanyContact {\n      ...B2BHydrateContact\n      company { ...B2BHydrateCompanyReference }\n    }\n    ... on CompanyContactRole {\n      ...B2BHydrateRole\n    }\n    ... on CompanyContactRoleAssignment {\n      ...B2BHydrateRoleAssignment\n      companyContact {\n        ...B2BHydrateContact\n        company { ...B2BHydrateCompanyReference }\n      }\n      companyLocation {\n        ...B2BHydrateLocation\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on CompanyLocationStaffMemberAssignment {\n      ...B2BHydrateStaffAssignment\n      companyLocation {\n        ...B2BHydrateLocation\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on CompanyAddress {\n      ...B2BHydrateAddress\n    }\n    ... on Customer {\n      ...B2BHydrateCustomer\n      companyContactProfiles {\n        ...B2BHydrateContact\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on StaffMember {\n      id\n    }\n  }\n}\n\nfragment B2BHydrateCompany on Company {\n  __typename\n  id\n  name\n  createdAt\n  customerSince\n  externalId\n  note\n  locations(first: 50) {\n    nodes { id name }\n    pageInfo { hasNextPage endCursor }\n  }\n  contacts(first: 50) {\n    nodes { id title isMainContact }\n    pageInfo { hasNextPage endCursor }\n  }\n  contactRoles(first: 50) {\n    nodes { ...B2BHydrateRole }\n    pageInfo { hasNextPage endCursor }\n  }\n  mainContact { ...B2BHydrateContact }\n}\n\nfragment B2BHydrateCompanyReference on Company {\n  __typename\n  id\n  name\n  mainContact { id title isMainContact }\n  locations(first: 50) {\n    nodes { id name }\n    pageInfo { hasNextPage endCursor }\n  }\n  contacts(first: 50) {\n    nodes { id title isMainContact }\n    pageInfo { hasNextPage endCursor }\n  }\n  contactRoles(first: 50) {\n    nodes { ...B2BHydrateRole }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateLocation on CompanyLocation {\n  __typename\n  id\n  name\n  externalId\n  note\n  locale\n  phone\n  currency\n  billingAddress { ...B2BHydrateAddress }\n  shippingAddress { ...B2BHydrateAddress }\n  taxSettings {\n    taxRegistrationId\n    taxExempt\n    taxExemptions\n  }\n  buyerExperienceConfiguration {\n    editableShippingAddress\n    checkoutToDraft\n    paymentTermsTemplate { id }\n    deposit { __typename }\n  }\n  company { id name }\n  roleAssignments(first: 50) {\n    nodes { ...B2BHydrateRoleAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n  staffMemberAssignments(first: 50) {\n    nodes { ...B2BHydrateStaffAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateContact on CompanyContact {\n  __typename\n  id\n  createdAt\n  title\n  locale\n  isMainContact\n  customer { ...B2BHydrateCustomer }\n  company { id name }\n  roleAssignments(first: 50) {\n    nodes { ...B2BHydrateRoleAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateCustomer on Customer {\n  __typename\n  id\n  firstName\n  lastName\n  displayName\n  email\n  phone\n  locale\n  defaultEmailAddress { emailAddress }\n  defaultPhoneNumber { phoneNumber }\n}\n\nfragment B2BHydrateRole on CompanyContactRole {\n  __typename\n  id\n  name\n  note\n}\n\nfragment B2BHydrateRoleAssignment on CompanyContactRoleAssignment {\n  __typename\n  id\n  companyContact { id title }\n  companyLocation { id name }\n  role { id name note }\n}\n\nfragment B2BHydrateStaffAssignment on CompanyLocationStaffMemberAssignment {\n  __typename\n  id\n  companyLocation { id name }\n  staffMember { id }\n}\n\nfragment B2BHydrateAddress on CompanyAddress {\n  __typename\n  id\n  address1\n  address2\n  city\n  companyName\n  country\n  countryCode\n  firstName\n  lastName\n  phone\n  province\n  recipient\n  zip\n  zoneCode\n}\n",
+      "variables": {
+        "ids": ["gid://shopify/Company/5758353714"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "nodes": [
+          {
+            "__typename": "Company",
+            "id": "gid://shopify/Company/5758353714",
+            "name": "B2B lifecycle main company 1784490930108 updated",
+            "createdAt": "2026-07-19T19:55:30Z",
+            "customerSince": "2026-07-19T19:55:30Z",
+            "externalId": "b2b-lifecycle-main-updated-1784490930108",
+            "note": "B2B lifecycle parity updated",
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8632238386",
+                  "name": "B2B lifecycle main company 1784490930108 HQ"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": "eyJsaW1pdCI6NTAsInNvcnRfZmllbGRzIjoiaWQiLCJzb3J0X2RpciI6ImFzYyIsImxhc3RfaWQiOjg2MzIyMzgzODYsImxhc3RfdmFsdWUiOlsiODYzMjIzODM4NiJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+              }
+            },
+            "contacts": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContact/10443489586",
+                  "title": "Buyer",
+                  "isMainContact": true
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": "eyJsaW1pdCI6NTAsInNvcnRfZmllbGRzIjoiaWQiLCJzb3J0X2RpciI6ImFzYyIsImxhc3RfaWQiOjEwNDQzNDg5NTg2LCJsYXN0X3ZhbHVlIjpbIjEwNDQzNDg5NTg2Il0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+              }
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "__typename": "CompanyContactRole",
+                  "id": "gid://shopify/CompanyContactRole/11303551282",
+                  "name": "Location admin",
+                  "note": "System-defined Location admin role"
+                },
+                {
+                  "__typename": "CompanyContactRole",
+                  "id": "gid://shopify/CompanyContactRole/11303584050",
+                  "name": "Ordering only",
+                  "note": "System-defined Ordering only role"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": "eyJsaW1pdCI6NTAsInNvcnRfZmllbGRzIjoiaWQiLCJzb3J0X2RpciI6ImFzYyIsInNvcnRfbWlzc2luZ192YWx1ZXMiOm51bGwsImxhc3RfaWQiOjExMzAzNTg0MDUwLCJsYXN0X3ZhbHVlIjoiMTEzMDM1ODQwNTAiLCJkaXJlY3Rpb24iOiJuZXh0In0="
+              }
+            },
+            "mainContact": {
+              "__typename": "CompanyContact",
+              "id": "gid://shopify/CompanyContact/10443489586",
+              "createdAt": "2026-07-19T19:55:30Z",
+              "title": "Buyer",
+              "locale": "en",
+              "isMainContact": true,
+              "customer": {
+                "__typename": "Customer",
+                "id": "gid://shopify/Customer/10994248810802",
+                "firstName": "Har",
+                "lastName": "Main",
+                "displayName": "Har Main",
+                "email": "b2b-lifecycle-main-1784490930108@example.com",
+                "phone": null,
+                "locale": "en",
+                "defaultEmailAddress": {
+                  "emailAddress": "b2b-lifecycle-main-1784490930108@example.com"
+                },
+                "defaultPhoneNumber": null
+              },
+              "company": {
+                "id": "gid://shopify/Company/5758353714",
+                "name": "B2B lifecycle main company 1784490930108 updated"
+              },
+              "roleAssignments": {
+                "nodes": [
+                  {
+                    "__typename": "CompanyContactRoleAssignment",
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44951732530",
+                    "companyContact": {
+                      "id": "gid://shopify/CompanyContact/10443489586",
+                      "title": "Buyer"
+                    },
+                    "companyLocation": {
+                      "id": "gid://shopify/CompanyLocation/8632238386",
+                      "name": "B2B lifecycle main company 1784490930108 HQ"
+                    },
+                    "role": {
+                      "id": "gid://shopify/CompanyContactRole/11303584050",
+                      "name": "Ordering only",
+                      "note": "System-defined Ordering only role"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "endCursor": "eyJsaW1pdCI6NTAsInNvcnRfZmllbGRzIjoiaWQiLCJzb3J0X2RpciI6ImFzYyIsInNvcnRfbWlzc2luZ192YWx1ZXMiOm51bGwsImxhc3RfaWQiOjQ0OTUxNzMyNTMwLCJsYXN0X3ZhbHVlIjoiNDQ5NTE3MzI1MzAiLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                }
+              }
+            }
+          }
+        ]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 154,
+          "actualQueryCost": 21,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1979,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "hydrateAssignCustomer": {
+    "request": {
+      "query": "\nquery B2BMutationTargetsHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Company {\n      ...B2BHydrateCompany\n    }\n    ... on CompanyLocation {\n      ...B2BHydrateLocation\n      company { ...B2BHydrateCompanyReference }\n    }\n    ... on CompanyContact {\n      ...B2BHydrateContact\n      company { ...B2BHydrateCompanyReference }\n    }\n    ... on CompanyContactRole {\n      ...B2BHydrateRole\n    }\n    ... on CompanyContactRoleAssignment {\n      ...B2BHydrateRoleAssignment\n      companyContact {\n        ...B2BHydrateContact\n        company { ...B2BHydrateCompanyReference }\n      }\n      companyLocation {\n        ...B2BHydrateLocation\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on CompanyLocationStaffMemberAssignment {\n      ...B2BHydrateStaffAssignment\n      companyLocation {\n        ...B2BHydrateLocation\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on CompanyAddress {\n      ...B2BHydrateAddress\n    }\n    ... on Customer {\n      ...B2BHydrateCustomer\n      companyContactProfiles {\n        ...B2BHydrateContact\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on StaffMember {\n      id\n    }\n  }\n}\n\nfragment B2BHydrateCompany on Company {\n  __typename\n  id\n  name\n  createdAt\n  customerSince\n  externalId\n  note\n  locations(first: 50) {\n    nodes { id name }\n    pageInfo { hasNextPage endCursor }\n  }\n  contacts(first: 50) {\n    nodes { id title isMainContact }\n    pageInfo { hasNextPage endCursor }\n  }\n  contactRoles(first: 50) {\n    nodes { ...B2BHydrateRole }\n    pageInfo { hasNextPage endCursor }\n  }\n  mainContact { ...B2BHydrateContact }\n}\n\nfragment B2BHydrateCompanyReference on Company {\n  __typename\n  id\n  name\n  mainContact { id title isMainContact }\n  locations(first: 50) {\n    nodes { id name }\n    pageInfo { hasNextPage endCursor }\n  }\n  contacts(first: 50) {\n    nodes { id title isMainContact }\n    pageInfo { hasNextPage endCursor }\n  }\n  contactRoles(first: 50) {\n    nodes { ...B2BHydrateRole }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateLocation on CompanyLocation {\n  __typename\n  id\n  name\n  externalId\n  note\n  locale\n  phone\n  currency\n  billingAddress { ...B2BHydrateAddress }\n  shippingAddress { ...B2BHydrateAddress }\n  taxSettings {\n    taxRegistrationId\n    taxExempt\n    taxExemptions\n  }\n  buyerExperienceConfiguration {\n    editableShippingAddress\n    checkoutToDraft\n    paymentTermsTemplate { id }\n    deposit { __typename }\n  }\n  company { id name }\n  roleAssignments(first: 50) {\n    nodes { ...B2BHydrateRoleAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n  staffMemberAssignments(first: 50) {\n    nodes { ...B2BHydrateStaffAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateContact on CompanyContact {\n  __typename\n  id\n  createdAt\n  title\n  locale\n  isMainContact\n  customer { ...B2BHydrateCustomer }\n  company { id name }\n  roleAssignments(first: 50) {\n    nodes { ...B2BHydrateRoleAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateCustomer on Customer {\n  __typename\n  id\n  firstName\n  lastName\n  displayName\n  email\n  phone\n  locale\n  defaultEmailAddress { emailAddress }\n  defaultPhoneNumber { phoneNumber }\n}\n\nfragment B2BHydrateRole on CompanyContactRole {\n  __typename\n  id\n  name\n  note\n}\n\nfragment B2BHydrateRoleAssignment on CompanyContactRoleAssignment {\n  __typename\n  id\n  companyContact { id title }\n  companyLocation { id name }\n  role { id name note }\n}\n\nfragment B2BHydrateStaffAssignment on CompanyLocationStaffMemberAssignment {\n  __typename\n  id\n  companyLocation { id name }\n  staffMember { id }\n}\n\nfragment B2BHydrateAddress on CompanyAddress {\n  __typename\n  id\n  address1\n  address2\n  city\n  companyName\n  country\n  countryCode\n  firstName\n  lastName\n  phone\n  province\n  recipient\n  zip\n  zoneCode\n}\n",
+      "variables": {
+        "ids": ["gid://shopify/Customer/10994248876338"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "nodes": [
+          {
+            "__typename": "Customer",
+            "id": "gid://shopify/Customer/10994248876338",
+            "firstName": "Har",
+            "lastName": "Assigned",
+            "displayName": "Har Assigned",
+            "email": "b2b-lifecycle-1784490930108@example.com",
+            "phone": null,
+            "locale": "en",
+            "defaultEmailAddress": {
+              "emailAddress": "b2b-lifecycle-1784490930108@example.com"
+            },
+            "defaultPhoneNumber": null,
+            "companyContactProfiles": []
+          }
+        ]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 154,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "hydrateMissingCompany": {
+    "request": {
+      "query": "\nquery B2BMutationTargetsHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Company {\n      ...B2BHydrateCompany\n    }\n    ... on CompanyLocation {\n      ...B2BHydrateLocation\n      company { ...B2BHydrateCompanyReference }\n    }\n    ... on CompanyContact {\n      ...B2BHydrateContact\n      company { ...B2BHydrateCompanyReference }\n    }\n    ... on CompanyContactRole {\n      ...B2BHydrateRole\n    }\n    ... on CompanyContactRoleAssignment {\n      ...B2BHydrateRoleAssignment\n      companyContact {\n        ...B2BHydrateContact\n        company { ...B2BHydrateCompanyReference }\n      }\n      companyLocation {\n        ...B2BHydrateLocation\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on CompanyLocationStaffMemberAssignment {\n      ...B2BHydrateStaffAssignment\n      companyLocation {\n        ...B2BHydrateLocation\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on CompanyAddress {\n      ...B2BHydrateAddress\n    }\n    ... on Customer {\n      ...B2BHydrateCustomer\n      companyContactProfiles {\n        ...B2BHydrateContact\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on StaffMember {\n      id\n    }\n  }\n}\n\nfragment B2BHydrateCompany on Company {\n  __typename\n  id\n  name\n  createdAt\n  customerSince\n  externalId\n  note\n  locations(first: 50) {\n    nodes { id name }\n    pageInfo { hasNextPage endCursor }\n  }\n  contacts(first: 50) {\n    nodes { id title isMainContact }\n    pageInfo { hasNextPage endCursor }\n  }\n  contactRoles(first: 50) {\n    nodes { ...B2BHydrateRole }\n    pageInfo { hasNextPage endCursor }\n  }\n  mainContact { ...B2BHydrateContact }\n}\n\nfragment B2BHydrateCompanyReference on Company {\n  __typename\n  id\n  name\n  mainContact { id title isMainContact }\n  locations(first: 50) {\n    nodes { id name }\n    pageInfo { hasNextPage endCursor }\n  }\n  contacts(first: 50) {\n    nodes { id title isMainContact }\n    pageInfo { hasNextPage endCursor }\n  }\n  contactRoles(first: 50) {\n    nodes { ...B2BHydrateRole }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateLocation on CompanyLocation {\n  __typename\n  id\n  name\n  externalId\n  note\n  locale\n  phone\n  currency\n  billingAddress { ...B2BHydrateAddress }\n  shippingAddress { ...B2BHydrateAddress }\n  taxSettings {\n    taxRegistrationId\n    taxExempt\n    taxExemptions\n  }\n  buyerExperienceConfiguration {\n    editableShippingAddress\n    checkoutToDraft\n    paymentTermsTemplate { id }\n    deposit { __typename }\n  }\n  company { id name }\n  roleAssignments(first: 50) {\n    nodes { ...B2BHydrateRoleAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n  staffMemberAssignments(first: 50) {\n    nodes { ...B2BHydrateStaffAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateContact on CompanyContact {\n  __typename\n  id\n  createdAt\n  title\n  locale\n  isMainContact\n  customer { ...B2BHydrateCustomer }\n  company { id name }\n  roleAssignments(first: 50) {\n    nodes { ...B2BHydrateRoleAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateCustomer on Customer {\n  __typename\n  id\n  firstName\n  lastName\n  displayName\n  email\n  phone\n  locale\n  defaultEmailAddress { emailAddress }\n  defaultPhoneNumber { phoneNumber }\n}\n\nfragment B2BHydrateRole on CompanyContactRole {\n  __typename\n  id\n  name\n  note\n}\n\nfragment B2BHydrateRoleAssignment on CompanyContactRoleAssignment {\n  __typename\n  id\n  companyContact { id title }\n  companyLocation { id name }\n  role { id name note }\n}\n\nfragment B2BHydrateStaffAssignment on CompanyLocationStaffMemberAssignment {\n  __typename\n  id\n  companyLocation { id name }\n  staffMember { id }\n}\n\nfragment B2BHydrateAddress on CompanyAddress {\n  __typename\n  id\n  address1\n  address2\n  city\n  companyName\n  country\n  countryCode\n  firstName\n  lastName\n  phone\n  province\n  recipient\n  zip\n  zoneCode\n}\n",
+      "variables": {
+        "ids": ["gid://shopify/Company/1784490930108"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "nodes": [null]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 154,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "hydrateMissingCustomer": {
+    "request": {
+      "query": "\nquery B2BMutationTargetsHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Company {\n      ...B2BHydrateCompany\n    }\n    ... on CompanyLocation {\n      ...B2BHydrateLocation\n      company { ...B2BHydrateCompanyReference }\n    }\n    ... on CompanyContact {\n      ...B2BHydrateContact\n      company { ...B2BHydrateCompanyReference }\n    }\n    ... on CompanyContactRole {\n      ...B2BHydrateRole\n    }\n    ... on CompanyContactRoleAssignment {\n      ...B2BHydrateRoleAssignment\n      companyContact {\n        ...B2BHydrateContact\n        company { ...B2BHydrateCompanyReference }\n      }\n      companyLocation {\n        ...B2BHydrateLocation\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on CompanyLocationStaffMemberAssignment {\n      ...B2BHydrateStaffAssignment\n      companyLocation {\n        ...B2BHydrateLocation\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on CompanyAddress {\n      ...B2BHydrateAddress\n    }\n    ... on Customer {\n      ...B2BHydrateCustomer\n      companyContactProfiles {\n        ...B2BHydrateContact\n        company { ...B2BHydrateCompanyReference }\n      }\n    }\n    ... on StaffMember {\n      id\n    }\n  }\n}\n\nfragment B2BHydrateCompany on Company {\n  __typename\n  id\n  name\n  createdAt\n  customerSince\n  externalId\n  note\n  locations(first: 50) {\n    nodes { id name }\n    pageInfo { hasNextPage endCursor }\n  }\n  contacts(first: 50) {\n    nodes { id title isMainContact }\n    pageInfo { hasNextPage endCursor }\n  }\n  contactRoles(first: 50) {\n    nodes { ...B2BHydrateRole }\n    pageInfo { hasNextPage endCursor }\n  }\n  mainContact { ...B2BHydrateContact }\n}\n\nfragment B2BHydrateCompanyReference on Company {\n  __typename\n  id\n  name\n  mainContact { id title isMainContact }\n  locations(first: 50) {\n    nodes { id name }\n    pageInfo { hasNextPage endCursor }\n  }\n  contacts(first: 50) {\n    nodes { id title isMainContact }\n    pageInfo { hasNextPage endCursor }\n  }\n  contactRoles(first: 50) {\n    nodes { ...B2BHydrateRole }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateLocation on CompanyLocation {\n  __typename\n  id\n  name\n  externalId\n  note\n  locale\n  phone\n  currency\n  billingAddress { ...B2BHydrateAddress }\n  shippingAddress { ...B2BHydrateAddress }\n  taxSettings {\n    taxRegistrationId\n    taxExempt\n    taxExemptions\n  }\n  buyerExperienceConfiguration {\n    editableShippingAddress\n    checkoutToDraft\n    paymentTermsTemplate { id }\n    deposit { __typename }\n  }\n  company { id name }\n  roleAssignments(first: 50) {\n    nodes { ...B2BHydrateRoleAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n  staffMemberAssignments(first: 50) {\n    nodes { ...B2BHydrateStaffAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateContact on CompanyContact {\n  __typename\n  id\n  createdAt\n  title\n  locale\n  isMainContact\n  customer { ...B2BHydrateCustomer }\n  company { id name }\n  roleAssignments(first: 50) {\n    nodes { ...B2BHydrateRoleAssignment }\n    pageInfo { hasNextPage endCursor }\n  }\n}\n\nfragment B2BHydrateCustomer on Customer {\n  __typename\n  id\n  firstName\n  lastName\n  displayName\n  email\n  phone\n  locale\n  defaultEmailAddress { emailAddress }\n  defaultPhoneNumber { phoneNumber }\n}\n\nfragment B2BHydrateRole on CompanyContactRole {\n  __typename\n  id\n  name\n  note\n}\n\nfragment B2BHydrateRoleAssignment on CompanyContactRoleAssignment {\n  __typename\n  id\n  companyContact { id title }\n  companyLocation { id name }\n  role { id name note }\n}\n\nfragment B2BHydrateStaffAssignment on CompanyLocationStaffMemberAssignment {\n  __typename\n  id\n  companyLocation { id name }\n  staffMember { id }\n}\n\nfragment B2BHydrateAddress on CompanyAddress {\n  __typename\n  id\n  address1\n  address2\n  city\n  companyName\n  country\n  countryCode\n  firstName\n  lastName\n  phone\n  province\n  recipient\n  zip\n  zoneCode\n}\n",
+      "variables": {
+        "ids": ["gid://shopify/Customer/1784490930108"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "nodes": [null]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 154,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "missingCompanyAssign": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyLifecycleAssignCustomer($companyId: ID!, $customerId: ID!) {\n    companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {\n      companyContact { id isMainContact customer { id } company { id name } }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/1784490930108",
+        "customerId": "gid://shopify/Customer/10994248876338"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyAssignCustomerAsContact": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["companyId"],
+              "message": "Company does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "missingCustomerAssign": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyLifecycleAssignCustomer($companyId: ID!, $customerId: ID!) {\n    companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {\n      companyContact { id isMainContact customer { id } company { id name } }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5758353714",
+        "customerId": "gid://shopify/Customer/1784490930108"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyAssignCustomerAsContact": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["customerId"],
+              "message": "Customer does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "bothMissingAssign": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyLifecycleAssignCustomer($companyId: ID!, $customerId: ID!) {\n    companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {\n      companyContact { id isMainContact customer { id } company { id name } }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/1784490930108",
+        "customerId": "gid://shopify/Customer/1784490930108"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyAssignCustomerAsContact": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["companyId"],
+              "message": "Company does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
   "contactCreate": {
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact { id title isMainContact company { id name } }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5437292850",
+        "companyId": "gid://shopify/Company/5758353714",
         "input": {
-          "email": "har-445-secondary-1778005687709@example.com",
+          "email": "b2b-lifecycle-secondary-1784490930108@example.com",
           "firstName": "Har",
           "lastName": "Secondary",
           "title": "Approver"
@@ -197,12 +750,12 @@
       "data": {
         "companyContactCreate": {
           "companyContact": {
-            "id": "gid://shopify/CompanyContact/10147922226",
+            "id": "gid://shopify/CompanyContact/10443555122",
             "title": "Approver",
             "isMainContact": false,
             "company": {
-              "id": "gid://shopify/Company/5437292850",
-              "name": "HAR-445 main company 1778005687709 updated"
+              "id": "gid://shopify/Company/5758353714",
+              "name": "B2B lifecycle main company 1784490930108 updated"
             }
           },
           "userErrors": []
@@ -225,8 +778,8 @@
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleAssignCustomer($companyId: ID!, $customerId: ID!) {\n    companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {\n      companyContact { id isMainContact customer { id } company { id name } }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5437292850",
-        "customerId": "gid://shopify/Customer/10582467969330"
+        "companyId": "gid://shopify/Company/5758353714",
+        "customerId": "gid://shopify/Customer/10994248876338"
       }
     },
     "response": {
@@ -234,14 +787,14 @@
       "data": {
         "companyAssignCustomerAsContact": {
           "companyContact": {
-            "id": "gid://shopify/CompanyContact/10147954994",
+            "id": "gid://shopify/CompanyContact/10443522354",
             "isMainContact": false,
             "customer": {
-              "id": "gid://shopify/Customer/10582467969330"
+              "id": "gid://shopify/Customer/10994248876338"
             },
             "company": {
-              "id": "gid://shopify/Company/5437292850",
-              "name": "HAR-445 main company 1778005687709 updated"
+              "id": "gid://shopify/Company/5758353714",
+              "name": "B2B lifecycle main company 1784490930108 updated"
             }
           },
           "userErrors": []
@@ -250,6 +803,86 @@
       "extensions": {
         "cost": {
           "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterAssignCustomer": {
+    "request": {
+      "query": "query B2BAssignCustomerAsContactColdReadback($companyId: ID!, $companyContactId: ID!, $customerId: ID!) {\n  company(id: $companyId) {\n    id\n    name\n    contacts(first: 5) {\n      nodes {\n        id\n        isMainContact\n        customer {\n          id\n          email\n        }\n      }\n    }\n  }\n  companyContact(id: $companyContactId) {\n    id\n    isMainContact\n    company {\n      id\n      name\n    }\n    customer {\n      id\n      email\n      firstName\n      lastName\n    }\n  }\n  customer(id: $customerId) {\n    id\n    email\n    firstName\n    lastName\n    companyContactProfiles {\n      id\n      isMainContact\n      company {\n        id\n        name\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5758353714",
+        "companyContactId": "gid://shopify/CompanyContact/10443522354",
+        "customerId": "gid://shopify/Customer/10994248876338"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "company": {
+          "id": "gid://shopify/Company/5758353714",
+          "name": "B2B lifecycle main company 1784490930108 updated",
+          "contacts": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContact/10443489586",
+                "isMainContact": true,
+                "customer": {
+                  "id": "gid://shopify/Customer/10994248810802",
+                  "email": "b2b-lifecycle-main-1784490930108@example.com"
+                }
+              },
+              {
+                "id": "gid://shopify/CompanyContact/10443522354",
+                "isMainContact": false,
+                "customer": {
+                  "id": "gid://shopify/Customer/10994248876338",
+                  "email": "b2b-lifecycle-1784490930108@example.com"
+                }
+              }
+            ]
+          }
+        },
+        "companyContact": {
+          "id": "gid://shopify/CompanyContact/10443522354",
+          "isMainContact": false,
+          "company": {
+            "id": "gid://shopify/Company/5758353714",
+            "name": "B2B lifecycle main company 1784490930108 updated"
+          },
+          "customer": {
+            "id": "gid://shopify/Customer/10994248876338",
+            "email": "b2b-lifecycle-1784490930108@example.com",
+            "firstName": "Har",
+            "lastName": "Assigned"
+          }
+        },
+        "customer": {
+          "id": "gid://shopify/Customer/10994248876338",
+          "email": "b2b-lifecycle-1784490930108@example.com",
+          "firstName": "Har",
+          "lastName": "Assigned",
+          "companyContactProfiles": [
+            {
+              "id": "gid://shopify/CompanyContact/10443522354",
+              "isMainContact": false,
+              "company": {
+                "id": "gid://shopify/Company/5758353714",
+                "name": "B2B lifecycle main company 1784490930108 updated"
+              }
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
           "actualQueryCost": 12,
           "throttleStatus": {
             "maximumAvailable": 2000,
@@ -264,8 +897,8 @@
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleAssignMainContact($companyId: ID!, $companyContactId: ID!) {\n    companyAssignMainContact(companyId: $companyId, companyContactId: $companyContactId) {\n      company {\n        id\n        mainContact { id title isMainContact }\n        contacts(first: 5) { nodes { id title isMainContact } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5437292850",
-        "companyContactId": "gid://shopify/CompanyContact/10147922226"
+        "companyId": "gid://shopify/Company/5758353714",
+        "companyContactId": "gid://shopify/CompanyContact/10443555122"
       }
     },
     "response": {
@@ -273,28 +906,28 @@
       "data": {
         "companyAssignMainContact": {
           "company": {
-            "id": "gid://shopify/Company/5437292850",
+            "id": "gid://shopify/Company/5758353714",
             "mainContact": {
-              "id": "gid://shopify/CompanyContact/10147922226",
+              "id": "gid://shopify/CompanyContact/10443555122",
               "title": "Approver",
               "isMainContact": true
             },
             "contacts": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContact/10147889458",
+                  "id": "gid://shopify/CompanyContact/10443489586",
                   "title": "Buyer",
                   "isMainContact": false
                 },
                 {
-                  "id": "gid://shopify/CompanyContact/10147922226",
-                  "title": "Approver",
-                  "isMainContact": true
-                },
-                {
-                  "id": "gid://shopify/CompanyContact/10147954994",
+                  "id": "gid://shopify/CompanyContact/10443522354",
                   "title": null,
                   "isMainContact": false
+                },
+                {
+                  "id": "gid://shopify/CompanyContact/10443555122",
+                  "title": "Approver",
+                  "isMainContact": true
                 }
               ]
             }
@@ -319,7 +952,7 @@
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleRevokeMainContact($companyId: ID!) {\n    companyRevokeMainContact(companyId: $companyId) {\n      company {\n        id\n        mainContact { id title isMainContact }\n        contacts(first: 5) { nodes { id title isMainContact } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5437292850"
+        "companyId": "gid://shopify/Company/5758353714"
       }
     },
     "response": {
@@ -327,23 +960,23 @@
       "data": {
         "companyRevokeMainContact": {
           "company": {
-            "id": "gid://shopify/Company/5437292850",
+            "id": "gid://shopify/Company/5758353714",
             "mainContact": null,
             "contacts": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContact/10147889458",
+                  "id": "gid://shopify/CompanyContact/10443489586",
                   "title": "Buyer",
                   "isMainContact": false
                 },
                 {
-                  "id": "gid://shopify/CompanyContact/10147922226",
-                  "title": "Approver",
+                  "id": "gid://shopify/CompanyContact/10443522354",
+                  "title": null,
                   "isMainContact": false
                 },
                 {
-                  "id": "gid://shopify/CompanyContact/10147954994",
-                  "title": null,
+                  "id": "gid://shopify/CompanyContact/10443555122",
+                  "title": "Approver",
                   "isMainContact": false
                 }
               ]
@@ -358,7 +991,7 @@
           "actualQueryCost": 15,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1983,
+            "currentlyAvailable": 1981,
             "restoreRate": 100
           }
         }
@@ -369,17 +1002,17 @@
     "request": {
       "query": "#graphql\n  query B2BCompanyLifecycleReadAfterMainContact($companyId: ID!) {\n    company(id: $companyId) {\n      id\n      name\n      note\n      externalId\n      contactsCount { count }\n      locationsCount { count }\n      mainContact { id title isMainContact }\n      contacts(first: 5) {\n        nodes {\n          id\n          title\n          isMainContact\n          customer { id }\n        }\n      }\n      locations(first: 5) { nodes { id name } }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5437292850"
+        "companyId": "gid://shopify/Company/5758353714"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "company": {
-          "id": "gid://shopify/Company/5437292850",
-          "name": "HAR-445 main company 1778005687709 updated",
-          "note": "HAR-445 B2B lifecycle parity updated",
-          "externalId": "har-445-main-updated-1778005687709",
+          "id": "gid://shopify/Company/5758353714",
+          "name": "B2B lifecycle main company 1784490930108 updated",
+          "note": "B2B lifecycle parity updated",
+          "externalId": "b2b-lifecycle-main-updated-1784490930108",
           "contactsCount": {
             "count": 3
           },
@@ -390,27 +1023,27 @@
           "contacts": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContact/10147889458",
+                "id": "gid://shopify/CompanyContact/10443489586",
                 "title": "Buyer",
                 "isMainContact": false,
                 "customer": {
-                  "id": "gid://shopify/Customer/10582467871026"
+                  "id": "gid://shopify/Customer/10994248810802"
                 }
               },
               {
-                "id": "gid://shopify/CompanyContact/10147922226",
-                "title": "Approver",
-                "isMainContact": false,
-                "customer": {
-                  "id": "gid://shopify/Customer/10582468002098"
-                }
-              },
-              {
-                "id": "gid://shopify/CompanyContact/10147954994",
+                "id": "gid://shopify/CompanyContact/10443522354",
                 "title": null,
                 "isMainContact": false,
                 "customer": {
-                  "id": "gid://shopify/Customer/10582467969330"
+                  "id": "gid://shopify/Customer/10994248876338"
+                }
+              },
+              {
+                "id": "gid://shopify/CompanyContact/10443555122",
+                "title": "Approver",
+                "isMainContact": false,
+                "customer": {
+                  "id": "gid://shopify/Customer/10994248974642"
                 }
               }
             ]
@@ -418,8 +1051,8 @@
           "locations": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyLocation/8245772594",
-                "name": "HAR-445 main company 1778005687709 HQ"
+                "id": "gid://shopify/CompanyLocation/8632238386",
+                "name": "B2B lifecycle main company 1784490930108 HQ"
               }
             ]
           }
@@ -431,7 +1064,7 @@
           "actualQueryCost": 13,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1983,
+            "currentlyAvailable": 1980,
             "restoreRate": 100
           }
         }
@@ -442,8 +1075,8 @@
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleAssignMainContact($companyId: ID!, $companyContactId: ID!) {\n    companyAssignMainContact(companyId: $companyId, companyContactId: $companyContactId) {\n      company {\n        id\n        mainContact { id title isMainContact }\n        contacts(first: 5) { nodes { id title isMainContact } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5437292850",
-        "companyContactId": "gid://shopify/CompanyContact/10147922226"
+        "companyId": "gid://shopify/Company/5758353714",
+        "companyContactId": "gid://shopify/CompanyContact/10443555122"
       }
     },
     "response": {
@@ -451,28 +1084,28 @@
       "data": {
         "companyAssignMainContact": {
           "company": {
-            "id": "gid://shopify/Company/5437292850",
+            "id": "gid://shopify/Company/5758353714",
             "mainContact": {
-              "id": "gid://shopify/CompanyContact/10147922226",
+              "id": "gid://shopify/CompanyContact/10443555122",
               "title": "Approver",
               "isMainContact": true
             },
             "contacts": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContact/10147889458",
+                  "id": "gid://shopify/CompanyContact/10443489586",
                   "title": "Buyer",
                   "isMainContact": false
                 },
                 {
-                  "id": "gid://shopify/CompanyContact/10147922226",
-                  "title": "Approver",
-                  "isMainContact": true
-                },
-                {
-                  "id": "gid://shopify/CompanyContact/10147954994",
+                  "id": "gid://shopify/CompanyContact/10443522354",
                   "title": null,
                   "isMainContact": false
+                },
+                {
+                  "id": "gid://shopify/CompanyContact/10443555122",
+                  "title": "Approver",
+                  "isMainContact": true
                 }
               ]
             }
@@ -486,7 +1119,7 @@
           "actualQueryCost": 15,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1980,
+            "currentlyAvailable": 1976,
             "restoreRate": 100
           }
         }
@@ -497,14 +1130,14 @@
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleContactDelete($companyContactId: ID!) {\n    companyContactDelete(companyContactId: $companyContactId) {\n      deletedCompanyContactId\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10147922226"
+        "companyContactId": "gid://shopify/CompanyContact/10443555122"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "companyContactDelete": {
-          "deletedCompanyContactId": "gid://shopify/CompanyContact/10147922226",
+          "deletedCompanyContactId": "gid://shopify/CompanyContact/10443555122",
           "userErrors": []
         }
       },
@@ -514,7 +1147,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1982,
+            "currentlyAvailable": 1979,
             "restoreRate": 100
           }
         }
@@ -525,17 +1158,17 @@
     "request": {
       "query": "#graphql\n  query B2BCompanyLifecycleReadAfterMainContact($companyId: ID!) {\n    company(id: $companyId) {\n      id\n      name\n      note\n      externalId\n      contactsCount { count }\n      locationsCount { count }\n      mainContact { id title isMainContact }\n      contacts(first: 5) {\n        nodes {\n          id\n          title\n          isMainContact\n          customer { id }\n        }\n      }\n      locations(first: 5) { nodes { id name } }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5437292850"
+        "companyId": "gid://shopify/Company/5758353714"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "company": {
-          "id": "gid://shopify/Company/5437292850",
-          "name": "HAR-445 main company 1778005687709 updated",
-          "note": "HAR-445 B2B lifecycle parity updated",
-          "externalId": "har-445-main-updated-1778005687709",
+          "id": "gid://shopify/Company/5758353714",
+          "name": "B2B lifecycle main company 1784490930108 updated",
+          "note": "B2B lifecycle parity updated",
+          "externalId": "b2b-lifecycle-main-updated-1784490930108",
           "contactsCount": {
             "count": 2
           },
@@ -546,19 +1179,19 @@
           "contacts": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContact/10147889458",
+                "id": "gid://shopify/CompanyContact/10443489586",
                 "title": "Buyer",
                 "isMainContact": false,
                 "customer": {
-                  "id": "gid://shopify/Customer/10582467871026"
+                  "id": "gid://shopify/Customer/10994248810802"
                 }
               },
               {
-                "id": "gid://shopify/CompanyContact/10147954994",
+                "id": "gid://shopify/CompanyContact/10443522354",
                 "title": null,
                 "isMainContact": false,
                 "customer": {
-                  "id": "gid://shopify/Customer/10582467969330"
+                  "id": "gid://shopify/Customer/10994248876338"
                 }
               }
             ]
@@ -566,8 +1199,8 @@
           "locations": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyLocation/8245772594",
-                "name": "HAR-445 main company 1778005687709 HQ"
+                "id": "gid://shopify/CompanyLocation/8632238386",
+                "name": "B2B lifecycle main company 1784490930108 HQ"
               }
             ]
           }
@@ -579,7 +1212,7 @@
           "actualQueryCost": 12,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1988,
+            "currentlyAvailable": 1981,
             "restoreRate": 100
           }
         }
@@ -592,8 +1225,8 @@
       "variables": {
         "input": {
           "company": {
-            "name": "HAR-445 bulk company 1778005687709",
-            "externalId": "har-445-bulk-1778005687709"
+            "name": "B2B lifecycle bulk company 1784490930108",
+            "externalId": "b2b-lifecycle-bulk-1784490930108"
           }
         }
       }
@@ -603,10 +1236,10 @@
       "data": {
         "companyCreate": {
           "company": {
-            "id": "gid://shopify/Company/5437325618",
-            "name": "HAR-445 bulk company 1778005687709",
+            "id": "gid://shopify/Company/5758386482",
+            "name": "B2B lifecycle bulk company 1784490930108",
             "note": null,
-            "externalId": "har-445-bulk-1778005687709",
+            "externalId": "b2b-lifecycle-bulk-1784490930108",
             "contactsCount": {
               "count": 0
             },
@@ -620,19 +1253,19 @@
             "locations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8245805362",
-                  "name": "HAR-445 bulk company 1778005687709"
+                  "id": "gid://shopify/CompanyLocation/8632271154",
+                  "name": "B2B lifecycle bulk company 1784490930108"
                 }
               ]
             },
             "contactRoles": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContactRole/10666082610",
+                  "id": "gid://shopify/CompanyContactRole/11303616818",
                   "name": "Location admin"
                 },
                 {
-                  "id": "gid://shopify/CompanyContactRole/10666115378",
+                  "id": "gid://shopify/CompanyContactRole/11303649586",
                   "name": "Ordering only"
                 }
               ]
@@ -647,7 +1280,7 @@
           "actualQueryCost": 25,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1975,
+            "currentlyAvailable": 1968,
             "restoreRate": 100
           }
         }
@@ -658,8 +1291,8 @@
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleAssignMainContact($companyId: ID!, $companyContactId: ID!) {\n    companyAssignMainContact(companyId: $companyId, companyContactId: $companyContactId) {\n      company {\n        id\n        mainContact { id title isMainContact }\n        contacts(first: 5) { nodes { id title isMainContact } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5437325618",
-        "companyContactId": "gid://shopify/CompanyContact/10147889458"
+        "companyId": "gid://shopify/Company/5758386482",
+        "companyContactId": "gid://shopify/CompanyContact/10443489586"
       }
     },
     "response": {
@@ -682,7 +1315,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1983,
             "restoreRate": 100
           }
         }
@@ -693,14 +1326,14 @@
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleCompaniesDelete($companyIds: [ID!]!) {\n    companiesDelete(companyIds: $companyIds) {\n      deletedCompanyIds\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyIds": ["gid://shopify/Company/5437325618"]
+        "companyIds": ["gid://shopify/Company/5758386482"]
       }
     },
     "response": {
       "status": 200,
       "data": {
         "companiesDelete": {
-          "deletedCompanyIds": ["gid://shopify/Company/5437325618"],
+          "deletedCompanyIds": ["gid://shopify/Company/5758386482"],
           "userErrors": []
         }
       },
@@ -710,7 +1343,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1984,
             "restoreRate": 100
           }
         }
@@ -721,8 +1354,8 @@
     "request": {
       "query": "#graphql\n  query B2BCompanyLifecycleReadAfterDelete($companyId: ID!, $companyQuery: String!) {\n    company(id: $companyId) { id }\n    companies(first: 5, query: $companyQuery) {\n      nodes { id name }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5437325618",
-        "companyQuery": "name:\"HAR-445 bulk company 1778005687709\""
+        "companyId": "gid://shopify/Company/5758386482",
+        "companyQuery": "name:\"B2B lifecycle bulk company 1784490930108\""
       }
     },
     "response": {
@@ -756,14 +1389,14 @@
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Company/5437292850"
+        "id": "gid://shopify/Company/5758353714"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "companyDelete": {
-          "deletedCompanyId": "gid://shopify/Company/5437292850",
+          "deletedCompanyId": "gid://shopify/Company/5758353714",
           "userErrors": []
         }
       },
@@ -784,8 +1417,8 @@
     "request": {
       "query": "#graphql\n  query B2BCompanyLifecycleReadAfterDelete($companyId: ID!, $companyQuery: String!) {\n    company(id: $companyId) { id }\n    companies(first: 5, query: $companyQuery) {\n      nodes { id name }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5437292850",
-        "companyQuery": "name:\"HAR-445 main company 1778005687709\""
+        "companyId": "gid://shopify/Company/5758353714",
+        "companyQuery": "name:\"B2B lifecycle main company 1784490930108\""
       }
     },
     "response": {
@@ -821,7 +1454,7 @@
         "query": "#graphql\n  mutation B2BCompanyLifecycleCustomerDelete($input: CustomerDeleteInput!) {\n    customerDelete(input: $input) {\n      deletedCustomerId\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Customer/10582467969330"
+            "id": "gid://shopify/Customer/10994248876338"
           }
         }
       },
@@ -829,7 +1462,7 @@
         "status": 200,
         "data": {
           "customerDelete": {
-            "deletedCustomerId": "gid://shopify/Customer/10582467969330",
+            "deletedCustomerId": "gid://shopify/Customer/10994248876338",
             "userErrors": []
           }
         },

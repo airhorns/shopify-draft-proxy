@@ -1,0 +1,647 @@
+{
+  "capturedAt": "2026-07-19T21:53:17.297Z",
+  "scenarioId": "segment-mutation-first-hydration",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "proxyVariables": {
+    "update": {
+      "id": "gid://shopify/Segment/653744242994",
+      "name": "Mutation First Update After segmentmutationfirstmrsc0ylhya4ca3",
+      "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-update-after'"
+    },
+    "updateRead": {
+      "id": "gid://shopify/Segment/653744242994",
+      "name": "Mutation First Update After segmentmutationfirstmrsc0ylhya4ca3"
+    },
+    "delete": {
+      "id": "gid://shopify/Segment/653744275762"
+    },
+    "deleteRead": {
+      "id": "gid://shopify/Segment/653744275762",
+      "name": "Mutation First Delete segmentmutationfirstmrsc0ylhya4ca3"
+    }
+  },
+  "setup": {
+    "updateCreate": {
+      "operationName": "SegmentMutationFirstUpdateSetupCreate",
+      "query": "mutation SegmentLiveHybridOverlayCreate($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "name": "Mutation First Update Before segmentmutationfirstmrsc0ylhya4ca3",
+        "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-update-before'"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/653744242994",
+                "name": "Mutation First Update Before segmentmutationfirstmrsc0ylhya4ca3",
+                "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-update-before'",
+                "creationDate": "2026-07-19T21:53:06Z",
+                "lastEditDate": "2026-07-19T21:53:06Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateHydrate": {
+      "operationName": "SegmentMutationTargetHydrate",
+      "query": "query SegmentMutationTargetHydrate($id: ID!) {\n  segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Segment/653744242994"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "segment": {
+              "id": "gid://shopify/Segment/653744242994",
+              "name": "Mutation First Update Before segmentmutationfirstmrsc0ylhya4ca3",
+              "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-update-before'",
+              "creationDate": "2026-07-19T21:53:06Z",
+              "lastEditDate": "2026-07-19T21:53:06Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateReadBefore": {
+      "operationName": "SegmentMutationFirstUpdateRead",
+      "query": "query SegmentMutationFirstUpdateRead($id: ID!, $name: String!) {\n  detail: segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n  list: segments(first: 10, query: $name) {\n    nodes {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n  }\n  count: segmentsCount {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Segment/653744242994",
+        "name": "Mutation First Update After segmentmutationfirstmrsc0ylhya4ca3"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "detail": {
+              "id": "gid://shopify/Segment/653744242994",
+              "name": "Mutation First Update Before segmentmutationfirstmrsc0ylhya4ca3",
+              "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-update-before'",
+              "creationDate": "2026-07-19T21:53:06Z",
+              "lastEditDate": "2026-07-19T21:53:06Z"
+            },
+            "list": {
+              "nodes": []
+            },
+            "count": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "deleteCreate": {
+      "operationName": "SegmentMutationFirstDeleteSetupCreate",
+      "query": "mutation SegmentLiveHybridOverlayCreate($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "name": "Mutation First Delete segmentmutationfirstmrsc0ylhya4ca3",
+        "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-delete'"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/653744275762",
+                "name": "Mutation First Delete segmentmutationfirstmrsc0ylhya4ca3",
+                "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-delete'",
+                "creationDate": "2026-07-19T21:53:11Z",
+                "lastEditDate": "2026-07-19T21:53:11Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "deleteHydrate": {
+      "operationName": "SegmentMutationTargetHydrate",
+      "query": "query SegmentMutationTargetHydrate($id: ID!) {\n  segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Segment/653744275762"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "segment": {
+              "id": "gid://shopify/Segment/653744275762",
+              "name": "Mutation First Delete segmentmutationfirstmrsc0ylhya4ca3",
+              "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-delete'",
+              "creationDate": "2026-07-19T21:53:11Z",
+              "lastEditDate": "2026-07-19T21:53:11Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "deleteReadBefore": {
+      "operationName": "SegmentMutationFirstDeleteRead",
+      "query": "query SegmentMutationFirstDeleteRead($id: ID!, $name: String!) {\n  detail: segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n  list: segments(first: 10, query: $name) {\n    nodes {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n  }\n  count: segmentsCount {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Segment/653744275762",
+        "name": "Mutation First Delete segmentmutationfirstmrsc0ylhya4ca3"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "detail": {
+              "id": "gid://shopify/Segment/653744275762",
+              "name": "Mutation First Delete segmentmutationfirstmrsc0ylhya4ca3",
+              "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-delete'",
+              "creationDate": "2026-07-19T21:53:11Z",
+              "lastEditDate": "2026-07-19T21:53:11Z"
+            },
+            "list": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Segment/653744275762",
+                  "name": "Mutation First Delete segmentmutationfirstmrsc0ylhya4ca3",
+                  "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-delete'",
+                  "creationDate": "2026-07-19T21:53:11Z",
+                  "lastEditDate": "2026-07-19T21:53:11Z"
+                }
+              ]
+            },
+            "count": {
+              "count": 2,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "liveUpdate": {
+    "operationName": "SegmentMutationFirstUpdate",
+    "query": "mutation SegmentMutationFirstUpdate($id: ID!, $name: String!, $query: String!) {\n  segmentUpdate(id: $id, name: $name, query: $query) {\n    segment {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Segment/653744242994",
+      "name": "Mutation First Update After segmentmutationfirstmrsc0ylhya4ca3",
+      "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-update-after'"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "segmentUpdate": {
+            "segment": {
+              "id": "gid://shopify/Segment/653744242994",
+              "name": "Mutation First Update After segmentmutationfirstmrsc0ylhya4ca3",
+              "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-update-after'",
+              "creationDate": "2026-07-19T21:53:06Z",
+              "lastEditDate": "2026-07-19T21:53:06Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "updateReadAfter": {
+    "operationName": "SegmentMutationFirstUpdateRead",
+    "query": "query SegmentMutationFirstUpdateRead($id: ID!, $name: String!) {\n  detail: segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n  list: segments(first: 10, query: $name) {\n    nodes {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n  }\n  count: segmentsCount {\n    count\n    precision\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Segment/653744242994",
+      "name": "Mutation First Update After segmentmutationfirstmrsc0ylhya4ca3"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "detail": {
+            "id": "gid://shopify/Segment/653744242994",
+            "name": "Mutation First Update After segmentmutationfirstmrsc0ylhya4ca3",
+            "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-update-after'",
+            "creationDate": "2026-07-19T21:53:06Z",
+            "lastEditDate": "2026-07-19T21:53:06Z"
+          },
+          "list": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Segment/653744242994",
+                "name": "Mutation First Update After segmentmutationfirstmrsc0ylhya4ca3",
+                "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-update-after'",
+                "creationDate": "2026-07-19T21:53:06Z",
+                "lastEditDate": "2026-07-19T21:53:06Z"
+              }
+            ]
+          },
+          "count": {
+            "count": 1,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "liveDelete": {
+    "operationName": "SegmentMutationFirstDelete",
+    "query": "mutation SegmentMutationFirstDelete($id: ID!) {\n  segmentDelete(id: $id) {\n    deletedSegmentId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Segment/653744275762"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "segmentDelete": {
+            "deletedSegmentId": "gid://shopify/Segment/653744275762",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "deleteReadAfter": {
+    "operationName": "SegmentMutationFirstDeleteRead",
+    "query": "query SegmentMutationFirstDeleteRead($id: ID!, $name: String!) {\n  detail: segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n  list: segments(first: 10, query: $name) {\n    nodes {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n  }\n  count: segmentsCount {\n    count\n    precision\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Segment/653744275762",
+      "name": "Mutation First Delete segmentmutationfirstmrsc0ylhya4ca3"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "errors": [
+          {
+            "message": "Segment does not exist",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "extensions": {
+              "code": "NOT_FOUND"
+            },
+            "path": ["detail"]
+          }
+        ],
+        "data": {
+          "detail": null,
+          "list": {
+            "nodes": []
+          },
+          "count": {
+            "count": 1,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 17,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "updated": {
+      "query": "#graphql\nmutation SegmentLiveHybridOverlayCleanup($id: ID!) {\n  segmentDelete(id: $id) {\n    deletedSegmentId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Segment/653744242994"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/653744242994",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "deletedByScenario": {
+      "operationName": "SegmentMutationFirstDelete",
+      "query": "mutation SegmentMutationFirstDelete($id: ID!) {\n  segmentDelete(id: $id) {\n    deletedSegmentId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Segment/653744275762"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/653744275762",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "SegmentMutationTargetHydrate",
+      "variables": {
+        "id": "gid://shopify/Segment/653744242994"
+      },
+      "query": "query SegmentMutationTargetHydrate($id: ID!) {\n  segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "segment": {
+              "id": "gid://shopify/Segment/653744242994",
+              "name": "Mutation First Update Before segmentmutationfirstmrsc0ylhya4ca3",
+              "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-update-before'",
+              "creationDate": "2026-07-19T21:53:06Z",
+              "lastEditDate": "2026-07-19T21:53:06Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "SegmentMutationFirstUpdateRead",
+      "variables": {
+        "id": "gid://shopify/Segment/653744242994",
+        "name": "Mutation First Update After segmentmutationfirstmrsc0ylhya4ca3"
+      },
+      "query": "query SegmentMutationFirstUpdateRead($id: ID!, $name: String!) {\n  detail: segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n  list: segments(first: 10, query: $name) {\n    nodes {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n  }\n  count: segmentsCount {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "detail": {
+              "id": "gid://shopify/Segment/653744242994",
+              "name": "Mutation First Update Before segmentmutationfirstmrsc0ylhya4ca3",
+              "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-update-before'",
+              "creationDate": "2026-07-19T21:53:06Z",
+              "lastEditDate": "2026-07-19T21:53:06Z"
+            },
+            "list": {
+              "nodes": []
+            },
+            "count": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "SegmentMutationTargetHydrate",
+      "variables": {
+        "id": "gid://shopify/Segment/653744275762"
+      },
+      "query": "query SegmentMutationTargetHydrate($id: ID!) {\n  segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "segment": {
+              "id": "gid://shopify/Segment/653744275762",
+              "name": "Mutation First Delete segmentmutationfirstmrsc0ylhya4ca3",
+              "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-delete'",
+              "creationDate": "2026-07-19T21:53:11Z",
+              "lastEditDate": "2026-07-19T21:53:11Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "SegmentMutationFirstDeleteRead",
+      "variables": {
+        "id": "gid://shopify/Segment/653744275762",
+        "name": "Mutation First Delete segmentmutationfirstmrsc0ylhya4ca3"
+      },
+      "query": "query SegmentMutationFirstDeleteRead($id: ID!, $name: String!) {\n  detail: segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n  list: segments(first: 10, query: $name) {\n    nodes {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n  }\n  count: segmentsCount {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "detail": {
+              "id": "gid://shopify/Segment/653744275762",
+              "name": "Mutation First Delete segmentmutationfirstmrsc0ylhya4ca3",
+              "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-delete'",
+              "creationDate": "2026-07-19T21:53:11Z",
+              "lastEditDate": "2026-07-19T21:53:11Z"
+            },
+            "list": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Segment/653744275762",
+                  "name": "Mutation First Delete segmentmutationfirstmrsc0ylhya4ca3",
+                  "query": "customer_tags CONTAINS 'segmentmutationfirstmrsc0ylhya4ca3-delete'",
+                  "creationDate": "2026-07-19T21:53:11Z",
+                  "lastEditDate": "2026-07-19T21:53:11Z"
+                }
+              ]
+            },
+            "count": {
+              "count": 2,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": [
+    "Live Shopify evidence for segmentUpdate and segmentDelete against persisted targets before any proxy read.",
+    "Proxy replay starts a fresh session for each mutation; each exact query-only segment(id:) hydrate and pre-mutation downstream read is recorded in upstreamCalls.",
+    "The capture creates disposable update/delete targets, verifies detail/list/count materialization, deletes the delete target as part of the scenario, and cleans up the updated target."
+  ]
+}

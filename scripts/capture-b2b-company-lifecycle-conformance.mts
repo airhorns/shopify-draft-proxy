@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
@@ -18,10 +19,12 @@ type RecordedOperation = {
 
 const scenarioId = 'b2b-company-contact-main-delete';
 const timestamp = Date.now();
-const mainCompanyName = `HAR-445 main company ${timestamp}`;
-const bulkCompanyName = `HAR-445 bulk company ${timestamp}`;
-const customerEmail = `har-445-b2b-${timestamp}@example.com`;
+const mainCompanyName = `B2B lifecycle main company ${timestamp}`;
+const bulkCompanyName = `B2B lifecycle bulk company ${timestamp}`;
+const customerEmail = `b2b-lifecycle-${timestamp}@example.com`;
 const mainCompanyQuery = `name:"${mainCompanyName}"`;
+const missingCompanyId = `gid://shopify/Company/${timestamp}`;
+const missingCustomerId = `gid://shopify/Customer/${timestamp}`;
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
@@ -154,6 +157,22 @@ const readAfterMainContactDocument = `#graphql
   }
 `;
 
+const assignCustomerColdReadbackDocument = await readFile(
+  'config/parity-requests/b2b/b2b-assign-customer-as-contact-cold-readback.graphql',
+  'utf8',
+);
+
+async function readRustQuery(name: string): Promise<string> {
+  const source = await readFile('src/proxy/b2b_customers/companies.rs', 'utf8');
+  const match = source.match(new RegExp(`const ${name}: &str = r#"([\\s\\S]*?)"#;`, 'u'));
+  if (!match?.[1]) {
+    throw new Error(`${name} was not found in the B2B runtime`);
+  }
+  return match[1];
+}
+
+const mutationTargetsHydrateDocument = await readRustQuery('B2B_MUTATION_TARGETS_HYDRATE_QUERY');
+
 const companiesDeleteDocument = `#graphql
   mutation B2BCompanyLifecycleCompaniesDelete($companyIds: [ID!]!) {
     companiesDelete(companyIds: $companyIds) {
@@ -244,6 +263,28 @@ function recordOperation(query: string, variables: JsonRecord, result: Conforman
   };
 }
 
+function recordUpstreamCall(operation: RecordedOperation): JsonRecord {
+  return {
+    operationName: 'B2BMutationTargetsHydrate',
+    variables: operation.request.variables,
+    query: operation.request.query,
+    response: {
+      status: operation.response.status,
+      body: {
+        data: operation.response.data,
+        extensions: operation.response.extensions,
+      },
+    },
+  };
+}
+
+function formatGeneratedJson(filePath: string): void {
+  const result = spawnSync('corepack', ['pnpm', 'exec', 'oxfmt', filePath], { stdio: 'inherit' });
+  if (result.status !== 0) {
+    throw new Error(`Failed to format generated JSON file: ${filePath}`);
+  }
+}
+
 async function runRequired(
   query: string,
   variables: JsonRecord,
@@ -299,13 +340,13 @@ try {
     input: {
       company: {
         name: mainCompanyName,
-        note: 'HAR-445 B2B lifecycle parity',
-        externalId: `har-445-main-${timestamp}`,
+        note: 'B2B lifecycle parity',
+        externalId: `b2b-lifecycle-main-${timestamp}`,
       },
       companyContact: {
         firstName: 'Har',
         lastName: 'Main',
-        email: `har-445-main-${timestamp}@example.com`,
+        email: `b2b-lifecycle-main-${timestamp}@example.com`,
         title: 'Buyer',
       },
       companyLocation: {
@@ -335,8 +376,8 @@ try {
     companyId: mainCompanyId,
     input: {
       name: `${mainCompanyName} updated`,
-      note: 'HAR-445 B2B lifecycle parity updated',
-      externalId: `har-445-main-updated-${timestamp}`,
+      note: 'B2B lifecycle parity updated',
+      externalId: `b2b-lifecycle-main-updated-${timestamp}`,
     },
   };
   const companyUpdate = await runRequired(
@@ -351,7 +392,7 @@ try {
       email: customerEmail,
       firstName: 'Har',
       lastName: 'Assigned',
-      tags: ['har-445-b2b-lifecycle'],
+      tags: ['b2b-lifecycle'],
     },
   };
   const customerCreate = await runRequired(
@@ -366,10 +407,73 @@ try {
     'customerCreate setup for companyAssignCustomerAsContact',
   );
 
+  const hydrateAssignCompany = await runRequired(
+    mutationTargetsHydrateDocument,
+    { ids: [mainCompanyId] },
+    'nodes',
+    'companyAssignCustomerAsContact company prerequisite hydrate',
+  );
+  const hydrateAssignCustomer = await runRequired(
+    mutationTargetsHydrateDocument,
+    { ids: [customerId] },
+    'nodes',
+    'companyAssignCustomerAsContact customer prerequisite hydrate',
+  );
+  const hydrateMissingCompany = await runRequired(
+    mutationTargetsHydrateDocument,
+    { ids: [missingCompanyId] },
+    'nodes',
+    'companyAssignCustomerAsContact missing company prerequisite hydrate',
+  );
+  const hydrateMissingCustomer = await runRequired(
+    mutationTargetsHydrateDocument,
+    { ids: [missingCustomerId] },
+    'nodes',
+    'companyAssignCustomerAsContact missing customer prerequisite hydrate',
+  );
+
+  const missingCompanyAssign = await runExpectedUserError(
+    assignCustomerDocument,
+    { companyId: missingCompanyId, customerId },
+    'companyAssignCustomerAsContact',
+    'companyAssignCustomerAsContact missing company validation',
+  );
+  const missingCustomerAssign = await runExpectedUserError(
+    assignCustomerDocument,
+    { companyId: mainCompanyId, customerId: missingCustomerId },
+    'companyAssignCustomerAsContact',
+    'companyAssignCustomerAsContact missing customer validation',
+  );
+  const bothMissingAssign = await runExpectedUserError(
+    assignCustomerDocument,
+    { companyId: missingCompanyId, customerId: missingCustomerId },
+    'companyAssignCustomerAsContact',
+    'companyAssignCustomerAsContact company-before-customer validation ordering',
+  );
+
+  const assignCustomerVariables = { companyId: mainCompanyId, customerId };
+  const assignCustomer = await runRequired(
+    assignCustomerDocument,
+    assignCustomerVariables,
+    'companyAssignCustomerAsContact',
+    'companyAssignCustomerAsContact lifecycle',
+  );
+  const assignedCustomerContactId = readStringAtPath(
+    assignCustomer.response,
+    ['data', 'companyAssignCustomerAsContact', 'companyContact', 'id'],
+    'companyAssignCustomerAsContact lifecycle',
+  );
+  const readAfterAssignCustomer = await runRequired(
+    assignCustomerColdReadbackDocument,
+    { companyId: mainCompanyId, companyContactId: assignedCustomerContactId, customerId },
+    'company',
+    'company/contact/customer downstream read after companyAssignCustomerAsContact',
+  );
+
   const contactCreateVariables = {
     companyId: mainCompanyId,
     input: {
-      email: `har-445-secondary-${timestamp}@example.com`,
+      email: `b2b-lifecycle-secondary-${timestamp}@example.com`,
       firstName: 'Har',
       lastName: 'Secondary',
       title: 'Approver',
@@ -385,14 +489,6 @@ try {
     contactCreate.response,
     ['data', 'companyContactCreate', 'companyContact', 'id'],
     'companyContactCreate lifecycle',
-  );
-
-  const assignCustomerVariables = { companyId: mainCompanyId, customerId };
-  const assignCustomer = await runRequired(
-    assignCustomerDocument,
-    assignCustomerVariables,
-    'companyAssignCustomerAsContact',
-    'companyAssignCustomerAsContact lifecycle',
   );
 
   const assignMainContactVariables = { companyId: mainCompanyId, companyContactId: secondaryContactId };
@@ -445,7 +541,7 @@ try {
     input: {
       company: {
         name: bulkCompanyName,
-        externalId: `har-445-bulk-${timestamp}`,
+        externalId: `b2b-lifecycle-bulk-${timestamp}`,
       },
     },
   };
@@ -531,10 +627,14 @@ try {
     capturedAt: new Date().toISOString(),
     storeDomain,
     apiVersion,
-    upstreamCalls: [],
+    upstreamCalls: [
+      recordUpstreamCall(hydrateAssignCompany),
+      recordUpstreamCall(hydrateAssignCustomer),
+      recordUpstreamCall(hydrateMissingCompany),
+      recordUpstreamCall(hydrateMissingCustomer),
+    ],
     intent: {
-      tickets: ['HAR-445', 'HAR-618'],
-      plan: 'Create disposable B2B companies and a customer; record company update, customer-as-contact assignment, main-contact assignment/revocation, wrong-company main-contact validation, main-contact delete clearing, bulk delete, explicit delete, and post-delete empty reads.',
+      plan: 'Create disposable B2B companies and a customer; record cold company/customer prerequisite reads, missing-resource controls, customer-as-contact assignment and downstream reads, company update, main-contact assignment/revocation, wrong-company main-contact validation, main-contact delete clearing, bulk delete, explicit delete, and post-delete empty reads.',
     },
     proxyVariables: {
       mainCompanyQuery,
@@ -542,8 +642,16 @@ try {
     companyCreate,
     companyUpdate,
     customerCreate,
+    hydrateAssignCompany,
+    hydrateAssignCustomer,
+    hydrateMissingCompany,
+    hydrateMissingCustomer,
+    missingCompanyAssign,
+    missingCustomerAssign,
+    bothMissingAssign,
     contactCreate,
     assignCustomer,
+    readAfterAssignCustomer,
     assignMainContact,
     revokeMainContact,
     readAfterMainContact,
@@ -562,6 +670,7 @@ try {
   const outputPath = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'b2b', `${scenarioId}.json`);
   await mkdir(path.dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
+  formatGeneratedJson(outputPath);
 
   // oxlint-disable-next-line no-console -- capture scripts report their output path.
   console.log(JSON.stringify({ ok: true, outputPath }, null, 2));
