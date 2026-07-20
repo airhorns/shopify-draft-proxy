@@ -11712,7 +11712,22 @@ fn staged_segment_reads_preserve_upstream_catalog_roots() {
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
-            captured_requests.lock().unwrap().push(body);
+            captured_requests.lock().unwrap().push(body.clone());
+            if body["operationName"] == json!("SegmentAuthoritativePrerequisites") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "count": { "count": 1, "precision": "EXACT" },
+                            "name0": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false }
+                            }
+                        }
+                    }),
+                };
+            }
             Response {
                 status: 200,
                 headers: Default::default(),
@@ -11763,9 +11778,10 @@ fn staged_segment_reads_preserve_upstream_catalog_roots() {
         create.body["data"]["segmentCreate"]["userErrors"],
         json!([])
     );
-    assert!(
-        upstream_requests.lock().unwrap().is_empty(),
-        "segmentCreate should stage locally without upstream passthrough"
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "segmentCreate should use one query-only prerequisite call"
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -11853,7 +11869,22 @@ fn staged_segment_detail_miss_forwards_upstream_and_tombstone_wins() {
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
-            captured_requests.lock().unwrap().push(body);
+            captured_requests.lock().unwrap().push(body.clone());
+            if body["operationName"] == json!("SegmentAuthoritativePrerequisites") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "count": { "count": 1, "precision": "EXACT" },
+                            "name0": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false }
+                            }
+                        }
+                    }),
+                };
+            }
             Response {
                 status: 200,
                 headers: Default::default(),
@@ -11887,9 +11918,10 @@ fn staged_segment_detail_miss_forwards_upstream_and_tombstone_wins() {
         created.body["data"]["segmentCreate"]["userErrors"],
         json!([])
     );
-    assert!(
-        upstream_requests.lock().unwrap().is_empty(),
-        "segmentCreate should stage locally without upstream passthrough"
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "segmentCreate should use one query-only prerequisite call"
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -11915,7 +11947,7 @@ fn staged_segment_detail_miss_forwards_upstream_and_tombstone_wins() {
     );
     assert_eq!(
         upstream_requests.lock().unwrap().len(),
-        1,
+        2,
         "detail miss should forward upstream instead of fabricating NOT_FOUND"
     );
 
@@ -11963,7 +11995,7 @@ fn staged_segment_detail_miss_forwards_upstream_and_tombstone_wins() {
     );
     assert_eq!(
         upstream_requests.lock().unwrap().len(),
-        1,
+        2,
         "local segment tombstone should be authoritative"
     );
 }
@@ -12417,7 +12449,7 @@ fn segment_mutation_hydration_preserves_error_precedence_and_failed_state() {
         );
     }
 
-    assert_eq!(upstream_requests.lock().unwrap().len(), 3);
+    assert_eq!(upstream_requests.lock().unwrap().len(), 2);
     let state = state_snapshot(&proxy);
     assert_eq!(state["stagedState"]["segments"], json!({}));
     assert_eq!(state["stagedState"]["deletedSegmentIds"], json!([]));
@@ -13091,12 +13123,27 @@ fn segment_create_stages_neutral_operation_without_upstream_passthrough() {
     let upstream_called = Arc::new(Mutex::new(false));
     let upstream_called_for_proxy = Arc::clone(&upstream_called);
     let mut proxy =
-        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             *upstream_called_for_proxy.lock().unwrap() = true;
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            assert_eq!(
+                body["operationName"],
+                json!("SegmentAuthoritativePrerequisites")
+            );
+            assert!(body["query"].as_str().unwrap().starts_with("query"));
+            assert!(!body["query"].as_str().unwrap().contains("segmentCreate"));
             Response {
-                status: 599,
+                status: 200,
                 headers: Default::default(),
-                body: json!({ "errors": [{ "message": "segmentCreate must not proxy upstream" }] }),
+                body: json!({
+                    "data": {
+                        "count": { "count": 0, "precision": "EXACT" },
+                        "name0": {
+                            "nodes": [],
+                            "pageInfo": { "hasNextPage": false }
+                        }
+                    }
+                }),
             }
         });
     let create_query = r#"
@@ -13134,8 +13181,8 @@ fn segment_create_stages_neutral_operation_without_upstream_passthrough() {
     );
     assert_eq!(
         *upstream_called.lock().unwrap(),
-        false,
-        "supported segmentCreate must stage locally without live-hybrid passthrough"
+        true,
+        "supported segmentCreate may issue one query-only prerequisite call"
     );
 
     let log = log_snapshot(&proxy);

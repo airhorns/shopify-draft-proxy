@@ -3,6 +3,12 @@ use super::*;
 pub(in crate::proxy) const SEGMENT_MUTATION_TARGET_HYDRATE_QUERY: &str =
     "query SegmentMutationTargetHydrate($id: ID!) {\n  segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n}";
 
+pub(in crate::proxy) const SEGMENT_PREREQUISITE_NODES_QUERY: &str =
+    "query SegmentPrerequisiteNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Segment {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n  }\n}";
+
+pub(in crate::proxy) const CUSTOMER_SEGMENT_MEMBER_QUERY_HYDRATE_QUERY: &str =
+    "query CustomerSegmentMembersQueryHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on CustomerSegmentMembersQuery {\n      id\n      currentCount\n      done\n    }\n  }\n}";
+
 struct SegmentReadRootInput {
     name: String,
     response_key: String,
@@ -82,7 +88,10 @@ impl DraftProxy {
         };
         if field.name == "segment" {
             let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-            if self.store.staged.segments.is_tombstoned(&id) {
+            let known_missing = self.store.segment_by_id(&id).is_none()
+                && (self.store.base.segment_known_missing_ids.contains(&id)
+                    || self.store.base.segment_catalog_complete);
+            if self.store.staged.segments.is_tombstoned(&id) || known_missing {
                 return ResolverOutcome::value(Value::Null).with_errors(vec![
                     crate::admin_graphql::RootFieldError {
                         message: "Segment does not exist".to_string(),
@@ -97,7 +106,19 @@ impl DraftProxy {
             }
         }
         let fields = std::slice::from_ref(&field);
-        if self.store.staged.segments.is_empty() {
+        let has_cached_root = match field.name.as_str() {
+            "segment" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
+                self.store.segment_by_id(&id).is_some()
+                    || self.store.base.segment_known_missing_ids.contains(&id)
+                    || self.store.base.segment_catalog_complete
+            }),
+            "segmentsCount" => {
+                resolved_string_field(&field.arguments, "query").is_none()
+                    && self.store.base.segment_count_baseline.is_some()
+            }
+            _ => false,
+        };
+        if self.store.staged.segments.is_empty() && !has_cached_root {
             // With no local segment lifecycle effects, Shopify owns the
             // catalog, count, detail, cursors, and suggestion taxonomy.
             return self
@@ -128,8 +149,14 @@ impl DraftProxy {
             "segment" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
                 !self.store.staged.segments.is_tombstoned(&id)
                     && self.store.segment_by_id(&id).is_none()
+                    && !self.store.base.segment_known_missing_ids.contains(&id)
+                    && !self.store.base.segment_catalog_complete
             }),
-            "segments" | "segmentsCount" => true,
+            "segments" => true,
+            "segmentsCount" => {
+                resolved_string_field(&field.arguments, "query").is_some()
+                    || self.store.base.segment_count_baseline.is_none()
+            }
             _ => false,
         })
     }
@@ -252,6 +279,22 @@ impl DraftProxy {
             }
             return count_object_with_precision(count, &precision);
         }
+        if query.is_none() {
+            if let Some(precision) = self
+                .store
+                .base
+                .segment_count_baseline
+                .as_ref()
+                .and_then(|baseline| baseline.get("precision"))
+                .and_then(Value::as_str)
+            {
+                return count_with_limit_precision_from_upstream(
+                    self.store.effective_segment_count(),
+                    precision,
+                    &field.arguments,
+                );
+            }
+        }
 
         let records = self.segment_overlay_records(field, upstream_body);
         let result = staged_connection_query(
@@ -269,6 +312,7 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         let request = invocation.request;
+        let operation_roots = invocation.operation_roots.clone();
         let field = SegmentMutationInput {
             name: invocation.root_name.to_string(),
             response_key: invocation.response_key.to_string(),
@@ -277,7 +321,6 @@ impl DraftProxy {
             raw_arguments: invocation.raw_arguments,
             arguments: resolved_arguments_from_json(&invocation.arguments),
         };
-        let now = self.next_product_timestamp();
         if let Some(error) = segment_required_argument_error(&field) {
             return graphql_error_outcome(vec![error], &field.response_key);
         }
@@ -292,6 +335,15 @@ impl DraftProxy {
                     user_errors.extend(segment_query_grammar_user_errors(&segment_query));
                 }
                 let name = name_input.trim().to_string();
+                if user_errors.is_empty() {
+                    if let Err(outcome) = self.hydrate_segment_create_prerequisites(
+                        request,
+                        &operation_roots,
+                        &field.response_key,
+                    ) {
+                        return outcome;
+                    }
+                }
                 if user_errors.is_empty() && self.store.effective_segment_count() >= 6000 {
                     user_errors.push(segment_user_error(
                         Value::Null,
@@ -310,6 +362,7 @@ impl DraftProxy {
                     name
                 };
                 if user_errors.is_empty() {
+                    let now = self.next_product_timestamp();
                     let id = self.next_proxy_synthetic_gid("Segment");
                     let segment = json!({
                         "__typename": "Segment",
@@ -341,7 +394,13 @@ impl DraftProxy {
                 {
                     return graphql_error_outcome(errors, &field.response_key);
                 }
-                self.hydrate_segment_mutation_target(request, &id);
+                if let Err(outcome) = self.hydrate_segment_id_prerequisites(
+                    request,
+                    &operation_roots,
+                    &field.response_key,
+                ) {
+                    return outcome;
+                }
                 match self.store.segment_by_id(&id).cloned() {
                     None => (
                         Value::Null,
@@ -389,6 +448,7 @@ impl DraftProxy {
                             }
                         }
                         if user_errors.is_empty() {
+                            let now = self.next_product_timestamp();
                             let mut segment = existing_segment;
                             if let Some(name) = new_name {
                                 segment["name"] = json!(name);
@@ -415,7 +475,13 @@ impl DraftProxy {
                 {
                     return graphql_error_outcome(errors, &field.response_key);
                 }
-                self.hydrate_segment_mutation_target(request, &id);
+                if let Err(outcome) = self.hydrate_segment_id_prerequisites(
+                    request,
+                    &operation_roots,
+                    &field.response_key,
+                ) {
+                    return outcome;
+                }
                 if self.store.segment_by_id(&id).is_some() {
                     self.store.staged.segments.remove_staged(&id);
                     self.store.staged.segments.tombstone(id.clone());
@@ -443,29 +509,225 @@ impl DraftProxy {
         }
     }
 
-    fn hydrate_segment_mutation_target(&mut self, request: &Request, id: &str) {
-        if self.config.read_mode != ReadMode::LiveHybrid
-            || self.store.staged.segments.is_tombstoned(id)
-            || self.store.segment_by_id(id).is_some()
-        {
-            return;
+    fn hydrate_segment_create_prerequisites(
+        &mut self,
+        request: &Request,
+        operation_roots: &[OperationRootInvocation],
+        response_key: &str,
+    ) -> Result<(), ResolverOutcome<Value>> {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return Ok(());
         }
+        let needs_count = self.store.base.segment_count_baseline.is_none();
+        if !needs_count && self.store.effective_segment_count() >= 6000 {
+            return Ok(());
+        }
+        let probe_names = if self.store.base.segment_catalog_complete {
+            Vec::new()
+        } else {
+            segment_create_probe_names(operation_roots)
+                .into_iter()
+                .filter(|name| !self.store.base.segment_complete_name_probes.contains(name))
+                .collect::<Vec<_>>()
+        };
+        if !needs_count && probe_names.is_empty() {
+            return Ok(());
+        }
+
+        let (query, variables) = segment_create_prerequisite_document(needs_count, &probe_names);
         let response = self.upstream_post(
             request,
             json!({
-                "query": SEGMENT_MUTATION_TARGET_HYDRATE_QUERY,
-                "operationName": "SegmentMutationTargetHydrate",
-                "variables": { "id": id },
+                "query": query,
+                "operationName": "SegmentAuthoritativePrerequisites",
+                "variables": variables,
             }),
         );
-        if !(200..300).contains(&response.status) {
-            return;
+        if segment_prerequisite_response_failed(&response) {
+            return Err(segment_prerequisite_failure_outcome(
+                &response,
+                response_key,
+                "Segment create prerequisite hydration failed",
+            ));
         }
-        let segment = response.body["data"]["segment"].clone();
-        if !segment.is_null() {
+
+        let count = if needs_count {
+            let Some(count) = response
+                .body
+                .pointer("/data/count")
+                .filter(|count| count.get("count").and_then(Value::as_u64).is_some())
+                .cloned()
+            else {
+                return Err(ResolverOutcome::error(
+                    "Segment count prerequisite was unresolved",
+                ));
+            };
+            Some(count)
+        } else {
+            None
+        };
+        let mut observed_probes = Vec::new();
+        for (index, probe_name) in probe_names.iter().enumerate() {
+            let Some(connection) = response
+                .body
+                .pointer(&format!("/data/name{index}"))
+                .filter(|connection| connection.is_object())
+            else {
+                return Err(ResolverOutcome::error(format!(
+                    "Segment name prerequisite `{probe_name}` was unresolved"
+                )));
+            };
+            let Some(nodes) = connection.get("nodes").and_then(Value::as_array) else {
+                return Err(ResolverOutcome::error(format!(
+                    "Segment name prerequisite `{probe_name}` omitted nodes"
+                )));
+            };
+            let Some(has_next_page) = connection
+                .pointer("/pageInfo/hasNextPage")
+                .and_then(Value::as_bool)
+            else {
+                return Err(ResolverOutcome::error(format!(
+                    "Segment name prerequisite `{probe_name}` omitted page completeness"
+                )));
+            };
+            if has_next_page {
+                return Err(ResolverOutcome::error(format!(
+                    "Segment name prerequisite `{probe_name}` exceeded the bounded probe"
+                )));
+            }
+            if nodes.iter().any(|node| !node.is_object()) {
+                return Err(ResolverOutcome::error(format!(
+                    "Segment name prerequisite `{probe_name}` returned an invalid node"
+                )));
+            }
+            observed_probes.push((probe_name.clone(), nodes.clone()));
+        }
+
+        if let Some(count) = count {
+            self.store.base.segment_catalog_complete = count.get("count").and_then(Value::as_u64)
+                == Some(0)
+                && count.get("precision").and_then(Value::as_str) == Some("EXACT");
+            self.store.base.segment_count_baseline = Some(count);
+        }
+        for (probe_name, nodes) in observed_probes {
+            for segment in nodes {
+                self.store
+                    .observe_base_segment(normalize_segment_record(segment));
+            }
             self.store
-                .observe_base_segment(normalize_segment_record(segment));
+                .base
+                .segment_complete_name_probes
+                .insert(probe_name);
         }
+        Ok(())
+    }
+
+    fn hydrate_segment_id_prerequisites(
+        &mut self,
+        request: &Request,
+        operation_roots: &[OperationRootInvocation],
+        response_key: &str,
+    ) -> Result<(), ResolverOutcome<Value>> {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return Ok(());
+        }
+        let ids = segment_prerequisite_ids(operation_roots)
+            .into_iter()
+            .filter(|id| !self.store.staged.segments.is_tombstoned(id))
+            .filter(|id| self.store.segment_by_id(id).is_none())
+            .filter(|id| !self.store.base.segment_known_missing_ids.contains(id))
+            .collect::<Vec<_>>();
+        if ids.is_empty() {
+            return Ok(());
+        }
+        if self.store.base.segment_catalog_complete {
+            self.store.base.segment_known_missing_ids.extend(ids);
+            return Ok(());
+        }
+
+        let response = if ids.len() == 1 {
+            self.upstream_post(
+                request,
+                json!({
+                    "query": SEGMENT_MUTATION_TARGET_HYDRATE_QUERY,
+                    "operationName": "SegmentMutationTargetHydrate",
+                    "variables": { "id": ids[0] },
+                }),
+            )
+        } else {
+            self.upstream_post(
+                request,
+                json!({
+                    "query": SEGMENT_PREREQUISITE_NODES_QUERY,
+                    "operationName": "SegmentPrerequisiteNodes",
+                    "variables": { "ids": ids },
+                }),
+            )
+        };
+        let direct_confirmed_missing = ids.len() == 1
+            && response
+                .body
+                .pointer("/data/segment")
+                .is_some_and(Value::is_null)
+            && response
+                .body
+                .get("errors")
+                .and_then(Value::as_array)
+                .is_some_and(|errors| {
+                    !errors.is_empty()
+                        && errors.iter().all(|error| {
+                            error.pointer("/extensions/code").and_then(Value::as_str)
+                                == Some("NOT_FOUND")
+                        })
+                });
+        if segment_prerequisite_response_failed(&response) && !direct_confirmed_missing {
+            return Err(segment_prerequisite_failure_outcome(
+                &response,
+                response_key,
+                "Segment identity prerequisite hydration failed",
+            ));
+        }
+
+        let nodes = if ids.len() == 1 {
+            let Some(segment) = response.body.pointer("/data/segment") else {
+                return Err(ResolverOutcome::error(
+                    "Segment identity prerequisite was unresolved",
+                ));
+            };
+            vec![segment.clone()]
+        } else {
+            let Some(nodes) = response
+                .body
+                .pointer("/data/nodes")
+                .and_then(Value::as_array)
+            else {
+                return Err(ResolverOutcome::error(
+                    "Segment identity prerequisite batch was unresolved",
+                ));
+            };
+            if nodes.len() != ids.len() {
+                return Err(ResolverOutcome::error(
+                    "Segment identity prerequisite batch returned the wrong number of nodes",
+                ));
+            }
+            nodes.clone()
+        };
+        for (id, node) in ids.iter().zip(&nodes) {
+            if !node.is_null() && node.get("id").and_then(Value::as_str) != Some(id.as_str()) {
+                return Err(ResolverOutcome::error(
+                    "Segment identity prerequisite returned a mismatched node",
+                ));
+            }
+        }
+        for (id, node) in ids.into_iter().zip(nodes) {
+            if node.is_null() {
+                self.store.base.segment_known_missing_ids.insert(id);
+                continue;
+            }
+            self.store
+                .observe_base_segment(normalize_segment_record(node));
+        }
+        Ok(())
     }
 
     fn segment_available_name(
@@ -502,13 +764,14 @@ impl DraftProxy {
             || self
                 .store
                 .base
-                .segments
-                .records
-                .iter()
-                .any(|(id, segment)| {
+                .segment_name_ids
+                .get(name)
+                .into_iter()
+                .flatten()
+                .any(|id| {
                     !self.store.staged.segments.is_tombstoned(id)
                         && !self.store.staged.segments.contains_staged(id)
-                        && matches_name(id, segment)
+                        && exclude_id != Some(id.as_str())
                 })
     }
 
@@ -521,20 +784,33 @@ impl DraftProxy {
             .get("id")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        ResolverOutcome::value(
-            self.store
-                .staged
-                .customer_segment_member_queries
-                .get(id)
-                .cloned()
-                .unwrap_or(Value::Null),
-        )
+        if let Some(record) = self.store.customer_segment_member_query_by_id(id).cloned() {
+            return ResolverOutcome::value(record);
+        }
+        if let Err(outcome) = self.hydrate_customer_segment_member_query_prerequisites(
+            invocation.request,
+            &invocation.operation_roots,
+            invocation.response_key,
+        ) {
+            return outcome;
+        }
+        if let Some(record) = self.store.customer_segment_member_query_by_id(id).cloned() {
+            return ResolverOutcome::value(record);
+        }
+        if shopify_gid_resource_type(id) == Some("CustomerSegmentMembersQuery") {
+            return missing_customer_segment_member_query_outcome(
+                invocation.response_key,
+                invocation.root_location,
+            );
+        }
+        ResolverOutcome::value(Value::Null)
     }
 
     pub(crate) fn customer_segment_members_query_create_root(
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        let operation_roots = invocation.operation_roots.clone();
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let query_input = resolved_string_field(&input, "query");
@@ -549,7 +825,7 @@ impl DraftProxy {
         ) {
             return graphql_error_outcome(errors, invocation.response_key);
         }
-        let user_errors = match (query_input.as_deref(), segment_id_input.as_deref()) {
+        let mut user_errors = match (query_input.as_deref(), segment_id_input.as_deref()) {
             (Some(_), Some(_)) => vec![member_query_user_error(
                 json!(["input"]),
                 "Providing both segment_id and query is not supported.",
@@ -566,14 +842,22 @@ impl DraftProxy {
                 .collect(),
             // A segment_id reuses a stored segment's query without revalidating it,
             // but the segment must exist in the shop.
-            (None, Some(segment_id)) => {
-                if self.store.segment_by_id(segment_id).is_some() {
-                    Vec::new()
-                } else {
-                    vec![member_query_user_error(Value::Null, "Invalid segment ID.")]
+            (None, Some(_)) => Vec::new(),
+        };
+        if user_errors.is_empty() {
+            if let Some(segment_id) = segment_id_input.as_deref() {
+                if let Err(outcome) = self.hydrate_segment_id_prerequisites(
+                    invocation.request,
+                    &operation_roots,
+                    invocation.response_key,
+                ) {
+                    return outcome;
+                }
+                if self.store.segment_by_id(segment_id).is_none() {
+                    user_errors.push(member_query_user_error(Value::Null, "Invalid segment ID."));
                 }
             }
-        };
+        }
         if !user_errors.is_empty() {
             return ResolverOutcome::value(json!({
                 "customerSegmentMembersQuery": Value::Null,
@@ -602,6 +886,208 @@ impl DraftProxy {
             vec![id],
         ))
     }
+
+    fn hydrate_customer_segment_member_query_prerequisites(
+        &mut self,
+        request: &Request,
+        operation_roots: &[OperationRootInvocation],
+        response_key: &str,
+    ) -> Result<(), ResolverOutcome<Value>> {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return Ok(());
+        }
+        let ids = operation_roots
+            .iter()
+            .filter(|root| root.name == "customerSegmentMembersQuery")
+            .filter_map(|root| root.arguments.get("id").and_then(Value::as_str))
+            .filter(|id| shopify_gid_resource_type(id) == Some("CustomerSegmentMembersQuery"))
+            .filter(|id| self.store.customer_segment_member_query_by_id(id).is_none())
+            .filter(|id| {
+                !self
+                    .store
+                    .base
+                    .customer_segment_member_query_known_missing_ids
+                    .contains(*id)
+            })
+            .map(str::to_string)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        if ids.is_empty() {
+            return Ok(());
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": CUSTOMER_SEGMENT_MEMBER_QUERY_HYDRATE_QUERY,
+                "operationName": "CustomerSegmentMembersQueryHydrate",
+                "variables": { "ids": ids },
+            }),
+        );
+        if segment_prerequisite_response_failed(&response) {
+            return Err(segment_prerequisite_failure_outcome(
+                &response,
+                response_key,
+                "Customer segment member query prerequisite hydration failed",
+            ));
+        }
+        let Some(nodes) = response
+            .body
+            .pointer("/data/nodes")
+            .and_then(Value::as_array)
+        else {
+            return Err(ResolverOutcome::error(
+                "Customer segment member query prerequisite batch was unresolved",
+            ));
+        };
+        if nodes.len() != ids.len() {
+            return Err(ResolverOutcome::error(
+                "Customer segment member query prerequisite batch returned the wrong number of nodes",
+            ));
+        }
+        for (id, node) in ids.iter().zip(nodes) {
+            if !node.is_null() && node.get("id").and_then(Value::as_str) != Some(id.as_str()) {
+                return Err(ResolverOutcome::error(
+                    "Customer segment member query prerequisite returned a mismatched node",
+                ));
+            }
+        }
+        for (id, node) in ids.into_iter().zip(nodes.iter().cloned()) {
+            if node.is_null() {
+                self.store
+                    .base
+                    .customer_segment_member_query_known_missing_ids
+                    .insert(id);
+                continue;
+            }
+            self.store.observe_base_customer_segment_member_query(node);
+        }
+        Ok(())
+    }
+}
+
+fn segment_create_probe_names(operation_roots: &[OperationRootInvocation]) -> Vec<String> {
+    operation_roots
+        .iter()
+        .filter(|root| root.name == "segmentCreate")
+        .filter_map(|root| root.arguments.get("name").and_then(Value::as_str))
+        .map(str::trim)
+        .filter(|name| !name.is_empty() && name.chars().count() <= 255)
+        .map(|name| segment_name_suffix_base(name).0.to_string())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn segment_prerequisite_ids(operation_roots: &[OperationRootInvocation]) -> Vec<String> {
+    operation_roots
+        .iter()
+        .filter_map(|root| match root.name.as_str() {
+            "segmentUpdate" | "segmentDelete" => root.arguments.get("id").and_then(Value::as_str),
+            "customerSegmentMembersQueryCreate" => root
+                .arguments
+                .get("input")
+                .and_then(Value::as_object)
+                .and_then(|input| input.get("segmentId"))
+                .and_then(Value::as_str),
+            _ => None,
+        })
+        .filter(|id| shopify_gid_resource_type(id) == Some("Segment"))
+        .map(str::to_string)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn segment_create_prerequisite_document(
+    include_count: bool,
+    probe_names: &[String],
+) -> (String, Value) {
+    let mut definitions = Vec::new();
+    let mut fields = Vec::new();
+    let mut variables = serde_json::Map::new();
+    if include_count {
+        fields.push("  count: segmentsCount(limit: 6000) { count precision }".to_string());
+    }
+    for (index, probe_name) in probe_names.iter().enumerate() {
+        let variable = format!("name{index}");
+        definitions.push(format!("${variable}: String!"));
+        fields.push(format!(
+            "  name{index}: segments(first: 101, query: ${variable}) {{\n    nodes {{ id name query creationDate lastEditDate }}\n    pageInfo {{ hasNextPage }}\n  }}"
+        ));
+        variables.insert(variable, json!(segment_name_probe_query(probe_name)));
+    }
+    let definitions = if definitions.is_empty() {
+        String::new()
+    } else {
+        format!("({})", definitions.join(", "))
+    };
+    (
+        format!(
+            "query SegmentAuthoritativePrerequisites{definitions} {{\n{}\n}}",
+            fields.join("\n")
+        ),
+        Value::Object(variables),
+    )
+}
+
+fn segment_name_probe_query(name: &str) -> String {
+    let escaped = name.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("name:\"{escaped}\"")
+}
+
+fn segment_prerequisite_response_failed(response: &Response) -> bool {
+    !(200..300).contains(&response.status)
+        || response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_some_and(|errors| !errors.is_empty())
+}
+
+fn segment_prerequisite_failure_outcome(
+    response: &Response,
+    response_key: &str,
+    fallback_message: &str,
+) -> ResolverOutcome<Value> {
+    let message = response
+        .body
+        .get("errors")
+        .and_then(Value::as_array)
+        .and_then(|errors| errors.first())
+        .and_then(|error| error.get("message"))
+        .and_then(Value::as_str)
+        .unwrap_or(fallback_message);
+    if !(200..300).contains(&response.status) {
+        return resolver_http_error_outcome(response.status, message);
+    }
+    let mut error = response
+        .body
+        .get("errors")
+        .and_then(Value::as_array)
+        .and_then(|errors| errors.first())
+        .cloned()
+        .unwrap_or_else(|| json!({ "message": message }));
+    if let Some(error) = error.as_object_mut() {
+        error.remove("path");
+        error.remove("locations");
+    }
+    graphql_error_outcome(vec![error], response_key)
+}
+
+fn missing_customer_segment_member_query_outcome(
+    response_key: &str,
+    location: SourceLocation,
+) -> ResolverOutcome<Value> {
+    graphql_error_outcome(
+        vec![json!({
+            "message": "Something went wrong",
+            "locations": [{ "line": location.line, "column": location.column }],
+            "path": [response_key],
+            "extensions": { "code": "INTERNAL_SERVER_ERROR" }
+        })],
+        response_key,
+    )
 }
 
 fn upstream_segment_root_field(

@@ -81,6 +81,30 @@ the row without turning ordinary absence into a GraphQL error. The captured
 anchor is
 `config/parity-specs/segments/segment-mutation-first-hydration.json`.
 
+## Current: Segment prerequisites need scoped completeness, not catalog enumeration
+
+Live Admin GraphQL 2025-01 capture confirmed that a cold Segment name conflict
+can be resolved with `segments(first: 101, query: "name:\"…\"")`, while the
+6,000-Segment cap can be established with `segmentsCount(limit: 6000)`. At the
+cap Shopify returned `{ count: 6000, precision: AT_LEAST }`. Segment search is
+eventually indexed after create, so a temporarily empty name result is not
+evidence about a just-created row until the selected page is stable and
+`hasNextPage` is false.
+
+Cold identity reads also distinguish absence from failure. `segment(id:)` for a
+missing valid GID returned `data.segment: null` plus a top-level `NOT_FOUND`
+error, while transport, GraphQL, malformed-batch, and mismatched-node failures
+did not prove absence. `nodes(ids:)` returned persisted
+`CustomerSegmentMembersQuery` jobs with their current `currentCount`/`done`
+state.
+
+Practical rule: cache authoritative hits and confirmed misses only within the
+scope actually queried; keep unresolved failures retryable, apply staged
+create/delete deltas to the captured count threshold, and never page the whole
+Segment catalog to validate one mutation. The captured anchors are
+`config/parity-specs/segments/segment-authoritative-prerequisites.json` and
+`config/parity-specs/segments/segment-authoritative-limit-prerequisite.json`.
+
 ## Current: Shopify empty-data behavior is field-specific, not generic
 
 "Return empty data when missing" sounds simple, but in practice Shopify behavior depends on the field shape:

@@ -953,13 +953,18 @@ pub(crate) fn load_segment(
     if proxy.store.staged.segments.is_tombstoned(id) {
         return NodeLoadState::KnownMissing;
     }
-    proxy
-        .store
-        .segment_by_id(id)
-        .cloned()
-        .map_or(NodeLoadState::NeedsHydration, |value| {
-            NodeLoadState::Found(EntityRef::new("Segment", id, value))
-        })
+    proxy.store.segment_by_id(id).cloned().map_or_else(
+        || {
+            if proxy.store.base.segment_catalog_complete
+                || proxy.store.base.segment_known_missing_ids.contains(id)
+            {
+                NodeLoadState::KnownMissing
+            } else {
+                NodeLoadState::NeedsHydration
+            }
+        },
+        |value| NodeLoadState::Found(EntityRef::new("Segment", id, value)),
+    )
 }
 
 pub(crate) fn load_customer_segment_members_query(
@@ -969,13 +974,23 @@ pub(crate) fn load_customer_segment_members_query(
 ) -> NodeLoadState<EntityRef> {
     proxy
         .store
-        .staged
-        .customer_segment_member_queries
-        .get(id)
+        .customer_segment_member_query_by_id(id)
         .cloned()
-        .map_or(NodeLoadState::NeedsHydration, |value| {
-            NodeLoadState::Found(EntityRef::new("CustomerSegmentMembersQuery", id, value))
-        })
+        .map_or_else(
+            || {
+                if proxy
+                    .store
+                    .base
+                    .customer_segment_member_query_known_missing_ids
+                    .contains(id)
+                {
+                    NodeLoadState::KnownMissing
+                } else {
+                    NodeLoadState::NeedsHydration
+                }
+            },
+            |value| NodeLoadState::Found(EntityRef::new("CustomerSegmentMembersQuery", id, value)),
+        )
 }
 
 pub(crate) fn load_abandonment(

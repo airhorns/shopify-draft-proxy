@@ -22,7 +22,7 @@ use crate::operation_registry::{
 use crate::resolver_registry::ResolverRegistry;
 pub(in crate::proxy) use crate::resolver_registry::{
     FieldResolverRegistration, FieldResolverTypePolicy, LocalResolverMode,
-    MutationLogDraft as LogDraft, ResolverOutcome, RootInvocation,
+    MutationLogDraft as LogDraft, OperationRootInvocation, ResolverOutcome, RootInvocation,
 };
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
@@ -436,6 +436,13 @@ struct BaseState {
     marketing_activities: OrderedRecords<Value>,
     marketing_events: OrderedRecords<Value>,
     segments: OrderedRecords<Value>,
+    segment_name_ids: BTreeMap<String, BTreeSet<String>>,
+    segment_complete_name_probes: BTreeSet<String>,
+    segment_known_missing_ids: BTreeSet<String>,
+    segment_count_baseline: Option<Value>,
+    segment_catalog_complete: bool,
+    customer_segment_member_queries: BTreeMap<String, Value>,
+    customer_segment_member_query_known_missing_ids: BTreeSet<String>,
     bulk_operations: OrderedRecords<Value>,
     bulk_operations_observed: bool,
     locations: OrderedRecords<Value>,
@@ -1513,6 +1520,28 @@ impl Store {
     }
 
     fn effective_segment_count(&self) -> usize {
+        if let Some(base_count) = self
+            .base
+            .segment_count_baseline
+            .as_ref()
+            .and_then(|count| count.get("count"))
+            .and_then(Value::as_u64)
+        {
+            let mut count = base_count as usize;
+            for id in &self.staged.segments.tombstones {
+                if self.base.segments.records.contains_key(id) {
+                    count = count.saturating_sub(1);
+                }
+            }
+            for id in self.staged.segments.records.keys() {
+                if !self.base.segments.records.contains_key(id)
+                    && !self.staged.segments.is_tombstoned(id)
+                {
+                    count = count.saturating_add(1);
+                }
+            }
+            return count;
+        }
         self.base
             .segments
             .records
@@ -1540,7 +1569,68 @@ impl Store {
         if self.staged.segments.is_tombstoned(&id) || self.staged.segments.contains_staged(&id) {
             return;
         }
+        if let Some(previous_name) = self
+            .base
+            .segments
+            .get(&id)
+            .and_then(|segment| segment.get("name"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        {
+            if let Some(ids) = self.base.segment_name_ids.get_mut(&previous_name) {
+                ids.remove(&id);
+                if ids.is_empty() {
+                    self.base.segment_name_ids.remove(&previous_name);
+                }
+            }
+        }
+        if let Some(name) = segment.get("name").and_then(Value::as_str) {
+            self.base
+                .segment_name_ids
+                .entry(name.to_string())
+                .or_default()
+                .insert(id.clone());
+        }
+        self.base.segment_known_missing_ids.remove(&id);
         self.base.segments.insert(id, segment);
+    }
+
+    fn rebuild_segment_name_index(&mut self) {
+        self.base.segment_name_ids.clear();
+        for (id, segment) in &self.base.segments.records {
+            let Some(name) = segment.get("name").and_then(Value::as_str) else {
+                continue;
+            };
+            self.base
+                .segment_name_ids
+                .entry(name.to_string())
+                .or_default()
+                .insert(id.clone());
+        }
+    }
+
+    fn customer_segment_member_query_by_id(&self, id: &str) -> Option<&Value> {
+        self.staged
+            .customer_segment_member_queries
+            .get(id)
+            .or_else(|| self.base.customer_segment_member_queries.get(id))
+    }
+
+    fn observe_base_customer_segment_member_query(&mut self, record: Value) {
+        let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) else {
+            return;
+        };
+        if self
+            .staged
+            .customer_segment_member_queries
+            .contains_key(&id)
+        {
+            return;
+        }
+        self.base
+            .customer_segment_member_query_known_missing_ids
+            .remove(&id);
+        self.base.customer_segment_member_queries.insert(id, record);
     }
 
     fn observe_base_order(&mut self, order: Value) {
