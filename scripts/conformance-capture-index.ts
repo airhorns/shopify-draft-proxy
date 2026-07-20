@@ -8897,6 +8897,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'order-payment-transaction-cold-hydration',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-payment-transaction-cold-hydration-conformance.ts',
+    purpose:
+      'Mutation-first and read-warmed orderCapture/transactionVoid behavior against the same real manual authorization targets, including exact query-only hydrate cassettes and post-transition validation.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'capture_payments_for_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-payment-transaction-cold-hydration.json`,
+      'config/parity-specs/payments/order-payment-transaction-cold-hydration.json',
+      'config/parity-requests/payments/order-payment-transaction-hydrate-by-order.graphql',
+      'config/parity-requests/payments/order-payment-transaction-hydrate-by-transaction.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable successful and failed manual authorization orders, captures/voids the successful authorizations, records validation/readback, then cancels every created order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The capture app also needs the cancel-orders permission for cleanup. The fixture records exact order(id:) and node(id:) documents as upstreamCalls. Proxy parity repeats each real success target from clean state as mutation-first and after a public warm read; no live mutation document is used as a runtime upstream call.',
+  },
+  {
+    domain: 'payments',
     captureId: 'order-create-mandate-payment-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-create-mandate-payment-validation-conformance.ts',
