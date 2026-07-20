@@ -1,5 +1,6 @@
 use super::*;
 use crate::proxy::search::search_string_matches;
+use crate::resolver_registry::OperationRootInvocation;
 
 const FUNCTION_CANONICAL_API_TYPE_FIELD: &str = "__draftProxyCanonicalApiType";
 
@@ -9,6 +10,7 @@ struct FunctionRootInput {
     location: SourceLocation,
     raw_arguments: BTreeMap<String, RawArgumentValue>,
     arguments: BTreeMap<String, ResolvedValue>,
+    field_selection: Vec<SelectedField>,
 }
 
 pub(in crate::proxy) fn function_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
@@ -33,12 +35,8 @@ pub(in crate::proxy) fn function_field_resolver_type_policies() -> Vec<FieldReso
 
 const FUNCTION_HYDRATE_BY_ID_QUERY: &str = "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n";
 const FUNCTION_HYDRATE_BY_HANDLE_QUERY: &str = "query FunctionHydrateByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
-const FUNCTION_METADATA_CATALOG_HYDRATE_QUERY: &str = "query FunctionMetadataCatalogHydrate {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
-const FUNCTION_VALIDATIONS_HYDRATE_QUERY: &str = "query FunctionValidationsHydrate {\n  validations(first: 100) {\n    nodes {\n      id\n      title\n      enabled\n      blockOnFailure\n      shopifyFunction {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          __typename\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
 const FUNCTION_VALIDATION_HYDRATE_BY_ID_QUERY: &str = "query FunctionValidationHydrateById($id: ID!) {\n  validation(id: $id) {\n    id\n    title\n    enabled\n    blockOnFailure\n    shopifyFunction {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        updatedAt\n      }\n    }\n  }\n}\n";
-const FUNCTION_CART_TRANSFORMS_HYDRATE_QUERY: &str = "query FunctionCartTransformsHydrate {\n  cartTransforms(first: 100) {\n    nodes {\n      id\n      functionId\n      blockOnFailure\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
 const FUNCTION_CART_TRANSFORM_HYDRATE_BY_ID_QUERY: &str = "query FunctionCartTransformHydrateById($id: ID!) {\n  node(id: $id) {\n    ... on CartTransform {\n      id\n      functionId\n      blockOnFailure\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
-const FUNCTION_FULFILLMENT_CONSTRAINT_RULES_HYDRATE_QUERY: &str = "query FunctionFulfillmentConstraintRulesHydrate {\n  fulfillmentConstraintRules {\n    id\n    deliveryMethodTypes\n    function {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n";
 
 impl DraftProxy {
     pub(crate) fn functions_query_root(
@@ -55,6 +53,7 @@ impl DraftProxy {
             root_location,
             raw_arguments,
             arguments,
+            field_selection,
             request,
             ..
         } = invocation;
@@ -64,30 +63,55 @@ impl DraftProxy {
             location: root_location,
             raw_arguments,
             arguments: resolved_arguments_from_json(&arguments),
+            field_selection,
         };
-        // Cold reads preserve Shopify's installed Function catalog. Once a
-        // requested family intersects observed or staged state, hydrate that
-        // family and render the effective local overlay.
-        if self.config.read_mode != ReadMode::Snapshot
-            && !operation_has_local_overlay
-            && !self.function_root_has_local_overlay(&field.name)
-        {
-            let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
-            if result.outcome.errors.is_empty() {
-                self.hydrate_function_metadata_from_response_data(&result.data);
-                for root in &operation_roots {
-                    self.mark_function_read_root_hydrated(
-                        &root.name,
-                        &resolved_arguments_from_json(&root.arguments),
+        if self.config.read_mode != ReadMode::Snapshot {
+            let connection_arguments = function_connection_arguments(&field);
+            if self.function_root_has_local_overlay(&field.name) {
+                if let Some((baseline, effective_arguments)) = self
+                    .hydrate_function_connection_after_local_cursor(
+                        request,
+                        &field,
+                        &connection_arguments,
+                    )
+                {
+                    self.observe_function_root_value(
+                        request,
+                        &field.name,
+                        &effective_arguments,
+                        &baseline,
                     );
+                    let rendered = self.render_function_connection_overlay(
+                        request,
+                        &field.name,
+                        &baseline,
+                        &connection_arguments,
+                    );
+                    self.observe_function_connection(
+                        request,
+                        &field.name,
+                        &connection_arguments,
+                        &rendered,
+                    );
+                    return ResolverOutcome::value(rendered);
                 }
             }
-            return result.outcome;
+            let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+            if !result.transport_succeeded || !result.outcome.errors.is_empty() {
+                return result.outcome;
+            }
+            self.observe_function_operation_roots(request, &operation_roots, &result.data);
+            if !operation_has_local_overlay || !self.function_root_has_local_overlay(&field.name) {
+                return result.outcome;
+            }
+            let upstream_value = result.data.get(response_key).cloned();
+            return ResolverOutcome::value(self.function_root_value(
+                request,
+                &field,
+                upstream_value.as_ref(),
+            ));
         }
-        if self.config.read_mode != ReadMode::Snapshot {
-            self.hydrate_function_read_root(request, &field.name, &field.arguments);
-        }
-        ResolverOutcome::value(self.function_root_value(request, &field))
+        ResolverOutcome::value(self.function_root_value(request, &field, None))
     }
 
     pub(crate) fn functions_mutation_root(
@@ -109,6 +133,7 @@ impl DraftProxy {
             location: root_location,
             raw_arguments,
             arguments: resolved_arguments_from_json(&arguments),
+            field_selection: Vec::new(),
         };
         let (value, errors) = self.function_mutation_value(request, &field);
         let staged = !value.is_null();
@@ -154,32 +179,89 @@ impl DraftProxy {
         (value, errors)
     }
 
-    fn function_root_value(&mut self, request: &Request, field: &FunctionRootInput) -> Value {
+    fn function_root_value(
+        &mut self,
+        request: &Request,
+        field: &FunctionRootInput,
+        upstream_value: Option<&Value>,
+    ) -> Value {
         let connection_arguments = function_connection_arguments(field);
         match field.name.as_str() {
-            "validation" => resolved_string_field(&field.arguments, "id")
-                .and_then(|id| self.function_validation_read_value(request, &id))
-                .unwrap_or(Value::Null),
-            "validations" => local_function_connection_from_nodes_with_args(
-                self.effective_function_validation_nodes(),
-                &connection_arguments,
-            ),
-            "cartTransforms" => local_function_connection_from_nodes_with_args(
-                self.effective_function_cart_transform_nodes(),
-                &connection_arguments,
-            ),
-            "fulfillmentConstraintRules" => self.fulfillment_constraint_rules_read_value(),
-            "shopifyFunctions" => {
-                let api_type = requested_function_api_type(&field.arguments);
+            "validation" => {
+                let id = resolved_string_field(&field.arguments, "id");
+                if id.as_deref().is_some_and(|id| {
+                    self.store
+                        .staged
+                        .deleted_function_validation_ids
+                        .contains(id)
+                }) {
+                    Value::Null
+                } else {
+                    id.and_then(|id| self.function_validation_read_value(&id))
+                        .or_else(|| upstream_value.cloned())
+                        .unwrap_or(Value::Null)
+                }
+            }
+            "validations" if upstream_value.is_none() => {
                 local_function_connection_from_nodes_with_args(
-                    self.function_metadata_read_nodes(request, api_type.as_deref()),
+                    self.effective_function_validation_nodes(),
                     &connection_arguments,
                 )
             }
-            "shopifyFunction" => match resolved_string_field(&field.arguments, "id") {
-                Some(id) => self.function_metadata_read_value(request, &id),
-                None => Value::Null,
-            },
+            "validations" => self.function_connection_overlay_value(
+                request,
+                field,
+                upstream_value,
+                &connection_arguments,
+            ),
+            "cartTransforms" if upstream_value.is_none() => {
+                local_function_connection_from_nodes_with_args(
+                    self.effective_function_cart_transform_nodes(),
+                    &connection_arguments,
+                )
+            }
+            "cartTransforms" => self.function_connection_overlay_value(
+                request,
+                field,
+                upstream_value,
+                &connection_arguments,
+            ),
+            "fulfillmentConstraintRules" => {
+                let mut hydrated = None;
+                let baseline_lacks_identity = upstream_value
+                    .and_then(Value::as_array)
+                    .is_some_and(|rules| rules.iter().any(|rule| rule["id"].as_str().is_none()));
+                if baseline_lacks_identity
+                    && self.has_function_fulfillment_constraint_rule_overlay_state()
+                {
+                    hydrated = self.hydrate_function_list_root(request, field);
+                    if let Some(value) = hydrated.as_ref() {
+                        self.observe_function_root_value(
+                            request,
+                            &field.name,
+                            &field.arguments,
+                            value,
+                        );
+                    }
+                }
+                self.fulfillment_constraint_rules_overlay_value(
+                    hydrated.as_ref().or(upstream_value),
+                )
+            }
+            "shopifyFunctions" => {
+                let api_type = requested_function_api_type(&field.arguments);
+                upstream_value.cloned().unwrap_or_else(|| {
+                    local_function_connection_from_nodes_with_args(
+                        self.function_metadata_read_nodes(request, api_type.as_deref()),
+                        &connection_arguments,
+                    )
+                })
+            }
+            "shopifyFunction" => upstream_value.cloned().unwrap_or_else(|| {
+                resolved_string_field(&field.arguments, "id")
+                    .map(|id| self.function_metadata_read_value(request, &id))
+                    .unwrap_or(Value::Null)
+            }),
             _ => Value::Null,
         }
     }
@@ -221,7 +303,60 @@ impl DraftProxy {
         )
     }
 
-    fn function_validation_read_value(&mut self, request: &Request, id: &str) -> Option<Value> {
+    fn fulfillment_constraint_rules_overlay_value(&self, upstream_value: Option<&Value>) -> Value {
+        let Some(upstream_rules) = upstream_value.and_then(Value::as_array) else {
+            return self.fulfillment_constraint_rules_read_value();
+        };
+        let mut seen = BTreeSet::new();
+        let mut rules = Vec::new();
+        for upstream in upstream_rules {
+            let Some(id) = upstream["id"].as_str() else {
+                rules.push(upstream.clone());
+                continue;
+            };
+            seen.insert(id.to_string());
+            if self
+                .store
+                .staged
+                .deleted_function_fulfillment_constraint_rule_ids
+                .contains(id)
+            {
+                continue;
+            }
+            let mut rule = upstream.clone();
+            if let Some(staged) = self
+                .store
+                .staged
+                .function_fulfillment_constraint_rules
+                .get(id)
+            {
+                merge_json_values(&mut rule, staged);
+            }
+            rules.push(fulfillment_constraint_rule_record_value(&rule));
+        }
+        for id in &self.store.staged.function_fulfillment_constraint_rule_order {
+            if seen.contains(id)
+                || self
+                    .store
+                    .staged
+                    .deleted_function_fulfillment_constraint_rule_ids
+                    .contains(id)
+            {
+                continue;
+            }
+            if let Some(rule) = self
+                .store
+                .staged
+                .function_fulfillment_constraint_rules
+                .get(id)
+            {
+                rules.push(fulfillment_constraint_rule_record_value(rule));
+            }
+        }
+        Value::Array(rules)
+    }
+
+    fn function_validation_read_value(&self, id: &str) -> Option<Value> {
         if self
             .store
             .staged
@@ -230,23 +365,11 @@ impl DraftProxy {
         {
             return None;
         }
-        if self.function_validation_by_id(id).is_none()
-            && self.config.read_mode != ReadMode::Snapshot
-        {
-            self.hydrate_function_validation_by_id(request, id);
-        }
         self.function_validation_by_id(id)
             .map(validation_record_value)
     }
 
-    fn function_metadata_read_value(&mut self, request: &Request, id: &str) -> Value {
-        if self
-            .function_metadata_by_id_or_handle(Some(id), None)
-            .is_none()
-            && self.config.read_mode != ReadMode::Snapshot
-        {
-            self.hydrate_function_metadata_by_id(request, id);
-        }
+    fn function_metadata_read_value(&self, request: &Request, id: &str) -> Value {
         self.function_metadata_by_id_or_handle(Some(id), None)
             .filter(|function| function_belongs_to_request(function, request))
             .unwrap_or(Value::Null)
@@ -602,33 +725,10 @@ impl DraftProxy {
         };
         if !self.store.base.function_metadata.contains_key(&id) {
             self.store.base.function_metadata_order.push(id.clone());
-        }
-        self.store.base.function_metadata.insert(id, function);
-    }
-
-    fn stage_function_metadata_catalog(&mut self, data: &Value) {
-        let mut seen = BTreeSet::new();
-        let mut catalog_order = Vec::new();
-        for function in data["shopifyFunctions"]["nodes"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|function| normalized_function_metadata(function.clone()))
-        {
-            let Some(id) = function["id"].as_str().map(str::to_string) else {
-                continue;
-            };
-            if seen.insert(id.clone()) {
-                catalog_order.push(id.clone());
-            }
             self.store.base.function_metadata.insert(id, function);
+        } else if let Some(existing) = self.store.base.function_metadata.get_mut(&id) {
+            merge_json_values(existing, &function);
         }
-        for id in &self.store.base.function_metadata_order {
-            if seen.insert(id.clone()) {
-                catalog_order.push(id.clone());
-            }
-        }
-        self.store.base.function_metadata_order = catalog_order;
     }
 
     pub(in crate::proxy) fn resolve_payment_customization_function(
@@ -707,116 +807,123 @@ impl DraftProxy {
             .or_else(|| Some(payment_customization_function_key(handle)))
     }
 
-    pub(in crate::proxy) fn hydrate_function_metadata_from_response_data(&mut self, data: &Value) {
-        let mut functions = Vec::new();
-        let mut validations = Vec::new();
-        let mut cart_transforms = Vec::new();
-        let mut fulfillment_constraint_rules = Vec::new();
-        collect_function_connection_nodes(data, &mut functions);
-        collect_function_metadata_values(data, &mut functions);
-        for function in functions {
-            self.stage_function_metadata(function);
-        }
-        collect_function_validation_values(data, &mut validations);
-        for validation in validations {
-            self.stage_base_function_validation(validation);
-        }
-        collect_function_cart_transform_values(data, &mut cart_transforms);
-        for cart_transform in cart_transforms {
-            self.stage_base_function_cart_transform(cart_transform);
-        }
-        collect_function_fulfillment_constraint_rule_values(
-            data,
-            &mut fulfillment_constraint_rules,
-        );
-        for rule in fulfillment_constraint_rules {
-            self.stage_base_function_fulfillment_constraint_rule(rule);
-        }
-    }
-
-    fn mark_function_read_root_hydrated(
+    fn observe_function_operation_roots(
         &mut self,
-        root_name: &str,
-        arguments: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+        roots: &[OperationRootInvocation],
+        data: &Value,
     ) {
-        match root_name {
-            "validations" => {
-                self.store.base.function_validations_catalog_hydrated = true;
-            }
-            "cartTransforms" => {
-                self.store.base.function_cart_transforms_catalog_hydrated = true;
-            }
-            "fulfillmentConstraintRules" => {
-                self.store
-                    .base
-                    .function_fulfillment_constraint_rules_catalog_hydrated = true;
-            }
-            "shopifyFunctions" => {
-                self.mark_function_metadata_catalog_hydrated(requested_function_api_type(
-                    arguments,
-                ));
-            }
-            _ => {}
+        for root in roots {
+            let Some(value) = data.get(&root.response_key) else {
+                continue;
+            };
+            let arguments = resolved_arguments_from_json(&root.arguments);
+            self.observe_function_root_value(request, &root.name, &arguments, value);
         }
     }
 
-    fn hydrate_function_read_root(
+    fn observe_function_root_value(
         &mut self,
         request: &Request,
         root_name: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
+        value: &Value,
     ) {
         match root_name {
             "validation" => {
-                if let Some(id) = resolved_string_field(arguments, "id") {
-                    if self.function_validation_by_id(&id).is_none()
-                        && !self
-                            .store
-                            .staged
-                            .deleted_function_validation_ids
-                            .contains(&id)
-                    {
-                        self.hydrate_function_validation_by_id(request, &id);
-                    }
+                if value.is_object() {
+                    self.stage_base_function_validation(value.clone());
                 }
             }
             "validations" => {
-                if !self.store.base.function_validations_catalog_hydrated {
-                    self.hydrate_function_validation_catalog(request);
+                self.observe_function_connection(request, root_name, arguments, value);
+                for row in function_observed_connection_rows(value) {
+                    self.stage_base_function_validation(row.node);
                 }
             }
             "cartTransforms" => {
-                if !self.store.base.function_cart_transforms_catalog_hydrated {
-                    self.hydrate_function_cart_transform_catalog(request);
+                self.observe_function_connection(request, root_name, arguments, value);
+                for row in function_observed_connection_rows(value) {
+                    self.stage_base_function_cart_transform(row.node);
                 }
             }
             "fulfillmentConstraintRules" => {
-                if !self
-                    .store
-                    .base
-                    .function_fulfillment_constraint_rules_catalog_hydrated
-                {
-                    self.hydrate_function_fulfillment_constraint_rule_catalog(request);
-                }
-            }
-            "shopifyFunctions" => {
-                let api_type = requested_function_api_type(arguments);
-                if !self.function_metadata_catalog_hydrated(api_type.as_deref()) {
-                    self.hydrate_function_metadata_catalog(request);
+                for rule in value.as_array().into_iter().flatten() {
+                    self.stage_base_function_fulfillment_constraint_rule(rule.clone());
                 }
             }
             "shopifyFunction" => {
-                if let Some(id) = resolved_string_field(arguments, "id") {
-                    if self
-                        .function_metadata_by_id_or_handle(Some(&id), None)
-                        .is_none()
-                    {
-                        self.hydrate_function_metadata_by_id(request, &id);
+                if let Some(function) = normalized_function_metadata(value.clone()) {
+                    self.stage_function_metadata(function);
+                }
+            }
+            "shopifyFunctions" => {
+                self.observe_function_connection(request, root_name, arguments, value);
+                for row in function_observed_connection_rows(value) {
+                    if let Some(function) = normalized_function_metadata(row.node) {
+                        self.stage_function_metadata(function);
                     }
                 }
             }
             _ => {}
         }
+    }
+
+    fn observe_function_connection(
+        &mut self,
+        request: &Request,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        connection: &Value,
+    ) {
+        let scope_key = function_connection_scope_key(request, root_name, arguments);
+        let window_key = function_connection_window_key(request, root_name, arguments);
+        self.store.base.function_connection_observations.insert(
+            window_key,
+            json!({
+                "scopeKey": scope_key,
+                "arguments": resolved_arguments_json(arguments),
+                "connection": connection,
+                "complete": function_observed_window_is_complete(connection, arguments)
+            }),
+        );
+    }
+
+    fn function_connection_overlay_value(
+        &mut self,
+        request: &Request,
+        field: &FunctionRootInput,
+        upstream_value: Option<&Value>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let mut baseline = upstream_value
+            .cloned()
+            .unwrap_or_else(empty_function_connection);
+        let delta_count = self.function_connection_delta_count(&field.name);
+        let baseline_lacks_identity = function_observed_connection_rows(&baseline)
+            .iter()
+            .any(|row| row.node["id"].as_str().is_none());
+        if delta_count > 0
+            && (baseline_lacks_identity
+                || self.function_connection_needs_refill(&field.name, &baseline, arguments))
+        {
+            if let Some((refill, refill_arguments)) = self
+                .hydrate_bounded_function_connection_window(
+                    request,
+                    field,
+                    arguments,
+                    &baseline,
+                    delta_count,
+                )
+            {
+                self.observe_function_root_value(request, &field.name, &refill_arguments, &refill);
+                baseline = refill;
+            }
+        }
+        let rendered =
+            self.render_function_connection_overlay(request, &field.name, &baseline, arguments);
+        self.observe_function_connection(request, &field.name, arguments, &rendered);
+        rendered
     }
 
     fn function_root_has_local_overlay(&self, root_name: &str) -> bool {
@@ -826,38 +933,11 @@ impl DraftProxy {
             "fulfillmentConstraintRules" => {
                 self.has_function_fulfillment_constraint_rule_overlay_state()
             }
-            "shopifyFunction" | "shopifyFunctions" => self.has_function_metadata_overlay_state(),
+            // Function metadata itself is never created, updated, or deleted by
+            // the supported lifecycle. Observing a Function for validation or
+            // cart-transform staging must not turn its catalog into a local one.
+            "shopifyFunction" | "shopifyFunctions" => false,
             _ => false,
-        }
-    }
-
-    fn hydrate_function_metadata_catalog(&mut self, request: &Request) {
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": FUNCTION_METADATA_CATALOG_HYDRATE_QUERY,
-                "operationName": "FunctionMetadataCatalogHydrate",
-                "variables": {}
-            }),
-        );
-        if response.status == 200 {
-            self.stage_function_metadata_catalog(&response.body["data"]);
-            self.mark_function_metadata_catalog_hydrated(None);
-        }
-    }
-
-    fn hydrate_function_validation_catalog(&mut self, request: &Request) {
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": FUNCTION_VALIDATIONS_HYDRATE_QUERY,
-                "operationName": "FunctionValidationsHydrate",
-                "variables": {}
-            }),
-        );
-        if response.status == 200 {
-            self.hydrate_function_metadata_from_response_data(&response.body["data"]);
-            self.store.base.function_validations_catalog_hydrated = true;
         }
     }
 
@@ -885,38 +965,6 @@ impl DraftProxy {
             normalized_function_validation(response.body["data"]["validation"].clone())?;
         self.stage_base_function_validation(validation.clone());
         Some(validation)
-    }
-
-    fn hydrate_function_cart_transform_catalog(&mut self, request: &Request) {
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": FUNCTION_CART_TRANSFORMS_HYDRATE_QUERY,
-                "operationName": "FunctionCartTransformsHydrate",
-                "variables": {}
-            }),
-        );
-        if response.status == 200 {
-            self.hydrate_function_metadata_from_response_data(&response.body["data"]);
-            self.store.base.function_cart_transforms_catalog_hydrated = true;
-        }
-    }
-
-    fn hydrate_function_fulfillment_constraint_rule_catalog(&mut self, request: &Request) {
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": FUNCTION_FULFILLMENT_CONSTRAINT_RULES_HYDRATE_QUERY,
-                "operationName": "FunctionFulfillmentConstraintRulesHydrate",
-                "variables": {}
-            }),
-        );
-        if response.status == 200 {
-            self.hydrate_function_metadata_from_response_data(&response.body["data"]);
-            self.store
-                .base
-                .function_fulfillment_constraint_rules_catalog_hydrated = true;
-        }
     }
 
     fn hydrate_function_cart_transform_by_id(
@@ -970,23 +1018,21 @@ impl DraftProxy {
                 validation["enable"] = enabled;
             }
         }
-        if validation.get("metafields").is_none() {
-            validation["metafields"] = json!({ "nodes": [] });
-        }
         if !self.store.base.function_validations.contains_key(&id) {
             self.store.base.function_validation_order.push(id.clone());
+            self.store.base.function_validations.insert(id, validation);
+        } else if let Some(existing) = self.store.base.function_validations.get_mut(&id) {
+            merge_json_values(existing, &validation);
         }
-        self.store.base.function_validations.insert(id, validation);
     }
 
     fn stage_base_function_cart_transform(&mut self, mut cart_transform: Value) {
         let Some(id) = cart_transform["id"].as_str().map(str::to_string) else {
             return;
         };
-        if cart_transform.get("metafields").is_none() {
-            cart_transform["metafields"] = json!({ "nodes": [] });
-        }
-        if cart_transform.get("metafield").is_none_or(Value::is_null) {
+        if cart_transform.get("metafields").is_some()
+            && cart_transform.get("metafield").is_none_or(Value::is_null)
+        {
             if let Some(first) = cart_transform["metafields"]["nodes"]
                 .as_array()
                 .and_then(|nodes| nodes.first())
@@ -1000,11 +1046,13 @@ impl DraftProxy {
                 .base
                 .function_cart_transform_order
                 .push(id.clone());
+            self.store
+                .base
+                .function_cart_transforms
+                .insert(id, cart_transform);
+        } else if let Some(existing) = self.store.base.function_cart_transforms.get_mut(&id) {
+            merge_json_values(existing, &cart_transform);
         }
-        self.store
-            .base
-            .function_cart_transforms
-            .insert(id, cart_transform);
     }
 
     fn stage_base_function_fulfillment_constraint_rule(&mut self, mut rule: Value) {
@@ -1020,10 +1068,7 @@ impl DraftProxy {
             rule["shopifyFunction"] = function.clone();
             self.stage_function_metadata(function);
         }
-        if rule.get("metafields").is_none() {
-            rule["metafields"] = json!({ "nodes": [] });
-        }
-        if rule.get("metafield").is_none_or(Value::is_null) {
+        if rule.get("metafields").is_some() && rule.get("metafield").is_none_or(Value::is_null) {
             if let Some(first) = rule["metafields"]["nodes"]
                 .as_array()
                 .and_then(|nodes| nodes.first())
@@ -1042,23 +1087,28 @@ impl DraftProxy {
                 .base
                 .function_fulfillment_constraint_rule_order
                 .push(id.clone());
-        }
-        self.store
+            self.store
+                .base
+                .function_fulfillment_constraint_rules
+                .insert(id, rule);
+        } else if let Some(existing) = self
+            .store
             .base
             .function_fulfillment_constraint_rules
-            .insert(id, rule);
+            .get_mut(&id)
+        {
+            merge_json_values(existing, &rule);
+        }
     }
 
     fn has_function_validation_overlay_state(&self) -> bool {
         self.store.staged.function_validations_dirty
-            || !self.store.base.function_validations.is_empty()
             || !self.store.staged.function_validations.is_empty()
             || !self.store.staged.deleted_function_validation_ids.is_empty()
     }
 
     fn has_function_cart_transform_overlay_state(&self) -> bool {
         self.store.staged.function_cart_transforms_dirty
-            || !self.store.base.function_cart_transforms.is_empty()
             || !self.store.staged.function_cart_transforms.is_empty()
             || !self
                 .store
@@ -1073,11 +1123,6 @@ impl DraftProxy {
             .function_fulfillment_constraint_rules_dirty
             || !self
                 .store
-                .base
-                .function_fulfillment_constraint_rules
-                .is_empty()
-            || !self
-                .store
                 .staged
                 .function_fulfillment_constraint_rules
                 .is_empty()
@@ -1088,34 +1133,938 @@ impl DraftProxy {
                 .is_empty()
     }
 
-    fn has_function_metadata_overlay_state(&self) -> bool {
-        !self.store.base.function_metadata.is_empty()
-            || !self.store.staged.function_metadata.is_empty()
-            || self.has_function_validation_overlay_state()
-            || self.has_function_cart_transform_overlay_state()
-            || self.has_function_fulfillment_constraint_rule_overlay_state()
-    }
-
-    fn function_metadata_catalog_hydrated(&self, api_type: Option<&str>) -> bool {
-        self.store.base.function_metadata_catalog_hydrated
-            || api_type.is_some_and(|api_type| {
-                self.store
-                    .base
-                    .function_metadata_hydrated_api_types
-                    .contains(api_type)
-            })
-    }
-
-    fn mark_function_metadata_catalog_hydrated(&mut self, api_type: Option<String>) {
-        if let Some(api_type) = api_type {
-            self.store
-                .base
-                .function_metadata_hydrated_api_types
-                .insert(api_type);
-        } else {
-            self.store.base.function_metadata_catalog_hydrated = true;
+    fn function_connection_delta_count(&self, root_name: &str) -> usize {
+        match root_name {
+            "validations" => {
+                self.store.staged.function_validations.len()
+                    + self.store.staged.deleted_function_validation_ids.len()
+            }
+            "cartTransforms" => {
+                self.store.staged.function_cart_transforms.len()
+                    + self.store.staged.deleted_function_cart_transform_ids.len()
+            }
+            _ => 0,
         }
     }
+
+    fn function_connection_needs_refill(
+        &self,
+        root_name: &str,
+        connection: &Value,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        let rows = function_observed_connection_rows(connection);
+        let has_unobserved_boundary =
+            if function_connection_direction(arguments) == FunctionConnectionDirection::Backward {
+                connection["pageInfo"]["hasPreviousPage"].as_bool()
+            } else {
+                connection["pageInfo"]["hasNextPage"].as_bool()
+            };
+        if has_unobserved_boundary == Some(false) {
+            return false;
+        }
+        let row_ids = rows
+            .iter()
+            .filter_map(|row| row.node["id"].as_str())
+            .collect::<BTreeSet<_>>();
+        match root_name {
+            "validations" => {
+                self.store
+                    .staged
+                    .deleted_function_validation_ids
+                    .iter()
+                    .any(|id| row_ids.contains(id.as_str()))
+                    || (arguments.contains_key("sortKey")
+                        && self
+                            .store
+                            .staged
+                            .function_validations
+                            .keys()
+                            .any(|id| row_ids.contains(id.as_str())))
+            }
+            "cartTransforms" => self
+                .store
+                .staged
+                .deleted_function_cart_transform_ids
+                .iter()
+                .any(|id| row_ids.contains(id.as_str())),
+            _ => false,
+        }
+    }
+
+    fn hydrate_bounded_function_connection_window(
+        &self,
+        request: &Request,
+        field: &FunctionRootInput,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        connection: &Value,
+        delta_count: usize,
+    ) -> Option<(Value, BTreeMap<String, ResolvedValue>)> {
+        let requested = function_requested_window_size(arguments).max(1);
+        let desired = requested.saturating_add(delta_count).saturating_add(1);
+        if desired > 250
+            && function_observed_connection_rows(connection)
+                .iter()
+                .all(|row| row.node["id"].as_str().is_some())
+        {
+            let (cursor_argument, boundary_cursor) = match function_connection_direction(arguments)
+            {
+                FunctionConnectionDirection::Forward => {
+                    ("after", connection["pageInfo"]["endCursor"].as_str())
+                }
+                FunctionConnectionDirection::Backward => {
+                    ("before", connection["pageInfo"]["startCursor"].as_str())
+                }
+            };
+            if let Some(boundary_cursor) = boundary_cursor {
+                let mut tail_arguments = arguments.clone();
+                tail_arguments.remove("first");
+                tail_arguments.remove("last");
+                tail_arguments.remove("after");
+                tail_arguments.remove("before");
+                tail_arguments.insert(
+                    cursor_argument.to_string(),
+                    ResolvedValue::String(boundary_cursor.to_string()),
+                );
+                let tail_size = desired.saturating_sub(requested).clamp(1, 250);
+                match function_connection_direction(arguments) {
+                    FunctionConnectionDirection::Forward => {
+                        tail_arguments
+                            .insert("first".to_string(), ResolvedValue::Int(tail_size as i64));
+                    }
+                    FunctionConnectionDirection::Backward => {
+                        tail_arguments
+                            .insert("last".to_string(), ResolvedValue::Int(tail_size as i64));
+                    }
+                }
+                let tail =
+                    self.hydrate_function_connection_query(request, field, &tail_arguments)?;
+                return Some((
+                    combine_function_connection_windows(
+                        connection,
+                        &tail,
+                        function_connection_direction(arguments),
+                    ),
+                    arguments.clone(),
+                ));
+            }
+        }
+        let mut effective_arguments = arguments.clone();
+        let effective = desired.min(250);
+        match function_connection_direction(arguments) {
+            FunctionConnectionDirection::Forward => {
+                effective_arguments.remove("last");
+                effective_arguments
+                    .insert("first".to_string(), ResolvedValue::Int(effective as i64));
+            }
+            FunctionConnectionDirection::Backward => {
+                effective_arguments.remove("first");
+                effective_arguments
+                    .insert("last".to_string(), ResolvedValue::Int(effective as i64));
+            }
+        }
+        self.hydrate_function_connection_query(request, field, &effective_arguments)
+            .map(|connection| (connection, effective_arguments))
+    }
+
+    fn hydrate_function_connection_query(
+        &self,
+        request: &Request,
+        field: &FunctionRootInput,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let query =
+            function_connection_hydration_query(&field.name, arguments, &field.field_selection)?;
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": query,
+                "operationName": "FunctionConnectionWindowHydrate",
+                "variables": {}
+            }),
+        );
+        if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+            return None;
+        }
+        response.body["data"]
+            .get(&field.name)
+            .filter(|connection| connection.is_object())
+            .cloned()
+    }
+
+    fn hydrate_function_list_root(
+        &self,
+        request: &Request,
+        field: &FunctionRootInput,
+    ) -> Option<Value> {
+        let query = function_list_hydration_query(&field.name, &field.field_selection)?;
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": query,
+                "operationName": "FunctionListWindowHydrate",
+                "variables": {}
+            }),
+        );
+        if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+            return None;
+        }
+        response.body["data"]
+            .get(&field.name)
+            .filter(|value| value.is_array())
+            .cloned()
+    }
+
+    fn hydrate_function_connection_after_local_cursor(
+        &self,
+        request: &Request,
+        field: &FunctionRootInput,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<(Value, BTreeMap<String, ResolvedValue>)> {
+        let direction = function_connection_direction(arguments);
+        let cursor_argument = match direction {
+            FunctionConnectionDirection::Forward => "after",
+            FunctionConnectionDirection::Backward => "before",
+        };
+        let cursor = resolved_string_field(arguments, cursor_argument)?;
+        if !is_local_function_cursor(&cursor) {
+            return None;
+        }
+        let scope_key = function_connection_scope_key(request, &field.name, arguments);
+        let resume = function_local_cursor_resume(
+            &self.store.base.function_connection_observations,
+            &scope_key,
+            &cursor,
+            direction,
+        )?;
+        let mut effective_arguments = arguments.clone();
+        if let Some(upstream_cursor) = resume.upstream_cursor {
+            effective_arguments.insert(
+                cursor_argument.to_string(),
+                ResolvedValue::String(upstream_cursor),
+            );
+        } else {
+            effective_arguments.remove(cursor_argument);
+        }
+        let requested = function_requested_window_size(arguments).max(1);
+        let effective = requested
+            .saturating_add(self.function_connection_delta_count(&field.name))
+            .saturating_add(1)
+            .min(250);
+        match direction {
+            FunctionConnectionDirection::Forward => {
+                effective_arguments.remove("last");
+                effective_arguments
+                    .insert("first".to_string(), ResolvedValue::Int(effective as i64));
+            }
+            FunctionConnectionDirection::Backward => {
+                effective_arguments.remove("first");
+                effective_arguments
+                    .insert("last".to_string(), ResolvedValue::Int(effective as i64));
+            }
+        }
+        let query = function_connection_hydration_query(
+            &field.name,
+            &effective_arguments,
+            &field.field_selection,
+        )?;
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": query,
+                "operationName": "FunctionConnectionWindowHydrate",
+                "variables": {}
+            }),
+        );
+        if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+            return None;
+        }
+        response.body["data"]
+            .get(&field.name)
+            .filter(|connection| connection.is_object())
+            .cloned()
+            .map(|connection| (connection, effective_arguments))
+    }
+
+    fn render_function_connection_overlay(
+        &self,
+        request: &Request,
+        root_name: &str,
+        connection: &Value,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let mut rows = function_observed_connection_rows(connection);
+        let mut seen = rows
+            .iter()
+            .filter_map(|row| row.node["id"].as_str().map(str::to_string))
+            .collect::<BTreeSet<_>>();
+        rows.retain_mut(|row| {
+            let Some(id) = row.node["id"].as_str().map(str::to_string) else {
+                return true;
+            };
+            if self.function_connection_id_is_tombstoned(root_name, &id) {
+                return false;
+            }
+            if let Some(staged) = self.function_connection_staged_record(root_name, &id) {
+                merge_json_values(&mut row.node, staged);
+            }
+            true
+        });
+        rows.retain(|row| {
+            function_observed_row_belongs_to_window(
+                &self.store.base.function_connection_observations,
+                request,
+                root_name,
+                &row.node,
+                arguments,
+            )
+        });
+
+        let mut candidates = self.function_connection_staged_candidates(root_name);
+        candidates.retain(|candidate| {
+            let Some(id) = candidate["id"].as_str() else {
+                return false;
+            };
+            !self.function_connection_id_is_tombstoned(root_name, id)
+                && seen.insert(id.to_string())
+                && function_staged_candidate_belongs_to_window(
+                    &self.store.base.function_connection_observations,
+                    request,
+                    root_name,
+                    candidate,
+                    connection,
+                    arguments,
+                )
+        });
+        let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
+        if arguments.contains_key("sortKey") {
+            rows.extend(candidates.into_iter().map(|node| ObservedConnectionRow {
+                cursor: Some(local_function_cursor(&node)),
+                node,
+            }));
+            sort_function_connection_rows(&mut rows, arguments);
+        } else if reverse {
+            let mut staged_rows = candidates
+                .into_iter()
+                .map(|node| ObservedConnectionRow {
+                    cursor: Some(local_function_cursor(&node)),
+                    node,
+                })
+                .collect::<Vec<_>>();
+            staged_rows.reverse();
+            staged_rows.extend(rows);
+            rows = staged_rows;
+        } else {
+            rows.extend(candidates.into_iter().map(|node| ObservedConnectionRow {
+                cursor: Some(local_function_cursor(&node)),
+                node,
+            }));
+        }
+
+        function_windowed_observed_connection(rows, connection, arguments)
+    }
+
+    fn function_connection_id_is_tombstoned(&self, root_name: &str, id: &str) -> bool {
+        match root_name {
+            "validations" => self
+                .store
+                .staged
+                .deleted_function_validation_ids
+                .contains(id),
+            "cartTransforms" => self
+                .store
+                .staged
+                .deleted_function_cart_transform_ids
+                .contains(id),
+            _ => false,
+        }
+    }
+
+    fn function_connection_staged_record(&self, root_name: &str, id: &str) -> Option<&Value> {
+        match root_name {
+            "validations" => self.store.staged.function_validations.get(id),
+            "cartTransforms" => self.store.staged.function_cart_transforms.get(id),
+            _ => None,
+        }
+    }
+
+    fn function_connection_staged_candidates(&self, root_name: &str) -> Vec<Value> {
+        match root_name {
+            "validations" => self
+                .store
+                .staged
+                .function_validation_order
+                .iter()
+                .filter_map(|id| self.store.staged.function_validations.get(id))
+                .map(validation_record_value)
+                .collect(),
+            "cartTransforms" => self
+                .store
+                .staged
+                .function_cart_transform_order
+                .iter()
+                .filter_map(|id| self.store.staged.function_cart_transforms.get(id))
+                .map(cart_transform_record_value)
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FunctionConnectionDirection {
+    Forward,
+    Backward,
+}
+
+struct FunctionLocalCursorResume {
+    upstream_cursor: Option<String>,
+}
+
+fn function_connection_direction(
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> FunctionConnectionDirection {
+    if arguments.contains_key("last") || arguments.contains_key("before") {
+        FunctionConnectionDirection::Backward
+    } else {
+        FunctionConnectionDirection::Forward
+    }
+}
+
+fn function_requested_window_size(arguments: &BTreeMap<String, ResolvedValue>) -> usize {
+    ["first", "last"]
+        .into_iter()
+        .find_map(|name| match arguments.get(name) {
+            Some(ResolvedValue::Int(value)) if *value >= 0 => Some(*value as usize),
+            _ => None,
+        })
+        .unwrap_or(50)
+}
+
+fn resolved_arguments_json(arguments: &BTreeMap<String, ResolvedValue>) -> Value {
+    Value::Object(
+        arguments
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+            .collect(),
+    )
+}
+
+fn function_connection_scope_key(
+    request: &Request,
+    root_name: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> String {
+    let scope_arguments = arguments
+        .iter()
+        .filter(|(name, _)| !matches!(name.as_str(), "first" | "last" | "after" | "before"))
+        .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+        .collect::<serde_json::Map<_, _>>();
+    json!({
+        "root": root_name,
+        "owner": request_header(request, API_CLIENT_ID_HEADER),
+        "direction": match function_connection_direction(arguments) {
+            FunctionConnectionDirection::Forward => "forward",
+            FunctionConnectionDirection::Backward => "backward",
+        },
+        "arguments": scope_arguments
+    })
+    .to_string()
+}
+
+fn function_connection_window_key(
+    request: &Request,
+    root_name: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> String {
+    json!({
+        "scope": function_connection_scope_key(request, root_name, arguments),
+        "window": resolved_arguments_json(arguments)
+    })
+    .to_string()
+}
+
+fn is_local_function_cursor(cursor: &str) -> bool {
+    cursor.starts_with("cursor:gid://shopify/")
+}
+
+fn function_local_cursor_resume(
+    observations: &BTreeMap<String, Value>,
+    scope_key: &str,
+    cursor: &str,
+    direction: FunctionConnectionDirection,
+) -> Option<FunctionLocalCursorResume> {
+    let mut observed_cursor = false;
+    for observation in observations.values() {
+        if observation["scopeKey"].as_str() != Some(scope_key) {
+            continue;
+        }
+        let Some(edges) = observation["connection"]["edges"].as_array() else {
+            continue;
+        };
+        let Some(boundary_index) = edges
+            .iter()
+            .position(|edge| edge["cursor"].as_str() == Some(cursor))
+        else {
+            continue;
+        };
+        observed_cursor = true;
+        let upstream_cursor = match direction {
+            FunctionConnectionDirection::Forward => edges[..boundary_index]
+                .iter()
+                .rev()
+                .filter_map(|edge| edge["cursor"].as_str())
+                .find(|candidate| !is_local_function_cursor(candidate)),
+            FunctionConnectionDirection::Backward => edges[boundary_index.saturating_add(1)..]
+                .iter()
+                .filter_map(|edge| edge["cursor"].as_str())
+                .find(|candidate| !is_local_function_cursor(candidate)),
+        }
+        .map(str::to_string);
+        if upstream_cursor.is_some() {
+            return Some(FunctionLocalCursorResume { upstream_cursor });
+        }
+    }
+    observed_cursor.then_some(FunctionLocalCursorResume {
+        upstream_cursor: None,
+    })
+}
+
+fn function_observed_window_is_complete(
+    connection: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    match function_connection_direction(arguments) {
+        FunctionConnectionDirection::Forward => {
+            connection["pageInfo"]["hasNextPage"].as_bool() == Some(false)
+        }
+        FunctionConnectionDirection::Backward => {
+            connection["pageInfo"]["hasPreviousPage"].as_bool() == Some(false)
+        }
+    }
+}
+
+fn empty_function_connection() -> Value {
+    json!({ "nodes": [], "edges": [], "pageInfo": empty_page_info() })
+}
+
+fn function_observed_connection_rows(connection: &Value) -> Vec<ObservedConnectionRow> {
+    let mut rows = observed_connection_rows(connection);
+    if let Some(first) = rows.first_mut() {
+        if first.cursor.is_none() {
+            first.cursor = connection["pageInfo"]["startCursor"]
+                .as_str()
+                .map(str::to_string);
+        }
+    }
+    if let Some(last) = rows.last_mut() {
+        if last.cursor.is_none() {
+            last.cursor = connection["pageInfo"]["endCursor"]
+                .as_str()
+                .map(str::to_string);
+        }
+    }
+    rows
+}
+
+fn combine_function_connection_windows(
+    connection: &Value,
+    tail: &Value,
+    direction: FunctionConnectionDirection,
+) -> Value {
+    let (mut rows, additional) = match direction {
+        FunctionConnectionDirection::Forward => (
+            function_observed_connection_rows(connection),
+            function_observed_connection_rows(tail),
+        ),
+        FunctionConnectionDirection::Backward => (
+            function_observed_connection_rows(tail),
+            function_observed_connection_rows(connection),
+        ),
+    };
+    let mut seen = rows
+        .iter()
+        .map(|row| {
+            row.node["id"]
+                .as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| row.node.to_string())
+        })
+        .collect::<BTreeSet<_>>();
+    rows.extend(additional.into_iter().filter(|row| {
+        seen.insert(
+            row.node["id"]
+                .as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| row.node.to_string()),
+        )
+    }));
+    let has_next = match direction {
+        FunctionConnectionDirection::Forward => {
+            tail["pageInfo"]["hasNextPage"].as_bool().unwrap_or(false)
+        }
+        FunctionConnectionDirection::Backward => connection["pageInfo"]["hasNextPage"]
+            .as_bool()
+            .unwrap_or(false),
+    };
+    let has_previous = match direction {
+        FunctionConnectionDirection::Forward => connection["pageInfo"]["hasPreviousPage"]
+            .as_bool()
+            .unwrap_or(false),
+        FunctionConnectionDirection::Backward => tail["pageInfo"]["hasPreviousPage"]
+            .as_bool()
+            .unwrap_or(false),
+    };
+    let start_cursor = rows.first().and_then(|row| row.cursor.clone());
+    let end_cursor = rows.last().and_then(|row| row.cursor.clone());
+    let nodes = rows.iter().map(|row| row.node.clone()).collect::<Vec<_>>();
+    let edges = rows
+        .into_iter()
+        .map(|row| json!({ "cursor": row.cursor, "node": row.node }))
+        .collect::<Vec<_>>();
+    json!({
+        "nodes": nodes,
+        "edges": edges,
+        "pageInfo": connection_page_info(has_next, has_previous, start_cursor, end_cursor)
+    })
+}
+
+fn canonical_hydration_field(mut field: SelectedField) -> SelectedField {
+    field.response_key = field.name.clone();
+    field.selection = field
+        .selection
+        .into_iter()
+        .map(canonical_hydration_field)
+        .collect();
+    field
+}
+
+fn function_connection_node_selection(selection: &[SelectedField]) -> Vec<SelectedField> {
+    let mut fields = Vec::new();
+    for field in selection {
+        match field.name.as_str() {
+            "nodes" => fields.extend(field.selection.clone()),
+            "edges" => fields.extend(
+                field
+                    .selection
+                    .iter()
+                    .filter(|child| child.name == "node")
+                    .flat_map(|child| child.selection.clone()),
+            ),
+            _ => {}
+        }
+    }
+    fields = fields.into_iter().map(canonical_hydration_field).collect();
+    if !fields.iter().any(|field| field.name == "id") {
+        fields.push(SelectedField {
+            name: "id".to_string(),
+            response_key: "id".to_string(),
+            location: SourceLocation { line: 1, column: 1 },
+            arguments: BTreeMap::new(),
+            selection: Vec::new(),
+            type_condition: None,
+        });
+    }
+    let mut seen = BTreeSet::new();
+    fields.retain(|field| {
+        seen.insert(crate::proxy::graphql_runtime::serialize_selected_field(
+            field,
+        ))
+    });
+    fields
+}
+
+fn function_connection_hydration_query(
+    root_name: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+) -> Option<String> {
+    if !matches!(
+        root_name,
+        "validations" | "cartTransforms" | "shopifyFunctions"
+    ) {
+        return None;
+    }
+    let node_selection = function_connection_node_selection(selection);
+    let node_fields = node_selection
+        .iter()
+        .map(crate::proxy::graphql_runtime::serialize_selected_field)
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(format!(
+        "query FunctionConnectionWindowHydrate {{ {root_name}{} {{ edges {{ cursor node {{ {node_fields} }} }} pageInfo {{ hasNextPage hasPreviousPage startCursor endCursor }} }} }}",
+        serialize_function_connection_arguments(arguments)
+    ))
+}
+
+fn function_list_hydration_query(root_name: &str, selection: &[SelectedField]) -> Option<String> {
+    if root_name != "fulfillmentConstraintRules" {
+        return None;
+    }
+    let mut fields = selection
+        .iter()
+        .cloned()
+        .map(canonical_hydration_field)
+        .collect::<Vec<_>>();
+    if !fields.iter().any(|field| field.name == "id") {
+        fields.push(SelectedField {
+            name: "id".to_string(),
+            response_key: "id".to_string(),
+            location: SourceLocation { line: 1, column: 1 },
+            arguments: BTreeMap::new(),
+            selection: Vec::new(),
+            type_condition: None,
+        });
+    }
+    let fields = fields
+        .iter()
+        .map(crate::proxy::graphql_runtime::serialize_selected_field)
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(format!(
+        "query FunctionListWindowHydrate {{ {root_name} {{ {fields} }} }}"
+    ))
+}
+
+fn serialize_function_connection_arguments(arguments: &BTreeMap<String, ResolvedValue>) -> String {
+    if arguments.is_empty() {
+        return String::new();
+    }
+    let rendered = arguments
+        .iter()
+        .map(|(name, value)| {
+            let value = if name == "sortKey" {
+                resolved_string_field(arguments, name).unwrap_or_default()
+            } else {
+                crate::proxy::graphql_runtime::serialize_resolved_value(value)
+            };
+            format!("{name}: {value}")
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("({rendered})")
+}
+
+fn function_observed_cursor_node(
+    observations: &BTreeMap<String, Value>,
+    scope_key: &str,
+    cursor: &str,
+) -> Option<Value> {
+    observations.values().find_map(|observation| {
+        (observation["scopeKey"].as_str() == Some(scope_key))
+            .then(|| {
+                observation["connection"]["edges"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .find(|edge| edge["cursor"].as_str() == Some(cursor))
+                    .and_then(|edge| edge.get("node").cloned())
+            })
+            .flatten()
+    })
+}
+
+fn function_observed_cursor_order(
+    observations: &BTreeMap<String, Value>,
+    scope_key: &str,
+    left_cursor: &str,
+    right_cursor: &str,
+) -> Option<std::cmp::Ordering> {
+    observations.values().find_map(|observation| {
+        if observation["scopeKey"].as_str() != Some(scope_key) {
+            return None;
+        }
+        let edges = observation["connection"]["edges"].as_array()?;
+        let left_index = edges
+            .iter()
+            .position(|edge| edge["cursor"].as_str() == Some(left_cursor))?;
+        let right_index = edges
+            .iter()
+            .position(|edge| edge["cursor"].as_str() == Some(right_cursor))?;
+        Some(left_index.cmp(&right_index))
+    })
+}
+
+fn compare_function_nodes(left: &Value, right: &Value, sort_key: &str) -> std::cmp::Ordering {
+    match sort_key {
+        "TITLE" | "title" => left["title"]
+            .as_str()
+            .unwrap_or_default()
+            .cmp(right["title"].as_str().unwrap_or_default())
+            .then_with(|| {
+                left["id"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .cmp(right["id"].as_str().unwrap_or_default())
+            }),
+        _ => left["id"]
+            .as_str()
+            .unwrap_or_default()
+            .cmp(right["id"].as_str().unwrap_or_default()),
+    }
+}
+
+fn function_staged_candidate_belongs_to_window(
+    observations: &BTreeMap<String, Value>,
+    request: &Request,
+    root_name: &str,
+    candidate: &Value,
+    connection: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    for cursor_argument in ["after", "before"] {
+        if resolved_string_field(arguments, cursor_argument)
+            .as_deref()
+            .is_some_and(|cursor| {
+                is_local_function_cursor(cursor) && local_function_cursor(candidate) == cursor
+            })
+        {
+            return false;
+        }
+    }
+    let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
+    let candidate_cursor = local_function_cursor(candidate);
+    let scope_key = function_connection_scope_key(request, root_name, arguments);
+    if let Some(after) = resolved_string_field(arguments, "after") {
+        if is_local_function_cursor(&after) {
+            if let Some(ordering) =
+                function_observed_cursor_order(observations, &scope_key, &candidate_cursor, &after)
+            {
+                return ordering.is_gt();
+            }
+        }
+    }
+    if let Some(before) = resolved_string_field(arguments, "before") {
+        if is_local_function_cursor(&before) {
+            if let Some(ordering) =
+                function_observed_cursor_order(observations, &scope_key, &candidate_cursor, &before)
+            {
+                return ordering.is_lt();
+            }
+        }
+    }
+    let Some(sort_key) = resolved_string_field(arguments, "sortKey") else {
+        return match function_connection_direction(arguments) {
+            FunctionConnectionDirection::Forward => {
+                reverse || connection["pageInfo"]["hasNextPage"].as_bool() != Some(true)
+            }
+            FunctionConnectionDirection::Backward => !reverse,
+        };
+    };
+    let compare = |left: &Value, right: &Value| {
+        let ordering = compare_function_nodes(left, right, &sort_key);
+        if reverse {
+            ordering.reverse()
+        } else {
+            ordering
+        }
+    };
+    if let Some(after) = resolved_string_field(arguments, "after") {
+        if let Some(boundary) = function_observed_cursor_node(observations, &scope_key, &after) {
+            return compare(candidate, &boundary).is_gt();
+        }
+    }
+    if let Some(before) = resolved_string_field(arguments, "before") {
+        if let Some(boundary) = function_observed_cursor_node(observations, &scope_key, &before) {
+            return compare(candidate, &boundary).is_lt();
+        }
+    }
+    true
+}
+
+fn function_observed_row_belongs_to_window(
+    observations: &BTreeMap<String, Value>,
+    request: &Request,
+    root_name: &str,
+    candidate: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    let Some(sort_key) = resolved_string_field(arguments, "sortKey") else {
+        return true;
+    };
+    let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
+    let scope_key = function_connection_scope_key(request, root_name, arguments);
+    let compare = |left: &Value, right: &Value| {
+        let ordering = compare_function_nodes(left, right, &sort_key);
+        if reverse {
+            ordering.reverse()
+        } else {
+            ordering
+        }
+    };
+    if let Some(after) = resolved_string_field(arguments, "after") {
+        if is_local_function_cursor(&after) {
+            if let Some(boundary) = function_observed_cursor_node(observations, &scope_key, &after)
+            {
+                return compare(candidate, &boundary).is_gt();
+            }
+        }
+    }
+    if let Some(before) = resolved_string_field(arguments, "before") {
+        if is_local_function_cursor(&before) {
+            if let Some(boundary) = function_observed_cursor_node(observations, &scope_key, &before)
+            {
+                return compare(candidate, &boundary).is_lt();
+            }
+        }
+    }
+    true
+}
+
+fn sort_function_connection_rows(
+    rows: &mut [ObservedConnectionRow],
+    arguments: &BTreeMap<String, ResolvedValue>,
+) {
+    let sort_key = resolved_string_field(arguments, "sortKey").unwrap_or_else(|| "ID".to_string());
+    rows.sort_by(|left, right| compare_function_nodes(&left.node, &right.node, &sort_key));
+    if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+        rows.reverse();
+    }
+}
+
+fn function_windowed_observed_connection(
+    rows: Vec<ObservedConnectionRow>,
+    upstream: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let requested = function_requested_window_size(arguments);
+    let total = rows.len();
+    let (start, end) = match function_connection_direction(arguments) {
+        FunctionConnectionDirection::Forward => (0, total.min(requested)),
+        FunctionConnectionDirection::Backward => (total.saturating_sub(requested), total),
+    };
+    let selected = rows[start..end].to_vec();
+    let upstream_has_next = upstream["pageInfo"]["hasNextPage"]
+        .as_bool()
+        .unwrap_or(false);
+    let upstream_has_previous = upstream["pageInfo"]["hasPreviousPage"]
+        .as_bool()
+        .unwrap_or(false);
+    let (has_next, has_previous) = match function_connection_direction(arguments) {
+        FunctionConnectionDirection::Forward => (
+            upstream_has_next || end < total,
+            upstream_has_previous || resolved_string_field(arguments, "after").is_some(),
+        ),
+        FunctionConnectionDirection::Backward => (
+            upstream_has_next || resolved_string_field(arguments, "before").is_some(),
+            upstream_has_previous || start > 0,
+        ),
+    };
+    let start_cursor = selected.first().and_then(|row| row.cursor.clone());
+    let end_cursor = selected.last().and_then(|row| row.cursor.clone());
+    let nodes = selected
+        .iter()
+        .map(|row| row.node.clone())
+        .collect::<Vec<_>>();
+    let edges = selected
+        .into_iter()
+        .map(|row| json!({ "cursor": row.cursor, "node": row.node }))
+        .collect::<Vec<_>>();
+    json!({
+        "nodes": nodes,
+        "edges": edges,
+        "pageInfo": connection_page_info(has_next, has_previous, start_cursor, end_cursor)
+    })
 }
 
 const TAX_APP_CONFIGURE_REQUIRED_ACCESS: &str =
@@ -1264,47 +2213,6 @@ fn function_belongs_to_request(function: &Value, request: &Request) -> bool {
     }
 }
 
-fn collect_function_metadata_values(value: &Value, functions: &mut Vec<Value>) {
-    if let Some(function) = normalized_function_metadata(value.clone()) {
-        functions.push(function);
-        return;
-    }
-    match value {
-        Value::Array(values) => {
-            for value in values {
-                collect_function_metadata_values(value, functions);
-            }
-        }
-        Value::Object(object) => {
-            for value in object.values() {
-                collect_function_metadata_values(value, functions);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn collect_function_connection_nodes(value: &Value, functions: &mut Vec<Value>) {
-    match value {
-        Value::Array(values) => {
-            for value in values {
-                collect_function_connection_nodes(value, functions);
-            }
-        }
-        Value::Object(object) => {
-            if let Some(nodes) = object.get("nodes").and_then(Value::as_array) {
-                for node in nodes {
-                    collect_function_metadata_values(node, functions);
-                }
-            }
-            for value in object.values() {
-                collect_function_connection_nodes(value, functions);
-            }
-        }
-        _ => {}
-    }
-}
-
 fn normalized_function_validation(mut validation: Value) -> Option<Value> {
     validation.get("id").and_then(Value::as_str)?;
     if !looks_like_function_validation(&validation) {
@@ -1326,9 +2234,6 @@ fn normalized_function_validation(mut validation: Value) -> Option<Value> {
             validation["enable"] = enabled;
         }
     }
-    if validation.get("metafields").is_none() {
-        validation["metafields"] = json!({ "nodes": [] });
-    }
     Some(validation)
 }
 
@@ -1338,35 +2243,14 @@ fn looks_like_function_validation(value: &Value) -> bool {
         || (value.get("shopifyFunction").is_some() && value.get("functionId").is_none())
 }
 
-fn collect_function_validation_values(value: &Value, validations: &mut Vec<Value>) {
-    if let Some(validation) = normalized_function_validation(value.clone()) {
-        validations.push(validation);
-        return;
-    }
-    match value {
-        Value::Array(values) => {
-            for value in values {
-                collect_function_validation_values(value, validations);
-            }
-        }
-        Value::Object(object) => {
-            for value in object.values() {
-                collect_function_validation_values(value, validations);
-            }
-        }
-        _ => {}
-    }
-}
-
 fn normalized_function_cart_transform(mut cart_transform: Value) -> Option<Value> {
     cart_transform.get("id").and_then(Value::as_str)?;
     if !looks_like_function_cart_transform(&cart_transform) {
         return None;
     }
-    if cart_transform.get("metafields").is_none() {
-        cart_transform["metafields"] = json!({ "nodes": [] });
-    }
-    if cart_transform.get("metafield").is_none_or(Value::is_null) {
+    if cart_transform.get("metafields").is_some()
+        && cart_transform.get("metafield").is_none_or(Value::is_null)
+    {
         if let Some(first) = cart_transform["metafields"]["nodes"]
             .as_array()
             .and_then(|nodes| nodes.first())
@@ -1384,81 +2268,6 @@ fn looks_like_function_cart_transform(value: &Value) -> bool {
         || (value.get("functionId").is_some()
             && value.get("enabled").is_none()
             && value.get("enable").is_none())
-}
-
-fn collect_function_cart_transform_values(value: &Value, cart_transforms: &mut Vec<Value>) {
-    if let Some(cart_transform) = normalized_function_cart_transform(value.clone()) {
-        cart_transforms.push(cart_transform);
-        return;
-    }
-    match value {
-        Value::Array(values) => {
-            for value in values {
-                collect_function_cart_transform_values(value, cart_transforms);
-            }
-        }
-        Value::Object(object) => {
-            for value in object.values() {
-                collect_function_cart_transform_values(value, cart_transforms);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn normalized_function_fulfillment_constraint_rule(mut rule: Value) -> Option<Value> {
-    rule.get("id").and_then(Value::as_str)?;
-    if !looks_like_function_fulfillment_constraint_rule(&rule) {
-        return None;
-    }
-    if let Some(function) = rule
-        .get("function")
-        .or_else(|| rule.get("shopifyFunction"))
-        .and_then(|function| normalized_function_metadata(function.clone()))
-    {
-        rule["function"] = function.clone();
-        rule["shopifyFunction"] = function;
-    }
-    if rule.get("metafields").is_none() {
-        rule["metafields"] = json!({ "nodes": [] });
-    }
-    if rule.get("metafield").is_none_or(Value::is_null) {
-        if let Some(first) = rule["metafields"]["nodes"]
-            .as_array()
-            .and_then(|nodes| nodes.first())
-            .cloned()
-        {
-            rule["metafield"] = first;
-        }
-    }
-    Some(rule)
-}
-
-fn looks_like_function_fulfillment_constraint_rule(value: &Value) -> bool {
-    shopify_gid_resource_type(value.get("id").and_then(Value::as_str).unwrap_or_default())
-        == Some("FulfillmentConstraintRule")
-        || (value.get("deliveryMethodTypes").is_some()
-            && (value.get("function").is_some() || value.get("shopifyFunction").is_some()))
-}
-
-fn collect_function_fulfillment_constraint_rule_values(value: &Value, rules: &mut Vec<Value>) {
-    if let Some(rule) = normalized_function_fulfillment_constraint_rule(value.clone()) {
-        rules.push(rule);
-        return;
-    }
-    match value {
-        Value::Array(values) => {
-            for value in values {
-                collect_function_fulfillment_constraint_rule_values(value, rules);
-            }
-        }
-        Value::Object(object) => {
-            for value in object.values() {
-                collect_function_fulfillment_constraint_rule_values(value, rules);
-            }
-        }
-        _ => {}
-    }
 }
 
 fn function_identifier_input(
@@ -2255,10 +3064,10 @@ impl DraftProxy {
             json!(resolved_bool_field(input, "blockOnFailure").unwrap_or(false));
         let timestamp = self.next_product_timestamp();
         validation["updatedAt"] = json!(timestamp.clone());
-        upsert_validation_metafields(
-            &mut validation,
-            validation_metafields_from_input(input, &timestamp),
-        );
+        let metafield_updates = validation_metafields_from_input(input, &timestamp);
+        if !metafield_updates.is_empty() {
+            upsert_validation_metafields(&mut validation, metafield_updates);
+        }
         self.stage_function_validation(validation.clone());
         json!({ "validation": validation, "userErrors": [] })
     }
