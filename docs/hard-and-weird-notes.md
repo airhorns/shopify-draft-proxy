@@ -306,6 +306,28 @@ Unknown countries and country-specific province mismatches still return payload
 local address. The executable evidence is
 `config/parity-specs/customers/customer_address_country_province_validation.json`.
 
+## Current: Storefront cart STRICT address requirements vary by country
+
+Storefront API 2026-04 cart captures across every `CountryCode` value show that
+`STRICT` delivery-address validation is not a universal postal/city rule.
+`lastName` and `address1` are always required, but postal code, city, and zone
+requirements vary by country. For example, the United Arab Emirates requires a
+zone but accepts no postal code, while Singapore accepts no city or zone.
+
+The same capture exposed normalization that is more than uppercasing: an
+Australian address with `provinceCode: ZZ` and postal code `2000` is accepted
+as `NSW`. An invalid Emirates zone is reported as the required-zone error,
+while lowercase `du` is accepted as `DU`. Unsupported countries add a final
+`Country is not supported` error, and the unknown-region code orders the
+country-required error before the city-required error.
+
+Practical rule: derive Storefront `STRICT` requirements and error order from
+the captured country model, and reuse shared country/subdivision lookups only
+where their semantics match. Do not apply these required-field rules to the
+non-`STRICT` path or infer Storefront behavior from Admin customer/B2B
+validation alone. The executable anchor is
+`config/parity-specs/storefront/storefront-cart-strict-address-validation.json`.
+
 ## Current: Online-store body HTML is not scrubbed by Admin GraphQL
 
 HAR-741 resolves the HAR-561 source-of-truth mismatch: on `harry-test-heelo.myshopify.com`, both Admin API `2025-01` and `2026-04` returned page/article bodies containing script blocks and event-handler attributes verbatim in create payloads and immediate detail reads.

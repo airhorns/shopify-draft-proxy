@@ -7151,6 +7151,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'storefront',
+    captureId: 'storefront-cart-strict-address-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-storefront-cart-strict-address-conformance.mts',
+    purpose:
+      'Storefront cart STRICT delivery-address required fields, multi-error ordering, and subdivision normalization across every captured CountryCode value.',
+    requiredAuthScopes: [
+      'stored Storefront access token with unauthenticated_read_checkouts and unauthenticated_write_checkouts',
+    ],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-cart-strict-address-validation.json',
+      'config/parity-specs/storefront/storefront-cart-strict-address-validation.json',
+      'config/parity-requests/storefront/storefront-cart-strict-address-create.graphql',
+      'config/parity-requests/storefront/storefront-cart-strict-address-add.graphql',
+    ],
+    cleanupBehavior:
+      'Creates empty real Storefront carts for validation only; Storefront has no cart deletion mutation, so live cart tokens and keys are redacted and discarded.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'storefront',
     captureId: 'storefront-cart-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-storefront-cart-conformance.mts',
