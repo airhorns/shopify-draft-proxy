@@ -1,0 +1,34 @@
+query FulfillmentConstraintRuleUpdatedRead {
+  fulfillmentConstraintRules {
+    id
+    deliveryMethodTypes
+    function {
+      id
+      title
+      handle
+      apiType
+      description
+      appKey
+      app {
+        __typename
+        id
+        title
+        handle
+        apiKey
+      }
+    }
+    metafields(first: 100) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+        compareDigest
+        ownerType
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}

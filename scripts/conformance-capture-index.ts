@@ -11311,21 +11311,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-fulfillment-constraint-rule-errors-conformance.ts',
     purpose:
-      'fulfillmentConstraintRuleCreate deterministic missing/multiple/empty-delivery/unknown-function userErrors, fulfillmentConstraintRuleDelete unknown-id shape, and empty fulfillmentConstraintRules read.',
+      'fulfillmentConstraintRule deterministic userErrors plus an existing-rule update that preserves Function/metafield identity and appears in the downstream rule catalog.',
     requiredAuthScopes: [
-      'read_fulfillment_constraint_rules for fulfillmentConstraintRules empty read',
-      'write_fulfillment_constraint_rules for create/delete userError capture',
-      'released fulfillment-constraint Function required only for future success-path and wrong-API-type capture',
+      'read_fulfillment_constraint_rules for fulfillmentConstraintRules hydration and downstream reads',
+      'write_fulfillment_constraint_rules for disposable create/update/delete lifecycle capture',
+      'released conformance-fulfillment-constraint Function in the installed conformance app',
     ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}functions-fulfillment-constraint-rule-errors.json`,
       'config/parity-specs/functions/functions-fulfillment-constraint-rule-errors.json',
+      'config/parity-specs/functions/functions-fulfillment-constraint-rules-empty-read.json',
       'config/parity-requests/functions/functions-fulfillment-constraint-rule-errors.graphql',
+      'config/parity-requests/functions/functions-fulfillment-constraint-rule-update-existing.graphql',
+      'config/parity-requests/functions/functions-fulfillment-constraint-rule-update-read.graphql',
       'config/parity-requests/functions/functions-fulfillment-constraint-rule-unknown-function.graphql',
       'config/parity-requests/functions/functions-fulfillment-constraint-rules-empty-read.graphql',
     ],
     cleanupBehavior:
-      'Captures deterministic userErrors and an empty read only; no live fulfillment constraint rule is created.',
+      'Removes stale rules for the conformance Function, captures deterministic errors and an empty read, creates one disposable rule, records its hydration/update/read lifecycle, and deletes it in success and failure paths.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

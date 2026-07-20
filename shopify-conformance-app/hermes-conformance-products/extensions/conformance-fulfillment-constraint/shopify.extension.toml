@@ -1,0 +1,22 @@
+api_version = "2026-04"
+
+[[extensions]]
+name = "t:name"
+handle = "conformance-fulfillment-constraint"
+type = "function"
+uid = "85f1644c-53b1-1f56-ecf4-2c1ca2d989d8dd81c73a"
+description = "t:description"
+
+[[extensions.targeting]]
+target = "cart.fulfillment-constraints.generate.run"
+input_query = "src/cart_fulfillment_constraints_generate_run.graphql"
+export = "cart_fulfillment_constraints_generate_run"
+
+[extensions.build]
+command = "cargo build --target=wasm32-unknown-unknown --release"
+path = "target/wasm32-unknown-unknown/release/conformance-fulfillment-constraint.wasm"
+watch = ["src/**/*.rs"]
+
+[extensions.ui.paths]
+create = "/"
+details = "/"
