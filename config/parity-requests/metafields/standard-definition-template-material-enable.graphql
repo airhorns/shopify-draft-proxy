@@ -1,0 +1,38 @@
+mutation StandardDefinitionTemplateMaterialEnable {
+  standardMetafieldDefinitionEnable(ownerType: PRODUCT, namespace: "shopify", key: "material") {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      name
+      description
+      type {
+        name
+        category
+      }
+      validations {
+        name
+        value
+      }
+      constraints {
+        key
+        values(first: 5) {
+          nodes {
+            value
+          }
+        }
+      }
+      access {
+        admin
+        storefront
+        customerAccount
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

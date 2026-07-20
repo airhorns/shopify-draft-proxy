@@ -1,5 +1,16 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+fn standard_definition_request(
+    api_version: &str,
+    query: &str,
+    variables: serde_json::Value,
+) -> Request {
+    let mut request = json_graphql_request(query, variables);
+    request.path = format!("/admin/api/{api_version}/graphql.json");
+    request
+}
 
 fn create_definition(proxy: &mut DraftProxy, namespace: &str, key: &str, pin: bool) -> Value {
     proxy
@@ -990,7 +1001,7 @@ fn metafield_definition_unpin_compacts_product_positions_across_namespaces() {
 
 #[test]
 fn standard_metafield_definition_reenable_preserves_id_and_merges_update_params() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = standard_definition_snapshot_proxy();
 
     let initial = standard_enable_subtitle(&mut proxy, None);
     assert_eq!(initial["userErrors"], json!([]));
@@ -1077,7 +1088,7 @@ fn standard_metafield_definition_reenable_preserves_id_and_merges_update_params(
 
 #[test]
 fn standard_template_metafield_definition_update_rejects_immutable_field_edits() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = standard_definition_snapshot_proxy();
 
     let initial = standard_enable_subtitle(&mut proxy, None);
     assert_eq!(initial["userErrors"], json!([]));
@@ -1207,7 +1218,7 @@ fn standard_template_metafield_definition_update_rejects_immutable_field_edits()
 #[test]
 fn standard_metafield_definition_reenable_pin_over_cap_uses_next_position() {
     let namespace = "standard_reenable_pin_cap";
-    let mut proxy = snapshot_proxy();
+    let mut proxy = standard_definition_snapshot_proxy();
 
     for index in 1..=20 {
         let key = format!("pin_{index:02}");
@@ -1401,7 +1412,7 @@ fn metafield_definition_pin_limit_is_twenty_for_pin_create_update_and_standard_e
         json!("PINNED_LIMIT_REACHED")
     );
 
-    let mut standard_proxy = snapshot_proxy();
+    let mut standard_proxy = standard_definition_snapshot_proxy();
     for index in 1..=20 {
         let key = format!("pin_{index:02}");
         assert_eq!(
@@ -1424,7 +1435,7 @@ fn metafield_definition_pin_limit_is_twenty_for_pin_create_update_and_standard_e
 
 #[test]
 fn metafield_definition_create_resource_type_limit_is_scoped_by_owner_and_app_namespace() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = standard_definition_snapshot_proxy();
 
     for index in 0..256 {
         let created = create_definition_for_resource_limit(
@@ -1524,7 +1535,7 @@ fn metafield_definition_create_resource_type_limit_is_scoped_by_owner_and_app_na
         None
     );
 
-    let mut standard_exclusion_proxy = snapshot_proxy();
+    let mut standard_exclusion_proxy = standard_definition_snapshot_proxy();
     let standard_first = standard_enable_pin(&mut standard_exclusion_proxy);
     assert_eq!(standard_first["userErrors"], json!([]));
     for index in 0..256 {
@@ -1866,7 +1877,7 @@ fn metafield_definition_admin_filterable_cap_is_fifty_per_owner_type() {
 
 #[test]
 fn standard_metafield_definition_enable_rejects_ineligible_capabilities() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = standard_definition_snapshot_proxy();
 
     let invalid_unique = proxy.process_request(json_graphql_request(
         r#"
@@ -1961,7 +1972,7 @@ fn standard_metafield_definition_enable_rejects_ineligible_capabilities() {
 
 #[test]
 fn standard_metafield_definition_enable_public_hidden_arguments_match_live_branches() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = standard_definition_snapshot_proxy();
 
     let visible = proxy.process_request(json_graphql_request(
         r#"
@@ -4254,9 +4265,730 @@ fn metafield_definition_validations_gate_metafields_set_for_non_product_owners()
     }
 }
 
+const STANDARD_TEMPLATE_CATALOG_QUERY: &str = r#"
+    query StandardTemplateCatalog(
+      $first: Int
+      $after: String
+      $last: Int
+      $before: String
+      $reverse: Boolean!
+      $excludeActivated: Boolean!
+      $constraintStatus: MetafieldDefinitionConstraintStatus
+      $constraintSubtype: MetafieldDefinitionConstraintSubtypeIdentifier
+    ) {
+      catalog: standardMetafieldDefinitionTemplates(
+        first: $first
+        after: $after
+        last: $last
+        before: $before
+        reverse: $reverse
+        excludeActivated: $excludeActivated
+        constraintStatus: $constraintStatus
+        constraintSubtype: $constraintSubtype
+      ) {
+        edges {
+          cursor
+          node { ...StandardTemplateFields }
+        }
+        nodes { ...StandardTemplateFields }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+
+    fragment StandardTemplateFields on StandardMetafieldDefinitionTemplate {
+      id
+      namespace
+      key
+      name
+      description
+      ownerTypes
+      type { name category }
+      validations { name value }
+      visibleToStorefrontApi
+    }
+"#;
+
+fn standard_template_catalog_variables(first: i64) -> Value {
+    json!({
+        "first": first,
+        "after": null,
+        "last": null,
+        "before": null,
+        "reverse": false,
+        "excludeActivated": false,
+        "constraintStatus": "CONSTRAINED_AND_UNCONSTRAINED",
+        "constraintSubtype": null
+    })
+}
+
+#[test]
+fn standard_metafield_definition_template_catalog_is_version_and_context_aware() {
+    for api_version in ["2025-01", "2026-04"] {
+        let mut proxy = standard_definition_snapshot_proxy();
+        let response = proxy.process_request(standard_definition_request(
+            api_version,
+            STANDARD_TEMPLATE_CATALOG_QUERY,
+            standard_template_catalog_variables(2),
+        ));
+
+        assert_eq!(response.status, 200, "{api_version}");
+        let catalog = &response.body["data"]["catalog"];
+        assert_eq!(
+            catalog["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|node| node["id"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            vec![
+                "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+                "gid://shopify/StandardMetafieldDefinitionTemplate/2"
+            ],
+            "{api_version}"
+        );
+        assert_eq!(
+            catalog["edges"][0]["cursor"],
+            json!("eyJsYXN0X2lkIjoxLCJsYXN0X3ZhbHVlIjoxfQ==")
+        );
+        assert_eq!(catalog["pageInfo"]["hasNextPage"], json!(true));
+        assert_eq!(catalog["pageInfo"]["hasPreviousPage"], json!(false));
+    }
+
+    let mut unknown_store = configured_proxy_with_admin_origin(
+        ReadMode::Snapshot,
+        None,
+        "https://not-the-captured-shop.myshopify.com",
+    );
+    let unknown_store_response = unknown_store.process_request(standard_definition_request(
+        "2026-04",
+        STANDARD_TEMPLATE_CATALOG_QUERY,
+        standard_template_catalog_variables(2),
+    ));
+    assert_eq!(unknown_store_response.status, 200);
+    assert_eq!(
+        unknown_store_response.body["data"]["catalog"],
+        json!({
+            "edges": [],
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+
+    let mut uncaptured_version = standard_definition_snapshot_proxy();
+    let uncaptured_version_response =
+        uncaptured_version.process_request(standard_definition_request(
+            "2025-10",
+            STANDARD_TEMPLATE_CATALOG_QUERY,
+            standard_template_catalog_variables(2),
+        ));
+    assert_eq!(uncaptured_version_response.status, 200);
+    assert_eq!(
+        uncaptured_version_response.body["data"]["catalog"]["nodes"],
+        json!([])
+    );
+}
+
+#[test]
+fn standard_metafield_definition_template_catalog_filters_and_pages_with_captured_cursors() {
+    let mut proxy = standard_definition_snapshot_proxy();
+
+    let mut after_variables = standard_template_catalog_variables(3);
+    after_variables["after"] = json!("eyJsYXN0X2lkIjoyLCJsYXN0X3ZhbHVlIjoyfQ==");
+    let after = proxy.process_request(standard_definition_request(
+        "2026-04",
+        STANDARD_TEMPLATE_CATALOG_QUERY,
+        after_variables,
+    ));
+    let after_catalog = &after.body["data"]["catalog"];
+    assert_eq!(
+        after_catalog["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| node["id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec![
+            "gid://shopify/StandardMetafieldDefinitionTemplate/3",
+            "gid://shopify/StandardMetafieldDefinitionTemplate/4",
+            "gid://shopify/StandardMetafieldDefinitionTemplate/5"
+        ]
+    );
+    assert_eq!(after_catalog["pageInfo"]["hasPreviousPage"], json!(true));
+
+    let mut reverse_variables = standard_template_catalog_variables(2);
+    reverse_variables["reverse"] = json!(true);
+    let reversed = proxy.process_request(standard_definition_request(
+        "2026-04",
+        STANDARD_TEMPLATE_CATALOG_QUERY,
+        reverse_variables,
+    ));
+    assert_eq!(
+        reversed.body["data"]["catalog"]["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| node["id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec![
+            "gid://shopify/StandardMetafieldDefinitionTemplate/19831",
+            "gid://shopify/StandardMetafieldDefinitionTemplate/19830"
+        ]
+    );
+
+    let mut subtype_variables = standard_template_catalog_variables(3);
+    subtype_variables["constraintStatus"] = json!("CONSTRAINED_ONLY");
+    subtype_variables["constraintSubtype"] = json!({"key": "category", "value": "aa-2"});
+    let subtype = proxy.process_request(standard_definition_request(
+        "2026-04",
+        STANDARD_TEMPLATE_CATALOG_QUERY,
+        subtype_variables,
+    ));
+    assert_eq!(
+        subtype.body["data"]["catalog"]["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| node["id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec![
+            "gid://shopify/StandardMetafieldDefinitionTemplate/10001",
+            "gid://shopify/StandardMetafieldDefinitionTemplate/10004",
+            "gid://shopify/StandardMetafieldDefinitionTemplate/10030"
+        ]
+    );
+
+    let mut exclude_variables = standard_template_catalog_variables(3);
+    exclude_variables["constraintStatus"] = json!("CONSTRAINED_ONLY");
+    exclude_variables["excludeActivated"] = json!(true);
+    let excluded = proxy.process_request(standard_definition_request(
+        "2026-04",
+        STANDARD_TEMPLATE_CATALOG_QUERY,
+        exclude_variables,
+    ));
+    assert_eq!(
+        excluded.body["data"]["catalog"]["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| node["id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec![
+            "gid://shopify/StandardMetafieldDefinitionTemplate/10005",
+            "gid://shopify/StandardMetafieldDefinitionTemplate/10015",
+            "gid://shopify/StandardMetafieldDefinitionTemplate/10017"
+        ]
+    );
+
+    let backward = proxy.process_request(standard_definition_request(
+        "2026-04",
+        STANDARD_TEMPLATE_CATALOG_QUERY,
+        json!({
+            "first": null,
+            "after": null,
+            "last": 1,
+            "before": "eyJsYXN0X2lkIjozLCJsYXN0X3ZhbHVlIjozfQ==",
+            "reverse": false,
+            "excludeActivated": false,
+            "constraintStatus": "CONSTRAINED_AND_UNCONSTRAINED",
+            "constraintSubtype": null
+        }),
+    ));
+    assert_eq!(
+        backward.body["data"]["catalog"]["nodes"][0]["id"],
+        json!("gid://shopify/StandardMetafieldDefinitionTemplate/2")
+    );
+    assert_eq!(
+        backward.body["data"]["catalog"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": true,
+            "startCursor": "eyJsYXN0X2lkIjoyLCJsYXN0X3ZhbHVlIjoyfQ==",
+            "endCursor": "eyJsYXN0X2lkIjoyLCJsYXN0X3ZhbHVlIjoyfQ=="
+        })
+    );
+}
+
+#[test]
+fn standard_metafield_definition_template_catalog_live_hybrid_reuses_one_request() {
+    let transport_calls = Arc::new(AtomicUsize::new(0));
+    let calls = Arc::clone(&transport_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            assert!(request
+                .body
+                .contains("standardMetafieldDefinitionTemplates"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "firstCatalog": {
+                            "nodes": [{
+                                "id": "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+                                "namespace": "descriptors",
+                                "key": "subtitle"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": false,
+                                "startCursor": "opaque-first",
+                                "endCursor": "opaque-first"
+                            }
+                        },
+                        "secondCatalog": {
+                            "nodes": [{
+                                "id": "gid://shopify/StandardMetafieldDefinitionTemplate/2",
+                                "namespace": "descriptors",
+                                "key": "care_guide"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": false,
+                                "startCursor": "opaque-second",
+                                "endCursor": "opaque-second"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+    let response = proxy.process_request(standard_definition_request(
+        "2026-04",
+        r#"
+        query AliasedStandardTemplateCatalogs {
+          firstCatalog: standardMetafieldDefinitionTemplates(first: 1) {
+            ...CatalogPage
+          }
+          secondCatalog: standardMetafieldDefinitionTemplates(first: 1, after: "opaque-first") {
+            ...CatalogPage
+          }
+        }
+        fragment CatalogPage on StandardMetafieldDefinitionTemplateConnection {
+          nodes { id namespace key }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["firstCatalog"]["nodes"][0]["key"],
+        json!("subtitle")
+    );
+    assert_eq!(
+        response.body["data"]["secondCatalog"]["nodes"][0]["key"],
+        json!("care_guide")
+    );
+    assert_eq!(transport_calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn standard_metafield_definition_template_catalog_rejects_last_without_before() {
+    let mut proxy = standard_definition_snapshot_proxy();
+    let response = proxy.process_request(standard_definition_request(
+        "2026-04",
+        r#"
+        query InvalidBackwardCatalog {
+          standardMetafieldDefinitionTemplates(last: 2, excludeActivated: false) {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"], Value::Null);
+    assert_eq!(
+        response.body["errors"][0],
+        json!({
+            "message": "using last without before is not supported",
+            "locations": [{"line": 3, "column": 11}],
+            "path": ["standardMetafieldDefinitionTemplates"],
+            "extensions": {"code": "BAD_REQUEST"}
+        })
+    );
+}
+
+#[test]
+fn standard_metafield_definition_enable_resolves_both_captured_versions() {
+    for api_version in ["2025-01", "2026-04"] {
+        let mut proxy = standard_definition_snapshot_proxy();
+        let response = proxy.process_request(standard_definition_request(
+            api_version,
+            r#"
+            mutation EnableVersionScopedTemplate {
+              standardMetafieldDefinitionEnable(
+                ownerType: PRODUCT
+                id: "gid://shopify/StandardMetafieldDefinitionTemplate/29"
+              ) {
+                createdDefinition {
+                  namespace
+                  key
+                  name
+                  access { admin storefront customerAccount }
+                  standardTemplate { id namespace key ownerTypes }
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(response.status, 200, "{api_version}");
+        assert_eq!(
+            response.body["data"]["standardMetafieldDefinitionEnable"],
+            json!({
+                "createdDefinition": {
+                    "namespace": "shopify",
+                    "key": "unavailable_reason",
+                    "name": "Unavailable reason",
+                    "access": {
+                        "admin": "PUBLIC_READ_WRITE",
+                        "storefront": "NONE",
+                        "customerAccount": "NONE"
+                    },
+                    "standardTemplate": {
+                        "id": "gid://shopify/StandardMetafieldDefinitionTemplate/29",
+                        "namespace": "shopify",
+                        "key": "unavailable_reason",
+                        "ownerTypes": ["PRODUCT"]
+                    }
+                },
+                "userErrors": []
+            }),
+            "{api_version}"
+        );
+    }
+}
+
+#[test]
+fn standard_metafield_definition_enable_live_hybrid_hydrates_one_id_once_per_request() {
+    let transport_calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let calls = Arc::clone(&transport_calls);
+    let mut proxy = configured_proxy_with_admin_origin(
+        ReadMode::LiveHybrid,
+        None,
+        "https://harry-test-heelo.myshopify.com",
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        let operation_name = body["operationName"].as_str().unwrap().to_string();
+        calls.lock().unwrap().push(operation_name.clone());
+        let response_body = match operation_name.as_str() {
+            "DraftProxyStandardMetafieldTemplateById" => {
+                assert_eq!(
+                    body["variables"]["id"],
+                    json!("gid://shopify/StandardMetafieldDefinitionTemplate/1")
+                );
+                json!({
+                    "data": {
+                        "node": {
+                            "__typename": "StandardMetafieldDefinitionTemplate",
+                            "id": "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+                            "namespace": "descriptors",
+                            "key": "subtitle",
+                            "name": "Product subtitle",
+                            "description": "Used as a shorthand for a product name",
+                            "ownerTypes": ["PRODUCT", "PRODUCTVARIANT"],
+                            "type": {"name": "single_line_text_field", "category": "TEXT"},
+                            "validations": [{"name": "max", "value": "70"}],
+                            "visibleToStorefrontApi": true
+                        }
+                    }
+                })
+            }
+            "MetafieldDefinitionsHydrateByNamespace" => json!({
+                "data": {
+                    "metafieldDefinitions": {
+                        "nodes": [],
+                        "pageInfo": {"hasNextPage": false, "endCursor": null}
+                    }
+                }
+            }),
+            other => panic!("unexpected hydration operation {other}"),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation HydrateOneTemplateOnce {
+          first: standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            id: "gid://shopify/StandardMetafieldDefinitionTemplate/1"
+          ) {
+            createdDefinition { id namespace key name validations { name value } }
+            userErrors { field message code }
+          }
+          second: standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            id: "gid://shopify/StandardMetafieldDefinitionTemplate/1"
+          ) {
+            createdDefinition { id namespace key name validations { name value } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["first"]["userErrors"], json!([]));
+    assert_eq!(response.body["data"]["second"]["userErrors"], json!([]));
+    assert_eq!(
+        response.body["data"]["first"]["createdDefinition"],
+        response.body["data"]["second"]["createdDefinition"]
+    );
+    assert_eq!(
+        *transport_calls.lock().unwrap(),
+        vec![
+            "DraftProxyStandardMetafieldTemplateById",
+            "MetafieldDefinitionsHydrateByNamespace"
+        ]
+    );
+}
+
+#[test]
+fn standard_metafield_definition_enable_live_hybrid_caches_authoritative_misses() {
+    let transport_calls = Arc::new(AtomicUsize::new(0));
+    let calls = Arc::clone(&transport_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"node": null}}),
+            }
+        });
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation HydrateMissingTemplateOnce {
+          first: standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            id: "gid://shopify/StandardMetafieldDefinitionTemplate/999999999"
+          ) { createdDefinition { id } userErrors { field message code } }
+          second: standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            id: "gid://shopify/StandardMetafieldDefinitionTemplate/999999999"
+          ) { createdDefinition { id } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    for response_key in ["first", "second"] {
+        assert_eq!(
+            response.body["data"][response_key]["userErrors"],
+            json!([{
+                "field": ["id"],
+                "message": "Id is not a valid standard metafield definition template id",
+                "code": "TEMPLATE_NOT_FOUND"
+            }])
+        );
+    }
+    assert_eq!(transport_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn standard_metafield_definition_enable_does_not_cache_hydration_failures_as_missing() {
+    let transport_calls = Arc::new(AtomicUsize::new(0));
+    let calls = Arc::clone(&transport_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Response {
+                status: 502,
+                headers: Default::default(),
+                body: json!({"errors": [{"message": "upstream unavailable"}]}),
+            }
+        });
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RetryFailedTemplateHydration {
+          first: standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            id: "gid://shopify/StandardMetafieldDefinitionTemplate/1"
+          ) { createdDefinition { id } userErrors { field message code } }
+          second: standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            id: "gid://shopify/StandardMetafieldDefinitionTemplate/1"
+          ) { createdDefinition { id } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    for response_key in ["first", "second"] {
+        assert_eq!(
+            response.body["data"][response_key]["userErrors"],
+            json!([{
+                "field": ["id"],
+                "message": "Standard definition template availability is unavailable for this shop and API version.",
+                "code": "TEMPLATE_NOT_FOUND"
+            }])
+        );
+    }
+    assert_eq!(transport_calls.load(Ordering::SeqCst), 2);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn standard_metafield_definition_enable_read_reset_and_commit_preserve_lifecycle_order() {
+    let replayed = Arc::new(Mutex::new(Vec::<String>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
+    let mut proxy = standard_definition_snapshot_proxy().with_commit_transport(move |request| {
+        replayed_for_transport.lock().unwrap().push(request.body);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "standardMetafieldDefinitionEnable": {
+                        "createdDefinition": {"id": "gid://shopify/MetafieldDefinition/authoritative"},
+                        "userErrors": []
+                    }
+                }
+            }),
+        }
+    });
+    let enable = |id: &str| {
+        json_graphql_request(
+            r#"
+            mutation EnableLifecycleTemplate($id: ID!) {
+              standardMetafieldDefinitionEnable(ownerType: PRODUCT, id: $id) {
+                createdDefinition {
+                  id
+                  namespace
+                  key
+                  standardTemplate { id namespace key }
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({"id": id}),
+        )
+    };
+
+    let first = proxy.process_request(enable(
+        "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+    ));
+    let first_id = first.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        first.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]
+            ["standardTemplate"]["id"],
+        json!("gid://shopify/StandardMetafieldDefinitionTemplate/1")
+    );
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadEnabledTemplate($id: ID!) {
+          metafieldDefinition(id: $id) {
+            id namespace key standardTemplate { id namespace key }
+          }
+          available: standardMetafieldDefinitionTemplates(first: 1, excludeActivated: true) {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({"id": first_id}),
+    ));
+    assert_eq!(
+        read.body["data"]["metafieldDefinition"]["standardTemplate"]["id"],
+        json!("gid://shopify/StandardMetafieldDefinitionTemplate/1")
+    );
+    assert_eq!(
+        read.body["data"]["available"]["nodes"][0]["id"],
+        json!("gid://shopify/StandardMetafieldDefinitionTemplate/2")
+    );
+
+    let reset = proxy.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let after_reset = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadResetTemplate($id: ID!) {
+          metafieldDefinition(id: $id) { id }
+          available: standardMetafieldDefinitionTemplates(first: 1, excludeActivated: true) {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({"id": first_id}),
+    ));
+    assert_eq!(after_reset.body["data"]["metafieldDefinition"], Value::Null);
+    assert_eq!(
+        after_reset.body["data"]["available"]["nodes"][0]["id"],
+        json!("gid://shopify/StandardMetafieldDefinitionTemplate/1")
+    );
+
+    proxy.process_request(enable(
+        "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+    ));
+    proxy.process_request(enable(
+        "gid://shopify/StandardMetafieldDefinitionTemplate/2",
+    ));
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        log["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| {
+                serde_json::from_str::<Value>(entry["rawBody"].as_str().unwrap()).unwrap()
+                    ["variables"]["id"]
+                    .as_str()
+                    .unwrap()
+                    .to_string()
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+            "gid://shopify/StandardMetafieldDefinitionTemplate/2"
+        ]
+    );
+    let commit = proxy.process_request(request_with_body("POST", "/__meta/commit", ""));
+    assert_eq!(commit.status, 200);
+    assert_eq!(
+        replayed
+            .lock()
+            .unwrap()
+            .iter()
+            .map(
+                |body| serde_json::from_str::<Value>(body).unwrap()["variables"]["id"]
+                    .as_str()
+                    .unwrap()
+                    .to_string()
+            )
+            .collect::<Vec<_>>(),
+        vec![
+            "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+            "gid://shopify/StandardMetafieldDefinitionTemplate/2"
+        ]
+    );
+}
+
 #[test]
 fn standard_metafield_definition_enable_uses_template_registry_and_errors() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = standard_definition_snapshot_proxy();
 
     let missing_selector = proxy.process_request(json_graphql_request(
         r#"
@@ -4343,7 +5075,7 @@ fn standard_metafield_definition_enable_uses_template_registry_and_errors() {
 
 #[test]
 fn standard_metafield_definition_enable_supports_shopify_material_template() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = standard_definition_snapshot_proxy();
 
     let enabled = proxy.process_request(json_graphql_request(
         r#"
@@ -4405,8 +5137,75 @@ fn standard_metafield_definition_enable_supports_shopify_material_template() {
 }
 
 #[test]
-fn standard_metafield_definition_enable_accepts_catalog_template_id_for_fabric() {
-    let mut proxy = snapshot_proxy();
+fn standard_metafield_definition_enable_uses_captured_color_pattern_metadata() {
+    let mut proxy = standard_definition_snapshot_proxy();
+
+    let enabled = proxy.process_request(standard_definition_request(
+        "2026-04",
+        r#"
+        mutation StandardMetafieldDefinitionEnableColorPattern {
+          standardMetafieldDefinitionEnable(ownerType: PRODUCT, namespace: "shopify", key: "color-pattern") {
+            createdDefinition {
+              namespace
+              key
+              ownerType
+              name
+              description
+              type { name category }
+              validations { name value }
+              constraints {
+                key
+                values(first: 5) { nodes { value } }
+              }
+              access { admin storefront customerAccount }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"],
+        json!({
+            "createdDefinition": {
+                "namespace": "shopify",
+                "key": "color-pattern",
+                "ownerType": "PRODUCT",
+                "name": "Color",
+                "description": "Defines the primary color or pattern, such as blue or striped",
+                "type": { "name": "list.metaobject_reference", "category": "REFERENCE" },
+                "validations": [{
+                    "name": "metaobject_definition_id",
+                    "value": "gid://shopify/MetaobjectDefinition/standard-color-pattern?shopify-draft-proxy=synthetic"
+                }],
+                "constraints": {
+                    "key": "category",
+                    "values": {
+                        "nodes": [
+                            { "value": "ap-2-1-1" },
+                            { "value": "ap-2-1-1-1" },
+                            { "value": "ap-2-1-1-2" },
+                            { "value": "ap-2-1-1-2-1" },
+                            { "value": "ap-2-1-1-2-2" }
+                        ]
+                    }
+                },
+                "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "PUBLIC_READ",
+                    "customerAccount": "NONE"
+                }
+            },
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn standard_metafield_definition_enable_does_not_invent_uncaptured_constrained_metadata() {
+    let mut proxy = standard_definition_snapshot_proxy();
 
     let enabled = proxy.process_request(json_graphql_request(
         r#"
@@ -4432,38 +5231,17 @@ fn standard_metafield_definition_enable_accepts_catalog_template_id_for_fabric()
     ));
 
     assert_eq!(
-        enabled.body["data"]["standardMetafieldDefinitionEnable"]["userErrors"],
-        json!([])
+        enabled.body["data"]["standardMetafieldDefinitionEnable"],
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Standard definition enablement metadata is unavailable for this shop and API version.",
+                "code": "TEMPLATE_NOT_FOUND"
+            }]
+        })
     );
-    assert_eq!(
-        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]["namespace"],
-        json!("shopify")
-    );
-    assert_eq!(
-        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]["key"],
-        json!("fabric")
-    );
-    assert_eq!(
-        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]["name"],
-        json!("Fabric")
-    );
-    assert_eq!(
-        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]["type"],
-        json!({ "name": "list.metaobject_reference", "category": "REFERENCE" })
-    );
-    assert_eq!(
-        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]
-            ["validations"],
-        json!([{
-            "name": "metaobject_definition_id",
-            "value": "gid://shopify/MetaobjectDefinition/standard-fabric?shopify-draft-proxy=synthetic"
-        }])
-    );
-    assert_eq!(
-        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]
-            ["constraints"],
-        json!({ "key": "category", "values": { "nodes": [] } })
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]

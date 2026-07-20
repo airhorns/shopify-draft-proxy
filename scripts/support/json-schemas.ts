@@ -211,6 +211,7 @@ export type ParityComparisonMode = z.infer<typeof parityComparisonModeSchema>;
 
 export const parityProxyConfigSchema = z.strictObject({
   readMode: z.enum(['snapshot', 'live-hybrid', 'passthrough']).optional(),
+  shopifyAdminOrigin: z.string().url().optional(),
 });
 export type ParityProxyConfig = z.infer<typeof parityProxyConfigSchema>;
 

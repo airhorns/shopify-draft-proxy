@@ -21159,7 +21159,7 @@ fn online_store_content_validation_branches_do_not_stage() {
 
 #[test]
 fn standard_metaobject_definition_enable_stages_catalog_definition_and_meta_surfaces() {
-    let mut proxy = snapshot_proxy().with_upstream_transport(|_| {
+    let mut proxy = standard_definition_snapshot_proxy().with_upstream_transport(|_| {
         panic!("standard metaobject definition enable should stay local")
     });
     let enable_query = r#"
@@ -21332,7 +21332,7 @@ fn standard_metaobject_definition_enable_stages_catalog_definition_and_meta_surf
 
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
     assert_eq!(dump.status, 200);
-    let mut restored = snapshot_proxy();
+    let mut restored = standard_definition_snapshot_proxy();
     let restore = restored.process_request(request_with_body(
         "POST",
         "/__meta/restore",
@@ -21368,6 +21368,80 @@ fn standard_metaobject_definition_enable_stages_catalog_definition_and_meta_surf
         Value::Null
     );
     assert_eq!(after_reset.body["data"]["node"], Value::Null);
+}
+
+#[test]
+fn standard_metaobject_definition_enable_is_version_and_context_scoped() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let query = r#"
+        mutation EnableVersionScopedStandardMetaobject {
+          standardMetaobjectDefinitionEnable(type: "shopify--qa-pair") {
+            metaobjectDefinition { type name standardTemplate { type name } }
+            userErrors { field message code }
+          }
+        }
+        "#;
+    for api_version in ["2025-01", "2026-04"] {
+        let mut proxy = standard_definition_snapshot_proxy();
+        let mut request = json_graphql_request(query, json!({}));
+        request.path = format!("/admin/api/{api_version}/graphql.json");
+        let response = proxy.process_request(request);
+        assert_eq!(response.status, 200, "{api_version}");
+        assert_eq!(
+            response.body["data"]["standardMetaobjectDefinitionEnable"],
+            json!({
+                "metaobjectDefinition": {
+                    "type": "shopify--qa-pair",
+                    "name": "Question and Answer Pairs",
+                    "standardTemplate": {
+                        "type": "shopify--qa-pair",
+                        "name": "Question and Answer Pairs"
+                    }
+                },
+                "userErrors": []
+            }),
+            "{api_version}"
+        );
+    }
+
+    let mut unknown_context = snapshot_proxy();
+    let response = unknown_context.process_request(json_graphql_request(query, json!({})));
+    assert_eq!(
+        response.body["data"]["standardMetaobjectDefinitionEnable"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["type"],
+                "message": "Standard definition template availability is unavailable for this shop and API version.",
+                "code": "RECORD_NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&unknown_context)["entries"], json!([]));
+
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let calls = Arc::clone(&upstream_calls);
+    let mut live_hybrid = configured_proxy_with_admin_origin(
+        ReadMode::LiveHybrid,
+        None,
+        "https://harry-test-heelo.myshopify.com",
+    )
+    .with_upstream_transport(move |_| {
+        calls.fetch_add(1, Ordering::SeqCst);
+        Response {
+            status: 500,
+            headers: Default::default(),
+            body: json!({"errors": [{"message": "unexpected upstream request"}]}),
+        }
+    });
+    let response = live_hybrid.process_request(json_graphql_request(query, json!({})));
+    assert_eq!(
+        response.body["data"]["standardMetaobjectDefinitionEnable"]["userErrors"][0]["message"],
+        json!("Standard definition template availability is unavailable for this shop and API version.")
+    );
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(log_snapshot(&live_hybrid)["entries"], json!([]));
 }
 
 #[test]

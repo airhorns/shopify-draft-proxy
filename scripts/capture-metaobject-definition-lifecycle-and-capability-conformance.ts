@@ -519,5 +519,13 @@ async function captureCapabilityNotEnabled(): Promise<void> {
 }
 
 await mkdir(outputDir, { recursive: true });
-await captureDefinitionLifecycle();
-await captureCapabilityNotEnabled();
+const captureSelection = process.argv[2] ?? 'all';
+if (!['all', 'lifecycle', 'capability'].includes(captureSelection)) {
+  throw new Error(`Unknown capture selection ${captureSelection}; expected all, lifecycle, or capability.`);
+}
+if (captureSelection === 'all' || captureSelection === 'lifecycle') {
+  await captureDefinitionLifecycle();
+}
+if (captureSelection === 'all' || captureSelection === 'capability') {
+  await captureCapabilityNotEnabled();
+}

@@ -14,6 +14,10 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/standard-metafield-definition-enable-validation.json"
   ],
+  "proxyConfig": {
+    "readMode": "snapshot",
+    "shopifyAdminOrigin": "https://harry-test-heelo.myshopify.com"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-validation.graphql",
     "variablesCapturePath": "$.validation[2].request.variables"

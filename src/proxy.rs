@@ -2639,6 +2639,8 @@ struct ExecutionSession {
     node_hydration: Option<RequestNodeHydration>,
     owner_metafield_read_ids: BTreeSet<String>,
     owner_metafield_missing_ids: BTreeSet<String>,
+    standard_metafield_template_hydration:
+        BTreeMap<String, Option<StandardMetafieldDefinitionTemplate>>,
     entity_cache: RequestEntityCache,
 }
 
@@ -2736,6 +2738,7 @@ mod routing;
 mod scalar_helpers;
 mod search;
 mod selling_plans;
+mod standard_definition_templates;
 mod store_properties;
 mod storefront;
 mod storefront_cart;
@@ -2774,6 +2777,7 @@ pub(in crate::proxy) use self::resolved_values::*;
 pub(in crate::proxy) use self::resource_ids::*;
 pub(in crate::proxy) use self::routing::*;
 pub(in crate::proxy) use self::scalar_helpers::*;
+pub(in crate::proxy) use self::standard_definition_templates::*;
 pub(in crate::proxy) use self::store_properties::*;
 pub(in crate::proxy) use self::validation_helpers::*;
 

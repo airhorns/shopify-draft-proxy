@@ -7,6 +7,10 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/standard-metafield-definition-enable-error-branches.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
+  "proxyConfig": {
+    "readMode": "snapshot",
+    "shopifyAdminOrigin": "https://harry-test-heelo.myshopify.com"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-smart-capability.graphql",
     "apiVersion": "2026-04"

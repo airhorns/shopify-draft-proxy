@@ -3308,6 +3308,56 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'standard-definition-template-resolution-2025-01',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-standard-definition-template-resolution.mts',
+    purpose:
+      'Version- and shop-context-scoped standardMetafieldDefinitionTemplates catalog, filtering, pagination, material/color-pattern enablement, downstream reads, and unknown-template behavior.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}standard-definition-template-resolution.json`,
+      'config/parity-specs/metafields/standard-definition-template-resolution-2025-01.json',
+      'config/parity-requests/metafields/standard-definition-template-resolution.graphql',
+      'config/parity-requests/metafields/standard-definition-template-invalid-backward.graphql',
+      'config/parity-requests/metafields/standard-definition-template-material-enable.graphql',
+      'config/parity-requests/metafields/standard-definition-template-material-read.graphql',
+      'config/parity-requests/metafields/standard-definition-template-color-pattern-enable.graphql',
+      'config/parity-requests/metafields/standard-definition-template-color-pattern-read.graphql',
+      'config/parity-requests/metafields/standard-definition-template-unknown-enable.graphql',
+    ],
+    cleanupBehavior:
+      'Performs read-only catalog capture, idempotently re-enables material/color-pattern definitions, and deletes color-pattern only when the recorder created it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Only the configured public conformance shop is available; the fixture explicitly records the missing second-shop/beta-context boundary.',
+  },
+  {
+    domain: 'metafields',
+    captureId: 'standard-definition-template-resolution-2026-04',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-standard-definition-template-resolution.mts',
+    purpose:
+      'Version- and shop-context-scoped standardMetafieldDefinitionTemplates catalog, filtering, pagination, material/color-pattern enablement, downstream reads, and unknown-template behavior.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}standard-definition-template-resolution.json`,
+      'config/parity-specs/metafields/standard-definition-template-resolution-2026-04.json',
+      'config/parity-requests/metafields/standard-definition-template-resolution.graphql',
+      'config/parity-requests/metafields/standard-definition-template-invalid-backward.graphql',
+      'config/parity-requests/metafields/standard-definition-template-material-enable.graphql',
+      'config/parity-requests/metafields/standard-definition-template-material-read.graphql',
+      'config/parity-requests/metafields/standard-definition-template-color-pattern-enable.graphql',
+      'config/parity-requests/metafields/standard-definition-template-color-pattern-read.graphql',
+      'config/parity-requests/metafields/standard-definition-template-unknown-enable.graphql',
+    ],
+    cleanupBehavior:
+      'Performs read-only catalog capture, idempotently re-enables material/color-pattern definitions, and deletes color-pattern only when the recorder created it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Only the configured public conformance shop is available; the fixture explicitly records the missing second-shop/beta-context boundary.',
+  },
+  {
+    domain: 'metafields',
     captureId: 'standard-metafield-definition-enable-reenable-idempotent',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-standard-metafield-definition-enable-reenable-idempotent.mts',
@@ -4333,6 +4383,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}metaobject-capability-not-enabled.json`,
       'config/parity-specs/metaobjects/metaobject-definition-lifecycle-local-staging.json',
       'config/parity-specs/metaobjects/metaobject_capability_not_enabled.json',
+      'config/parity-requests/metaobjects/metaobject-definition-lifecycle-read.graphql',
+      'config/parity-requests/metaobjects/metaobject-definition-lifecycle-read-deleted.graphql',
     ],
     cleanupBehavior:
       'Creates disposable metaobject definitions and one entry, temporarily enables a standard definition, then deletes every created row and definition during cleanup.',
@@ -4728,6 +4780,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'standard-metaobject-definition-enable-catalog-2025-01',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-standard-metaobject-template-catalog-conformance.ts',
+    purpose:
+      '2025-01 standard metaobject definition template catalog, successful enablement, unknown-template RECORD_NOT_FOUND, idempotent duplicate enable, and read-after-enable behavior.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}standard-metaobject-templates.json`,
+      `${CAPTURE_ROOT}standard-metaobject-definition-enable-catalog.json`,
+      'config/parity-specs/metaobjects/standard-metaobject-definition-enable-catalog-2025-01.json',
+      'config/parity-requests/metaobjects/standard-metaobject-definition-enable-catalog.graphql',
+      'config/parity-requests/metaobjects/standard-metaobject-definition-enable-read.graphql',
+    ],
+    cleanupBehavior:
+      'Enables missing standard definitions on the disposable shop and deletes only definitions created by this capture; pre-existing definitions are preserved.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Only the configured public conformance shop is available; no second shop or beta-flag context is synthesized.',
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'standard-metaobject-definition-enable-catalog',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-standard-metaobject-template-catalog-conformance.ts',
@@ -4742,7 +4815,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/metaobjects/standard-metaobject-definition-enable-read.graphql',
     ],
     cleanupBehavior:
-      'Temporarily enables standard definitions on the disposable shop, captures their payloads, and deletes every created definition after capture.',
+      'Enables missing standard definitions on the disposable shop and deletes only definitions created by this capture; pre-existing definitions are preserved.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

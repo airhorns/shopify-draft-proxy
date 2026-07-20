@@ -1,0 +1,16 @@
+mutation StandardDefinitionTemplateUnknownEnable {
+  standardMetafieldDefinitionEnable(
+    ownerType: PRODUCT
+    namespace: "missing_standard_context"
+    key: "missing_template"
+  ) {
+    createdDefinition {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

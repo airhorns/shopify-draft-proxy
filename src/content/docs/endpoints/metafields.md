@@ -11,6 +11,7 @@ The metafield definition slice supports the Admin GraphQL read roots:
 
 - `metafieldDefinition(identifier:)`
 - `metafieldDefinitions(ownerType:, first:, after:, reverse:, sortKey:, query:, namespace:, key:, pinnedStatus:, constraintStatus:, constraintSubtype:)`
+- `standardMetafieldDefinitionTemplates(first:, after:, last:, before:, reverse:, excludeActivated:, constraintStatus:, constraintSubtype:)`
 
 In LiveHybrid, cold definition detail/catalog reads use passthrough when the local definition model has no staged or deleted definition state to overlay. Once a scenario stages, hydrates, or deletes metafield definitions, downstream reads stay local so read-after-write and read-after-delete behavior does not leak back to Shopify. Those local reads merge the hydrated upstream baseline with staged creates, staged updates, and tombstones before applying filters, sorting, cursor pagination, aliases, and `pageInfo`; a deleted upstream definition is hidden from later detail/list/count reads while unrelated upstream definitions remain visible. Hydration completeness is explicit at the owner-catalog and namespace slice level, so observing or staging one definition does not make the proxy treat that owner type or namespace as fully known. In snapshot mode, missing singular definitions return `null`, and catalog misses return a non-null empty connection with empty `nodes` / `edges` and falsey `pageInfo`.
 
@@ -84,15 +85,17 @@ Scalar value fidelity for product-owned `metafieldsSet` follows captured Shopify
 
 The fixture documents excluded product-owned metafield types instead of adding placeholders. Exclusions are types that require separate definition-backed or resource-specific setup outside this disposable product matrix: `id`, `list.id`, metaobject/mixed references, company/customer/file/page/article/order/product-taxonomy references, and their list variants. Metaobject-owned `id`, metaobject reference, and mixed reference field values are covered by the metaobject matrix.
 
-### Standard metafield definition enablement
+### Standard template catalog and enablement
 
-`standardMetafieldDefinitionEnable` stages a normalized metafield definition locally from the checked-in standard template catalog in `src/proxy/standard_metafield_definition_templates.json`. The catalog is captured from `standardMetafieldDefinitionTemplates(first: 250, excludeActivated: false)` on the 2025-01 conformance shop and supports both template `id` selectors and `namespace` / `key` selectors across the captured catalog.
+`standardMetafieldDefinitionTemplates` and `standardMetafieldDefinitionEnable` resolve through the same shop- and API-version-scoped catalog. Snapshot mode has captured catalogs for `harry-test-heelo.myshopify.com` on Admin API 2025-01 and 2026-04. In those contexts, the read root returns captured template metadata and opaque cursors while applying `excludeActivated`, `constraintStatus`, the proven `constraintSubtype` slice, `reverse`, and forward or backward pagination. Aliases, fragments, directives, and output projection remain GraphQL-engine behavior. `last` without `before` returns Shopify's top-level `BAD_REQUEST` branch.
+
+Snapshot requests for another shop, an uncaptured API version, or an unproven constraint subtype return an empty connection instead of treating a template from another context as eligible. LiveHybrid never substitutes a Snapshot capture: catalog reads forward the caller's complete read document once and preserve Shopify's payload and cursors. For a standard-enable ID selector, LiveHybrid performs one request-scoped, cached `node(id:)` template lookup and then the existing namespace-scoped definition check; authoritative misses are cached too, while transport and GraphQL failures remain retryable context-unavailable results. Namespace/key selectors are not expanded into an unbounded catalog scan when the shop/version context is unknown.
 
 Successful local enablement:
 
 - creates a staged `MetafieldDefinition` record without sending the mutation to Shopify when no definition exists for the template's owner/namespace/key
 - re-enabling an already-present template returns the existing definition id and merges only supplied update params into that staged record
-- supports `id` or `namespace` / `key` template selection for the captured template catalog
+- supports `id` or `namespace` / `key` selection when the requested context contains complete enablement metadata for that template
 - applies `ownerType`, selected `access`, selected `capabilities`, and `pin`
 - derives standard-template validations and constraints from template metadata; Shopify product-attribute templates such as `shopify.material` stage a `list.metaobject_reference` definition with a synthetic `metaobject_definition_id` validation plus category constraints instead of a per-key hardcode
 - rejects ineligible capability inputs before staging, using the same captured `INVALID_CAPABILITY` branch as definition create/update but with standard-enable field paths
@@ -106,6 +109,9 @@ Successful local enablement:
 - when pin validation passes, assigns the next owner-type pinned position after any existing pinned definitions, matching the local pinning/create rule instead of reusing position `1`
 - returns a Shopify-like `createdDefinition` payload
 - makes downstream `metafieldDefinition(identifier:)` and `metafieldDefinitions(...)` reads observe the staged definition
+- exposes the matching `standardTemplate` metadata on the mutation payload and downstream definition read
+
+Catalog visibility is not by itself proof that a constrained template can be enabled faithfully. The 2026-04 Snapshot catalog therefore returns an explicit `TEMPLATE_NOT_FOUND` context-metadata error for constrained templates without captured validations/constraint values instead of borrowing 2025-01 enrichment. The captured `shopify.material` branch has complete 2026-04 metadata and remains locally enableable.
 
 `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/standard-metafield-definition-enable-validation.json` captures standard metafield definition enablement validation:
 
@@ -188,7 +194,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 
 ### Unsupported and registry-only boundaries
 
-- `standardMetafieldDefinitionTemplates` remains registry-only declaration coverage; `standardMetafieldDefinitionEnable` consumes the checked-in captured catalog and models a bounded template slice, but the catalog query root itself should not be treated as locally supported until it has executable read behavior and fixture-backed shape evidence.
+- Standard-template eligibility is proven for one public Admin shop context on API versions 2025-01 and 2026-04. No second-shop or beta-flag context is available, so Snapshot does not reuse these catalogs for another shop and the docs do not claim that absence or eligibility is universal.
 - Product, product variant, collection, customer, order, and company are the current fixture-backed shared `metafieldsSet` owner surface for definition-backed set/read success paths. PAGE, LOCATION, MARKET, and ARTICLE owner type payloads are captured for shared `metafieldsSet`; additional owner-family read-after-set behavior still needs capture-backed evidence before being claimed beyond definition lifecycle staging.
 - Definition lifecycle parity covers product-owner behavior plus non-product owner create/update/delete/read evidence. App-owned definitions, owner-specific access/capability quirks, non-product delete cascade behavior, and non-product owner families outside CUSTOMER/ORDER/COMPANY still need fresh conformance before support expands beyond normalized definition records.
 - CAS/userError coverage for `metafieldsSet` is product-owned fixture evidence. Reuse the atomic validation and downstream-read expectations, but do not assume other owner families have identical validation branches without capture.

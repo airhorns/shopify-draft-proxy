@@ -194,11 +194,6 @@ function definitionId(definition: unknown): string | null {
   return typeof id === 'string' ? id : null;
 }
 
-function definitionCount(definition: unknown): number {
-  const count = (definition as { metaobjectsCount?: unknown } | null | undefined)?.metaobjectsCount;
-  return typeof count === 'number' ? count : 0;
-}
-
 function stripInstanceFields(definition: unknown) {
   const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = definition as Record<string, unknown>;
   const fieldDefinitions = Array.isArray(rest['fieldDefinitions'])
@@ -234,37 +229,30 @@ async function main() {
   const unavailableCandidates: unknown[] = [];
   const catalogCaptures: unknown[] = [];
   const cleanupCaptures: unknown[] = [];
-
-  async function cleanupExisting(type: string) {
-    const existing = await graphql(existingDefinitionQuery, { type });
-    assertNoGraphqlErrors(existing.payload, `existing-${type}`);
-    const definition = definitionFromExisting(existing.payload);
-    const id = definitionId(definition);
-    if (id === null) return;
-    if (definitionCount(definition) > 0) {
-      throw new Error(`Existing definition for ${type} has metaobjectsCount > 0; refusing to delete test data.`);
-    }
-    const deleted = await graphql(deleteMutation, { id });
-    cleanupCaptures.push(capture(`preclean-${type}`, deleteMutation, { id }, deleted));
-    assertNoGraphqlErrors(deleted.payload, `preclean-${type}`);
-    assertNoUserErrors(deleted.payload, 'metaobjectDefinitionDelete', `preclean-${type}`);
-  }
+  const definitionsCreatedByCapture = new Set<string>();
 
   async function enableTemplate(name: string, type: string) {
-    await cleanupExisting(type);
+    const existing = await graphql(existingDefinitionQuery, { type });
+    assertNoGraphqlErrors(existing.payload, `existing-${type}`);
+    const existingId = definitionId(definitionFromExisting(existing.payload));
     const enabled = await graphql(enableMutation, { type });
     assertNoGraphqlErrors(enabled.payload, name);
+    if (existingId === null) {
+      const createdId = definitionId(definitionFromEnable(enabled.payload));
+      if (createdId !== null) definitionsCreatedByCapture.add(createdId);
+    }
     return enabled;
   }
 
   async function deleteCreated(name: string, definition: unknown) {
     const id = definitionId(definition);
-    if (id === null) return null;
+    if (id === null || !definitionsCreatedByCapture.has(id)) return null;
     const deleted = await graphql(deleteMutation, { id });
     const captured = capture(name, deleteMutation, { id }, deleted);
     cleanupCaptures.push(captured);
     assertNoGraphqlErrors(deleted.payload, name);
     assertNoUserErrors(deleted.payload, 'metaobjectDefinitionDelete', name);
+    definitionsCreatedByCapture.delete(id);
     return captured;
   }
 
@@ -337,7 +325,6 @@ async function main() {
     storeDomain: config.storeDomain,
     apiVersion: config.apiVersion,
     scenarioId: 'standard-metaobject-definition-enable-catalog',
-    issue: 'HAR-682',
     summary:
       'standardMetaobjectDefinitionEnable catalog, unknown-template RECORD_NOT_FOUND, idempotent duplicate enable, and read-after-enable behavior.',
     qaPair: capture('qaPair', enableMutation, { type: qaPairType }, qaPair),

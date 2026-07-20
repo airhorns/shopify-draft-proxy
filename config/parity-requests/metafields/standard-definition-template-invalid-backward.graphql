@@ -1,0 +1,7 @@
+query StandardDefinitionTemplateInvalidBackward($last: Int!) {
+  standardMetafieldDefinitionTemplates(last: $last, excludeActivated: false) {
+    nodes {
+      id
+    }
+  }
+}

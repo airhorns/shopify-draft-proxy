@@ -1,5 +1,4 @@
 use super::*;
-use std::sync::OnceLock;
 
 pub(in crate::proxy) fn metaobject_field_resolver_registrations() -> Vec<FieldResolverRegistration>
 {
@@ -151,6 +150,7 @@ struct MetaobjectRootInput {
     name: String,
     response_key: String,
     location: SourceLocation,
+    api_version: String,
     arguments: BTreeMap<String, ResolvedValue>,
 }
 
@@ -164,6 +164,7 @@ impl DraftProxy {
             request,
             root_name,
             root_location,
+            api_version,
             arguments,
             ..
         } = invocation;
@@ -171,6 +172,7 @@ impl DraftProxy {
             name: root_name.to_string(),
             response_key: response_key.to_string(),
             location: root_location,
+            api_version: api_version.as_str().to_string(),
             arguments: resolved_arguments_from_json(&arguments),
         };
         if self.config.read_mode != ReadMode::Snapshot {
@@ -190,6 +192,7 @@ impl DraftProxy {
             query,
             root_name,
             root_location,
+            api_version,
             arguments,
             ..
         } = invocation;
@@ -197,6 +200,7 @@ impl DraftProxy {
             name: root_name.to_string(),
             response_key: response_key.to_string(),
             location: root_location,
+            api_version: api_version.as_str().to_string(),
             arguments: resolved_arguments_from_json(&arguments),
         };
         if self.metaobject_mutation_is_local(&field) {
@@ -208,27 +212,6 @@ impl DraftProxy {
             self.cached_or_forward_upstream_root_outcome(request, response_key)
         }
     }
-}
-
-const STANDARD_METAOBJECT_TEMPLATES_FIXTURE: &str = include_str!(
-    "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/standard-metaobject-templates.json"
-);
-
-static STANDARD_METAOBJECT_TEMPLATE_CATALOG: OnceLock<Value> = OnceLock::new();
-
-fn standard_metaobject_template_catalog() -> &'static Value {
-    STANDARD_METAOBJECT_TEMPLATE_CATALOG.get_or_init(|| {
-        serde_json::from_str(STANDARD_METAOBJECT_TEMPLATES_FIXTURE)
-            .expect("standard metaobject template catalog must be valid JSON")
-    })
-}
-
-fn standard_metaobject_definition_template(meta_type: &str) -> Option<&'static Value> {
-    standard_metaobject_template_catalog()
-        .get("templates")
-        .and_then(Value::as_array)?
-        .iter()
-        .find(|template| template.get("type").and_then(Value::as_str) == Some(meta_type))
 }
 
 fn standard_metaobject_definition_from_template(
@@ -4954,16 +4937,31 @@ impl DraftProxy {
             }));
         }
 
-        let Some(template) = standard_metaobject_definition_template(&meta_type) else {
-            return self.metaobject_definition_payload_canonical_value(json!({
+        let template = match self
+            .resolved_standard_metaobject_template(&field.api_version, &meta_type)
+        {
+            StandardMetaobjectTemplateResolution::Found(template) => template,
+            StandardMetaobjectTemplateResolution::NotFound => {
+                return self.metaobject_definition_payload_canonical_value(json!({
                     "metaobjectDefinition": null,
                     "userErrors": [metaobject_field_error(vec!["type"], "Record not found", "RECORD_NOT_FOUND")]
                 }));
+            }
+            StandardMetaobjectTemplateResolution::ContextUnavailable => {
+                return self.metaobject_definition_payload_canonical_value(json!({
+                    "metaobjectDefinition": null,
+                    "userErrors": [metaobject_field_error(
+                        vec!["type"],
+                        "Standard definition template availability is unavailable for this shop and API version.",
+                        "RECORD_NOT_FOUND"
+                    )]
+                }));
+            }
         };
 
         let id = self.next_proxy_synthetic_gid("MetaobjectDefinition");
         let timestamp = self.next_mutation_timestamp();
-        let definition = standard_metaobject_definition_from_template(&id, template, &timestamp);
+        let definition = standard_metaobject_definition_from_template(&id, &template, &timestamp);
         self.store
             .staged
             .metaobject_definitions
