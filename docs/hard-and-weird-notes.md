@@ -4514,3 +4514,19 @@ Practical rule:
 - distinguish an authoritative null node from transport, GraphQL, or incomplete
   response failures; all failure classes must leave product/category state
   unchanged, but only the authoritative miss is proven invalid
+
+## 108. `translatableResourcesByIds` does not retain caller ID order
+
+Live Admin GraphQL 2026-04 capture requested a disposable Product, a disposable
+Collection, the Product again, and a valid missing Product ID. Shopify
+deduplicated the repeated Product and omitted the missing ID. More surprisingly,
+it returned Collection then Product for both Product-first and Collection-first
+input lists. The connection cursors followed that same canonical response order.
+
+Practical rule:
+
+- batch and deduplicate hydration IDs, but retain the authoritative connection
+  row order when applying staged translation or resource overlays
+- do not rebuild a hydrated mixed-type `ByIds` connection in caller-list order
+- cache an omitted, valid requested GID as a confirmed miss only when the
+  requested connection window authoritatively accounts for every unique ID

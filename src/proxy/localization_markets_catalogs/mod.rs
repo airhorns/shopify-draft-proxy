@@ -164,54 +164,6 @@ fn market_localization_preflight_variables(variables: &BTreeMap<String, Resolved
     })
 }
 
-const LOCALIZATION_MUTATION_TARGETS_HYDRATE_QUERY: &str = r#"query LocalizationMutationTargetsHydrate($ids: [ID!]!) {
-  nodes(ids: $ids) {
-    __typename
-    ... on Market {
-      id
-      name
-      handle
-      status
-      type
-    }
-    ... on MarketWebPresence {
-      id
-      subfolderSuffix
-      domain {
-        id
-        host
-        url
-        sslEnabled
-      }
-      rootUrls {
-        locale
-        url
-      }
-      defaultLocale {
-        locale
-        name
-        primary
-        published
-      }
-      alternateLocales {
-        locale
-        name
-        primary
-        published
-      }
-      markets(first: 250) {
-        nodes {
-          id
-          name
-          handle
-          status
-          type
-        }
-      }
-    }
-  }
-}"#;
-
 pub(in crate::proxy) struct PriceListFieldOutcome {
     value: Value,
     errors: Vec<Value>,
@@ -1158,20 +1110,6 @@ fn localization_content_entry(key: &str, value: &str, locale: &str, content_type
         "locale": locale,
         "type": content_type
     })
-}
-
-fn collection_set_seo_field(
-    object: &mut serde_json::Map<String, Value>,
-    field: &str,
-    value: String,
-) {
-    let seo = object.entry("seo".to_string()).or_insert_with(|| json!({}));
-    if !seo.is_object() {
-        *seo = json!({});
-    }
-    if let Some(seo_object) = seo.as_object_mut() {
-        seo_object.insert(field.to_string(), json!(value));
-    }
 }
 
 pub(in crate::proxy) fn localization_resource_type_matches(

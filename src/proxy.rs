@@ -106,6 +106,29 @@ pub(in crate::proxy) struct UnsupportedOperationDispatch<'a> {
     pub root_field: &'a str,
 }
 
+/// One locally handled mutation payload plus whether it produced an effective
+/// staged transition that must be replayed by `POST /__meta/commit`.
+struct LocalMutationResult {
+    value: Value,
+    staged: bool,
+}
+
+impl LocalMutationResult {
+    fn no_stage(value: Value) -> Self {
+        Self {
+            value,
+            staged: false,
+        }
+    }
+
+    fn staged(value: Value) -> Self {
+        Self {
+            value,
+            staged: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Response {
     pub status: u16,
@@ -599,6 +622,25 @@ struct StagedState {
     resource_publications: BTreeMap<String, BTreeSet<String>>,
     shop_locales: BTreeMap<String, Value>,
     localization_translations: Vec<Value>,
+    /// Available/shop locale rows observed through LiveHybrid reads and
+    /// mutation prerequisite hydration. These are resettable observations,
+    /// separate from configured snapshot base and local mutation overlays.
+    observed_available_locales: BTreeMap<String, String>,
+    observed_shop_locales: BTreeMap<String, Value>,
+    /// Canonical translatable resources and translation rows observed from
+    /// Shopify. Resources are keyed by exact GID; misses are cached separately
+    /// so syntactically valid but nonexistent IDs stay authoritative nulls.
+    observed_translatable_resources: BTreeMap<String, Value>,
+    observed_localization_translations: Vec<Value>,
+    missing_translatable_resource_ids: BTreeSet<String>,
+    /// Exact normalized read scopes and their canonical upstream values. Scope
+    /// keys include root arguments, nested locale/market filters, owner IDs,
+    /// reverse direction, and connection windows.
+    localization_complete_scopes: BTreeSet<String>,
+    localization_observed_read_values: BTreeMap<String, Value>,
+    /// Local deletion overlays for authoritative baseline rows.
+    deleted_shop_locale_codes: BTreeSet<String>,
+    localization_translation_tombstones: BTreeSet<String>,
     // Market-localizable resources observed from a cold upstream read or mutation
     // preflight: resourceId -> the resource's `marketLocalizableContent` array. The
     // presence of a key records that the resource exists (so register/remove resolve
@@ -2634,7 +2676,6 @@ struct ExecutionSession {
     upstream_query_response: Option<Response>,
     upstream_query_data: Option<Value>,
     upstream_query_selections: BTreeMap<String, Vec<SelectedField>>,
-    localization_context_preflighted: bool,
     markets_query_preflighted: bool,
     node_hydration: Option<RequestNodeHydration>,
     owner_metafield_read_ids: BTreeSet<String>,

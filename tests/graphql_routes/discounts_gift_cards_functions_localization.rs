@@ -8707,6 +8707,702 @@ fn localization_translatable_resources_do_not_fabricate_empty_connections() {
 }
 
 #[test]
+fn localization_unrelated_product_state_does_not_suppress_cold_resource_hydration() {
+    let cold_resource_id = "gid://shopify/Product/9876543210123";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let cold_resource_id = cold_resource_id.to_string();
+        move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "translatableResource": {
+                            "resourceId": cold_resource_id
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    create_fallback_localization_product(&mut proxy);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query ColdUnrelatedTranslatableResource($resourceId: ID!) {
+          translatableResource(resourceId: $resourceId) { resourceId }
+        }"#,
+        json!({ "resourceId": cold_resource_id }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["translatableResource"]["resourceId"],
+        json!(cold_resource_id)
+    );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert!(requests[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ColdUnrelatedTranslatableResource")));
+}
+
+#[test]
+fn localization_read_completeness_is_scoped_per_root_and_arguments() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            captured_requests.lock().unwrap().push(body.clone());
+            let data = if query.contains("availableLocales") {
+                json!({ "availableLocales": [{ "isoCode": "en", "name": "English" }] })
+            } else if query.contains("published: true") {
+                json!({ "shopLocales": [{ "locale": "en", "name": "English", "primary": true, "published": true }] })
+            } else {
+                json!({
+                    "shopLocales": [
+                        { "locale": "en", "name": "English", "primary": true, "published": true },
+                        { "locale": "fr", "name": "French", "primary": false, "published": false }
+                    ]
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        });
+
+    let available_request = json_graphql_request(
+        r#"query ScopedAvailableLocales { availableLocales { isoCode name } }"#,
+        json!({}),
+    );
+    let all_request = json_graphql_request(
+        r#"query ScopedShopLocales { shopLocales { locale name primary published } }"#,
+        json!({}),
+    );
+    let published_request = json_graphql_request(
+        r#"query ScopedPublishedShopLocales { shopLocales(published: true) { locale name primary published } }"#,
+        json!({}),
+    );
+
+    assert_eq!(proxy.process_request(available_request.clone()).status, 200);
+    assert_eq!(proxy.process_request(all_request.clone()).status, 200);
+    assert_eq!(
+        proxy.process_request(published_request.clone()).body["data"]["shopLocales"],
+        json!([{ "locale": "en", "name": "English", "primary": true, "published": true }])
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 3);
+
+    proxy.process_request(available_request);
+    proxy.process_request(all_request);
+    proxy.process_request(published_request);
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        3,
+        "each exact completed scope should be cached"
+    );
+    assert!(requests.iter().all(|request| request["query"]
+        .as_str()
+        .is_some_and(|query| query.starts_with("query Scoped"))));
+}
+
+#[test]
+fn localization_by_ids_batches_deduplicates_preserves_observed_order_and_caches_misses() {
+    let upstream_id = "gid://shopify/Product/2460000000001";
+    let missing_id = "gid://shopify/Product/2460000000002";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_id = upstream_id.to_string();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "translatableResourcesByIds": {
+                            "nodes": [{ "resourceId": upstream_id }],
+                            "edges": [{ "cursor": "opaque-upstream", "node": { "resourceId": upstream_id } }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "opaque-upstream",
+                                "endCursor": "opaque-upstream"
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+    let local_id = create_fallback_localization_product(&mut proxy);
+    let request = json_graphql_request(
+        r#"query OrderedLocalizationByIds($ids: [ID!]!) {
+          translatableResourcesByIds(first: 4, resourceIds: $ids) {
+            nodes { resourceId }
+            edges { cursor node { resourceId } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }"#,
+        json!({ "ids": [local_id.as_str(), missing_id, local_id.as_str(), upstream_id] }),
+    );
+
+    let first = proxy.process_request(request.clone());
+    assert_eq!(first.status, 200);
+    assert_eq!(
+        first.body["data"]["translatableResourcesByIds"]["nodes"],
+        json!([{ "resourceId": upstream_id }, { "resourceId": local_id }])
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+
+    let repeated = proxy.process_request(request);
+    assert_eq!(repeated.body, first.body);
+    let missing = proxy.process_request(json_graphql_request(
+        r#"query ConfirmedMissingLocalizationResource($id: ID!) {
+          translatableResource(resourceId: $id) { resourceId }
+        }"#,
+        json!({ "id": missing_id }),
+    ));
+    assert_eq!(missing.body["data"]["translatableResource"], Value::Null);
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "ByIds and its confirmed miss must not issue N+1 reads"
+    );
+}
+
+#[test]
+fn localization_partial_connection_refills_deleted_rows_from_one_bounded_page() {
+    let deleted_id = "gid://shopify/Product/2460000000010";
+    let second_id = "gid://shopify/Product/2460000000011";
+    let refill_id = "gid://shopify/Product/2460000000012";
+    let requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&requests);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![ProductRecord {
+            id: deleted_id.to_string(),
+            title: "Deleted baseline product".to_string(),
+            handle: "deleted-baseline-product".to_string(),
+            status: "ACTIVE".to_string(),
+            ..ProductRecord::default()
+        }])
+        .with_upstream_transport({
+            let deleted_id = deleted_id.to_string();
+            let second_id = second_id.to_string();
+            let refill_id = refill_id.to_string();
+            move |request| {
+                let body: Value =
+                    serde_json::from_str(&request.body).expect("upstream body parses");
+                let is_refill = body["operationName"]
+                    == json!("LocalizationTranslatableConnectionRefill");
+                captured_requests.lock().unwrap().push(body.clone());
+                let connection = if is_refill {
+                    json!({
+                        "edges": [{ "cursor": "opaque-c", "node": { "resourceId": refill_id, "translatableContent": [] } }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": true,
+                            "startCursor": "opaque-c",
+                            "endCursor": "opaque-c"
+                        }
+                    })
+                } else {
+                    json!({
+                        "nodes": [{ "resourceId": deleted_id }, { "resourceId": second_id }],
+                        "edges": [
+                            { "cursor": "opaque-a", "node": { "resourceId": deleted_id } },
+                            { "cursor": "opaque-b", "node": { "resourceId": second_id } }
+                        ],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-a",
+                            "endCursor": "opaque-b"
+                        }
+                    })
+                };
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: if is_refill {
+                        json!({ "data": { "refill": connection } })
+                    } else {
+                        json!({ "data": { "translatableResources": connection } })
+                    },
+                }
+            }
+        });
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"mutation DeleteLocalizationBaseline($id: ID!) {
+          productDelete(input: { id: $id }) { deletedProductId userErrors { field message } }
+        }"#,
+        json!({ "id": deleted_id }),
+    ));
+    assert_eq!(
+        deleted.body["data"]["productDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query RefilledLocalizationWindow {
+          translatableResources(first: 2, resourceType: PRODUCT) {
+            nodes { resourceId translations(locale: "fr") { key value } }
+            edges { cursor node { resourceId } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["translatableResources"],
+        json!({
+            "nodes": [
+                { "resourceId": second_id, "translations": [] },
+                { "resourceId": refill_id, "translations": [] }
+            ],
+            "edges": [
+                { "cursor": "opaque-b", "node": { "resourceId": second_id } },
+                { "cursor": "opaque-c", "node": { "resourceId": refill_id } }
+            ],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-b",
+                "endCursor": "opaque-c"
+            }
+        })
+    );
+    let requests = requests.lock().unwrap();
+    assert_eq!(requests.len(), 2, "one caller read plus one bounded refill");
+    assert_eq!(requests[1]["variables"]["cursor"], json!("opaque-b"));
+    assert_eq!(requests[1]["variables"]["count"], json!(2));
+    assert!(requests[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("translationsRefill0: translations(locale: \"fr\")")));
+}
+
+#[test]
+fn localization_mutation_first_register_remove_hydrates_exact_prerequisites_and_replays_in_order() {
+    let resource_id = "gid://shopify/Product/2460000000020";
+    let source_title = "Authoritative upstream title";
+    let source_digest = localization_content_digest(source_title);
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let replayed = Arc::new(Mutex::new(Vec::<String>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport({
+            let resource_id = resource_id.to_string();
+            let source_title = source_title.to_string();
+            let source_digest = source_digest.clone();
+            move |request| {
+                let body: Value =
+                    serde_json::from_str(&request.body).expect("preflight body parses");
+                captured_requests.lock().unwrap().push(body.clone());
+                assert_eq!(
+                    body["operationName"],
+                    json!("LocalizationMutationPrerequisites")
+                );
+                let query = body["query"].as_str().unwrap_or_default();
+                assert!(query.contains("translatableResource(resourceId: $resourceId)"));
+                assert!(query.contains("translations0: translations(locale: $locale0)"));
+                assert!(!query.contains("nodes(ids:"));
+                let mut data = json!({
+                    "translatableResource": {
+                        "resourceId": resource_id,
+                        "translatableContent": [{
+                            "key": "title",
+                            "value": source_title,
+                            "digest": source_digest,
+                            "locale": "en",
+                            "type": "SINGLE_LINE_TEXT_FIELD"
+                        }],
+                        "translations0": []
+                    }
+                });
+                if query.contains("shopLocales") {
+                    data["shopLocales"] = json!([
+                        { "locale": "en", "name": "English", "primary": true, "published": true, "marketWebPresences": [] },
+                        { "locale": "fr", "name": "French", "primary": false, "published": false, "marketWebPresences": [] }
+                    ]);
+                }
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": data }),
+                }
+            }
+        })
+        .with_commit_transport(move |request| {
+            replayed_for_transport.lock().unwrap().push(request.body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": {} }),
+            }
+        });
+
+    let registered = proxy.process_request(json_graphql_request(
+        r#"mutation MutationFirstTranslationRegister($resourceId: ID!, $digest: String!) {
+          translationsRegister(
+            resourceId: $resourceId
+            translations: [{ locale: "fr", key: "title", value: "Titre hydraté", translatableContentDigest: $digest }]
+          ) {
+            translations { key value locale }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "resourceId": resource_id, "digest": source_digest }),
+    ));
+    assert_eq!(
+        registered.body["data"]["translationsRegister"]["translations"],
+        json!([{ "key": "title", "value": "Titre hydraté", "locale": "fr" }])
+    );
+    assert_eq!(
+        registered.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+
+    let removed = proxy.process_request(json_graphql_request(
+        r#"mutation MutationFirstTranslationRemove($resourceId: ID!) {
+          translationsRemove(resourceId: $resourceId, translationKeys: ["title"], locales: ["fr"]) {
+            translations { key value locale }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "resourceId": resource_id }),
+    ));
+    assert_eq!(
+        removed.body["data"]["translationsRemove"]["translations"],
+        json!([{ "key": "title", "value": "Titre hydraté", "locale": "fr" }])
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 2);
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+
+    let commit = proxy.process_request(request_with_body("POST", "/__meta/commit", ""));
+    assert_eq!(commit.body["committed"], json!(2));
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 2);
+    assert!(replayed[0].contains("MutationFirstTranslationRegister"));
+    assert!(replayed[1].contains("MutationFirstTranslationRemove"));
+}
+
+#[test]
+fn localization_mutation_first_shop_locale_update_and_disable_use_query_only_hydration() {
+    fn localization_locale_hydration_response(request: Request) -> Response {
+        let body: Value = serde_json::from_str(&request.body).expect("preflight body parses");
+        assert_eq!(
+            body["operationName"],
+            json!("LocalizationMutationPrerequisites")
+        );
+        let query = body["query"].as_str().unwrap_or_default();
+        assert!(query.contains("availableLocales"));
+        assert!(query.contains("shopLocales"));
+        assert!(!query.contains("translatableResource"));
+        assert!(!query.contains("nodes(ids:"));
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "availableLocales": [
+                        { "isoCode": "en", "name": "English" },
+                        { "isoCode": "fr", "name": "French" }
+                    ],
+                    "shopLocales": [
+                        { "locale": "en", "name": "English", "primary": true, "published": true, "marketWebPresences": [] },
+                        { "locale": "fr", "name": "French", "primary": false, "published": false, "marketWebPresences": [] }
+                    ]
+                }
+            }),
+        }
+    }
+
+    let update_hits = Arc::new(Mutex::new(0usize));
+    let update_hits_for_transport = Arc::clone(&update_hits);
+    let mut update_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *update_hits_for_transport.lock().unwrap() += 1;
+            localization_locale_hydration_response(request)
+        });
+    let updated = update_proxy.process_request(json_graphql_request(
+        r#"mutation MutationFirstShopLocaleUpdate {
+          shopLocaleUpdate(locale: "fr", shopLocale: { published: true }) {
+            shopLocale { locale published }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        updated.body["data"]["shopLocaleUpdate"],
+        json!({
+            "shopLocale": { "locale": "fr", "published": true },
+            "userErrors": []
+        })
+    );
+    assert_eq!(*update_hits.lock().unwrap(), 1);
+
+    let disable_hits = Arc::new(Mutex::new(0usize));
+    let disable_hits_for_transport = Arc::clone(&disable_hits);
+    let mut disable_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *disable_hits_for_transport.lock().unwrap() += 1;
+            localization_locale_hydration_response(request)
+        });
+    let disabled = disable_proxy.process_request(json_graphql_request(
+        r#"mutation MutationFirstShopLocaleDisable {
+          shopLocaleDisable(locale: "fr") { locale userErrors { field message } }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        disabled.body["data"]["shopLocaleDisable"],
+        json!({ "locale": "fr", "userErrors": [] })
+    );
+    assert_eq!(*disable_hits.lock().unwrap(), 1);
+}
+
+#[test]
+fn localization_observations_tombstones_and_completeness_round_trip_and_reset() {
+    let resource_id = "gid://shopify/Product/2460000000030";
+    let missing_id = "gid://shopify/Product/2460000000031";
+    let source_digest = localization_content_digest("Round-trip title");
+    let upstream_response = {
+        let resource_id = resource_id.to_string();
+        let source_digest = source_digest.clone();
+        move |request: Request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            if body["operationName"] == json!("LocalizationMutationPrerequisites") {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "shopLocales": [
+                                { "locale": "en", "name": "English", "primary": true, "published": true, "marketWebPresences": [] },
+                                { "locale": "fr", "name": "French", "primary": false, "published": false, "marketWebPresences": [] }
+                            ],
+                            "translatableResource": {
+                                "resourceId": resource_id,
+                                "translatableContent": [{
+                                    "key": "title",
+                                    "value": "Round-trip title",
+                                    "digest": source_digest,
+                                    "locale": "en",
+                                    "type": "SINGLE_LINE_TEXT_FIELD"
+                                }],
+                                "translations0": []
+                            }
+                        }
+                    }),
+                }
+            } else {
+                assert!(query.contains("StatefulLocalizationByIds"));
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "translatableResourcesByIds": {
+                                "nodes": [{ "resourceId": resource_id }],
+                                "edges": [{ "cursor": "round-trip-cursor", "node": { "resourceId": resource_id } }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": "round-trip-cursor",
+                                    "endCursor": "round-trip-cursor"
+                                }
+                            }
+                        }
+                    }),
+                }
+            }
+        }
+    };
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(upstream_response);
+    let by_ids_request = json_graphql_request(
+        r#"query StatefulLocalizationByIds($ids: [ID!]!) {
+          translatableResourcesByIds(first: 2, resourceIds: $ids) {
+            nodes { resourceId }
+            edges { cursor node { resourceId } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }"#,
+        json!({ "ids": [resource_id, missing_id] }),
+    );
+    assert_eq!(proxy.process_request(by_ids_request.clone()).status, 200);
+
+    let registered = proxy.process_request(json_graphql_request(
+        r#"mutation RoundTripLocalizationRegister($id: ID!, $digest: String!) {
+          translationsRegister(
+            resourceId: $id
+            translations: [{ locale: "fr", key: "title", value: "Titre", translatableContentDigest: $digest }]
+          ) { translations { key locale } userErrors { field message code } }
+        }"#,
+        json!({ "id": resource_id, "digest": source_digest }),
+    ));
+    assert_eq!(
+        registered.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+    let removed = proxy.process_request(json_graphql_request(
+        r#"mutation RoundTripLocalizationRemove($id: ID!) {
+          translationsRemove(resourceId: $id, translationKeys: ["title"], locales: ["fr"]) {
+            translations { key locale }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "id": resource_id }),
+    ));
+    assert_eq!(
+        removed.body["data"]["translationsRemove"]["userErrors"],
+        json!([])
+    );
+    let disabled = proxy.process_request(json_graphql_request(
+        r#"mutation RoundTripShopLocaleDisable {
+          shopLocaleDisable(locale: "fr") { locale userErrors { field message } }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        disabled.body["data"]["shopLocaleDisable"]["userErrors"],
+        json!([])
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let staged = &dump.body["state"]["stagedState"];
+    assert!(staged["observedTranslatableResources"].is_object());
+    assert!(staged["localizationCompleteScopes"].is_array());
+    assert!(staged["localizationObservedReadValues"].is_object());
+    assert_eq!(
+        staged["missingTranslatableResourceIds"],
+        json!([missing_id])
+    );
+    assert_eq!(staged["deletedShopLocaleCodes"], json!(["fr"]));
+    assert!(staged["localizationTranslationTombstones"]
+        .as_array()
+        .is_some_and(|values| !values.is_empty()));
+
+    let restored_hits = Arc::new(Mutex::new(0usize));
+    let restored_hits_for_transport = Arc::clone(&restored_hits);
+    let resource_id_for_transport = resource_id.to_string();
+    let mut restored = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        move |_request| {
+            *restored_hits_for_transport.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "translatableResourcesByIds": {
+                            "nodes": [{ "resourceId": resource_id_for_transport }],
+                            "edges": [{ "cursor": "round-trip-cursor", "node": { "resourceId": resource_id_for_transport } }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "round-trip-cursor",
+                                "endCursor": "round-trip-cursor"
+                            }
+                        }
+                    }
+                }),
+            }
+        },
+    );
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    assert_eq!(restored.process_request(by_ids_request.clone()).status, 200);
+    let missing = restored.process_request(json_graphql_request(
+        r#"query RestoredMissingLocalization($id: ID!) {
+          translatableResource(resourceId: $id) { resourceId }
+        }"#,
+        json!({ "id": missing_id }),
+    ));
+    assert_eq!(missing.body["data"]["translatableResource"], Value::Null);
+    assert_eq!(*restored_hits.lock().unwrap(), 0);
+
+    assert_eq!(
+        restored
+            .process_request(request_with_body("POST", "/__meta/reset", ""))
+            .status,
+        200
+    );
+    assert_eq!(restored.process_request(by_ids_request).status, 200);
+    assert_eq!(
+        *restored_hits.lock().unwrap(),
+        1,
+        "reset must clear scoped localization observations and completeness"
+    );
+}
+
+#[test]
+fn localization_large_by_ids_request_stays_within_one_transport_call() {
+    let calls = Arc::new(Mutex::new(0usize));
+    let calls_for_transport = Arc::clone(&calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_request| {
+            *calls_for_transport.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "translatableResourcesByIds": {
+                            "nodes": [],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+    let local_id = create_fallback_localization_product(&mut proxy);
+    let mut ids = vec![local_id.clone()];
+    ids.extend((0..1_000).map(|index| format!("gid://shopify/Product/2460{index:010}")));
+    let request = json_graphql_request(
+        r#"query LargeLocalizationByIds($ids: [ID!]!) {
+          translatableResourcesByIds(first: 250, resourceIds: $ids) { nodes { resourceId } }
+        }"#,
+        json!({ "ids": ids }),
+    );
+    let response = proxy.process_request(request.clone());
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["translatableResourcesByIds"]["nodes"],
+        json!([{ "resourceId": local_id }])
+    );
+    assert_eq!(*calls.lock().unwrap(), 1);
+    assert_eq!(proxy.process_request(request).status, 200);
+    assert_eq!(*calls.lock().unwrap(), 1);
+}
+
+#[test]
 fn localization_translatable_resources_honor_reverse_and_cursor_windowing() {
     let mut proxy = snapshot_proxy();
 
@@ -8903,18 +9599,17 @@ fn mixed_localization_read_hydrates_only_cold_markets_for_staged_resources() {
             let body: Value =
                 serde_json::from_str(&request.body).expect("market hydrate body parses");
             captured_requests.lock().unwrap().push(body.clone());
-            assert_eq!(body["operationName"], json!("LocalizationMarketsHydrate"));
-            assert!(body["query"]
-                .as_str()
-                .is_some_and(|query| query.contains("query LocalizationMarketsHydrate")));
-            assert!(!body["query"]
-                .as_str()
-                .is_some_and(|query| query.contains("translatableResource")));
+            assert!(body["operationName"].is_null());
+            assert!(body["query"].as_str().is_some_and(|query| query
+                .contains("MixedLocalTranslationAndColdMarkets")
+                && query.contains("translatableResource")
+                && query.contains("markets(first")));
             Response {
                 status: 200,
                 headers: Default::default(),
                 body: json!({
                     "data": {
+                        "translatableResource": null,
                         "markets": {
                             "nodes": [{
                                 "id": "gid://shopify/Market/observed",
@@ -8956,8 +9651,7 @@ fn mixed_localization_read_hydrates_only_cold_markets_for_staged_resources() {
         json!({ "resourceId": product_id }),
     ));
 
-    assert_eq!(response.status, 200);
-    assert_eq!(response.body.get("errors"), None);
+    assert_eq!(response.status, 200, "response: {}", response.body);
     assert_eq!(
         response.body["data"]["translatableResource"]["resourceId"],
         product_id
@@ -9012,7 +9706,7 @@ fn mixed_localization_read_preserves_staged_resource_when_context_hydration_fail
         json!({ "resourceId": product_id }),
     ));
 
-    assert_eq!(response.status, 200);
+    assert_eq!(response.status, 200, "response: {}", response.body);
     assert_eq!(response.body.get("errors"), None);
     assert_eq!(
         response.body["data"]["translatableResource"],
@@ -9802,7 +10496,7 @@ fn localization_translatable_content_uses_modeled_source_values_and_round_trips_
             { "key": "handle", "value": "localized-collection", "digest": localization_content_digest("localized-collection"), "locale": "en", "type": "URI" }
         ])
     );
-    assert_eq!(read.body["data"]["theme"]["translatableContent"], json!([]));
+    assert_eq!(read.body["data"]["theme"], Value::Null);
     assert!(read.body["data"]["products"]["nodes"]
         .as_array()
         .unwrap()
@@ -10385,43 +11079,69 @@ fn localization_target_existence_is_hydrated_not_sentinel_substring_routed() {
     let market_id = "gid://shopify/Market/999999123";
     let web_presence_id = "gid://shopify/MarketWebPresence/9999999999";
     let title_digest = fallback_product_title_digest();
-    let upstream_hits = Arc::new(Mutex::new(Vec::<String>::new()));
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_hits = Arc::clone(&upstream_hits);
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
         let market_id = market_id.to_string();
         let web_presence_id = web_presence_id.to_string();
         move |request| {
-            captured_hits.lock().unwrap().push(request.body.clone());
-            assert!(
-                request.body.contains("LocalizationMutationTargetsHydrate"),
-                "only localization target hydration should hit upstream, got: {}",
-                request.body
+            let body: Value = serde_json::from_str(&request.body).expect("preflight body parses");
+            captured_hits.lock().unwrap().push(body.clone());
+            assert_eq!(
+                body["operationName"],
+                json!("LocalizationMutationPrerequisites")
             );
-            let node = if request.body.contains(&web_presence_id) {
-                json!({
-                    "__typename": "MarketWebPresence",
-                    "id": web_presence_id,
-                    "subfolderSuffix": "fr",
-                    "domain": null,
-                    "rootUrls": [],
-                    "defaultLocale": { "locale": "en", "name": "English", "primary": true, "published": true },
-                    "alternateLocales": [],
-                    "markets": { "nodes": [] }
+            let ids = body["variables"]["ids"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            let nodes = ids
+                .into_iter()
+                .filter_map(|id| match id.as_str() {
+                    Some(id) if id == web_presence_id => Some(json!({
+                        "__typename": "MarketWebPresence",
+                        "id": web_presence_id,
+                        "subfolderSuffix": "fr",
+                        "domain": null,
+                        "rootUrls": [],
+                        "defaultLocale": { "locale": "en", "name": "English", "primary": true, "published": true },
+                        "alternateLocales": [],
+                        "markets": { "nodes": [] }
+                    })),
+                    Some(id) if id == market_id => Some(json!({
+                        "__typename": "Market",
+                        "id": market_id,
+                        "name": "Sentinel-looking market",
+                        "handle": "sentinel-looking-market",
+                        "status": "ACTIVE",
+                        "type": "REGION"
+                    })),
+                    _ => None,
                 })
-            } else {
-                json!({
-                    "__typename": "Market",
-                    "id": market_id,
-                    "name": "Sentinel-looking market",
-                    "handle": "sentinel-looking-market",
-                    "status": "ACTIVE",
-                    "type": "REGION"
-                })
-            };
+                .collect::<Vec<_>>();
+            let mut data = json!({ "nodes": nodes });
+            if body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("availableLocales"))
+            {
+                data["availableLocales"] = json!([
+                    { "isoCode": "en", "name": "English" },
+                    { "isoCode": "es", "name": "Spanish" },
+                    { "isoCode": "fr", "name": "French" }
+                ]);
+            }
+            if body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("shopLocales"))
+            {
+                data["shopLocales"] = json!([
+                    { "locale": "en", "name": "English", "primary": true, "published": true, "marketWebPresences": [] }
+                ]);
+            }
             Response {
                 status: 200,
                 headers: Default::default(),
-                body: json!({ "data": { "nodes": [node] } }),
+                body: json!({ "data": data }),
             }
         }
     });
@@ -10505,9 +11225,11 @@ fn localization_target_existence_is_hydrated_not_sentinel_substring_routed() {
     );
 
     let hits = upstream_hits.lock().unwrap();
-    assert_eq!(hits.len(), 2);
-    assert!(hits.iter().any(|body| body.contains(market_id)));
-    assert!(hits.iter().any(|body| body.contains(web_presence_id)));
+    assert_eq!(hits.len(), 3);
+    assert!(hits.iter().any(|body| body.to_string().contains(market_id)));
+    assert!(hits
+        .iter()
+        .any(|body| body.to_string().contains(web_presence_id)));
 }
 
 #[test]
@@ -11027,7 +11749,7 @@ fn localization_digest_validation_skips_unobserved_source_content_without_prefix
             "userErrors": []
         })
     );
-    assert_eq!(*upstream_hits.lock().unwrap(), 1);
+    assert_eq!(*upstream_hits.lock().unwrap(), 3);
 }
 
 #[test]
@@ -11078,7 +11800,7 @@ fn localization_translations_register_stages_locally_and_keeps_raw_mutation_for_
         }),
     ));
     assert_eq!(register.status, 200);
-    assert_eq!(*upstream_hits.lock().unwrap(), 0);
+    assert_eq!(*upstream_hits.lock().unwrap(), 1);
     assert_eq!(
         register.body["data"]["translationsRegister"]["translations"],
         json!([{ "key": "title", "value": "Titre local", "locale": "fr" }])

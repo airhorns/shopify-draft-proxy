@@ -446,13 +446,17 @@ impl DraftProxy {
         {
             let had_markets_overlay_state = self.has_markets_overlay_state();
             let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
-            if result.transport_succeeded {
+            let upstream_succeeded = result.transport_succeeded && result.outcome.errors.is_empty();
+            if upstream_succeeded {
                 let body = json!({ "data": result.data });
                 self.hydrate_markets_from_upstream_roots(&body, &operation_roots);
                 self.hydrate_localization_from_upstream(&body);
             }
             self.execution_session.markets_query_preflighted = true;
-            if !had_markets_overlay_state {
+            if !had_markets_overlay_state
+                && (upstream_succeeded
+                    || !self.localization_operation_has_local_overlay(&operation_roots))
+            {
                 return result.outcome;
             }
         }
@@ -1453,27 +1457,6 @@ impl DraftProxy {
             || !self.store.staged.web_presences.is_empty()
     }
 
-    /// LiveHybrid cold-read decision for the Markets domain. When this returns
-    /// true, at least one requested root/scope still needs Shopify baseline
-    /// data before local staged deltas can be projected correctly.
-    pub(in crate::proxy) fn markets_should_fetch_upstream(
-        &self,
-        fields: &[RootFieldSelection],
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> bool {
-        let plural_localizable_state_selected = fields
-            .iter()
-            .any(|field| field.name == "marketLocalizableResources")
-            && self.has_market_localizable_resource_state();
-        fields.iter().any(|field| {
-            self.markets_field_should_fetch_upstream(
-                field,
-                variables,
-                plural_localizable_state_selected,
-            )
-        })
-    }
-
     fn markets_root_should_fetch_upstream(
         &self,
         root_name: &str,
@@ -1538,49 +1521,6 @@ impl DraftProxy {
         })
     }
 
-    fn markets_field_should_fetch_upstream(
-        &self,
-        field: &RootFieldSelection,
-        variables: &BTreeMap<String, ResolvedValue>,
-        plural_localizable_state_selected: bool,
-    ) -> bool {
-        match field.name.as_str() {
-            "market" => {
-                !markets_field_has_local_id(&field.arguments, &self.store.staged.markets)
-                    && !resolved_string_field(&field.arguments, "id")
-                        .is_some_and(|id| self.store.staged.deleted_market_ids.contains(&id))
-            }
-            "catalog" => !markets_field_has_local_id(&field.arguments, &self.store.staged.catalogs),
-            "priceList" => {
-                !markets_field_has_local_id(&field.arguments, &self.store.staged.price_lists)
-            }
-            "marketLocalizableResource" => resolved_string_field(&field.arguments, "resourceId")
-                .map(|resource_id| {
-                    !self
-                        .store
-                        .staged
-                        .localization_resources
-                        .contains_key(&resource_id)
-                })
-                .unwrap_or(true),
-            "markets" | "catalogs" | "priceLists" | "webPresences" | "marketsResolvedValues" => {
-                markets_hydration_scope_keys(field)
-                    .iter()
-                    .any(|key| self.markets_scope_needs_upstream(key))
-            }
-            "catalogsCount" => {
-                let key = markets_hydration_scope_key("catalogs", &field.arguments);
-                !self.store.staged.markets_upstream_counts.contains_key(&key)
-            }
-            "marketLocalizableResources" => !self.has_market_localizable_resource_state(),
-            "marketLocalizableResourcesByIds" => {
-                !plural_localizable_state_selected
-                    && self.market_localizable_resources_by_ids_should_fetch_upstream(variables)
-            }
-            _ => false,
-        }
-    }
-
     pub(in crate::proxy) fn mark_markets_family_dirty(&mut self, family: &str) {
         self.store
             .staged
@@ -1608,17 +1548,6 @@ impl DraftProxy {
             "webPresences" => !self.store.staged.web_presences.is_empty(),
             _ => false,
         }
-    }
-
-    pub(in crate::proxy) fn hydrate_markets_from_upstream_for_fields(
-        &mut self,
-        body: &Value,
-        fields: &[RootFieldSelection],
-    ) {
-        let normalized = markets_body_with_canonical_response_keys(body, fields);
-        self.hydrate_markets_from_upstream(&normalized);
-        self.stage_markets_upstream_counts_from_fields(&normalized, fields);
-        self.mark_markets_hydrated_scopes_from_fields(&normalized, fields);
     }
 
     fn hydrate_markets_from_upstream_root(
@@ -1753,96 +1682,6 @@ impl DraftProxy {
             })
             .collect::<BTreeSet<_>>()
             .len()
-    }
-
-    fn stage_markets_upstream_counts_from_fields(
-        &mut self,
-        body: &Value,
-        fields: &[RootFieldSelection],
-    ) {
-        let Some(data) = body.get("data").and_then(Value::as_object) else {
-            return;
-        };
-        for field in fields.iter().filter(|field| field.name == "catalogsCount") {
-            let Some(count) = data
-                .get(&field.response_key)
-                .and_then(|value| value.get("count"))
-                .and_then(Value::as_u64)
-            else {
-                continue;
-            };
-            let precision = data
-                .get(&field.response_key)
-                .and_then(|value| value.get("precision"))
-                .and_then(Value::as_str)
-                .unwrap_or("EXACT");
-            let represented_created = if precision == "EXACT" {
-                self.created_catalogs_represented_in_upstream_response(
-                    data,
-                    fields,
-                    &field.arguments,
-                ) as u64
-            } else {
-                0
-            };
-            let key = markets_hydration_scope_key("catalogs", &field.arguments);
-            self.store.staged.markets_upstream_counts.insert(
-                key,
-                count_object_with_precision(count.saturating_sub(represented_created), precision),
-            );
-        }
-    }
-
-    fn created_catalogs_represented_in_upstream_response(
-        &self,
-        data: &serde_json::Map<String, Value>,
-        fields: &[RootFieldSelection],
-        count_arguments: &BTreeMap<String, ResolvedValue>,
-    ) -> usize {
-        let type_filter = resolved_string_field(count_arguments, "type");
-        let query = resolved_string_field(count_arguments, "query");
-        fields
-            .iter()
-            .filter(|field| field.name == "catalog")
-            .filter_map(|field| {
-                let id = resolved_string_field(&field.arguments, "id")?;
-                let catalog = self.store.staged.catalogs.get(&id)?;
-                if !self.store.staged.created_catalog_ids.contains(&id) {
-                    return None;
-                }
-                if !matches!(
-                    catalog_search_decision(catalog, query.as_deref(), type_filter.as_deref()),
-                    StagedSearchDecision::Match
-                ) {
-                    return None;
-                }
-                data.get(&field.response_key)
-                    .filter(|value| value.is_object())
-                    .map(|_| id)
-            })
-            .collect::<BTreeSet<_>>()
-            .len()
-    }
-
-    fn mark_markets_hydrated_scopes_from_fields(
-        &mut self,
-        body: &Value,
-        fields: &[RootFieldSelection],
-    ) {
-        let Some(data) = body.get("data").and_then(Value::as_object) else {
-            return;
-        };
-        for field in fields {
-            if field.name == "catalogsCount" {
-                continue;
-            }
-            if !markets_response_connection_complete(data.get(&field.response_key)) {
-                continue;
-            }
-            for key in markets_hydration_scope_keys(field) {
-                self.store.staged.markets_hydrated_scopes.insert(key);
-            }
-        }
     }
 
     /// Hydrate the staged markets stores from an upstream GraphQL response body,
@@ -2073,36 +1912,6 @@ fn markets_field_has_local_id(
         .is_some_and(|id| is_synthetic_gid(id) || records.contains_key(id))
 }
 
-fn markets_hydration_scope_keys(field: &RootFieldSelection) -> Vec<String> {
-    match field.name.as_str() {
-        "markets" => vec![markets_hydration_scope_key("markets", &field.arguments)],
-        "catalogs" | "catalogsCount" => {
-            vec![markets_hydration_scope_key("catalogs", &field.arguments)]
-        }
-        "priceLists" => vec![markets_hydration_scope_key("priceLists", &field.arguments)],
-        "webPresences" => vec![markets_hydration_scope_key(
-            "webPresences",
-            &field.arguments,
-        )],
-        "marketsResolvedValues" => field
-            .selection
-            .iter()
-            .filter_map(|selection| match selection.name.as_str() {
-                "catalogs" => Some(markets_hydration_scope_key(
-                    "catalogs",
-                    &selection.arguments,
-                )),
-                "webPresences" => Some(markets_hydration_scope_key(
-                    "webPresences",
-                    &selection.arguments,
-                )),
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
 fn markets_hydration_scope_key(
     family: &str,
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -2153,44 +1962,4 @@ fn markets_record_is_richer_than_existing(
                 > existing.as_object().map_or(0, serde_json::Map::len)
         })
         .unwrap_or(true)
-}
-
-fn markets_body_with_canonical_response_keys(body: &Value, fields: &[RootFieldSelection]) -> Value {
-    let mut normalized = body.clone();
-    let Some(data) = normalized.get_mut("data").and_then(Value::as_object_mut) else {
-        return normalized;
-    };
-    for field in fields {
-        if field.response_key == field.name {
-            continue;
-        }
-        if let Some(value) = data.get(&field.response_key).cloned() {
-            if let Some(existing) = data.get_mut(&field.name) {
-                merge_markets_canonical_response_value(existing, value);
-            } else {
-                data.insert(field.name.clone(), value);
-            }
-        }
-    }
-    normalized
-}
-
-fn merge_markets_canonical_response_value(existing: &mut Value, incoming: Value) {
-    let Some(existing_nodes) = existing.get_mut("nodes").and_then(Value::as_array_mut) else {
-        *existing = incoming;
-        return;
-    };
-    let Some(incoming_nodes) = incoming.get("nodes").and_then(Value::as_array) else {
-        return;
-    };
-    let mut seen_ids = existing_nodes
-        .iter()
-        .filter_map(|node| node.get("id").and_then(Value::as_str).map(str::to_string))
-        .collect::<BTreeSet<_>>();
-    for node in incoming_nodes {
-        let id = node.get("id").and_then(Value::as_str);
-        if id.map(|id| seen_ids.insert(id.to_string())).unwrap_or(true) {
-            existing_nodes.push(node.clone());
-        }
-    }
 }

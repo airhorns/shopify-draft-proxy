@@ -1,0 +1,129 @@
+{
+  "scenarioId": "localization-scoped-hydration-lifecycle",
+  "operationNames": [
+    "shopLocaleUpdate",
+    "shopLocaleDisable",
+    "translationsRegister",
+    "translationsRemove",
+    "translatableResource",
+    "translatableResourcesByIds"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "mutation-first-hydration",
+    "runtime-staging",
+    "downstream-read-parity",
+    "mixed-resource-ordering",
+    "confirmed-miss-caching"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-scoped-hydration-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-first-shop-locale-update",
+        "capturePath": "$.localeUpdate.response.data.shopLocaleUpdate",
+        "proxyPath": "$.data.shopLocaleUpdate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-scoped-hydration-shop-locale-update.graphql",
+          "variablesCapturePath": "$.localeUpdate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "mutation-first-shop-locale-disable",
+        "capturePath": "$.localeDisable.response.data.shopLocaleDisable",
+        "proxyPath": "$.data.shopLocaleDisable",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-scoped-hydration-shop-locale-disable.graphql",
+          "variablesCapturePath": "$.localeDisable.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "mutation-first-translations-register",
+        "capturePath": "$.register.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-scoped-hydration-translations-register.graphql",
+          "variablesCapturePath": "$.register.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.translations[0].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stage the captured translation at independently generated times."
+          }
+        ]
+      },
+      {
+        "name": "mixed-by-ids-product-first-canonical-order",
+        "capturePath": "$.mixedByIdsProductFirst.response.data.translatableResourcesByIds",
+        "proxyPath": "$.data.translatableResourcesByIds",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-scoped-hydration-mixed-by-ids.graphql",
+          "variablesCapturePath": "$.mixedByIdsProductFirst.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[1].translations[0].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stage the captured translation at independently generated times."
+          }
+        ]
+      },
+      {
+        "name": "mixed-by-ids-collection-first-same-canonical-order",
+        "capturePath": "$.mixedByIdsCollectionFirst.response.data.translatableResourcesByIds",
+        "proxyPath": "$.data.translatableResourcesByIds",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-scoped-hydration-mixed-by-ids.graphql",
+          "variablesCapturePath": "$.mixedByIdsCollectionFirst.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[1].translations[0].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stage the captured translation at independently generated times."
+          }
+        ]
+      },
+      {
+        "name": "mutation-first-translations-remove",
+        "capturePath": "$.remove.response.data.translationsRemove",
+        "proxyPath": "$.data.translationsRemove",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-scoped-hydration-translations-remove.graphql",
+          "variablesCapturePath": "$.remove.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "translation-read-after-remove",
+        "capturePath": "$.postRemoveRead.response.data.translatableResource",
+        "proxyPath": "$.data.translatableResource",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-scoped-hydration-post-remove-read.graphql",
+          "variablesCapturePath": "$.postRemoveRead.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture creates one disposable Product and Collection, temporarily enables Afrikaans and Zulu when absent, records the exact query-only locale and Product translation prerequisite documents emitted by the runtime, updates Afrikaans, disables Zulu, registers and removes a Product title translation, and proves mixed Product/Collection ByIds canonical ordering, duplicate elimination, confirmed-miss omission, and downstream translation read-after-write. Product-first and Collection-first caller lists both returned Collection then Product, so replay retains Shopify's observed connection order rather than imposing caller order. Cleanup deletes both resources and restores both locales to their exact pre-capture state."
+}

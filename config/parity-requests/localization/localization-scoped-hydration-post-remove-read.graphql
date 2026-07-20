@@ -1,0 +1,16 @@
+#graphql
+query LocalizationScopedHydrationPostRemoveRead($resourceId: ID!) {
+  translatableResource(resourceId: $resourceId) {
+    resourceId
+    translations(locale: "af") {
+      key
+      value
+      locale
+      outdated
+      updatedAt
+      market {
+        id
+      }
+    }
+  }
+}
