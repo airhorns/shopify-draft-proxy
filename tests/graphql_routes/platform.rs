@@ -777,7 +777,7 @@ fn domain_id_resolves_from_shop_domains() {
     let mut proxy = snapshot_proxy();
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
     let mut restored = dump.body.clone();
-    restored["state"]["baseState"]["shop"] = json!({
+    restored["runtimeState"]["store"]["base"]["shop"] = json!({
         "id": "gid://shopify/Shop/restored",
         "name": "Restored shop",
         "myshopifyDomain": "restored-shop.myshopify.com",
@@ -2196,9 +2196,9 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
     let mut proxy = snapshot_proxy();
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
     let mut restored = dump.body.clone();
-    restored["state"]["baseState"]["shop"]["myshopifyDomain"] =
+    restored["runtimeState"]["store"]["base"]["shop"]["myshopifyDomain"] =
         json!("backup-region-gb.myshopify.com");
-    restored["state"]["baseState"]["shop"]["shopAddress"]["countryCodeV2"] = json!("GB");
+    restored["runtimeState"]["store"]["base"]["shop"]["shopAddress"]["countryCodeV2"] = json!("GB");
     let restore = proxy.process_request(request_with_body(
         "POST",
         "/__meta/restore",
@@ -2535,7 +2535,7 @@ fn backup_region_update_does_not_infer_country_from_shop_domain() {
     let mut proxy = snapshot_proxy();
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
     let mut restored = dump.body.clone();
-    restored["state"]["baseState"]["shop"] = json!({
+    restored["runtimeState"]["store"]["base"]["shop"] = json!({
         "id": "gid://shopify/Shop/1991",
         "name": "Domain-only shop",
         "myshopifyDomain": "harry-test-heelo.myshopify.com"
@@ -10009,8 +10009,9 @@ fn store_property_node_reads_resolve_shop_records_from_store_state() {
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
     assert_eq!(dump.status, 200);
     let mut restored = dump.body;
-    restored["state"]["baseState"]["shop"]["myshopifyDomain"] = json!("state-shop.myshopify.com");
-    restored["state"]["baseState"]["shop"]["shopAddress"] = json!({
+    restored["runtimeState"]["store"]["base"]["shop"]["myshopifyDomain"] =
+        json!("state-shop.myshopify.com");
+    restored["runtimeState"]["store"]["base"]["shop"]["shopAddress"] = json!({
         "id": "gid://shopify/ShopAddress/900001",
         "address1": "55 Store State Ave",
         "address2": null,
@@ -10288,68 +10289,39 @@ fn shop_policy_update_stages_policy_and_downstream_reads_locally() {
 #[test]
 fn shop_policy_update_overlays_restored_base_shop_policies() {
     let mut proxy = snapshot_proxy();
-    let restore = proxy.process_request(Request {
-        method: "POST".to_string(),
-        path: "/__meta/restore".to_string(),
-        headers: Default::default(),
-        body: json!({
-            "schema": "shopify-draft-proxy-rust-state/v1",
-            "createdAt": "2026-06-15T00:00:00.000Z",
-            "nextSyntheticId": 9,
-            "state": {
-                "baseState": {
-                    "products": {},
-                    "productOrder": [],
-                    "savedSearches": {},
-                    "savedSearchOrder": [],
-                    "shop": {
-                        "id": "gid://shopify/Shop/92891250994",
-                        "myshopifyDomain": "seeded-policy-shop.myshopify.com",
-                        "primaryDomain": { "host": "policies.example.com" },
-                        "shopPolicies": [
-                            {
-                                "id": "gid://shopify/ShopPolicy/111",
-                                "title": "Contact",
-                                "body": "<p>Contact</p>",
-                                "type": "CONTACT_INFORMATION",
-                                "url": "https://checkout.shopify.com/92891250994/policies/111.html?locale=en",
-                                "createdAt": "2026-01-01T00:00:00Z",
-                                "updatedAt": "2026-01-01T00:00:00Z"
-                            },
-                            {
-                                "id": "gid://shopify/ShopPolicy/222",
-                                "title": "Privacy policy",
-                                "body": "<p>Old</p>",
-                                "type": "PRIVACY_POLICY",
-                                "url": "https://checkout.shopify.com/92891250994/policies/222.html?locale=en",
-                                "createdAt": "2026-01-02T00:00:00Z",
-                                "updatedAt": "2026-01-02T00:00:00Z"
-                            }
-                        ]
-                    },
-                    "publicationIds": [],
-                    "publicationCount": 0
-                },
-                "stagedState": {
-                    "products": {},
-                    "productOrder": [],
-                    "deletedProductIds": [],
-                    "savedSearches": {},
-                    "savedSearchOrder": [],
-                    "deletedSavedSearchIds": [],
-                    "shippingPackages": {},
-                    "deletedShippingPackageIds": {},
-                    "delegatedAccessTokens": {},
-                    "customers": {},
-                    "deletedCustomerIds": [],
-                    "customerOrders": {}
-                }
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({
+            "id": "gid://shopify/Shop/92891250994",
+            "myshopifyDomain": "seeded-policy-shop.myshopify.com",
+            "primaryDomain": { "host": "policies.example.com" }
+        });
+        state["baseState"]["shopPolicies"] = json!({
+            "gid://shopify/ShopPolicy/111": {
+                "id": "gid://shopify/ShopPolicy/111",
+                "policy_type": "CONTACT_INFORMATION",
+                "title": "Contact",
+                "body": "<p>Contact</p>",
+                "url": "https://checkout.shopify.com/92891250994/policies/111.html?locale=en",
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z",
+                "translations": []
             },
-            "log": { "entries": [] }
-        })
-        .to_string(),
+            "gid://shopify/ShopPolicy/222": {
+                "id": "gid://shopify/ShopPolicy/222",
+                "policy_type": "PRIVACY_POLICY",
+                "title": "Privacy policy",
+                "body": "<p>Old</p>",
+                "url": "https://checkout.shopify.com/92891250994/policies/222.html?locale=en",
+                "created_at": "2026-01-02T00:00:00Z",
+                "updated_at": "2026-01-02T00:00:00Z",
+                "translations": []
+            }
+        });
+        state["baseState"]["shopPolicyOrder"] = json!([
+            "gid://shopify/ShopPolicy/111",
+            "gid://shopify/ShopPolicy/222"
+        ]);
     });
-    assert_eq!(restore.status, 200);
 
     let update = proxy.process_request(json_graphql_request(
         r#"

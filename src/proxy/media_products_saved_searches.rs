@@ -533,7 +533,6 @@ impl DraftProxy {
         let Some(existing) = self.store.product_staged_or_base(&id) else {
             return ResolverOutcome::value(product_update_missing_payload_value());
         };
-        self.remember_product_catalog_base_record(&existing);
 
         if input.contains_key("title")
             && resolved_string_field(&input, "title")
@@ -599,6 +598,7 @@ impl DraftProxy {
             Ok(category) => category,
             Err(outcome) => return outcome,
         };
+        self.remember_product_catalog_base_record(&existing);
 
         let mut extra_fields = existing.extra_fields;
         if let Some(seo_input) = resolved_object_field(&input, "seo") {

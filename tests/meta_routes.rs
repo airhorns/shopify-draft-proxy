@@ -203,6 +203,7 @@ fn restore_log_entries(proxy: &mut DraftProxy, entries: Value) {
     let mut restored = dump.body;
     restored["log"]["entries"] = entries;
     restored["nextSyntheticId"] = json!(10);
+    restored["runtimeState"]["store"]["nextSyntheticId"] = json!(10);
 
     let restore = proxy.process_request(request_with_body(
         "POST",
@@ -386,7 +387,7 @@ fn draft_proxy_route_and_snapshot_helpers_match_current_behavior() {
     assert_eq!(dump.status, 200);
     assert_eq!(
         dump.body["schema"],
-        json!("shopify-draft-proxy-rust-state/v1")
+        json!("shopify-draft-proxy-rust-state/v2")
     );
     assert_eq!(dump.body["createdAt"], json!("2026-04-29T12:00:00.000Z"));
     assert_eq!(dump.body["log"], json!({ "entries": [] }));
@@ -1424,7 +1425,7 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
     assert_eq!(dump.status, 200);
     assert_eq!(
         dump.body["schema"],
-        json!("shopify-draft-proxy-rust-state/v1")
+        json!("shopify-draft-proxy-rust-state/v2")
     );
     assert_eq!(dump.body["createdAt"], json!("2026-05-21T00:00:00.000Z"));
     assert_eq!(dump.body["log"]["entries"].as_array().unwrap().len(), 2);
@@ -1519,7 +1520,9 @@ fn restore_state_round_trips_non_identity_staged_counter_fields() {
             &json!({ "createdAt": "2026-06-26T00:00:00.000Z" }).to_string(),
         ))
         .body;
-    let staged_state = dump["state"]["stagedState"].as_object_mut().unwrap();
+    let staged_state = dump["runtimeState"]["store"]["staged"]
+        .as_object_mut()
+        .unwrap();
     staged_state.insert("nextInventoryQuantityTimestamp".to_string(), json!(43));
     staged_state.insert("nextStorefrontCartId".to_string(), json!(61));
     staged_state.insert("nextStorefrontCartLineId".to_string(), json!(67));
@@ -1552,7 +1555,12 @@ fn restore_state_round_trips_non_identity_staged_counter_fields() {
     ];
     let expected_counters = counter_fields
         .iter()
-        .map(|field| (*field, dump["state"]["stagedState"][field].clone()))
+        .map(|field| {
+            (
+                *field,
+                dump["runtimeState"]["store"]["staged"][field].clone(),
+            )
+        })
         .collect::<Vec<_>>();
 
     let mut restored = snapshot_proxy();
@@ -2256,6 +2264,52 @@ fn restore_state_round_trips_order_customer_and_b2b_records() {
 }
 
 #[test]
+fn restore_rejects_v1_dumps_without_mutating_reused_state() {
+    let mut proxy = snapshot_proxy();
+    let webhook = proxy.process_request(graphql_request(
+        &json!({
+            "query": "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"https://hooks.example.com/preserved\", format: JSON }) { webhookSubscription { id } userErrors { message } } }"
+        })
+        .to_string(),
+    ));
+    assert_eq!(
+        webhook.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let before_state = proxy.process_request(request("GET", "/__meta/state"));
+    let before_log = proxy.process_request(request("GET", "/__meta/log"));
+    let mut legacy = proxy
+        .process_request(request_with_body("POST", "/__meta/dump", ""))
+        .body;
+    legacy["schema"] = json!("shopify-draft-proxy-rust-state/v1");
+    legacy
+        .as_object_mut()
+        .expect("dump envelope")
+        .remove("runtimeState");
+
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &legacy.to_string(),
+    ));
+    assert_eq!(restore.status, 400);
+    assert_eq!(
+        restore.body["errors"][0]["message"],
+        json!("Unsupported Rust state dump schema")
+    );
+    assert_eq!(
+        proxy.process_request(request("GET", "/__meta/state")),
+        before_state,
+        "unsupported legacy restore must not mutate reused state"
+    );
+    assert_eq!(
+        proxy.process_request(request("GET", "/__meta/log")),
+        before_log,
+        "unsupported legacy restore must not mutate the replay log"
+    );
+}
+
+#[test]
 fn restore_state_rejects_malformed_rust_dumps() {
     let mut proxy = snapshot_proxy();
     let dump = proxy.process_request(request_with_body(
@@ -2297,109 +2351,37 @@ fn restore_state_rejects_malformed_rust_dumps() {
 
     let mut missing_state = dump.body.clone();
     missing_state.as_object_mut().unwrap().remove("state");
-    reject_restore(
-        missing_state.to_string(),
-        "Rust state dump is missing state",
-    );
+    reject_restore(missing_state.to_string(), "Invalid Rust v2 state dump");
 
-    let mut missing_base_state = dump.body.clone();
-    missing_base_state["state"]
+    let mut non_object_state = dump.body.clone();
+    non_object_state["state"] = Value::Null;
+    reject_restore(non_object_state.to_string(), "Invalid Rust v2 state dump");
+
+    let mut missing_runtime_state = dump.body.clone();
+    missing_runtime_state
         .as_object_mut()
         .unwrap()
-        .remove("baseState");
+        .remove("runtimeState");
     reject_restore(
-        missing_base_state.to_string(),
-        "Rust state dump is missing state.baseState",
+        missing_runtime_state.to_string(),
+        "Invalid Rust v2 state dump",
     );
 
-    let mut missing_base_products = dump.body.clone();
-    missing_base_products["state"]["baseState"]
+    let mut missing_store = dump.body.clone();
+    missing_store["runtimeState"]
         .as_object_mut()
         .unwrap()
-        .remove("products");
-    reject_restore(
-        missing_base_products.to_string(),
-        "Rust state dump is missing state.baseState.products",
-    );
+        .remove("store");
+    reject_restore(missing_store.to_string(), "Invalid Rust v2 state dump");
 
-    let mut missing_base_product_order = dump.body.clone();
-    missing_base_product_order["state"]["baseState"]
+    let mut missing_staged_store = dump.body.clone();
+    missing_staged_store["runtimeState"]["store"]
         .as_object_mut()
         .unwrap()
-        .remove("productOrder");
+        .remove("staged");
     reject_restore(
-        missing_base_product_order.to_string(),
-        "Rust state dump is missing state.baseState.productOrder",
-    );
-
-    let mut missing_base_saved_search_order = dump.body.clone();
-    missing_base_saved_search_order["state"]["baseState"]
-        .as_object_mut()
-        .unwrap()
-        .remove("savedSearchOrder");
-    reject_restore(
-        missing_base_saved_search_order.to_string(),
-        "Rust state dump is missing state.baseState.savedSearchOrder",
-    );
-
-    let mut missing_staged_state = dump.body.clone();
-    missing_staged_state["state"]
-        .as_object_mut()
-        .unwrap()
-        .remove("stagedState");
-    reject_restore(
-        missing_staged_state.to_string(),
-        "Rust state dump is missing state.stagedState",
-    );
-
-    let mut missing_staged_products = dump.body.clone();
-    missing_staged_products["state"]["stagedState"]
-        .as_object_mut()
-        .unwrap()
-        .remove("products");
-    reject_restore(
-        missing_staged_products.to_string(),
-        "Rust state dump is missing state.stagedState.products",
-    );
-
-    let mut missing_staged_product_order = dump.body.clone();
-    missing_staged_product_order["state"]["stagedState"]
-        .as_object_mut()
-        .unwrap()
-        .remove("productOrder");
-    reject_restore(
-        missing_staged_product_order.to_string(),
-        "Rust state dump is missing state.stagedState.productOrder",
-    );
-
-    let mut missing_staged_deleted_ids = dump.body.clone();
-    missing_staged_deleted_ids["state"]["stagedState"]
-        .as_object_mut()
-        .unwrap()
-        .remove("deletedProductIds");
-    reject_restore(
-        missing_staged_deleted_ids.to_string(),
-        "Rust state dump is missing state.stagedState.deletedProductIds",
-    );
-
-    let mut missing_staged_saved_search_order = dump.body.clone();
-    missing_staged_saved_search_order["state"]["stagedState"]
-        .as_object_mut()
-        .unwrap()
-        .remove("savedSearchOrder");
-    reject_restore(
-        missing_staged_saved_search_order.to_string(),
-        "Rust state dump is missing state.stagedState.savedSearchOrder",
-    );
-
-    let mut missing_staged_deleted_saved_search_ids = dump.body.clone();
-    missing_staged_deleted_saved_search_ids["state"]["stagedState"]
-        .as_object_mut()
-        .unwrap()
-        .remove("deletedSavedSearchIds");
-    reject_restore(
-        missing_staged_deleted_saved_search_ids.to_string(),
-        "Rust state dump is missing state.stagedState.deletedSavedSearchIds",
+        missing_staged_store.to_string(),
+        "Invalid Rust v2 state dump",
     );
 
     let mut missing_log_entries = dump.body.clone();
@@ -2409,7 +2391,7 @@ fn restore_state_rejects_malformed_rust_dumps() {
         .remove("entries");
     reject_restore(
         missing_log_entries.to_string(),
-        "Rust state dump is missing log.entries",
+        "Invalid Rust v2 state dump",
     );
 
     let mut zero_synthetic_id = dump.body.clone();
@@ -2417,6 +2399,20 @@ fn restore_state_rejects_malformed_rust_dumps() {
     reject_restore(
         zero_synthetic_id.to_string(),
         "Invalid Rust synthetic identity",
+    );
+
+    let mut mismatched_synthetic_id = dump.body.clone();
+    mismatched_synthetic_id["nextSyntheticId"] = json!(2);
+    reject_restore(
+        mismatched_synthetic_id.to_string(),
+        "Invalid Rust synthetic identity",
+    );
+
+    let mut invalid_timestamp = dump.body.clone();
+    invalid_timestamp["runtimeState"]["lastMutationTimestamp"] = json!("not-a-timestamp");
+    reject_restore(
+        invalid_timestamp.to_string(),
+        "Invalid Rust mutation timestamp",
     );
 }
 
@@ -3679,7 +3675,7 @@ fn commit_maps_cross_domain_synthetic_ids_and_rewrites_later_references() {
 
     let dump = proxy.process_request(request("POST", "/__meta/dump"));
     let mut restored_dump = dump.body;
-    restored_dump["state"]["baseState"]["shop"] = json!({
+    restored_dump["runtimeState"]["store"]["base"]["shop"] = json!({
         "id": "gid://shopify/Shop/commit-identities",
         "name": "Commit identities shop",
         "myshopifyDomain": "commit-identities.myshopify.com",

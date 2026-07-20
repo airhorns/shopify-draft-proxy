@@ -42,25 +42,18 @@ fn bulk_operation_test_cursor(id: &str, timestamp: &str) -> String {
 }
 
 fn restore_shipping_packages(proxy: &mut DraftProxy, packages: Vec<Value>) {
-    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
-    assert_eq!(dump.status, 200);
-    let mut restored = dump.body;
-    let shipping_packages = restored["state"]["stagedState"]["shippingPackages"]
-        .as_object_mut()
-        .expect("dumped state should include staged shipping package map");
-    for package in packages {
-        let id = package["id"]
-            .as_str()
-            .expect("shipping package fixture needs an id")
-            .to_string();
-        shipping_packages.insert(id, package);
-    }
-    let restore = proxy.process_request(request_with_body(
-        "POST",
-        "/__meta/restore",
-        &restored.to_string(),
-    ));
-    assert_eq!(restore.status, 200);
+    restore_state_with(proxy, |state| {
+        let shipping_packages = state["stagedState"]["shippingPackages"]
+            .as_object_mut()
+            .expect("dumped state should include staged shipping package map");
+        for package in packages {
+            let id = package["id"]
+                .as_str()
+                .expect("shipping package fixture needs an id")
+                .to_string();
+            shipping_packages.insert(id, package);
+        }
+    });
 }
 
 fn create_bulk_metadata_product(proxy: &mut DraftProxy, title: &str) -> String {
@@ -5041,7 +5034,7 @@ fn delegate_access_token_payload_shop_uses_restored_shop_state() {
     let mut proxy = snapshot_proxy();
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
     let mut restored = dump.body.clone();
-    restored["state"]["baseState"]["shop"] = json!({
+    restored["runtimeState"]["store"]["base"]["shop"] = json!({
         "id": "gid://shopify/Shop/restored-delegate",
         "name": "Restored delegate shop",
         "myshopifyDomain": "restored-delegate.myshopify.com",
@@ -5335,7 +5328,7 @@ fn customer_delete_shop_payload_uses_restored_shop_state() {
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
     assert_eq!(dump.status, 200);
     let mut restored = dump.body;
-    restored["state"]["baseState"]["shop"] = json!({
+    restored["runtimeState"]["store"]["base"]["shop"] = json!({
         "id": "gid://shopify/Shop/customer-delete-restored",
         "name": "Customer delete restored shop",
         "myshopifyDomain": "customer-delete-restored.myshopify.com",

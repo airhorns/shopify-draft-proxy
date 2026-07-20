@@ -515,13 +515,6 @@ impl Store {
         self.synthetic_identities.borrow_mut().clear();
     }
 
-    pub(in crate::proxy) fn restore_synthetic_id_sequence(&mut self, next_id: u64) {
-        debug_assert!(next_id > 0);
-        self.next_synthetic_id = next_id;
-        self.synthetic_identity_cache_current.set(false);
-        self.synthetic_identities.borrow_mut().clear();
-    }
-
     pub(in crate::proxy) fn invalidate_synthetic_identity_cache(&self) {
         self.synthetic_identity_cache_current.set(false);
     }

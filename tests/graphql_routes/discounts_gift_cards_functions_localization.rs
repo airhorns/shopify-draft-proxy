@@ -572,9 +572,9 @@ fn seed_legacy_gift_card_base_state(proxy: &mut DraftProxy) {
     );
 
     restore_proxy_state(proxy, |restored| {
-        restored["state"]["baseState"]["shop"]["currencyCode"] = json!("CAD");
-        restored["state"]["baseState"]["giftCards"] = Value::Object(cards);
-        restored["state"]["baseState"]["giftCardConfiguration"] = json!({
+        restored["runtimeState"]["store"]["base"]["shop"]["currencyCode"] = json!("CAD");
+        restored["runtimeState"]["store"]["base"]["giftCards"] = Value::Object(cards);
+        restored["runtimeState"]["store"]["base"]["giftCardConfiguration"] = json!({
             "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
             "purchaseLimit": { "amount": "14000.0", "currencyCode": "CAD" }
         });
@@ -583,7 +583,7 @@ fn seed_legacy_gift_card_base_state(proxy: &mut DraftProxy) {
 
 fn set_gift_card_trial_shop(proxy: &mut DraftProxy) {
     restore_proxy_state(proxy, |restored| {
-        restored["state"]["baseState"]["shop"]["plan"] = json!({
+        restored["runtimeState"]["store"]["base"]["shop"]["plan"] = json!({
             "partnerDevelopment": false,
             "publicDisplayName": "Trial",
             "shopifyPlus": false
@@ -593,7 +593,7 @@ fn set_gift_card_trial_shop(proxy: &mut DraftProxy) {
 
 fn set_gift_cards_unavailable(proxy: &mut DraftProxy) {
     restore_proxy_state(proxy, |restored| {
-        restored["state"]["baseState"]["shop"]["entitlements"]["giftCards"] =
+        restored["runtimeState"]["store"]["base"]["shop"]["entitlements"]["giftCards"] =
             json!({ "enabled": false });
     });
 }
@@ -1112,7 +1112,7 @@ fn seed_discount_connection_mechanics(proxy: &mut DraftProxy) -> DiscountConnect
     };
 
     restore_proxy_state(proxy, |state| {
-        let discounts = state["state"]["stagedState"]["discounts"]
+        let discounts = state["runtimeState"]["store"]["staged"]["discounts"]["records"]
             .as_object_mut()
             .expect("staged discounts should be dump-restorable");
         let mut stamp = |id: &str, created_at: &str, updated_at: &str| {
@@ -16348,7 +16348,7 @@ fn gift_card_connection_returns_edges_cursors_windows_sort_and_reverse() {
             card["updatedAt"] = json!(created_at);
             cards.insert(id.to_string(), card);
         }
-        restored["state"]["baseState"]["giftCards"] = Value::Object(cards);
+        restored["runtimeState"]["store"]["base"]["giftCards"] = Value::Object(cards);
     });
 
     let response = proxy.process_request(json_graphql_request(
@@ -16634,7 +16634,7 @@ fn gift_cards_count_honors_limit_precision_after_query_filtering() {
         ] {
             cards.insert(id.to_string(), legacy_gift_card_fixture(id));
         }
-        restored["state"]["baseState"]["giftCards"] = Value::Object(cards);
+        restored["runtimeState"]["store"]["base"]["giftCards"] = Value::Object(cards);
     });
 
     let response = proxy.process_request(json_graphql_request(
@@ -17077,8 +17077,8 @@ fn gift_card_configuration_and_create_limit_use_base_configuration() {
         ))
         .body;
     let mut restored = dump.clone();
-    restored["state"]["baseState"]["shop"]["currencyCode"] = json!("EUR");
-    restored["state"]["baseState"]["giftCardConfiguration"] = json!({
+    restored["runtimeState"]["store"]["base"]["shop"]["currencyCode"] = json!("EUR");
+    restored["runtimeState"]["store"]["base"]["giftCardConfiguration"] = json!({
         "issueLimit": { "amount": "2500.0", "currencyCode": "EUR" },
         "purchaseLimit": { "amount": "9000.0", "currencyCode": "EUR" }
     });
@@ -17539,7 +17539,7 @@ fn gift_card_customer_notification_allows_reachable_and_unknown_contact_projecti
             let id = format!("gid://shopify/GiftCard/{tail}");
             let mut card = legacy_gift_card_fixture(&id);
             card["customer"] = customer;
-            restored["state"]["baseState"]["giftCards"][id] = card;
+            restored["runtimeState"]["store"]["base"]["giftCards"][id] = card;
         }
     });
 
@@ -17964,7 +17964,7 @@ fn gift_card_notification_uses_hydrated_trial_shop_plan() {
         ))
         .body;
     let mut restored = dump.clone();
-    restored["state"]["baseState"]["shop"]["plan"] = json!({
+    restored["runtimeState"]["store"]["base"]["shop"]["plan"] = json!({
         "partnerDevelopment": false,
         "publicDisplayName": "Trial",
         "shopifyPlus": false
@@ -19405,8 +19405,8 @@ fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
         r#"{"createdAt":"2026-04-29T09:31:02Z"}"#,
     ));
     let mut restored = dump.body.clone();
-    restored["state"]["baseState"]["shop"]["ianaTimezone"] = json!("Pacific/Honolulu");
-    restored["state"]["baseState"]["shop"]["timezoneOffsetMinutes"] = json!(-600);
+    restored["runtimeState"]["store"]["base"]["shop"]["ianaTimezone"] = json!("Pacific/Honolulu");
+    restored["runtimeState"]["store"]["base"]["shop"]["timezoneOffsetMinutes"] = json!(-600);
     let restore = proxy.process_request(request_with_body(
         "POST",
         "/__meta/restore",
@@ -19764,8 +19764,9 @@ fn gift_card_local_only_and_schema_hidden_branches_have_explicit_runtime_coverag
             r#"{"createdAt":"2026-04-29T09:31:02Z"}"#,
         ));
         let mut restored = dump.body.clone();
-        restored["state"]["baseState"]["shop"]["ianaTimezone"] = json!("Pacific/Honolulu");
-        restored["state"]["baseState"]["shop"]["timezoneOffsetMinutes"] = json!(-600);
+        restored["runtimeState"]["store"]["base"]["shop"]["ianaTimezone"] =
+            json!("Pacific/Honolulu");
+        restored["runtimeState"]["store"]["base"]["shop"]["timezoneOffsetMinutes"] = json!(-600);
         let restore = proxy.process_request(request_with_body(
             "POST",
             "/__meta/restore",
@@ -21485,7 +21486,7 @@ fn discount_update_preserves_redeemed_usage_and_scope_when_omitted() {
         "redeemed discount id",
     );
     restore_proxy_state(&mut proxy, |state| {
-        let discount = state["state"]["stagedState"]["discounts"]
+        let discount = state["runtimeState"]["store"]["staged"]["discounts"]["records"]
             .as_object_mut()
             .and_then(|discounts| discounts.get_mut(&discount_id))
             .expect("created discount should be present in staged state");

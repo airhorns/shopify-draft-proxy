@@ -301,6 +301,41 @@ Core state categories:
 - ordered mutation log entries containing original request path, headers, raw query, variables, capability metadata, resource IDs, and status
 - one store-owned synthetic identity sequence scoped to a `DraftProxy` instance, with allocation checking canonical aliases across persisted state and mutation logs
 
+### Dump and restore boundary
+
+Rust dumps use the versioned `shopify-draft-proxy-rust-state/v2` envelope. The
+consumer-readable `state` member remains the same normalized inspection view
+used by `/__meta/state`, while `runtimeState.store` is the exhaustive persisted
+representation. `Store`, `BaseState`, `StagedState`, ordered record buckets,
+and staged record buckets derive serde directly. Adding a field to one of those
+types therefore adds it to dump and restore automatically, without any change
+to `dump_state(...)`, `restore_state(...)`, or a second field list. The derive
+fails to compile when a new field's type is not serializable. Tuple-keyed maps
+use entry-array serde adapters because JSON object keys must be strings. The
+only skipped Store fields are derived synthetic-identity indexes, which are
+invalidated and lazily rebuilt from persisted state after restore.
+
+Persisted state consists of the complete Store graph (base observations,
+staged records, tombstones, order, completeness metadata, caches, and domain
+allocators), ordered mutation log, proxy-wide synthetic identity, the cached
+subscription capability used by validation, product catalog base records used
+by count overlays, and the last allocated mutation timestamp. Restore validates
+the complete envelope before atomically replacing those buckets and resets
+request-lifetime execution state, so restoring into a reused instance is
+observationally equivalent to restoring into a fresh instance.
+
+Configured/runtime services are transient across restore: `Config`, the
+resolver registry derived from configured capabilities, the injected clock,
+request execution session, and upstream/commit transports remain owned by the
+receiving `DraftProxy`. `/__meta/reset` clears staged state, session allocators,
+validation caches, timestamps, and logs while retaining configured base state.
+
+Unversioned, unknown, and former v1 schemas are rejected without changing the
+receiving instance. This pre-production project deliberately carries no legacy
+field-by-field migration path. The v2 `state` member is an inspection view only;
+restore reads `runtimeState` as its sole state authority so an editable mirror
+cannot silently diverge from the structurally serialized Store.
+
 Effective reads merge base state and staged state through shared Store helpers, respecting staged deletes and Shopify-like null/empty behavior. Commit drains staged log entries only after successful upstream replay.
 
 ## Public route contract

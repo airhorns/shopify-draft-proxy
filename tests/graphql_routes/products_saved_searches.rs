@@ -69,7 +69,7 @@ fn restore_product_payload_shop(proxy: &mut DraftProxy) -> Value {
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
     assert_eq!(dump.status, 200);
     let mut restored = dump.body;
-    restored["state"]["baseState"]["shop"] = shop.clone();
+    restored["runtimeState"]["store"]["base"]["shop"] = shop.clone();
     let restore = proxy.process_request(request_with_body(
         "POST",
         "/__meta/restore",
@@ -9050,68 +9050,30 @@ fn product_publish_live_hybrid_stages_seeded_product_without_upstream_write() {
 #[test]
 fn product_publishable_mutations_return_captured_aggregate_shape() {
     let product_id = "gid://shopify/Product/publishable-state";
-    let mut proxy = snapshot_proxy();
-    let restore = proxy.process_request(Request {
-        method: "POST".to_string(),
-        path: "/__meta/restore".to_string(),
-        headers: Default::default(),
-        body: json!({
-            "schema": "shopify-draft-proxy-rust-state/v1",
-            "createdAt": "2026-06-14T00:00:00.000Z",
-            "state": {
-                "baseState": {
-                    "products": {
-                        product_id: {
-                            "id": product_id,
-                            "title": "Publishable aggregate product",
-                            "handle": "publishable-aggregate-product",
-                            "status": "DRAFT"
-                        }
-                    },
-                    "productOrder": [product_id],
-                    "savedSearches": {},
-                    "savedSearchOrder": [],
-                    "shop": {
-                        "id": "gid://shopify/Shop/test-store",
-                        "name": "Seeded Test Store",
-                        "myshopifyDomain": "seeded-test-store.myshopify.com",
-                        "currencyCode": "USD"
-                    },
-                    "publicationIds": [
-                        "gid://shopify/Publication/82090459369",
-                        "gid://shopify/Publication/base-b",
-                        "gid://shopify/Publication/base-c"
-                    ],
-                    "publicationCount": 3,
-                    "availableLocales": {},
-                    "shopLocales": {}
-                },
-                "stagedState": {
-                    "products": {},
-                    "productOrder": [],
-                    "deletedProductIds": [],
-                    "savedSearches": {},
-                    "savedSearchOrder": [],
-                    "deletedSavedSearchIds": [],
-                    "shippingPackages": {},
-                    "deletedShippingPackageIds": {},
-                    "delegatedAccessTokens": {},
-                    "customers": {},
-                    "deletedCustomerIds": [],
-                    "customerOrders": {},
-                    "taggableResources": {},
-                    "publicationIds": [],
-                    "createdPublicationIds": [],
-                    "currentChannelPublicationId": "gid://shopify/Publication/82090459369",
-                    "currentChannelPublicationResolved": true
-                }
-            },
-            "log": { "entries": [] },
-            "nextSyntheticId": 1
-        })
-        .to_string(),
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: product_id.to_string(),
+        title: "Publishable aggregate product".to_string(),
+        handle: "publishable-aggregate-product".to_string(),
+        status: "DRAFT".to_string(),
+        ..ProductRecord::default()
+    }]);
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({
+            "id": "gid://shopify/Shop/test-store",
+            "name": "Seeded Test Store",
+            "myshopifyDomain": "seeded-test-store.myshopify.com",
+            "currencyCode": "USD"
+        });
+        state["baseState"]["publicationIds"] = json!([
+            "gid://shopify/Publication/82090459369",
+            "gid://shopify/Publication/base-b",
+            "gid://shopify/Publication/base-c"
+        ]);
+        state["baseState"]["publicationCount"] = json!(3);
+        state["stagedState"]["currentChannelPublicationId"] =
+            json!("gid://shopify/Publication/82090459369");
+        state["stagedState"]["currentChannelPublicationResolved"] = json!(true);
     });
-    assert_eq!(restore.status, 200);
 
     for (root, query) in [
         (
@@ -9263,8 +9225,9 @@ fn publishable_collection_payload_uses_staged_collection_title_handle_and_counts
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
     assert_eq!(dump.status, 200);
     let mut restored = dump.body;
-    restored["state"]["baseState"]["publicationIds"] = json!(["gid://shopify/Publication/base-a"]);
-    restored["state"]["baseState"]["publicationCount"] = json!(1);
+    restored["runtimeState"]["store"]["base"]["publicationIds"] =
+        json!(["gid://shopify/Publication/base-a"]);
+    restored["runtimeState"]["store"]["base"]["publicationCount"] = json!(1);
     let restore = proxy.process_request(request_with_body(
         "POST",
         "/__meta/restore",
@@ -9390,59 +9353,20 @@ fn publishable_mutations_reject_missing_publishable_id_without_staging() {
 #[test]
 fn publishable_current_channel_rejects_when_no_current_channel_resolves() {
     let product_id = "gid://shopify/Product/no-current-channel";
-    let mut proxy = snapshot_proxy();
-    let restore = proxy.process_request(Request {
-        method: "POST".to_string(),
-        path: "/__meta/restore".to_string(),
-        headers: Default::default(),
-        body: json!({
-            "schema": "shopify-draft-proxy-rust-state/v1",
-            "createdAt": "2026-06-25T00:00:00.000Z",
-            "state": {
-                "baseState": {
-                    "products": {
-                        product_id: {
-                            "id": product_id,
-                            "title": "No current channel product",
-                            "handle": "no-current-channel-product",
-                            "status": "ACTIVE"
-                        }
-                    },
-                    "productOrder": [product_id],
-                    "savedSearches": {},
-                    "savedSearchOrder": [],
-                    "publicationIds": [],
-                    "publicationCount": 0,
-                    "shop": null,
-                    "availableLocales": {},
-                    "shopLocales": {}
-                },
-                "stagedState": {
-                    "products": {},
-                    "productOrder": [],
-                    "deletedProductIds": [],
-                    "savedSearches": {},
-                    "savedSearchOrder": [],
-                    "deletedSavedSearchIds": [],
-                    "shippingPackages": {},
-                    "deletedShippingPackageIds": {},
-                    "delegatedAccessTokens": {},
-                    "customers": {},
-                    "deletedCustomerIds": [],
-                    "customerOrders": {},
-                    "taggableResources": {},
-                    "publicationIds": [],
-                    "createdPublicationIds": [],
-                    "publications": {},
-                    "resourcePublications": {}
-                }
-            },
-            "log": { "entries": [] },
-            "nextSyntheticId": 1
-        })
-        .to_string(),
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: product_id.to_string(),
+        title: "No current channel product".to_string(),
+        handle: "no-current-channel-product".to_string(),
+        status: "ACTIVE".to_string(),
+        ..ProductRecord::default()
+    }]);
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["publicationIds"] = json!([]);
+        state["baseState"]["publicationCount"] = json!(0);
+        state["baseState"]["shop"] = Value::Null;
+        state["stagedState"]["currentChannelPublicationId"] = Value::Null;
+        state["stagedState"]["currentChannelPublicationResolved"] = json!(true);
     });
-    assert_eq!(restore.status, 200);
 
     for (root, query) in [
         (
@@ -10316,8 +10240,8 @@ fn publishable_mutations_validate_publication_input_locally() {
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
     assert_eq!(dump.status, 200);
     let mut restored = dump.body;
-    restored["state"]["baseState"]["publicationIds"] = json!([publication_id]);
-    restored["state"]["baseState"]["publicationCount"] = json!(1);
+    restored["runtimeState"]["store"]["base"]["publicationIds"] = json!([publication_id]);
+    restored["runtimeState"]["store"]["base"]["publicationCount"] = json!(1);
     let restore = proxy.process_request(request_with_body(
         "POST",
         "/__meta/restore",
@@ -10538,10 +10462,11 @@ fn publishable_publish_preserves_collection_identity_and_current_publication_sta
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
     assert_eq!(dump.status, 200);
     let mut restored = dump.body;
-    restored["state"]["baseState"]["publicationIds"] = json!([publication_id]);
-    restored["state"]["baseState"]["publicationCount"] = json!(1);
-    restored["state"]["stagedState"]["currentChannelPublicationId"] = json!(publication_id);
-    restored["state"]["stagedState"]["currentChannelPublicationResolved"] = json!(true);
+    restored["runtimeState"]["store"]["base"]["publicationIds"] = json!([publication_id]);
+    restored["runtimeState"]["store"]["base"]["publicationCount"] = json!(1);
+    restored["runtimeState"]["store"]["staged"]["currentChannelPublicationId"] =
+        json!(publication_id);
+    restored["runtimeState"]["store"]["staged"]["currentChannelPublicationResolved"] = json!(true);
     let restore = proxy.process_request(request_with_body(
         "POST",
         "/__meta/restore",
@@ -17502,7 +17427,7 @@ fn saved_search_delete_payload_shop_uses_restored_shop_state() {
     let mut proxy = snapshot_proxy();
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
     let mut restored = dump.body.clone();
-    restored["state"]["baseState"]["shop"] = json!({
+    restored["runtimeState"]["store"]["base"]["shop"] = json!({
         "id": "gid://shopify/Shop/restored-saved-search",
         "name": "Restored saved search shop",
         "myshopifyDomain": "restored-saved-search.myshopify.com",

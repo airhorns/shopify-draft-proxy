@@ -79,13 +79,157 @@ pub(super) fn restore_state_with(proxy: &mut DraftProxy, mutate: impl FnOnce(&mu
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
     assert_eq!(dump.status, 200);
     let mut restored = dump.body;
-    mutate(&mut restored["state"]);
+
+    // Test-only adapter for existing setup closures. Production restore never
+    // parses the inspection `state` view: this facade is built from the
+    // structural v2 store and written back to `runtimeState.store`.
+    let store = &restored["runtimeState"]["store"];
+    let mut state = json!({
+        "baseState": store["base"],
+        "stagedState": store["staged"]
+    });
+    for (resource, records, order) in [
+        ("segments", "segments", "segmentOrder"),
+        ("storefrontMenus", "storefrontMenus", "storefrontMenuOrder"),
+    ] {
+        state["baseState"][records] = store["base"][resource]["records"].clone();
+        state["baseState"][order] = store["base"][resource]["order"].clone();
+    }
+    state["baseState"]["shopPolicies"] = store["shopPolicies"]["base"]["records"].clone();
+    state["baseState"]["shopPolicyOrder"] = store["shopPolicies"]["base"]["order"].clone();
+
+    for (resource, deleted) in [
+        ("customers", "deletedCustomerIds"),
+        ("collections", "deletedCollectionIds"),
+        ("locations", "deletedLocationIds"),
+        ("shippingPackages", "deletedShippingPackageIds"),
+        ("segments", "deletedSegmentIds"),
+    ] {
+        state["stagedState"][resource] = store["staged"][resource]["records"].clone();
+        state["stagedState"][deleted] = store["staged"][resource]["tombstones"].clone();
+    }
+    for (resource, records, deleted) in [
+        ("products", "products", "deletedProductIds"),
+        (
+            "productVariants",
+            "productVariants",
+            "deletedProductVariantIds",
+        ),
+        ("savedSearches", "savedSearches", "deletedSavedSearchIds"),
+        ("shopPolicies", "shopPolicies", "deletedShopPolicyIds"),
+    ] {
+        state["stagedState"][records] = store[resource]["staged"]["records"].clone();
+        state["stagedState"][deleted] = store[resource]["staged"]["tombstones"].clone();
+    }
+
+    mutate(&mut state);
+
+    let store = &mut restored["runtimeState"]["store"];
+    let mut base = state["baseState"].take();
+    for (resource, records_key, order_key) in [
+        ("segments", "segments", "segmentOrder"),
+        ("storefrontMenus", "storefrontMenus", "storefrontMenuOrder"),
+    ] {
+        let records = base[records_key].take();
+        let order = base[order_key].take();
+        base.as_object_mut()
+            .expect("base state object")
+            .remove(order_key);
+        base[resource] = json!({ "records": records, "order": order });
+    }
+    let shop_policy_records = base["shopPolicies"].take();
+    let shop_policy_order = base["shopPolicyOrder"].take();
+    base.as_object_mut()
+        .expect("base state object")
+        .remove("shopPolicies");
+    base.as_object_mut()
+        .expect("base state object")
+        .remove("shopPolicyOrder");
+    store["shopPolicies"]["base"] = json!({
+        "records": shop_policy_records,
+        "order": shop_policy_order
+    });
+    store["base"] = base;
+
+    let mut staged = state["stagedState"].take();
+    for (resource, deleted) in [
+        ("customers", "deletedCustomerIds"),
+        ("collections", "deletedCollectionIds"),
+        ("locations", "deletedLocationIds"),
+        ("shippingPackages", "deletedShippingPackageIds"),
+        ("segments", "deletedSegmentIds"),
+    ] {
+        let records = staged[resource].take();
+        let tombstones = staged[deleted].take();
+        let order = json_record_order(&records, &store["staged"][resource]["order"]);
+        staged
+            .as_object_mut()
+            .expect("staged state object")
+            .remove(deleted);
+        staged[resource] = json!({
+            "records": records,
+            "order": order,
+            "tombstones": tombstones
+        });
+    }
+    for (resource, records_key, deleted) in [
+        ("products", "products", "deletedProductIds"),
+        (
+            "productVariants",
+            "productVariants",
+            "deletedProductVariantIds",
+        ),
+        ("savedSearches", "savedSearches", "deletedSavedSearchIds"),
+        ("shopPolicies", "shopPolicies", "deletedShopPolicyIds"),
+    ] {
+        let record_values = staged[records_key].take();
+        let tombstones = staged[deleted].take();
+        let order = json_record_order(&record_values, &store[resource]["staged"]["order"]);
+        staged
+            .as_object_mut()
+            .expect("staged state object")
+            .remove(records_key);
+        staged
+            .as_object_mut()
+            .expect("staged state object")
+            .remove(deleted);
+        store[resource]["staged"] = json!({
+            "records": record_values,
+            "order": order,
+            "tombstones": tombstones
+        });
+    }
+    store["staged"] = staged;
+
     let restore = proxy.process_request(request_with_body(
         "POST",
         "/__meta/restore",
         &restored.to_string(),
     ));
     assert_eq!(restore.status, 200);
+}
+
+fn json_record_order(records: &Value, existing_order: &Value) -> Value {
+    let Some(records) = records.as_object() else {
+        return json!([]);
+    };
+    let mut seen = std::collections::BTreeSet::new();
+    let mut order = existing_order
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .filter(|id| records.contains_key(*id))
+        .filter(|id| seen.insert((*id).to_string()))
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    order.extend(
+        records
+            .keys()
+            .filter(|id| seen.insert((*id).clone()))
+            .cloned(),
+    );
+    json!(order)
 }
 
 pub(super) fn restore_shop_domain_context(

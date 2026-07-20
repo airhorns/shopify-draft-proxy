@@ -523,19 +523,6 @@ pub(in crate::proxy) fn shop_policy_state_map_json(
         .collect()
 }
 
-pub(in crate::proxy) fn shop_policy_state_map_from_json(
-    value: &Value,
-) -> BTreeMap<String, ShopPolicyRecord> {
-    value
-        .as_object()
-        .into_iter()
-        .flatten()
-        .filter_map(|(id, policy)| {
-            shop_policy_record_from_json(policy).map(|policy| (id.clone(), policy))
-        })
-        .collect()
-}
-
 pub(in crate::proxy) fn shop_policy_state_from_shop(
     shop: &Value,
 ) -> (BTreeMap<String, ShopPolicyRecord>, Vec<String>) {

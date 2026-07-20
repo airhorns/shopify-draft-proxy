@@ -758,46 +758,6 @@ pub(in crate::proxy) fn saved_search_state_map_json(
     )
 }
 
-pub(in crate::proxy) fn saved_search_state_map_from_json(
-    value: &Value,
-) -> BTreeMap<String, SavedSearchRecord> {
-    value
-        .as_object()
-        .into_iter()
-        .flatten()
-        .filter_map(|(id, value)| {
-            saved_search_state_from_json(value).map(|record| (id.clone(), record))
-        })
-        .collect()
-}
-
-pub(in crate::proxy) fn saved_search_state_from_json(value: &Value) -> Option<SavedSearchRecord> {
-    let id = value.get("id")?.as_str()?;
-    let name = value.get("name")?.as_str()?;
-    let query = value.get("query")?.as_str()?;
-    let resource_type = value.get("resourceType")?.as_str()?;
-    let api_client_id = value
-        .get("apiClientId")
-        .and_then(Value::as_str)
-        .unwrap_or(DEFAULT_SAVED_SEARCH_API_CLIENT_ID);
-    let mut record =
-        saved_search_record_with_api_client(id, name, query, resource_type, api_client_id);
-    record.cursor = value
-        .get("cursor")
-        .and_then(Value::as_str)
-        .map(str::to_string);
-    if let Some(legacy_resource_id) = value.get("legacyResourceId").and_then(Value::as_str) {
-        record.legacy_resource_id = legacy_resource_id.to_string();
-    }
-    if let Some(search_terms) = value.get("searchTerms").and_then(Value::as_str) {
-        record.search_terms = search_terms.to_string();
-    }
-    if let Some(filters) = saved_search_filter_records_from_value(value.get("filters")) {
-        record.filters = filters;
-    }
-    Some(record)
-}
-
 pub(in crate::proxy) fn saved_search_record_from_node(
     node: &Value,
     fallback_resource_type: &str,

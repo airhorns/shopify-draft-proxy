@@ -104,7 +104,7 @@ fn restore_italian_eur_shop(proxy: &mut DraftProxy) {
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
     assert_eq!(dump.status, 200);
     let mut restored = dump.body;
-    restored["state"]["baseState"]["shop"] = json!({
+    restored["runtimeState"]["store"]["base"]["shop"] = json!({
         "id": "gid://shopify/Shop/italian-primary",
         "name": "Italian primary shop",
         "currencyCode": "EUR",
@@ -122,7 +122,7 @@ fn restore_italian_eur_shop(proxy: &mut DraftProxy) {
             "sslEnabled": true
         }]
     });
-    restored["state"]["baseState"]["shopLocales"] = json!({
+    restored["runtimeState"]["store"]["base"]["shopLocales"] = json!({
         "it": {
             "locale": "it",
             "name": "Italian",
@@ -4969,7 +4969,7 @@ fn market_web_presence_delete_only_blocks_primary_domain_host() {
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
     assert_eq!(dump.status, 200);
     let mut restored = dump.body;
-    restored["state"]["baseState"]["shop"] = json!({
+    restored["runtimeState"]["store"]["base"]["shop"] = json!({
         "id": "gid://shopify/Shop/web-presence-delete-domain-guard",
         "myshopifyDomain": "guard-shop.myshopify.com",
         "primaryDomain": {
@@ -10489,7 +10489,7 @@ fn markets_resolved_values_falls_back_to_observed_shop_tax_inclusivity() {
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
     assert_eq!(dump.status, 200);
     let mut restored = dump.body;
-    restored["state"]["baseState"]["shop"] = json!({
+    restored["runtimeState"]["store"]["base"]["shop"] = json!({
         "currencyCode": "GBP",
         "taxesIncluded": true
     });
