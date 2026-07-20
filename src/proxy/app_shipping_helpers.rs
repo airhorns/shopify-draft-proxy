@@ -420,7 +420,7 @@ fn app_subscription_line_item_from_input(value: &ResolvedValue, id: String) -> V
 
 pub(in crate::proxy) fn current_app_installation_value(
     installation: &Value,
-    subscriptions: &BTreeMap<String, Value>,
+    subscriptions: &[Value],
     one_time_purchases: &BTreeMap<String, Value>,
     revoked_access_scopes: &BTreeSet<String>,
 ) -> Value {
@@ -432,22 +432,16 @@ pub(in crate::proxy) fn current_app_installation_value(
     if let Some(id) = app_installation_id(installation) {
         fields.insert("id".to_string(), json!(id));
     }
-    if subscriptions.is_empty() {
-        fields
-            .entry("activeSubscriptions".to_string())
-            .or_insert_with(|| Value::Array(Vec::new()));
-    } else {
-        fields.insert(
-            "activeSubscriptions".to_string(),
-            Value::Array(
-                subscriptions
-                    .values()
-                    .filter(|subscription| subscription["status"] == "ACTIVE")
-                    .cloned()
-                    .collect(),
-            ),
-        );
-    }
+    fields.insert(
+        "activeSubscriptions".to_string(),
+        Value::Array(
+            subscriptions
+                .iter()
+                .filter(|subscription| subscription["status"] == "ACTIVE")
+                .cloned()
+                .collect(),
+        ),
+    );
     fields.insert(
         "accessScopes".to_string(),
         Value::Array(

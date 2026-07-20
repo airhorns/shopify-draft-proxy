@@ -19,6 +19,21 @@ fn synthetic_gid(value: &Value, resource: &str) -> String {
     id.to_string()
 }
 
+fn observed_app_subscription(id: &str, status: &str, trial_days: i64, line_items: Value) -> Value {
+    json!({
+        "__typename": "AppSubscription",
+        "id": id,
+        "name": "Observed Shopify plan",
+        "status": status,
+        "test": true,
+        "trialDays": trial_days,
+        "currentPeriodEnd": "2026-05-10T00:00:00.000Z",
+        "createdAt": "2026-04-10T00:00:00.000Z",
+        "returnUrl": "https://app.example.test/return",
+        "lineItems": line_items,
+    })
+}
+
 #[test]
 fn delegate_access_token_create_validates_and_stages_synthetic_secret() {
     let mut proxy = snapshot_proxy();
@@ -1675,8 +1690,918 @@ fn observed_current_app_installation_identity_survives_local_app_mutation_withou
     );
     assert_eq!(
         *upstream_calls.lock().unwrap(),
-        1,
-        "local app mutation and readback must not call upstream again"
+        2,
+        "billing overlay reads must refresh the selected Shopify baseline once"
+    );
+}
+
+#[test]
+fn app_billing_overlays_local_create_on_observed_subscription_baseline() {
+    let installation_id = "gid://shopify/AppInstallation/913990517042";
+    let app_id = "gid://shopify/App/347082227713";
+    let observed_subscription_id = "gid://shopify/AppSubscription/7001";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let observed_subscription =
+        observed_app_subscription(observed_subscription_id, "ACTIVE", 0, json!([]));
+    let upstream_subscription = observed_subscription.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "currentAppInstallation": {
+                            "id": installation_id,
+                            "app": { "id": app_id, "handle": "billing-capable-app" },
+                            "activeSubscriptions": [upstream_subscription.clone()],
+                            "allSubscriptions": {
+                                "nodes": [upstream_subscription.clone()],
+                                "edges": [{
+                                    "cursor": "observed-subscription-cursor",
+                                    "node": upstream_subscription.clone()
+                                }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": "observed-subscription-cursor",
+                                    "endCursor": "observed-subscription-cursor"
+                                }
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let baseline = proxy.process_request(json_graphql_request(
+        r#"
+        query ObserveShopifyBillingBaseline {
+          currentAppInstallation {
+            id
+            app { id handle }
+            activeSubscriptions { id name status }
+            allSubscriptions(first: 10) { nodes { id name status } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        baseline.body["data"]["currentAppInstallation"]["allSubscriptions"]["nodes"],
+        json!([{ "id": observed_subscription_id, "name": "Observed Shopify plan", "status": "ACTIVE" }])
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalSubscriptionBesideObservedBaseline(
+          $lineItems: [AppSubscriptionLineItemInput!]!
+        ) {
+          appSubscriptionCreate(
+            name: "Local staged plan"
+            returnUrl: "https://app.example.test/return"
+            test: true
+            lineItems: $lineItems
+          ) {
+            appSubscription { id name status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [{
+                "plan": {
+                    "appUsagePricingDetails": {
+                        "cappedAmount": { "amount": 100, "currencyCode": "USD" },
+                        "terms": "usage terms"
+                    }
+                }
+            }]
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let local_subscription_id = synthetic_gid(
+        &create.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"],
+        "AppSubscription",
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadObservedAndLocalBillingOverlay {
+          currentAppInstallation {
+            activeSubscriptions { id name status }
+            allSubscriptions(first: 10) { nodes { id name status } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"]["allSubscriptions"]["nodes"],
+        json!([
+            { "id": observed_subscription_id, "name": "Observed Shopify plan", "status": "ACTIVE" },
+            { "id": local_subscription_id, "name": "Local staged plan", "status": "ACTIVE" }
+        ])
+    );
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"]["activeSubscriptions"],
+        json!([
+            { "id": observed_subscription_id, "name": "Observed Shopify plan", "status": "ACTIVE" },
+            { "id": local_subscription_id, "name": "Local staged plan", "status": "ACTIVE" }
+        ])
+    );
+
+    let observed_node = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadObservedSubscriptionFromEffectiveNode($id: ID!) {
+          node(id: $id) {
+            ... on AppSubscription { id name status }
+          }
+        }
+        "#,
+        json!({ "id": observed_subscription_id }),
+    ));
+    assert_eq!(
+        observed_node.body["data"]["node"],
+        json!({
+            "id": observed_subscription_id,
+            "name": "Observed Shopify plan",
+            "status": "ACTIVE"
+        })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 2);
+}
+
+#[test]
+fn app_billing_hydrates_cold_subscription_targets_for_trial_and_cancel() {
+    let subscription_id = "gid://shopify/AppSubscription/7101";
+    let app_id = "gid://shopify/App/347082227713";
+    let installation_id = "gid://shopify/AppInstallation/913990517042";
+
+    let trial_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_trial_calls = Arc::clone(&trial_calls);
+    let trial_subscription = observed_app_subscription(subscription_id, "ACTIVE", 5, json!([]));
+    let mut trial_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(query.trim_start().starts_with("query"));
+            assert!(!query.contains("mutation"));
+            captured_trial_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "currentAppInstallation": {
+                            "id": installation_id,
+                            "app": { "id": app_id }
+                        },
+                        "node": trial_subscription.clone()
+                    }
+                }),
+            }
+        });
+
+    let trial = trial_proxy.process_request(json_graphql_request(
+        r#"
+        mutation ExtendColdObservedSubscription($id: ID!) {
+          appSubscriptionTrialExtend(id: $id, days: 2) {
+            appSubscription { id status trialDays currentPeriodEnd }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": subscription_id }),
+    ));
+    assert_eq!(
+        trial.body["data"]["appSubscriptionTrialExtend"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        trial.body["data"]["appSubscriptionTrialExtend"]["appSubscription"]["trialDays"],
+        json!(7)
+    );
+    assert_eq!(trial_calls.lock().unwrap().len(), 1);
+
+    let trial_node = trial_proxy.process_request(json_graphql_request(
+        r#"
+        query ReadExtendedColdSubscription($id: ID!) {
+          node(id: $id) {
+            ... on AppSubscription { id status trialDays }
+          }
+        }
+        "#,
+        json!({ "id": subscription_id }),
+    ));
+    assert_eq!(
+        trial_node.body["data"]["node"],
+        json!({ "id": subscription_id, "status": "ACTIVE", "trialDays": 7 })
+    );
+    assert_eq!(trial_calls.lock().unwrap().len(), 1);
+
+    let cancel_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_cancel_calls = Arc::clone(&cancel_calls);
+    let cancel_subscription = observed_app_subscription(subscription_id, "ACTIVE", 5, json!([]));
+    let mut cancel_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(query.trim_start().starts_with("query"));
+            assert!(!query.contains("mutation"));
+            captured_cancel_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "currentAppInstallation": {
+                            "id": installation_id,
+                            "app": { "id": app_id }
+                        },
+                        "node": cancel_subscription.clone()
+                    }
+                }),
+            }
+        });
+    let cancel = cancel_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CancelColdObservedSubscription($id: ID!) {
+          appSubscriptionCancel(id: $id, prorate: true) {
+            appSubscription { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": subscription_id }),
+    ));
+    assert_eq!(
+        cancel.body["data"]["appSubscriptionCancel"],
+        json!({
+            "appSubscription": { "id": subscription_id, "status": "CANCELLED" },
+            "userErrors": []
+        })
+    );
+    assert_eq!(cancel_calls.lock().unwrap().len(), 1);
+    assert_eq!(
+        log_snapshot(&cancel_proxy)["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn app_billing_hydrates_cold_line_item_for_effective_usage_validation() {
+    let subscription_id = "gid://shopify/AppSubscription/7201";
+    let line_item_id = "gid://shopify/AppSubscriptionLineItem/7202";
+    let existing_usage_id = "gid://shopify/AppUsageRecord/7203";
+    let app_id = "gid://shopify/App/347082227713";
+    let installation_id = "gid://shopify/AppInstallation/913990517042";
+    let usage_line_item = json!({
+        "id": line_item_id,
+        "plan": {
+            "pricingDetails": {
+                "__typename": "AppUsagePricing",
+                "cappedAmount": { "amount": "10.0", "currencyCode": "USD" },
+                "balanceUsed": { "amount": "6.0", "currencyCode": "USD" },
+                "interval": "EVERY_30_DAYS",
+                "terms": "Observed usage terms"
+            }
+        },
+        "usageRecords": {
+            "nodes": [{
+                "__typename": "AppUsageRecord",
+                "id": existing_usage_id,
+                "createdAt": "2026-04-20T00:00:00.000Z",
+                "description": "existing usage",
+                "idempotencyKey": "existing-key",
+                "price": { "amount": "6.0", "currencyCode": "USD" },
+                "subscriptionLineItem": { "id": line_item_id }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "usage-cursor",
+                "endCursor": "usage-cursor"
+            }
+        }
+    });
+    let subscription =
+        observed_app_subscription(subscription_id, "ACTIVE", 0, json!([usage_line_item]));
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(query.trim_start().starts_with("query"));
+            assert!(!query.contains("mutation"));
+            captured_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "currentAppInstallation": {
+                            "id": installation_id,
+                            "app": { "id": app_id },
+                            "activeSubscriptions": [subscription.clone()]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let usage_mutation = r#"
+      mutation CreateUsageAgainstColdLineItem(
+        $lineItemId: ID!
+        $amount: Decimal!
+        $description: String!
+        $idempotencyKey: String!
+      ) {
+        appUsageRecordCreate(
+          subscriptionLineItemId: $lineItemId
+          price: { amount: $amount, currencyCode: USD }
+          description: $description
+          idempotencyKey: $idempotencyKey
+        ) {
+          appUsageRecord { id description idempotencyKey price { amount currencyCode } }
+          userErrors { field message }
+        }
+      }
+    "#;
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        usage_mutation,
+        json!({
+            "lineItemId": line_item_id,
+            "amount": "6.0",
+            "description": "duplicate should reuse observed record",
+            "idempotencyKey": "existing-key"
+        }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": {
+                "id": existing_usage_id,
+                "description": "existing usage",
+                "idempotencyKey": "existing-key",
+                "price": { "amount": "6.0", "currencyCode": "USD" }
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let success = proxy.process_request(json_graphql_request(
+        usage_mutation,
+        json!({
+            "lineItemId": line_item_id,
+            "amount": "4.0",
+            "description": "fills remaining balance",
+            "idempotencyKey": "new-key"
+        }),
+    ));
+    assert_eq!(
+        success.body["data"]["appUsageRecordCreate"]["userErrors"],
+        json!([])
+    );
+    let new_usage_id = synthetic_gid(
+        &success.body["data"]["appUsageRecordCreate"]["appUsageRecord"]["id"],
+        "AppUsageRecord",
+    );
+
+    let over_cap = proxy.process_request(json_graphql_request(
+        usage_mutation,
+        json!({
+            "lineItemId": line_item_id,
+            "amount": "1.0",
+            "description": "over cap",
+            "idempotencyKey": "over-cap-key"
+        }),
+    ));
+    assert_eq!(
+        over_cap.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": null,
+            "userErrors": [{ "field": null, "message": "Total price exceeds balance remaining" }]
+        })
+    );
+
+    let effective_node = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadEffectiveSubscriptionAfterColdUsage($id: ID!) {
+          node(id: $id) {
+            ... on AppSubscription {
+              id
+              lineItems {
+                id
+                plan {
+                  pricingDetails {
+                    __typename
+                    ... on AppUsagePricing { cappedAmount { amount currencyCode } balanceUsed { amount currencyCode } }
+                  }
+                }
+                usageRecords(first: 10) { nodes { id idempotencyKey } }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": subscription_id }),
+    ));
+    assert_eq!(
+        effective_node.body["data"]["node"]["lineItems"][0],
+        json!({
+            "id": line_item_id,
+            "plan": {
+                "pricingDetails": {
+                    "__typename": "AppUsagePricing",
+                    "cappedAmount": { "amount": "10.0", "currencyCode": "USD" },
+                    "balanceUsed": { "amount": "10.0", "currencyCode": "USD" }
+                }
+            },
+            "usageRecords": {
+                "nodes": [
+                    { "id": existing_usage_id, "idempotencyKey": "existing-key" },
+                    { "id": new_usage_id, "idempotencyKey": "new-key" }
+                ]
+            }
+        })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn app_billing_hydrates_cold_line_item_for_capped_amount_validation() {
+    let subscription_id = "gid://shopify/AppSubscription/7301";
+    let line_item_id = "gid://shopify/AppSubscriptionLineItem/7302";
+    let app_id = "gid://shopify/App/347082227713";
+    let installation_id = "gid://shopify/AppInstallation/913990517042";
+    let line_item = json!({
+        "id": line_item_id,
+        "plan": {
+            "pricingDetails": {
+                "__typename": "AppUsagePricing",
+                "cappedAmount": { "amount": "10.0", "currencyCode": "USD" },
+                "balanceUsed": { "amount": "2.0", "currencyCode": "USD" },
+                "interval": "EVERY_30_DAYS",
+                "terms": "Observed usage terms"
+            }
+        },
+        "usageRecords": {
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        }
+    });
+    let subscription = observed_app_subscription(subscription_id, "ACTIVE", 0, json!([line_item]));
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(query.trim_start().starts_with("query"));
+            assert!(!query.contains("mutation"));
+            captured_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "currentAppInstallation": {
+                            "id": installation_id,
+                            "app": { "id": app_id },
+                            "activeSubscriptions": [subscription.clone()]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateColdObservedUsageCap($id: ID!) {
+          appSubscriptionLineItemUpdate(
+            id: $id
+            cappedAmount: { amount: 20, currencyCode: USD }
+          ) {
+            confirmationUrl
+            appSubscription {
+              id
+              lineItems {
+                id
+                plan {
+                  pricingDetails {
+                    __typename
+                    ... on AppUsagePricing { cappedAmount { amount currencyCode } }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": line_item_id }),
+    ));
+    assert_eq!(
+        update.body["data"]["appSubscriptionLineItemUpdate"],
+        json!({
+            "confirmationUrl": DERIVED_DEFAULT_CONFIRMATION_URL,
+            "appSubscription": {
+                "id": subscription_id,
+                "lineItems": [{
+                    "id": line_item_id,
+                    "plan": {
+                        "pricingDetails": {
+                            "__typename": "AppUsagePricing",
+                            "cappedAmount": { "amount": "10.0", "currencyCode": "USD" }
+                        }
+                    }
+                }]
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+
+    let invalid_currency = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RejectColdObservedUsageCapCurrency($id: ID!) {
+          appSubscriptionLineItemUpdate(
+            id: $id
+            cappedAmount: { amount: 20, currencyCode: EUR }
+          ) {
+            appSubscription { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": line_item_id }),
+    ));
+    assert_eq!(
+        invalid_currency.body["data"]["appSubscriptionLineItemUpdate"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": null, "message": "Currency code must be USD" }]
+        })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn app_billing_effective_state_enforces_app_ownership() {
+    fn app_request(app_id: &str, query: &str, variables: Value) -> Request {
+        let mut request = json_graphql_request(query, variables);
+        request.headers.insert(
+            "x-shopify-draft-proxy-api-client-id".to_string(),
+            app_id.to_string(),
+        );
+        request
+    }
+
+    let owner_app_id = "gid://shopify/App/8101";
+    let other_app_id = "gid://shopify/App/8102";
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(app_request(
+        owner_app_id,
+        r#"
+        mutation CreateOwnedSubscription($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(
+            name: "Owned plan"
+            returnUrl: "https://app.example.test/return"
+            test: true
+            lineItems: $lineItems
+          ) {
+            appSubscription { id lineItems { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [{
+                "plan": {
+                    "appUsagePricingDetails": {
+                        "cappedAmount": { "amount": 10, "currencyCode": "USD" },
+                        "terms": "usage terms"
+                    }
+                }
+            }]
+        }),
+    ));
+    let subscription_id = synthetic_gid(
+        &create.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"],
+        "AppSubscription",
+    );
+    let line_item_id = synthetic_gid(
+        &create.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"][0]["id"],
+        "AppSubscriptionLineItem",
+    );
+
+    let cross_app_cancel = proxy.process_request(app_request(
+        other_app_id,
+        r#"
+        mutation CrossAppCancel($id: ID!) {
+          appSubscriptionCancel(id: $id) {
+            appSubscription { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": subscription_id }),
+    ));
+    assert_eq!(
+        cross_app_cancel.body["data"]["appSubscriptionCancel"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Couldn't find RecurringApplicationCharge"
+            }]
+        })
+    );
+
+    let cross_app_usage = proxy.process_request(app_request(
+        other_app_id,
+        r#"
+        mutation CrossAppUsage($id: ID!) {
+          appUsageRecordCreate(
+            subscriptionLineItemId: $id
+            price: { amount: 1, currencyCode: USD }
+            description: "not owned"
+            idempotencyKey: "cross-app"
+          ) {
+            appUsageRecord { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": line_item_id }),
+    ));
+    assert_eq!(
+        cross_app_usage.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": null,
+            "userErrors": [{ "field": ["subscriptionLineItemId"], "message": "Invalid id" }]
+        })
+    );
+
+    let cross_app_node = proxy.process_request(app_request(
+        other_app_id,
+        r#"
+        query CrossAppSubscriptionNode($id: ID!) {
+          node(id: $id) { ... on AppSubscription { id status } }
+        }
+        "#,
+        json!({ "id": subscription_id }),
+    ));
+    assert_eq!(cross_app_node.body["data"]["node"], Value::Null);
+
+    let owner_node = proxy.process_request(app_request(
+        owner_app_id,
+        r#"
+        query OwnerSubscriptionNode($id: ID!) {
+          node(id: $id) { ... on AppSubscription { id status } }
+        }
+        "#,
+        json!({ "id": subscription_id }),
+    ));
+    assert_eq!(
+        owner_node.body["data"]["node"],
+        json!({ "id": subscription_id, "status": "ACTIVE" })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn app_billing_dump_restore_preserves_observed_baseline_and_local_overlay() {
+    let installation_id = "gid://shopify/AppInstallation/913990517042";
+    let app_id = "gid://shopify/App/347082227713";
+    let observed_subscription_id = "gid://shopify/AppSubscription/7401";
+    let observed_subscription =
+        observed_app_subscription(observed_subscription_id, "ACTIVE", 0, json!([]));
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_request| {
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "currentAppInstallation": {
+                            "id": installation_id,
+                            "app": { "id": app_id },
+                            "activeSubscriptions": [observed_subscription.clone()],
+                            "allSubscriptions": { "nodes": [observed_subscription.clone()] }
+                        }
+                    }
+                }),
+            }
+        });
+    let baseline = proxy.process_request(json_graphql_request(
+        r#"
+        query ObserveBillingBeforeDump {
+          currentAppInstallation {
+            allSubscriptions(first: 10) { nodes { id } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        baseline.body["data"]["currentAppInstallation"]["allSubscriptions"]["nodes"],
+        json!([{ "id": observed_subscription_id }])
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBillingOverlayBeforeDump($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(
+            name: "Persisted local plan"
+            returnUrl: "https://app.example.test/return"
+            test: true
+            lineItems: $lineItems
+          ) {
+            appSubscription { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [{
+                "plan": {
+                    "appUsagePricingDetails": {
+                        "cappedAmount": { "amount": 10, "currencyCode": "USD" },
+                        "terms": "usage terms"
+                    }
+                }
+            }]
+        }),
+    ));
+    let local_subscription_id = synthetic_gid(
+        &create.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"],
+        "AppSubscription",
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["baseState"]["appSubscriptionOrder"],
+        json!([observed_subscription_id])
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["appSubscriptionOrder"],
+        json!([local_subscription_id])
+    );
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let readback = restored.process_request(json_graphql_request(
+        r#"
+        query ReadRestoredBillingOverlay {
+          currentAppInstallation {
+            allSubscriptions(first: 10) { nodes { id name status } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"]["allSubscriptions"]["nodes"],
+        json!([
+            { "id": observed_subscription_id, "name": "Observed Shopify plan", "status": "ACTIVE" },
+            { "id": local_subscription_id, "name": "Persisted local plan", "status": "ACTIVE" }
+        ])
+    );
+
+    let mut tombstone_dump = dump.body;
+    tombstone_dump["state"]["stagedState"]["deletedAppSubscriptionIds"] =
+        json!([observed_subscription_id]);
+    let mut tombstoned = snapshot_proxy();
+    let restore = tombstoned.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &tombstone_dump.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let tombstone_readback = tombstoned.process_request(json_graphql_request(
+        r#"
+        query ReadRestoredBillingTombstone($id: ID!) {
+          currentAppInstallation {
+            activeSubscriptions { id }
+            allSubscriptions(first: 10) { nodes { id } }
+          }
+          node(id: $id) { ... on AppSubscription { id } }
+        }
+        "#,
+        json!({ "id": observed_subscription_id }),
+    ));
+    assert_eq!(
+        tombstone_readback.body["data"]["currentAppInstallation"],
+        json!({
+            "activeSubscriptions": [{ "id": local_subscription_id }],
+            "allSubscriptions": { "nodes": [{ "id": local_subscription_id }] }
+        })
+    );
+    assert_eq!(tombstone_readback.body["data"]["node"], Value::Null);
+}
+
+#[test]
+fn app_billing_commit_replays_original_mutations_in_order() {
+    let replayed = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_replays = Arc::clone(&replayed);
+    let mut proxy = snapshot_proxy().with_commit_transport(move |request| {
+        captured_replays.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "appSubscriptionCreate": { "appSubscription": null } } }),
+        }
+    });
+    let first_query = r#"
+      mutation CreateFirstBillingCommit($lineItems: [AppSubscriptionLineItemInput!]!) {
+        appSubscriptionCreate(
+          name: "First billing commit"
+          returnUrl: "https://app.example.test/return"
+          test: true
+          lineItems: $lineItems
+        ) {
+          appSubscription { id }
+          userErrors { field message }
+        }
+      }
+    "#;
+    let second_query = r#"
+      mutation CreateSecondBillingCommit($lineItems: [AppSubscriptionLineItemInput!]!) {
+        appSubscriptionCreate(
+          name: "Second billing commit"
+          returnUrl: "https://app.example.test/return"
+          test: true
+          lineItems: $lineItems
+        ) {
+          appSubscription { id }
+          userErrors { field message }
+        }
+      }
+    "#;
+    let variables = json!({
+        "lineItems": [{
+            "plan": {
+                "appUsagePricingDetails": {
+                    "cappedAmount": { "amount": 10, "currencyCode": "USD" },
+                    "terms": "usage terms"
+                }
+            }
+        }]
+    });
+    assert_eq!(
+        proxy
+            .process_request(json_graphql_request(first_query, variables.clone()))
+            .body["data"]["appSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        proxy
+            .process_request(json_graphql_request(second_query, variables.clone()))
+            .body["data"]["appSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    assert!(replayed.lock().unwrap().is_empty());
+
+    let commit = proxy.process_request(request_with_body("POST", "/__meta/commit", ""));
+    assert_eq!(commit.status, 200);
+    assert_eq!(commit.body["committed"], json!(2));
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 2);
+    assert_eq!(
+        serde_json::from_str::<Value>(&replayed[0].body).unwrap(),
+        json!({ "query": first_query, "variables": variables.clone() })
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(&replayed[1].body).unwrap(),
+        json!({ "query": second_query, "variables": variables })
     );
 }
 
