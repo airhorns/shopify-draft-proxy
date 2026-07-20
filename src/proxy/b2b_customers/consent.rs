@@ -1,11 +1,12 @@
+use super::customers::customer_count_baseline_key;
 use super::*;
 
-/// Hydration query for the store-wide `customersCount` baseline used by the
+/// Hydration query for the unfiltered `customersCount` baseline used by the
 /// `customer*TaxExemptions` / marketing-consent downstream reads in LiveHybrid
-/// mode. Mirrors the per-resource hydrate queries; the count is cached into
-/// `customers_count_base` so subsequent reads track deletions generically.
+/// mode. Filtered/limited reads use a separate argument-keyed baseline.
 const CUSTOMER_COUNT_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/customers/customer-count-hydrate.graphql");
+const CUSTOMER_FILTERED_COUNT_HYDRATE_QUERY: &str = "query CustomerFilteredCountHydrate($query: String, $limit: Int) { customersCount(query: $query, limit: $limit) { count precision } }";
 
 impl DraftProxy {
     /// `customerAddTaxExemptions` / `customerRemoveTaxExemptions` /
@@ -99,29 +100,49 @@ impl DraftProxy {
         )
     }
 
-    /// In LiveHybrid mode, hydrate the store-wide `customersCount` baseline from
-    /// upstream once (cached into `customers_count_base`) so a downstream
-    /// `customersCount` read served from the staged overlay reports the live
-    /// total. No-op in Snapshot mode or when the baseline is already known.
-    pub(in crate::proxy) fn hydrate_customers_count_for_overlay_read(&mut self, request: &Request) {
+    /// In LiveHybrid mode, hydrate an argument-keyed `customersCount` baseline
+    /// so one partial/filtered count can never seed a broader scope.
+    pub(in crate::proxy) fn hydrate_customers_count_for_overlay_read(
+        &mut self,
+        request: &Request,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) {
+        let key = customer_count_baseline_key(arguments);
         if self.config.read_mode != ReadMode::LiveHybrid
-            || self.store.staged.customers_count_base.is_some()
+            || self
+                .store
+                .staged
+                .customer_count_baselines
+                .contains_key(&key)
         {
             return;
         }
+        let has_arguments = resolved_string_field(arguments, "query").is_some()
+            || resolved_int_field(arguments, "limit").is_some_and(|limit| limit != 10_000);
         let response = self.upstream_post(
             request,
             json!({
-                "query": CUSTOMER_COUNT_HYDRATE_QUERY,
-                "operationName": "CustomerCountHydrate",
-                "variables": {},
+                "query": if has_arguments { CUSTOMER_FILTERED_COUNT_HYDRATE_QUERY } else { CUSTOMER_COUNT_HYDRATE_QUERY },
+                "operationName": if has_arguments { "CustomerFilteredCountHydrate" } else { "CustomerCountHydrate" },
+                "variables": if has_arguments {
+                    json!({
+                        "query": resolved_string_field(arguments, "query"),
+                        "limit": resolved_int_field(arguments, "limit"),
+                    })
+                } else {
+                    json!({})
+                },
             }),
         );
         if !(200..300).contains(&response.status) {
             return;
         }
-        if let Some(count) = response.body["data"]["customersCount"]["count"].as_u64() {
-            self.store.staged.customers_count_base = Some(count);
+        let count = &response.body["data"]["customersCount"];
+        if count.get("count").and_then(Value::as_u64).is_some() {
+            self.store
+                .staged
+                .customer_count_baselines
+                .insert(key, count.clone());
         }
     }
 

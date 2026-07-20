@@ -2449,6 +2449,7 @@ fn live_hybrid_customer_overlay_keeps_staged_results_when_optional_hydration_fai
 #[test]
 fn live_hybrid_customer_overlay_merges_partial_aliases_without_losing_hydrated_fields() {
     let real_customer_id = "gid://shopify/Customer/9101";
+    let real_customer_cursor = "opaque-shopify-customer-cursor-9101";
     let live_staged_customer_id = "gid://shopify/Customer/9102";
     let tag = "overlay-regression";
     let real_customer = json!({
@@ -2521,9 +2522,45 @@ fn live_hybrid_customer_overlay_merges_partial_aliases_without_losing_hydrated_f
                     Response {
                         status: 200,
                         headers: Default::default(),
-                        body: json!({ "data": { "customers": { "nodes": nodes } } }),
+                        body: json!({
+                            "data": {
+                                "customers": {
+                                    "nodes": nodes,
+                                    "edges": [{
+                                        "cursor": real_customer_cursor,
+                                        "node": real_customer.clone()
+                                    }],
+                                    "pageInfo": {
+                                        "hasNextPage": false,
+                                        "hasPreviousPage": false,
+                                        "startCursor": real_customer_cursor,
+                                        "endCursor": real_customer_cursor
+                                    }
+                                }
+                            }
+                        }),
                     }
                 }
+                Some("DraftProxyConnectionOverlay") => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "overlayWindow": {
+                                "edges": [{
+                                    "cursor": real_customer_cursor,
+                                    "node": real_customer.clone()
+                                }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": real_customer_cursor,
+                                    "endCursor": real_customer_cursor
+                                }
+                            }
+                        }
+                    }),
+                },
                 _ => Response {
                     status: 200,
                     headers: Default::default(),
@@ -2540,12 +2577,12 @@ fn live_hybrid_customer_overlay_merges_partial_aliases_without_losing_hydrated_f
                                 }
                             },
                             "firstPage": {
-                                "edges": [{ "cursor": real_customer_id, "node": real_customer_edge_summary }],
+                                "edges": [{ "cursor": real_customer_cursor, "node": real_customer_edge_summary }],
                                 "pageInfo": {
                                     "hasNextPage": true,
                                     "hasPreviousPage": false,
-                                    "startCursor": real_customer_id,
-                                    "endCursor": real_customer_id
+                                    "startCursor": real_customer_cursor,
+                                    "endCursor": real_customer_cursor
                                 }
                             },
                             "matchingCatalog": {
@@ -2616,7 +2653,7 @@ fn live_hybrid_customer_overlay_merges_partial_aliases_without_losing_hydrated_f
     assert_eq!(
         read.body["data"]["firstPage"]["edges"],
         json!([{
-            "cursor": real_customer_id,
+            "cursor": real_customer_cursor,
             "node": { "id": real_customer_id, "email": "overlay-base@example.test", "displayName": "OverlayBase Live" }
         }])
     );
@@ -2625,8 +2662,8 @@ fn live_hybrid_customer_overlay_merges_partial_aliases_without_losing_hydrated_f
         json!({
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": real_customer_id,
-            "endCursor": real_customer_id
+            "startCursor": real_customer_cursor,
+            "endCursor": real_customer_cursor
         })
     );
     assert_eq!(

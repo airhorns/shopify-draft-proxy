@@ -1,5 +1,14 @@
 use super::common::*;
+use base64::Engine as _;
 use pretty_assertions::assert_eq;
+
+fn stable_overlay_cursor(root: &str, id: &str) -> String {
+    format!(
+        "local_{}",
+        base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(json!({ "source": "local", "root": root, "id": id }).to_string())
+    )
+}
 
 fn assert_core_metaobject_auto_handle(handle: &str, prefix: &str) {
     let suffix = handle
@@ -1476,11 +1485,24 @@ fn marketing_live_hybrid_effective_catalog_overlays_staged_lifecycle_on_upstream
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
-            captured_requests.lock().unwrap().push(body);
+            captured_requests.lock().unwrap().push(body.clone());
+            let response_body = if body["operationName"] == "DraftProxyConnectionOverlay" {
+                let query = body["query"].as_str().unwrap_or_default();
+                let window = if query.contains("overlayWindow: marketingActivities") {
+                    upstream_body["data"]["allActivities"].clone()
+                } else if query.contains("overlayWindow: marketingEvents") {
+                    upstream_body["data"]["allEvents"].clone()
+                } else {
+                    Value::Null
+                };
+                json!({ "data": { "overlayWindow": window } })
+            } else {
+                upstream_body.clone()
+            };
             Response {
                 status: 200,
                 headers: Default::default(),
-                body: upstream_body.clone(),
+                body: response_body,
             }
         });
 
@@ -1518,8 +1540,8 @@ fn marketing_live_hybrid_effective_catalog_overlays_staged_lifecycle_on_upstream
         .as_str()
         .unwrap()
         .to_string();
-    let local_cursor = format!("cursor:{local_id}");
-    let local_event_cursor = format!("cursor:{local_event_id}");
+    let local_cursor = stable_overlay_cursor("marketingActivities", &local_id);
+    let local_event_cursor = stable_overlay_cursor("marketingEvents", &local_event_id);
 
     let read = proxy.process_request(json_graphql_request(
         r#"
@@ -1697,11 +1719,17 @@ fn marketing_live_hybrid_effective_catalog_overlays_staged_lifecycle_on_upstream
         after_delete.body["data"]["allEvents"]["nodes"],
         json!([{"id": local_event_id, "type": "NEWSLETTER"}])
     );
-    assert_eq!(
-        upstream_requests.lock().unwrap().len(),
-        3,
-        "only the three read operations should call upstream"
+    let upstream_requests = upstream_requests.lock().unwrap();
+    assert!(
+        upstream_requests.len() <= 8,
+        "bounded connection windows must not fan out per catalog row: {upstream_requests:?}"
     );
+    assert!(upstream_requests.iter().all(|body| {
+        !body["query"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("local_")
+    }));
 }
 
 #[test]
@@ -1789,6 +1817,7 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
         .as_str()
         .unwrap()
         .to_string();
+    let zulu_cursor = stable_overlay_cursor("marketing", &zulu_id);
 
     let read = proxy.process_request(json_graphql_request(
         r#"
@@ -1849,7 +1878,7 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
         }
         "#,
         json!({
-            "activityCursor": format!("cursor:{zulu_id}"),
+            "activityCursor": zulu_cursor.clone(),
             "activityQuery": "launch",
             "eventQuery": "tactic:newsletter",
             "titleQuery": "title:\"Zulu launch\"",
@@ -1871,8 +1900,8 @@ fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records
         json!({
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": format!("cursor:{zulu_id}"),
-            "endCursor": format!("cursor:{zulu_id}")
+            "startCursor": zulu_cursor,
+            "endCursor": stable_overlay_cursor("marketing", &zulu_id)
         })
     );
     assert_eq!(

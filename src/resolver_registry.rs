@@ -18,8 +18,8 @@ use crate::{
         AdminApiVersion, FieldResolverInvocation, ResolverValueSource, RootFieldError,
     },
     graphql::{
-        OperationType, ParsedOperation, RawArgumentValue, ResolvedValue, SourceLocation,
-        VariableDefinitionInfo,
+        OperationType, ParsedOperation, RawArgumentValue, ResolvedValue, SelectedField,
+        SourceLocation, VariableDefinitionInfo,
     },
     operation_registry::{
         ApiSurface, CapabilityDomain, CapabilityExecution, OperationCapability,
@@ -121,6 +121,10 @@ pub(crate) struct RootInvocation<'a> {
     /// Output paths selected by the executable GraphQL engine. Domain roots
     /// may use this only to plan hydration; projection remains engine-owned.
     pub requested_field_paths: BTreeSet<Vec<String>>,
+    /// Canonical selected fields for bounded secondary hydration. The shared
+    /// connection-overlay planner serializes only the requested node shape and
+    /// still leaves caller-facing projection to the GraphQL engine.
+    pub selection: Vec<SelectedField>,
     /// When a request-scoped read preflight fetched the original operation,
     /// this is the current root value normalized back to canonical schema field
     /// names. Aliases are a transport concern and never leak into domain/store

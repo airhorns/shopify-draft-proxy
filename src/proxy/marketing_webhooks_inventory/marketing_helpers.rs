@@ -16,7 +16,9 @@ fn marketing_record_cursor(record: &Value) -> String {
     record[MARKETING_CURSOR_METADATA_FIELD]
         .as_str()
         .map(str::to_string)
-        .unwrap_or_else(|| format!("cursor:{}", record["id"].as_str().unwrap_or("local")))
+        .unwrap_or_else(|| {
+            stable_local_connection_cursor("marketing", record["id"].as_str().unwrap_or("local"))
+        })
 }
 
 fn marketing_record_with_cursor(mut record: Value, cursor: Option<String>) -> Value {
@@ -73,6 +75,87 @@ fn marketing_event_connection(
         Value::clone,
         marketing_record_cursor,
     )
+}
+
+fn marketing_activity_remote_identity(record: &Value) -> Option<String> {
+    record
+        .get("title")
+        .and_then(Value::as_str)
+        .filter(|title| !title.is_empty())
+        .map(|title| format!("title:{title}"))
+        .or_else(|| {
+            record
+                .get("remoteId")
+                .and_then(Value::as_str)
+                .or_else(|| {
+                    record
+                        .pointer("/marketingEvent/remoteId")
+                        .and_then(Value::as_str)
+                })
+                .filter(|remote_id| !remote_id.is_empty())
+                .map(|remote_id| format!("remoteId:{remote_id}"))
+        })
+}
+
+fn marketing_event_remote_identity(record: &Value) -> Option<String> {
+    record
+        .get("remoteId")
+        .and_then(Value::as_str)
+        .filter(|remote_id| !remote_id.is_empty())
+        .map(str::to_string)
+}
+
+fn reconcile_marketing_authoritative_rows(
+    mut authoritative: Vec<ObservedConnectionRow>,
+    local_records: &[Value],
+    base_records: Vec<&Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    remote_identity: fn(&Value) -> Option<String>,
+) -> Vec<ObservedConnectionRow> {
+    // Callers need not select `remoteId`, so the activity adapter can fall back
+    // to caller-visible title only when it identifies exactly one staged row;
+    // duplicate titles remain distinct.
+    let mut local_candidates = BTreeMap::<String, Vec<&Value>>::new();
+    for record in local_records {
+        if let Some(remote) = remote_identity(record) {
+            local_candidates.entry(remote).or_default().push(record);
+        }
+    }
+    let local_by_remote = local_candidates
+        .into_iter()
+        .filter_map(|(remote, records)| (records.len() == 1).then(|| (remote, records[0])))
+        .collect::<BTreeMap<_, _>>();
+    for row in &mut authoritative {
+        if let Some(local) =
+            remote_identity(&row.node).and_then(|remote| local_by_remote.get(&remote))
+        {
+            row.node = (*local).clone();
+        }
+    }
+
+    let boundary = ["after", "before"]
+        .into_iter()
+        .find_map(|name| resolved_string_field(arguments, name));
+    if let Some(boundary) = boundary.filter(|boundary| {
+        !authoritative
+            .iter()
+            .any(|row| row.cursor.as_deref() == Some(boundary.as_str()))
+    }) {
+        if let Some((base, local)) = base_records.iter().find_map(|base| {
+            (base[MARKETING_CURSOR_METADATA_FIELD].as_str() == Some(boundary.as_str()))
+                .then(|| remote_identity(base))
+                .flatten()
+                .and_then(|remote| local_by_remote.get(&remote).map(|local| (*base, *local)))
+        }) {
+            authoritative.push(ObservedConnectionRow {
+                cursor: base[MARKETING_CURSOR_METADATA_FIELD]
+                    .as_str()
+                    .map(str::to_string),
+                node: local.clone(),
+            });
+        }
+    }
+    authoritative
 }
 
 pub(in crate::proxy) fn marketing_activity_payload(
@@ -785,21 +868,206 @@ impl DraftProxy {
         field: &MarketingRootInput,
     ) -> ResolverOutcome<Value> {
         if self.config.read_mode == ReadMode::LiveHybrid {
-            let mut outcome =
-                self.cached_or_forward_upstream_root_outcome(request, &field.response_key);
-            if outcome.errors.is_empty() {
+            let mut outcome = if field.operation_has_local_boundary {
+                ResolverOutcome::value(Value::Null)
+            } else {
+                self.cached_or_forward_upstream_root_outcome(request, &field.response_key)
+            };
+            if !field.operation_has_local_boundary && outcome.errors.is_empty() {
                 self.observe_marketing_upstream_response(
                     field,
                     &json!({ "data": { (&field.response_key): outcome.value.clone() } }),
                 );
             }
-            if !self.store.has_marketing_overlay_state() || !outcome.errors.is_empty() {
+            if (!self.store.has_marketing_overlay_state() && !field.operation_has_local_boundary)
+                || !outcome.errors.is_empty()
+            {
                 return outcome;
             }
-            outcome.value = self.marketing_query_value(request, field);
+            if matches!(
+                field.name.as_str(),
+                "marketingActivities" | "marketingEvents"
+            ) {
+                let staged_impact = self
+                    .store
+                    .staged
+                    .marketing_activities
+                    .len()
+                    .saturating_add(self.store.staged.marketing_activities.tombstones.len());
+                let required_node_selection = if field.name == "marketingActivities" {
+                    "id title createdAt updatedAt remoteId isExternal apiClientId marketingEvent { id remoteId startedAt }"
+                } else {
+                    "id type remoteId startedAt endedAt scheduledToEndAt"
+                };
+                let authoritative = if field.operation_has_local_boundary
+                    || outcome.value.get("nodes").is_some()
+                    || outcome.value.get("edges").is_some()
+                {
+                    self.bounded_connection_overlay_window(
+                        request,
+                        ConnectionOverlayRequest {
+                            root_name: &field.name,
+                            arguments: &field.arguments,
+                            raw_arguments: &field.raw_arguments,
+                            selection: &field.selection,
+                            variable_definitions: &field.variable_definitions,
+                            variables: &field.variables,
+                            required_node_selection,
+                        },
+                        &outcome.value,
+                        staged_impact,
+                    )
+                } else {
+                    outcome.value.clone()
+                };
+                self.observe_marketing_upstream_response(
+                    field,
+                    &json!({ "data": { (&field.response_key): authoritative.clone() } }),
+                );
+                outcome.value =
+                    self.marketing_overlay_connection_value(request, field, &authoritative);
+            } else {
+                outcome.value = self.marketing_query_value(request, field);
+            }
+            outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
             return outcome;
         }
         ResolverOutcome::value(self.marketing_query_value(request, field))
+    }
+
+    fn marketing_overlay_connection_value(
+        &self,
+        request: &Request,
+        field: &MarketingRootInput,
+        authoritative: &Value,
+    ) -> Value {
+        let mut authoritative_rows = observed_connection_rows(authoritative);
+        if authoritative_rows.is_empty() {
+            let records = if field.name == "marketingActivities" {
+                self.store.base.marketing_activities.ordered_values()
+            } else {
+                self.store.base.marketing_events.ordered_values()
+            };
+            authoritative_rows = records
+                .into_iter()
+                .map(|record| ObservedConnectionRow {
+                    cursor: record[MARKETING_CURSOR_METADATA_FIELD]
+                        .as_str()
+                        .map(str::to_string),
+                    node: record.clone(),
+                })
+                .collect();
+        }
+        match field.name.as_str() {
+            "marketingActivities" => {
+                let remote_ids = resolved_string_list_arg(&field.arguments, "remoteIds");
+                let ids = resolved_string_list_arg(&field.arguments, "marketingActivityIds");
+                let local_records = self
+                    .store
+                    .staged
+                    .marketing_activities
+                    .values()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let authoritative_rows = reconcile_marketing_authoritative_rows(
+                    authoritative_rows,
+                    &local_records,
+                    self.store.base.marketing_activities.ordered_values(),
+                    &field.arguments,
+                    marketing_activity_remote_identity,
+                );
+                overlay_connection_value(
+                    ConnectionOverlayInput {
+                        authoritative: authoritative_rows,
+                        local_records,
+                        tombstones: &self.store.staged.marketing_activities.tombstones,
+                        arguments: &field.arguments,
+                        source_page_info: &authoritative["pageInfo"],
+                    },
+                    |record, query| {
+                        let id = record["id"].as_str().unwrap_or_default();
+                        let matches_ids =
+                            ids.is_empty() || ids.iter().any(|candidate| candidate == id);
+                        let matches_remote_ids = remote_ids.is_empty()
+                            || remote_ids.iter().any(|candidate| {
+                                record["remoteId"].as_str() == Some(candidate.as_str())
+                                    || record["marketingEvent"]["remoteId"].as_str()
+                                        == Some(candidate.as_str())
+                            });
+                        if matches_ids
+                            && matches_remote_ids
+                            && !self.marketing_activity_hidden_by_delete_all(record, request)
+                        {
+                            marketing_activity_search_decision(record, query)
+                        } else {
+                            StagedSearchDecision::NoMatch
+                        }
+                    },
+                    marketing_activity_staged_sort_key,
+                    Value::clone,
+                    |record| {
+                        stable_local_connection_cursor(
+                            "marketingActivities",
+                            record["id"].as_str().unwrap_or_default(),
+                        )
+                    },
+                )
+            }
+            "marketingEvents" => {
+                let local_records = self
+                    .store
+                    .staged
+                    .marketing_activities
+                    .values()
+                    .filter_map(|activity| {
+                        activity
+                            .get("marketingEvent")
+                            .filter(|event| event.is_object())
+                            .cloned()
+                    })
+                    .collect::<Vec<_>>();
+                let authoritative_rows = reconcile_marketing_authoritative_rows(
+                    authoritative_rows,
+                    &local_records,
+                    self.store.base.marketing_events.ordered_values(),
+                    &field.arguments,
+                    marketing_event_remote_identity,
+                );
+                let tombstones = self
+                    .store
+                    .staged
+                    .marketing_activities
+                    .tombstones
+                    .iter()
+                    .filter_map(|id| self.store.base.marketing_activities.get(id))
+                    .filter_map(|activity| {
+                        activity
+                            .pointer("/marketingEvent/id")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                    })
+                    .collect::<BTreeSet<_>>();
+                overlay_connection_value(
+                    ConnectionOverlayInput {
+                        authoritative: authoritative_rows,
+                        local_records,
+                        tombstones: &tombstones,
+                        arguments: &field.arguments,
+                        source_page_info: &authoritative["pageInfo"],
+                    },
+                    marketing_event_search_decision,
+                    marketing_event_staged_sort_key,
+                    Value::clone,
+                    |record| {
+                        stable_local_connection_cursor(
+                            "marketingEvents",
+                            record["id"].as_str().unwrap_or_default(),
+                        )
+                    },
+                )
+            }
+            _ => Value::Null,
+        }
     }
 
     fn observe_marketing_upstream_response(&mut self, field: &MarketingRootInput, body: &Value) {

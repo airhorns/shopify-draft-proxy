@@ -12,6 +12,11 @@ struct MarketingRootInput {
     name: String,
     response_key: String,
     arguments: BTreeMap<String, ResolvedValue>,
+    raw_arguments: BTreeMap<String, RawArgumentValue>,
+    selection: Vec<SelectedField>,
+    variable_definitions: BTreeMap<String, crate::graphql::VariableDefinitionInfo>,
+    variables: BTreeMap<String, ResolvedValue>,
+    operation_has_local_boundary: bool,
 }
 
 pub(in crate::proxy) fn marketing_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
@@ -40,9 +45,15 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        let operation_has_local_boundary =
+            operation_has_local_connection_boundary(&invocation.operation_roots);
         let RootInvocation {
             response_key,
             arguments,
+            raw_arguments,
+            selection,
+            variable_definitions,
+            variables,
             request,
             root_name,
             ..
@@ -51,6 +62,11 @@ impl DraftProxy {
             name: root_name.to_string(),
             response_key: response_key.to_string(),
             arguments: resolved_arguments_from_json(&arguments),
+            raw_arguments,
+            selection,
+            variable_definitions: variable_definitions.clone(),
+            variables: variables.clone(),
+            operation_has_local_boundary,
         };
         self.marketing_query_outcome(request, &field)
     }
@@ -62,6 +78,10 @@ impl DraftProxy {
         let RootInvocation {
             response_key,
             arguments,
+            raw_arguments,
+            selection,
+            variable_definitions,
+            variables,
             request,
             root_name,
             ..
@@ -70,6 +90,11 @@ impl DraftProxy {
             name: root_name.to_string(),
             response_key: response_key.to_string(),
             arguments: resolved_arguments_from_json(&arguments),
+            raw_arguments,
+            selection,
+            variable_definitions: variable_definitions.clone(),
+            variables: variables.clone(),
+            operation_has_local_boundary: false,
         };
         let (outcome, staged_ids) = self.marketing_mutation_outcome(&field, request);
         if staged_ids.is_empty() {

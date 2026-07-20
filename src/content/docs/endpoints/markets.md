@@ -151,12 +151,14 @@ cursor windows through `first`, `last`, `after`, and `before`, and return
 selected `nodes`, `edges { cursor node }`, and computed `pageInfo`.
 `catalogsCount(limit:)` applies Shopify-style `EXACT` / `AT_LEAST` precision to
 the same filtered list.
-In LiveHybrid, Markets-family plural reads track hydrated completeness by
-resource family and argument scope. A staged market, catalog, price list, or web
-presence no longer makes every Markets-family root authoritative from the
-partial local map: cold scopes hydrate upstream first, then render the effective
-graph with staged creates, updates, and tombstones layered over the observed
-baseline. Captured `markets-family-mixed-overlay-read` parity covers a mixed
+In LiveHybrid, unaffected cold Markets-family reads forward the caller document
+once. After a staged market, catalog, price list, or web presence change, each
+plural root reuses the caller's authoritative rows and fetches only the
+requested size plus dirty IDs for that family plus one boundary row, in pages
+of at most 250. Exact argument/selection windows are request-cached and never
+promoted to broader catalog completeness. Authoritative edges retain Shopify's
+opaque cursors; local rows use stable proxy-opaque cursors that are applied
+locally on follow-up reads. Captured `markets-family-mixed-overlay-read` parity covers a mixed
 `markets` / `catalogs` / `catalogsCount` / `priceLists` / `webPresences` read
 where a pre-existing upstream market catalog and web presence survive a staged
 catalog plus price-list delta.

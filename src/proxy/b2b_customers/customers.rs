@@ -242,9 +242,6 @@ const CUSTOMER_MERGE_ATTACHED_HYDRATE_QUERY: &str = include_str!(
 );
 const CUSTOMER_DELETE_SHOP_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/customers/customer-delete-shop-hydrate.graphql");
-const CUSTOMER_OVERLAY_CATALOG_HYDRATE_QUERY: &str = include_str!(
-    "../../../config/parity-requests/customers/customer-live-hybrid-overlay-hydrate.graphql"
-);
 const STORE_CREDIT_CUSTOMER_HYDRATE_QUERY: &str = include_str!(
     "../../../config/parity-requests/customers/storeCreditCustomerHydrate-parity.graphql"
 );
@@ -346,11 +343,14 @@ impl DraftProxy {
         root_name: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
         upstream_value: Option<&Value>,
+        connection_overlay: Option<ConnectionOverlayRequest<'_>>,
     ) -> Value {
         match root_name {
             "customer" => self.customer_read_value(arguments, upstream_value),
             "customerByIdentifier" => self.customer_by_identifier_value(arguments, upstream_value),
-            "customers" => self.customers_list_value(request, arguments, upstream_value),
+            "customers" => {
+                self.customers_list_value(request, arguments, upstream_value, connection_overlay)
+            }
             "customersCount" => self.customers_count_read_value(request, arguments, upstream_value),
             "customerMergeJobStatus" => self.customer_merge_job_status_value(arguments),
             "job" => self.customer_merge_job_node_value(arguments),
@@ -363,7 +363,14 @@ impl DraftProxy {
     /// this scenario, so `customersCount` tracks merges generically.
     pub(in crate::proxy) fn customers_count_value(&self) -> u64 {
         let live_staged_count = self.store.staged.customers.len() as u64;
-        let Some(base_count) = self.store.staged.customers_count_base else {
+        let Some(base_count) = self
+            .store
+            .staged
+            .customer_count_baselines
+            .get(&customer_count_baseline_key(&BTreeMap::new()))
+            .and_then(|count| count.get("count"))
+            .and_then(Value::as_u64)
+        else {
             return live_staged_count;
         };
         let locally_created = self
@@ -388,7 +395,7 @@ impl DraftProxy {
 
     fn customers_count_read_value(
         &mut self,
-        request: &Request,
+        _request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
         upstream_value: Option<&Value>,
     ) -> Value {
@@ -402,27 +409,52 @@ impl DraftProxy {
             .and_then(|response| response.body.get("data"))
             .cloned();
         let upstream_identity_data = upstream_identity_data.as_ref().or(upstream_value);
+        let baseline_key = customer_count_baseline_key(arguments);
+        if let Some(value) =
+            upstream_value.filter(|value| value.get("count").and_then(Value::as_u64).is_some())
+        {
+            self.store
+                .staged
+                .customer_count_baselines
+                .insert(baseline_key.clone(), value.clone());
+        }
+        let baseline = upstream_value.or_else(|| {
+            self.store
+                .staged
+                .customer_count_baselines
+                .get(&baseline_key)
+        });
         if arguments.contains_key("query") {
             let query = resolved_string_field(arguments, "query");
-            let base_count = upstream_value
+            let base_count = baseline
                 .and_then(|value| value.get("count"))
                 .and_then(Value::as_u64)
                 .and_then(|count| usize::try_from(count).ok());
-            let base_records = self.customer_overlay_catalog_records(request, arguments, None);
-            let base_matching_ids = customer_matching_record_ids(&base_records, query.as_deref());
-            let mut count = base_count.as_ref().copied().unwrap_or_else(|| {
-                self.effective_customer_records(base_records.clone())
-                    .into_iter()
-                    .filter(|customer| {
-                        customer_overlay_search_decision(customer, query.as_deref())
-                            == StagedSearchDecision::Match
+            let has_base_count = base_count.is_some();
+            let mut count = base_count.unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .customers
+                    .iter()
+                    .filter(|(id, customer)| {
+                        !self.store.staged.customers.is_tombstoned(id)
+                            && customer_overlay_search_decision(customer, query.as_deref())
+                                == StagedSearchDecision::Match
                     })
                     .count()
             });
 
-            if base_count.is_some() {
+            if has_base_count {
                 for id in &self.store.staged.customers.tombstones {
-                    if base_matching_ids.contains(id) {
+                    let authoritative = upstream_identity_data
+                        .and_then(|data| find_customer_record_by_id(data, id))
+                        .or_else(|| self.store.staged.customers.records.get(id));
+                    if !self.store.staged.locally_created_customer_ids.contains(id)
+                        && authoritative.is_some_and(|customer| {
+                            customer_overlay_search_decision(customer, query.as_deref())
+                                == StagedSearchDecision::Match
+                        })
+                    {
                         count = count.saturating_sub(1);
                     }
                 }
@@ -441,18 +473,23 @@ impl DraftProxy {
                         {
                             count = count.saturating_add(1);
                         }
-                    } else if base_matching_ids.contains(id) {
-                        if !matches {
-                            count = count.saturating_sub(1);
+                    } else if let Some(authoritative) =
+                        upstream_identity_data.and_then(|data| find_customer_record_by_id(data, id))
+                    {
+                        let authoritative_matches =
+                            customer_overlay_search_decision(authoritative, query.as_deref())
+                                == StagedSearchDecision::Match;
+                        match (authoritative_matches, matches) {
+                            (false, true) => count = count.saturating_add(1),
+                            (true, false) => count = count.saturating_sub(1),
+                            _ => {}
                         }
-                    } else if matches {
-                        count = count.saturating_add(1);
                     }
                 }
             }
 
-            let count_value = if base_count.is_some() {
-                upstream_count_value_with_effective_total(upstream_value, count, arguments)
+            let count_value = if has_base_count {
+                upstream_count_value_with_effective_total(baseline, count, arguments)
                     .unwrap_or_else(|| snapshot_count_with_limit_precision(count, arguments))
             } else {
                 snapshot_count_with_limit_precision(count, arguments)
@@ -475,9 +512,7 @@ impl DraftProxy {
             }
             delta += 1;
         }
-        if let Some(count) =
-            upstream_count_value_with_staged_delta(upstream_value, delta, arguments)
-        {
+        if let Some(count) = upstream_count_value_with_staged_delta(baseline, delta, arguments) {
             return count;
         }
 
@@ -1270,27 +1305,93 @@ impl DraftProxy {
     /// `orders`/`addressesV2`/`metafields` connections resolve from store state
     /// exactly as the singular `customer`/`customerByIdentifier` reads do.
     pub(in crate::proxy) fn customers_list_value(
-        &self,
+        &mut self,
         request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
         upstream_value: Option<&Value>,
+        connection_overlay: Option<ConnectionOverlayRequest<'_>>,
     ) -> Value {
-        let records = self.effective_customer_records(self.customer_overlay_catalog_records(
-            request,
-            arguments,
-            upstream_value,
-        ));
-        staged_connection_value_with_args(
-            records,
-            arguments,
-            customer_overlay_search_decision,
-            customer_staged_sort_key,
-            |customer| {
-                let id = customer["id"].as_str().unwrap_or_default().to_string();
-                self.canonical_customer_value(&id, customer)
-            },
-            value_id_cursor,
-        )
+        if let Some(connection_overlay) = connection_overlay {
+            let empty_authoritative = Value::Null;
+            let upstream_value = upstream_value.unwrap_or(&empty_authoritative);
+            let request_upstream_data = self
+                .execution_session
+                .upstream_query_response
+                .as_ref()
+                .and_then(|response| response.body.get("data"))
+                .cloned();
+            let staged_impact = self
+                .store
+                .staged
+                .customers
+                .len()
+                .saturating_add(self.store.staged.customers.tombstones.len());
+            let authoritative = if self.config.read_mode == ReadMode::LiveHybrid {
+                self.bounded_connection_overlay_window(
+                    request,
+                    connection_overlay,
+                    upstream_value,
+                    staged_impact,
+                )
+            } else {
+                upstream_value.clone()
+            };
+            let authoritative_rows = observed_connection_rows(&authoritative)
+                .into_iter()
+                .filter(|row| {
+                    customer_record_id(&row.node).is_none_or(|id| {
+                        !self.locally_created_customer_shadows_base_record(&id, &row.node)
+                    })
+                })
+                .map(|row| {
+                    let mut node = row.node;
+                    if let (Some(id), Some(upstream_data)) =
+                        (customer_record_id(&node), request_upstream_data.as_ref())
+                    {
+                        merge_customer_record_fields_by_id(&mut node, upstream_data, &id);
+                    }
+                    let mut node = normalize_hydrated_customer_record(node);
+                    apply_customer_name_cursor_sort_hint(
+                        &mut node,
+                        row.cursor.as_deref(),
+                        arguments,
+                    );
+                    ObservedConnectionRow {
+                        cursor: row.cursor,
+                        node,
+                    }
+                })
+                .collect::<Vec<_>>();
+            let local_records = self
+                .store
+                .staged
+                .customers
+                .values()
+                .cloned()
+                .collect::<Vec<_>>();
+            return overlay_connection_value(
+                ConnectionOverlayInput {
+                    authoritative: authoritative_rows,
+                    local_records,
+                    tombstones: &self.store.staged.customers.tombstones,
+                    arguments,
+                    source_page_info: &authoritative["pageInfo"],
+                },
+                customer_overlay_search_decision,
+                customer_staged_sort_key,
+                |customer| {
+                    let id = customer["id"].as_str().unwrap_or_default().to_string();
+                    self.canonical_customer_value(&id, customer)
+                },
+                |customer| {
+                    stable_local_connection_cursor(
+                        "customers",
+                        customer["id"].as_str().unwrap_or_default(),
+                    )
+                },
+            );
+        }
+        connection_json(Vec::new())
     }
 
     pub(in crate::proxy) fn customer_by_identifier_value(
@@ -1392,84 +1493,6 @@ impl DraftProxy {
                 && self.customer_matches_custom_id(id, customer, &custom_id);
         }
         false
-    }
-
-    fn customer_overlay_catalog_records(
-        &self,
-        request: &Request,
-        arguments: &BTreeMap<String, ResolvedValue>,
-        upstream_value: Option<&Value>,
-    ) -> Vec<Value> {
-        let mut records = self.customer_overlay_catalog_hydrate_records(request, arguments);
-        merge_customer_records_from_connection(&mut records, upstream_value);
-        records
-    }
-
-    fn customer_overlay_catalog_hydrate_records(
-        &self,
-        request: &Request,
-        arguments: &BTreeMap<String, ResolvedValue>,
-    ) -> Vec<Value> {
-        if self.config.read_mode != ReadMode::LiveHybrid {
-            return Vec::new();
-        }
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": CUSTOMER_OVERLAY_CATALOG_HYDRATE_QUERY,
-                "operationName": "CustomerOverlayCatalogHydrate",
-                "variables": {
-                    "query": resolved_string_field(arguments, "query"),
-                },
-            }),
-        );
-        if !(200..300).contains(&response.status) {
-            return Vec::new();
-        }
-        connection_nodes(&response.body["data"]["customers"])
-            .into_iter()
-            .map(normalize_hydrated_customer_record)
-            .collect()
-    }
-
-    fn effective_customer_records(&self, base_records: Vec<Value>) -> Vec<Value> {
-        let mut records_by_id = BTreeMap::new();
-        let mut ordered_ids = Vec::new();
-        for record in base_records {
-            let Some(id) = customer_record_id(&record) else {
-                continue;
-            };
-            if self.store.staged.customers.is_tombstoned(&id) {
-                continue;
-            }
-            if self.locally_created_customer_shadows_base_record(&id, &record) {
-                continue;
-            }
-            if !records_by_id.contains_key(&id) {
-                ordered_ids.push(id.clone());
-            }
-            let record = self
-                .store
-                .staged
-                .customers
-                .get(&id)
-                .cloned()
-                .unwrap_or(record);
-            records_by_id.insert(id, record);
-        }
-        for (id, customer) in self.store.staged.customers.iter() {
-            if self.store.staged.customers.is_tombstoned(id) {
-                continue;
-            }
-            if !records_by_id.contains_key(id) {
-                ordered_ids.push(id.clone());
-            }
-            records_by_id.insert(id.clone(), customer.clone());
-        }
-        ordered_ids
-            .into_iter()
-            .filter_map(|id| records_by_id.remove(&id))
-            .collect()
     }
 
     fn locally_created_customer_shadows_base_record(&self, base_id: &str, base: &Value) -> bool {
@@ -3999,32 +4022,18 @@ fn customer_record_id(customer: &Value) -> Option<String> {
         .map(str::to_string)
 }
 
-fn customer_matching_record_ids(customers: &[Value], query: Option<&str>) -> BTreeSet<String> {
-    customers
-        .iter()
-        .filter(|customer| {
-            customer_overlay_search_decision(customer, query) == StagedSearchDecision::Match
-        })
-        .filter_map(customer_record_id)
-        .collect()
-}
-
-fn merge_customer_records_from_connection(records: &mut Vec<Value>, connection: Option<&Value>) {
-    let mut by_id = records
-        .iter()
-        .enumerate()
-        .filter_map(|(index, record)| customer_record_id(record).map(|id| (id, index)))
-        .collect::<BTreeMap<_, _>>();
-    for upstream in connection_nodes(connection.unwrap_or(&Value::Null)) {
-        let Some(id) = customer_record_id(&upstream) else {
-            continue;
-        };
-        if let Some(index) = by_id.get(&id).copied() {
-            merge_customer_record_fields(&mut records[index], &upstream);
-        } else {
-            by_id.insert(id, records.len());
-            records.push(normalize_hydrated_customer_record(upstream));
-        }
+fn find_customer_record_by_id<'a>(value: &'a Value, id: &str) -> Option<&'a Value> {
+    if value.get("id").and_then(Value::as_str) == Some(id) {
+        return Some(value);
+    }
+    match value {
+        Value::Array(values) => values
+            .iter()
+            .find_map(|value| find_customer_record_by_id(value, id)),
+        Value::Object(fields) => fields
+            .values()
+            .find_map(|value| find_customer_record_by_id(value, id)),
+        _ => None,
     }
 }
 
@@ -4034,6 +4043,25 @@ fn merge_customer_record_fields(record: &mut Value, upstream: &Value) {
     };
     for (key, value) in upstream {
         record.insert(key.clone(), value.clone());
+    }
+}
+
+fn merge_customer_record_fields_by_id(record: &mut Value, value: &Value, id: &str) {
+    match value {
+        Value::Object(fields) if fields.get("id").and_then(Value::as_str) == Some(id) => {
+            merge_customer_record_fields(record, value);
+        }
+        Value::Object(fields) => {
+            for value in fields.values() {
+                merge_customer_record_fields_by_id(record, value, id);
+            }
+        }
+        Value::Array(values) => {
+            for value in values {
+                merge_customer_record_fields_by_id(record, value, id);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -4141,11 +4169,51 @@ fn customer_gid_tail_sort_value(customer: &Value) -> StagedSortValue {
 
 fn customer_name_sort_key(customer: &Value) -> StagedSortKey {
     vec![
-        customer_normalized_string(customer, "lastName"),
-        customer_normalized_string(customer, "firstName"),
+        customer_name_sort_component(customer, "lastName", "__proxyNameSortLast"),
+        customer_name_sort_component(customer, "firstName", "__proxyNameSortFirst"),
         customer_normalized_string(customer, "displayName"),
         customer_gid_tail_sort_value(customer),
     ]
+}
+
+fn customer_name_sort_component(
+    customer: &Value,
+    field: &str,
+    cursor_hint_field: &str,
+) -> StagedSortValue {
+    customer
+        .get(field)
+        .and_then(Value::as_str)
+        .or_else(|| customer.get(cursor_hint_field).and_then(Value::as_str))
+        .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
+        .unwrap_or_else(|| StagedSortValue::String(String::new()))
+}
+
+fn apply_customer_name_cursor_sort_hint(
+    customer: &mut Value,
+    cursor: Option<&str>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) {
+    if resolved_string_field(arguments, "sortKey").as_deref() != Some("NAME")
+        || customer.get("firstName").and_then(Value::as_str).is_some()
+        || customer.get("lastName").and_then(Value::as_str).is_some()
+    {
+        return;
+    }
+    let Some(last_value) = cursor
+        .and_then(shopify_connection_cursor_last_value)
+        .and_then(|value| value.as_str().map(str::to_string))
+    else {
+        return;
+    };
+    let Some((last_name, first_name)) = last_value.split_once(", ") else {
+        return;
+    };
+    let Some(customer) = customer.as_object_mut() else {
+        return;
+    };
+    customer.insert("__proxyNameSortLast".to_string(), json!(last_name));
+    customer.insert("__proxyNameSortFirst".to_string(), json!(first_name));
 }
 
 fn customer_address_sort_value(customer: &Value, field: &str) -> StagedSortValue {
@@ -4178,6 +4246,24 @@ fn customer_staged_sort_key(customer: &Value, sort_key: Option<&str>) -> StagedS
         _ => customer_gid_tail_sort_value(customer),
     };
     vec![primary, customer_gid_tail_sort_value(customer)]
+}
+
+pub(in crate::proxy) fn customer_count_baseline_key(
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> String {
+    Value::Object(
+        arguments
+            .iter()
+            .filter(|(name, value)| {
+                name.as_str() != "limit"
+                    || resolved_value_json(value)
+                        .as_i64()
+                        .is_some_and(|limit| limit != 10_000)
+            })
+            .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+            .collect(),
+    )
+    .to_string()
 }
 
 /// Evaluate a customer search `query` against a staged customer.
