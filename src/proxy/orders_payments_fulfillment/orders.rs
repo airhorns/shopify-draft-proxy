@@ -42,6 +42,16 @@ fn order_create_input_needs_shop_currency_default(
     if line_has_money_currency {
         return false;
     }
+    let transaction_has_money_currency = resolved_object_list_field(order_input, "transactions")
+        .into_iter()
+        .any(|transaction| {
+            resolved_object_field(&transaction, "amountSet")
+                .and_then(|amount_set| input_money_currency(&amount_set))
+                .is_some()
+        });
+    if transaction_has_money_currency {
+        return false;
+    }
     !resolved_object_list_field(order_input, "shippingLines")
         .into_iter()
         .any(|shipping_line| {
@@ -756,52 +766,67 @@ pub(in crate::proxy) fn order_create_custom_attributes(
 pub(in crate::proxy) fn order_create_tax_lines(
     input: &BTreeMap<String, ResolvedValue>,
     field: &str,
-    currency_code: &str,
+    shop_currency_code: &str,
+    presentment_currency_code: &str,
 ) -> Vec<Value> {
     resolved_object_list_field(input, field)
         .into_iter()
         .map(|tax_line| {
-            let price = resolved_object_field(&tax_line, "priceSet")
-                .and_then(|price| input_money_amount(&price))
-                .unwrap_or(0.0);
-            let price_currency = resolved_object_field(&tax_line, "priceSet")
-                .and_then(|price| input_money_currency(&price))
-                .unwrap_or_else(|| currency_code.to_string());
+            let (shop_amount, shop_currency, presentment_amount, presentment_currency) =
+                crate::proxy::metafields_orders_payments::line_item_price_values(
+                    &tax_line,
+                    shop_currency_code,
+                    presentment_currency_code,
+                )
+                .unwrap_or_else(|| {
+                    (
+                        0.0,
+                        shop_currency_code.to_string(),
+                        0.0,
+                        presentment_currency_code.to_string(),
+                    )
+                });
             json!({
                 "title": resolved_string_field(&tax_line, "title").unwrap_or_default(),
                 "rate": resolved_number_field(&tax_line, "rate").unwrap_or(0.0),
-                "priceSet": money_bag(price, &price_currency)
+                "priceSet": money_bag_from_amounts(
+                    shop_amount,
+                    &shop_currency,
+                    presentment_amount,
+                    &presentment_currency,
+                )
             })
         })
         .collect()
 }
 
-pub(in crate::proxy) fn order_create_discount_amount(
+pub(in crate::proxy) fn order_create_discount_amounts(
     input: &BTreeMap<String, ResolvedValue>,
-    currency_code: &str,
-) -> (f64, Vec<String>) {
+    _shop_currency_code: &str,
+    _presentment_currency_code: &str,
+) -> (f64, f64, Vec<String>) {
     let Some(discount_code) = resolved_object_field(input, "discountCode") else {
-        return (0.0, Vec::new());
+        return (0.0, 0.0, Vec::new());
     };
     let Some(fixed) = resolved_object_field(&discount_code, "itemFixedDiscountCode")
         .or_else(|| resolved_object_field(&discount_code, "fixedAmountDiscountCode"))
     else {
-        return (0.0, Vec::new());
+        return (0.0, 0.0, Vec::new());
     };
     let code = resolved_string_field(&fixed, "code").unwrap_or_default();
-    let amount = resolved_object_field(&fixed, "amountSet")
-        .and_then(|amount| input_money_amount(&amount))
-        .or_else(|| {
-            resolved_object_field(&fixed, "amount").and_then(|amount| input_money_amount(&amount))
-        })
-        .unwrap_or(0.0);
+    let amount_set = resolved_object_field(&fixed, "amountSet")
+        .or_else(|| resolved_object_field(&fixed, "amount"))
+        .unwrap_or_default();
+    let shop_amount = input_money_amount(&amount_set).unwrap_or(0.0);
+    let presentment_amount = resolved_object_field(&amount_set, "presentmentMoney")
+        .and_then(|money| resolved_money_amount(&money))
+        .unwrap_or(shop_amount);
     let codes = if code.is_empty() {
         Vec::new()
     } else {
         vec![code]
     };
-    let _ = currency_code;
-    (amount, codes)
+    (shop_amount, presentment_amount, codes)
 }
 
 pub(in crate::proxy) fn order_create_line_item_record(
@@ -826,7 +851,8 @@ pub(in crate::proxy) fn order_create_line_item_record(
         .as_ref()
         .and_then(resolved_money_currency)
         .unwrap_or_else(|| presentment_currency_code.to_string());
-    let tax_lines = order_create_tax_lines(input, "taxLines", currency_code);
+    let tax_lines =
+        order_create_tax_lines(input, "taxLines", currency_code, presentment_currency_code);
     let tax_total = sum_money_set(&tax_lines, "priceSet");
     let custom_attributes = order_create_custom_attributes(input, "properties");
     let product_id = resolved_string_field(input, "productId");
@@ -943,11 +969,19 @@ pub(in crate::proxy) fn order_default_fulfillment_order(
 pub(in crate::proxy) fn order_create_transaction_record(
     input: &BTreeMap<String, ResolvedValue>,
     id: String,
-    currency_code: &str,
+    shop_currency_code: &str,
+    presentment_currency_code: &str,
 ) -> Value {
-    let amount_input = resolved_object_field(input, "amountSet").unwrap_or_default();
-    let amount = input_money_amount(&amount_input).unwrap_or(0.0);
-    let currency = input_money_currency(&amount_input).unwrap_or_else(|| currency_code.to_string());
+    let amount_set = payment_money_set_from_input(input).unwrap_or_else(|| {
+        let amount_input = resolved_object_field(input, "amountSet").unwrap_or_default();
+        let amount = input_money_amount(&amount_input).unwrap_or(0.0);
+        money_bag_from_amounts(
+            amount,
+            shop_currency_code,
+            amount,
+            presentment_currency_code,
+        )
+    });
     json!({
         "id": id,
         "kind": resolved_string_field(input, "kind").unwrap_or_else(|| "SALE".to_string()),
@@ -956,7 +990,7 @@ pub(in crate::proxy) fn order_create_transaction_record(
         "paymentId": Value::Null,
         "paymentReferenceId": Value::Null,
         "parentTransaction": Value::Null,
-        "amountSet": money_bag(amount, &currency)
+        "amountSet": amount_set
     })
 }
 
@@ -1006,24 +1040,51 @@ pub(in crate::proxy) fn order_create_payment_fields(
         .filter(|transaction| transaction["status"] == "SUCCESS")
         .filter_map(|transaction| money_set_amount(&transaction["amountSet"]))
         .sum::<f64>();
+    let presentment_received = transactions
+        .iter()
+        .filter(|transaction| transaction["kind"] == "SALE" || transaction["kind"] == "CAPTURE")
+        .filter(|transaction| transaction["status"] == "SUCCESS")
+        .map(|transaction| money_set_presentment_or_shop_amount_value(&transaction["amountSet"]))
+        .sum::<f64>();
     let capturable = authorization
         .and_then(|transaction| money_set_amount(&transaction["amountSet"]))
         .unwrap_or(0.0);
+    let presentment_capturable = authorization
+        .map(|transaction| money_set_presentment_or_shop_amount_value(&transaction["amountSet"]))
+        .unwrap_or(0.0);
+    let presentment_total =
+        money_set_presentment_or_shop_amount_value(&order["currentTotalPriceSet"]);
     let outstanding = if authorization.is_some() {
         0.0
     } else {
         (total - received).max(0.0)
     };
+    let presentment_outstanding = if authorization.is_some() {
+        0.0
+    } else {
+        (presentment_total - presentment_received).max(0.0)
+    };
     order["capturable"] = json!(capturable > 0.0);
     order["totalCapturable"] = json!(format_money_amount(capturable));
-    order["totalCapturableSet"] =
-        money_bag_from_amount(capturable, currency_code, presentment_currency_code);
-    order["totalOutstandingSet"] =
-        money_bag_from_amount(outstanding, currency_code, presentment_currency_code);
-    order["totalReceivedSet"] =
-        money_bag_from_amount(received, currency_code, presentment_currency_code);
-    order["netPaymentSet"] =
-        money_bag_from_amount(received, currency_code, presentment_currency_code);
+    order["totalCapturableSet"] = money_bag_from_amounts(
+        capturable,
+        currency_code,
+        presentment_capturable,
+        presentment_currency_code,
+    );
+    order["totalOutstandingSet"] = money_bag_from_amounts(
+        outstanding,
+        currency_code,
+        presentment_outstanding,
+        presentment_currency_code,
+    );
+    order["totalReceivedSet"] = money_bag_from_amounts(
+        received,
+        currency_code,
+        presentment_received,
+        presentment_currency_code,
+    );
+    order["netPaymentSet"] = order["totalReceivedSet"].clone();
     order["paymentGatewayNames"] = Value::Array(
         transactions
             .iter()
@@ -1926,11 +1987,23 @@ impl DraftProxy {
                 }
             }
         }
-        let order = self.build_order_create_record(&order_id, &order_input);
+        let purchasing_entity = self.order_create_b2b_purchasing_entity(&order_input);
+        let mut order = self.build_order_create_record(&order_id, &order_input);
+        order["purchasingEntity"] = purchasing_entity.clone();
         self.store
             .staged
             .orders
             .insert(order_id.clone(), order.clone());
+        if order_customer_purchasing_entity_is_b2b(&purchasing_entity) {
+            self.store
+                .staged
+                .order_customer_b2b_order_ids
+                .insert(order_id.clone());
+            self.store
+                .staged
+                .order_customer_orders
+                .insert(order_id.clone(), order.clone());
+        }
         if let Some(customer_id) = resolved_string_field(&order_input, "customerId") {
             self.store
                 .staged
@@ -2408,11 +2481,24 @@ impl DraftProxy {
         order_input: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let default_currency_code = self.b2b_order_input_currency_default(order_input);
+        let transaction_amount_set = resolved_object_list_field(order_input, "transactions")
+            .first()
+            .and_then(|transaction| resolved_object_field(transaction, "amountSet"));
+        let transaction_shop_currency = transaction_amount_set
+            .as_ref()
+            .and_then(input_money_currency);
+        let transaction_presentment_currency = transaction_amount_set
+            .as_ref()
+            .and_then(|amount_set| resolved_object_field(amount_set, "presentmentMoney"))
+            .as_ref()
+            .and_then(resolved_money_currency);
         let currency_code = resolved_string_field(order_input, "currency")
             .or_else(|| resolved_string_field(order_input, "currencyCode"))
+            .or(transaction_shop_currency)
             .unwrap_or(default_currency_code);
         let presentment_currency_code = resolved_string_field(order_input, "presentmentCurrency")
             .or_else(|| resolved_string_field(order_input, "presentmentCurrencyCode"))
+            .or(transaction_presentment_currency)
             .unwrap_or_else(|| currency_code.clone());
         let mut subtotal = 0.0;
         let mut tax_total = 0.0;
@@ -2431,6 +2517,14 @@ impl DraftProxy {
                 line
             })
             .collect::<Vec<_>>();
+        let presentment_subtotal = line_items
+            .iter()
+            .map(|line_item| {
+                let quantity = line_item["quantity"].as_i64().unwrap_or(0).max(0) as f64;
+                money_set_presentment_or_shop_amount_value(&line_item["originalUnitPriceSet"])
+                    * quantity
+            })
+            .sum::<f64>();
         let fulfillment_orders = if line_items.is_empty() {
             Vec::new()
         } else {
@@ -2444,32 +2538,75 @@ impl DraftProxy {
         let shipping_lines = resolved_object_list_field(order_input, "shippingLines")
             .into_iter()
             .map(|shipping_line| {
-                let price_input =
-                    resolved_object_field(&shipping_line, "priceSet").unwrap_or_default();
-                let amount = input_money_amount(&price_input).unwrap_or(0.0);
-                let shipping_currency =
-                    input_money_currency(&price_input).unwrap_or_else(|| currency_code.clone());
-                let tax_lines = order_create_tax_lines(&shipping_line, "taxLines", &currency_code);
+                let (shop_amount, shop_currency, presentment_amount, presentment_currency) =
+                    crate::proxy::metafields_orders_payments::line_item_price_values(
+                        &shipping_line,
+                        &currency_code,
+                        &presentment_currency_code,
+                    )
+                    .unwrap_or_else(|| {
+                        (
+                            0.0,
+                            currency_code.clone(),
+                            0.0,
+                            presentment_currency_code.clone(),
+                        )
+                    });
+                let tax_lines = order_create_tax_lines(
+                    &shipping_line,
+                    "taxLines",
+                    &currency_code,
+                    &presentment_currency_code,
+                );
                 tax_total += sum_money_set(&tax_lines, "priceSet");
                 json!({
                     "title": resolved_string_field(&shipping_line, "title").unwrap_or_default(),
                     "code": resolved_string_field(&shipping_line, "code").unwrap_or_default(),
                     "source": resolved_string_field(&shipping_line, "source").unwrap_or_default(),
-                    "originalPriceSet": money_bag(amount, &shipping_currency),
-                    "priceSet": money_bag(amount, &shipping_currency),
+                    "originalPriceSet": money_bag_from_amounts(
+                        shop_amount,
+                        &shop_currency,
+                        presentment_amount,
+                        &presentment_currency,
+                    ),
+                    "priceSet": money_bag_from_amounts(
+                        shop_amount,
+                        &shop_currency,
+                        presentment_amount,
+                        &presentment_currency,
+                    ),
                     "taxLines": tax_lines
                 })
             })
             .collect::<Vec<_>>();
         let shipping_total = sum_money_set(&shipping_lines, "originalPriceSet");
-        let (discount_total, discount_codes) =
-            order_create_discount_amount(order_input, &currency_code);
+        let presentment_shipping_total = shipping_lines
+            .iter()
+            .map(|line| money_set_presentment_or_shop_amount_value(&line["originalPriceSet"]))
+            .sum::<f64>();
+        let presentment_tax_total = line_items
+            .iter()
+            .chain(shipping_lines.iter())
+            .flat_map(|line| line["taxLines"].as_array().into_iter().flatten())
+            .map(|tax_line| money_set_presentment_or_shop_amount_value(&tax_line["priceSet"]))
+            .sum::<f64>();
+        let (discount_total, presentment_discount_total, discount_codes) =
+            order_create_discount_amounts(order_input, &currency_code, &presentment_currency_code);
         let total = (subtotal + shipping_total + tax_total - discount_total).max(0.0);
+        let presentment_total =
+            (presentment_subtotal + presentment_shipping_total + presentment_tax_total
+                - presentment_discount_total)
+                .max(0.0);
         let transactions = resolved_object_list_field(order_input, "transactions")
             .into_iter()
             .map(|transaction| {
                 let transaction_id = self.next_order_transaction_id();
-                order_create_transaction_record(&transaction, transaction_id, &currency_code)
+                order_create_transaction_record(
+                    &transaction,
+                    transaction_id,
+                    &currency_code,
+                    &presentment_currency_code,
+                )
             })
             .collect::<Vec<_>>();
         let financial_status = order_create_financial_status(order_input, &transactions, total);
@@ -2526,18 +2663,19 @@ impl DraftProxy {
             "customAttributes": order_create_custom_attributes(order_input, "customAttributes"),
             "billingAddress": order_create_address(resolved_object_field(order_input, "billingAddress")),
             "shippingAddress": order_create_address(resolved_object_field(order_input, "shippingAddress")),
-            "subtotalPriceSet": money_bag_from_amount(subtotal, &currency_code, &presentment_currency_code),
-            "currentSubtotalPriceSet": money_bag_from_amount(subtotal, &currency_code, &presentment_currency_code),
-            "totalShippingPriceSet": money_bag_from_amount(shipping_total, &currency_code, &presentment_currency_code),
-            "totalTaxSet": money_bag_from_amount(tax_total, &currency_code, &presentment_currency_code),
-            "currentTotalTaxSet": money_bag_from_amount(tax_total, &currency_code, &presentment_currency_code),
-            "totalDiscountsSet": money_bag_from_amount(discount_total, &currency_code, &presentment_currency_code),
-            "currentTotalDiscountsSet": money_bag_from_amount(discount_total, &currency_code, &presentment_currency_code),
-            "currentTotalPriceSet": money_bag_from_amount(total, &currency_code, &presentment_currency_code),
-            "totalPriceSet": money_bag_from_amount(total, &currency_code, &presentment_currency_code),
+            "subtotalPriceSet": money_bag_from_amounts(subtotal, &currency_code, presentment_subtotal, &presentment_currency_code),
+            "currentSubtotalPriceSet": money_bag_from_amounts(subtotal, &currency_code, presentment_subtotal, &presentment_currency_code),
+            "totalShippingPriceSet": money_bag_from_amounts(shipping_total, &currency_code, presentment_shipping_total, &presentment_currency_code),
+            "totalTaxSet": money_bag_from_amounts(tax_total, &currency_code, presentment_tax_total, &presentment_currency_code),
+            "currentTotalTaxSet": money_bag_from_amounts(tax_total, &currency_code, presentment_tax_total, &presentment_currency_code),
+            "totalDiscountsSet": money_bag_from_amounts(discount_total, &currency_code, presentment_discount_total, &presentment_currency_code),
+            "currentTotalDiscountsSet": money_bag_from_amounts(discount_total, &currency_code, presentment_discount_total, &presentment_currency_code),
+            "currentTotalPriceSet": money_bag_from_amounts(total, &currency_code, presentment_total, &presentment_currency_code),
+            "totalPriceSet": money_bag_from_amounts(total, &currency_code, presentment_total, &presentment_currency_code),
             "discountCodes": discount_codes,
             "shippingLines": order_connection(shipping_lines),
             "lineItems": order_connection(line_items),
+            "paymentTerms": Value::Null,
             "fulfillments": [],
             "fulfillmentOrders": order_connection(fulfillment_orders),
             "transactions": transactions
@@ -2658,15 +2796,6 @@ impl DraftProxy {
             return Some(ResolverOutcome::value(
                 self.effective_orders_count_value(arguments),
             ));
-        }
-        if root_field == "orderCreate" {
-            let order_input = resolved_object_field(arguments, "order")?;
-            let purchasing_entity = self.order_create_b2b_purchasing_entity(&order_input);
-            if !order_customer_purchasing_entity_is_b2b(&purchasing_entity) {
-                return None;
-            }
-            let order = self.order_customer_paths_order_create(arguments)?;
-            return Some(ResolverOutcome::value(order));
         }
         if root_field == "orderDelete" {
             let payload = self.stage_order_delete(request, query, variables, arguments)?;
@@ -3395,6 +3524,13 @@ impl DraftProxy {
             Err(payload) => return Some(ResolverOutcome::value(payload)),
         };
         let (session, _, _) = self.order_edit_session_context(&calculated_id);
+        if !oe_session_has_changes(&session) {
+            return order_edit_error_outcome(vec![user_error_omit_code(
+                ["id"],
+                "There must be at least one change to be made.",
+                None,
+            )]);
+        }
         let base = self
             .store
             .staged

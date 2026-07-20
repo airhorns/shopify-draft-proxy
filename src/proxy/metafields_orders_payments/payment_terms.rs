@@ -600,36 +600,6 @@ fn payment_terms_owner_not_found_payload(owner_id: &str, code: &str) -> Value {
     )
 }
 
-fn payment_terms_order_total_price_set(
-    order_input: &BTreeMap<String, ResolvedValue>,
-    shop_currency_code: &str,
-) -> Value {
-    let default_shop_currency = resolved_string_field(order_input, "currency")
-        .or_else(|| resolved_string_field(order_input, "currencyCode"))
-        .unwrap_or_else(|| shop_currency_code.to_string());
-    let default_presentment_currency = resolved_string_field(order_input, "presentmentCurrency")
-        .or_else(|| resolved_string_field(order_input, "presentmentCurrencyCode"))
-        .unwrap_or_else(|| default_shop_currency.clone());
-    let [shop_amount, shop_currency, presentment_amount, presentment_currency] =
-        line_items_price_set_values(
-            order_input,
-            [
-                "0.0",
-                &default_shop_currency,
-                "0.0",
-                &default_presentment_currency,
-            ],
-            ["0.0", &default_shop_currency],
-            Some(["0.0", &default_presentment_currency]),
-        );
-    money_set_pair(
-        &shop_amount,
-        &shop_currency,
-        &presentment_amount,
-        &presentment_currency,
-    )
-}
-
 impl DraftProxy {
     pub(crate) fn payment_terms_mutation_root(
         &mut self,
@@ -850,25 +820,10 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn payment_terms_local_outcome(
         &mut self,
-        request: &Request,
         root_name: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
-        requests_payment_terms: bool,
     ) -> Option<ResolverOutcome<Value>> {
         match root_name {
-            "orderCreate" if requests_payment_terms => {
-                if resolved_object_field(arguments, "order")
-                    .is_some_and(|input| order_create_input_needs_shop_currency_default(&input))
-                {
-                    self.hydrate_shop_pricing_state_if_missing(request, true, false);
-                }
-                let order = self.stage_payment_terms_order(arguments);
-                let staged_ids = vec![order["id"].as_str().unwrap_or_default().to_string()];
-                Some(
-                    ResolverOutcome::value(json!({ "order": order, "userErrors": [] }))
-                        .with_log_draft(LogDraft::staged("orderCreate", "orders", staged_ids)),
-                )
-            }
             "order" | "draftOrder" => {
                 let id = resolved_string_field(arguments, "id")?;
                 let has_staged_owner = self
@@ -1076,29 +1031,5 @@ impl DraftProxy {
             );
         }
         owner
-    }
-
-    fn stage_payment_terms_order(&mut self, arguments: &BTreeMap<String, ResolvedValue>) -> Value {
-        let order_input = resolved_object_field(arguments, "order").unwrap_or_default();
-        let id = shopify_gid("Order", self.store.staged.next_order_id);
-        self.store.staged.next_order_id += 1;
-        let shop_currency_code = self.store.shop_currency_code();
-        let price_set = payment_terms_order_total_price_set(&order_input, &shop_currency_code);
-        let order_number = self.next_order_number();
-        let order_name = format!("#{order_number}");
-        let order = json!({
-            "id": id,
-            "name": order_name,
-            "orderNumber": order_number,
-            "currentTotalPriceSet": price_set.clone(),
-            "totalPriceSet": price_set.clone(),
-            "totalOutstandingSet": price_set,
-            "paymentTerms": Value::Null
-        });
-        self.store.staged.orders.insert(
-            order["id"].as_str().unwrap_or_default().to_string(),
-            order.clone(),
-        );
-        order
     }
 }

@@ -30,8 +30,21 @@ pub(in crate::proxy) fn money_bag_from_amount(
     shop_currency: &str,
     presentment_currency: &str,
 ) -> Value {
-    let amount = format_money_amount(amount);
-    money_set_pair(&amount, shop_currency, &amount, presentment_currency)
+    money_bag_from_amounts(amount, shop_currency, amount, presentment_currency)
+}
+
+pub(in crate::proxy) fn money_bag_from_amounts(
+    shop_amount: f64,
+    shop_currency: &str,
+    presentment_amount: f64,
+    presentment_currency: &str,
+) -> Value {
+    money_set_pair(
+        &format_money_amount(shop_amount),
+        shop_currency,
+        &format_money_amount(presentment_amount),
+        presentment_currency,
+    )
 }
 
 pub(in crate::proxy) fn money_bag(amount: f64, currency_code: &str) -> Value {

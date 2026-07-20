@@ -5,7 +5,6 @@ mod abandonments;
 mod customer_payment_methods;
 mod delivery_settings;
 mod events;
-mod money_bag;
 mod payment_customizations;
 mod payment_reminders;
 mod payment_terms;
@@ -2105,45 +2104,7 @@ pub(in crate::proxy) fn measurement_units_for_type(type_name: &str) -> &'static 
     }
 }
 
-fn money_bag_currency(money_set: &Value) -> Option<String> {
-    money_set_shop_currency(money_set)
-}
-
-fn order_create_input_needs_shop_currency_default(
-    order_input: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    if resolved_string_field(order_input, "currency")
-        .or_else(|| resolved_string_field(order_input, "currencyCode"))
-        .is_some()
-    {
-        return false;
-    }
-    let line_has_money_currency = resolved_object_list_field(order_input, "lineItems")
-        .into_iter()
-        .any(|line_item| {
-            resolved_object_field(&line_item, "priceSet")
-                .or_else(|| resolved_object_field(&line_item, "originalUnitPriceSet"))
-                .and_then(|price_set| input_money_currency(&price_set))
-                .is_some()
-        });
-    if line_has_money_currency {
-        return false;
-    }
-    !resolved_object_list_field(order_input, "shippingLines")
-        .into_iter()
-        .any(|shipping_line| {
-            resolved_object_field(&shipping_line, "priceSet")
-                .and_then(|price_set| input_money_currency(&price_set))
-                .is_some()
-        })
-}
-
-fn money_bag_add_decimal_strings(left: &str, right: &str) -> String {
-    let total = left.parse::<f64>().unwrap_or(0.0) + right.parse::<f64>().unwrap_or(0.0);
-    format_money_amount(total)
-}
-
-fn line_item_price_values(
+pub(in crate::proxy) fn line_item_price_values(
     line_item: &BTreeMap<String, ResolvedValue>,
     default_shop_currency: &str,
     default_presentment_currency: &str,
@@ -2168,55 +2129,4 @@ fn line_item_price_values(
         presentment_amount,
         presentment_currency,
     ))
-}
-
-fn line_items_price_set_values(
-    order_input: &BTreeMap<String, ResolvedValue>,
-    absent_price_set: [&str; 4],
-    shop_defaults: [&str; 2],
-    presentment_defaults: Option<[&str; 2]>,
-) -> [String; 4] {
-    let default_shop_currency = shop_defaults[1];
-    let default_presentment_currency = presentment_defaults
-        .as_ref()
-        .map(|defaults| defaults[1])
-        .unwrap_or(default_shop_currency);
-    let mut shop_total = 0.0;
-    let mut presentment_total = 0.0;
-    let mut shop_currency = default_shop_currency.to_string();
-    let mut presentment_currency = default_presentment_currency.to_string();
-    let mut saw_price = false;
-
-    for line_item in resolved_object_list_field(order_input, "lineItems") {
-        let Some((shop_amount, line_shop_currency, presentment_amount, line_presentment_currency)) =
-            line_item_price_values(
-                &line_item,
-                default_shop_currency,
-                default_presentment_currency,
-            )
-        else {
-            continue;
-        };
-        if !saw_price {
-            shop_currency = line_shop_currency;
-            presentment_currency = line_presentment_currency;
-            saw_price = true;
-        }
-        let quantity = resolved_int_field(&line_item, "quantity")
-            .unwrap_or(1)
-            .max(0) as f64;
-        shop_total += shop_amount * quantity;
-        presentment_total += presentment_amount * quantity;
-    }
-
-    if !saw_price {
-        return absent_price_set.map(str::to_string);
-    }
-
-    [
-        format_money_amount(shop_total),
-        shop_currency,
-        format_money_amount(presentment_total),
-        presentment_currency,
-    ]
 }

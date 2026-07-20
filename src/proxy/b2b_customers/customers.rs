@@ -1495,41 +1495,6 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn customer_order_create(
-        &mut self,
-        arguments: &BTreeMap<String, ResolvedValue>,
-    ) -> ResolverOutcome<Value> {
-        let order_input = resolved_object_field(arguments, "order").unwrap_or_default();
-        let customer_id = resolved_string_field(&order_input, "customerId").unwrap_or_default();
-        let customer = self
-            .store
-            .staged
-            .customers
-            .get(&customer_id)
-            .cloned()
-            .unwrap_or(Value::Null);
-        let id = self.next_proxy_synthetic_gid("Order");
-        let mut customer = customer;
-        if !customer.is_null() {
-            customer["canDelete"] = json!(false);
-        }
-        let order = json!({ "id": id, "customer": customer });
-        if !customer_id.is_empty() {
-            self.store
-                .staged
-                .customer_orders
-                .entry(customer_id.clone())
-                .or_default()
-                .push(order.clone());
-        }
-        let payload = json!({ "order": order, "userErrors": [] });
-        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
-            "orderCreate",
-            "orders",
-            vec![id],
-        ))
-    }
-
     pub(crate) fn customer_lifecycle_mutation_root(
         &mut self,
         invocation: RootInvocation<'_>,

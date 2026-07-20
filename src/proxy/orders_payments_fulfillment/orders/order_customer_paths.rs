@@ -15,7 +15,6 @@ impl DraftProxy {
             "companyAssignCustomerAsContact" => {
                 self.order_customer_paths_assign_customer(arguments)
             }
-            "orderCreate" => self.order_customer_paths_order_create(arguments),
             "orderCancel" => {
                 self.order_customer_paths_cancel_order(request, query, variables, arguments)
             }
@@ -132,39 +131,6 @@ impl DraftProxy {
             },
             "userErrors": []
         }))
-    }
-
-    pub(in crate::proxy) fn order_customer_paths_order_create(
-        &mut self,
-        arguments: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        let order_input = resolved_object_field(arguments, "order")?;
-        let id = self.next_proxy_synthetic_gid("Order");
-        let customer_id = resolved_string_field(&order_input, "customerId");
-        // Retain purchasing entity so company delete detects B2B references.
-        let purchasing_entity = self.order_create_b2b_purchasing_entity(&order_input);
-        if order_customer_purchasing_entity_is_b2b(&purchasing_entity) {
-            self.store
-                .staged
-                .order_customer_b2b_order_ids
-                .insert(id.clone());
-        }
-        let mut order = self.build_order_create_record(&id, &order_input);
-        order["purchasingEntity"] = purchasing_entity;
-        if let Some(customer_id) = customer_id {
-            order["customer"] = self
-                .store
-                .staged
-                .customers
-                .get(&customer_id)
-                .cloned()
-                .unwrap_or_else(|| json!({ "id": customer_id }));
-        }
-        self.store.staged.order_customer_orders.insert(
-            order["id"].as_str().unwrap_or_default().to_string(),
-            order.clone(),
-        );
-        Some(json!({ "order": order, "userErrors": [] }))
     }
 
     pub(super) fn order_create_b2b_purchasing_entity(

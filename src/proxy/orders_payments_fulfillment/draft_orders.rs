@@ -194,7 +194,7 @@ pub(in crate::proxy) fn draft_order_line_item(
     let line_total = unit_amount * quantity as f64;
     let discount_amount = draft_order_applied_discount_amount(input, line_total);
     let discounted_total = (line_total - discount_amount).max(0.0);
-    let tax_lines = order_create_tax_lines(input, "taxLines", currency);
+    let tax_lines = order_create_tax_lines(input, "taxLines", currency, currency);
     let title = if variant_id.is_some() {
         hydrated_variant
             .and_then(|variant| variant["product"]["title"].as_str().map(str::to_string))
