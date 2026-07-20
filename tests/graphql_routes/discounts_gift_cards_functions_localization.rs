@@ -2193,6 +2193,66 @@ fn discount_count_only_live_hybrid_preserves_upstream_total_with_staged_delta() 
         .any(|query| query.contains("discountNodesCount")));
 }
 
+#[test]
+fn discount_count_only_live_hybrid_falls_back_to_staged_matches_when_baseline_errors() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("DiscountUniquenessCheck") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "codeDiscountNodeByCode": null } }),
+                };
+            }
+            assert!(query.contains("discountNodesCount"));
+            Response {
+                status: 500,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "count baseline unavailable" }] }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCountFallbackDiscount($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Count fallback unique staged discount",
+            "code": "COUNT-FALLBACK-STAGED",
+            "startsAt": "2026-04-27T19:31:14Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CountFallbackAfterCreate($query: String!) {
+          discountNodesCount(query: $query) { count precision }
+        }
+        "#,
+        json!({ "query": "discount_class:order Count fallback unique" }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["discountNodesCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert!(read.body.get("errors").is_none());
+}
+
 fn starts_at_required_variables(starts_at: Option<Value>) -> Value {
     let mut variables = json!({
         "basicCode": {

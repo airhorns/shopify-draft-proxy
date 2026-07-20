@@ -527,8 +527,13 @@ impl DraftProxy {
         );
         let mut result = ResolverOutcome::value(value);
         if let Some(upstream) = upstream_outcome {
-            result.errors = upstream.errors;
-            result.extensions.extend(upstream.extensions);
+            let staged_count_fallback = root_name == "discountNodesCount"
+                && self.has_staged_discounts()
+                && !upstream.errors.is_empty();
+            if !staged_count_fallback {
+                result.errors = upstream.errors;
+                result.extensions.extend(upstream.extensions);
+            }
         }
         result
     }

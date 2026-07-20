@@ -1338,13 +1338,14 @@ impl DraftProxy {
             };
             let authoritative_rows = observed_connection_rows(&authoritative)
                 .into_iter()
-                .filter(|row| {
-                    customer_record_id(&row.node).is_none_or(|id| {
-                        !self.locally_created_customer_shadows_base_record(&id, &row.node)
-                    })
-                })
                 .map(|row| {
                     let mut node = row.node;
+                    if let Some(staged_id) = self.locally_created_customer_shadow_id(
+                        customer_record_id(&node).as_deref(),
+                        &node,
+                    ) {
+                        node["id"] = json!(staged_id);
+                    }
                     if let (Some(id), Some(upstream_data)) =
                         (customer_record_id(&node), request_upstream_data.as_ref())
                     {
@@ -1495,13 +1496,22 @@ impl DraftProxy {
         false
     }
 
-    fn locally_created_customer_shadows_base_record(&self, base_id: &str, base: &Value) -> bool {
+    fn locally_created_customer_shadow_id(
+        &self,
+        base_id: Option<&str>,
+        base: &Value,
+    ) -> Option<String> {
         let country_code = shop_country_code(&self.store.base.shop);
-        self.store.staged.customers.iter().any(|(id, customer)| {
-            id != base_id
-                && self.store.staged.locally_created_customer_ids.contains(id)
-                && customer_records_share_contact_identity(base, customer, country_code)
-        })
+        self.store
+            .staged
+            .customers
+            .iter()
+            .find(|(id, customer)| {
+                base_id.is_none_or(|base_id| id.as_str() != base_id)
+                    && self.store.staged.locally_created_customer_ids.contains(*id)
+                    && customer_records_share_contact_identity(base, customer, country_code)
+            })
+            .map(|(id, _)| id.clone())
     }
 
     fn upstream_data_contains_customer_identity(

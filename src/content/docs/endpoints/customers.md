@@ -89,7 +89,10 @@ Local staged mutations:
   requested size plus relevant staged customer changes plus one boundary row,
   in pages of at most 250. Partial windows remain keyed by complete arguments
   and selection; Shopify cursors remain opaque, while local rows receive stable
-  proxy-opaque cursors that are never forwarded upstream. `customersCount`
+  proxy-opaque cursors that are never forwarded upstream. When a caller omits
+  `id`, an authoritative row that shares a staged create's observed email or
+  phone identity is reconciled to that staged row without discarding the
+  authoritative edge cursor. `customersCount`
   caches upstream Count baselines by complete `query`/`limit` arguments and
   applies known staged deltas instead of enumerating the customer catalog.
 - `Customer.orders` reads from the staged per-customer order index when local order writes or customer merge/order-customer changes affect the relationship. That staged connection applies the supported local order `query:`, `sortKey`, `reverse`, and cursor windowing before projection; hydrated inline order pages remain projected from their captured page when no staged order relationship exists.
