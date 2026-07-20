@@ -1,0 +1,28 @@
+query ProductOperationColdAuthoritativeRead($id: ID!) {
+  productOperation(id: $id) {
+    __typename
+    status
+    product {
+      id
+      title
+      handle
+      status
+      createdAt
+      updatedAt
+      onlineStoreUrl
+      totalInventory
+      variantsCount {
+        count
+        precision
+      }
+    }
+    ... on ProductSetOperation {
+      id
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+}

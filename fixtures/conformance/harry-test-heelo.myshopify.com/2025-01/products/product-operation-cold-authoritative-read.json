@@ -1,0 +1,167 @@
+{
+  "scenarioId": "product-operation-cold-authoritative-read",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-07-20T04:08:17.055Z",
+  "setup": {
+    "query": "#graphql\n  mutation ProductOperationColdAuthoritativeSetup($input: ProductSetInput!) {\n    productSet(input: $input, synchronous: false) {\n      product {\n        id\n      }\n      productSetOperation {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+    "variables": {
+      "input": {
+        "title": "Cold authoritative operation 1784520495482",
+        "status": "DRAFT"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productSet": {
+            "product": null,
+            "productSetOperation": {
+              "id": "gid://shopify/ProductSetOperation/89455329586",
+              "status": "CREATED"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1931,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "operationRead": {
+    "query": "query ProductOperationColdAuthoritativeRead($id: ID!) {\n  productOperation(id: $id) {\n    __typename\n    status\n    product {\n      id\n      title\n      handle\n      status\n      createdAt\n      updatedAt\n      onlineStoreUrl\n      totalInventory\n      variantsCount {\n        count\n        precision\n      }\n    }\n    ... on ProductSetOperation {\n      id\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/ProductSetOperation/89455329586"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productOperation": {
+            "__typename": "ProductSetOperation",
+            "status": "COMPLETE",
+            "product": {
+              "id": "gid://shopify/Product/10244059758898",
+              "title": "Cold authoritative operation 1784520495482",
+              "handle": "cold-authoritative-operation-1784520495482",
+              "status": "DRAFT",
+              "createdAt": "2026-07-20T04:08:15Z",
+              "updatedAt": "2026-07-20T04:08:16Z",
+              "onlineStoreUrl": null,
+              "totalInventory": 0,
+              "variantsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              }
+            },
+            "id": "gid://shopify/ProductSetOperation/89455329586",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "query": "#graphql\n  mutation ProductOperationColdAuthoritativeCleanup($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Product/10244059758898"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10244059758898",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "ProductOperationColdAuthoritativeRead",
+      "query": "query ProductOperationColdAuthoritativeRead($id: ID!) {\n  productOperation(id: $id) {\n    __typename\n    status\n    product {\n      id\n      title\n      handle\n      status\n      createdAt\n      updatedAt\n      onlineStoreUrl\n      totalInventory\n      variantsCount {\n        count\n        precision\n      }\n    }\n    ... on ProductSetOperation {\n      id\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/ProductSetOperation/89455329586"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productOperation": {
+              "__typename": "ProductSetOperation",
+              "status": "COMPLETE",
+              "product": {
+                "id": "gid://shopify/Product/10244059758898",
+                "title": "Cold authoritative operation 1784520495482",
+                "handle": "cold-authoritative-operation-1784520495482",
+                "status": "DRAFT",
+                "createdAt": "2026-07-20T04:08:15Z",
+                "updatedAt": "2026-07-20T04:08:16Z",
+                "onlineStoreUrl": null,
+                "totalInventory": 0,
+                "variantsCount": {
+                  "count": 1,
+                  "precision": "EXACT"
+                }
+              },
+              "id": "gid://shopify/ProductSetOperation/89455329586",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Captured from a disposable asynchronous productSet. The productOperation request and upstream cassette query are the exact same checked-in GraphQL document."
+}

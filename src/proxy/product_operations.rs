@@ -10,13 +10,59 @@ impl DraftProxy {
             .get("id")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        let value = self
-            .product_operation_value_by_id(id)
-            .unwrap_or(Value::Null);
-        ResolverOutcome::value(value)
+        if let Some(value) = self.local_product_operation_value_by_id(id) {
+            return ResolverOutcome::value(value);
+        }
+
+        let base_operation = self.store.base.product_operations.get(id).cloned();
+        let requested_fields_observed = self
+            .store
+            .base
+            .product_operation_observed_field_paths
+            .get(id)
+            .is_some_and(|observed| invocation.requested_field_paths.is_subset(observed));
+        let needs_upstream = self.config.read_mode == ReadMode::LiveHybrid
+            && !is_synthetic_gid(id)
+            && !self.store.base.missing_product_operation_ids.contains(id)
+            && base_operation.as_ref().is_none_or(|operation| {
+                !product_operation_is_complete(operation) || !requested_fields_observed
+            });
+        if !needs_upstream {
+            return ResolverOutcome::value(base_operation.unwrap_or(Value::Null));
+        }
+
+        let result = self
+            .cached_or_forward_upstream_graphql_result(invocation.request, invocation.response_key);
+        if result.transport_succeeded && result.outcome.errors.is_empty() {
+            match result.data.get(invocation.response_key) {
+                Some(Value::Null) => {
+                    self.store.base.product_operations.remove(id);
+                    self.store
+                        .base
+                        .product_operation_observed_field_paths
+                        .remove(id);
+                    self.store
+                        .base
+                        .missing_product_operation_ids
+                        .insert(id.to_string());
+                }
+                Some(operation) => self.observe_product_operation_value(
+                    id,
+                    operation,
+                    &invocation.requested_field_paths,
+                ),
+                None => {}
+            }
+        }
+        result.outcome
     }
 
     pub(in crate::proxy) fn product_operation_value_by_id(&self, id: &str) -> Option<Value> {
+        self.local_product_operation_value_by_id(id)
+            .or_else(|| self.store.base.product_operations.get(id).cloned())
+    }
+
+    fn local_product_operation_value_by_id(&self, id: &str) -> Option<Value> {
         self.store
             .staged
             .product_delete_operations
@@ -39,6 +85,57 @@ impl DraftProxy {
                         self.product_operation_value_with_status(operation, "COMPLETE")
                     })
             })
+    }
+
+    fn observe_product_operation_value(
+        &mut self,
+        requested_id: &str,
+        operation: &Value,
+        requested_field_paths: &BTreeSet<Vec<String>>,
+    ) {
+        let Some(object) = operation.as_object() else {
+            return;
+        };
+        let observed_id = object
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or(requested_id);
+        if observed_id != requested_id {
+            return;
+        }
+        let type_name = object
+            .get("__typename")
+            .and_then(Value::as_str)
+            .or_else(|| product_operation_typename_from_id(requested_id));
+        let Some(type_name) = type_name.filter(|name| is_product_operation_typename(name)) else {
+            return;
+        };
+
+        let mut observed = operation.clone();
+        if let Some(object) = observed.as_object_mut() {
+            object
+                .entry("id".to_string())
+                .or_insert_with(|| json!(requested_id));
+            object
+                .entry("__typename".to_string())
+                .or_insert_with(|| json!(type_name));
+        }
+        self.store
+            .base
+            .product_operations
+            .entry(requested_id.to_string())
+            .and_modify(|existing| merge_json_values(existing, &observed))
+            .or_insert(observed);
+        self.store
+            .base
+            .product_operation_observed_field_paths
+            .entry(requested_id.to_string())
+            .or_default()
+            .extend(requested_field_paths.iter().cloned());
+        self.store
+            .base
+            .missing_product_operation_ids
+            .remove(requested_id);
     }
 
     pub(crate) fn product_set_outcome(
@@ -1025,6 +1122,30 @@ fn product_operation_typename(kind: ProductOperationKind) -> &'static str {
         ProductOperationKind::Duplicate => "ProductDuplicateOperation",
         ProductOperationKind::Bundle => "ProductBundleOperation",
     }
+}
+
+fn product_operation_typename_from_id(id: &str) -> Option<&'static str> {
+    match shopify_gid_resource_type(id)? {
+        "ProductSetOperation" => Some("ProductSetOperation"),
+        "ProductDuplicateOperation" => Some("ProductDuplicateOperation"),
+        "ProductDeleteOperation" => Some("ProductDeleteOperation"),
+        "ProductBundleOperation" => Some("ProductBundleOperation"),
+        _ => None,
+    }
+}
+
+fn is_product_operation_typename(type_name: &str) -> bool {
+    matches!(
+        type_name,
+        "ProductSetOperation"
+            | "ProductDuplicateOperation"
+            | "ProductDeleteOperation"
+            | "ProductBundleOperation"
+    )
+}
+
+fn product_operation_is_complete(operation: &Value) -> bool {
+    operation.get("status").and_then(Value::as_str) == Some("COMPLETE")
 }
 
 fn product_set_shape_validation(

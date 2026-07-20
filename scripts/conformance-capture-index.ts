@@ -3553,6 +3553,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-operation-cold-authoritative-read',
+    scriptPath: 'scripts/capture-product-operation-cold-authoritative-read-conformance.ts',
+    purpose:
+      'Cold LiveHybrid productOperation polling of an authoritative asynchronous operation created outside the proxy session.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-operation-cold-authoritative-read.json`,
+      'config/parity-specs/products/product-operation-cold-authoritative-read.json',
+      'config/parity-requests/products/productOperation-cold-authoritative-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable asynchronous productSet operation, polls it to completion, and deletes the resulting product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-delete-async',
     scriptPath: 'scripts/capture-product-delete-async-conformance.ts',
     purpose:
