@@ -1,0 +1,1109 @@
+{
+  "metadata": {
+    "source": "live-shopify-admin-graphql",
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "capturedAt": "2026-07-20T15:21:47.410Z",
+    "scenario": "saved-search-partial-page-overlay"
+  },
+  "setup": {
+    "request": {
+      "query": "mutation SavedSearchPartialPageSetup(\n  $first: SavedSearchCreateInput!\n  $second: SavedSearchCreateInput!\n  $third: SavedSearchCreateInput!\n) {\n  first: savedSearchCreate(input: $first) {\n    savedSearch { id name query resourceType }\n    userErrors { field message }\n  }\n  second: savedSearchCreate(input: $second) {\n    savedSearch { id name query resourceType }\n    userErrors { field message }\n  }\n  third: savedSearchCreate(input: $third) {\n    savedSearch { id name query resourceType }\n    userErrors { field message }\n  }\n}\n",
+      "variables": {
+        "first": {
+          "resourceType": "PRODUCT",
+          "name": "Partial window mrtdhj92 A",
+          "query": "title:mrtdhj92a"
+        },
+        "second": {
+          "resourceType": "PRODUCT",
+          "name": "Partial window mrtdhj92 B",
+          "query": "title:mrtdhj92b"
+        },
+        "third": {
+          "resourceType": "PRODUCT",
+          "name": "Partial window mrtdhj92 C",
+          "query": "title:mrtdhj92c"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "first": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4088988762418",
+            "name": "Partial window mrtdhj92 A",
+            "query": "title:mrtdhj92a",
+            "resourceType": "PRODUCT"
+          },
+          "userErrors": []
+        },
+        "second": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4088988795186",
+            "name": "Partial window mrtdhj92 B",
+            "query": "title:mrtdhj92b",
+            "resourceType": "PRODUCT"
+          },
+          "userErrors": []
+        },
+        "third": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4088988827954",
+            "name": "Partial window mrtdhj92 C",
+            "query": "title:mrtdhj92c",
+            "resourceType": "PRODUCT"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 30,
+          "actualQueryCost": 30,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1965,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "partialPage": {
+    "request": {
+      "query": "query SavedSearchPartialPage {\n  productSavedSearches(first: 1) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "variables": {}
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productSavedSearches": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+              "node": {
+                "id": "gid://shopify/SavedSearch/4088988762418",
+                "name": "Partial window mrtdhj92 A",
+                "query": "title:mrtdhj92a",
+                "resourceType": "PRODUCT"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "preUpdateCallerPage": {
+    "request": {
+      "query": "query SavedSearchPartialPage {\n  productSavedSearches(first: 1) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "variables": {}
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productSavedSearches": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+              "node": {
+                "id": "gid://shopify/SavedSearch/4088988762418",
+                "name": "Partial window mrtdhj92 A",
+                "query": "title:mrtdhj92a",
+                "resourceType": "PRODUCT"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "update": {
+    "request": {
+      "query": "mutation SavedSearchPartialPageUpdate($input: SavedSearchUpdateInput!) {\n  savedSearchUpdate(input: $input) {\n    savedSearch { id name query resourceType }\n    userErrors { field message }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/SavedSearch/4088988762418",
+          "name": "Partial window mrtdhj92 A updated"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "savedSearchUpdate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4088988762418",
+            "name": "Partial window mrtdhj92 A updated",
+            "query": "title:mrtdhj92a",
+            "resourceType": "PRODUCT"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "postUpdatePage": {
+    "request": {
+      "query": "query SavedSearchPartialPage {\n  productSavedSearches(first: 1) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "variables": {}
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productSavedSearches": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+              "node": {
+                "id": "gid://shopify/SavedSearch/4088988762418",
+                "name": "Partial window mrtdhj92 A updated",
+                "query": "title:mrtdhj92a",
+                "resourceType": "PRODUCT"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deleted": {
+    "request": {
+      "query": "mutation SavedSearchPartialPageDelete($input: SavedSearchDeleteInput!) {\n  savedSearchDelete(input: $input) {\n    deletedSavedSearchId\n    userErrors { field message }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/SavedSearch/4088988762418"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "savedSearchDelete": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4088988762418",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "postDeletePage": {
+    "request": {
+      "query": "query SavedSearchPartialPage {\n  productSavedSearches(first: 1) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "variables": {}
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productSavedSearches": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+              "node": {
+                "id": "gid://shopify/SavedSearch/4088988795186",
+                "name": "Partial window mrtdhj92 B",
+                "query": "title:mrtdhj92b",
+                "resourceType": "PRODUCT"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "preCreateReversePage": {
+    "request": {
+      "query": "query SavedSearchPartialPageReverse {\n  productSavedSearches(first: 1, reverse: true) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "variables": {}
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productSavedSearches": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+              "node": {
+                "id": "gid://shopify/SavedSearch/4088988827954",
+                "name": "Partial window mrtdhj92 C",
+                "query": "title:mrtdhj92c",
+                "resourceType": "PRODUCT"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "preCreateAfterPage": {
+    "request": {
+      "query": "query SavedSearchPartialPageAfter($after: String!) {\n  productSavedSearches(first: 1, after: $after) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "variables": {
+        "after": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productSavedSearches": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+              "node": {
+                "id": "gid://shopify/SavedSearch/4088988827954",
+                "name": "Partial window mrtdhj92 C",
+                "query": "title:mrtdhj92c",
+                "resourceType": "PRODUCT"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "preCreateBeforePage": {
+    "request": {
+      "query": "query SavedSearchPartialPageBefore($before: String!) {\n  productSavedSearches(last: 1, before: $before) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "variables": {
+        "before": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productSavedSearches": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+              "node": {
+                "id": "gid://shopify/SavedSearch/4088988795186",
+                "name": "Partial window mrtdhj92 B",
+                "query": "title:mrtdhj92b",
+                "resourceType": "PRODUCT"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "created": {
+    "request": {
+      "query": "mutation SavedSearchPartialPageCreate($input: SavedSearchCreateInput!) {\n  savedSearchCreate(input: $input) {\n    savedSearch { id name query resourceType }\n    userErrors { field message }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "resourceType": "PRODUCT",
+          "name": "Partial window mrtdhj92 D",
+          "query": "title:mrtdhj92d"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4088988860722",
+            "name": "Partial window mrtdhj92 D",
+            "query": "title:mrtdhj92d",
+            "resourceType": "PRODUCT"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "reversePage": {
+    "request": {
+      "query": "query SavedSearchPartialPageReverse {\n  productSavedSearches(first: 1, reverse: true) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "variables": {}
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productSavedSearches": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODYwNzIyLCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODg2MDcyMiJ9",
+              "node": {
+                "id": "gid://shopify/SavedSearch/4088988860722",
+                "name": "Partial window mrtdhj92 D",
+                "query": "title:mrtdhj92d",
+                "resourceType": "PRODUCT"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODYwNzIyLCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODg2MDcyMiJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODYwNzIyLCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODg2MDcyMiJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "afterPage": {
+    "request": {
+      "query": "query SavedSearchPartialPageAfter($after: String!) {\n  productSavedSearches(first: 1, after: $after) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "variables": {
+        "after": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productSavedSearches": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+              "node": {
+                "id": "gid://shopify/SavedSearch/4088988827954",
+                "name": "Partial window mrtdhj92 C",
+                "query": "title:mrtdhj92c",
+                "resourceType": "PRODUCT"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": true,
+            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "beforePage": {
+    "request": {
+      "query": "query SavedSearchPartialPageBefore($before: String!) {\n  productSavedSearches(last: 1, before: $before) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "variables": {
+        "before": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productSavedSearches": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+              "node": {
+                "id": "gid://shopify/SavedSearch/4088988795186",
+                "name": "Partial window mrtdhj92 B",
+                "query": "title:mrtdhj92b",
+                "resourceType": "PRODUCT"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "query": "query SavedSearchPartialPage {\n  productSavedSearches(first: 1) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productSavedSearches": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088988762418",
+                    "name": "Partial window mrtdhj92 A",
+                    "query": "title:mrtdhj92a",
+                    "resourceType": "PRODUCT"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "query SavedSearchPartialPage {\n  productSavedSearches(first: 1) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productSavedSearches": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088988762418",
+                    "name": "Partial window mrtdhj92 A",
+                    "query": "title:mrtdhj92a",
+                    "resourceType": "PRODUCT"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "SavedSearchConnectionWindow",
+      "query": "query SavedSearchConnectionWindow($first: Int!, $after: String, $before: String, $reverse: Boolean!) {\n  savedSearchWindow: productSavedSearches(first: $first, after: $after, before: $before, reverse: $reverse) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}",
+      "variables": {
+        "first": 2,
+        "after": null,
+        "before": null,
+        "reverse": false
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "savedSearchWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088988762418",
+                    "name": "Partial window mrtdhj92 A",
+                    "query": "title:mrtdhj92a",
+                    "resourceType": "PRODUCT"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088988795186",
+                    "name": "Partial window mrtdhj92 B",
+                    "query": "title:mrtdhj92b",
+                    "resourceType": "PRODUCT"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "query SavedSearchPartialPage {\n  productSavedSearches(first: 1) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productSavedSearches": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088988762418",
+                    "name": "Partial window mrtdhj92 A updated",
+                    "query": "title:mrtdhj92a",
+                    "resourceType": "PRODUCT"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "SavedSearchConnectionWindow",
+      "query": "query SavedSearchConnectionWindow($first: Int!, $after: String, $before: String, $reverse: Boolean!) {\n  savedSearchWindow: productSavedSearches(first: $first, after: $after, before: $before, reverse: $reverse) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}",
+      "variables": {
+        "first": 2,
+        "after": null,
+        "before": null,
+        "reverse": false
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "savedSearchWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088988762418",
+                    "name": "Partial window mrtdhj92 A updated",
+                    "query": "title:mrtdhj92a",
+                    "resourceType": "PRODUCT"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088988795186",
+                    "name": "Partial window mrtdhj92 B",
+                    "query": "title:mrtdhj92b",
+                    "resourceType": "PRODUCT"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4NzYyNDE4LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc2MjQxOCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "query SavedSearchPartialPageReverse {\n  productSavedSearches(first: 1, reverse: true) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productSavedSearches": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088988827954",
+                    "name": "Partial window mrtdhj92 C",
+                    "query": "title:mrtdhj92c",
+                    "resourceType": "PRODUCT"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "SavedSearchConnectionWindow",
+      "query": "query SavedSearchConnectionWindow($first: Int!, $after: String, $before: String, $reverse: Boolean!) {\n  savedSearchWindow: productSavedSearches(first: $first, after: $after, before: $before, reverse: $reverse) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}",
+      "variables": {
+        "first": 3,
+        "after": null,
+        "before": null,
+        "reverse": true
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "savedSearchWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088988827954",
+                    "name": "Partial window mrtdhj92 C",
+                    "query": "title:mrtdhj92c",
+                    "resourceType": "PRODUCT"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088988795186",
+                    "name": "Partial window mrtdhj92 B",
+                    "query": "title:mrtdhj92b",
+                    "resourceType": "PRODUCT"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "query SavedSearchPartialPageAfter($after: String!) {\n  productSavedSearches(first: 1, after: $after) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "variables": {
+        "after": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productSavedSearches": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088988827954",
+                    "name": "Partial window mrtdhj92 C",
+                    "query": "title:mrtdhj92c",
+                    "resourceType": "PRODUCT"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "SavedSearchConnectionWindow",
+      "query": "query SavedSearchConnectionWindow($first: Int!, $after: String, $before: String, $reverse: Boolean!) {\n  savedSearchWindow: productSavedSearches(first: $first, after: $after, before: $before, reverse: $reverse) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}",
+      "variables": {
+        "first": 3,
+        "after": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+        "before": null,
+        "reverse": false
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "savedSearchWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088988827954",
+                    "name": "Partial window mrtdhj92 C",
+                    "query": "title:mrtdhj92c",
+                    "resourceType": "PRODUCT"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "query SavedSearchPartialPageBefore($before: String!) {\n  productSavedSearches(last: 1, before: $before) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}\n",
+      "variables": {
+        "before": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productSavedSearches": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088988795186",
+                    "name": "Partial window mrtdhj92 B",
+                    "query": "title:mrtdhj92b",
+                    "resourceType": "PRODUCT"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "SavedSearchConnectionWindow",
+      "query": "query SavedSearchConnectionWindow($last: Int!, $after: String, $before: String, $reverse: Boolean!) {\n  savedSearchWindow: productSavedSearches(last: $last, after: $after, before: $before, reverse: $reverse) {\n    edges { cursor node { id name query resourceType } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}",
+      "variables": {
+        "last": 3,
+        "after": null,
+        "before": "eyJsYXN0X2lkIjo0MDg4OTg4ODI3OTU0LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODgyNzk1NCJ9",
+        "reverse": false
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "savedSearchWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+                  "node": {
+                    "id": "gid://shopify/SavedSearch/4088988795186",
+                    "name": "Partial window mrtdhj92 B",
+                    "query": "title:mrtdhj92b",
+                    "resourceType": "PRODUCT"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo0MDg4OTg4Nzk1MTg2LCJsYXN0X3ZhbHVlIjoiNDA4ODk4ODc5NTE4NiJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
