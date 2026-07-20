@@ -1,0 +1,32 @@
+{
+  "scenarioId": "orderCreateManualPayment-warm-access-denied-parity",
+  "operationNames": ["orderCreateManualPayment"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "access-denied-parity", "capability-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderCreateManualPayment-warm-access-denied-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderCreateManualPayment-order-read.graphql",
+    "operationName": "OrdersManualPaymentOrderRead",
+    "variablesCapturePath": "$.warmup.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 warm-order access denial for an amount-bearing manual payment on a non-Plus store. The proxy first observes the order through the public query surface, then resolves capability through the exact capability-only cassette query.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "warm-ineligible-access-denied-envelope",
+        "capturePath": "$.mutation.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCreateManualPayment-access-denied-parity.graphql",
+          "variablesCapturePath": "$.variables"
+        },
+        "selectedPaths": ["$.data.orderCreateManualPayment", "$.errors[0]"]
+      }
+    ]
+  }
+}

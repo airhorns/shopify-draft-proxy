@@ -1,37 +1,24 @@
 {
   "variables": {
-    "id": "gid://shopify/Order/8980252590386",
-    "processedAt": "2026-07-20T06:18:06.254Z",
-    "amount": {
-      "amount": "8.00",
-      "currencyCode": "USD"
-    }
+    "id": "gid://shopify/Order/0",
+    "processedAt": "2026-07-20T06:19:07.212Z"
   },
   "mutation": {
     "response": {
-      "errors": [
-        {
-          "message": "Access denied for orderCreateManualPayment field. Required access: `write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.",
-          "locations": [
-            {
-              "line": 7,
-              "column": 3
-            }
-          ],
-          "extensions": {
-            "code": "ACCESS_DENIED",
-            "documentation": "https://shopify.dev/api/usage/access-scopes",
-            "requiredAccess": "`write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field."
-          },
-          "path": ["orderCreateManualPayment"]
-        }
-      ],
       "data": {
-        "orderCreateManualPayment": null
+        "orderCreateManualPayment": {
+          "order": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Order does not exist"
+            }
+          ]
+        }
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 10,
+          "requestedQueryCost": 11,
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
@@ -46,7 +33,7 @@
     {
       "operationName": "OrdersManualPaymentContext",
       "variables": {
-        "id": "gid://shopify/Order/8980252590386"
+        "id": "gid://shopify/Order/0"
       },
       "query": "query OrdersManualPaymentContext($id: ID!) {\n  shop {\n    plan {\n      shopifyPlus\n    }\n  }\n  currentAppInstallation {\n    accessScopes {\n      handle\n    }\n  }\n  order(id: $id) {\n    id\n    name\n    createdAt\n    updatedAt\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    currencyCode\n    presentmentCurrencyCode\n    displayFinancialStatus\n    displayFulfillmentStatus\n    capturable\n    totalCapturable\n    totalCapturableSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalReceivedSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    netPaymentSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    paymentGatewayNames\n    transactions {\n      id\n      kind\n      status\n      gateway\n      processedAt\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}",
       "response": {
@@ -323,92 +310,15 @@
                 }
               ]
             },
-            "order": {
-              "id": "gid://shopify/Order/8980252590386",
-              "name": "#1894",
-              "createdAt": "2026-07-20T06:18:05Z",
-              "updatedAt": "2026-07-20T06:18:05Z",
-              "closed": false,
-              "closedAt": null,
-              "cancelledAt": null,
-              "cancelReason": null,
-              "currencyCode": "USD",
-              "presentmentCurrencyCode": "USD",
-              "displayFinancialStatus": null,
-              "displayFulfillmentStatus": "UNFULFILLED",
-              "capturable": false,
-              "totalCapturable": "0.00",
-              "totalCapturableSet": {
-                "shopMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "USD"
-                },
-                "presentmentMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "USD"
-                }
-              },
-              "totalOutstandingSet": {
-                "shopMoney": {
-                  "amount": "16.0",
-                  "currencyCode": "USD"
-                },
-                "presentmentMoney": {
-                  "amount": "16.0",
-                  "currencyCode": "USD"
-                }
-              },
-              "currentTotalPriceSet": {
-                "shopMoney": {
-                  "amount": "16.0",
-                  "currencyCode": "USD"
-                },
-                "presentmentMoney": {
-                  "amount": "16.0",
-                  "currencyCode": "USD"
-                }
-              },
-              "totalPriceSet": {
-                "shopMoney": {
-                  "amount": "16.0",
-                  "currencyCode": "USD"
-                },
-                "presentmentMoney": {
-                  "amount": "16.0",
-                  "currencyCode": "USD"
-                }
-              },
-              "totalReceivedSet": {
-                "shopMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "USD"
-                },
-                "presentmentMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "USD"
-                }
-              },
-              "netPaymentSet": {
-                "shopMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "USD"
-                },
-                "presentmentMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "USD"
-                }
-              },
-              "paymentGatewayNames": [],
-              "transactions": []
-            }
+            "order": null
           },
           "extensions": {
             "cost": {
               "requestedQueryCost": 6,
-              "actualQueryCost": 6,
+              "actualQueryCost": 5,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1994,
+                "currentlyAvailable": 1995,
                 "restoreRate": 100
               }
             }
