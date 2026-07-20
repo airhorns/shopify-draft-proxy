@@ -31,6 +31,17 @@ fn snapshot_proxy() -> DraftProxy {
     })
 }
 
+fn standard_definition_snapshot_proxy() -> DraftProxy {
+    DraftProxy::new(Config {
+        read_mode: ReadMode::Snapshot,
+        unsupported_mutation_mode: None,
+        bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        port: 0,
+        shopify_admin_origin: "https://harry-test-heelo.myshopify.com".to_string(),
+        snapshot_path: None,
+    })
+}
+
 fn request(method: &str, path: &str) -> Request {
     request_with_body(method, path, "")
 }
@@ -811,7 +822,7 @@ fn log_draft_enforcement_supported_domains_record_entries() {
         (
             "metafield_definitions",
             "standardMetafieldDefinitionEnable",
-            "# RustLogDraftEnforcement\nmutation { standardMetafieldDefinitionEnable(ownerType: PRODUCT, id: \"gid://shopify/StandardMetafieldDefinitionTemplate/missing\") { createdDefinition { id } userErrors { message } } }",
+            "# RustLogDraftEnforcement\nmutation { standardMetafieldDefinitionEnable(ownerType: PRODUCT, id: \"gid://shopify/StandardMetafieldDefinitionTemplate/1\") { createdDefinition { id } userErrors { message } } }",
         ),
         (
             "saved_searches",
@@ -831,7 +842,11 @@ fn log_draft_enforcement_supported_domains_record_entries() {
     ];
 
     for (domain, root, query) in cases {
-        let mut proxy = snapshot_proxy();
+        let mut proxy = if root == "standardMetafieldDefinitionEnable" {
+            standard_definition_snapshot_proxy()
+        } else {
+            snapshot_proxy()
+        };
         if root == "backupRegionUpdate" {
             let setup = proxy.process_request(graphql_request(
                 &json!({
