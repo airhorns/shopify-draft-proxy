@@ -1919,6 +1919,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'files',
     captureId: 'media-file-cascade-variant-media-clear',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-media-file-cascade-variant-media-clear-conformance.mts',
     purpose:
       'Files API fileDelete and fileUpdate.referencesToRemove cascades that clear ProductVariant media membership after removing product media associations.',

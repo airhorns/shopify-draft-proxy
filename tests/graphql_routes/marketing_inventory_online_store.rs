@@ -18525,6 +18525,7 @@ fn media_file_delete_uses_authoritative_tombstones_beyond_former_reference_caps(
     let last_product_id = "gid://shopify/Product/9150";
     let first_variant_id = "gid://shopify/ProductVariant/9300";
     let last_variant_id = "gid://shopify/ProductVariant/9350";
+    let cold_variant_id = "gid://shopify/ProductVariant/9999";
     let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_bodies = Arc::clone(&upstream_bodies);
     let mut proxy =
@@ -18715,24 +18716,63 @@ fn media_file_delete_uses_authoritative_tombstones_beyond_former_reference_caps(
                     }})
                 }
                 "MediaVariantMediaHydrate" => {
-                    assert_eq!(body["variables"]["id"], json!(first_variant_id));
-                    assert_eq!(
-                        body["variables"]["after"],
-                        json!("variant-media-10")
-                    );
+                    let variant_id = body["variables"]["id"].as_str().unwrap();
+                    let after = body["variables"]["after"].as_str().unwrap();
+                    let (target_id, preserved_id, start_cursor, end_cursor) =
+                        if variant_id == first_variant_id {
+                            assert_eq!(after, "variant-media-10");
+                            (
+                                media_id,
+                                "gid://shopify/MediaImage/9249",
+                                "variant-media-11",
+                                "variant-media-12",
+                            )
+                        } else {
+                            assert_eq!(variant_id, cold_variant_id);
+                            assert_eq!(after, "cold-variant-media-10");
+                            (
+                                media_id,
+                                "gid://shopify/MediaImage/9999",
+                                "cold-variant-media-11",
+                                "cold-variant-media-12",
+                            )
+                        };
                     json!({"node": {
-                        "id": first_variant_id,
+                        "id": variant_id,
                         "__typename": "ProductVariant",
                         "media": {
                             "nodes": [
-                                media_node(media_id.to_string()),
-                                media_node("gid://shopify/MediaImage/9249".to_string())
+                                media_node(target_id.to_string()),
+                                media_node(preserved_id.to_string())
                             ],
                             "pageInfo": {
                                 "hasNextPage": false,
                                 "hasPreviousPage": true,
-                                "startCursor": "variant-media-11",
-                                "endCursor": "variant-media-12"
+                                "startCursor": start_cursor,
+                                "endCursor": end_cursor
+                            }
+                        }
+                    }})
+                }
+                "MediaVariantOwnerHydrate" => {
+                    assert_eq!(body["variables"]["id"], json!(cold_variant_id));
+                    let nodes = (0..10)
+                        .map(|index| {
+                            media_node(format!("gid://shopify/MediaImage/{}", 9989 + index))
+                        })
+                        .collect::<Vec<_>>();
+                    json!({"node": {
+                        "id": cold_variant_id,
+                        "__typename": "ProductVariant",
+                        "title": "Cold direct variant",
+                        "product": {"id": "gid://shopify/Product/9999"},
+                        "media": {
+                            "nodes": nodes,
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": false,
+                                "startCursor": "cold-variant-media-1",
+                                "endCursor": "cold-variant-media-10"
                             }
                         }
                     }})
@@ -18824,6 +18864,29 @@ fn media_file_delete_uses_authoritative_tombstones_beyond_former_reference_caps(
         json!([{"id": "gid://shopify/MediaImage/9450"}])
     );
 
+    // Direct variant reads are also local overlays after a file tombstone.
+    // The target appears beyond the former per-variant media cap and must be
+    // removed without hiding unrelated attachments.
+    let cold_variant = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadColdVariantAfterFileDelete($id: ID!) {
+          productVariant(id: $id) {
+            id
+            media(first: 100) { nodes { id } }
+          }
+        }
+        "#,
+        json!({"id": cold_variant_id}),
+    ));
+    let cold_variant_media = cold_variant.body["data"]["productVariant"]["media"]["nodes"]
+        .as_array()
+        .unwrap();
+    assert_eq!(cold_variant_media.len(), 11);
+    assert!(cold_variant_media.iter().all(|node| node["id"] != media_id));
+    assert!(cold_variant_media
+        .iter()
+        .any(|node| node["id"] == "gid://shopify/MediaImage/9999"));
+
     let bodies = upstream_bodies.lock().unwrap();
     assert_eq!(
         bodies
@@ -18838,6 +18901,7 @@ fn media_file_delete_uses_authoritative_tombstones_beyond_former_reference_caps(
         "MediaProductOwnersHydrate",
         "MediaProductMediaHydrate",
         "MediaProductVariantsHydrate",
+        "MediaVariantOwnerHydrate",
         "MediaVariantMediaHydrate",
     ] {
         assert!(

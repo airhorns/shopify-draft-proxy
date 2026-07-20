@@ -4120,6 +4120,9 @@ Practical rule:
 - when a cold product must be materialized after a delete, exhaust its public
   product-media, variants, and per-variant media connections before staging it;
   never promote the first bounded page into a domain-complete owner graph
+- a cold top-level `productVariant(id:)` read after delete must likewise exhaust
+  that variant's media connection before filtering the tombstone; otherwise a
+  deleted file beyond the first page can reappear while unrelated media vanish
 
 ## 92. Public 2026-04 Files API selection boundaries for local replacement parity
 

@@ -174,6 +174,27 @@ const MEDIA_VARIANT_MEDIA_HYDRATE_QUERY: &str = r#"query MediaVariantMediaHydrat
     }
   }
 }"#;
+const MEDIA_VARIANT_OWNER_HYDRATE_QUERY: &str = r#"query MediaVariantOwnerHydrate($id: ID!) {
+  node(id: $id) {
+    ... on ProductVariant {
+      id
+      title
+      product { id }
+      media(first: 10) {
+        nodes {
+          id
+          __typename
+          alt
+          mediaContentType
+          status
+          preview { image { url width height } }
+          ... on MediaImage { image { url width height } }
+        }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+  }
+}"#;
 const MEDIA_OWNER_HYDRATE_BATCH_SIZE: usize = 250;
 
 impl DraftProxy {
@@ -533,13 +554,21 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> ResolverOutcome<Value> {
         let supplied_ids = media_string_list_arg(arguments, "fileIds");
-        if let Err(error) = self.hydrate_file_lifecycle_targets(request, &supplied_ids) {
-            return ResolverOutcome::error(error);
-        }
-        let ids = supplied_ids
+        let mut ids = supplied_ids
             .into_iter()
             .map(|id| self.resolve_media_file_delete_id(&id))
             .collect::<Vec<_>>();
+        if let Err(error) = self.hydrate_file_lifecycle_targets(request, &ids) {
+            return ResolverOutcome::error(error);
+        }
+        // A wrong-typed GID can resolve to the staged/hydrated file carrying
+        // the same numeric id. Resolve once before hydration to avoid an
+        // unnecessary lookup for known local aliases, then again afterward so
+        // a cold Shopify node returned under its actual type is recognized.
+        ids = ids
+            .into_iter()
+            .map(|id| self.resolve_media_file_delete_id(&id))
+            .collect();
         let missing_ids =
             missing_media_file_ids(ids.iter(), |id| self.media_file_delete_target_exists(id));
         if !missing_ids.is_empty() {
@@ -943,6 +972,46 @@ impl DraftProxy {
         Ok(())
     }
 
+    // A direct productVariant read after fileDelete cannot be forwarded
+    // unchanged because Shopify still has the locally tombstoned file. Hydrate
+    // every page of that variant's media connection, filter tombstones, and
+    // retain the embedded media nodes for the local relationship resolver.
+    pub(in crate::proxy) fn hydrate_complete_media_variant(
+        &mut self,
+        request: &Request,
+        variant_id: &str,
+    ) -> Result<(), String> {
+        if self.config.read_mode != ReadMode::LiveHybrid || variant_id.is_empty() {
+            return Ok(());
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": MEDIA_VARIANT_OWNER_HYDRATE_QUERY,
+                "operationName": "MediaVariantOwnerHydrate",
+                "variables": { "id": variant_id },
+            }),
+        );
+        ensure_complete_media_hydration_response(&response, "MediaVariantOwnerHydrate")?;
+        let Some(node) = response.body.pointer("/data/node") else {
+            return Err(incomplete_media_hydration_error(
+                "MediaVariantOwnerHydrate",
+                "Shopify did not return the requested node field",
+            ));
+        };
+        if node.is_null() {
+            return Ok(());
+        }
+        let mut variant = node.clone();
+        self.complete_media_variant_connection(request, &mut variant, "MediaVariantOwnerHydrate")?;
+        let deleted_ids = self.deleted_media_file_ids();
+        remove_media_ids_from_observed_variant(&mut variant, &deleted_ids);
+        if let Some(record) = product_variant_state_from_observed_json(&variant) {
+            self.store.stage_product_variant(record);
+        }
+        Ok(())
+    }
+
     fn complete_media_product_connections(
         &mut self,
         request: &Request,
@@ -1031,7 +1100,7 @@ impl DraftProxy {
                 )
             })?;
         for variant in variants {
-            self.complete_media_variant_connection(request, variant)?;
+            self.complete_media_variant_connection(request, variant, "MediaProductOwnersHydrate")?;
         }
         Ok(())
     }
@@ -1040,13 +1109,14 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         variant: &mut Value,
+        initial_operation_name: &str,
     ) -> Result<(), String> {
         let variant_id = variant
             .get("id")
             .and_then(Value::as_str)
             .ok_or_else(|| {
                 incomplete_media_hydration_error(
-                    "MediaProductOwnersHydrate",
+                    initial_operation_name,
                     "Shopify returned a variant without an id",
                 )
             })?

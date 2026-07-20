@@ -234,11 +234,14 @@ Local staged mutations:
   is never treated as a complete owner graph and cannot resurrect deleted media.
   In LiveHybrid mode, a cold singular `product` read after a delete exhausts the
   product-media connection, the variants connection, and every variant-media
-  connection before filtering tombstoned IDs and staging the observed owner.
-  This path uses public product and node fields rather than the version-dependent
-  `MediaImage.references` field. The payload's `deletedFileIds` are rebuilt from
-  the local record's actual Files API type (`MediaImage`, `Video`,
-  `GenericFile`, etc.) rather than echoing a caller-supplied alias GID unchanged.
+  connection before filtering tombstoned IDs and staging the observed owner. A
+  cold top-level `productVariant(id:)` read follows the same rule: it hydrates
+  every page of that variant's media connection, removes tombstoned IDs, and
+  preserves unrelated attached media. These paths use public product and node
+  fields rather than the version-dependent `MediaImage.references` field. The
+  payload's `deletedFileIds` are rebuilt from the local record's actual Files
+  API type (`MediaImage`, `Video`, `GenericFile`, etc.) rather than echoing a
+  caller-supplied alias GID unchanged.
 - Shopify's backend can reject `fileDelete` with `FILE_LOCKED` while another media-processing mutation owns a per-file lock. The proxy has no concurrent Shopify media-processing jobs or cross-request lock manager, so it does not fabricate `FILE_LOCKED`; this remains an explicit fidelity divergence unless a future local processing model introduces lockable file state.
 - `fileAcknowledgeUpdateFailed(fileIds:)` returns hydrated existing `READY`
   Files API records and stages the original request for commit without changing

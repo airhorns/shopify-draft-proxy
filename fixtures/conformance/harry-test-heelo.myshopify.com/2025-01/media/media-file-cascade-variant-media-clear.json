@@ -3,13 +3,13 @@
   "apiVersion": "2025-01",
   "deleteScenario": {
     "setup": {
-      "productId": "gid://shopify/Product/10178048033074",
-      "variantId": "gid://shopify/ProductVariant/51129633210674",
-      "mediaId": "gid://shopify/MediaImage/43672585961778",
+      "productId": "gid://shopify/Product/10244045242674",
+      "variantId": "gid://shopify/ProductVariant/51488843432242",
+      "mediaId": "gid://shopify/MediaImage/44072110948658",
       "productCreate": {
         "variables": {
           "product": {
-            "title": "Hermes media cascade delete 1778049869014",
+            "title": "Hermes media cascade delete 1784517747217",
             "status": "DRAFT"
           }
         },
@@ -17,12 +17,12 @@
           "data": {
             "productCreate": {
               "product": {
-                "id": "gid://shopify/Product/10178048033074",
-                "title": "Hermes media cascade delete 1778049869014",
+                "id": "gid://shopify/Product/10244045242674",
+                "title": "Hermes media cascade delete 1784517747217",
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51129633210674",
+                      "id": "gid://shopify/ProductVariant/51488843432242",
                       "title": "Default Title"
                     }
                   ]
@@ -46,7 +46,7 @@
       },
       "productCreateMedia": {
         "variables": {
-          "productId": "gid://shopify/Product/10178048033074",
+          "productId": "gid://shopify/Product/10244045242674",
           "media": [
             {
               "mediaContentType": "IMAGE",
@@ -60,7 +60,7 @@
             "productCreateMedia": {
               "media": [
                 {
-                  "id": "gid://shopify/MediaImage/43672585961778",
+                  "id": "gid://shopify/MediaImage/44072110948658",
                   "alt": "Media cascade delete",
                   "mediaContentType": "IMAGE",
                   "status": "UPLOADED",
@@ -72,11 +72,11 @@
               ],
               "mediaUserErrors": [],
               "product": {
-                "id": "gid://shopify/Product/10178048033074",
+                "id": "gid://shopify/Product/10244045242674",
                 "media": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/MediaImage/43672585961778",
+                      "id": "gid://shopify/MediaImage/44072110948658",
                       "alt": "Media cascade delete",
                       "mediaContentType": "IMAGE",
                       "status": "UPLOADED"
@@ -101,16 +101,16 @@
       },
       "mediaReadyRead": {
         "variables": {
-          "productId": "gid://shopify/Product/10178048033074"
+          "productId": "gid://shopify/Product/10244045242674"
         },
         "response": {
           "data": {
             "product": {
-              "id": "gid://shopify/Product/10178048033074",
+              "id": "gid://shopify/Product/10244045242674",
               "media": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/MediaImage/43672585961778",
+                    "id": "gid://shopify/MediaImage/44072110948658",
                     "status": "READY"
                   }
                 ]
@@ -132,12 +132,12 @@
       },
       "fileReadBeforeCascade": {
         "variables": {
-          "id": "gid://shopify/MediaImage/43672585961778"
+          "id": "gid://shopify/MediaImage/44072110948658"
         },
         "response": {
           "data": {
             "node": {
-              "id": "gid://shopify/MediaImage/43672585961778",
+              "id": "gid://shopify/MediaImage/44072110948658",
               "__typename": "MediaImage",
               "alt": "Media cascade delete",
               "fileStatus": "READY",
@@ -145,13 +145,13 @@
               "status": "READY",
               "preview": {
                 "image": {
-                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_57d9cf57-dad0-4c86-883b-aa9c1761f483.png?v=1778049871",
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_da2fdcf2-cf85-4b96-9d1e-c7f7ac17ac6d.png?v=1784517750",
                   "width": 640,
                   "height": 480
                 }
               },
               "image": {
-                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_57d9cf57-dad0-4c86-883b-aa9c1761f483.png?v=1778049871",
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_da2fdcf2-cf85-4b96-9d1e-c7f7ac17ac6d.png?v=1784517750",
                 "width": 640,
                 "height": 480
               }
@@ -172,11 +172,11 @@
       },
       "productVariantAppendMedia": {
         "variables": {
-          "productId": "gid://shopify/Product/10178048033074",
+          "productId": "gid://shopify/Product/10244045242674",
           "variantMedia": [
             {
-              "variantId": "gid://shopify/ProductVariant/51129633210674",
-              "mediaIds": ["gid://shopify/MediaImage/43672585961778"]
+              "variantId": "gid://shopify/ProductVariant/51488843432242",
+              "mediaIds": ["gid://shopify/MediaImage/44072110948658"]
             }
           ]
         },
@@ -184,15 +184,15 @@
           "data": {
             "productVariantAppendMedia": {
               "product": {
-                "id": "gid://shopify/Product/10178048033074"
+                "id": "gid://shopify/Product/10244045242674"
               },
               "productVariants": [
                 {
-                  "id": "gid://shopify/ProductVariant/51129633210674",
+                  "id": "gid://shopify/ProductVariant/51488843432242",
                   "media": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/MediaImage/43672585961778",
+                        "id": "gid://shopify/MediaImage/44072110948658",
                         "alt": "Media cascade delete",
                         "mediaContentType": "IMAGE"
                       }
@@ -218,16 +218,16 @@
       },
       "variantReadBeforeCascade": {
         "variables": {
-          "variantId": "gid://shopify/ProductVariant/51129633210674"
+          "variantId": "gid://shopify/ProductVariant/51488843432242"
         },
         "response": {
           "data": {
             "productVariant": {
-              "id": "gid://shopify/ProductVariant/51129633210674",
+              "id": "gid://shopify/ProductVariant/51488843432242",
               "media": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/MediaImage/43672585961778",
+                    "id": "gid://shopify/MediaImage/44072110948658",
                     "alt": "Media cascade delete",
                     "mediaContentType": "IMAGE"
                   }
@@ -251,12 +251,12 @@
     },
     "mutation": {
       "variables": {
-        "fileIds": ["gid://shopify/MediaImage/43672585961778"]
+        "fileIds": ["gid://shopify/MediaImage/44072110948658"]
       },
       "response": {
         "data": {
           "fileDelete": {
-            "deletedFileIds": ["gid://shopify/MediaImage/43672585961778"],
+            "deletedFileIds": ["gid://shopify/MediaImage/44072110948658"],
             "userErrors": []
           }
         },
@@ -275,12 +275,12 @@
     },
     "downstreamRead": {
       "variables": {
-        "variantId": "gid://shopify/ProductVariant/51129633210674"
+        "variantId": "gid://shopify/ProductVariant/51488843432242"
       },
       "response": {
         "data": {
           "productVariant": {
-            "id": "gid://shopify/ProductVariant/51129633210674",
+            "id": "gid://shopify/ProductVariant/51488843432242",
             "media": {
               "nodes": []
             }
@@ -302,13 +302,13 @@
   },
   "updateDetachScenario": {
     "setup": {
-      "productId": "gid://shopify/Product/10178048164146",
-      "variantId": "gid://shopify/ProductVariant/51129633931570",
-      "mediaId": "gid://shopify/MediaImage/43672586977586",
+      "productId": "gid://shopify/Product/10244045275442",
+      "variantId": "gid://shopify/ProductVariant/51488843465010",
+      "mediaId": "gid://shopify/MediaImage/44072110981426",
       "productCreate": {
         "variables": {
           "product": {
-            "title": "Hermes media cascade update-detach 1778049869014",
+            "title": "Hermes media cascade update-detach 1784517747217",
             "status": "DRAFT"
           }
         },
@@ -316,12 +316,12 @@
           "data": {
             "productCreate": {
               "product": {
-                "id": "gid://shopify/Product/10178048164146",
-                "title": "Hermes media cascade update-detach 1778049869014",
+                "id": "gid://shopify/Product/10244045275442",
+                "title": "Hermes media cascade update-detach 1784517747217",
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51129633931570",
+                      "id": "gid://shopify/ProductVariant/51488843465010",
                       "title": "Default Title"
                     }
                   ]
@@ -345,7 +345,7 @@
       },
       "productCreateMedia": {
         "variables": {
-          "productId": "gid://shopify/Product/10178048164146",
+          "productId": "gid://shopify/Product/10244045275442",
           "media": [
             {
               "mediaContentType": "IMAGE",
@@ -359,7 +359,7 @@
             "productCreateMedia": {
               "media": [
                 {
-                  "id": "gid://shopify/MediaImage/43672586977586",
+                  "id": "gid://shopify/MediaImage/44072110981426",
                   "alt": "Media cascade update-detach",
                   "mediaContentType": "IMAGE",
                   "status": "UPLOADED",
@@ -371,14 +371,14 @@
               ],
               "mediaUserErrors": [],
               "product": {
-                "id": "gid://shopify/Product/10178048164146",
+                "id": "gid://shopify/Product/10244045275442",
                 "media": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/MediaImage/43672586977586",
+                      "id": "gid://shopify/MediaImage/44072110981426",
                       "alt": "Media cascade update-detach",
                       "mediaContentType": "IMAGE",
-                      "status": "UPLOADED"
+                      "status": "PROCESSING"
                     }
                   ]
                 }
@@ -400,16 +400,16 @@
       },
       "mediaReadyRead": {
         "variables": {
-          "productId": "gid://shopify/Product/10178048164146"
+          "productId": "gid://shopify/Product/10244045275442"
         },
         "response": {
           "data": {
             "product": {
-              "id": "gid://shopify/Product/10178048164146",
+              "id": "gid://shopify/Product/10244045275442",
               "media": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/MediaImage/43672586977586",
+                    "id": "gid://shopify/MediaImage/44072110981426",
                     "status": "READY"
                   }
                 ]
@@ -431,12 +431,12 @@
       },
       "fileReadBeforeCascade": {
         "variables": {
-          "id": "gid://shopify/MediaImage/43672586977586"
+          "id": "gid://shopify/MediaImage/44072110981426"
         },
         "response": {
           "data": {
             "node": {
-              "id": "gid://shopify/MediaImage/43672586977586",
+              "id": "gid://shopify/MediaImage/44072110981426",
               "__typename": "MediaImage",
               "alt": "Media cascade update-detach",
               "fileStatus": "READY",
@@ -444,13 +444,13 @@
               "status": "READY",
               "preview": {
                 "image": {
-                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_8f2bafc8-0c1b-45cc-857f-866ca3427234.png?v=1778049874",
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_f238e3b4-042c-427e-8fbd-aea73446a102.png?v=1784517754",
                   "width": 640,
                   "height": 480
                 }
               },
               "image": {
-                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_8f2bafc8-0c1b-45cc-857f-866ca3427234.png?v=1778049874",
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_f238e3b4-042c-427e-8fbd-aea73446a102.png?v=1784517754",
                 "width": 640,
                 "height": 480
               }
@@ -471,11 +471,11 @@
       },
       "productVariantAppendMedia": {
         "variables": {
-          "productId": "gid://shopify/Product/10178048164146",
+          "productId": "gid://shopify/Product/10244045275442",
           "variantMedia": [
             {
-              "variantId": "gid://shopify/ProductVariant/51129633931570",
-              "mediaIds": ["gid://shopify/MediaImage/43672586977586"]
+              "variantId": "gid://shopify/ProductVariant/51488843465010",
+              "mediaIds": ["gid://shopify/MediaImage/44072110981426"]
             }
           ]
         },
@@ -483,15 +483,15 @@
           "data": {
             "productVariantAppendMedia": {
               "product": {
-                "id": "gid://shopify/Product/10178048164146"
+                "id": "gid://shopify/Product/10244045275442"
               },
               "productVariants": [
                 {
-                  "id": "gid://shopify/ProductVariant/51129633931570",
+                  "id": "gid://shopify/ProductVariant/51488843465010",
                   "media": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/MediaImage/43672586977586",
+                        "id": "gid://shopify/MediaImage/44072110981426",
                         "alt": "Media cascade update-detach",
                         "mediaContentType": "IMAGE"
                       }
@@ -517,16 +517,16 @@
       },
       "variantReadBeforeCascade": {
         "variables": {
-          "variantId": "gid://shopify/ProductVariant/51129633931570"
+          "variantId": "gid://shopify/ProductVariant/51488843465010"
         },
         "response": {
           "data": {
             "productVariant": {
-              "id": "gid://shopify/ProductVariant/51129633931570",
+              "id": "gid://shopify/ProductVariant/51488843465010",
               "media": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/MediaImage/43672586977586",
+                    "id": "gid://shopify/MediaImage/44072110981426",
                     "alt": "Media cascade update-detach",
                     "mediaContentType": "IMAGE"
                   }
@@ -552,8 +552,8 @@
       "variables": {
         "files": [
           {
-            "id": "gid://shopify/MediaImage/43672586977586",
-            "referencesToRemove": ["gid://shopify/Product/10178048164146"]
+            "id": "gid://shopify/MediaImage/44072110981426",
+            "referencesToRemove": ["gid://shopify/Product/10244045275442"]
           }
         ]
       },
@@ -562,7 +562,7 @@
           "fileUpdate": {
             "files": [
               {
-                "id": "gid://shopify/MediaImage/43672586977586",
+                "id": "gid://shopify/MediaImage/44072110981426",
                 "alt": "Media cascade update-detach",
                 "fileStatus": "READY"
               }
@@ -585,12 +585,12 @@
     },
     "downstreamRead": {
       "variables": {
-        "variantId": "gid://shopify/ProductVariant/51129633931570"
+        "variantId": "gid://shopify/ProductVariant/51488843465010"
       },
       "response": {
         "data": {
           "productVariant": {
-            "id": "gid://shopify/ProductVariant/51129633931570",
+            "id": "gid://shopify/ProductVariant/51488843465010",
             "media": {
               "nodes": []
             }
@@ -612,88 +612,108 @@
   },
   "upstreamCalls": [
     {
-      "operationName": "MediaFileReferencesHydrate",
+      "operationName": "MediaFileTargetHydrate",
       "variables": {
-        "fileIds": ["gid://shopify/MediaImage/43672585961778"]
+        "fileIds": ["gid://shopify/MediaImage/44072110948658"]
       },
-      "query": "query MediaFileReferencesHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on MediaImage {\n      alt\n      fileStatus\n      mediaContentType\n      status\n      preview { image { url width height } }\n      image { url width height }\n      references(first: 50) {\n        nodes {\n          ... on Product {\n            id\n            title\n            handle\n            status\n            media(first: 50) {\n              nodes {\n                id\n                __typename\n                alt\n                fileStatus\n                mediaContentType\n                status\n                preview { image { url width height } }\n                ... on MediaImage { image { url width height } }\n              }\n            }\n            variants(first: 50) {\n              nodes {\n                id\n                title\n                media(first: 10) { nodes { id alt mediaContentType } }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+      "query": "query MediaFileTargetHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/MediaImage/43672585961778",
+                "id": "gid://shopify/MediaImage/44072110948658",
                 "__typename": "MediaImage",
                 "alt": "Media cascade delete",
+                "createdAt": "2026-07-20T03:22:28Z",
                 "fileStatus": "READY",
-                "mediaContentType": "IMAGE",
-                "status": "READY",
-                "preview": {
-                  "image": {
-                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_57d9cf57-dad0-4c86-883b-aa9c1761f483.png?v=1778049871",
-                    "width": 640,
-                    "height": 480
-                  }
-                },
                 "image": {
-                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_57d9cf57-dad0-4c86-883b-aa9c1761f483.png?v=1778049871",
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_da2fdcf2-cf85-4b96-9d1e-c7f7ac17ac6d.png?v=1784517750",
                   "width": 640,
                   "height": 480
                 },
-                "references": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/Product/10178048033074",
-                      "title": "Hermes media cascade delete 1778049869014",
-                      "handle": "media-cascade-10178048033074",
-                      "status": "DRAFT",
-                      "media": {
-                        "nodes": [
-                          {
-                            "id": "gid://shopify/MediaImage/43672585961778",
-                            "__typename": "MediaImage",
-                            "alt": "Media cascade delete",
-                            "fileStatus": "READY",
-                            "mediaContentType": "IMAGE",
-                            "status": "READY",
-                            "preview": {
-                              "image": {
-                                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_57d9cf57-dad0-4c86-883b-aa9c1761f483.png?v=1778049871",
-                                "width": 640,
-                                "height": 480
-                              }
-                            },
-                            "image": {
-                              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_57d9cf57-dad0-4c86-883b-aa9c1761f483.png?v=1778049871",
-                              "width": 640,
-                              "height": 480
-                            }
-                          }
-                        ]
-                      },
-                      "variants": {
-                        "nodes": [
-                          {
-                            "id": "gid://shopify/ProductVariant/51129633210674",
-                            "title": "Default Title",
-                            "media": {
-                              "nodes": [
-                                {
-                                  "id": "gid://shopify/MediaImage/43672585961778",
-                                  "alt": "Media cascade delete",
-                                  "mediaContentType": "IMAGE"
-                                }
-                              ]
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  ]
+                "preview": {
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_da2fdcf2-cf85-4b96-9d1e-c7f7ac17ac6d.png?v=1784517750",
+                    "width": 640,
+                    "height": 480
+                  }
                 }
               }
             ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MediaVariantOwnerHydrate",
+      "variables": {
+        "id": "gid://shopify/ProductVariant/51488843432242"
+      },
+      "query": "query MediaVariantOwnerHydrate($id: ID!) {\n  node(id: $id) {\n    ... on ProductVariant {\n      id\n      title\n      product { id }\n      media(first: 10) {\n        nodes {\n          id\n          __typename\n          alt\n          mediaContentType\n          status\n          preview { image { url width height } }\n          ... on MediaImage { image { url width height } }\n        }\n        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n      }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "node": {
+              "id": "gid://shopify/ProductVariant/51488843432242",
+              "title": "Default Title",
+              "product": {
+                "id": "gid://shopify/Product/10244045242674"
+              },
+              "media": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MediaImage/44072110948658",
+                    "__typename": "MediaImage",
+                    "alt": "Media cascade delete",
+                    "mediaContentType": "IMAGE",
+                    "status": "READY",
+                    "preview": {
+                      "image": {
+                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_da2fdcf2-cf85-4b96-9d1e-c7f7ac17ac6d.png?v=1784517750",
+                        "width": 640,
+                        "height": 480
+                      }
+                    },
+                    "image": {
+                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_da2fdcf2-cf85-4b96-9d1e-c7f7ac17ac6d.png?v=1784517750",
+                      "width": 640,
+                      "height": 480
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0NDA3MjExMDk0ODY1OCwibGFzdF92YWx1ZSI6NDQwNzIxMTA5NDg2NTh9",
+                  "endCursor": "eyJsYXN0X2lkIjo0NDA3MjExMDk0ODY1OCwibGFzdF92YWx1ZSI6NDQwNzIxMTA5NDg2NTh9"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -701,7 +721,7 @@
     {
       "operationName": "MediaProductHydrate",
       "variables": {
-        "id": "gid://shopify/Product/10178048164146"
+        "id": "gid://shopify/Product/10244045275442"
       },
       "query": "query MediaProductHydrate($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    status\n    media(first: 50) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n        preview { image { url width height } }\n        ... on MediaImage { image { url width height } }\n      }\n    }\n    variants(first: 50) {\n      nodes {\n        id\n        title\n        media(first: 10) { nodes { id } }\n      }\n    }\n  }\n}",
       "response": {
@@ -709,28 +729,26 @@
         "body": {
           "data": {
             "product": {
-              "id": "gid://shopify/Product/10178048164146",
-              "title": "Hermes media cascade update-detach 1778049869014",
-              "handle": "media-cascade-10178048164146",
+              "id": "gid://shopify/Product/10244045275442",
+              "title": "Hermes media cascade update-detach 1784517747217",
+              "handle": "hermes-media-cascade-update-detach-1784517747217",
               "status": "DRAFT",
               "media": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/MediaImage/43672586977586",
-                    "__typename": "MediaImage",
+                    "id": "gid://shopify/MediaImage/44072110981426",
                     "alt": "Media cascade update-detach",
-                    "fileStatus": "READY",
                     "mediaContentType": "IMAGE",
                     "status": "READY",
                     "preview": {
                       "image": {
-                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_8f2bafc8-0c1b-45cc-857f-866ca3427234.png?v=1778049874",
+                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_f238e3b4-042c-427e-8fbd-aea73446a102.png?v=1784517754",
                         "width": 640,
                         "height": 480
                       }
                     },
                     "image": {
-                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_8f2bafc8-0c1b-45cc-857f-866ca3427234.png?v=1778049874",
+                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_f238e3b4-042c-427e-8fbd-aea73446a102.png?v=1784517754",
                       "width": 640,
                       "height": 480
                     }
@@ -740,19 +758,74 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51129633931570",
+                    "id": "gid://shopify/ProductVariant/51488843465010",
                     "title": "Default Title",
                     "media": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/MediaImage/43672586977586",
-                          "alt": "Media cascade update-detach",
-                          "mediaContentType": "IMAGE"
+                          "id": "gid://shopify/MediaImage/44072110981426"
                         }
                       ]
                     }
                   }
                 ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 82,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MediaFileUpdateHydrate",
+      "variables": {
+        "fileIds": ["gid://shopify/MediaImage/44072110981426"]
+      },
+      "query": "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MediaImage/44072110981426",
+                "__typename": "MediaImage",
+                "alt": "Media cascade update-detach",
+                "createdAt": "2026-07-20T03:22:32Z",
+                "fileStatus": "READY",
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_f238e3b4-042c-427e-8fbd-aea73446a102.png?v=1784517754",
+                  "width": 640,
+                  "height": 480
+                },
+                "preview": {
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_f238e3b4-042c-427e-8fbd-aea73446a102.png?v=1784517754",
+                    "width": 640,
+                    "height": 480
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
               }
             }
           }
