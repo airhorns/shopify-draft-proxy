@@ -16,6 +16,10 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobjectDefinitionUpdate-immutable.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyConfig": {
+    "readMode": "snapshot",
+    "shopifyAdminOrigin": "https://harry-test-heelo.myshopify.com"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/metaobjects/standard-metaobject-definition-enable-catalog.graphql",
     "variablesCapturePath": "$.standardEnable.request.variables",

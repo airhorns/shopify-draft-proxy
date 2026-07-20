@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- capture scripts intentionally report progress. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient, type ConformanceGraphqlPayload } from './conformance-graphql-client.js';
@@ -352,6 +352,31 @@ const unknownEnableMutation = `#graphql
   }
 `;
 
+const definitionByIdentifierQuery = `#graphql
+  query StandardDefinitionTemplateDefinitionByIdentifier(
+    $ownerType: MetafieldOwnerType!
+    $namespace: String!
+    $key: String!
+  ) {
+    metafieldDefinition(identifier: { ownerType: $ownerType, namespace: $namespace, key: $key }) {
+      id
+    }
+  }
+`;
+
+const definitionDeleteMutation = `#graphql
+  mutation StandardDefinitionTemplateDefinitionDelete($id: ID!) {
+    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {
+      deletedDefinitionId
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 function asObject(value: unknown, label: string): JsonObject {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error(`${label} must be an object`);
@@ -371,6 +396,10 @@ function asString(value: unknown, label: string): string {
     throw new Error(`${label} must be a string`);
   }
   return value;
+}
+
+function optionalString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
 }
 
 function readCatalogPage(payload: ConformanceGraphqlPayload): CatalogPage {
@@ -428,6 +457,10 @@ async function main(): Promise<void> {
     apiVersion: config.apiVersion,
     headers: buildAdminAuthHeaders(token),
   });
+  const [colorPatternEnableMutation, colorPatternReadQuery] = await Promise.all([
+    readFile('config/parity-requests/metafields/standard-definition-template-color-pattern-enable.graphql', 'utf8'),
+    readFile('config/parity-requests/metafields/standard-definition-template-color-pattern-read.graphql', 'utf8'),
+  ]);
 
   async function captureCatalog(
     query: string,
@@ -509,55 +542,124 @@ async function main(): Promise<void> {
   const materialRead = capture(materialReadQuery, materialReadVariables, materialReadResult);
   assertSuccessfulCapture(materialRead, 'material read');
 
-  const unknownEnableResult = await runGraphqlRaw(unknownEnableMutation, {});
-  const unknownEnable = capture(unknownEnableMutation, {}, unknownEnableResult);
-  assertSuccessfulCapture(unknownEnable, 'unknown enable');
-  const unknownPayload = asObject(
-    asObject(unknownEnable.response.data, 'unknown enable data')['standardMetafieldDefinitionEnable'],
-    'unknown enable payload',
-  );
-  if (asArray(unknownPayload['userErrors'], 'unknown enable userErrors').length === 0) {
-    throw new Error('unknown enable unexpectedly returned no userErrors');
-  }
-
-  const fixture = {
-    kind: 'shopify-standard-definition-template-resolution',
-    capturedAt: new Date().toISOString(),
-    storeDomain: config.storeDomain,
-    apiVersion: config.apiVersion,
-    context: {
-      eligibility: 'public-admin-context-for-captured-shop',
-      secondShopOrFlagAvailable: false,
-      limitation:
-        'Only the configured public conformance shop was available. No second shop or beta-flag context was synthesized.',
-    },
-    catalogs: {
-      all: allCatalog,
-      available: availableCatalog,
-      constrained: constrainedCatalog,
-      provenConstraintSubtypes: [
-        {
-          key: 'category',
-          value: 'aa-2',
-          ...subtypeCatalog,
-        },
-      ],
-    },
-    captures: {
-      scenario,
-      invalidBackward,
-      materialEnable,
-      materialRead,
-      unknownEnable,
-    },
-    upstreamCalls: [],
+  const colorPatternIdentifier = {
+    ownerType: 'PRODUCT',
+    namespace: 'shopify',
+    key: 'color-pattern',
   };
+  const colorPatternBeforeResult = await runGraphqlRaw(definitionByIdentifierQuery, colorPatternIdentifier);
+  const colorPatternBefore = capture(definitionByIdentifierQuery, colorPatternIdentifier, colorPatternBeforeResult);
+  assertSuccessfulCapture(colorPatternBefore, 'color-pattern definition before enable');
+  const colorPatternBeforeData = asObject(colorPatternBefore.response.data, 'color-pattern before data');
+  const colorPatternBeforeDefinition = colorPatternBeforeData['metafieldDefinition'];
+  const colorPatternBeforeId =
+    colorPatternBeforeDefinition === null
+      ? null
+      : optionalString(asObject(colorPatternBeforeDefinition, 'color-pattern before definition')['id']);
 
-  const outputDirectory = path.join('fixtures', 'conformance', config.storeDomain, config.apiVersion, 'metafields');
-  await mkdir(outputDirectory, { recursive: true });
-  const outputPath = path.join(outputDirectory, 'standard-definition-template-resolution.json');
-  await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
-  console.log(`Wrote ${outputPath} (${allCatalog.edges.length} templates)`);
+  let colorPatternCreatedId: string | null = null;
+  let colorPatternCleanup: GraphqlCapture | null = null;
+  try {
+    const colorPatternEnableResult = await runGraphqlRaw(colorPatternEnableMutation, {});
+    const colorPatternEnable = capture(colorPatternEnableMutation, {}, colorPatternEnableResult);
+    assertSuccessfulCapture(colorPatternEnable, 'color-pattern enable');
+    const colorPatternPayload = asObject(
+      asObject(colorPatternEnable.response.data, 'color-pattern enable data')['standardMetafieldDefinitionEnable'],
+      'color-pattern enable payload',
+    );
+    if (asArray(colorPatternPayload['userErrors'], 'color-pattern enable userErrors').length !== 0) {
+      throw new Error(`color-pattern enable returned userErrors: ${JSON.stringify(colorPatternPayload['userErrors'])}`);
+    }
+    const colorPatternDefinition = asObject(
+      colorPatternPayload['createdDefinition'],
+      'color-pattern createdDefinition',
+    );
+    const colorPatternId = asString(colorPatternDefinition['id'], 'color-pattern definition id');
+    if (colorPatternBeforeId === null) {
+      colorPatternCreatedId = colorPatternId;
+    }
+
+    const colorPatternReadVariables = { id: colorPatternId };
+    const colorPatternReadResult = await runGraphqlRaw(colorPatternReadQuery, colorPatternReadVariables);
+    const colorPatternRead = capture(colorPatternReadQuery, colorPatternReadVariables, colorPatternReadResult);
+    assertSuccessfulCapture(colorPatternRead, 'color-pattern read');
+
+    if (colorPatternCreatedId !== null) {
+      const cleanupVariables = { id: colorPatternCreatedId };
+      const cleanupResult = await runGraphqlRaw(definitionDeleteMutation, cleanupVariables);
+      colorPatternCleanup = capture(definitionDeleteMutation, cleanupVariables, cleanupResult);
+      assertSuccessfulCapture(colorPatternCleanup, 'color-pattern cleanup');
+      const cleanupPayload = asObject(
+        asObject(colorPatternCleanup.response.data, 'color-pattern cleanup data')['metafieldDefinitionDelete'],
+        'color-pattern cleanup payload',
+      );
+      if (asArray(cleanupPayload['userErrors'], 'color-pattern cleanup userErrors').length !== 0) {
+        throw new Error(`color-pattern cleanup returned userErrors: ${JSON.stringify(cleanupPayload['userErrors'])}`);
+      }
+      colorPatternCreatedId = null;
+    }
+
+    const unknownEnableResult = await runGraphqlRaw(unknownEnableMutation, {});
+    const unknownEnable = capture(unknownEnableMutation, {}, unknownEnableResult);
+    assertSuccessfulCapture(unknownEnable, 'unknown enable');
+    const unknownPayload = asObject(
+      asObject(unknownEnable.response.data, 'unknown enable data')['standardMetafieldDefinitionEnable'],
+      'unknown enable payload',
+    );
+    if (asArray(unknownPayload['userErrors'], 'unknown enable userErrors').length === 0) {
+      throw new Error('unknown enable unexpectedly returned no userErrors');
+    }
+
+    const fixture = {
+      kind: 'shopify-standard-definition-template-resolution',
+      capturedAt: new Date().toISOString(),
+      storeDomain: config.storeDomain,
+      apiVersion: config.apiVersion,
+      context: {
+        eligibility: 'public-admin-context-for-captured-shop',
+        secondShopOrFlagAvailable: false,
+        limitation:
+          'Only the configured public conformance shop was available. No second shop or beta-flag context was synthesized.',
+      },
+      catalogs: {
+        all: allCatalog,
+        available: availableCatalog,
+        constrained: constrainedCatalog,
+        provenConstraintSubtypes: [
+          {
+            key: 'category',
+            value: 'aa-2',
+            ...subtypeCatalog,
+          },
+        ],
+      },
+      captures: {
+        scenario,
+        invalidBackward,
+        materialEnable,
+        materialRead,
+        colorPatternBefore,
+        colorPatternEnable,
+        colorPatternRead,
+        colorPatternCleanup,
+        unknownEnable,
+      },
+      upstreamCalls: [],
+    };
+
+    const outputDirectory = path.join('fixtures', 'conformance', config.storeDomain, config.apiVersion, 'metafields');
+    await mkdir(outputDirectory, { recursive: true });
+    const outputPath = path.join(outputDirectory, 'standard-definition-template-resolution.json');
+    await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+    console.log(`Wrote ${outputPath} (${allCatalog.edges.length} templates)`);
+  } finally {
+    if (colorPatternCreatedId !== null) {
+      const cleanupResult = await runGraphqlRaw(definitionDeleteMutation, { id: colorPatternCreatedId });
+      if (cleanupResult.status < 200 || cleanupResult.status >= 300 || cleanupResult.payload.errors !== undefined) {
+        console.warn(`Failed to clean up color-pattern definition ${colorPatternCreatedId}`);
+      }
+    }
+  }
 }
 
 await main();

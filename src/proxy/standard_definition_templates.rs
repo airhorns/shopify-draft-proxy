@@ -243,20 +243,33 @@ fn captured_enablement_enrichments(
     captures: &Value,
     metaobject_types: &BTreeSet<&str>,
 ) -> BTreeMap<String, EnablementEnrichment> {
-    let Some(definition) = captures
-        .pointer(
-            "/materialEnable/response/data/standardMetafieldDefinitionEnable/createdDefinition",
-        )
-        .filter(|definition| definition.is_object())
-    else {
-        return BTreeMap::new();
-    };
-    let Some(template_id) = captures
-        .pointer("/materialRead/response/data/metafieldDefinition/standardTemplate/id")
-        .and_then(Value::as_str)
-    else {
-        return BTreeMap::new();
-    };
+    [
+        ("materialEnable", "materialRead"),
+        ("colorPatternEnable", "colorPatternRead"),
+    ]
+    .into_iter()
+    .filter_map(|(enable_capture, read_capture)| {
+        captured_enablement_enrichment(captures, metaobject_types, enable_capture, read_capture)
+    })
+    .collect()
+}
+
+fn captured_enablement_enrichment(
+    captures: &Value,
+    metaobject_types: &BTreeSet<&str>,
+    enable_capture: &str,
+    read_capture: &str,
+) -> Option<(String, EnablementEnrichment)> {
+    let definition = captures
+        .pointer(&format!(
+            "/{enable_capture}/response/data/standardMetafieldDefinitionEnable/createdDefinition"
+        ))
+        .filter(|definition| definition.is_object())?;
+    let template_id = captures
+        .pointer(&format!(
+            "/{read_capture}/response/data/metafieldDefinition/standardTemplate/id"
+        ))
+        .and_then(Value::as_str)?;
     let key = definition
         .get("key")
         .and_then(Value::as_str)
@@ -292,7 +305,7 @@ fn captured_enablement_enrichments(
                 .collect(),
         })
     });
-    BTreeMap::from([(
+    Some((
         template_id.to_string(),
         EnablementEnrichment {
             id: template_id.to_string(),
@@ -300,7 +313,7 @@ fn captured_enablement_enrichments(
             constraints,
             standard_metaobject_definition_type: Some(standard_metaobject_definition_type),
         },
-    )])
+    ))
 }
 
 fn captured_ids(edges: &[CapturedCatalogEdge]) -> BTreeSet<String> {

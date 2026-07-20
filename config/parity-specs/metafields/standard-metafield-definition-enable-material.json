@@ -6,6 +6,10 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/standard-metafield-definition-enable-material.json"
   ],
+  "proxyConfig": {
+    "readMode": "snapshot",
+    "shopifyAdminOrigin": "https://harry-test-heelo.myshopify.com"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-material.graphql",
     "apiVersion": "2025-01"

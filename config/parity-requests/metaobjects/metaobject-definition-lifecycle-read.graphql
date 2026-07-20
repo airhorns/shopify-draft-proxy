@@ -17,11 +17,4 @@ query MetaobjectDefinitionLifecycleRead($id: ID!, $type: String!) {
       key
     }
   }
-  catalog: metaobjectDefinitions(first: 5) {
-    nodes {
-      id
-      type
-      name
-    }
-  }
 }

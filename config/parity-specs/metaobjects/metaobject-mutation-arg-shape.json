@@ -7,6 +7,10 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-mutation-arg-shape.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyConfig": {
+    "readMode": "snapshot",
+    "shopifyAdminOrigin": "https://harry-test-heelo.myshopify.com"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/metaobjects/metaobject-mutation-arg-shape-reset.graphql",
     "variablesCapturePath": "$.captures.topLevelReset.variables",

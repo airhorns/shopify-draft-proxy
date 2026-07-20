@@ -119,6 +119,54 @@
         ]
       },
       {
+        "name": "color-pattern-enable-fields-access-validations-constraints-2026-04",
+        "capturePath": "$.captures.colorPatternEnable.response.data.standardMetafieldDefinitionEnable",
+        "proxyPath": "$.data.standardMetafieldDefinitionEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/standard-definition-template-color-pattern-enable.graphql",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a synthetic definition ID while Shopify returns the captured shop definition ID."
+          },
+          {
+            "path": "$.createdDefinition.validations[0].value",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The referenced standard color-pattern metaobject definition ID is shop-local; the proxy uses its session-owned synthetic equivalent."
+          }
+        ]
+      },
+      {
+        "name": "color-pattern-read-after-enable-2026-04",
+        "capturePath": "$.captures.colorPatternRead.response.data.metafieldDefinition",
+        "proxyPath": "$.data.metafieldDefinition",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/standard-definition-template-color-pattern-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "color-pattern-enable-fields-access-validations-constraints-2026-04",
+              "path": "$.data.standardMetafieldDefinitionEnable.createdDefinition.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The downstream proxy read returns the staged synthetic definition ID."
+          },
+          {
+            "path": "$.validations[0].value",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The referenced standard color-pattern metaobject definition ID is shop-local; the proxy uses its session-owned synthetic equivalent."
+          }
+        ]
+      },
+      {
         "name": "unknown-template-not-found-2026-04",
         "capturePath": "$.captures.unknownEnable.response.data.standardMetafieldDefinitionEnable",
         "proxyPath": "$.data.standardMetafieldDefinitionEnable",
@@ -130,5 +178,5 @@
       }
     ]
   },
-  "notes": "Captured Shopify Admin API 2026-04 catalog, filtering, opaque pagination, invalid backward pagination, material enable/readback, and unknown-template behavior for the configured public Admin context. The capture records that no second shop or beta-flag context was available; the proxy therefore scopes Snapshot use to this exact shop and version instead of universalizing eligibility."
+  "notes": "Captured Shopify Admin API 2026-04 catalog, filtering, opaque pagination, invalid backward pagination, material and color-pattern enable/readback, and unknown-template behavior for the configured public Admin context. The capture records that no second shop or beta-flag context was available; the proxy therefore scopes Snapshot use to this exact shop and version instead of universalizing eligibility."
 }

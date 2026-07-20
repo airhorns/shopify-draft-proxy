@@ -5137,6 +5137,73 @@ fn standard_metafield_definition_enable_supports_shopify_material_template() {
 }
 
 #[test]
+fn standard_metafield_definition_enable_uses_captured_color_pattern_metadata() {
+    let mut proxy = standard_definition_snapshot_proxy();
+
+    let enabled = proxy.process_request(standard_definition_request(
+        "2026-04",
+        r#"
+        mutation StandardMetafieldDefinitionEnableColorPattern {
+          standardMetafieldDefinitionEnable(ownerType: PRODUCT, namespace: "shopify", key: "color-pattern") {
+            createdDefinition {
+              namespace
+              key
+              ownerType
+              name
+              description
+              type { name category }
+              validations { name value }
+              constraints {
+                key
+                values(first: 5) { nodes { value } }
+              }
+              access { admin storefront customerAccount }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"],
+        json!({
+            "createdDefinition": {
+                "namespace": "shopify",
+                "key": "color-pattern",
+                "ownerType": "PRODUCT",
+                "name": "Color",
+                "description": "Defines the primary color or pattern, such as blue or striped",
+                "type": { "name": "list.metaobject_reference", "category": "REFERENCE" },
+                "validations": [{
+                    "name": "metaobject_definition_id",
+                    "value": "gid://shopify/MetaobjectDefinition/standard-color-pattern?shopify-draft-proxy=synthetic"
+                }],
+                "constraints": {
+                    "key": "category",
+                    "values": {
+                        "nodes": [
+                            { "value": "ap-2-1-1" },
+                            { "value": "ap-2-1-1-1" },
+                            { "value": "ap-2-1-1-2" },
+                            { "value": "ap-2-1-1-2-1" },
+                            { "value": "ap-2-1-1-2-2" }
+                        ]
+                    }
+                },
+                "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "PUBLIC_READ",
+                    "customerAccount": "NONE"
+                }
+            },
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
 fn standard_metafield_definition_enable_does_not_invent_uncaptured_constrained_metadata() {
     let mut proxy = standard_definition_snapshot_proxy();
 

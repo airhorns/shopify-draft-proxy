@@ -5,9 +5,4 @@ query MetaobjectDefinitionLifecycleReadDeleted($id: ID!, $type: String!) {
   byType: metaobjectDefinitionByType(type: $type) {
     id
   }
-  catalog: metaobjectDefinitions(first: 5) {
-    nodes {
-      id
-    }
-  }
 }

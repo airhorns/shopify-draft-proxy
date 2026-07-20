@@ -6,8 +6,7 @@
     "metaobjectDefinitionDelete",
     "standardMetaobjectDefinitionEnable",
     "metaobjectDefinition",
-    "metaobjectDefinitionByType",
-    "metaobjectDefinitions"
+    "metaobjectDefinitionByType"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": ["runtime-staging", "payload-shape", "user-errors-parity", "downstream-read-parity"],
@@ -15,6 +14,10 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-definition-draft-flow.json"
   ],
   "runtimeTestFiles": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
+  "proxyConfig": {
+    "readMode": "snapshot",
+    "shopifyAdminOrigin": "https://harry-test-heelo.myshopify.com"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/metaobjects/metaobject-definition-lifecycle-create.graphql",
     "variablesCapturePath": "$.create.request.variables"
@@ -85,11 +88,6 @@
           },
           {
             "path": "$.byType.id",
-            "matcher": "shopify-gid:MetaobjectDefinition",
-            "reason": "The proxy keeps its synthetic definition ID while Shopify returns the live definition ID."
-          },
-          {
-            "path": "$.catalog.nodes[*].id",
             "matcher": "shopify-gid:MetaobjectDefinition",
             "reason": "The proxy keeps its synthetic definition ID while Shopify returns the live definition ID."
           }
