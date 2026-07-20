@@ -25,8 +25,9 @@ pub(in crate::proxy) use self::gift_cards::{
     gift_card_is_deactivated, normalize_gift_card_code,
 };
 pub(in crate::proxy) use self::locations::{
-    country_name_for_code, location_connection_value, location_country_code_is_valid,
-    province_name_for_code,
+    country_address_requirements, country_name_for_code, location_connection_value,
+    location_country_code_is_valid, normalize_strict_address_province_code, province_name_for_code,
+    CountryAddressSupport,
 };
 pub(in crate::proxy) use self::publishable::{
     publishable_empty_string_publication_error,
