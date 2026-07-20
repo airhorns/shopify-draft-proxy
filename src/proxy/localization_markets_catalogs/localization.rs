@@ -227,6 +227,7 @@ fn localization_by_ids_scope_accounts_for_all(
 
 struct LocalizationMutationPreflight {
     scope_key: String,
+    operation_name: &'static str,
     query: String,
     variables: Value,
     queries_available_locales: bool,
@@ -336,6 +337,19 @@ fn localization_mutation_preflight_plan(
         return None;
     }
 
+    if !ids.is_empty() && !queries_available_locales && !queries_shop_locales && !queries_resource {
+        return Some(LocalizationMutationPreflight {
+            scope_key,
+            operation_name: "LocalizationMutationTargetsHydrate",
+            query: LOCALIZATION_MUTATION_TARGETS_HYDRATE_QUERY.to_string(),
+            variables: json!({ "ids": ids }),
+            queries_available_locales,
+            queries_shop_locales,
+            queries_resource,
+            queries_nodes: true,
+        });
+    }
+
     let mut variables = serde_json::Map::new();
     let mut variable_definitions = Vec::new();
     let mut selections = Vec::new();
@@ -384,6 +398,7 @@ fn localization_mutation_preflight_plan(
     };
     Some(LocalizationMutationPreflight {
         scope_key,
+        operation_name: "LocalizationMutationPrerequisites",
         query: format!(
             "query LocalizationMutationPrerequisites{definitions} {{ {} }}",
             selections.join(" ")
@@ -788,7 +803,7 @@ impl DraftProxy {
             request,
             json!({
                 "query": plan.query,
-                "operationName": "LocalizationMutationPrerequisites",
+                "operationName": plan.operation_name,
                 "variables": plan.variables
             }),
         );

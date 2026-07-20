@@ -164,6 +164,54 @@ fn market_localization_preflight_variables(variables: &BTreeMap<String, Resolved
     })
 }
 
+const LOCALIZATION_MUTATION_TARGETS_HYDRATE_QUERY: &str = r#"query LocalizationMutationTargetsHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    ... on Market {
+      id
+      name
+      handle
+      status
+      type
+    }
+    ... on MarketWebPresence {
+      id
+      subfolderSuffix
+      domain {
+        id
+        host
+        url
+        sslEnabled
+      }
+      rootUrls {
+        locale
+        url
+      }
+      defaultLocale {
+        locale
+        name
+        primary
+        published
+      }
+      alternateLocales {
+        locale
+        name
+        primary
+        published
+      }
+      markets(first: 250) {
+        nodes {
+          id
+          name
+          handle
+          status
+          type
+        }
+      }
+    }
+  }
+}"#;
+
 pub(in crate::proxy) struct PriceListFieldOutcome {
     value: Value,
     errors: Vec<Value>,

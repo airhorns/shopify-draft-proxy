@@ -11087,10 +11087,23 @@ fn localization_target_existence_is_hydrated_not_sentinel_substring_routed() {
         move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("preflight body parses");
             captured_hits.lock().unwrap().push(body.clone());
-            assert_eq!(
-                body["operationName"],
-                json!("LocalizationMutationPrerequisites")
-            );
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("availableLocales") || query.contains("shopLocales") {
+                assert_eq!(
+                    body["operationName"],
+                    json!("LocalizationMutationPrerequisites")
+                );
+            } else {
+                assert_eq!(
+                    body["operationName"],
+                    json!("LocalizationMutationTargetsHydrate")
+                );
+                assert!(query.starts_with(
+                    "query LocalizationMutationTargetsHydrate($ids: [ID!]!)"
+                ));
+                assert!(query.contains("nodes(ids: $ids)"));
+                assert!(!query.contains("translatableResource"));
+            }
             let ids = body["variables"]["ids"]
                 .as_array()
                 .cloned()
@@ -11120,20 +11133,14 @@ fn localization_target_existence_is_hydrated_not_sentinel_substring_routed() {
                 })
                 .collect::<Vec<_>>();
             let mut data = json!({ "nodes": nodes });
-            if body["query"]
-                .as_str()
-                .is_some_and(|query| query.contains("availableLocales"))
-            {
+            if query.contains("availableLocales") {
                 data["availableLocales"] = json!([
                     { "isoCode": "en", "name": "English" },
                     { "isoCode": "es", "name": "Spanish" },
                     { "isoCode": "fr", "name": "French" }
                 ]);
             }
-            if body["query"]
-                .as_str()
-                .is_some_and(|query| query.contains("shopLocales"))
-            {
+            if query.contains("shopLocales") {
                 data["shopLocales"] = json!([
                     { "locale": "en", "name": "English", "primary": true, "published": true, "marketWebPresences": [] }
                 ]);
