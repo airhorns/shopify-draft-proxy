@@ -4859,14 +4859,17 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'metaobject-bulk-delete',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-bulk-delete-conformance.ts',
-    purpose: 'Metaobject bulk delete by type plus downstream deleted-row and definition-count reads.',
+    purpose:
+      'Metaobject bulk delete across a 251-entry type with bounded hydration, settled job, and authoritative downstream reads.',
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metaobject-bulk-delete-type-lifecycle.json`,
       'config/parity-specs/metaobjects/metaobject-bulk-delete-type-lifecycle.json',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-job-read.graphql',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-type-read.graphql',
     ],
     cleanupBehavior:
-      'Creates a disposable definition and rows, bulk deletes rows by type, then deletes the definition.',
+      'Creates a disposable definition and 251 lightweight rows, bulk deletes the full type, polls the job, then deletes the definition.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -4912,7 +4915,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-bulk-delete-edge-cases-conformance.ts',
     purpose:
-      'Metaobject bulk delete empty ids, unknown type, known empty type, and exactly-one-of GraphQL validation edge cases.',
+      'Metaobject bulk delete empty ids, unknown/empty type, exactly-one-of validation, and atomic 251-ID rejection.',
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metaobject-bulk-delete-edge-cases.json`,
@@ -4920,10 +4923,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-both-type-and-ids.graphql',
       'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-empty-ids.graphql',
       'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-known-empty-type.graphql',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-over-limit.graphql',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-over-limit-read.graphql',
       'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-unknown-type.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable definition and row, deletes the row before the known-empty-type branch, then deletes the definition in cleanup.',
+      'Creates one disposable definition, deletes its first row before the known-empty branch, proves a second row survives 251-ID rejection, then cleans up.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

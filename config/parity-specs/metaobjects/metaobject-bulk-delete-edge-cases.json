@@ -72,8 +72,30 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-edge-both-type-and-ids.graphql"
         }
+      },
+      {
+        "name": "over-limit-errors",
+        "capturePath": "$.branches.overLimit.response.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-edge-over-limit.graphql",
+          "variablesCapturePath": "$.branches.overLimit.request.variables"
+        }
+      },
+      {
+        "name": "over-limit-no-effects-read",
+        "capturePath": "$.branches.overLimitAfter.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-edge-over-limit-read.graphql",
+          "variablesCapturePath": "$.branches.overLimitAfter.request.variables"
+        }
       }
     ]
   },
-  "notes": "HAR-680 captured live 2026-04 evidence for metaobjectBulkDelete edge cases: empty ids succeeds with a no-work Job, unknown where.type returns RECORD_NOT_FOUND on where/type with job null, a known definition whose rows were already deleted also succeeds with a no-work Job, and supplying both type and ids returns top-level INVALID_FIELD_ARGUMENTS plus data.metaobjectBulkDelete null."
+  "notes": "Live 2026-04 evidence for metaobjectBulkDelete edge cases: empty ids succeeds with a no-work Job, unknown where.type returns RECORD_NOT_FOUND on where/type with job null, a known definition whose rows were already deleted also succeeds with a no-work Job, supplying both type and ids returns top-level INVALID_FIELD_ARGUMENTS, and 251 explicit IDs return MAX_INPUT_SIZE_EXCEEDED without changing the selected row, filtered connection, or definition count."
 }

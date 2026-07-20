@@ -1134,6 +1134,15 @@ impl DraftProxy {
                 .cloned()
                 .collect::<Vec<_>>());
         }
+        if !self.store.staged.deleted_metaobject_types.is_empty() {
+            snapshot["stagedState"]["deletedMetaobjectTypes"] = json!(self
+                .store
+                .staged
+                .deleted_metaobject_types
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.url_redirects.is_empty() {
             snapshot["stagedState"]["urlRedirects"] =
                 json!(self.store.staged.url_redirects.clone());
@@ -2629,6 +2638,12 @@ impl DraftProxy {
             None,
             Some("deletedMetaobjectIds"),
         );
+        self.store.staged.deleted_metaobject_types = state["stagedState"]
+            .get("deletedMetaobjectTypes")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.url_redirects =
             value_map_from_json(state["stagedState"].get("urlRedirects"));
         self.store.staged.url_redirect_order = state["stagedState"]

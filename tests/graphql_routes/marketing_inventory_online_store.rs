@@ -15723,82 +15723,332 @@ fn metaobject_bulk_delete_ids_hydrates_multiple_cold_ids_with_bounded_upstream_r
 }
 
 #[test]
-fn metaobject_bulk_delete_ids_caps_hydrate_at_shopify_id_limit_without_paging() {
+fn metaobject_bulk_delete_rejects_251_ids_atomically_before_hydration() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| {
+        panic!("251 explicit IDs must fail before any upstream hydration")
+    });
+    let meta_type = "bulk_delete_id_limit";
+    create_metaobject_definition_for_test(
+        &mut proxy,
+        meta_type,
+        vec![json!({
+            "key": "title",
+            "name": "Title",
+            "type": "single_line_text_field",
+            "required": true
+        })],
+    );
+    let survivor =
+        create_metaobject_entry_for_test(&mut proxy, meta_type, "must-survive", "Must survive");
+    let survivor_id = survivor["id"].as_str().unwrap().to_string();
+    let mut ids = vec![survivor_id.clone()];
+    ids.extend(
+        (0..250).map(|index| format!("gid://shopify/Metaobject/{}", 9_000_000_000_000_u64 + index)),
+    );
+    let before_log = log_snapshot(&proxy);
+    let before_state = state_snapshot(&proxy);
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/metaobjects/metaobject-bulk-delete-edge-over-limit.graphql"
+        ),
+        json!({"ids": ids}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["metaobjectBulkDelete"], Value::Null);
+    assert_eq!(
+        response.body["errors"],
+        json!([{
+            "message": "The input array size of 251 is greater than the maximum allowed of 250.",
+            "locations": [{"line": 2, "column": 3}],
+            "path": ["metaobjectBulkDelete", "where", "ids"],
+            "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy), before_log);
+    assert_eq!(state_snapshot(&proxy), before_state);
+}
+
+#[test]
+fn metaobject_bulk_delete_type_is_authoritative_beyond_first_hydrated_page() {
+    let meta_type = "bulk_delete_multi_page";
+    let first_id = "gid://shopify/Metaobject/30000";
+    let last_id = "gid://shopify/Metaobject/30250";
     let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_requests = Arc::clone(&upstream_requests);
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body: Value =
                 serde_json::from_str(&request.body).expect("upstream body should be JSON");
-            let requested_ids = body["variables"]["ids"]
-                .as_array()
-                .cloned()
-                .expect("hydrate request should include ids");
-            let nodes = requested_ids
-                .iter()
-                .map(|id| {
-                    json!({
-                        "id": id,
-                        "__typename": "Metaobject",
-                        "handle": format!(
-                            "cap-{}",
-                            id.as_str().unwrap().rsplit('/').next().unwrap()
-                        ),
-                        "type": "bulk_delete_id_cap",
-                        "displayName": "Bulk delete ID cap",
-                        "createdAt": "2024-01-01T00:00:00Z",
-                        "updatedAt": "2024-01-01T00:00:00Z",
-                        "capabilities": {
-                            "publishable": {"status": "ACTIVE"},
-                            "onlineStore": {"templateSuffix": null}
-                        },
-                        "fields": []
+            let query = body["query"].as_str().unwrap_or_default();
+            captured_requests.lock().unwrap().push(body.clone());
+            let response_body = if query.contains("MetaobjectBulkDeleteHydrateByType") {
+                let nodes = (0..250)
+                    .map(|index| {
+                        json!({
+                            "id": format!("gid://shopify/Metaobject/{}", 30_000 + index),
+                            "handle": format!("page-one-{index}"),
+                            "type": "bulk_delete_multi_page",
+                            "displayName": format!("Page one {index}"),
+                            "createdAt": "2024-01-01T00:00:00Z",
+                            "updatedAt": "2024-01-01T00:00:00Z",
+                            "capabilities": {
+                                "publishable": {"status": "ACTIVE"},
+                                "onlineStore": {"templateSuffix": null}
+                            },
+                            "fields": []
+                        })
                     })
-                })
-                .collect::<Vec<_>>();
-            captured_requests.lock().unwrap().push(body);
+                    .collect::<Vec<_>>();
+                json!({"data": {
+                    "catalog": {"nodes": nodes},
+                    "definition": {
+                        "id": "gid://shopify/MetaobjectDefinition/30000",
+                        "type": "bulk_delete_multi_page",
+                        "name": "Bulk delete multi page",
+                        "description": null,
+                        "displayNameKey": "title",
+                        "access": {"admin": "PUBLIC_READ_WRITE", "storefront": "NONE"},
+                        "capabilities": {
+                            "publishable": {"enabled": false},
+                            "translatable": {"enabled": false},
+                            "renderable": {"enabled": false},
+                            "onlineStore": {"enabled": false}
+                        },
+                        "fieldDefinitions": [{
+                            "key": "title",
+                            "name": "Title",
+                            "description": null,
+                            "required": false,
+                            "type": {"name": "single_line_text_field", "category": "TEXT"},
+                            "validations": []
+                        }],
+                        "hasThumbnailField": false,
+                        "metaobjectsCount": 251,
+                        "standardTemplate": null,
+                        "createdAt": "2024-01-01T00:00:00Z",
+                        "updatedAt": "2024-01-01T00:00:00Z"
+                    }
+                }})
+            } else if query.contains("MetaobjectBulkDeleteBeyondFirstPageRead") {
+                json!({"data": {
+                    "first": {
+                        "id": "gid://shopify/Metaobject/30000",
+                        "handle": "page-one-0",
+                        "type": "bulk_delete_multi_page"
+                    },
+                    "last": {
+                        "id": "gid://shopify/Metaobject/30250",
+                        "handle": "page-two-last",
+                        "type": "bulk_delete_multi_page"
+                    },
+                    "catalog": {"nodes": [{
+                        "id": "gid://shopify/Metaobject/30250",
+                        "handle": "page-two-last",
+                        "type": "bulk_delete_multi_page"
+                    }]},
+                    "definition": {
+                        "id": "gid://shopify/MetaobjectDefinition/30000",
+                        "type": "bulk_delete_multi_page",
+                        "metaobjectsCount": 251
+                    }
+                }})
+            } else if query.contains("MetaobjectBulkDeletePostDeleteCreateRead") {
+                json!({"data": {
+                    "created": null,
+                    "catalog": {"nodes": [{
+                        "id": "gid://shopify/Metaobject/30250",
+                        "handle": "page-two-last",
+                        "type": "bulk_delete_multi_page"
+                    }]},
+                    "definition": {
+                        "id": "gid://shopify/MetaobjectDefinition/30000",
+                        "type": "bulk_delete_multi_page",
+                        "metaobjectsCount": 251
+                    }
+                }})
+            } else {
+                panic!("unexpected upstream request: {query}")
+            };
             Response {
                 status: 200,
                 headers: Default::default(),
-                body: json!({"data": {"nodes": nodes}}),
+                body: response_body,
             }
         });
-    let ids = (0..251)
-        .map(|index| format!("gid://shopify/Metaobject/{}", 20_000 + index))
-        .collect::<Vec<_>>();
-    let ids_literal = ids
-        .iter()
-        .map(|id| format!("\"{id}\""))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let query = format!(
+
+    let deleted = proxy.process_request(json_graphql_request(
         r#"
-        mutation BulkDeleteIdsCap {{
-          metaobjectBulkDelete(where: {{ ids: [{ids_literal}] }}) {{
-            job {{ id done }}
-            userErrors {{ field message code elementKey elementIndex }}
-          }}
-        }}
-        "#
-    );
-
-    let response = proxy.process_request(json_graphql_request(&query, json!({})));
-
+        mutation BulkDeleteMultiPage($type: String!) {
+          metaobjectBulkDelete(where: { type: $type }) {
+            job { id done }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"type": meta_type}),
+    ));
     assert_eq!(
-        response.body["data"]["metaobjectBulkDelete"]["userErrors"],
+        deleted.body["data"]["metaobjectBulkDelete"]["userErrors"],
         json!([])
     );
-    let requests = upstream_requests.lock().unwrap();
-    assert_eq!(requests.len(), 1);
-    let hydrated_ids = requests[0]["variables"]["ids"].as_array().unwrap();
-    assert_eq!(hydrated_ids.len(), 250);
-    assert_eq!(hydrated_ids[0], json!("gid://shopify/Metaobject/20000"));
-    assert_eq!(hydrated_ids[249], json!("gid://shopify/Metaobject/20249"));
-    assert!(
-        hydrated_ids
-            .iter()
-            .all(|id| id.as_str() != Some("gid://shopify/Metaobject/20250")),
-        "IDs beyond Shopify's 250-ID cap should not be hydrated or paged"
+    assert_eq!(
+        deleted.body["data"]["metaobjectBulkDelete"]["job"]["done"],
+        json!(false)
+    );
+    let job_id = deleted.body["data"]["metaobjectBulkDelete"]["job"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MetaobjectBulkDeleteBeyondFirstPageRead(
+          $type: String!
+          $firstId: ID!
+          $lastId: ID!
+          $query: String!
+        ) {
+          first: metaobject(id: $firstId) { id handle type }
+          last: metaobject(id: $lastId) { id handle type }
+          catalog: metaobjects(type: $type, first: 10, query: $query) {
+            nodes { id handle type }
+          }
+          definition: metaobjectDefinitionByType(type: $type) {
+            id
+            type
+            metaobjectsCount
+          }
+        }
+        "#,
+        json!({
+            "type": meta_type,
+            "firstId": first_id,
+            "lastId": last_id,
+            "query": "handle:page-two-last"
+        }),
+    ));
+    assert_eq!(read.body["data"]["first"], Value::Null);
+    assert_eq!(read.body["data"]["last"], Value::Null);
+    assert_eq!(read.body["data"]["catalog"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["definition"]["metaobjectsCount"],
+        json!(0)
+    );
+
+    let job_read = proxy.process_request(json_graphql_request(
+        r#"
+        query MetaobjectBulkDeleteJobRead($id: ID!) {
+          job(id: $id) { id done query { __typename } }
+        }
+        "#,
+        json!({"id": job_id}),
+    ));
+    assert_eq!(
+        job_read.body["data"]["job"],
+        json!({
+            "id": job_id,
+            "done": true,
+            "query": {"__typename": "QueryRoot"}
+        })
+    );
+
+    let created = create_metaobject_entry_for_test(
+        &mut proxy,
+        meta_type,
+        "created-after-type-delete",
+        "Created after type delete",
+    );
+    let created_id = created["id"].as_str().unwrap().to_string();
+    let post_create = proxy.process_request(json_graphql_request(
+        r#"
+        query MetaobjectBulkDeletePostDeleteCreateRead($type: String!, $id: ID!) {
+          created: metaobject(id: $id) { id handle type }
+          catalog: metaobjects(type: $type, first: 10) { nodes { id handle type } }
+          definition: metaobjectDefinitionByType(type: $type) { id type metaobjectsCount }
+        }
+        "#,
+        json!({"type": meta_type, "id": created_id}),
+    ));
+    assert_eq!(post_create.body["data"]["created"]["id"], json!(created_id));
+    assert_eq!(
+        post_create.body["data"]["catalog"]["nodes"],
+        json!([{
+            "id": created_id,
+            "handle": "created-after-type-delete",
+            "type": meta_type
+        }])
+    );
+    assert_eq!(
+        post_create.body["data"]["definition"]["metaobjectsCount"],
+        json!(1)
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(
+        dump.body["state"]["stagedState"]["deletedMetaobjectTypes"],
+        json!([meta_type])
+    );
+    let mut restored = snapshot_proxy();
+    assert_eq!(
+        restored
+            .process_request(request_with_body(
+                "POST",
+                "/__meta/restore",
+                &dump.body.to_string()
+            ))
+            .status,
+        200
+    );
+    let restored_read = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredTypeDelete(
+          $type: String!
+          $oldId: ID!
+          $createdId: ID!
+          $jobId: ID!
+        ) {
+          old: metaobject(id: $oldId) { id }
+          created: metaobject(id: $createdId) { id handle }
+          catalog: metaobjects(type: $type, first: 10) { nodes { id handle } }
+          definition: metaobjectDefinitionByType(type: $type) { metaobjectsCount }
+          job(id: $jobId) { id done query { __typename } }
+        }
+        "#,
+        json!({
+            "type": meta_type,
+            "oldId": last_id,
+            "createdId": created_id,
+            "jobId": job_id
+        }),
+    ));
+    assert_eq!(restored_read.body["data"]["old"], Value::Null);
+    assert_eq!(
+        restored_read.body["data"]["created"]["id"],
+        json!(created_id)
+    );
+    assert_eq!(
+        restored_read.body["data"]["catalog"]["nodes"],
+        json!([{"id": created_id, "handle": "created-after-type-delete"}])
+    );
+    assert_eq!(
+        restored_read.body["data"]["definition"]["metaobjectsCount"],
+        json!(1)
+    );
+    assert_eq!(
+        restored_read.body["data"]["job"],
+        json!({
+            "id": job_id,
+            "done": true,
+            "query": {"__typename": "QueryRoot"}
+        })
+    );
+
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        3,
+        "type delete should use one bounded hydrate plus one upstream read per downstream query"
     );
 }
 

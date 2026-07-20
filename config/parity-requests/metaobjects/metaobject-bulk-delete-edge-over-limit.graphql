@@ -1,5 +1,5 @@
-mutation MetaobjectBulkDeleteEdgeBothTypeAndIds {
-  metaobjectBulkDelete(where: { type: "codex_bulk_delete_invalid", ids: [] }) {
+mutation MetaobjectBulkDeleteEdgeOverLimit($ids: [ID!]!) {
+  metaobjectBulkDelete(where: { ids: $ids }) {
     job {
       id
       done
