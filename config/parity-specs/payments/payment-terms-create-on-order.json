@@ -4,7 +4,8 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-create-on-order.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-create-on-order.json",
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-cold-delete.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "comparisonMode": "captured-vs-proxy-request",
@@ -102,5 +103,5 @@
       }
     ]
   },
-  "notes": "Live 2026-04 Shopify capture for paymentTermsCreate on a disposable Order plus multiple-schedule, missing-update, and missing-delete validation branches. The recorder cancels the disposable order after capture. Evidence trail: registered capture script scripts/capture-payments-salvaged-parity-conformance.ts writes the listed fixture and request files through capture-index entry payments-salvaged-parity-replacements; tests/graphql_routes/orders.rs keeps the local payment-terms order money-total projection path executable."
+  "notes": "Live 2026-04 Shopify capture for paymentTermsCreate on a disposable Order plus multiple-schedule, missing-update, and missing-delete validation branches. The recorder cancels the disposable order after capture. The supplemental cold-delete capture provides the exact query and variables for the shared confirmed-missing PaymentTermsHydrate cassette. Evidence trail: registered capture script scripts/capture-payments-salvaged-parity-conformance.ts writes the primary fixture and request files through capture-index entry payments-salvaged-parity-replacements; tests/graphql_routes/orders.rs keeps the local payment-terms order money-total projection path executable."
 }

@@ -779,6 +779,10 @@ impl DraftProxy {
             .insert(terms_id.clone(), record.clone());
         self.store
             .staged
+            .known_missing_payment_terms_ids
+            .remove(&terms_id);
+        self.store
+            .staged
             .deleted_payment_terms_ids
             .remove(&terms_id);
         self.store
@@ -886,6 +890,10 @@ impl DraftProxy {
             .staged
             .payment_terms
             .insert(terms_id.clone(), record.clone());
+        self.store
+            .staged
+            .known_missing_payment_terms_ids
+            .remove(&terms_id);
         if let Some(owner_id) = owner_id {
             self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
         }
@@ -1084,10 +1092,18 @@ impl DraftProxy {
     /// issues the exact recorded `PaymentTermsHydrate` document and returns the
     /// resolved `paymentTerms` node. Gated on LiveHybrid.
     fn hydrate_payment_terms_node(
-        &self,
+        &mut self,
         request: &Request,
         terms_id: &str,
     ) -> PaymentTermsNodeHydration {
+        if self
+            .store
+            .staged
+            .known_missing_payment_terms_ids
+            .contains(terms_id)
+        {
+            return PaymentTermsNodeHydration::Missing;
+        }
         if self.config.read_mode != ReadMode::LiveHybrid {
             return PaymentTermsNodeHydration::Missing;
         }
@@ -1108,8 +1124,20 @@ impl DraftProxy {
             return PaymentTermsNodeHydration::Unresolved(response);
         }
         match response.body.pointer("/data/paymentTerms") {
-            Some(Value::Null) => PaymentTermsNodeHydration::Missing,
-            Some(node) if node.is_object() => PaymentTermsNodeHydration::Found(node.clone()),
+            Some(Value::Null) => {
+                self.store
+                    .staged
+                    .known_missing_payment_terms_ids
+                    .insert(terms_id.to_string());
+                PaymentTermsNodeHydration::Missing
+            }
+            Some(node) if node.is_object() => {
+                self.store
+                    .staged
+                    .known_missing_payment_terms_ids
+                    .remove(terms_id);
+                PaymentTermsNodeHydration::Found(node.clone())
+            }
             _ => PaymentTermsNodeHydration::Unresolved(Response {
                 status: 502,
                 headers: BTreeMap::new(),
@@ -1141,6 +1169,10 @@ impl DraftProxy {
             .staged
             .payment_terms
             .insert(terms_id.to_string(), node.clone());
+        self.store
+            .staged
+            .known_missing_payment_terms_ids
+            .remove(terms_id);
         self.store
             .staged
             .payment_terms_owner_index

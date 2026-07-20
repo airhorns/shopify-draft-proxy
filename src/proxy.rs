@@ -673,6 +673,7 @@ struct StagedState {
     mandate_payment_keys: BTreeSet<String>,
     payment_terms: BTreeMap<String, Value>,
     payment_terms_owner_index: BTreeMap<String, String>,
+    known_missing_payment_terms_ids: BTreeSet<String>,
     deleted_payment_terms_ids: BTreeSet<String>,
     deleted_payment_schedule_ids: BTreeSet<String>,
     payment_reminder_schedule_ids: BTreeSet<String>,

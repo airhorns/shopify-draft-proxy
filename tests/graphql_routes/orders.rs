@@ -13607,6 +13607,34 @@ fn payment_terms_delete_distinguishes_confirmed_missing_from_transport_failure()
         json!([]),
         "confirmed missing deletes must not be replayed"
     );
+    assert_eq!(
+        state_snapshot(&missing_proxy)["stagedState"]["knownMissingPaymentTermsIds"],
+        json!([missing_terms_id])
+    );
+
+    let dump = missing_proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let restore = missing_proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let repeated_missing = missing_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"
+        ),
+        json!({ "input": { "paymentTermsId": missing_terms_id } }),
+    ));
+    assert_eq!(
+        repeated_missing.body["data"]["paymentTermsDelete"],
+        missing.body["data"]["paymentTermsDelete"]
+    );
+    assert_eq!(
+        missing_hits.lock().unwrap().len(),
+        1,
+        "a confirmed missing PaymentTerms id should survive dump/restore without another hydrate"
+    );
 
     let failed_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
     let mut failed_proxy =
@@ -13629,6 +13657,18 @@ fn payment_terms_delete_distinguishes_confirmed_missing_from_transport_failure()
     );
     assert_eq!(failed_hits.lock().unwrap().len(), 1);
     assert_eq!(log_snapshot(&failed_proxy)["entries"], json!([]));
+    let repeated_failed = failed_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"
+        ),
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/44002" } }),
+    ));
+    assert_eq!(repeated_failed.status, 503);
+    assert_eq!(
+        failed_hits.lock().unwrap().len(),
+        2,
+        "transport failures must remain retryable rather than becoming cached misses"
+    );
 
     let graphql_error_hits = Arc::new(AtomicUsize::new(0));
     let mut graphql_error_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
@@ -13659,6 +13699,14 @@ fn payment_terms_delete_distinguishes_confirmed_missing_from_transport_failure()
     );
     assert_eq!(graphql_error_hits.load(Ordering::SeqCst), 1);
     assert_eq!(log_snapshot(&graphql_error_proxy)["entries"], json!([]));
+    let repeated_graphql_error = graphql_error_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"
+        ),
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/44004" } }),
+    ));
+    assert_eq!(repeated_graphql_error.status, 200);
+    assert_eq!(graphql_error_hits.load(Ordering::SeqCst), 2);
 
     let snapshot_upstream_hits = Arc::new(AtomicUsize::new(0));
     let mut snapshot = snapshot_proxy().with_upstream_transport({

@@ -28,10 +28,11 @@ A scenario consists of:
 1. A **spec** in `config/parity-specs/<domain>/*.json` that names the
    GraphQL document, variables, and the targets (response paths /
    matchers / etc.) the runner compares.
-2. A **capture** in `fixtures/conformance/<store>/<api-version>/**/*.json`
-   that holds the real Shopify response the proxy is being graded against,
-   plus an `upstreamCalls` cassette of upstream traffic the proxy made while
-   serving the captured request.
+2. One or more **captures** in
+   `fixtures/conformance/<store>/<api-version>/**/*.json`. The first
+   `liveCaptureFiles` entry holds the real Shopify response the proxy is being
+   graded against. Every declared capture may contribute exact recorded
+   `upstreamCalls` needed to replay that scenario.
 
 The runner configures the proxy in live-hybrid mode and installs a cassette
 upstream transport through the TypeScript shim around the Rust runtime.
@@ -120,8 +121,8 @@ must not depend on those internals to smuggle resource data into the proxy.
 
 ## Cassette shape
 
-The cassette lives inside the same capture file the spec already points
-at, under a top-level `upstreamCalls` array:
+The cassette normally lives inside the primary capture file under a top-level
+`upstreamCalls` array:
 
 ```jsonc
 {
@@ -145,6 +146,15 @@ at, under a top-level `upstreamCalls` array:
   ],
 }
 ```
+
+When multiple parity scenarios need the same byte-identical upstream query and
+variables, a spec may declare the registered real-Shopify capture containing
+that call as an additional `liveCaptureFiles` entry. The runner uses only the
+first entry for comparison JSON paths, API-version inference, and scenario
+clock selection, then combines `upstreamCalls` from every declared capture in
+file order. Supplemental entries are cassette evidence only: they must be real
+Shopify captures from registered scripts and must not be proxy output, copied
+fixture fragments, edited legacy responses, or guessed data.
 
 Match key: exact method, API surface/path, recorded `query` text (after
 trailing-whitespace normalization), and exact variables using
