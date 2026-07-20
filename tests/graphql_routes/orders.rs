@@ -2754,7 +2754,7 @@ fn return_lifecycle_transition_for_test(
             r#"
             mutation ReturnCancelMissingReturnForErrorShape($id: ID!) {
               returnCancel(id: $id) {
-                return { id status }
+                return { id status closedAt }
                 userErrors { field message code }
               }
             }
@@ -2765,7 +2765,7 @@ fn return_lifecycle_transition_for_test(
             r#"
             mutation ReturnCloseMissingReturnForErrorShape($id: ID!) {
               returnClose(id: $id) {
-                return { id status }
+                return { id status closedAt }
                 userErrors { field message code }
               }
             }
@@ -2776,7 +2776,7 @@ fn return_lifecycle_transition_for_test(
             r#"
             mutation ReturnReopenMissingReturnForErrorShape($id: ID!) {
               returnReopen(id: $id) {
-                return { id status }
+                return { id status closedAt }
                 userErrors { field message code }
               }
             }
@@ -3817,6 +3817,287 @@ fn return_request_approval_and_decline_unknown_ids_use_not_found_shape() {
             "field": ["input", "id"],
             "message": "Return not found."
         }])
+    );
+}
+
+#[test]
+fn live_hybrid_return_close_hydrates_a_cold_existing_return_before_transition() {
+    let return_id = "gid://shopify/Return/7001";
+    let order_id = "gid://shopify/Order/7001";
+    let return_line_item_id = "gid://shopify/ReturnLineItem/7001";
+    let fulfillment_line_item_id = "gid://shopify/FulfillmentLineItem/7001";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let commit_calls = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_commit_calls = Arc::clone(&commit_calls);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_clock(|| utc_time(1_704_240_000))
+        .with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.trim_start().starts_with("query"),
+                "cold return hydration must remain query-only: {query}"
+            );
+            captured_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "return": {
+                            "id": return_id,
+                            "name": "#7001-R1",
+                            "status": "OPEN",
+                            "closedAt": null,
+                            "decline": null,
+                            "totalQuantity": 1,
+                            "refunds": { "nodes": [] },
+                            "order": {
+                                "id": order_id,
+                                "name": "#7001",
+                                "updatedAt": "2024-01-01T00:00:00Z"
+                            },
+                            "returnLineItems": {
+                                "nodes": [{
+                                    "id": return_line_item_id,
+                                    "quantity": 1,
+                                    "processableQuantity": 1,
+                                    "processedQuantity": 0,
+                                    "refundableQuantity": 1,
+                                    "refundedQuantity": 0,
+                                    "unprocessedQuantity": 1,
+                                    "returnReason": "OTHER",
+                                    "returnReasonNote": "cold return",
+                                    "fulfillmentLineItem": {
+                                        "id": fulfillment_line_item_id,
+                                        "quantity": 1,
+                                        "lineItem": {
+                                            "id": "gid://shopify/LineItem/7001",
+                                            "title": "Cold return line",
+                                            "variant": null
+                                        }
+                                    }
+                                }]
+                            },
+                            "returnShippingFees": [],
+                            "reverseFulfillmentOrders": { "nodes": [] }
+                        }
+                    }
+                }),
+            }
+        })
+        .with_commit_transport(move |request| {
+            captured_commit_calls.lock().unwrap().push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "returnClose": { "userErrors": [] } } }),
+            }
+        });
+
+    let close = return_lifecycle_transition_for_test(&mut proxy, "returnClose", json!(return_id));
+
+    assert_eq!(close["userErrors"], json!([]));
+    assert_eq!(close["return"]["id"], json!(return_id));
+    assert_eq!(close["return"]["status"], json!("CLOSED"));
+    assert_eq!(close["return"]["closedAt"], json!("2024-01-03T00:00:00Z"));
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0]["variables"], json!({ "id": return_id }));
+    drop(calls);
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().map(Vec::len), Some(1));
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("returnClose")
+    );
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("ReturnCloseMissingReturnForErrorShape"));
+    let commit = proxy.process_request(request_with_body("POST", "/__meta/commit", ""));
+    assert_eq!(commit.status, 200);
+    assert_eq!(commit.body["committed"], json!(1));
+    let replayed = commit_calls.lock().unwrap();
+    assert_eq!(replayed.len(), 1);
+    assert!(replayed[0]
+        .body
+        .contains("ReturnCloseMissingReturnForErrorShape"));
+    drop(replayed);
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored = proxy.process_request(json_graphql_request(
+        r#"
+        query RestoredColdReturn($returnId: ID!, $orderId: ID!) {
+          return(id: $returnId) { id status closedAt }
+          order(id: $orderId) {
+            id
+            returnStatus
+            returns(first: 5) { nodes { id status closedAt } }
+          }
+        }
+        "#,
+        json!({ "returnId": return_id, "orderId": order_id }),
+    ));
+    assert_eq!(restored.body["data"]["return"]["status"], json!("CLOSED"));
+    assert_eq!(
+        restored.body["data"]["order"]["returns"]["nodes"][0]["id"],
+        json!(return_id)
+    );
+}
+
+#[test]
+fn live_hybrid_return_lifecycle_caches_confirmed_missing_without_collapsing_failures() {
+    let return_id = "gid://shopify/Return/7002";
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body");
+            assert_eq!(body["variables"], json!({ "id": return_id }));
+            captured_calls.fetch_add(1, Ordering::SeqCst);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "return": Value::Null } }),
+            }
+        });
+
+    let close = return_lifecycle_transition_for_test(&mut proxy, "returnClose", json!(return_id));
+    let cancel = return_lifecycle_transition_for_test(&mut proxy, "returnCancel", json!(return_id));
+    for payload in [close, cancel] {
+        assert_eq!(payload["return"], Value::Null);
+        assert_eq!(payload["userErrors"][0]["code"], json!("NOT_FOUND"));
+    }
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let mut failing_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_request| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": { "return": Value::Null },
+                "errors": [{
+                    "message": "Return hydration unavailable",
+                    "path": ["return"],
+                    "extensions": { "code": "INTERNAL_SERVER_ERROR" }
+                }]
+            }),
+        });
+    let failed = failing_proxy.process_request(json_graphql_request(
+        r#"
+        mutation ColdReturnCloseHydrationFailure($id: ID!) {
+          coldClose: returnClose(id: $id) {
+            return { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": return_id }),
+    ));
+    assert_eq!(failed.body["data"]["coldClose"], Value::Null);
+    assert_eq!(
+        failed.body["errors"][0]["message"],
+        json!("Return hydration unavailable")
+    );
+    assert_eq!(failed.body["errors"][0]["path"], json!(["coldClose"]));
+    assert_eq!(log_snapshot(&failing_proxy)["entries"], json!([]));
+}
+
+#[test]
+fn live_hybrid_return_process_validates_cold_line_relationships_before_staging() {
+    let return_id = "gid://shopify/Return/7003";
+    let return_line_item_id = "gid://shopify/ReturnLineItem/7003";
+    let wrong_line_item_id = "gid://shopify/ReturnLineItem/7999";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_request| {
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "return": {
+                            "id": return_id,
+                            "name": "#7003-R1",
+                            "status": "OPEN",
+                            "closedAt": null,
+                            "decline": null,
+                            "totalQuantity": 1,
+                            "refunds": [],
+                            "order": {
+                                "id": "gid://shopify/Order/7003",
+                                "name": "#7003",
+                                "updatedAt": "2024-01-01T00:00:00Z"
+                            },
+                            "returnLineItems": {
+                                "nodes": [{
+                                    "id": return_line_item_id,
+                                    "quantity": 1,
+                                    "processableQuantity": 1,
+                                    "processedQuantity": 0,
+                                    "refundableQuantity": 1,
+                                    "refundedQuantity": 0,
+                                    "unprocessedQuantity": 1
+                                }]
+                            },
+                            "returnShippingFees": [],
+                            "reverseFulfillmentOrders": { "nodes": [] }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let invalid = return_process_for_test(&mut proxy, json!(return_id), json!(wrong_line_item_id));
+    assert_eq!(invalid["return"], Value::Null);
+    assert_eq!(
+        invalid["userErrors"],
+        json!([{
+            "field": ["input", "returnLineItems", "0", "id"],
+            "message": "Return line item was not found.",
+            "code": "NOT_FOUND"
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let processed =
+        return_process_for_test(&mut proxy, json!(return_id), json!(return_line_item_id));
+    assert_eq!(processed["userErrors"], json!([]));
+    assert_eq!(processed["return"]["status"], json!("OPEN"));
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdProcessedReturnRead($id: ID!) {
+          return(id: $id) {
+            id
+            returnLineItems(first: 5) {
+              nodes { id processableQuantity processedQuantity unprocessedQuantity }
+            }
+          }
+        }
+        "#,
+        json!({ "id": return_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["return"]["returnLineItems"]["nodes"][0],
+        json!({
+            "id": return_line_item_id,
+            "processableQuantity": 0,
+            "processedQuantity": 1,
+            "unprocessedQuantity": 0
+        })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().map(Vec::len),
+        Some(1)
     );
 }
 

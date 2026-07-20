@@ -483,6 +483,10 @@ impl DraftProxy {
                 "orders": self.store.base.orders.records.clone(),
                 "orderOrder": self.store.base.orders.order,
                 "orderCountBaselines": self.store.base.order_count_baselines.clone(),
+                "returns": self.store.base.returns.clone(),
+                "returnsByOrder": self.store.base.returns_by_order.clone(),
+                "returnMissingIds": self.store.base.return_missing_ids.iter().cloned().collect::<Vec<_>>(),
+                "reverseFulfillmentOrders": self.store.base.reverse_fulfillment_orders.clone(),
                 "discounts": self.store.base.discounts.records.clone(),
                 "discountOrder": self.store.base.discounts.order,
                 "discountCountBaselines": self.store.base.discount_count_baselines.clone(),
@@ -1514,6 +1518,24 @@ impl DraftProxy {
         );
         self.store.base.order_count_baselines =
             value_map_from_json(state["baseState"].get("orderCountBaselines"));
+        self.store.base.returns = value_map_from_json(state["baseState"].get("returns"));
+        self.store.base.returns_by_order = state["baseState"]["returnsByOrder"]
+            .as_object()
+            .map(|returns_by_order| {
+                returns_by_order
+                    .iter()
+                    .map(|(id, returns)| (id.clone(), string_array_from_json(returns)))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.base.return_missing_ids = state["baseState"]
+            .get("returnMissingIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.base.reverse_fulfillment_orders =
+            value_map_from_json(state["baseState"].get("reverseFulfillmentOrders"));
         self.store.base.draft_orders.replace_with_order(
             value_map_from_json(state["baseState"].get("draftOrders")),
             state["baseState"]

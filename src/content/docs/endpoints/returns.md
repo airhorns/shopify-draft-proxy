@@ -111,7 +111,9 @@ Local staged mutations:
   must be positive and no greater than the removable quantity for that return line. Exchange-line removal remains
   explicitly unsupported until exchange fixtures exist.
 - `returnProcess` updates processed quantities for local return line items and keeps the return `OPEN` in both mutation
-  payloads and immediate downstream reads. Refund duties, refund shipping, financial transfers, exchange processing, and
+  payloads and immediate downstream reads. Each requested ReturnLineItem ID must belong to the target Return, and only
+  the submitted quantity is moved from processable/unprocessed to processed state; relationship or quantity validation
+  completes before any line is staged. Refund duties, refund shipping, financial transfers, exchange processing, and
   notification behavior are not emulated beyond local metadata and validation boundaries.
 - `reverseDeliveryCreateWithShipping` builds staged reverse delivery lines from `reverseDeliveryLineItems`. Explicit
   entries preserve input order, quantity, and the requested reverse fulfillment order line item; an empty input follows
@@ -119,15 +121,21 @@ Local staged mutations:
   at that line's total quantity. `ReverseDeliveryLabelInput` accepts Shopify's `fileUrl` field and preserves it as the
   downstream `label.publicFileUrl`; legacy local fixture aliases `publicFileUrl` and `url` are still accepted for older
   recorded runtime fixtures.
-- Supported return mutations are handled locally in snapshot mode and for local/synthetic orders in live-hybrid mode.
-  They do not call upstream Shopify at runtime.
+- Approve, decline, close, reopen, cancel, removal, and processing share a bounded LiveHybrid cold-read path. When the
+  target Return has not been observed in the current proxy instance, `ReturnLifecycleHydrate` reads the Return plus its
+  exact order, line-quantity, refund, reverse-fulfillment, and status context before eligibility or NOT_FOUND decisions.
+  A successful observation is retained as base state and all transitions remain staged overlays; an authoritative null
+  is cached as missing. HTTP, transport, malformed-response, and GraphQL failures remain resolver errors and are never
+  translated into `Return not found.` Snapshot mode does not perform this read.
+- Supported return mutations never send a mutation to Shopify at runtime. Successful lifecycle calls append the original
+  raw request for explicit ordered commit replay; the only cold-session upstream traffic is the query-only hydrate.
 - Validation branches for unknown orders, unknown fulfillment line items, invalid quantities, and unknown returns return
   local `userErrors` and do not append staged commit-log entries.
-- Return lifecycle staging is covered by Rust runtime tests rather than local-runtime parity evidence. The runtime tests
-  create fulfilled local order graphs, then cover `returnCreate`, `returnClose`, `returnReopen`, `returnCancel`,
-  downstream `return(id:)` and `Order.returns` reads, `returnRequest`, and missing fulfillment-line-item validation. The
-  live reverse-logistics introspection fixture remains schema evidence for root availability and blocked roots; it is not
-  behavior payload evidence for the local lifecycle replay.
+- Return lifecycle staging has focused Rust coverage for warm and cold targets, authoritative misses, unresolved hydrate
+  errors, input-line relationships, downstream `return(id:)` / `Order.returns` reads, and success-only commit logging.
+  The live `returnClose-Reopen-Cancel-state-preconditions` scenario records the exact query-only hydrate for an existing
+  OPEN Return before a cold close plus downstream readback, and records an authoritative null hydrate before the captured
+  NOT_FOUND family. The reverse-logistics introspection fixture remains schema evidence rather than behavior evidence.
 - Executable parity covers `returnableFulfillments`, `returnCalculate`, `returnApproveRequest`, `returnDeclineRequest`,
   `removeFromReturn`, `returnProcess`, reverse delivery creation/update, reverse fulfillment disposal, and downstream
   reverse logistics reads. Public 2026-04 evidence covers fulfilled-line returnability, calculated return-line subtotal
