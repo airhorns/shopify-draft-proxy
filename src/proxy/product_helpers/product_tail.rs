@@ -1,4 +1,14 @@
 use super::*;
+
+const PUBLICATION_DELETE_HYDRATE_QUERY: &str =
+    include_str!("../../../config/parity-requests/products/publication-delete-hydrate.graphql");
+
+#[derive(Clone, Copy)]
+enum PublicationDeleteProtection {
+    Default,
+    AppCatalog,
+    MarketCatalog,
+}
 use crate::admin_graphql::RootFieldError;
 
 impl DraftProxy {
@@ -228,7 +238,7 @@ impl DraftProxy {
         match invocation.root_name {
             "publicationCreate" => self.publication_create_outcome(&arguments),
             "publicationUpdate" => self.publication_update_outcome(&invocation, &arguments),
-            "publicationDelete" => self.publication_delete_outcome(&arguments),
+            "publicationDelete" => self.publication_delete_outcome(&invocation, &arguments),
             root => ResolverOutcome::error(format!(
                 "No publication mutation resolver implemented for root `{root}`"
             )),
@@ -256,7 +266,9 @@ impl DraftProxy {
 
         let id = self.next_publication_id();
         let name = publication_create_name(&id, catalog.as_ref());
-        let record = publication_record_json(&id, &name, auto_publish);
+        let mut record = publication_record_json(&id, &name, auto_publish);
+        record["catalog"] = catalog.clone().unwrap_or(Value::Null);
+        record["channels"] = json!({ "nodes": [] });
         self.store.stage_created_publication_id(id.clone());
         self.store
             .staged
@@ -283,7 +295,7 @@ impl DraftProxy {
         let id = resolved_string_field(arguments, "id");
         let record = id
             .as_deref()
-            .and_then(|id| self.store.staged.publications.get(id).cloned());
+            .and_then(|id| self.store.publication_by_id(id).cloned());
         let (Some(id), Some(mut record)) = (id, record) else {
             return ResolverOutcome::value(publication_not_found_payload("publication"))
                 .with_log_draft(LogDraft::failed(
@@ -387,6 +399,7 @@ impl DraftProxy {
 
     fn publication_delete_outcome(
         &mut self,
+        invocation: &RootInvocation<'_>,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> ResolverOutcome<Value> {
         let Some(id) = resolved_string_field(arguments, "id") else {
@@ -397,31 +410,71 @@ impl DraftProxy {
                     "Publication was not found.",
                 ));
         };
-        // Only publications created by this proxy session can be deleted. Known
-        // base or observed publications are protected without assuming a global
-        // numeric default id.
-        if !self.store.staged.created_publication_ids.contains(&id) {
-            let payload = if !self.store.has_publication_id(&id) {
-                publication_not_found_payload("deletedId")
-            } else {
-                json!({
-                    "deletedId": null,
-                    "userErrors": [user_error(
-                        ["id"],
-                        "Cannot delete the default publication",
-                        Some("CANNOT_DELETE_DEFAULT_PUBLICATION"),
-                    )]
-                })
-            };
+        self.hydrate_publication_delete_target(invocation.request, &id);
+        let Some(record) = self.store.publication_by_id(&id).cloned() else {
+            let payload = publication_not_found_payload("deletedId");
             return ResolverOutcome::value(payload).with_log_draft(LogDraft::failed(
                 "publicationDelete",
                 "products",
-                "Publication cannot be deleted.",
+                "Publication was not found.",
             ));
+        };
+        if let Some(protection) = publication_delete_protection(&record) {
+            return ResolverOutcome::value(publication_delete_protected_payload(protection))
+                .with_log_draft(LogDraft::failed(
+                    "publicationDelete",
+                    "products",
+                    "Publication cannot be deleted.",
+                ));
         }
+        if !publication_delete_metadata_is_complete(&record) {
+            return ResolverOutcome::value(publication_delete_unclassified_payload())
+                .with_log_draft(LogDraft::failed(
+                    "publicationDelete",
+                    "products",
+                    "Publication cannot be classified safely for deletion.",
+                ));
+        }
+        let mut deleted_resource_ids = record
+            .pointer("/products/nodes")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|product| {
+                product
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .collect::<BTreeSet<_>>();
+        deleted_resource_ids.extend(
+            self.store
+                .staged
+                .resource_publications
+                .iter()
+                .filter(|(_, publications)| publications.contains(&id))
+                .map(|(resource_id, _)| resource_id.clone()),
+        );
+        let deleted_resource_ids_complete = record
+            .pointer("/products/pageInfo/hasNextPage")
+            .and_then(Value::as_bool)
+            == Some(false)
+            || (record.get("products").is_none()
+                && self.store.staged.created_publication_ids.contains(&id));
         self.store.staged.publications.remove(&id);
         self.store.staged.created_publication_ids.remove(&id);
         self.store.staged.publication_ids.remove(&id);
+        self.store.staged.deleted_publication_ids.insert(id.clone());
+        self.store
+            .staged
+            .deleted_publication_resource_ids
+            .insert(id.clone(), deleted_resource_ids);
+        if deleted_resource_ids_complete {
+            self.store
+                .staged
+                .deleted_publication_resource_ids_complete
+                .insert(id.clone());
+        }
         // Cascade: a deleted publication is no longer a membership target, so any
         // product/collection published on it is no longer published there.
         for pubs in self.store.staged.resource_publications.values_mut() {
@@ -436,6 +489,70 @@ impl DraftProxy {
             "products",
             vec![id.clone()],
         ))
+    }
+
+    fn hydrate_publication_delete_target(&mut self, request: &Request, id: &str) {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || self.store.publication_is_deleted(id)
+            || self.store.staged.publications.contains_key(id)
+            || self
+                .store
+                .publication_by_id(id)
+                .is_some_and(publication_delete_metadata_is_complete)
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": PUBLICATION_DELETE_HYDRATE_QUERY,
+                "operationName": "PublicationDeleteHydrate",
+                "variables": { "id": id },
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        if let Some(count) = response
+            .body
+            .pointer("/data/publicationsCount/count")
+            .and_then(Value::as_u64)
+        {
+            self.store.base.publication_count = Some(count as usize);
+        }
+        let Some(publication) = response
+            .body
+            .pointer("/data/publication")
+            .filter(|publication| publication.is_object())
+            .cloned()
+        else {
+            return;
+        };
+        let Some(publication_id) = publication
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        let mut publication = publication;
+        if let Some(channel) = publication
+            .pointer("/channels/nodes/0")
+            .filter(|channel| channel.is_object())
+            .cloned()
+        {
+            publication["channel"] = channel;
+        }
+        if publication_appears_in_catalog(&publication) {
+            self.store
+                .base
+                .publication_ids
+                .insert(publication_id.clone());
+        }
+        self.store
+            .base
+            .publications
+            .insert(publication_id, publication);
     }
 
     fn first_publication_update_variant_id<'a>(
@@ -1529,6 +1646,81 @@ fn publication_not_found_payload(root_field: &str) -> Value {
         )]),
     );
     Value::Object(payload)
+}
+
+fn publication_delete_protection(record: &Value) -> Option<PublicationDeleteProtection> {
+    match record
+        .pointer("/catalog/__typename")
+        .and_then(Value::as_str)
+    {
+        Some("AppCatalog") => return Some(PublicationDeleteProtection::AppCatalog),
+        Some("MarketCatalog") => return Some(PublicationDeleteProtection::MarketCatalog),
+        _ => {}
+    }
+    let default_channel = record
+        .pointer("/channel/handle")
+        .and_then(Value::as_str)
+        .is_some_and(|handle| handle == "online_store")
+        || record
+            .pointer("/channels/nodes")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .any(|channel| channel.get("handle").and_then(Value::as_str) == Some("online_store"));
+    default_channel.then_some(PublicationDeleteProtection::Default)
+}
+
+fn publication_delete_metadata_is_complete(record: &Value) -> bool {
+    record.get("catalog").is_some()
+        && (record.get("channels").is_some()
+            || record
+                .get("channel")
+                .is_some_and(|channel| channel.is_object()))
+}
+
+fn publication_appears_in_catalog(record: &Value) -> bool {
+    record
+        .get("catalog")
+        .is_some_and(|catalog| catalog.is_object())
+        || record
+            .get("channel")
+            .is_some_and(|channel| channel.is_object())
+        || record
+            .pointer("/channels/nodes")
+            .and_then(Value::as_array)
+            .is_some_and(|channels| !channels.is_empty())
+}
+
+fn publication_delete_protected_payload(protection: PublicationDeleteProtection) -> Value {
+    let (message, code) = match protection {
+        PublicationDeleteProtection::Default => (
+            "Cannot delete the default publication",
+            "UNSUPPORTED_PUBLICATION_ACTION",
+        ),
+        PublicationDeleteProtection::AppCatalog => (
+            "Can't modify a publication that belongs to an app catalog.",
+            "CANNOT_MODIFY_APP_CATALOG_PUBLICATION",
+        ),
+        PublicationDeleteProtection::MarketCatalog => (
+            "Can't modify a publication that belongs to a market catalog.",
+            "CANNOT_MODIFY_MARKET_CATALOG_PUBLICATION",
+        ),
+    };
+    json!({
+        "deletedId": null,
+        "userErrors": [user_error(["id"], message, Some(code))]
+    })
+}
+
+fn publication_delete_unclassified_payload() -> Value {
+    json!({
+        "deletedId": null,
+        "userErrors": [user_error(
+            ["id"],
+            "Can't perform this action on a publication.",
+            Some("UNSUPPORTED_PUBLICATION_ACTION"),
+        )]
+    })
 }
 
 fn publication_update_limit_field(

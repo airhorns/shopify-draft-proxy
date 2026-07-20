@@ -1,0 +1,32 @@
+query PublicationDeleteHydrate($id: ID!) {
+  publication(id: $id) {
+    id
+    name
+    autoPublish
+    supportsFuturePublishing
+    catalog {
+      __typename
+      id
+      title
+    }
+    channels(first: 5) {
+      nodes {
+        id
+        name
+        handle
+      }
+    }
+    products(first: 250) {
+      nodes {
+        id
+      }
+      pageInfo {
+        hasNextPage
+      }
+    }
+  }
+  publicationsCount {
+    count
+    precision
+  }
+}

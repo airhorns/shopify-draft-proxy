@@ -1,0 +1,72 @@
+{
+  "scenarioId": "publication-persisted-delete-contract",
+  "operationNames": ["publicationDelete", "publication", "publications", "publicationsCount", "product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-lifecycle", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/publication-mutation-contract.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/publicationDelete-contract.graphql",
+    "variablesCapturePath": "$.cases.deletePersistedPublication.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "A registered live capture creates an ordinary disposable publication upstream before replay, records the proxy's exact query-only hydration and pre-delete downstream read as upstream calls, then records Shopify's post-delete detail/list/count/Product-membership state. The same capture records an Online Store/AppCatalog protected rejection. MarketCatalog deletion currently succeeds on the live 2026-04 target despite the Core-backed protection contract, so that observed version discrepancy is documented separately rather than represented as fabricated parity evidence.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "persisted-publication-delete-payload",
+        "capturePath": "$.cases.deletePersistedPublication.response.payload.data.publicationDelete",
+        "proxyPath": "$.data.publicationDelete"
+      },
+      {
+        "name": "persisted-publication-delete-downstream-detail-list-count-membership",
+        "capturePath": "$.cases.persistedPublicationDownstreamAfterDelete.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/publication-delete-downstream-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "publicationId": {
+              "fromCapturePath": "$.cases.deletePersistedPublication.variables.id"
+            },
+            "productId": {
+              "fromCapturePath": "$.setup.product.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "deleted-publication-product-membership-not-found",
+        "capturePath": "$.cases.persistedPublicationMembershipAfterDelete.response.payload",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions", "$.errors[0].locations"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/publication-delete-membership-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "publicationId": {
+              "fromCapturePath": "$.cases.deletePersistedPublication.variables.id"
+            },
+            "productId": {
+              "fromCapturePath": "$.setup.product.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "protected-app-publication-delete-rejection",
+        "capturePath": "$.cases.deleteProtectedAppPublication.response.payload.data.publicationDelete",
+        "proxyPath": "$.data.publicationDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/publicationDelete-contract.graphql",
+          "variablesCapturePath": "$.cases.deleteProtectedAppPublication.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

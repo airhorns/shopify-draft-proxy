@@ -668,6 +668,9 @@ impl RootFieldExecutor for ProxyRootExecutor {
                 handler(&mut proxy, &self.original_request, &invocation)
                     .map(FieldResolverResult::Resolved)
             }
+            FieldResolverImplementation::ExplicitOutcome(handler) => {
+                handler(&mut proxy, &self.original_request, &invocation)
+            }
             FieldResolverImplementation::DeliberatelyUnsupported(reason) => Ok(
                 FieldResolverResult::DeliberatelyUnsupported(reason.to_string()),
             ),
@@ -1068,6 +1071,8 @@ impl DraftProxy {
         let engine_operation_name = graphql_request.operation_name;
         let null_list_item_paths = Arc::new(std::sync::Mutex::new(Vec::new()));
         let null_list_item_paths_for_engine = Arc::clone(&null_list_item_paths);
+        let structured_field_error_paths = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let structured_field_error_paths_for_engine = Arc::clone(&structured_field_error_paths);
         let (
             engine_response,
             resolved_responses,
@@ -1127,6 +1132,7 @@ impl DraftProxy {
                 .data(RootExecutionContext::with_null_list_item_paths(
                     Arc::clone(&root_executor),
                     null_list_item_paths_for_engine,
+                    structured_field_error_paths_for_engine,
                 ));
             if let Some(operation_name) = engine_operation_name {
                 engine_request = engine_request.operation_name(operation_name);
@@ -1230,6 +1236,16 @@ impl DraftProxy {
             )
         };
         let mut body = body;
+        if let Ok(paths) = structured_field_error_paths.lock() {
+            restore_structured_field_error_paths(
+                &mut body,
+                &paths,
+                prepared
+                    .as_ref()
+                    .map(|(document, _, _)| document.root_fields.as_slice())
+                    .unwrap_or_default(),
+            );
+        }
         restore_resolved_null_list_items(&mut body, &resolved_responses);
         if let Ok(paths) = null_list_item_paths.lock() {
             apply_null_list_item_paths(&mut body, &paths);
@@ -2013,6 +2029,45 @@ fn restore_resolved_null_list_items(
             continue;
         };
         restore_null_list_items(projected, resolved);
+    }
+}
+
+fn restore_structured_field_error_paths(
+    body: &mut Value,
+    paths: &[Vec<String>],
+    root_fields: &[RootFieldSelection],
+) {
+    if paths.is_empty() {
+        return;
+    }
+    if let Some(errors) = body.get_mut("errors").and_then(Value::as_array_mut) {
+        for (error, path) in errors
+            .iter_mut()
+            .filter(|error| error.get("path").is_none())
+            .zip(paths)
+        {
+            error["path"] = Value::Array(path.iter().cloned().map(Value::String).collect());
+        }
+    }
+    if body.get("data").is_some_and(|data| !data.is_null()) {
+        return;
+    }
+    let errored_roots = paths
+        .iter()
+        .filter_map(|path| path.first())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let selected_roots = root_fields
+        .iter()
+        .map(|field| field.response_key.clone())
+        .collect::<BTreeSet<_>>();
+    if !selected_roots.is_empty() && errored_roots == selected_roots {
+        body["data"] = Value::Object(
+            selected_roots
+                .into_iter()
+                .map(|root| (root, Value::Null))
+                .collect(),
+        );
     }
 }
 

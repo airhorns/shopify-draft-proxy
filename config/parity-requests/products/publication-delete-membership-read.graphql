@@ -1,0 +1,6 @@
+query PublicationDeleteMembershipRead($publicationId: ID!, $productId: ID!) {
+  product(id: $productId) {
+    id
+    publishedOnPublication(publicationId: $publicationId)
+  }
+}

@@ -15,7 +15,8 @@ use std::{
 
 use crate::{
     admin_graphql::{
-        AdminApiVersion, FieldResolverInvocation, ResolverValueSource, RootFieldError,
+        AdminApiVersion, FieldResolverInvocation, FieldResolverResult, ResolverValueSource,
+        RootFieldError,
     },
     graphql::{
         OperationType, ParsedOperation, RawArgumentValue, ResolvedValue, SourceLocation,
@@ -258,6 +259,11 @@ pub(crate) struct ExecutableRootRegistration {
 
 pub(crate) type FieldResolverHandler =
     for<'a> fn(&mut DraftProxy, &Request, &FieldResolverInvocation<'a>) -> Result<Value, String>;
+pub(crate) type FieldResolverOutcomeHandler = for<'a> fn(
+    &mut DraftProxy,
+    &Request,
+    &FieldResolverInvocation<'a>,
+) -> Result<FieldResolverResult, String>;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct FieldCoordinate {
@@ -276,6 +282,7 @@ pub(crate) enum FieldResolverImplementation {
     /// owned by one authoritative callback. Canonical parents must not bypass
     /// that callback by materializing a selection-shaped copy of the field.
     Explicit(FieldResolverHandler),
+    ExplicitOutcome(FieldResolverOutcomeHandler),
     DeliberatelyUnsupported(&'static str),
 }
 
@@ -284,6 +291,7 @@ impl std::fmt::Debug for FieldResolverImplementation {
         match self {
             Self::PropertyBacked => formatter.write_str("PropertyBacked"),
             Self::Explicit(_) => formatter.write_str("ExplicitFieldResolver"),
+            Self::ExplicitOutcome(_) => formatter.write_str("ExplicitFieldOutcomeResolver"),
             Self::DeliberatelyUnsupported(reason) => formatter
                 .debug_tuple("DeliberatelyUnsupported")
                 .field(reason)
@@ -297,6 +305,7 @@ impl FieldResolverImplementation {
         match self {
             Self::PropertyBacked => "property-backed",
             Self::Explicit(_) => "explicit-resolver",
+            Self::ExplicitOutcome(_) => "explicit-resolver",
             Self::DeliberatelyUnsupported(_) => "deliberately-unsupported",
         }
     }
@@ -304,7 +313,7 @@ impl FieldResolverImplementation {
     fn unsupported_reason(self) -> Option<&'static str> {
         match self {
             Self::DeliberatelyUnsupported(reason) => Some(reason),
-            Self::PropertyBacked | Self::Explicit(_) => None,
+            Self::PropertyBacked | Self::Explicit(_) | Self::ExplicitOutcome(_) => None,
         }
     }
 }
@@ -403,6 +412,25 @@ impl FieldResolverRegistration {
         let mut registration = Self::explicit(api_surface, parent_type, field_name, handler);
         registration.reaches_child_type = false;
         registration
+    }
+
+    pub(crate) fn explicit_outcome_terminal(
+        api_surface: ApiSurface,
+        parent_type: &str,
+        field_name: &str,
+        handler: FieldResolverOutcomeHandler,
+    ) -> Self {
+        Self {
+            coordinate: FieldCoordinate {
+                api_surface,
+                api_version: None,
+                parent_type: parent_type.to_string(),
+                field_name: field_name.to_string(),
+            },
+            implementation: FieldResolverImplementation::ExplicitOutcome(handler),
+            provenance: FieldResolverProvenance::ExplicitResolver,
+            reaches_child_type: false,
+        }
     }
 
     fn unsupported(

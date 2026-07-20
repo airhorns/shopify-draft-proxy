@@ -1,0 +1,56 @@
+query PublicationDeleteDownstreamRead($publicationId: ID!, $productId: ID!) {
+  publication(id: $publicationId) {
+    id
+    name
+    autoPublish
+    supportsFuturePublishing
+    catalog {
+      __typename
+      id
+      title
+    }
+  }
+  publications(first: 100) {
+    nodes {
+      id
+      name
+      autoPublish
+      supportsFuturePublishing
+      catalog {
+        __typename
+        id
+        title
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  publicationsCount {
+    count
+    precision
+  }
+  product(id: $productId) {
+    id
+    availablePublicationsCount {
+      count
+      precision
+    }
+    resourcePublicationsCount {
+      count
+      precision
+    }
+    resourcePublicationsV2(first: 100) {
+      nodes {
+        publication {
+          id
+        }
+        isPublished
+        publishDate
+      }
+    }
+  }
+}

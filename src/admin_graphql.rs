@@ -91,6 +91,7 @@ pub trait RootFieldExecutor: Send + Sync {
 pub struct RootExecutionContext {
     pub executor: Arc<dyn RootFieldExecutor>,
     pub null_list_item_paths: Arc<std::sync::Mutex<Vec<Vec<String>>>>,
+    pub structured_field_error_paths: Arc<std::sync::Mutex<Vec<Vec<String>>>>,
 }
 
 impl RootExecutionContext {
@@ -98,16 +99,19 @@ impl RootExecutionContext {
         Self {
             executor,
             null_list_item_paths: Arc::new(std::sync::Mutex::new(Vec::new())),
+            structured_field_error_paths: Arc::new(std::sync::Mutex::new(Vec::new())),
         }
     }
 
     pub fn with_null_list_item_paths(
         executor: Arc<dyn RootFieldExecutor>,
         null_list_item_paths: Arc<std::sync::Mutex<Vec<Vec<String>>>>,
+        structured_field_error_paths: Arc<std::sync::Mutex<Vec<Vec<String>>>>,
     ) -> Self {
         Self {
             executor,
             null_list_item_paths,
+            structured_field_error_paths,
         }
     }
 }
@@ -132,6 +136,7 @@ pub struct FieldResolverInvocation<'a> {
 pub enum FieldResolverResult {
     PropertyBacked,
     Resolved(Value),
+    Error(RootFieldError),
     DeliberatelyUnsupported(String),
 }
 
@@ -1181,6 +1186,22 @@ fn dynamic_object_field(
                         None,
                     )));
                     return FieldFuture::Value(None);
+                }
+                FieldResolverResult::Error(error) => {
+                    if let Ok(mut paths) = execution.structured_field_error_paths.lock() {
+                        paths.push(field_path);
+                    }
+                    let mut extensions = ErrorExtensionValues::default();
+                    for (name, value) in error.extensions {
+                        if let Ok(value) = GraphqlValue::from_json(value) {
+                            extensions.set(name, value);
+                        }
+                    }
+                    let mut graphql_error = Error::new(error.message);
+                    graphql_error.extensions = Some(extensions);
+                    return FieldFuture::new(async move {
+                        Err::<Option<FieldValue<'_>>, _>(graphql_error)
+                    });
                 }
             };
             let Some(value) = value else {

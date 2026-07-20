@@ -343,6 +343,9 @@ impl RootFieldExecutor for StorefrontRootExecutor {
                 let value = handler(&mut proxy, &self.original_request, &invocation)?;
                 Ok(FieldResolverResult::Resolved(value))
             }
+            FieldResolverImplementation::ExplicitOutcome(handler) => {
+                handler(&mut proxy, &self.original_request, &invocation)
+            }
             FieldResolverImplementation::DeliberatelyUnsupported(reason) => Ok(
                 FieldResolverResult::DeliberatelyUnsupported(reason.to_string()),
             ),
@@ -567,6 +570,7 @@ impl DraftProxy {
                 .data(RootExecutionContext::with_null_list_item_paths(
                     executor,
                     null_list_item_paths_for_engine,
+                    Arc::new(std::sync::Mutex::new(Vec::new())),
                 ));
             if let Some(operation_name) = engine_operation_name {
                 engine_request = engine_request.operation_name(operation_name);

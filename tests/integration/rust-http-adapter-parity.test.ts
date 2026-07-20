@@ -194,6 +194,7 @@ describe('Rust HTTP adapter route surface', { timeout: adapterTestTimeoutMs }, (
             discountCountBaselines: {},
             shop: null,
             publicationIds: [],
+            publications: {},
             publicationCount: null,
             availableLocales: expect.objectContaining({
               en: 'English',
@@ -316,6 +317,9 @@ describe('Rust HTTP adapter route surface', { timeout: adapterTestTimeoutMs }, (
             deletedDeliveryCustomizationIds: [],
             publicationIds: [],
             createdPublicationIds: [],
+            deletedPublicationIds: [],
+            deletedPublicationResourceIds: {},
+            deletedPublicationResourceIdsComplete: [],
             currentChannelPublicationId: null,
             currentChannelPublicationResolved: false,
             publications: {},
