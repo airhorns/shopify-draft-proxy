@@ -1334,6 +1334,14 @@ impl DraftProxy {
         request: &Request,
         transaction_id: &str,
     ) -> PaymentTransactionHydration {
+        let staged_transaction_is_ready = self.store.staged.orders.values().any(|order| {
+            order_transactions(order)
+                .iter()
+                .any(|transaction| transaction["id"].as_str() == Some(transaction_id))
+        });
+        if staged_transaction_is_ready {
+            return PaymentTransactionHydration::Ready;
+        }
         let already_observed = self.store.effective_orders().iter().any(|order| {
             payment_transaction_context_is_complete(order)
                 && order_transactions(order)

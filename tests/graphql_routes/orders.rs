@@ -15536,8 +15536,70 @@ fn order_payment_transactions_use_order_transaction_state_not_magic_values() {
 }
 
 #[test]
-fn transaction_void_code_flow_preserves_payment_currency_without_order_currency() {
-    let mut proxy = snapshot_proxy();
+fn transaction_void_code_flow_uses_staged_transactions_without_hydration() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| {
+        panic!("transactionVoid must not hydrate proxy-staged transactions")
+    });
+
+    let create_capture = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/transaction-void-codes-order-create.graphql"
+        ),
+        json!({
+            "order": {
+                "email": "transaction-void-capture-code@example.com",
+                "test": true,
+                "lineItems": [{
+                    "title": "transaction void capture code parity",
+                    "quantity": 1,
+                    "priceSet": {
+                        "shopMoney": {
+                            "amount": "25.00",
+                            "currencyCode": "CAD"
+                        }
+                    },
+                    "requiresShipping": false,
+                    "taxable": false
+                }],
+                "transactions": [{
+                    "kind": "CAPTURE",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "test": true,
+                    "amountSet": {
+                        "shopMoney": {
+                            "amount": "25.00",
+                            "currencyCode": "CAD"
+                        }
+                    }
+                }]
+            },
+            "options": null
+        }),
+    ));
+    assert_eq!(
+        create_capture.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let capture_transaction_id =
+        create_capture.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone();
+    let void_capture = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/transaction-void-codes-transaction-void.graphql"
+        ),
+        json!({ "id": capture_transaction_id }),
+    ));
+    assert_eq!(
+        void_capture.body["data"]["transactionVoid"],
+        json!({
+            "transaction": Value::Null,
+            "userErrors": [{
+                "field": ["parentTransactionId"],
+                "message": "Parent transaction must be a successful authorization",
+                "code": "AUTH_NOT_SUCCESSFUL"
+            }]
+        })
+    );
 
     let create = proxy.process_request(json_graphql_request(
         include_str!(
