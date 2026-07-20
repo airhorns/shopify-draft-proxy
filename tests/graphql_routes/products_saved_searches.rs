@@ -803,7 +803,10 @@ fn product_create_update_and_reorder_media_preserve_non_image_media_types() {
     assert_product_media_type(&downstream[2], "MODEL_3D", "Model3d", "Model3d");
     assert_product_media_type(&downstream[3], "VIDEO", "Video", "Video");
 
-    let external_video_id = created[1]["id"].as_str().unwrap();
+    let declared_video_id = created[0]["id"].as_str().unwrap().to_string();
+    let external_video_id = created[1]["id"].as_str().unwrap().to_string();
+    let model_id = created[2]["id"].as_str().unwrap().to_string();
+    let inferred_video_id = created[3]["id"].as_str().unwrap().to_string();
     let update = proxy.process_request(json_graphql_request(
         r#"
         mutation ProductUpdateExternalVideo($productId: ID!, $media: [UpdateMediaInput!]!) {
@@ -835,7 +838,6 @@ fn product_create_update_and_reorder_media_preserve_non_image_media_types() {
         "external video update should not project a MediaImage fragment"
     );
 
-    let model_id = created[2]["id"].as_str().unwrap();
     let reorder = proxy.process_request(json_graphql_request(
         r#"
         mutation ProductReorderNonImageMedia($productId: ID!, $moves: [MoveInput!]!) {
@@ -848,8 +850,10 @@ fn product_create_update_and_reorder_media_preserve_non_image_media_types() {
         json!({
             "productId": product_id,
             "moves": [
+                { "id": external_video_id, "newPosition": "3" },
                 { "id": model_id, "newPosition": "0" },
-                { "id": external_video_id, "newPosition": "1" }
+                { "id": external_video_id, "newPosition": "1" },
+                { "id": model_id, "newPosition": "0" }
             ]
         }),
     ));
@@ -867,8 +871,12 @@ fn product_create_update_and_reorder_media_preserve_non_image_media_types() {
               nodes {
                 id
                 __typename
+                alt
                 mediaContentType
                 status
+                ... on Video { sources { url } }
+                ... on ExternalVideo { originUrl }
+                ... on Model3d { sources { url } }
               }
             }
           }
@@ -880,15 +888,53 @@ fn product_create_update_and_reorder_media_preserve_non_image_media_types() {
     let reordered = read.body["data"]["product"]["media"]["nodes"]
         .as_array()
         .expect("reordered media should be an array");
+    assert_eq!(
+        reordered.len(),
+        4,
+        "reordering a subset must preserve every unmoved media node"
+    );
+    assert_eq!(
+        reordered
+            .iter()
+            .map(|node| node["id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec![
+            model_id.as_str(),
+            external_video_id.as_str(),
+            declared_video_id.as_str(),
+            inferred_video_id.as_str(),
+        ],
+        "moves must be applied sequentially in request order, including repeated and same-position moves"
+    );
     assert_product_media_type(&reordered[0], "MODEL_3D", "Model3d", "Model3d");
-    assert_eq!(reordered[0]["status"], json!("PROCESSING"));
+    assert_eq!(reordered[0]["alt"], json!("Declared model"));
+    assert_eq!(
+        reordered[0]["sources"],
+        json!([{ "url": "https://cdn.example.com/model.glb" }])
+    );
     assert_product_media_type(
         &reordered[1],
         "EXTERNAL_VIDEO",
         "ExternalVideo",
         "ExternalVideo",
     );
-    assert_eq!(reordered[1]["status"], json!("PROCESSING"));
+    assert_eq!(reordered[1]["alt"], json!("Updated external video"));
+    assert_eq!(
+        reordered[1]["originUrl"],
+        json!("https://youtu.be/dQw4w9WgXcQ")
+    );
+    assert_product_media_type(&reordered[2], "VIDEO", "Video", "Video");
+    assert_eq!(reordered[2]["alt"], json!("Declared video"));
+    assert_eq!(
+        reordered[2]["sources"],
+        json!([{ "url": "https://cdn.example.com/declared-video.mp4" }])
+    );
+    assert_product_media_type(&reordered[3], "VIDEO", "Video", "Video");
+    assert_eq!(reordered[3]["alt"], json!("Inferred video"));
+    assert_eq!(
+        reordered[3]["sources"],
+        json!([{ "url": "https://cdn.example.com/inferred-video.MP4?download=1" }])
+    );
 }
 
 #[test]
@@ -1733,6 +1779,49 @@ fn product_reorder_media_unknown_media_id_returns_async_job_without_immediate_er
     assert_eq!(payload["userErrors"], json!([]));
 }
 
+#[test]
+fn product_reorder_media_missing_product_does_not_change_state_or_log() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport(|_| missing_product_hydrate_response());
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingProductReorder($id: ID!, $moves: [MoveInput!]!) {
+          productReorderMedia(id: $id, moves: $moves) {
+            job { id done }
+            userErrors { field message }
+            mediaUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/999999999999",
+            "moves": [{
+                "id": "gid://shopify/MediaImage/999999999999",
+                "newPosition": "0"
+            }]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productReorderMedia"]["job"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["productReorderMedia"]["mediaUserErrors"],
+        json!([{
+            "field": ["id"],
+            "message": "Product does not exist",
+            "code": "PRODUCT_DOES_NOT_EXIST"
+        }])
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+}
+
 fn append_variant_media_for_test(
     proxy: &mut DraftProxy,
     product_id: &str,
@@ -2261,6 +2350,71 @@ fn product_and_variant_media_connections_return_windowed_edges_and_page_info() {
     assert_eq!(
         append.body["data"]["productVariantAppendMedia"]["userErrors"],
         json!([])
+    );
+
+    let reorder = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReorderProductMediaWithVariantAttachment($id: ID!, $moves: [MoveInput!]!) {
+          productReorderMedia(id: $id, moves: $moves) {
+            job { id done }
+            mediaUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": product_id,
+            "moves": [{ "id": back_id, "newPosition": "0" }]
+        }),
+    ));
+    assert_eq!(reorder.status, 200);
+    assert_eq!(
+        reorder.body["data"]["productReorderMedia"]["mediaUserErrors"],
+        json!([])
+    );
+
+    let reordered_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductAndVariantMediaAfterReorder($productId: ID!, $variantId: ID!) {
+          product(id: $productId) {
+            media(first: 10) { nodes { id alt } }
+            images(first: 10) { nodes { id altText } }
+            featuredMedia {
+              __typename
+              ... on MediaImage { id alt }
+            }
+          }
+          productVariant(id: $variantId) {
+            media(first: 10) { nodes { id alt } }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "variantId": variant_id }),
+    ));
+    assert_eq!(reordered_read.status, 200);
+    assert_eq!(
+        reordered_read.body["data"]["product"]["media"]["nodes"],
+        json!([
+            { "id": back_id, "alt": "Back" },
+            { "id": front_id, "alt": "Front" },
+            { "id": side_id, "alt": "Side" }
+        ])
+    );
+    assert_eq!(
+        reordered_read.body["data"]["product"]["images"]["nodes"],
+        json!([
+            { "id": "gid://shopify/ProductImage/3", "altText": "Back" },
+            { "id": "gid://shopify/ProductImage/1", "altText": "Front" },
+            { "id": "gid://shopify/ProductImage/2", "altText": "Side" }
+        ])
+    );
+    assert_eq!(
+        reordered_read.body["data"]["product"]["featuredMedia"],
+        json!({ "__typename": "MediaImage", "id": back_id, "alt": "Back" })
+    );
+    assert_eq!(
+        reordered_read.body["data"]["productVariant"]["media"]["nodes"],
+        json!([{ "id": front_id, "alt": "Front" }]),
+        "variant-media attachments must still resolve from the reordered complete library"
     );
 
     let variant_read = proxy.process_request(json_graphql_request(
