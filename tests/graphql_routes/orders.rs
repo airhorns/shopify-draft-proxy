@@ -2182,6 +2182,126 @@ fn return_process_payload_and_reads_keep_processed_return_open() {
 }
 
 #[test]
+fn return_process_preserves_existing_reverse_fulfillment_disposition() {
+    let mut proxy = snapshot_proxy();
+    let setup = stage_open_return_for_removal(&mut proxy);
+    let reverse_state = proxy.process_request(json_graphql_request(
+        r#"
+        query ReturnProcessDispositionSeed($id: ID!) {
+          return(id: $id) {
+            reverseFulfillmentOrders(first: 5) {
+              nodes {
+                id
+                lineItems(first: 5) { nodes { id } }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": setup.return_id.clone() }),
+    ));
+    assert_eq!(reverse_state.status, 200);
+    let reverse_line_id = reverse_state.body["data"]["return"]["reverseFulfillmentOrders"]["nodes"]
+        [0]["lineItems"]["nodes"][0]["id"]
+        .clone();
+
+    let dispose = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReturnProcessDispositionSeedDispose(
+          $inputs: [ReverseFulfillmentOrderDisposeInput!]!
+        ) {
+          reverseFulfillmentOrderDispose(dispositionInputs: $inputs) {
+            reverseFulfillmentOrderLineItems {
+              id
+              dispositions { type quantity location { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "inputs": [{
+                "reverseFulfillmentOrderLineItemId": reverse_line_id.clone(),
+                "quantity": 1,
+                "dispositionType": "NOT_RESTOCKED",
+                "locationId": "gid://shopify/Location/123"
+            }]
+        }),
+    ));
+    assert_eq!(dispose.status, 200);
+    assert_eq!(
+        dispose.body["data"]["reverseFulfillmentOrderDispose"]["userErrors"],
+        json!([])
+    );
+
+    let process = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReturnProcessPreservesDisposition($input: ReturnProcessInput!) {
+          returnProcess(input: $input) {
+            return {
+              id
+              status
+              reverseFulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  lineItems(first: 5) {
+                    nodes {
+                      id
+                      dispositions { type quantity location { id } }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "returnId": setup.return_id,
+                "returnLineItems": [{ "id": setup.return_line_item_id, "quantity": 1 }],
+                "notifyCustomer": false
+            }
+        }),
+    ));
+    assert_eq!(process.status, 200);
+    assert_eq!(
+        process.body["data"]["returnProcess"]["userErrors"],
+        json!([])
+    );
+    let expected_dispositions = json!([{
+        "type": "NOT_RESTOCKED",
+        "quantity": 1,
+        "location": { "id": "gid://shopify/Location/123" }
+    }]);
+    assert_eq!(
+        process.body["data"]["returnProcess"]["return"]["reverseFulfillmentOrders"]["nodes"][0]
+            ["lineItems"]["nodes"][0]["dispositions"],
+        expected_dispositions
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ReturnProcessDispositionRead($id: ID!) {
+          node(id: $id) {
+            ... on ReverseFulfillmentOrderLineItem {
+              id
+              dispositions { type quantity location { id } }
+            }
+          }
+        }
+        "#,
+        json!({ "id": reverse_line_id }),
+    ));
+    assert_eq!(downstream.status, 200);
+    assert_eq!(
+        downstream.body["data"]["node"]["dispositions"],
+        expected_dispositions
+    );
+}
+
+#[test]
 fn return_close_closed_at_uses_request_clock_and_process_keeps_closed_at_null() {
     let clock = Arc::new(Mutex::new(utc_time(1_782_993_600)));
     let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));

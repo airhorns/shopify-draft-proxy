@@ -12454,6 +12454,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/orders/returnApprove-decline-state-preconditions-live.json',
       'config/parity-requests/orders/return-approve-request-recorded.graphql',
       'config/parity-requests/orders/return-decline-request-local-staging.graphql',
+      'config/parity-requests/orders/return-lifecycle-hydrate.graphql',
       'config/parity-requests/orders/return-order-hydrate.graphql',
     ],
     cleanupBehavior:

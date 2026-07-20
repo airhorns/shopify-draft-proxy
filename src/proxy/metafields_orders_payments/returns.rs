@@ -2171,7 +2171,8 @@ impl DraftProxy {
     /// Rebuild the return's reverse fulfillment order line items from its
     /// current return line items (used after `removeFromReturn`). Existing RFO
     /// line ids are reused when their return line survives; removed return lines
-    /// drop their RFO line. The reverse fulfillment order's `totalQuantity` /
+    /// drop their RFO line. The effective RFO remains authoritative for status,
+    /// dispositions, and reverse deliveries while `totalQuantity` /
     /// `remainingQuantity` are recomputed and the staged RFO is kept in sync.
     fn sync_reverse_fulfillment_line_items(&mut self, return_record: &mut Value) {
         let return_lines = return_record["returnLineItems"]["nodes"]
@@ -2183,7 +2184,12 @@ impl DraftProxy {
             .cloned()
             .unwrap_or_default();
         for rfo in &mut rfos {
-            let existing = rfo["lineItems"]["nodes"]
+            let mut effective_rfo = rfo["id"]
+                .as_str()
+                .and_then(|id| self.effective_reverse_fulfillment_order_record(id))
+                .cloned()
+                .unwrap_or_else(|| rfo.clone());
+            let existing = effective_rfo["lineItems"]["nodes"]
                 .as_array()
                 .cloned()
                 .unwrap_or_default();
@@ -2208,13 +2214,14 @@ impl DraftProxy {
                 rfo_line["remainingQuantity"] = json!((quantity - processed).max(0));
                 rebuilt.push(rfo_line);
             }
-            rfo["lineItems"] = json!({ "nodes": rebuilt });
-            if let Some(id) = rfo["id"].as_str().map(str::to_string) {
+            effective_rfo["lineItems"] = json!({ "nodes": rebuilt });
+            if let Some(id) = effective_rfo["id"].as_str().map(str::to_string) {
                 self.store
                     .staged
                     .reverse_fulfillment_orders
-                    .insert(id, rfo.clone());
+                    .insert(id, effective_rfo.clone());
             }
+            *rfo = effective_rfo;
         }
         return_record["reverseFulfillmentOrders"] = json!({ "nodes": rfos });
     }
