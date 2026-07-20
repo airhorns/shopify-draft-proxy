@@ -13327,8 +13327,164 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
     );
 }
 
+const MANDATE_PAYMENT_WITH_SCHEDULE_DOCUMENT: &str = r#"
+    mutation ChargeMandatePayment(
+      $id: ID!
+      $mandateId: ID!
+      $paymentScheduleId: ID
+      $idempotencyKey: String
+      $amount: MoneyInput
+      $autoCapture: Boolean
+    ) {
+      orderCreateMandatePayment(
+        id: $id
+        mandateId: $mandateId
+        paymentScheduleId: $paymentScheduleId
+        idempotencyKey: $idempotencyKey
+        amount: $amount
+        autoCapture: $autoCapture
+      ) {
+        job { id done }
+        paymentReferenceId
+        userErrors { field message }
+      }
+    }
+"#;
+
+fn mandate_payment_prerequisite_order(
+    order_id: &str,
+    mandate_ids: &[&str],
+    schedule: Option<Value>,
+) -> Value {
+    let payment_terms = schedule.map(|schedule| {
+        json!({
+            "id": "gid://shopify/PaymentTerms/mandate-payment",
+            "paymentSchedules": { "nodes": [schedule] }
+        })
+    });
+    json!({
+        "__typename": "Order",
+        "id": order_id,
+        "name": "#mandate-payment",
+        "email": "mandate-payment@example.test",
+        "closed": false,
+        "closedAt": Value::Null,
+        "cancelledAt": Value::Null,
+        "cancelReason": Value::Null,
+        "currencyCode": "USD",
+        "presentmentCurrencyCode": "USD",
+        "displayFinancialStatus": "PENDING",
+        "paymentGatewayNames": ["shopify_payments"],
+        "totalOutstandingSet": {
+            "shopMoney": { "amount": "25.0", "currencyCode": "USD" },
+            "presentmentMoney": { "amount": "25.0", "currencyCode": "USD" }
+        },
+        "totalReceivedSet": {
+            "shopMoney": { "amount": "0.0", "currencyCode": "USD" },
+            "presentmentMoney": { "amount": "0.0", "currencyCode": "USD" }
+        },
+        "currentTotalPriceSet": {
+            "shopMoney": { "amount": "25.0", "currencyCode": "USD" },
+            "presentmentMoney": { "amount": "25.0", "currencyCode": "USD" }
+        },
+        "totalPriceSet": {
+            "shopMoney": { "amount": "25.0", "currencyCode": "USD" },
+            "presentmentMoney": { "amount": "25.0", "currencyCode": "USD" }
+        },
+        "customer": {
+            "id": "gid://shopify/Customer/mandate-payment",
+            "email": "mandate-payment@example.test",
+            "displayName": "Mandate Payment"
+        },
+        "billingAddress": {
+            "address1": "1 Billing Street",
+            "city": "Toronto",
+            "countryCodeV2": "CA"
+        },
+        "shippingAddress": {
+            "address1": "2 Shipping Street",
+            "city": "Montreal",
+            "countryCodeV2": "CA"
+        },
+        "lineItems": {
+            "nodes": [{
+                "id": "gid://shopify/LineItem/mandate-payment",
+                "title": "Mandate payment line",
+                "quantity": 1
+            }]
+        },
+        "transactions": [],
+        "paymentCollectionDetails": {
+            "vaultedPaymentMethods": mandate_ids
+                .iter()
+                .map(|id| json!({ "id": id }))
+                .collect::<Vec<_>>()
+        },
+        "paymentTerms": payment_terms
+    })
+}
+
+fn live_mandate_payment_proxy(
+    order: Value,
+    mandate: Value,
+    schedule: Option<Value>,
+    upstream_calls: Arc<Mutex<Vec<Value>>>,
+) -> DraftProxy {
+    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).expect("upstream request body");
+        let query = body["query"].as_str().unwrap_or_default();
+        assert!(query.starts_with("query OrderMandatePaymentPrerequisites"));
+        assert!(
+            !query.contains("mutation"),
+            "supported write leaked upstream: {body}"
+        );
+        upstream_calls.lock().unwrap().push(body);
+        let mut nodes = vec![order.clone(), mandate.clone()];
+        if let Some(schedule) = schedule.clone() {
+            nodes.push(schedule);
+        }
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "nodes": nodes } }),
+        }
+    })
+}
+
+fn mandate_payment_relationship_response(body: &Value) -> Response {
+    let query = body["query"].as_str().unwrap_or_default();
+    assert!(query.starts_with("query OrderMandatePaymentPrerequisites"));
+    assert!(
+        !query.contains("mutation"),
+        "supported write leaked upstream: {body}"
+    );
+    let ids = body["variables"]["ids"]
+        .as_array()
+        .expect("mandate prerequisite ids");
+    let order_id = ids[0].clone();
+    let mandate_id = ids[1].clone();
+    Response {
+        status: 200,
+        headers: Default::default(),
+        body: json!({
+            "data": {
+                "nodes": [
+                    {
+                        "__typename": "Order",
+                        "id": order_id,
+                        "paymentCollectionDetails": {
+                            "vaultedPaymentMethods": [{ "id": mandate_id.clone() }]
+                        }
+                    },
+                    { "__typename": "PaymentMandate", "id": mandate_id }
+                ]
+            }
+        }),
+    }
+}
+
 #[test]
-fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
+fn order_create_mandate_payment_rejects_unknown_order_without_staging() {
     let mut proxy = snapshot_proxy();
 
     let missing_mandate = proxy.process_request(json_graphql_request(
@@ -13345,7 +13501,9 @@ fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
         .as_str()
         .is_some_and(|message| message.contains("mandateId") && message.contains("required")));
 
-    let first_mandate = proxy.process_request(json_graphql_request(
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
+    let unknown_order = proxy.process_request(json_graphql_request(
         &current_order_mandate_document(include_str!(
             "../../config/parity-requests/payments/order_create_mandate_payment.graphql"
         )),
@@ -13356,77 +13514,348 @@ fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
             "amount": { "amount": "25.00", "currencyCode": "CAD" }
         }),
     ));
-    let first_payload = &first_mandate.body["data"]["orderCreateMandatePayment"];
+    assert_eq!(
+        unknown_order.body["data"]["orderCreateMandatePayment"],
+        Value::Null
+    );
+    assert_eq!(
+        unknown_order.body["errors"][0]["message"],
+        json!("Invalid id: gid://shopify/Order/1")
+    );
+    assert_eq!(
+        unknown_order.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+}
+
+#[test]
+fn order_create_mandate_payment_hydrates_relationships_and_replays_idempotently() {
+    let order_id = "gid://shopify/Order/mandate-payment";
+    let mandate_id = "gid://shopify/PaymentMandate/mandate-payment";
+    let schedule_id = "gid://shopify/PaymentSchedule/mandate-payment";
+    let schedule = json!({
+        "__typename": "PaymentSchedule",
+        "id": schedule_id,
+        "completedAt": Value::Null,
+        "due": true,
+        "balanceDue": { "amount": "25.0", "currencyCode": "USD" },
+        "totalBalance": { "amount": "25.0", "currencyCode": "USD" },
+        "paymentTerms": {
+            "id": "gid://shopify/PaymentTerms/mandate-payment",
+            "order": { "id": order_id }
+        }
+    });
+    let order = mandate_payment_prerequisite_order(order_id, &[mandate_id], None);
+    let mandate = json!({ "__typename": "PaymentMandate", "id": mandate_id });
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy =
+        live_mandate_payment_proxy(order, mandate, Some(schedule), Arc::clone(&upstream_calls));
+    let variables = json!({
+        "id": order_id,
+        "mandateId": mandate_id,
+        "paymentScheduleId": schedule_id,
+        "idempotencyKey": "resolved-mandate-payment",
+        "amount": { "amount": "25.00", "currencyCode": "USD" }
+    });
+
+    let first = proxy.process_request(json_graphql_request(
+        MANDATE_PAYMENT_WITH_SCHEDULE_DOCUMENT,
+        variables.clone(),
+    ));
+    let first_payload = &first.body["data"]["orderCreateMandatePayment"];
+    assert_eq!(first.status, 200);
+    assert_eq!(first_payload["userErrors"], json!([]));
     assert_eq!(
         first_payload["paymentReferenceId"],
-        json!("gid://shopify/Order/1/har-353-idempotent-payment")
+        json!("gid://shopify/Order/mandate-payment/resolved-mandate-payment")
     );
-    assert_eq!(first_payload["userErrors"], json!([]));
-    assert_ne!(first_payload["job"]["id"], json!("gid://shopify/Job/6"));
-    let first_order = read_order_payment_projection(&mut proxy, json!("gid://shopify/Order/1"));
-    let first_transaction_id = first_order["transactions"][0]["id"].clone();
-    assert_ne!(
-        first_transaction_id,
-        json!("gid://shopify/OrderTransaction/4")
+    let paid_order = read_preserved_mandate_order(&mut proxy, json!(order_id));
+    assert_eq!(paid_order["name"], json!("#mandate-payment"));
+    assert_eq!(
+        paid_order["customer"]["id"],
+        json!("gid://shopify/Customer/mandate-payment")
     );
     assert_eq!(
-        first_order["transactions"][0]["amountSet"]["shopMoney"],
-        json!({ "amount": "25.0", "currencyCode": "CAD" })
+        paid_order["lineItems"]["nodes"][0]["title"],
+        json!("Mandate payment line")
     );
+    assert_eq!(paid_order["displayFinancialStatus"], json!("PAID"));
+    assert_eq!(paid_order["transactions"].as_array().unwrap().len(), 1);
+    assert_eq!(paid_order["transactions"][0]["kind"], json!("SALE"));
 
     let repeat = proxy.process_request(json_graphql_request(
-        &current_order_mandate_document(include_str!(
-            "../../config/parity-requests/payments/order_create_mandate_payment.graphql"
-        )),
-        json!({
-            "id": "gid://shopify/Order/1",
-            "mandateId": "gid://shopify/PaymentMandate/har-397",
-            "idempotencyKey": "har-353-idempotent-payment",
-            "amount": { "amount": "25.00", "currencyCode": "CAD" }
-        }),
+        MANDATE_PAYMENT_WITH_SCHEDULE_DOCUMENT,
+        variables,
     ));
     let repeat_payload = &repeat.body["data"]["orderCreateMandatePayment"];
-    assert_eq!(
-        repeat_payload["paymentReferenceId"],
-        first_payload["paymentReferenceId"]
-    );
-    assert_eq!(repeat_payload["userErrors"], json!([]));
-    assert_ne!(repeat_payload["job"]["id"], json!("gid://shopify/Job/6"));
     assert_eq!(repeat_payload["job"]["id"], first_payload["job"]["id"]);
     assert_eq!(
-        read_order_payment_projection(&mut proxy, json!("gid://shopify/Order/1")),
-        first_order
+        read_preserved_mandate_order(&mut proxy, json!(order_id)),
+        paid_order
     );
 
-    let auth_only = proxy.process_request(json_graphql_request(
-        &current_order_mandate_document(include_str!(
-            "../../config/parity-requests/payments/order_create_mandate_payment.graphql"
-        )),
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(
+        calls[0]["operationName"],
+        json!("OrderMandatePaymentPrerequisites")
+    );
+    assert_eq!(
+        calls[0]["variables"],
+        json!({ "ids": [order_id, mandate_id, schedule_id] })
+    );
+    drop(calls);
+    let entries = log_snapshot(&proxy)["entries"].as_array().unwrap().to_vec();
+    assert_eq!(entries.len(), 2);
+    assert!(entries.iter().all(|entry| entry["rawBody"]
+        .as_str()
+        .is_some_and(|body| body.contains("orderCreateMandatePayment"))));
+}
+
+#[test]
+fn order_create_mandate_payment_rejects_unrelated_and_ineligible_resources() {
+    let order_id = "gid://shopify/Order/mandate-validation";
+    let mandate_id = "gid://shopify/PaymentMandate/mandate-validation";
+    let unrelated_order = mandate_payment_prerequisite_order(
+        order_id,
+        &["gid://shopify/PaymentMandate/different-order"],
+        None,
+    );
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut unrelated_proxy = live_mandate_payment_proxy(
+        unrelated_order,
+        json!({ "__typename": "PaymentMandate", "id": mandate_id }),
+        None,
+        Arc::clone(&upstream_calls),
+    );
+    let unrelated_state = state_snapshot(&unrelated_proxy);
+    let unrelated_log = log_snapshot(&unrelated_proxy);
+    let unrelated = unrelated_proxy.process_request(json_graphql_request(
+        MANDATE_PAYMENT_WITH_SCHEDULE_DOCUMENT,
         json!({
-            "id": "gid://shopify/Order/1",
-            "mandateId": "gid://shopify/PaymentMandate/har-397",
-            "idempotencyKey": "har-848-auth-only",
-            "autoCapture": false,
-            "amount": { "amount": "25.00", "currencyCode": "CAD" }
+            "id": order_id,
+            "mandateId": mandate_id,
+            "idempotencyKey": "unrelated-mandate"
         }),
     ));
-    let auth_only_payload = &auth_only.body["data"]["orderCreateMandatePayment"];
-    assert_eq!(auth_only_payload["userErrors"], json!([]));
-    let auth_only_order = read_order_payment_projection(&mut proxy, json!("gid://shopify/Order/1"));
     assert_eq!(
-        auth_only_order["displayFinancialStatus"],
-        json!("AUTHORIZED")
+        unrelated.body["data"]["orderCreateMandatePayment"],
+        Value::Null
     );
-    let auth_only_transactions = auth_only_order["transactions"].as_array().unwrap();
-    assert_eq!(auth_only_transactions.len(), 2);
-    assert_eq!(auth_only_transactions[0]["id"], first_transaction_id);
-    assert_eq!(auth_only_transactions[1]["kind"], json!("AUTHORIZATION"));
-    assert_ne!(auth_only_transactions[1]["id"], first_transaction_id);
+    assert_eq!(
+        unrelated.body["errors"][0]["message"],
+        json!("Invalid id: gid://shopify/PaymentMandate/mandate-validation")
+    );
+    assert_eq!(state_snapshot(&unrelated_proxy), unrelated_state);
+    assert_eq!(log_snapshot(&unrelated_proxy), unrelated_log);
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+
+    let schedule_id = "gid://shopify/PaymentSchedule/completed";
+    let completed_schedule = json!({
+        "__typename": "PaymentSchedule",
+        "id": schedule_id,
+        "completedAt": "2026-07-20T00:00:00Z",
+        "due": true,
+        "balanceDue": { "amount": "0.0", "currencyCode": "USD" },
+        "totalBalance": { "amount": "25.0", "currencyCode": "USD" },
+        "paymentTerms": {
+            "id": "gid://shopify/PaymentTerms/completed",
+            "order": { "id": order_id }
+        }
+    });
+    let completed_order = mandate_payment_prerequisite_order(
+        order_id,
+        &[mandate_id],
+        Some(completed_schedule.clone()),
+    );
+    let completed_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut completed_proxy = live_mandate_payment_proxy(
+        completed_order,
+        json!({ "__typename": "PaymentMandate", "id": mandate_id }),
+        Some(completed_schedule),
+        Arc::clone(&completed_calls),
+    );
+    let completed_state = state_snapshot(&completed_proxy);
+    let completed_log = log_snapshot(&completed_proxy);
+    let completed = completed_proxy.process_request(json_graphql_request(
+        MANDATE_PAYMENT_WITH_SCHEDULE_DOCUMENT,
+        json!({
+            "id": order_id,
+            "mandateId": mandate_id,
+            "paymentScheduleId": schedule_id,
+            "idempotencyKey": "completed-schedule"
+        }),
+    ));
+    assert_eq!(
+        completed.body["data"]["orderCreateMandatePayment"]["userErrors"],
+        json!([{
+            "field": ["paymentScheduleId"],
+            "message": "Payment schedule is not eligible for payment"
+        }])
+    );
+    assert_eq!(state_snapshot(&completed_proxy), completed_state);
+    assert_eq!(log_snapshot(&completed_proxy), completed_log);
+    assert_eq!(completed_calls.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn order_create_mandate_payment_validates_type_amount_currency_and_access() {
+    let mut type_proxy = snapshot_proxy();
+    let wrong_type = type_proxy.process_request(json_graphql_request(
+        MANDATE_PAYMENT_WITH_SCHEDULE_DOCUMENT,
+        json!({
+            "id": "gid://shopify/Order/1",
+            "mandateId": "gid://shopify/Product/1",
+            "idempotencyKey": "wrong-mandate-type"
+        }),
+    ));
+    assert_eq!(
+        wrong_type.body["data"]["orderCreateMandatePayment"],
+        Value::Null
+    );
+    assert_eq!(
+        wrong_type.body["errors"][0],
+        json!({
+            "message": "Invalid id: gid://shopify/Product/1",
+            "locations": [{ "line": 10, "column": 7 }],
+            "path": ["orderCreateMandatePayment"],
+            "extensions": { "code": "RESOURCE_NOT_FOUND" }
+        })
+    );
+    assert!(log_snapshot(&type_proxy)["entries"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+
+    let order_id = "gid://shopify/Order/mandate-money";
+    let mandate_id = "gid://shopify/PaymentMandate/mandate-money";
+    let money_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut money_proxy = live_mandate_payment_proxy(
+        mandate_payment_prerequisite_order(order_id, &[mandate_id], None),
+        json!({ "__typename": "PaymentMandate", "id": mandate_id }),
+        None,
+        Arc::clone(&money_calls),
+    );
+    for (amount, expected) in [
+        (
+            json!({ "amount": "26.00", "currencyCode": "USD" }),
+            json!({ "field": ["amount"], "message": "Amount exceeds outstanding balance" }),
+        ),
+        (
+            json!({ "amount": "25.00", "currencyCode": "CAD" }),
+            json!({
+                "field": ["amount", "currencyCode"],
+                "message": "Currency must match order currency USD"
+            }),
+        ),
+    ] {
+        let state_before = state_snapshot(&money_proxy);
+        let log_before = log_snapshot(&money_proxy);
+        let response = money_proxy.process_request(json_graphql_request(
+            MANDATE_PAYMENT_WITH_SCHEDULE_DOCUMENT,
+            json!({
+                "id": order_id,
+                "mandateId": mandate_id,
+                "idempotencyKey": format!("money-validation-{amount}"),
+                "amount": amount
+            }),
+        ));
+        assert_eq!(
+            response.body["data"]["orderCreateMandatePayment"]["userErrors"],
+            json!([expected])
+        );
+        assert_eq!(state_snapshot(&money_proxy), state_before);
+        assert_eq!(log_snapshot(&money_proxy), log_before);
+    }
+    assert_eq!(money_calls.lock().unwrap().len(), 2);
+
+    let access_calls = Arc::new(Mutex::new(0usize));
+    let access_calls_for_transport = Arc::clone(&access_calls);
+    let mut access_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_request| {
+            *access_calls_for_transport.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "errors": [{
+                        "message": "Access denied for vaultedPaymentMethods field.",
+                        "extensions": { "code": "ACCESS_DENIED" }
+                    }],
+                    "data": { "nodes": [Value::Null, Value::Null] }
+                }),
+            }
+        });
+    let access_state = state_snapshot(&access_proxy);
+    let access_log = log_snapshot(&access_proxy);
+    let denied = access_proxy.process_request(json_graphql_request(
+        MANDATE_PAYMENT_WITH_SCHEDULE_DOCUMENT,
+        json!({
+            "id": order_id,
+            "mandateId": mandate_id,
+            "idempotencyKey": "access-denied"
+        }),
+    ));
+    assert_eq!(
+        denied.body["data"]["orderCreateMandatePayment"],
+        Value::Null
+    );
+    assert_eq!(
+        denied.body["errors"][0]["extensions"]["code"],
+        json!("ACCESS_DENIED")
+    );
+    assert_eq!(*access_calls.lock().unwrap(), 1);
+    assert_eq!(state_snapshot(&access_proxy), access_state);
+    assert_eq!(log_snapshot(&access_proxy), access_log);
+}
+
+#[test]
+fn order_create_mandate_payment_preserves_auto_capture_false() {
+    let order_id = "gid://shopify/Order/mandate-authorization";
+    let mandate_id = "gid://shopify/PaymentMandate/mandate-authorization";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = live_mandate_payment_proxy(
+        mandate_payment_prerequisite_order(order_id, &[mandate_id], None),
+        json!({ "__typename": "PaymentMandate", "id": mandate_id }),
+        None,
+        Arc::clone(&upstream_calls),
+    );
+    let response = proxy.process_request(json_graphql_request(
+        MANDATE_PAYMENT_WITH_SCHEDULE_DOCUMENT,
+        json!({
+            "id": order_id,
+            "mandateId": mandate_id,
+            "idempotencyKey": "authorize-only",
+            "amount": { "amount": "25.00", "currencyCode": "USD" },
+            "autoCapture": false
+        }),
+    ));
+    assert_eq!(
+        response.body["data"]["orderCreateMandatePayment"]["userErrors"],
+        json!([])
+    );
+    let order = read_order_payment_projection(&mut proxy, json!(order_id));
+    assert_eq!(order["displayFinancialStatus"], json!("AUTHORIZED"));
+    assert_eq!(order["transactions"][0]["kind"], json!("AUTHORIZATION"));
+    assert_eq!(
+        order["totalReceivedSet"]["shopMoney"]["amount"],
+        json!("0.0")
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
 #[test]
 fn order_create_mandate_payment_preserves_existing_staged_order() {
-    let mut proxy = snapshot_proxy();
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let calls_for_transport = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream request body");
+            calls_for_transport.lock().unwrap().push(body.clone());
+            mandate_payment_relationship_response(&body)
+        });
 
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -13477,7 +13906,7 @@ fn order_create_mandate_payment_preserves_existing_staged_order() {
                 }],
                 "transactions": [{
                     "kind": "AUTHORIZATION",
-                    "status": "SUCCESS",
+                    "status": "PENDING",
                     "gateway": "shopify_payments",
                     "amountSet": {
                         "shopMoney": { "amount": "25.00", "currencyCode": "CAD" }
@@ -13496,7 +13925,6 @@ fn order_create_mandate_payment_preserves_existing_staged_order() {
         created_order["paymentGatewayNames"],
         json!(["shopify_payments"])
     );
-
     let mandate_query = r#"
         mutation ChargeExistingMandateOrder(
           $id: ID!
@@ -13588,6 +14016,7 @@ fn order_create_mandate_payment_preserves_existing_staged_order() {
         read_preserved_mandate_order(&mut proxy, order_id),
         paid_order
     );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
 #[test]
@@ -14341,7 +14770,11 @@ fn order_payment_transactions_dispatch_by_root_for_ordinary_operation_names() {
     ))
     .unwrap();
 
-    let mut proxy = snapshot_proxy();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream request body");
+            mandate_payment_relationship_response(&body)
+        });
     let create = proxy.process_request(json_graphql_request(
         &current_order_payment_document(include_str!(
             "../../config/parity-requests/orders/order-payment-non-recording-create.graphql"
@@ -14387,7 +14820,6 @@ fn order_payment_transactions_dispatch_by_root_for_ordinary_operation_names() {
         read_after_capture.body["data"]["order"]["displayFinancialStatus"],
         json!("PARTIALLY_PAID")
     );
-
     let mandate = proxy.process_request(json_graphql_request(
         &current_order_mandate_document(include_str!(
             "../../config/parity-requests/orders/order-payment-non-recording-mandate.graphql"
