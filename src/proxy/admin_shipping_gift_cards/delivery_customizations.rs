@@ -1,6 +1,81 @@
 use super::*;
 
 const DELIVERY_CUSTOMIZATION_MAX_ENABLED: usize = 25;
+const DELIVERY_CUSTOMIZATION_HYDRATE_BY_ID_QUERY: &str = r#"query DeliveryCustomizationHydrateById($id: ID!) {
+  deliveryCustomization(id: $id) {
+    id
+    title
+    enabled
+    functionId
+    shopifyFunction {
+      id
+      title
+      apiType
+      description
+      appKey
+      app { __typename id title handle apiKey }
+    }
+    errorHistory {
+      firstOccurredAt
+      errorsFirstOccurredAt
+      hasSharedRecentErrors
+      hasBeenSharedSinceLastError
+    }
+    metafields(first: 250) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+        compareDigest
+        ownerType
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}
+"#;
+const DELIVERY_CUSTOMIZATION_ACTIVE_CATALOG_HYDRATE_QUERY: &str = r#"query DeliveryCustomizationActiveCatalogHydrate {
+  deliveryCustomizations(first: 26, query: "enabled:true") {
+    nodes {
+      id
+      title
+      enabled
+      functionId
+      shopifyFunction {
+        id
+        title
+        apiType
+        description
+        appKey
+        app { __typename id title handle apiKey }
+      }
+      errorHistory {
+        firstOccurredAt
+        errorsFirstOccurredAt
+        hasSharedRecentErrors
+        hasBeenSharedSinceLastError
+      }
+      metafields(first: 250) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          compareDigest
+          ownerType
+          createdAt
+          updatedAt
+        }
+      }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+"#;
 
 pub(in crate::proxy) fn delivery_customization_field_resolver_registrations(
 ) -> Vec<FieldResolverRegistration> {
@@ -397,15 +472,26 @@ pub(in crate::proxy) fn delivery_customization_immutable_function_error(field: &
 }
 
 pub(in crate::proxy) fn delivery_customization_function_not_found_error(
-    handle: &str,
+    field: &str,
+    reference: &str,
     current_app_id: &str,
 ) -> Value {
     delivery_customization_user_error(
-        vec!["deliveryCustomization", "functionHandle"],
+        vec!["deliveryCustomization", field],
         "FUNCTION_NOT_FOUND",
         &format!(
-            "Function {handle} not found. Ensure that it is released in the current app ({current_app_id}), and that the app is installed."
+            "Function {reference} not found. Ensure that it is released in the current app ({current_app_id}), and that the app is installed."
         ),
+    )
+}
+
+pub(in crate::proxy) fn delivery_customization_function_does_not_implement_error(
+    field: &str,
+) -> Value {
+    delivery_customization_user_error(
+        vec!["deliveryCustomization", field],
+        "FUNCTION_DOES_NOT_IMPLEMENT",
+        "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.delivery-customization.run, cart.delivery-options.transform.run].",
     )
 }
 
@@ -423,9 +509,71 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && self.delivery_customization_root_needs_upstream(invocation.root_name, &arguments)
+        {
+            let result = self.cached_or_forward_upstream_graphql_result(
+                invocation.request,
+                invocation.response_key,
+            );
+            if result.transport_succeeded && result.outcome.errors.is_empty() {
+                self.observe_delivery_customizations_data(&result.data);
+            }
+            if !self.has_local_delivery_customization_overlay()
+                || !result.transport_succeeded
+                || !result.outcome.errors.is_empty()
+            {
+                return result.outcome;
+            }
+        }
         ResolverOutcome::value(
             self.delivery_customization_query_value(invocation.root_name, &arguments),
         )
+    }
+
+    fn delivery_customization_root_needs_upstream(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        match root_name {
+            "deliveryCustomization" => {
+                let id = resolved_string_field(arguments, "id").unwrap_or_default();
+                !self.delivery_customization_is_known_locally(&id)
+            }
+            "deliveryCustomizations" => true,
+            _ => false,
+        }
+    }
+
+    fn delivery_customization_is_known_locally(&self, id: &str) -> bool {
+        self.store.staged.delivery_customizations.is_tombstoned(id)
+            || self.store.staged.delivery_customizations.contains_key(id)
+            || self.store.base.delivery_customizations.get(id).is_some()
+    }
+
+    fn has_local_delivery_customization_overlay(&self) -> bool {
+        !self.store.staged.delivery_customizations.is_empty()
+    }
+
+    fn observe_delivery_customizations_data(&mut self, data: &Value) -> bool {
+        let mut records = Vec::new();
+        collect_delivery_customization_response_values(data, &mut records);
+        let mut observed = false;
+        for record in records {
+            observed |= self.observe_base_delivery_customization(record).is_some();
+        }
+        observed
+    }
+
+    fn observe_base_delivery_customization(&mut self, record: Value) -> Option<Value> {
+        let record = normalize_delivery_customization_record(record)?;
+        let id = record.get("id")?.as_str()?.to_string();
+        self.store
+            .base
+            .delivery_customizations
+            .insert(id, record.clone());
+        Some(record)
     }
 
     fn delivery_customization_query_value(
@@ -436,22 +584,11 @@ impl DraftProxy {
         match root_name {
             "deliveryCustomization" => {
                 let id = resolved_string_field(arguments, "id").unwrap_or_default();
-                self.store
-                    .staged
-                    .delivery_customizations
-                    .get(&id)
-                    .cloned()
+                self.delivery_customization_for_read(&id)
                     .unwrap_or(Value::Null)
             }
             "deliveryCustomizations" => staged_connection_value_with_args(
-                self.store
-                    .staged
-                    .delivery_customizations
-                    .order
-                    .iter()
-                    .filter_map(|id| self.store.staged.delivery_customizations.get(id))
-                    .cloned()
-                    .collect(),
+                self.effective_delivery_customizations(),
                 arguments,
                 delivery_customization_query_matches,
                 delivery_customization_sort_key,
@@ -460,6 +597,47 @@ impl DraftProxy {
             ),
             _ => Value::Null,
         }
+    }
+
+    pub(in crate::proxy) fn delivery_customization_for_read(&self, id: &str) -> Option<Value> {
+        if self.store.staged.delivery_customizations.is_tombstoned(id) {
+            return None;
+        }
+        self.store
+            .staged
+            .delivery_customizations
+            .get(id)
+            .cloned()
+            .or_else(|| self.store.base.delivery_customizations.get(id).cloned())
+    }
+
+    fn effective_delivery_customizations(&self) -> Vec<Value> {
+        let mut records = Vec::new();
+        let mut seen = BTreeSet::new();
+        for id in &self.store.base.delivery_customizations.order {
+            if self.store.staged.delivery_customizations.is_tombstoned(id) {
+                continue;
+            }
+            if let Some(record) = self
+                .store
+                .staged
+                .delivery_customizations
+                .get(id)
+                .or_else(|| self.store.base.delivery_customizations.get(id))
+            {
+                records.push(record.clone());
+                seen.insert(id.clone());
+            }
+        }
+        for id in &self.store.staged.delivery_customizations.order {
+            if seen.contains(id) || self.store.staged.delivery_customizations.is_tombstoned(id) {
+                continue;
+            }
+            if let Some(record) = self.store.staged.delivery_customizations.get(id) {
+                records.push(record.clone());
+            }
+        }
+        records
     }
 
     pub(crate) fn delivery_customization_mutation_root(
@@ -486,9 +664,11 @@ impl DraftProxy {
                 api_client_id.as_deref(),
             ),
             "deliveryCustomizationActivation" => {
-                self.delivery_customization_activation_payload(&arguments)
+                self.delivery_customization_activation_payload(request, &arguments)
             }
-            "deliveryCustomizationDelete" => self.delivery_customization_delete_payload(&arguments),
+            "deliveryCustomizationDelete" => {
+                self.delivery_customization_delete_payload(request, &arguments)
+            }
             _ => {
                 return resolver_http_error_outcome(
                     501,
@@ -552,23 +732,41 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        let resolved_function = if let Some(handle) = function_handle.as_deref() {
-            let Some(function) =
-                self.resolve_delivery_customization_function(request, None, Some(handle))
-            else {
+        let (function_field, function_reference) = if let Some(function_id) = function_id.as_deref()
+        {
+            ("functionId", function_id)
+        } else {
+            (
+                "functionHandle",
+                function_handle.as_deref().unwrap_or_default(),
+            )
+        };
+        let resolved_function = match self.resolve_delivery_customization_function_reference(
+            request,
+            (function_field == "functionId").then_some(function_reference),
+            (function_field == "functionHandle").then_some(function_reference),
+        ) {
+            DeliveryCustomizationFunctionResolution::Resolved(function) => function,
+            DeliveryCustomizationFunctionResolution::NotFound => {
                 return (
                     delivery_customization_error_payload(vec![
                         delivery_customization_function_not_found_error(
-                            handle,
+                            function_field,
+                            function_reference,
                             &request_api_client_id(request),
                         ),
                     ]),
                     Vec::new(),
                 );
-            };
-            Some(function)
-        } else {
-            None
+            }
+            DeliveryCustomizationFunctionResolution::WrongType => {
+                return (
+                    delivery_customization_error_payload(vec![
+                        delivery_customization_function_does_not_implement_error(function_field),
+                    ]),
+                    Vec::new(),
+                );
+            }
         };
         let metafield_errors = delivery_customization_metafield_validation_errors(&input);
         if !metafield_errors.is_empty() {
@@ -577,13 +775,17 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        if resolved_bool_field(&input, "enabled").unwrap_or(false)
-            && self.delivery_customization_enabled_count(None) >= DELIVERY_CUSTOMIZATION_MAX_ENABLED
-        {
-            return (
-                delivery_customization_error_payload(vec![delivery_customization_limit_error()]),
-                Vec::new(),
-            );
+        if resolved_bool_field(&input, "enabled").unwrap_or(false) {
+            self.hydrate_delivery_customization_active_catalog(request);
+            if self.delivery_customization_enabled_count(None) >= DELIVERY_CUSTOMIZATION_MAX_ENABLED
+            {
+                return (
+                    delivery_customization_error_payload(
+                        vec![delivery_customization_limit_error()],
+                    ),
+                    Vec::new(),
+                );
+            }
         }
 
         let id = shopify_gid("DeliveryCustomization", self.next_synthetic_id);
@@ -593,7 +795,7 @@ impl DraftProxy {
             &id,
             &input,
             api_client_id,
-            resolved_function.as_ref(),
+            Some(&resolved_function),
             &timestamp,
         );
         self.store
@@ -611,7 +813,7 @@ impl DraftProxy {
     ) -> (Value, Vec<String>) {
         let id = resolved_string_field(arguments, "id").unwrap_or_default();
         let input = resolved_object_field(arguments, "deliveryCustomization").unwrap_or_default();
-        let Some(existing) = self.store.staged.delivery_customizations.get(&id).cloned() else {
+        let Some(existing) = self.hydrate_delivery_customization_by_id(request, &id) else {
             return (
                 delivery_customization_error_payload(vec![delivery_customization_not_found_error(
                     &id,
@@ -629,18 +831,34 @@ impl DraftProxy {
             );
         }
         if let Some(handle) = resolved_string_field(&input, "functionHandle") {
-            let Some(function) =
-                self.resolve_delivery_customization_function(request, None, Some(&handle))
-            else {
-                return (
-                    delivery_customization_error_payload(vec![
-                        delivery_customization_function_not_found_error(
-                            &handle,
-                            &request_api_client_id(request),
-                        ),
-                    ]),
-                    Vec::new(),
-                );
+            let function = match self.resolve_delivery_customization_function_reference(
+                request,
+                None,
+                Some(&handle),
+            ) {
+                DeliveryCustomizationFunctionResolution::Resolved(function) => function,
+                DeliveryCustomizationFunctionResolution::NotFound => {
+                    return (
+                        delivery_customization_error_payload(vec![
+                            delivery_customization_function_not_found_error(
+                                "functionHandle",
+                                &handle,
+                                &request_api_client_id(request),
+                            ),
+                        ]),
+                        Vec::new(),
+                    );
+                }
+                DeliveryCustomizationFunctionResolution::WrongType => {
+                    return (
+                        delivery_customization_error_payload(vec![
+                            delivery_customization_function_does_not_implement_error(
+                                "functionHandle",
+                            ),
+                        ]),
+                        Vec::new(),
+                    );
+                }
             };
             let Some(function_key) = function
                 .get("id")
@@ -650,6 +868,7 @@ impl DraftProxy {
                 return (
                     delivery_customization_error_payload(vec![
                         delivery_customization_function_not_found_error(
+                            "functionHandle",
                             &handle,
                             &request_api_client_id(request),
                         ),
@@ -671,7 +890,49 @@ impl DraftProxy {
             }
         }
         if let Some(function_id) = resolved_string_field(&input, "functionId") {
-            let function_key = delivery_customization_function_key(&function_id);
+            let function = match self.resolve_delivery_customization_function_reference(
+                request,
+                Some(&function_id),
+                None,
+            ) {
+                DeliveryCustomizationFunctionResolution::Resolved(function) => function,
+                DeliveryCustomizationFunctionResolution::NotFound => {
+                    return (
+                        delivery_customization_error_payload(vec![
+                            delivery_customization_function_not_found_error(
+                                "functionId",
+                                &function_id,
+                                &request_api_client_id(request),
+                            ),
+                        ]),
+                        Vec::new(),
+                    );
+                }
+                DeliveryCustomizationFunctionResolution::WrongType => {
+                    return (
+                        delivery_customization_error_payload(vec![
+                            delivery_customization_function_does_not_implement_error("functionId"),
+                        ]),
+                        Vec::new(),
+                    );
+                }
+            };
+            let Some(function_key) = function
+                .get("id")
+                .and_then(Value::as_str)
+                .map(delivery_customization_function_key)
+            else {
+                return (
+                    delivery_customization_error_payload(vec![
+                        delivery_customization_function_not_found_error(
+                            "functionId",
+                            &function_id,
+                            &request_api_client_id(request),
+                        ),
+                    ]),
+                    Vec::new(),
+                );
+            };
             if !self.delivery_customization_record_matches_function_key(
                 request,
                 &existing,
@@ -702,17 +963,18 @@ impl DraftProxy {
             }
         }
         if let Some(enabled) = resolved_bool_field(&input, "enabled") {
-            if enabled
-                && updated.get("enabled").and_then(Value::as_bool) != Some(true)
-                && self.delivery_customization_enabled_count(Some(&id))
+            if enabled && updated.get("enabled").and_then(Value::as_bool) != Some(true) {
+                self.hydrate_delivery_customization_active_catalog(request);
+                if self.delivery_customization_enabled_count(Some(&id))
                     >= DELIVERY_CUSTOMIZATION_MAX_ENABLED
-            {
-                return (
-                    delivery_customization_error_payload(
-                        vec![delivery_customization_limit_error()],
-                    ),
-                    Vec::new(),
-                );
+                {
+                    return (
+                        delivery_customization_error_payload(vec![
+                            delivery_customization_limit_error(),
+                        ]),
+                        Vec::new(),
+                    );
+                }
             }
             if updated.get("enabled").and_then(Value::as_bool) != Some(enabled) {
                 updated["enabled"] = json!(enabled);
@@ -744,6 +1006,7 @@ impl DraftProxy {
 
     fn delivery_customization_activation_payload(
         &mut self,
+        request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Vec<String>) {
         let ids = resolved_string_list_arg(arguments, "ids");
@@ -751,14 +1014,20 @@ impl DraftProxy {
             Some(ResolvedValue::Bool(value)) => *value,
             _ => false,
         };
+        if enabled {
+            self.hydrate_delivery_customization_active_catalog(request);
+        }
+        for id in &ids {
+            self.hydrate_delivery_customization_by_id(request, id);
+        }
         let mut valid_ids = Vec::new();
         let mut missing_ids = Vec::new();
         let mut limit_exceeded = false;
         let mut active_count = self.delivery_customization_enabled_count(None);
         let timestamp = self.next_mutation_timestamp();
         for id in ids {
-            match self.store.staged.delivery_customizations.get_mut(&id) {
-                Some(record) => {
+            match self.delivery_customization_for_read(&id) {
+                Some(mut record) => {
                     let was_enabled = record.get("enabled").and_then(Value::as_bool) == Some(true);
                     if enabled && !was_enabled {
                         if active_count >= DELIVERY_CUSTOMIZATION_MAX_ENABLED {
@@ -774,6 +1043,10 @@ impl DraftProxy {
                         record["enabled"] = json!(enabled);
                         record["updatedAt"] = json!(timestamp);
                     }
+                    self.store
+                        .staged
+                        .delivery_customizations
+                        .insert(id.clone(), record);
                     valid_ids.push(id);
                 }
                 None => missing_ids.push(id),
@@ -803,16 +1076,15 @@ impl DraftProxy {
 
     fn delivery_customization_delete_payload(
         &mut self,
+        request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> (Value, Vec<String>) {
         let id = resolved_string_field(arguments, "id").unwrap_or_default();
         if self
-            .store
-            .staged
-            .delivery_customizations
-            .remove(&id)
+            .hydrate_delivery_customization_by_id(request, &id)
             .is_some()
         {
+            self.store.staged.delivery_customizations.remove(&id);
             self.store
                 .staged
                 .delivery_customizations
@@ -835,14 +1107,142 @@ impl DraftProxy {
     }
 
     fn delivery_customization_enabled_count(&self, excluding_id: Option<&str>) -> usize {
-        self.store
-            .staged
-            .delivery_customizations
-            .values()
+        self.effective_delivery_customizations()
+            .into_iter()
             .filter(|record| {
                 record.get("id").and_then(Value::as_str) != excluding_id
                     && record.get("enabled").and_then(Value::as_bool) == Some(true)
             })
             .count()
     }
+
+    fn hydrate_delivery_customization_by_id(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> Option<Value> {
+        if id.is_empty()
+            || self.config.read_mode != ReadMode::LiveHybrid
+            || self.store.staged.delivery_customizations.is_tombstoned(id)
+            || self.store.staged.delivery_customizations.contains_key(id)
+            || (self
+                .store
+                .base
+                .delivery_customization_complete_ids
+                .contains(id)
+                && self.store.base.delivery_customizations.get(id).is_some())
+        {
+            return self.delivery_customization_for_read(id);
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": DELIVERY_CUSTOMIZATION_HYDRATE_BY_ID_QUERY,
+                "operationName": "DeliveryCustomizationHydrateById",
+                "variables": { "id": id }
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let record = normalize_delivery_customization_record(
+            response.body["data"]["deliveryCustomization"].clone(),
+        )?;
+        if record.get("id").and_then(Value::as_str) != Some(id) {
+            return None;
+        }
+        self.observe_base_delivery_customization(record)?;
+        self.store
+            .base
+            .delivery_customization_complete_ids
+            .insert(id.to_string());
+        self.delivery_customization_for_read(id)
+    }
+
+    fn hydrate_delivery_customization_active_catalog(&mut self, request: &Request) {
+        if self
+            .store
+            .base
+            .delivery_customization_active_catalog_hydrated
+            || self.config.read_mode != ReadMode::LiveHybrid
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": DELIVERY_CUSTOMIZATION_ACTIVE_CATALOG_HYDRATE_QUERY,
+                "operationName": "DeliveryCustomizationActiveCatalogHydrate",
+                "variables": {}
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        if response.body.get("errors").is_some() {
+            return;
+        }
+        let connection = &response.body["data"]["deliveryCustomizations"];
+        let Some(nodes) = connection["nodes"].as_array() else {
+            return;
+        };
+        let Some(has_next_page) = connection["pageInfo"]["hasNextPage"].as_bool() else {
+            return;
+        };
+        for record in nodes {
+            if let Some(record) = self.observe_base_delivery_customization(record.clone()) {
+                if let Some(id) = record.get("id").and_then(Value::as_str) {
+                    self.store
+                        .base
+                        .delivery_customization_complete_ids
+                        .insert(id.to_string());
+                }
+            }
+        }
+        if !has_next_page || nodes.len() >= DELIVERY_CUSTOMIZATION_MAX_ENABLED {
+            self.store
+                .base
+                .delivery_customization_active_catalog_hydrated = true;
+        }
+    }
+}
+
+fn collect_delivery_customization_response_values(value: &Value, records: &mut Vec<Value>) {
+    match value {
+        Value::Array(values) => {
+            for value in values {
+                collect_delivery_customization_response_values(value, records);
+            }
+        }
+        Value::Object(object) => {
+            let is_delivery_customization = object.get("__typename").and_then(Value::as_str)
+                == Some("DeliveryCustomization")
+                || object
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .is_some_and(|id| is_shopify_gid_of_type(id, "DeliveryCustomization"));
+            if is_delivery_customization {
+                records.push(value.clone());
+                return;
+            }
+            for child in object.values() {
+                collect_delivery_customization_response_values(child, records);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn normalize_delivery_customization_record(mut record: Value) -> Option<Value> {
+    if !record.is_object() {
+        return None;
+    }
+    let id = record.get("id").and_then(Value::as_str)?;
+    if !is_shopify_gid_of_type(id, "DeliveryCustomization") {
+        return None;
+    }
+    if record.get("__typename").is_none() {
+        record["__typename"] = json!("DeliveryCustomization");
+    }
+    Some(record)
 }

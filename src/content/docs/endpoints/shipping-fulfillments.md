@@ -339,22 +339,36 @@ Successful mutations retain the original raw GraphQL request for commit replay;
 validation failures return `userErrors` and do not stage records or append
 mutation-log entries. The local record model stores the customization id, title,
 enabled state, owning Shopify Function identity, selected Function metadata,
-metafields, and timestamps. Create resolves a Function by handle from the
-current app when needed, rejects missing or ambiguous Function identifiers,
-enforces the active-customization limit, validates required title/enabled input
-and metafield fields, and preserves `$app` metafield namespace behavior for the
-requesting API client. Update preserves Function identity, supports title,
-enabled state, and metafield replacement, and rejects unknown customization IDs
-or attempts to move a customization to another Function. Activation updates
-known IDs idempotently and reports unknown or over-limit inputs through
-Shopify-shaped `userErrors`; delete tombstones known IDs so later detail and
-generic Node reads return null. `deliveryCustomization(id:)` and
-`deliveryCustomizations(first/last/after/before/query/sortKey/reverse:)` read
-from the staged customization store, return Shopify-like null/empty shapes when
-no local data exists, apply selected fields and connection windows, and reflect
-read-after-write state immediately. Generic `node(id:)` and `nodes(ids:)` reads
-resolve staged delivery customizations through the same normalized record,
-preserve `nodes(ids:)` input order, and return null for missing or deleted IDs.
+metafields, and timestamps. Create resolves both `functionId` and
+`functionHandle` against the current app's authoritative Function catalog and
+requires a delivery-customization Function API type. Missing and wrong-app
+references return `FUNCTION_NOT_FOUND`; Functions with another API type return
+`FUNCTION_DOES_NOT_IMPLEMENT`. Create also rejects missing or ambiguous Function
+identifiers, validates required title/enabled input and metafield fields, and
+preserves `$app` metafield namespace behavior for the requesting API client.
+Update preserves Function identity, supports title, enabled state, and
+metafield replacement, and rejects attempts to move a customization to another
+Function.
+
+In LiveHybrid mode, mutation-first update, activation, and delete requests
+hydrate an unknown real customization by ID before returning not found. Enabling
+a customization first hydrates enough of the authoritative enabled catalog to
+apply the 25-active-customization ceiling over real records plus staged updates
+and tombstones. These hydration calls are query-only; supported mutations never
+write to Shopify during normal runtime. Activation updates known IDs
+idempotently and reports unknown or over-limit inputs through Shopify-shaped
+`userErrors`; delete tombstones known IDs so later detail and generic Node reads
+return null.
+
+`deliveryCustomization(id:)` and
+`deliveryCustomizations(first/last/after/before/query/sortKey/reverse:)` expose
+an effective catalog built from authoritative observed records overlaid by
+staged creates, updates, and tombstones. Snapshot mode returns Shopify-like
+null/empty shapes when no local data exists; LiveHybrid cold reads preserve the
+upstream catalog, while reads after local changes render the effective overlay
+with local selected-field and connection-window semantics. Generic `node(id:)`
+and `nodes(ids:)` reads use the same effective records, preserve `nodes(ids:)`
+input order, and return null for missing or deleted IDs.
 
 Local pickup mutations stage settings on active local locations and retain the
 original raw GraphQL request for commit replay. `locationLocalPickupEnable`
@@ -390,11 +404,12 @@ with `/endpoints/orders/` and `/endpoints/returns/`.
   shipping/fulfillments root support beyond their covered request families.
 - Delivery promise mutations are provider-backed and remain unsupported until
   provider state, validation, cleanup, and downstream reads are modeled locally.
-- Delivery customization runtime behavior is covered by local integration tests.
-  Live Shopify parity capture for successful lifecycle writes also requires an
-  installed delivery-customization Shopify Function in the conformance app; when
-  that Function is unavailable, proxy-only runtime tests must not be treated as
-  captured Shopify evidence.
+- Live Shopify evidence covers missing and wrong-type delivery Function
+  references by both ID and handle. Successful lifecycle writes, wrong-app
+  references, cold existing targets, and the active-limit branch require an
+  installed delivery-customization Function and existing disposable
+  customizations in the conformance app. Local runtime tests for those blocked
+  branches are regression evidence, not captured Shopify parity.
 - Fulfillment constraint rule metadata roots are covered by the Functions
   endpoint group, not by the shipping/fulfillments local slices.
 - Validation-only shipping and fulfillment specs prove guardrail payloads and

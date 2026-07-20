@@ -418,6 +418,10 @@ struct Store {
 #[derive(Clone, Default)]
 struct BaseState {
     delivery_profiles: OrderedRecords<Value>,
+    delivery_customizations: OrderedRecords<Value>,
+    delivery_customization_complete_ids: BTreeSet<String>,
+    delivery_customization_active_catalog_hydrated: bool,
+    delivery_customization_function_catalog_hydrated: bool,
     delivery_promise_providers: OrderedRecords<Value>,
     delivery_promise_provider_complete_location_ids: BTreeSet<String>,
     delivery_promise_participants: OrderedRecords<Value>,

@@ -1,0 +1,23 @@
+mutation DeliveryCustomizationInvalidFunctionReferences(
+  $missingId: DeliveryCustomizationInput!
+  $wrongTypeId: DeliveryCustomizationInput!
+  $missingHandle: DeliveryCustomizationInput!
+  $wrongTypeHandle: DeliveryCustomizationInput!
+) {
+  missingId: deliveryCustomizationCreate(deliveryCustomization: $missingId) {
+    deliveryCustomization { id title enabled functionId }
+    userErrors { field message code }
+  }
+  wrongTypeId: deliveryCustomizationCreate(deliveryCustomization: $wrongTypeId) {
+    deliveryCustomization { id title enabled functionId }
+    userErrors { field message code }
+  }
+  missingHandle: deliveryCustomizationCreate(deliveryCustomization: $missingHandle) {
+    deliveryCustomization { id title enabled functionId }
+    userErrors { field message code }
+  }
+  wrongTypeHandle: deliveryCustomizationCreate(deliveryCustomization: $wrongTypeHandle) {
+    deliveryCustomization { id title enabled functionId }
+    userErrors { field message code }
+  }
+}

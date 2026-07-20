@@ -883,11 +883,7 @@ pub(crate) fn load_delivery_customization(
         return NodeLoadState::KnownMissing;
     }
     proxy
-        .store
-        .staged
-        .delivery_customizations
-        .get(id)
-        .cloned()
+        .delivery_customization_for_read(id)
         .map(|mut value| {
             value["errorHistory"] = Value::Null;
             value["metafieldDefinitions"] = connection_json(Vec::new());

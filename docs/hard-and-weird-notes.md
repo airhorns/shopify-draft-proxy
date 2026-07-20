@@ -4514,3 +4514,24 @@ Practical rule:
 - distinguish an authoritative null node from transport, GraphQL, or incomplete
   response failures; all failure classes must leave product/category state
   unchanged, but only the authoritative miss is proven invalid
+
+## 108. Delivery customization Function handles require catalog metadata matching
+
+Live Admin GraphQL 2026-04 capture showed an asymmetric Function surface.
+`DeliveryCustomizationInput` accepts `functionHandle`, but `ShopifyFunction`
+does not expose a selectable `handle` field and `shopifyFunctions` does not
+accept a `handle:` argument on this schema. The current app's Function catalog
+does expose the extension handle as `title` and `description`. Shopify used that
+handle to distinguish a missing Function from a current-app Function with the
+wrong API type: the latter returned `FUNCTION_DOES_NOT_IMPLEMENT`, not
+`FUNCTION_NOT_FOUND`.
+
+Practical rule:
+
+- resolve delivery customization IDs with `shopifyFunction(id:)`
+- resolve handles from the complete current-app Function catalog using observed
+  handle metadata, with captured title/description matching where `handle` is
+  unavailable
+- verify app ownership before API type, so wrong-app references remain not found
+- classify only delivery-customization extension targets as eligible and never
+  accept an unverified caller-supplied Function reference
