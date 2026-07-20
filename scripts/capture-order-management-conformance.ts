@@ -223,6 +223,10 @@ const orderCustomerSetMutation = await readRequest('orderCustomerSet-parity.grap
 const orderCustomerRemoveMutation = await readRequest('orderCustomerRemove-parity.graphql');
 const orderInvoiceSendMutation = await readRequest('orderInvoiceSend-parity.graphql');
 const orderCreateManualPaymentMutation = await readRequest('orderCreateManualPayment-access-denied-parity.graphql');
+const orderCreateManualPaymentSuccessMutation = await readRequest('orderCreateManualPayment-success-parity.graphql');
+const orderCreateManualPaymentOrderReadQuery = await readRequest('orderCreateManualPayment-order-read.graphql');
+const orderCreateManualPaymentCapabilityQuery = await readRequest('order-create-manual-payment-capability.graphql');
+const orderCreateManualPaymentContextQuery = await readRequest('order-create-manual-payment-context.graphql');
 const taxSummaryCreateMutation = await readRequest('taxSummaryCreate-access-denied-parity.graphql');
 
 const draftOrderCreateMutation = `#graphql
@@ -389,6 +393,26 @@ async function readOrder(id: string): Promise<Capture> {
   return result;
 }
 
+async function readManualPaymentOrder(id: string): Promise<Capture> {
+  const result = await capture(orderCreateManualPaymentOrderReadQuery, { id });
+  assertOk('manual-payment order read', result);
+  return result;
+}
+
+async function readManualPaymentCapability(): Promise<Capture> {
+  const result = await capture(orderCreateManualPaymentCapabilityQuery, {});
+  assertOk('manual-payment capability read', result);
+  assertManualPaymentCapabilityContext('manual-payment capability read', result);
+  return result;
+}
+
+async function readManualPaymentContext(id: string): Promise<Capture> {
+  const result = await capture(orderCreateManualPaymentContextQuery, { id });
+  assertOk('manual-payment context read', result);
+  assertManualPaymentCapabilityContext('manual-payment context read', result);
+  return result;
+}
+
 async function readOrderCancelEffects(id: string): Promise<Capture> {
   const result = await capture(orderCancelRestockRefundMethodReadQuery, { id });
   assertOk('orderCancel restock/refundMethod downstream order read', result);
@@ -448,6 +472,92 @@ function orderHydrateCall(operationName: string, orderRead: Capture): JsonRecord
       body: orderRead.response.payload,
     },
   };
+}
+
+function manualPaymentUpstreamCall(operationName: string, captured: Capture): JsonRecord {
+  return {
+    operationName,
+    variables: captured.variables,
+    query: captured.query,
+    response: {
+      status: captured.response.status,
+      body: captured.response.payload,
+    },
+  };
+}
+
+function assertManualPaymentCapabilityContext(label: string, captured: Capture): void {
+  const data = asRecord(captured.response.payload.data);
+  const shopifyPlus = asRecord(asRecord(data['shop'])['plan'])['shopifyPlus'];
+  const accessScopes = asRecord(data['currentAppInstallation'])['accessScopes'];
+  const hasWriteOrders =
+    Array.isArray(accessScopes) && accessScopes.some((scope) => asRecord(scope)['handle'] === 'write_orders');
+  if (shopifyPlus === false && hasWriteOrders) {
+    return;
+  }
+  throw new Error(
+    `${label} did not confirm the expected non-Plus/write_orders capability context: ${JSON.stringify(captured.response.payload, null, 2)}`,
+  );
+}
+
+function manualPaymentVariables(id: string, amount?: string): JsonRecord {
+  const variables: JsonRecord = {
+    id,
+    processedAt: new Date().toISOString(),
+  };
+  if (amount !== undefined) {
+    variables['amount'] = { amount, currencyCode: 'USD' };
+  }
+  return variables;
+}
+
+function assertManualPaymentSuccess(label: string, captured: Capture): void {
+  assertOk(label, captured);
+  assertNoUserErrors(label, captured, 'orderCreateManualPayment');
+  const order = asRecord(readRoot(captured, 'orderCreateManualPayment')['order']);
+  if (typeof order['id'] !== 'string' || order['id'].length === 0) {
+    throw new Error(`${label} did not return an order: ${JSON.stringify(captured.response.payload, null, 2)}`);
+  }
+}
+
+function assertManualPaymentMissing(label: string, captured: Capture): void {
+  assertOk(label, captured);
+  const root = readRoot(captured, 'orderCreateManualPayment');
+  const userErrors = root['userErrors'];
+  if (
+    root['order'] === null &&
+    Array.isArray(userErrors) &&
+    userErrors.some((error) => asRecord(error)['message'] === 'Order does not exist')
+  ) {
+    return;
+  }
+  throw new Error(
+    `${label} did not return the missing-order userError: ${JSON.stringify(captured.response.payload, null, 2)}`,
+  );
+}
+
+function isManualPaymentTemporarilyUnavailable(captured: Capture): boolean {
+  const userErrors = readRoot(captured, 'orderCreateManualPayment')['userErrors'];
+  return (
+    Array.isArray(userErrors) &&
+    userErrors.some((error) => asRecord(error)['message'] === 'Order is temporarily unavailable to be modified.')
+  );
+}
+
+async function captureManualPaymentWhenAvailable(
+  query: string,
+  variables: JsonRecord,
+  label: string,
+): Promise<Capture> {
+  let latest = await capture(query, variables);
+  for (let attempt = 0; attempt < 10 && isManualPaymentTemporarilyUnavailable(latest); attempt += 1) {
+    await delay(1000);
+    latest = await capture(query, variables);
+  }
+  if (isManualPaymentTemporarilyUnavailable(latest)) {
+    throw new Error(`${label} remained temporarily unavailable: ${JSON.stringify(latest.response.payload, null, 2)}`);
+  }
+  return latest;
 }
 
 function customerHydrateCall(customer: CreatedCustomer): JsonRecord {
@@ -650,6 +760,105 @@ async function captureAccessDenied(): Promise<void> {
   });
 }
 
+async function captureManualPaymentCapabilityScenarios(
+  stamp: number,
+  selection: 'all' | 'eligible' | 'ineligible' | 'missing' = 'all',
+): Promise<void> {
+  if (selection === 'all' || selection === 'ineligible') {
+    const coldIneligibleOrder = await createOrder('manual-payment-cold-ineligible', stamp, '16.00');
+    const coldIneligibleContext = await readManualPaymentContext(coldIneligibleOrder.id);
+    const coldIneligibleVariables = manualPaymentVariables(coldIneligibleOrder.id, '8.00');
+    const coldIneligibleMutation = await capture(orderCreateManualPaymentMutation, coldIneligibleVariables);
+    assertAccessDenied('cold orderCreateManualPayment with amount', coldIneligibleMutation, 'orderCreateManualPayment');
+    await writeFixture('orderCreateManualPayment-access-denied-parity.json', {
+      variables: coldIneligibleVariables,
+      mutation: { response: coldIneligibleMutation.response.payload },
+      upstreamCalls: [manualPaymentUpstreamCall('OrdersManualPaymentContext', coldIneligibleContext)],
+    });
+
+    const warmIneligibleOrder = await createOrder('manual-payment-warm-ineligible', stamp, '17.00');
+    const warmIneligibleRead = await readManualPaymentOrder(warmIneligibleOrder.id);
+    const warmIneligibleCapability = await readManualPaymentCapability();
+    const warmIneligibleVariables = manualPaymentVariables(warmIneligibleOrder.id, '8.00');
+    const warmIneligibleMutation = await capture(orderCreateManualPaymentMutation, warmIneligibleVariables);
+    assertAccessDenied('warm orderCreateManualPayment with amount', warmIneligibleMutation, 'orderCreateManualPayment');
+    await writeFixture('orderCreateManualPayment-warm-access-denied-parity.json', {
+      variables: warmIneligibleVariables,
+      warmup: warmIneligibleRead,
+      capability: warmIneligibleCapability,
+      mutation: { response: warmIneligibleMutation.response.payload },
+      upstreamCalls: [
+        manualPaymentUpstreamCall('OrdersManualPaymentOrderRead', warmIneligibleRead),
+        manualPaymentUpstreamCall('OrdersManualPaymentCapability', warmIneligibleCapability),
+      ],
+    });
+  }
+
+  if (selection === 'all' || selection === 'eligible') {
+    const coldEligibleOrder = await createOrder('manual-payment-cold-eligible', stamp, '18.00');
+    const coldEligibleContext = await readManualPaymentContext(coldEligibleOrder.id);
+    const coldEligibleVariables = manualPaymentVariables(coldEligibleOrder.id);
+    const coldEligibleMutation = await captureManualPaymentWhenAvailable(
+      orderCreateManualPaymentSuccessMutation,
+      coldEligibleVariables,
+      'cold orderCreateManualPayment without amount',
+    );
+    assertManualPaymentSuccess('cold orderCreateManualPayment without amount', coldEligibleMutation);
+    const coldEligibleDownstreamRead = await readManualPaymentOrder(coldEligibleOrder.id);
+    await writeFixture('orderCreateManualPayment-cold-success-parity.json', {
+      variables: coldEligibleVariables,
+      mutation: { response: coldEligibleMutation.response.payload },
+      downstreamRead: {
+        variables: coldEligibleDownstreamRead.variables,
+        response: coldEligibleDownstreamRead.response.payload,
+      },
+      upstreamCalls: [manualPaymentUpstreamCall('OrdersManualPaymentContext', coldEligibleContext)],
+    });
+
+    const warmEligibleOrder = await createOrder('manual-payment-warm-eligible', stamp, '19.00');
+    const warmEligibleRead = await readManualPaymentOrder(warmEligibleOrder.id);
+    const warmEligibleCapability = await readManualPaymentCapability();
+    const warmEligibleVariables = manualPaymentVariables(warmEligibleOrder.id);
+    const warmEligibleMutation = await captureManualPaymentWhenAvailable(
+      orderCreateManualPaymentSuccessMutation,
+      warmEligibleVariables,
+      'warm orderCreateManualPayment without amount',
+    );
+    assertManualPaymentSuccess('warm orderCreateManualPayment without amount', warmEligibleMutation);
+    const warmEligibleDownstreamRead = await readManualPaymentOrder(warmEligibleOrder.id);
+    await writeFixture('orderCreateManualPayment-warm-success-parity.json', {
+      variables: warmEligibleVariables,
+      warmup: warmEligibleRead,
+      capability: warmEligibleCapability,
+      mutation: { response: warmEligibleMutation.response.payload },
+      downstreamRead: {
+        variables: warmEligibleDownstreamRead.variables,
+        response: warmEligibleDownstreamRead.response.payload,
+      },
+      upstreamCalls: [
+        manualPaymentUpstreamCall('OrdersManualPaymentOrderRead', warmEligibleRead),
+        manualPaymentUpstreamCall('OrdersManualPaymentCapability', warmEligibleCapability),
+      ],
+    });
+  }
+
+  if (selection === 'all' || selection === 'missing') {
+    const missingOrderId = 'gid://shopify/Order/0';
+    const missingContext = await readManualPaymentContext(missingOrderId);
+    if (asRecord(missingContext.response.payload.data)['order'] !== null) {
+      throw new Error(`manual-payment missing-order probe unexpectedly found ${missingOrderId}`);
+    }
+    const missingVariables = manualPaymentVariables(missingOrderId);
+    const missingMutation = await capture(orderCreateManualPaymentSuccessMutation, missingVariables);
+    assertManualPaymentMissing('orderCreateManualPayment missing order without amount', missingMutation);
+    await writeFixture('orderCreateManualPayment-missing-order-parity.json', {
+      variables: missingVariables,
+      mutation: { response: missingMutation.response.payload },
+      upstreamCalls: [manualPaymentUpstreamCall('OrdersManualPaymentContext', missingContext)],
+    });
+  }
+}
+
 async function cleanupOrder(orderId: string): Promise<unknown> {
   const variables = {
     orderId,
@@ -679,7 +888,15 @@ const stamp = Date.now();
 const captureOnly = process.env['SHOPIFY_ORDER_MANAGEMENT_CAPTURE_ONLY'] ?? '';
 
 try {
-  if (captureOnly === 'orderCancelRestockRefundMethod') {
+  if (captureOnly === 'manualPaymentCapability') {
+    await captureManualPaymentCapabilityScenarios(stamp);
+  } else if (captureOnly === 'manualPaymentEligible') {
+    await captureManualPaymentCapabilityScenarios(stamp, 'eligible');
+  } else if (captureOnly === 'manualPaymentIneligible') {
+    await captureManualPaymentCapabilityScenarios(stamp, 'ineligible');
+  } else if (captureOnly === 'manualPaymentMissing') {
+    await captureManualPaymentCapabilityScenarios(stamp, 'missing');
+  } else if (captureOnly === 'orderCancelRestockRefundMethod') {
     await captureOrderCancelRestockRefundMethod(stamp);
   } else {
     await captureOrderClose(stamp);
@@ -709,7 +926,7 @@ try {
       cleanup[`customer:${customer.id}`] = { error: error instanceof Error ? error.message : String(error) };
     }
   }
-  if (createdOrders.length > 0 || createdCustomers.length > 0) {
+  if ((createdOrders.length > 0 || createdCustomers.length > 0) && !captureOnly.startsWith('manualPayment')) {
     await writeFixture('order-management-cleanup.json', {
       capturedAt: new Date().toISOString(),
       storeDomain,

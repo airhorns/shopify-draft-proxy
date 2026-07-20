@@ -1,0 +1,59 @@
+{
+  "scenarioId": "orderCreateManualPayment-warm-success-parity",
+  "operationNames": ["orderCreateManualPayment"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "capability-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderCreateManualPayment-warm-success-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderCreateManualPayment-order-read.graphql",
+    "operationName": "OrdersManualPaymentOrderRead",
+    "variablesCapturePath": "$.warmup.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 warm-order success without an explicit amount on a non-Plus store with write_orders. The public warmup query observes only the order; the exact capability-only cassette query then confirms local eligibility.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "warm-eligible-success-payload",
+        "capturePath": "$.mutation.response.data.orderCreateManualPayment",
+        "proxyPath": "$.data.orderCreateManualPayment",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCreateManualPayment-success-parity.graphql",
+          "variablesCapturePath": "$.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.order.transactions[0].id",
+            "matcher": "shopify-gid:OrderTransaction",
+            "reason": "Shopify and the proxy allocate different valid order-transaction IDs."
+          }
+        ]
+      },
+      {
+        "name": "warm-eligible-downstream-payment-state",
+        "capturePath": "$.downstreamRead.response.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCreateManualPayment-order-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.transactions[0].id",
+            "matcher": "shopify-gid:OrderTransaction",
+            "reason": "Shopify and the proxy allocate different valid order-transaction IDs."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify materializes the order update asynchronously, while the proxy records the normalized payment timestamp locally."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -12,6 +12,12 @@ const PAYMENT_CUSTOMIZATION_HYDRATE_BY_ID_QUERY: &str = include_str!(
 const PAYMENT_CUSTOMIZATION_HYDRATE_CATALOG_QUERY: &str = include_str!(
     "../../../config/parity-requests/payments/payment-customization-hydrate-catalog.graphql"
 );
+const ORDER_CREATE_MANUAL_PAYMENT_CAPABILITY_QUERY: &str = include_str!(
+    "../../../config/parity-requests/orders/order-create-manual-payment-capability.graphql"
+);
+const ORDER_CREATE_MANUAL_PAYMENT_CONTEXT_QUERY: &str = include_str!(
+    "../../../config/parity-requests/orders/order-create-manual-payment-context.graphql"
+);
 const FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE: &str =
     "Setting final capture is not supported for this transaction's payment gateway. Please remove the parameter or set it to null, then try again.";
 
@@ -846,6 +852,81 @@ const ORDER_CREATE_MANUAL_PAYMENT_REQUIRED_ACCESS: &str =
     "`write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.";
 const ORDER_CREATE_MANUAL_PAYMENT_ACCESS_DENIED_MESSAGE: &str =
     "Access denied for orderCreateManualPayment field. Required access: `write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.";
+const ORDER_CREATE_MANUAL_PAYMENT_CAPABILITY_UNAVAILABLE_MESSAGE: &str =
+    "Manual-payment capability could not be determined; no payment was staged.";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ManualPaymentCapability {
+    Eligible,
+    Ineligible,
+    Unresolved,
+}
+
+enum ManualPaymentOrderResolution {
+    Eligible(Value),
+    Ineligible,
+    Missing,
+    Unresolved,
+}
+
+fn manual_payment_capability(
+    shopify_plus: Option<bool>,
+    has_write_orders: Option<bool>,
+    amount_requires_plus: bool,
+) -> ManualPaymentCapability {
+    if has_write_orders == Some(false) || (amount_requires_plus && shopify_plus == Some(false)) {
+        return ManualPaymentCapability::Ineligible;
+    }
+    if has_write_orders == Some(true) && (!amount_requires_plus || shopify_plus == Some(true)) {
+        return ManualPaymentCapability::Eligible;
+    }
+    ManualPaymentCapability::Unresolved
+}
+
+fn manual_payment_request_write_orders_capability(request: &Request) -> Option<bool> {
+    request_header(request, ACCESS_SCOPES_HEADER).map(|scopes| {
+        scopes
+            .split(',')
+            .map(str::trim)
+            .any(|scope| scope == "write_orders")
+    })
+}
+
+fn manual_payment_response_write_orders_capability(response: &Response) -> Option<bool> {
+    response
+        .body
+        .pointer("/data/currentAppInstallation/accessScopes")
+        .and_then(Value::as_array)
+        .map(|scopes| {
+            scopes
+                .iter()
+                .any(|scope| scope.get("handle").and_then(Value::as_str) == Some("write_orders"))
+        })
+}
+
+fn manual_payment_amount_requires_plus(raw_arguments: &BTreeMap<String, RawArgumentValue>) -> bool {
+    !matches!(
+        raw_arguments.get("amount"),
+        None | Some(RawArgumentValue::Null)
+            | Some(RawArgumentValue::Variable { value: None, .. })
+            | Some(RawArgumentValue::Variable {
+                value: Some(ResolvedValue::Null),
+                ..
+            })
+    )
+}
+
+fn manual_payment_processed_at(value: &str) -> String {
+    time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+        .ok()
+        .and_then(|timestamp| timestamp.replace_nanosecond(0).ok())
+        .and_then(|timestamp| {
+            timestamp
+                .format(&time::format_description::well_known::Rfc3339)
+                .ok()
+        })
+        .unwrap_or_else(|| value.to_string())
+}
 
 fn manual_payment_access_denied_outcome(
     root_location: SourceLocation,
@@ -857,6 +938,20 @@ fn manual_payment_access_denied_outcome(
         vec![json!(response_key)],
         Some(ORDER_CREATE_MANUAL_PAYMENT_REQUIRED_ACCESS),
     );
+    ResolverOutcome::value(Value::Null)
+        .with_errors(root_field_errors_from_json(&[error], response_key))
+}
+
+fn manual_payment_capability_unavailable_outcome(
+    root_location: SourceLocation,
+    response_key: &str,
+) -> ResolverOutcome<Value> {
+    let error = json!({
+        "message": ORDER_CREATE_MANUAL_PAYMENT_CAPABILITY_UNAVAILABLE_MESSAGE,
+        "locations": [{ "line": root_location.line, "column": root_location.column }],
+        "extensions": { "code": "MANUAL_PAYMENT_CAPABILITY_UNAVAILABLE" },
+        "path": [response_key]
+    });
     ResolverOutcome::value(Value::Null)
         .with_errors(root_field_errors_from_json(&[error], response_key))
 }
@@ -1466,6 +1561,109 @@ impl DraftProxy {
         )
     }
 
+    fn resolve_manual_payment_order(
+        &mut self,
+        request: &Request,
+        order_id: &str,
+        amount_requires_plus: bool,
+    ) -> ManualPaymentOrderResolution {
+        let known_order = self.store.observed_order_by_id(order_id).cloned();
+        let known_shopify_plus = self
+            .store
+            .base
+            .shop
+            .pointer("/plan/shopifyPlus")
+            .and_then(Value::as_bool);
+        let known_write_orders = manual_payment_request_write_orders_capability(request);
+        let known_capability =
+            manual_payment_capability(known_shopify_plus, known_write_orders, amount_requires_plus);
+
+        if known_capability == ManualPaymentCapability::Ineligible {
+            return ManualPaymentOrderResolution::Ineligible;
+        }
+        if let Some(order) = known_order.clone() {
+            if known_capability == ManualPaymentCapability::Eligible {
+                return ManualPaymentOrderResolution::Eligible(order);
+            }
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return if known_capability == ManualPaymentCapability::Eligible {
+                ManualPaymentOrderResolution::Missing
+            } else {
+                ManualPaymentOrderResolution::Unresolved
+            };
+        }
+
+        let (operation_name, query, variables) = if known_order.is_some() {
+            (
+                "OrdersManualPaymentCapability",
+                ORDER_CREATE_MANUAL_PAYMENT_CAPABILITY_QUERY,
+                json!({}),
+            )
+        } else {
+            (
+                "OrdersManualPaymentContext",
+                ORDER_CREATE_MANUAL_PAYMENT_CONTEXT_QUERY,
+                json!({ "id": order_id }),
+            )
+        };
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": query,
+                "operationName": operation_name,
+                "variables": variables
+            }),
+        );
+        if !response_is_success(&response) {
+            return ManualPaymentOrderResolution::Unresolved;
+        }
+
+        if response.body["data"]["shop"].is_object() {
+            self.store.base.shop = shallow_merged_object(
+                self.store.base.shop.clone(),
+                response.body["data"]["shop"].clone(),
+            );
+        }
+        let shopify_plus = response
+            .body
+            .pointer("/data/shop/plan/shopifyPlus")
+            .and_then(Value::as_bool)
+            .or(known_shopify_plus);
+        let has_write_orders = known_write_orders
+            .or_else(|| manual_payment_response_write_orders_capability(&response));
+        let capability =
+            manual_payment_capability(shopify_plus, has_write_orders, amount_requires_plus);
+        if capability == ManualPaymentCapability::Ineligible {
+            return ManualPaymentOrderResolution::Ineligible;
+        }
+        let has_graphql_errors = response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_some_and(|errors| !errors.is_empty());
+        if capability != ManualPaymentCapability::Eligible || has_graphql_errors {
+            return ManualPaymentOrderResolution::Unresolved;
+        }
+        if let Some(order) = known_order {
+            return ManualPaymentOrderResolution::Eligible(order);
+        }
+
+        let Some(order) = response.body["data"].get("order") else {
+            return ManualPaymentOrderResolution::Unresolved;
+        };
+        if order.is_null() {
+            return ManualPaymentOrderResolution::Missing;
+        }
+        if order.get("id").and_then(Value::as_str) != Some(order_id) {
+            return ManualPaymentOrderResolution::Unresolved;
+        }
+        let mut order = order.clone();
+        normalize_hydrated_order(&mut order);
+        self.store.observe_base_order(order.clone());
+        ManualPaymentOrderResolution::Eligible(order)
+    }
+
     pub(in crate::proxy) fn order_payment_transaction_local_outcome(
         &mut self,
         context: &OrderRootContext<'_>,
@@ -1537,11 +1735,35 @@ impl DraftProxy {
                         )],
                     )));
                 };
-                let Some(order_before) = self.store.staged.orders.get(&order_id).cloned() else {
-                    return Some(manual_payment_access_denied_outcome(
-                        root_location,
-                        response_key,
-                    ));
+                let amount_requires_plus =
+                    manual_payment_amount_requires_plus(context.raw_arguments);
+                let order_before = match self.resolve_manual_payment_order(
+                    request,
+                    &order_id,
+                    amount_requires_plus,
+                ) {
+                    ManualPaymentOrderResolution::Eligible(order) => order,
+                    ManualPaymentOrderResolution::Ineligible => {
+                        return Some(manual_payment_access_denied_outcome(
+                            root_location,
+                            response_key,
+                        ));
+                    }
+                    ManualPaymentOrderResolution::Missing => {
+                        return Some(ResolverOutcome::value(manual_payment_payload(
+                            Value::Null,
+                            vec![manual_payment_user_error(
+                                json!(["id"]),
+                                "Order does not exist",
+                            )],
+                        )));
+                    }
+                    ManualPaymentOrderResolution::Unresolved => {
+                        return Some(manual_payment_capability_unavailable_outcome(
+                            root_location,
+                            response_key,
+                        ));
+                    }
                 };
                 let (order, user_errors, staged_ids) =
                     self.stage_order_create_manual_payment(&order_id, &order_before, arguments);
@@ -1859,6 +2081,7 @@ impl DraftProxy {
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| "manual".to_string());
         let processed_at = resolved_string_field(arguments, "processedAt")
+            .map(|value| manual_payment_processed_at(&value))
             .unwrap_or_else(|| order_mutation_timestamp(self.mutation_log_ordinal() as u64));
         let mut transaction = payment_transaction_record_from_amount_set(
             &transaction_id,
@@ -1900,7 +2123,7 @@ impl DraftProxy {
             json!("PARTIALLY_PAID")
         };
         order["capturable"] = json!(false);
-        order["totalCapturable"] = json!("0.0");
+        order["totalCapturable"] = json!("0.00");
         order["totalCapturableSet"] =
             money_bag_from_amount(0.0, &shop_currency, &presentment_currency);
         order["totalOutstandingSet"] =

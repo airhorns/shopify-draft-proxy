@@ -3238,7 +3238,16 @@ Observed current-version surface:
 
 - read roots: `customerPaymentMethod`, `orderPaymentStatus`, `paymentCustomization`, `paymentCustomizations`, `paymentTermsTemplates`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsAccount`, and `tenderTransactions`
 - scaffold-only mutation roots: customer payment method create/update/revoke/update-url/duplication roots, `orderCapture`, `orderCreateMandatePayment`, payment customization create/update/delete/activation, `paymentReminderSend`, payment terms create/update/delete, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `transactionVoid`
-- payment-adjacent guardrail: `orderCreateManualPayment` now stages local manual-payment success for orders already present in proxy state, while still mirroring the captured access-denied branch for unhydrated/non-local orders without passthrough. Live success conformance remains blocked on the current credential because the available conformance shop reports `shop.plan.shopifyPlus: false`.
+- payment-adjacent guardrail: `orderCreateManualPayment` resolves store/app capability before order presence, query-only hydrates eligible cold orders, and stages successful payment effects locally. Amount-bearing calls require a confirmed `write_orders` scope and Shopify Plus; omitted/null amount calls require the scope but do not require Plus. Capability transport failure or absent snapshot context stays an explicit unknown outcome rather than being inferred from cache state.
+
+2026-07-20 live `orderCreateManualPayment` capture on `harry-test-heelo.myshopify.com` (Admin 2026-04):
+
+- the non-Plus store returned the same top-level `ACCESS_DENIED` envelope for amount-bearing calls whether the proxy replay began with a cold or already-observed order
+- with `write_orders` present and `amount` omitted, both cold and warm disposable orders succeeded, used the default `manual` gateway, paid the full outstanding balance, and exposed matching transaction/money/status state on the immediate downstream read
+- `gid://shopify/Order/0` with omitted `amount` returned `order: null` plus `userErrors[{ field: ["id"], message: "Order does not exist" }]`, confirming that eligible not-found behavior is distinct from access denial
+- a newly created order can briefly return `Order is temporarily unavailable to be modified.`; the registered recorder retries only that exact transient branch before recording the final manual-payment interaction
+- an arbitrary `paymentMethodName` returned `Payment provider is not configured on shop.` even though the no-amount capability gate passed; configured-provider validation is a separate fidelity slice from store/app eligibility
+- an unbound nullable `$amount` remains present in the raw GraphQL argument expression but has no resolved variable value, so the Plus gate must inspect preserved raw argument metadata rather than treating the coerced argument entry as a submitted amount
 
 2026-04-25 live probe on `harry-test-heelo.myshopify.com`:
 
