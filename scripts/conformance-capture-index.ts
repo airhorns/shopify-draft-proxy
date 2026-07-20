@@ -9625,6 +9625,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'fulfillment-create-multi-group',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-create-multi-group-conformance.ts',
+    purpose:
+      'fulfillmentCreate complete group resolution, cross-order and cross-location validation, later-group line-item validation precedence, and valid same-order/same-location multi-group staging.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-create-multi-group.json`,
+      'config/parity-specs/orders/fulfillmentCreate-multi-group.json',
+      'config/parity-requests/orders/fulfillmentCreate-multi-group-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable paid test orders, uses partial fulfillment-order split/move setup for same- and different-location groups, then cancels and deletes every disposable order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'fulfillment-multi-tracking-info',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-fulfillment-multi-tracking-conformance.ts',

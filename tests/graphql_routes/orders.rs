@@ -382,6 +382,174 @@ fn create_fulfillment_validation_order(proxy: &mut DraftProxy) -> (Value, Vec<Va
     (fulfillment_order["id"].clone(), line_ids)
 }
 
+#[derive(Clone)]
+struct FulfillmentCreateGroupSetup {
+    order_id: Value,
+    title: String,
+    groups: Vec<Value>,
+}
+
+fn add_fulfillment_location(proxy: &mut DraftProxy, name: &str) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddFulfillmentCreateLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "name": name, "address": { "countryCode": "CA" } } }),
+    ));
+    assert_eq!(
+        response.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["locationAdd"]["location"]["id"].clone()
+}
+
+fn create_single_line_fulfillment_order(
+    proxy: &mut DraftProxy,
+    label: &str,
+    quantity: i64,
+) -> FulfillmentCreateGroupSetup {
+    let title = format!("Fulfillment multi-group {label}");
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateFulfillmentMultiGroupOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              fulfillmentOrders(first: 10) {
+                nodes {
+                  id
+                  assignedLocation { location { id } }
+                  lineItems(first: 10) { nodes { id remainingQuantity lineItem { id title } } }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": format!("fulfillment-multi-group-{label}@example.test"),
+                "lineItems": [{
+                    "title": title,
+                    "quantity": quantity,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let order = &response.body["data"]["orderCreate"]["order"];
+    FulfillmentCreateGroupSetup {
+        order_id: order["id"].clone(),
+        title,
+        groups: order["fulfillmentOrders"]["nodes"]
+            .as_array()
+            .unwrap()
+            .clone(),
+    }
+}
+
+fn fulfillment_create_group_input(group: &Value, quantity: i64) -> Value {
+    json!({
+        "fulfillmentOrderId": group["id"],
+        "fulfillmentOrderLineItems": [{
+            "id": group["lineItems"]["nodes"][0]["id"],
+            "quantity": quantity
+        }]
+    })
+}
+
+fn split_fulfillment_create_order(
+    proxy: &mut DraftProxy,
+    setup: &FulfillmentCreateGroupSetup,
+) -> FulfillmentCreateGroupSetup {
+    let source = &setup.groups[0];
+    let split = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SplitFulfillmentCreateOrder($splits: [FulfillmentOrderSplitInput!]!) {
+          fulfillmentOrderSplit(fulfillmentOrderSplits: $splits) {
+            fulfillmentOrderSplits {
+              fulfillmentOrder {
+                id
+                assignedLocation { location { id } }
+                lineItems(first: 10) { nodes { id remainingQuantity lineItem { id title } } }
+              }
+              remainingFulfillmentOrder {
+                id
+                assignedLocation { location { id } }
+                lineItems(first: 10) { nodes { id remainingQuantity lineItem { id title } } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "splits": [{
+                "fulfillmentOrderId": source["id"],
+                "fulfillmentOrderLineItems": [{
+                    "id": source["lineItems"]["nodes"][0]["id"],
+                    "quantity": 1
+                }]
+            }]
+        }),
+    ));
+    let payload = &split.body["data"]["fulfillmentOrderSplit"];
+    assert_eq!(payload["userErrors"], json!([]), "{payload:?}");
+    let result = &payload["fulfillmentOrderSplits"][0];
+    FulfillmentCreateGroupSetup {
+        order_id: setup.order_id.clone(),
+        title: setup.title.clone(),
+        groups: vec![
+            result["fulfillmentOrder"].clone(),
+            result["remainingFulfillmentOrder"].clone(),
+        ],
+    }
+}
+
+fn fulfillment_create_with_groups(proxy: &mut DraftProxy, groups: Vec<Value>) -> Response {
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMultiGroupFulfillment($fulfillment: FulfillmentInput!) {
+          fulfillmentCreate(fulfillment: $fulfillment) {
+            fulfillment {
+              id
+              status
+              displayStatus
+              fulfillmentLineItems(first: 10) {
+                nodes { id quantity lineItem { id title } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "fulfillment": { "lineItemsByFulfillmentOrder": groups } }),
+    ))
+}
+
+fn gid_numeric_tail(value: &Value) -> &str {
+    value
+        .as_str()
+        .unwrap()
+        .rsplit('/')
+        .next()
+        .unwrap()
+        .split('?')
+        .next()
+        .unwrap()
+}
+
 #[test]
 fn fulfillment_order_supported_actions_follow_assignment_and_status() {
     let mut proxy = snapshot_proxy();
@@ -669,6 +837,412 @@ fn fulfillment_create_preserves_over_remaining_quantity_error() {
             }),
             "{root}"
         );
+    }
+}
+
+#[test]
+fn fulfillment_create_rejects_unknown_later_group_atomically() {
+    let mut proxy = snapshot_proxy();
+    add_fulfillment_location(&mut proxy, "Unknown Later Source");
+    let setup = create_single_line_fulfillment_order(&mut proxy, "unknown-later", 1);
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
+
+    let response = fulfillment_create_with_groups(
+        &mut proxy,
+        vec![
+            fulfillment_create_group_input(&setup.groups[0], 1),
+            json!({
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/999999999",
+                "fulfillmentOrderLineItems": [{
+                    "id": "gid://shopify/FulfillmentOrderLineItem/999999999",
+                    "quantity": 1
+                }]
+            }),
+        ],
+    );
+
+    assert_eq!(
+        response.body["data"]["fulfillmentCreate"],
+        json!({
+            "fulfillment": null,
+            "userErrors": [{
+                "field": ["fulfillment"],
+                "message": "Fulfillment order does not exist."
+            }]
+        })
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+}
+
+#[test]
+fn fulfillment_create_rejects_cross_order_and_cross_location_groups_atomically() {
+    let mut proxy = snapshot_proxy();
+    add_fulfillment_location(&mut proxy, "Multi Group Source");
+    let first_order = create_single_line_fulfillment_order(&mut proxy, "cross-order-first", 1);
+    let second_order = create_single_line_fulfillment_order(&mut proxy, "cross-order-second", 1);
+    let state_before_order_error = state_snapshot(&proxy);
+    let log_before_order_error = log_snapshot(&proxy);
+    let different_order = fulfillment_create_with_groups(
+        &mut proxy,
+        vec![
+            fulfillment_create_group_input(&first_order.groups[0], 1),
+            fulfillment_create_group_input(&second_order.groups[0], 1),
+        ],
+    );
+    assert_eq!(
+        different_order.body["data"]["fulfillmentCreate"],
+        json!({
+            "fulfillment": null,
+            "userErrors": [{
+                "field": ["fulfillment"],
+                "message": format!(
+                    "All fulfillment orders must belong to the same order. Multiple orders with ids [{}, {}] were found.",
+                    gid_numeric_tail(&first_order.order_id),
+                    gid_numeric_tail(&second_order.order_id)
+                )
+            }]
+        })
+    );
+    assert_eq!(state_snapshot(&proxy), state_before_order_error);
+    assert_eq!(log_snapshot(&proxy), log_before_order_error);
+
+    let move_setup = create_single_line_fulfillment_order(&mut proxy, "cross-location", 2);
+    let destination_id = add_fulfillment_location(&mut proxy, "Multi Group Destination");
+    let source = &move_setup.groups[0];
+    let move_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MovePartialFulfillmentCreateGroup(
+          $id: ID!
+          $newLocationId: ID!
+          $lineItems: [FulfillmentOrderLineItemInput!]
+        ) {
+          fulfillmentOrderMove(
+            id: $id
+            newLocationId: $newLocationId
+            fulfillmentOrderLineItems: $lineItems
+          ) {
+            movedFulfillmentOrder { id }
+            originalFulfillmentOrder { id }
+            remainingFulfillmentOrder { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": source["id"],
+            "newLocationId": destination_id,
+            "lineItems": [{ "id": source["lineItems"]["nodes"][0]["id"], "quantity": 1 }]
+        }),
+    ));
+    assert_eq!(
+        move_response.body["data"]["fulfillmentOrderMove"]["userErrors"],
+        json!([])
+    );
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadMovedFulfillmentCreateGroups($id: ID!) {
+          order(id: $id) {
+            fulfillmentOrders(first: 10) {
+              nodes {
+                id
+                assignedLocation { location { id } }
+                lineItems(first: 10) { nodes { id remainingQuantity } }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": move_setup.order_id }),
+    ));
+    let groups = read.body["data"]["order"]["fulfillmentOrders"]["nodes"]
+        .as_array()
+        .unwrap()
+        .clone();
+    assert_eq!(groups.len(), 2);
+    assert_ne!(
+        groups[0]["assignedLocation"]["location"]["id"],
+        groups[1]["assignedLocation"]["location"]["id"]
+    );
+    let state_before_location_error = state_snapshot(&proxy);
+    let log_before_location_error = log_snapshot(&proxy);
+    let different_location = fulfillment_create_with_groups(
+        &mut proxy,
+        groups
+            .iter()
+            .map(|group| fulfillment_create_group_input(group, 1))
+            .collect(),
+    );
+    let mut location_ids = groups
+        .iter()
+        .map(|group| gid_numeric_tail(&group["assignedLocation"]["location"]["id"]))
+        .collect::<Vec<_>>();
+    location_ids.sort_unstable_by_key(|id| id.parse::<u128>().unwrap());
+    assert_eq!(
+        different_location.body["data"]["fulfillmentCreate"],
+        json!({
+            "fulfillment": null,
+            "userErrors": [{
+                "field": ["fulfillment"],
+                "message": format!(
+                    "All fulfillment orders must be assigned to a single location. Multiple locations with ids [{}, {}] were found.",
+                    location_ids[0], location_ids[1]
+                )
+            }]
+        })
+    );
+    assert_eq!(state_snapshot(&proxy), state_before_location_error);
+    assert_eq!(log_snapshot(&proxy), log_before_location_error);
+}
+
+#[test]
+fn fulfillment_create_validates_every_group_then_stages_one_combined_fulfillment() {
+    let mut proxy = snapshot_proxy();
+    add_fulfillment_location(&mut proxy, "Valid Multi Group Source");
+    let created = create_single_line_fulfillment_order(&mut proxy, "valid-multi-group", 2);
+    let setup = split_fulfillment_create_order(&mut proxy, &created);
+    assert_eq!(setup.groups.len(), 2);
+    assert_eq!(
+        setup.groups[0]["assignedLocation"]["location"]["id"],
+        setup.groups[1]["assignedLocation"]["location"]["id"]
+    );
+
+    let invalid_cases = [
+        (
+            vec![
+                fulfillment_create_group_input(&setup.groups[0], 1),
+                fulfillment_create_group_input(&setup.groups[1], 0),
+            ],
+            json!([{
+                "field": [
+                    "fulfillment",
+                    "lineItemsByFulfillmentOrder",
+                    "1",
+                    "fulfillmentOrderLineItems",
+                    "0",
+                    "quantity"
+                ],
+                "message": "Quantity must be greater than 0"
+            }]),
+        ),
+        (
+            vec![
+                fulfillment_create_group_input(&setup.groups[0], 1),
+                json!({
+                    "fulfillmentOrderId": setup.groups[1]["id"],
+                    "fulfillmentOrderLineItems": [{
+                        "id": "gid://shopify/FulfillmentOrderLineItem/999999999",
+                        "quantity": 1
+                    }]
+                }),
+            ],
+            json!([{
+                "field": ["fulfillment"],
+                "message": "Fulfillment order line item does not exist."
+            }]),
+        ),
+        (
+            vec![
+                fulfillment_create_group_input(&setup.groups[0], 1),
+                fulfillment_create_group_input(&setup.groups[1], 2),
+            ],
+            json!([{
+                "field": ["fulfillment"],
+                "message": "Invalid fulfillment order line item quantity requested."
+            }]),
+        ),
+    ];
+    for (groups, expected_errors) in invalid_cases {
+        let state_before = state_snapshot(&proxy);
+        let log_before = log_snapshot(&proxy);
+        let response = fulfillment_create_with_groups(&mut proxy, groups);
+        assert_eq!(
+            response.body["data"]["fulfillmentCreate"]["fulfillment"],
+            Value::Null
+        );
+        assert_eq!(
+            response.body["data"]["fulfillmentCreate"]["userErrors"],
+            expected_errors
+        );
+        assert_eq!(state_snapshot(&proxy), state_before);
+        assert_eq!(log_snapshot(&proxy), log_before);
+    }
+
+    let log_before_success = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    let response = fulfillment_create_with_groups(
+        &mut proxy,
+        setup
+            .groups
+            .iter()
+            .map(|group| fulfillment_create_group_input(group, 1))
+            .collect(),
+    );
+    let payload = &response.body["data"]["fulfillmentCreate"];
+    assert_eq!(payload["userErrors"], json!([]));
+    assert_eq!(payload["fulfillment"]["status"], json!("SUCCESS"));
+    assert_eq!(
+        payload["fulfillment"]["fulfillmentLineItems"]["nodes"],
+        json!([{
+            "id": payload["fulfillment"]["fulfillmentLineItems"]["nodes"][0]["id"],
+            "quantity": 2,
+            "lineItem": {
+                "id": setup.groups[0]["lineItems"]["nodes"][0]["lineItem"]["id"],
+                "title": setup.title
+            }
+        }])
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadValidMultiGroupFulfillment($id: ID!) {
+          order(id: $id) {
+            displayFulfillmentStatus
+            fulfillments(first: 10) {
+              status
+              fulfillmentLineItems(first: 10) { nodes { quantity lineItem { title } } }
+            }
+            fulfillmentOrders(first: 10) {
+              nodes { status lineItems(first: 10) { nodes { remainingQuantity } } }
+            }
+          }
+        }
+        "#,
+        json!({ "id": setup.order_id }),
+    ));
+    let order = &downstream.body["data"]["order"];
+    assert_eq!(order["displayFulfillmentStatus"], json!("FULFILLED"));
+    assert_eq!(order["fulfillments"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        order["fulfillments"][0]["fulfillmentLineItems"]["nodes"],
+        json!([{ "quantity": 2, "lineItem": { "title": setup.title } }])
+    );
+    assert!(order["fulfillmentOrders"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|group| group["status"] == json!("CLOSED")
+            && group["lineItems"]["nodes"][0]["remainingQuantity"] == json!(0)));
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_before_success + 1
+    );
+}
+
+#[test]
+fn fulfillment_create_hydrates_every_group_read_only_with_request_context() {
+    let known_fulfillment_order_id = "gid://shopify/FulfillmentOrder/8101";
+    let missing_fulfillment_order_id = "gid://shopify/FulfillmentOrder/8102";
+    let order_id = "gid://shopify/Order/9101";
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let id = body["variables"]["id"].as_str().unwrap_or_default();
+            captured.lock().unwrap().push(request);
+            let fulfillment_order = (id == known_fulfillment_order_id).then(|| {
+                json!({
+                    "id": known_fulfillment_order_id,
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                        "name": "Hydrated Location",
+                        "location": { "id": "gid://shopify/Location/7101", "name": "Hydrated Location" }
+                    },
+                    "lineItems": { "nodes": [{
+                        "id": "gid://shopify/FulfillmentOrderLineItem/6101",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1,
+                        "lineItem": {
+                            "id": "gid://shopify/LineItem/5101",
+                            "title": "Hydrated line",
+                            "quantity": 1,
+                            "fulfillableQuantity": 1
+                        }
+                    }] },
+                    "order": { "id": order_id, "name": "#9101", "displayFulfillmentStatus": "UNFULFILLED" }
+                })
+            });
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "fulfillmentOrder": fulfillment_order } }),
+            }
+        },
+    );
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
+    let query = r#"
+        mutation HydrateEveryFulfillmentCreateGroup($fulfillment: FulfillmentInput!) {
+          fulfillmentCreate(fulfillment: $fulfillment) {
+            fulfillment { id }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let mut request = json_graphql_request(
+        query,
+        json!({
+            "fulfillment": {
+                "lineItemsByFulfillmentOrder": [
+                    {
+                        "fulfillmentOrderId": known_fulfillment_order_id,
+                        "fulfillmentOrderLineItems": [{
+                            "id": "gid://shopify/FulfillmentOrderLineItem/6101",
+                            "quantity": 1
+                        }]
+                    },
+                    { "fulfillmentOrderId": missing_fulfillment_order_id }
+                ]
+            }
+        }),
+    );
+    request.path = "/admin/api/2025-10/graphql.json".to_string();
+    request.headers.insert(
+        "x-shopify-access-token".to_string(),
+        "preserved-token".to_string(),
+    );
+    let response = proxy.process_request(request);
+
+    assert_eq!(
+        response.body["data"]["fulfillmentCreate"],
+        json!({
+            "fulfillment": null,
+            "userErrors": [{
+                "field": ["fulfillment"],
+                "message": "Fulfillment order does not exist."
+            }]
+        })
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+    let forwarded = forwarded.lock().unwrap();
+    assert_eq!(forwarded.len(), 2);
+    assert_eq!(
+        forwarded
+            .iter()
+            .map(|request| {
+                let body: Value = serde_json::from_str(&request.body).unwrap();
+                body["variables"]["id"].as_str().unwrap().to_string()
+            })
+            .collect::<Vec<_>>(),
+        vec![known_fulfillment_order_id, missing_fulfillment_order_id]
+    );
+    for request in &*forwarded {
+        assert_eq!(request.path, "/admin/api/2025-10/graphql.json");
+        assert_eq!(
+            request
+                .headers
+                .get("x-shopify-access-token")
+                .map(String::as_str),
+            Some("preserved-token")
+        );
+        assert!(request
+            .body
+            .contains("query ShippingFulfillmentOrderHydrate"));
+        assert!(!request.body.contains("HydrateEveryFulfillmentCreateGroup"));
+        assert!(!request.body.contains("mutation"));
     }
 }
 

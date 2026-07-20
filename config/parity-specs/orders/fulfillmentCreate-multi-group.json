@@ -1,0 +1,168 @@
+{
+  "scenarioId": "fulfillmentCreate-multi-group",
+  "operationNames": ["fulfillmentCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "validation-parity",
+    "user-errors-parity",
+    "mutation-lifecycle",
+    "downstream-read-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/fulfillment-create-multi-group.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+    "variablesCapturePath": "$.cases.unknownLater.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-later-group",
+        "capturePath": "$.cases.unknownLater.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate"
+      },
+      {
+        "name": "different-order-later-group",
+        "capturePath": "$.cases.differentOrderLater.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.differentOrderLater.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "different-location-later-group",
+        "capturePath": "$.cases.differentLocationLater.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.differentLocationLater.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "later-group-non-positive-quantity",
+        "capturePath": "$.cases.laterNonPositive.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.laterNonPositive.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "later-group-missing-line-item",
+        "capturePath": "$.cases.laterMissingLine.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.laterMissingLine.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "later-group-over-quantity",
+        "capturePath": "$.cases.laterOverQuantity.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.laterOverQuantity.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "unknown-group-precedes-quantity",
+        "capturePath": "$.cases.unknownBeforeQuantity.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.unknownBeforeQuantity.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "different-order-precedes-quantity",
+        "capturePath": "$.cases.differentOrderBeforeQuantity.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.differentOrderBeforeQuantity.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "different-location-precedes-quantity",
+        "capturePath": "$.cases.differentLocationBeforeQuantity.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.differentLocationBeforeQuantity.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "valid-multi-group-fulfillment",
+        "capturePath": "$.cases.validMultiGroup.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.validMultiGroup.variables"
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillment.id",
+            "matcher": "shopify-gid:Fulfillment",
+            "reason": "Shopify and the proxy allocate different fulfillment IDs."
+          },
+          {
+            "path": "$.fulfillment.fulfillmentLineItems.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentLineItem",
+            "reason": "Shopify and the proxy allocate different fulfillment line item IDs."
+          }
+        ]
+      },
+      {
+        "name": "valid-multi-group-downstream-order",
+        "capturePath": "$.cases.validMultiGroup.downstreamRead.response.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreate-multi-group-read.graphql",
+          "variables": {
+            "orderId": {
+              "fromCapturePath": "$.setup.valid.read.response.data.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin API coverage for complete fulfillmentCreate group resolution: unknown later groups, cross-order and cross-location groups, later-group line-item validation and precedence, plus one same-order/same-location multi-group fulfillment and downstream order state."
+}
