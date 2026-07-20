@@ -18519,6 +18519,439 @@ fn media_staged_uploads_create_missing_required_filename_or_mime_type_coerces_be
 }
 
 #[test]
+fn media_file_delete_uses_authoritative_tombstones_beyond_former_reference_caps() {
+    let media_id = "gid://shopify/MediaImage/9100";
+    let first_product_id = "gid://shopify/Product/9100";
+    let last_product_id = "gid://shopify/Product/9150";
+    let first_variant_id = "gid://shopify/ProductVariant/9300";
+    let last_variant_id = "gid://shopify/ProductVariant/9350";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let operation_name = body["operationName"].as_str().unwrap_or_default();
+            let media_node = |id: String| {
+                json!({
+                    "id": id,
+                    "__typename": "MediaImage",
+                    "alt": "Preserved media",
+                    "fileStatus": "READY",
+                    "mediaContentType": "IMAGE",
+                    "status": "READY",
+                    "preview": {"image": {"url": "https://cdn.example.com/preserved.jpg", "width": 10, "height": 10}},
+                    "image": {"url": "https://cdn.example.com/preserved.jpg", "width": 10, "height": 10}
+                })
+            };
+            let complete_page_info = || {
+                json!({
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                })
+            };
+
+            let data = match operation_name {
+                "MediaFileTargetHydrate" => {
+                    assert_eq!(body["variables"], json!({"fileIds": [media_id]}));
+                    json!({"nodes": [{
+                        "id": media_id,
+                        "__typename": "MediaImage",
+                        "alt": "Delete target",
+                        "createdAt": "2026-07-20T00:00:00Z",
+                        "fileStatus": "READY",
+                        "image": {"url": "https://cdn.example.com/delete-target.jpg", "width": 10, "height": 10},
+                        "preview": {"image": {"url": "https://cdn.example.com/delete-target.jpg", "width": 10, "height": 10}}
+                    }]})
+                }
+                "MediaProductOwnersHydrate" => {
+                    let ids = body["variables"]["ids"]
+                        .as_array()
+                        .expect("owner hydrate ids");
+                    assert_eq!(ids.len(), 1, "cold owner reads hydrate only the requested product");
+                    let nodes = ids
+                        .iter()
+                        .map(|id| {
+                            let id = id.as_str().unwrap();
+                            let index = id.rsplit('/').next().unwrap().parse::<usize>().unwrap()
+                                - 9100;
+                            let (media, media_page_info) = if index == 0 {
+                                (
+                                    (0..50)
+                                        .map(|media_index| {
+                                            media_node(format!(
+                                                "gid://shopify/MediaImage/{}",
+                                                9200 + media_index
+                                            ))
+                                        })
+                                        .collect::<Vec<_>>(),
+                                    json!({
+                                        "hasNextPage": true,
+                                        "hasPreviousPage": false,
+                                        "startCursor": "product-media-1",
+                                        "endCursor": "product-media-50"
+                                    }),
+                                )
+                            } else {
+                                (
+                                    vec![
+                                        media_node(media_id.to_string()),
+                                        media_node(format!(
+                                            "gid://shopify/MediaImage/{}",
+                                            9400 + index
+                                        )),
+                                    ],
+                                    complete_page_info(),
+                                )
+                            };
+                            let (variants, variants_page_info) = if index == 0 {
+                                (
+                                    (0..50)
+                                        .map(|variant_index| {
+                                            let variant_media = if variant_index == 0 {
+                                                (0..10)
+                                                    .map(|media_index| {
+                                                        media_node(format!(
+                                                            "gid://shopify/MediaImage/{}",
+                                                            9200 + media_index
+                                                        ))
+                                                    })
+                                                    .collect::<Vec<_>>()
+                                            } else {
+                                                vec![media_node(media_id.to_string())]
+                                            };
+                                            json!({
+                                                "id": format!(
+                                                    "gid://shopify/ProductVariant/{}",
+                                                    9300 + variant_index
+                                                ),
+                                                "title": format!("Variant {variant_index}"),
+                                                "media": {
+                                                    "nodes": variant_media,
+                                                    "pageInfo": if variant_index == 0 {
+                                                        json!({
+                                                            "hasNextPage": true,
+                                                            "hasPreviousPage": false,
+                                                            "startCursor": "variant-media-1",
+                                                            "endCursor": "variant-media-10"
+                                                        })
+                                                    } else {
+                                                        complete_page_info()
+                                                    }
+                                                }
+                                            })
+                                        })
+                                        .collect::<Vec<_>>(),
+                                    json!({
+                                        "hasNextPage": true,
+                                        "hasPreviousPage": false,
+                                        "startCursor": "variant-1",
+                                        "endCursor": "variant-50"
+                                    }),
+                                )
+                            } else {
+                                (Vec::new(), complete_page_info())
+                            };
+                            json!({
+                                "id": id,
+                                "title": format!("Referenced product {index}"),
+                                "handle": format!("referenced-product-{index}"),
+                                "status": "ACTIVE",
+                                "media": {"nodes": media, "pageInfo": media_page_info},
+                                "variants": {"nodes": variants, "pageInfo": variants_page_info}
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    json!({"nodes": nodes})
+                }
+                "MediaProductMediaHydrate" => {
+                    assert_eq!(body["variables"]["id"], json!(first_product_id));
+                    assert_eq!(
+                        body["variables"]["after"],
+                        json!("product-media-50")
+                    );
+                    json!({"product": {
+                        "id": first_product_id,
+                        "media": {
+                            "nodes": [
+                                media_node(media_id.to_string()),
+                                media_node("gid://shopify/MediaImage/9250".to_string())
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": true,
+                                "startCursor": "product-media-51",
+                                "endCursor": "product-media-52"
+                            }
+                        }
+                    }})
+                }
+                "MediaProductVariantsHydrate" => {
+                    assert_eq!(body["variables"]["id"], json!(first_product_id));
+                    assert_eq!(body["variables"]["after"], json!("variant-50"));
+                    json!({"product": {
+                        "id": first_product_id,
+                        "variants": {
+                            "nodes": [{
+                                "id": last_variant_id,
+                                "title": "Variant 50",
+                                "media": {
+                                    "nodes": [
+                                        media_node(media_id.to_string()),
+                                        media_node("gid://shopify/MediaImage/9201".to_string())
+                                    ],
+                                    "pageInfo": complete_page_info()
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": true,
+                                "startCursor": "variant-51",
+                                "endCursor": "variant-51"
+                            }
+                        }
+                    }})
+                }
+                "MediaVariantMediaHydrate" => {
+                    assert_eq!(body["variables"]["id"], json!(first_variant_id));
+                    assert_eq!(
+                        body["variables"]["after"],
+                        json!("variant-media-10")
+                    );
+                    json!({"node": {
+                        "id": first_variant_id,
+                        "__typename": "ProductVariant",
+                        "media": {
+                            "nodes": [
+                                media_node(media_id.to_string()),
+                                media_node("gid://shopify/MediaImage/9249".to_string())
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": true,
+                                "startCursor": "variant-media-11",
+                                "endCursor": "variant-media-12"
+                            }
+                        }
+                    }})
+                }
+                operation => panic!("unexpected upstream operation {operation}: {body}"),
+            };
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.trim_start().starts_with("query")));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": data}),
+            }
+        });
+    let mutation = r#"
+        mutation DeleteColdReferencedFile($fileIds: [ID!]!) {
+          fileDelete(fileIds: $fileIds) {
+            deletedFileIds
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let deleted = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"fileIds": [media_id]}),
+    ));
+    assert_eq!(
+        deleted.body["data"]["fileDelete"],
+        json!({"deletedFileIds": [media_id], "userErrors": []})
+    );
+
+    let first_product = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFullyHydratedMediaOwner($id: ID!) {
+          product(id: $id) {
+            id
+            media(first: 100) { nodes { id } }
+            variants(first: 100) {
+              nodes { id media(first: 100) { nodes { id } } }
+            }
+          }
+        }
+        "#,
+        json!({"id": first_product_id}),
+    ));
+    let first_product = &first_product.body["data"]["product"];
+    assert_eq!(
+        first_product["media"]["nodes"].as_array().unwrap().len(),
+        51
+    );
+    assert_eq!(
+        first_product["variants"]["nodes"].as_array().unwrap().len(),
+        51
+    );
+    assert!(first_product.to_string().find(media_id).is_none());
+    let variant_zero = first_product["variants"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|variant| variant["id"] == first_variant_id)
+        .unwrap();
+    assert_eq!(variant_zero["media"]["nodes"].as_array().unwrap().len(), 11);
+    let variant_fifty = first_product["variants"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|variant| variant["id"] == last_variant_id)
+        .unwrap();
+    assert_eq!(
+        variant_fifty["media"]["nodes"],
+        json!([{"id": "gid://shopify/MediaImage/9201"}])
+    );
+
+    // This product models an owner that would have appeared after the former
+    // references(first: 50) page. The authoritative file tombstone applies
+    // when that previously unobserved owner is hydrated later.
+    let last_product = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadReferenceBeyondFirstPage($id: ID!) {
+          product(id: $id) { id media(first: 10) { nodes { id } } }
+        }
+        "#,
+        json!({"id": last_product_id}),
+    ));
+    assert_eq!(
+        last_product.body["data"]["product"]["media"]["nodes"],
+        json!([{"id": "gid://shopify/MediaImage/9450"}])
+    );
+
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(
+        bodies
+            .iter()
+            .filter(|body| body["operationName"] == "MediaFileReferencesHydrate")
+            .count(),
+        0,
+        "delete should not depend on the version-unstable bounded references field"
+    );
+    for operation in [
+        "MediaFileTargetHydrate",
+        "MediaProductOwnersHydrate",
+        "MediaProductMediaHydrate",
+        "MediaProductVariantsHydrate",
+        "MediaVariantMediaHydrate",
+    ] {
+        assert!(
+            bodies.iter().any(|body| body["operationName"] == operation),
+            "missing {operation} request: {bodies:?}"
+        );
+    }
+    drop(bodies);
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("fileDelete")
+    );
+    assert_eq!(log["entries"][0]["query"], json!(mutation));
+    assert_eq!(
+        log["entries"][0]["variables"],
+        json!({"fileIds": [media_id]})
+    );
+}
+
+#[test]
+fn media_file_acknowledge_update_failed_hydrates_an_unobserved_ready_file() {
+    let media_id = "gid://shopify/MediaImage/9001";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            assert_eq!(body["operationName"], json!("MediaFileTargetHydrate"));
+            assert_eq!(body["variables"], json!({"fileIds": [media_id]}));
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.trim_start().starts_with("query")));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [{
+                            "id": media_id,
+                            "__typename": "MediaImage",
+                            "alt": "Cold ready file",
+                            "createdAt": "2026-07-20T00:00:00Z",
+                            "fileStatus": "READY",
+                            "image": {
+                                "url": "https://cdn.example.com/cold-ready.jpg",
+                                "width": 640,
+                                "height": 480
+                            },
+                            "preview": {
+                                "image": {
+                                    "url": "https://cdn.example.com/cold-ready-preview.jpg",
+                                    "width": 320,
+                                    "height": 240
+                                }
+                            }
+                        }]
+                    }
+                }),
+            }
+        });
+    let mutation = r#"
+        mutation AcknowledgeColdReadyFile($fileIds: [ID!]!) {
+          fileAcknowledgeUpdateFailed(fileIds: $fileIds) {
+            files {
+              id
+              alt
+              fileStatus
+              ... on MediaImage { image { url width height } }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let acknowledge = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"fileIds": [media_id]}),
+    ));
+
+    assert_eq!(
+        acknowledge.body["data"]["fileAcknowledgeUpdateFailed"],
+        json!({
+            "files": [{
+                "id": media_id,
+                "alt": "Cold ready file",
+                "fileStatus": "READY",
+                "image": {
+                    "url": "https://cdn.example.com/cold-ready.jpg",
+                    "width": 640,
+                    "height": 480
+                }
+            }],
+            "userErrors": []
+        })
+    );
+    assert_eq!(upstream_bodies.lock().unwrap().len(), 1);
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("fileAcknowledgeUpdateFailed")
+    );
+    assert_eq!(log["entries"][0]["query"], json!(mutation));
+    assert_eq!(
+        log["entries"][0]["variables"],
+        json!({"fileIds": [media_id]})
+    );
+}
+
+#[test]
 fn media_file_acknowledge_update_failed_validates_missing_and_non_ready_ids() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(

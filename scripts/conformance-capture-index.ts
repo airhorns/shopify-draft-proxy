@@ -1862,6 +1862,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-mutation-first-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-media-file-mutation-first-lifecycle-conformance.mts',
+    purpose:
+      'Mutation-first fileAcknowledgeUpdateFailed/fileDelete target hydration and downstream product-media cascade.',
+    requiredAuthScopes: ['read_files', 'write_files', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/media/media-file-mutation-first-lifecycle.json',
+      'config/parity-requests/media/media-file-mutation-first-acknowledge.graphql',
+      'config/parity-requests/media/media-file-mutation-first-delete.graphql',
+      'config/parity-requests/media/media-file-mutation-first-downstream.graphql',
+      'config/parity-specs/media/media-file-mutation-first-lifecycle.json',
+      'config/parity-specs/media/fileDelete-product-media-parity.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft product and attached image, deletes the file during capture, and deletes the product in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-interface-fields',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-media-file-interface-fields-conformance.mts',

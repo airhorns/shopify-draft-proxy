@@ -950,8 +950,16 @@ impl DraftProxy {
             "products" | "productsCount" => true,
             "product" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                id.is_empty()
-                    || (!self.store.has_product(&id) && !self.store.product_is_tombstoned(&id))
+                if self.has_deleted_media_files() && !id.is_empty() {
+                    // fileDelete keeps an authoritative file tombstone. Route a
+                    // cold singular owner through the local callback so it can
+                    // hydrate every media/variant page and apply that tombstone
+                    // instead of returning Shopify's still-undeleted base row.
+                    false
+                } else {
+                    id.is_empty()
+                        || (!self.store.has_product(&id) && !self.store.product_is_tombstoned(&id))
+                }
             }
             "productByIdentifier" => !self.product_identifier_has_local_answer(field),
             _ => false,
@@ -1127,6 +1135,18 @@ impl DraftProxy {
             .get("id")
             .and_then(Value::as_str)
             .unwrap_or_default();
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && self.has_deleted_media_files()
+            && !id.is_empty()
+            && !self.store.has_product(id)
+            && !self.store.product_is_tombstoned(id)
+        {
+            if let Err(error) =
+                self.hydrate_complete_media_products(invocation.request, &[id.to_string()])
+            {
+                return ResolverOutcome::error(error);
+            }
+        }
         let owner_metafield_catalog_active = self
             .store
             .staged

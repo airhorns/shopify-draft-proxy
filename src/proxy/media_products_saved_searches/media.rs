@@ -45,6 +45,7 @@ fn image_url_field(
 // records before staging local updates; in replay they match the recorded
 // cassette calls, and against a live backend they are ordinary GraphQL reads.
 const MEDIA_FILE_UPDATE_HYDRATE_QUERY: &str = "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}";
+const MEDIA_FILE_TARGET_HYDRATE_QUERY: &str = "query MediaFileTargetHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}";
 const MEDIA_FILE_SAVED_SEARCH_HYDRATE_QUERY: &str = "query MediaFileSavedSearchHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on SavedSearch {\n      id\n      name\n      query\n      resourceType\n    }\n  }\n}";
 const MEDIA_FILES_CONNECTION_BASELINE_QUERY: &str = r#"
 query MediaFilesConnectionBaseline(
@@ -90,14 +91,90 @@ query MediaFilesConnectionBaseline(
 "#;
 pub(in crate::proxy) const MEDIA_PRODUCT_HYDRATE_QUERY: &str = "query MediaProductHydrate($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    status\n    media(first: 50) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n        preview { image { url width height } }\n        ... on MediaImage { image { url width height } }\n      }\n    }\n    variants(first: 50) {\n      nodes {\n        id\n        title\n        media(first: 10) { nodes { id } }\n      }\n    }\n  }\n}";
 const MEDIA_PRODUCTS_HYDRATE_QUERY: &str = "query MediaProductHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      media(first: 50) {\n        nodes {\n          id\n          alt\n          mediaContentType\n          status\n          preview { image { url width height } }\n          ... on MediaImage { image { url width height } }\n        }\n      }\n      variants(first: 50) {\n        nodes {\n          id\n          title\n          media(first: 10) { nodes { id } }\n        }\n      }\n    }\n  }\n}";
-// fileDelete / fileUpdate cascade clearing needs to know which products (and
-// their variants) a media file is attached to, so a delete or detach can remove
-// the file id from those owners. Shopify exposes no local reverse index, so in
-// LiveHybrid we read the file's `references` from upstream; in replay this
-// matches the recorded cassette call. Both the product `media` nodes and each
-// variant's attached `media` are hydrated so the cascade and downstream variant
-// reads operate on real owner state. (parity: file media cascade.)
-const MEDIA_FILE_REFERENCES_HYDRATE_QUERY: &str = "query MediaFileReferencesHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on MediaImage {\n      alt\n      fileStatus\n      mediaContentType\n      status\n      preview { image { url width height } }\n      image { url width height }\n      references(first: 50) {\n        nodes {\n          ... on Product {\n            id\n            title\n            handle\n            status\n            media(first: 50) {\n              nodes {\n                id\n                __typename\n                alt\n                fileStatus\n                mediaContentType\n                status\n                preview { image { url width height } }\n                ... on MediaImage { image { url width height } }\n              }\n            }\n            variants(first: 50) {\n              nodes {\n                id\n                title\n                media(first: 10) { nodes { id alt mediaContentType } }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}";
+// A staged file tombstone is the authoritative relationship exclusion for
+// fileDelete. Known owners are cleared immediately, while a product first seen
+// after the delete is hydrated completely and has the tombstoned file removed
+// before it enters the store. This avoids relying on MediaImage.references,
+// which is absent from current public schemas, and prevents bounded pages from
+// being mistaken for a complete owner graph.
+const MEDIA_PRODUCT_OWNERS_HYDRATE_QUERY: &str = r#"query MediaProductOwnersHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on Product {
+      id
+      title
+      handle
+      status
+      media(first: 50) {
+        nodes {
+          id
+          __typename
+          alt
+          mediaContentType
+          status
+          preview { image { url width height } }
+          ... on MediaImage { image { url width height } }
+        }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+      variants(first: 50) {
+        nodes {
+          id
+          title
+          media(first: 10) {
+            nodes { id alt mediaContentType }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+  }
+}"#;
+const MEDIA_PRODUCT_MEDIA_HYDRATE_QUERY: &str = r#"query MediaProductMediaHydrate($id: ID!, $after: String) {
+  product(id: $id) {
+    id
+    media(first: 50, after: $after) {
+      nodes {
+        id
+        __typename
+        alt
+        mediaContentType
+        status
+        preview { image { url width height } }
+        ... on MediaImage { image { url width height } }
+      }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+  }
+}"#;
+const MEDIA_PRODUCT_VARIANTS_HYDRATE_QUERY: &str = r#"query MediaProductVariantsHydrate($id: ID!, $after: String) {
+  product(id: $id) {
+    id
+    variants(first: 50, after: $after) {
+      nodes {
+        id
+        title
+        media(first: 10) {
+          nodes { id alt mediaContentType }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+      }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+  }
+}"#;
+const MEDIA_VARIANT_MEDIA_HYDRATE_QUERY: &str = r#"query MediaVariantMediaHydrate($id: ID!, $after: String) {
+  node(id: $id) {
+    ... on ProductVariant {
+      id
+      media(first: 10, after: $after) {
+        nodes { id alt mediaContentType }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+    }
+  }
+}"#;
+const MEDIA_OWNER_HYDRATE_BATCH_SIZE: usize = 250;
 
 impl DraftProxy {
     pub(crate) fn media_query_root(
@@ -130,7 +207,9 @@ impl DraftProxy {
                 self.media_file_update(invocation.request, invocation.response_key, &arguments)
             }
             "fileDelete" => self.media_file_delete(invocation.request, &arguments),
-            "fileAcknowledgeUpdateFailed" => self.media_file_acknowledge_update_failed(&arguments),
+            "fileAcknowledgeUpdateFailed" => {
+                self.media_file_acknowledge_update_failed(invocation.request, &arguments)
+            }
             "stagedUploadsCreate" => self.media_staged_uploads_create(
                 invocation.response_key,
                 &arguments,
@@ -453,14 +532,14 @@ impl DraftProxy {
         request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> ResolverOutcome<Value> {
-        let ids = media_string_list_arg(arguments, "fileIds")
+        let supplied_ids = media_string_list_arg(arguments, "fileIds");
+        if let Err(error) = self.hydrate_file_lifecycle_targets(request, &supplied_ids) {
+            return ResolverOutcome::error(error);
+        }
+        let ids = supplied_ids
             .into_iter()
             .map(|id| self.resolve_media_file_delete_id(&id))
             .collect::<Vec<_>>();
-        // Hydrate the referenced files (and their owning products/variants) so
-        // existence checks run against the real backend and the post-delete
-        // cascade can clear the file from those owners.
-        self.hydrate_media_file_references(request, &ids);
         let missing_ids =
             missing_media_file_ids(ids.iter(), |id| self.media_file_delete_target_exists(id));
         if !missing_ids.is_empty() {
@@ -476,19 +555,23 @@ impl DraftProxy {
         if !ids.is_empty() {
             self.store.staged.media_files_overlay_dirty = true;
         }
-        // Cascade: detach the deleted files from every product/variant that
-        // referenced them, so subsequent product.media / variant.media reads no
-        // longer surface the removed file.
+        // Cascade known owners immediately. The file tombstones above remain
+        // authoritative for owners observed later: complete product hydration
+        // removes these ids before staging the new owner graph.
         self.store.clear_media_ids(&ids, None);
         let payload = json!({"deletedFileIds": ids, "userErrors": []});
         ResolverOutcome::value(payload).with_log_draft(LogDraft::staged("fileDelete", "media", ids))
     }
 
     pub(in crate::proxy) fn media_file_acknowledge_update_failed(
-        &self,
+        &mut self,
+        request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> ResolverOutcome<Value> {
         let file_ids = media_string_list_arg(arguments, "fileIds");
+        if let Err(error) = self.hydrate_file_lifecycle_targets(request, &file_ids) {
+            return ResolverOutcome::error(error);
+        }
         let missing_ids = missing_media_file_ids(file_ids.iter(), |id| {
             self.media_file_for_update(id).is_some()
         });
@@ -751,54 +834,268 @@ impl DraftProxy {
         }
     }
 
-    // Hydrate the products and variants that reference the given media files,
-    // along with the file records themselves, from upstream. Used by fileDelete
-    // (and the cascade that follows it) so existence checks and downstream
-    // product.media / variant.media reads run against the real owner state.
-    fn hydrate_media_file_references(&mut self, request: &Request, file_ids: &[String]) {
+    // Mutation-first lifecycle roots need an authoritative target lookup before
+    // deciding that an unobserved Shopify file is missing. The lookup is read
+    // only, batched at Shopify's nodes(ids:) limit, and never resurrects a local
+    // tombstone while the real delete is still waiting for explicit commit.
+    fn hydrate_file_lifecycle_targets(
+        &mut self,
+        request: &Request,
+        file_ids: &[String],
+    ) -> Result<(), String> {
         if self.config.read_mode != ReadMode::LiveHybrid {
-            return;
+            return Ok(());
         }
         let mut missing = Vec::new();
         extend_unique_strings(
             &mut missing,
             file_ids.iter().filter(|id| {
-                !id.is_empty() && !self.store.staged.media_files.contains_key(id.as_str())
+                !id.is_empty()
+                    && !self.store.staged.media_files.contains_key(id.as_str())
+                    && !self.store.staged.media_files.is_tombstoned(id.as_str())
             }),
         );
         if missing.is_empty() {
-            return;
+            return Ok(());
         }
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": MEDIA_FILE_REFERENCES_HYDRATE_QUERY,
-                "operationName": "MediaFileReferencesHydrate",
-                "variables": { "fileIds": missing },
-            }),
-        );
-        if response.status >= 400 {
-            return;
-        }
-        let Some(nodes) = response.body["data"]["nodes"].as_array().cloned() else {
-            return;
-        };
-        for node in nodes {
-            // Stage the file record itself so the existence check passes.
-            if let Some(record) = media_file_record_from_node(&node) {
-                if let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) {
-                    if !self.store.staged.media_files.is_tombstoned(&id) {
-                        self.store.staged.media_files.entry(id).or_insert(record);
+
+        for chunk in missing.chunks(MEDIA_OWNER_HYDRATE_BATCH_SIZE) {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": MEDIA_FILE_TARGET_HYDRATE_QUERY,
+                    "operationName": "MediaFileTargetHydrate",
+                    "variables": { "fileIds": chunk },
+                }),
+            );
+            ensure_complete_media_hydration_response(&response, "MediaFileTargetHydrate")?;
+            let nodes = response.body["data"]["nodes"].as_array().ok_or_else(|| {
+                incomplete_media_hydration_error(
+                    "MediaFileTargetHydrate",
+                    "Shopify did not return a nodes array",
+                )
+            })?;
+            if nodes.len() != chunk.len() {
+                return Err(incomplete_media_hydration_error(
+                    "MediaFileTargetHydrate",
+                    "Shopify returned a truncated nodes array",
+                ));
+            }
+            for node in nodes {
+                if let Some(record) = media_file_record_from_node(node) {
+                    if let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) {
+                        if !self.store.staged.media_files.is_tombstoned(&id) {
+                            self.store.staged.media_files.entry(id).or_insert(record);
+                        }
                     }
                 }
             }
-            // Stage every product (and its variants/media) that references it.
-            if let Some(references) = node.pointer("/references/nodes").and_then(Value::as_array) {
-                for product_node in references.clone() {
-                    self.observe_media_product_node(&product_node);
-                }
+        }
+        Ok(())
+    }
+
+    // Product reads after a local fileDelete use this complete owner hydrate
+    // instead of MediaImage.references. Every connection cursor is exhausted
+    // before observation, so partial pages never become authoritative product
+    // or variant state.
+    pub(in crate::proxy) fn hydrate_complete_media_products(
+        &mut self,
+        request: &Request,
+        product_ids: &[String],
+    ) -> Result<(), String> {
+        if self.config.read_mode != ReadMode::LiveHybrid || product_ids.is_empty() {
+            return Ok(());
+        }
+        let mut unique_ids = Vec::new();
+        extend_unique_strings(
+            &mut unique_ids,
+            product_ids.iter().filter(|id| !id.is_empty()),
+        );
+
+        for chunk in unique_ids.chunks(MEDIA_OWNER_HYDRATE_BATCH_SIZE) {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": MEDIA_PRODUCT_OWNERS_HYDRATE_QUERY,
+                    "operationName": "MediaProductOwnersHydrate",
+                    "variables": { "ids": chunk },
+                }),
+            );
+            ensure_complete_media_hydration_response(&response, "MediaProductOwnersHydrate")?;
+            let nodes = response.body["data"]["nodes"].as_array().ok_or_else(|| {
+                incomplete_media_hydration_error(
+                    "MediaProductOwnersHydrate",
+                    "Shopify did not return a nodes array",
+                )
+            })?;
+            if nodes.len() != chunk.len() {
+                return Err(incomplete_media_hydration_error(
+                    "MediaProductOwnersHydrate",
+                    "Shopify returned a truncated nodes array",
+                ));
+            }
+            for node in nodes.iter().filter(|node| node.is_object()) {
+                let mut product_node = node.clone();
+                self.complete_media_product_connections(request, &mut product_node)?;
+                self.observe_media_product_node(&product_node);
             }
         }
+        Ok(())
+    }
+
+    fn complete_media_product_connections(
+        &mut self,
+        request: &Request,
+        product: &mut Value,
+    ) -> Result<(), String> {
+        let product_id = product
+            .get("id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                incomplete_media_hydration_error(
+                    "MediaProductOwnersHydrate",
+                    "Shopify returned a product without an id",
+                )
+            })?
+            .to_string();
+
+        let mut media_cursors = BTreeSet::new();
+        while let Some(after) = next_media_connection_cursor(product, "media")? {
+            if !media_cursors.insert(after.clone()) {
+                return Err(incomplete_media_hydration_error(
+                    "MediaProductMediaHydrate",
+                    "Shopify repeated a media page cursor",
+                ));
+            }
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": MEDIA_PRODUCT_MEDIA_HYDRATE_QUERY,
+                    "operationName": "MediaProductMediaHydrate",
+                    "variables": { "id": product_id, "after": after },
+                }),
+            );
+            ensure_complete_media_hydration_response(&response, "MediaProductMediaHydrate")?;
+            let page = response
+                .body
+                .pointer("/data/product/media")
+                .ok_or_else(|| {
+                    incomplete_media_hydration_error(
+                        "MediaProductMediaHydrate",
+                        "Shopify did not return the requested media page",
+                    )
+                })?;
+            append_media_connection_page(&mut product["media"], page, "MediaProductMediaHydrate")?;
+        }
+
+        let mut variant_cursors = BTreeSet::new();
+        while let Some(after) = next_media_connection_cursor(product, "variants")? {
+            if !variant_cursors.insert(after.clone()) {
+                return Err(incomplete_media_hydration_error(
+                    "MediaProductVariantsHydrate",
+                    "Shopify repeated a variants page cursor",
+                ));
+            }
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": MEDIA_PRODUCT_VARIANTS_HYDRATE_QUERY,
+                    "operationName": "MediaProductVariantsHydrate",
+                    "variables": { "id": product_id, "after": after },
+                }),
+            );
+            ensure_complete_media_hydration_response(&response, "MediaProductVariantsHydrate")?;
+            let page = response
+                .body
+                .pointer("/data/product/variants")
+                .ok_or_else(|| {
+                    incomplete_media_hydration_error(
+                        "MediaProductVariantsHydrate",
+                        "Shopify did not return the requested variants page",
+                    )
+                })?;
+            append_media_connection_page(
+                &mut product["variants"],
+                page,
+                "MediaProductVariantsHydrate",
+            )?;
+        }
+
+        let variants = product
+            .pointer_mut("/variants/nodes")
+            .and_then(Value::as_array_mut)
+            .ok_or_else(|| {
+                incomplete_media_hydration_error(
+                    "MediaProductOwnersHydrate",
+                    "Shopify did not return a variants nodes array",
+                )
+            })?;
+        for variant in variants {
+            self.complete_media_variant_connection(request, variant)?;
+        }
+        Ok(())
+    }
+
+    fn complete_media_variant_connection(
+        &mut self,
+        request: &Request,
+        variant: &mut Value,
+    ) -> Result<(), String> {
+        let variant_id = variant
+            .get("id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                incomplete_media_hydration_error(
+                    "MediaProductOwnersHydrate",
+                    "Shopify returned a variant without an id",
+                )
+            })?
+            .to_string();
+        let mut media_cursors = BTreeSet::new();
+        while let Some(after) = next_media_connection_cursor(variant, "media")? {
+            if !media_cursors.insert(after.clone()) {
+                return Err(incomplete_media_hydration_error(
+                    "MediaVariantMediaHydrate",
+                    "Shopify repeated a variant media page cursor",
+                ));
+            }
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": MEDIA_VARIANT_MEDIA_HYDRATE_QUERY,
+                    "operationName": "MediaVariantMediaHydrate",
+                    "variables": { "id": variant_id, "after": after },
+                }),
+            );
+            ensure_complete_media_hydration_response(&response, "MediaVariantMediaHydrate")?;
+            let page = response.body.pointer("/data/node/media").ok_or_else(|| {
+                incomplete_media_hydration_error(
+                    "MediaVariantMediaHydrate",
+                    "Shopify did not return the requested variant media page",
+                )
+            })?;
+            append_media_connection_page(&mut variant["media"], page, "MediaVariantMediaHydrate")?;
+        }
+        Ok(())
+    }
+
+    fn deleted_media_file_ids(&self) -> BTreeSet<String> {
+        self.store
+            .staged
+            .media_files
+            .tombstones
+            .iter()
+            .cloned()
+            .collect()
+    }
+
+    pub(in crate::proxy) fn has_deleted_media_files(&self) -> bool {
+        !self.store.staged.media_files.tombstones.is_empty()
+    }
+
+    fn remove_deleted_media_from_observed_product(&self, product: &mut Value) {
+        let deleted_ids = self.deleted_media_file_ids();
+        remove_media_ids_from_observed_product(product, &deleted_ids);
     }
 
     // Stage a product node observed from a media hydration read: the product
@@ -807,6 +1104,9 @@ impl DraftProxy {
     // Without the latter two, the cascade clear and downstream variant.media
     // reads would have nothing concrete to operate on.
     pub(in crate::proxy) fn observe_media_product_node(&mut self, product_node: &Value) {
+        let mut product_node = product_node.clone();
+        self.remove_deleted_media_from_observed_product(&mut product_node);
+        let product_node = &product_node;
         let Some(product_id) = product_node
             .get("id")
             .and_then(Value::as_str)
@@ -1234,6 +1534,180 @@ impl DraftProxy {
             "product" | "products" => !self.media_file_product_ids(file).is_empty(),
             "none" | "false" => self.media_file_product_ids(file).is_empty(),
             _ => false,
+        }
+    }
+}
+
+fn ensure_complete_media_hydration_response(
+    response: &Response,
+    operation_name: &str,
+) -> Result<(), String> {
+    if !(200..300).contains(&response.status) {
+        return Err(incomplete_media_hydration_error(
+            operation_name,
+            &format!("Shopify returned HTTP {}", response.status),
+        ));
+    }
+    if response
+        .body
+        .get("errors")
+        .and_then(Value::as_array)
+        .is_some_and(|errors| !errors.is_empty())
+    {
+        return Err(incomplete_media_hydration_error(
+            operation_name,
+            "Shopify returned GraphQL errors",
+        ));
+    }
+    Ok(())
+}
+
+fn incomplete_media_hydration_error(operation_name: &str, reason: &str) -> String {
+    format!("Unable to hydrate complete file lifecycle state with {operation_name}: {reason}")
+}
+
+fn next_media_connection_cursor(value: &Value, field: &str) -> Result<Option<String>, String> {
+    let operation_name = match field {
+        "variants" => "MediaProductVariantsHydrate",
+        "media" => "MediaProductMediaHydrate",
+        _ => "MediaProductOwnersHydrate",
+    };
+    let connection = value
+        .get(field)
+        .filter(|value| value.is_object())
+        .ok_or_else(|| {
+            incomplete_media_hydration_error(
+                operation_name,
+                &format!("Shopify did not return a {field} connection"),
+            )
+        })?;
+    if !connection
+        .get("nodes")
+        .is_some_and(|nodes| nodes.is_array())
+    {
+        return Err(incomplete_media_hydration_error(
+            operation_name,
+            &format!("Shopify did not return {field}.nodes"),
+        ));
+    }
+    let page_info = connection
+        .get("pageInfo")
+        .filter(|value| value.is_object())
+        .ok_or_else(|| {
+            incomplete_media_hydration_error(
+                operation_name,
+                &format!("Shopify did not return {field}.pageInfo"),
+            )
+        })?;
+    let has_next_page = page_info
+        .get("hasNextPage")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| {
+            incomplete_media_hydration_error(
+                operation_name,
+                &format!("Shopify did not return {field}.pageInfo.hasNextPage"),
+            )
+        })?;
+    if !has_next_page {
+        return Ok(None);
+    }
+    let cursor = page_info
+        .get("endCursor")
+        .and_then(Value::as_str)
+        .filter(|cursor| !cursor.is_empty())
+        .ok_or_else(|| {
+            incomplete_media_hydration_error(
+                operation_name,
+                &format!("Shopify marked {field} incomplete without an end cursor"),
+            )
+        })?;
+    Ok(Some(cursor.to_string()))
+}
+
+fn append_media_connection_page(
+    connection: &mut Value,
+    page: &Value,
+    operation_name: &str,
+) -> Result<(), String> {
+    let page_nodes = page
+        .get("nodes")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            incomplete_media_hydration_error(
+                operation_name,
+                "Shopify did not return the page nodes array",
+            )
+        })?
+        .clone();
+    let page_info = page
+        .get("pageInfo")
+        .filter(|value| value.is_object())
+        .ok_or_else(|| {
+            incomplete_media_hydration_error(
+                operation_name,
+                "Shopify did not return pageInfo for the requested page",
+            )
+        })?
+        .clone();
+    let nodes = connection
+        .get_mut("nodes")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| {
+            incomplete_media_hydration_error(
+                operation_name,
+                "The accumulated connection has no nodes array",
+            )
+        })?;
+    nodes.extend(page_nodes);
+    connection["pageInfo"] = page_info;
+    Ok(())
+}
+
+fn remove_media_ids_from_connection(connection: &mut Value, deleted_ids: &BTreeSet<String>) {
+    if let Some(nodes) = connection.get_mut("nodes").and_then(Value::as_array_mut) {
+        nodes.retain(|node| {
+            node.get("id")
+                .and_then(Value::as_str)
+                .is_none_or(|id| !deleted_ids.contains(id))
+        });
+    }
+    if let Some(edges) = connection.get_mut("edges").and_then(Value::as_array_mut) {
+        edges.retain(|edge| {
+            edge.pointer("/node/id")
+                .and_then(Value::as_str)
+                .is_none_or(|id| !deleted_ids.contains(id))
+        });
+    }
+}
+
+fn remove_media_ids_from_observed_variant(variant: &mut Value, deleted_ids: &BTreeSet<String>) {
+    if let Some(media) = variant.get_mut("media") {
+        remove_media_ids_from_connection(media, deleted_ids);
+    }
+}
+
+pub(in crate::proxy) fn remove_media_ids_from_observed_product(
+    product: &mut Value,
+    deleted_ids: &BTreeSet<String>,
+) {
+    if deleted_ids.is_empty() {
+        return;
+    }
+    if let Some(media) = product.get_mut("media") {
+        remove_media_ids_from_connection(media, deleted_ids);
+    }
+    if let Some(variants) = product.get_mut("variants") {
+        if let Some(nodes) = variants.get_mut("nodes").and_then(Value::as_array_mut) {
+            for variant in nodes {
+                remove_media_ids_from_observed_variant(variant, deleted_ids);
+            }
+        }
+        if let Some(edges) = variants.get_mut("edges").and_then(Value::as_array_mut) {
+            for edge in edges {
+                if let Some(variant) = edge.get_mut("node") {
+                    remove_media_ids_from_observed_variant(variant, deleted_ids);
+                }
+            }
         }
     }
 }

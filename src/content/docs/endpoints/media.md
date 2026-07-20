@@ -125,7 +125,10 @@ Local staged mutations:
   proxy's local upload endpoint is limited to storing bytes in memory for
   bulk-mutation variable JSONL handoff; it does not model Shopify storage or
   media processing side effects.
-- File mutations stage local `FileRecord` state and do not proxy supported roots upstream at runtime.
+- File mutations stage local `FileRecord` state and do not proxy supported roots
+  upstream at runtime. Read-only prerequisite hydration is allowed in
+  LiveHybrid mode, and successful mutations retain the caller's original
+  document and variables for ordered commit replay.
 - Files API payloads populate the public File interface fields needed by
   Shopify's non-null contracts: `createdAt`, `updatedAt`, `fileStatus`, and
   `fileErrors`. `updatedAt` is the record's last local modification timestamp,
@@ -218,14 +221,30 @@ Local staged mutations:
 - In LiveHybrid mode, `files` / `fileSavedSearches` reads forward the original
   query upstream on a cold session, hydrate observed real file and FILE
   saved-search records, and then serialize the effective local overlay.
-- `fileDelete` marks files deleted in local state so downstream reads and product media references can observe the deletion. In LiveHybrid mode, deletes of product-owned media ids may first hydrate the owning product/media relationship from upstream so the local delete can remove that media node from downstream `product.media` reads. The payload's `deletedFileIds` are rebuilt from the local record's actual Files API type (`MediaImage`, `Video`, `GenericFile`, etc.) rather than echoing a caller-supplied alias GID unchanged.
+- In LiveHybrid mode, mutation-first `fileDelete` and
+  `fileAcknowledgeUpdateFailed` requests batch-hydrate unobserved targets with a
+  read-only `nodes(ids:)` query before existence and readiness validation. An
+  upstream error, malformed response, or truncated node list fails hydration;
+  it is not interpreted as proof that a file is missing. Snapshot mode keeps
+  validation local to observed/snapshot state.
+- `fileDelete` tombstones each resolved file and immediately removes it from
+  every locally known product and variant media association while leaving
+  unrelated media associations intact. The tombstone remains the authoritative
+  relationship exclusion for owners observed later, so a bounded hydration page
+  is never treated as a complete owner graph and cannot resurrect deleted media.
+  In LiveHybrid mode, a cold singular `product` read after a delete exhausts the
+  product-media connection, the variants connection, and every variant-media
+  connection before filtering tombstoned IDs and staging the observed owner.
+  This path uses public product and node fields rather than the version-dependent
+  `MediaImage.references` field. The payload's `deletedFileIds` are rebuilt from
+  the local record's actual Files API type (`MediaImage`, `Video`,
+  `GenericFile`, etc.) rather than echoing a caller-supplied alias GID unchanged.
 - Shopify's backend can reject `fileDelete` with `FILE_LOCKED` while another media-processing mutation owns a per-file lock. The proxy has no concurrent Shopify media-processing jobs or cross-request lock manager, so it does not fabricate `FILE_LOCKED`; this remains an explicit fidelity divergence unless a future local processing model introduces lockable file state.
-- `fileAcknowledgeUpdateFailed(fileIds:)` is currently a local
-  payload-shape stub for existing `READY` Files API records and does not proxy
-  supported requests upstream at runtime. The mutation returns selected `files`
-  and `userErrors` from the local file model but does not mutate file state or
-  stamp acknowledgement metadata, because Shopify exposes no
-  `updateFailureAcknowledgedAt` field.
+- `fileAcknowledgeUpdateFailed(fileIds:)` returns hydrated existing `READY`
+  Files API records and stages the original request for commit without changing
+  visible file state. Shopify exposes no `updateFailureAcknowledgedAt` field,
+  so a successful acknowledgement has no additional locally observable field
+  to stamp.
 - Acknowledgement validation follows captured Shopify behavior for the supported
   local subset: unknown or deleted IDs return `files: null` with
   `FILE_DOES_NOT_EXIST`, and non-ready file states such as failed file creation
