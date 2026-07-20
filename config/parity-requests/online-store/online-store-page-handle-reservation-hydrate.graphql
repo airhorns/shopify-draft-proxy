@@ -1,0 +1,13 @@
+query OnlineStorePageHandleReservationHydrate($query: String!, $after: String) {
+  pages(first: 250, after: $after, query: $query) {
+    nodes {
+      __typename
+      id
+      handle
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}

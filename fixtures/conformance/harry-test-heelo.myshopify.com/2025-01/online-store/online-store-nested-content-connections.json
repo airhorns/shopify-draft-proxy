@@ -1009,6 +1009,43 @@
           }
         }
       }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "OnlineStoreBlogHandleReservationHydrate",
+      "query": "query OnlineStoreBlogHandleReservationHydrate($query: String!, $after: String) {\n  blogs(first: 250, after: $after, query: $query) {\n    nodes {\n      __typename\n      id\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "after": null,
+        "query": "handle:nested-content-connections-blog-20260705034243"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "blogs": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

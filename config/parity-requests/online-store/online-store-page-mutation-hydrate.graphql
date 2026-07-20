@@ -1,0 +1,15 @@
+query OnlineStorePageHydrate($id: ID!) {
+  page(id: $id) {
+    __typename
+    id
+    title
+    handle
+    body
+    bodySummary
+    isPublished
+    publishedAt
+    createdAt
+    updatedAt
+    templateSuffix
+  }
+}

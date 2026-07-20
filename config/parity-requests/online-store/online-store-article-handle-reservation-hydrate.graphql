@@ -1,0 +1,16 @@
+query OnlineStoreArticleHandleReservationHydrate($query: String!, $after: String) {
+  articles(first: 250, after: $after, query: $query) {
+    nodes {
+      __typename
+      id
+      handle
+      blog {
+        id
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
