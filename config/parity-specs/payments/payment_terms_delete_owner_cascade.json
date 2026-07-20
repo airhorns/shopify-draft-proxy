@@ -10,7 +10,8 @@
     "no-upstream-passthrough"
   ],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-delete-owner-cascade.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-delete-owner-cascade.json",
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-cold-delete.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "comparisonMode": "captured-vs-proxy-request",
@@ -197,5 +198,5 @@
       }
     ]
   },
-  "notes": "Live 2026-04 Shopify capture for paymentTermsDelete owner cleanup. Disposable DraftOrder and Order owners are created through public Admin GraphQL, payment terms are created and deleted, owner reads assert paymentTerms null after delete, and the missing-id branch asserts the captured field-null PAYMENT_TERMS_DELETE_UNSUCCESSFUL userError payload."
+  "notes": "Live 2026-04 Shopify capture for paymentTermsDelete owner cleanup. Disposable DraftOrder and Order owners are created through public Admin GraphQL, payment terms are created and deleted, owner reads assert paymentTerms null after delete, and the missing-id branch asserts the captured field-null PAYMENT_TERMS_DELETE_UNSUCCESSFUL userError payload. The supplemental cold-delete capture provides the exact query and variables for the shared confirmed-missing PaymentTermsHydrate cassette."
 }

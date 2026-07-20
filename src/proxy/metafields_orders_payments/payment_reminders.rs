@@ -51,6 +51,14 @@ impl DraftProxy {
         if self
             .store
             .staged
+            .deleted_payment_schedule_ids
+            .contains(schedule_id)
+        {
+            return payment_reminder_error_payload("Payment schedule does not exist");
+        }
+        if self
+            .store
+            .staged
             .payment_reminder_schedule_ids
             .contains(schedule_id)
         {

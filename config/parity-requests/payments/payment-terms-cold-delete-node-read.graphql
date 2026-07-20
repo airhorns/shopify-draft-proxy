@@ -1,0 +1,11 @@
+query PaymentTermsColdDeleteNodeRead($id: ID!) {
+  node(id: $id) {
+    __typename
+    ... on PaymentTerms {
+      id
+    }
+    ... on PaymentSchedule {
+      id
+    }
+  }
+}

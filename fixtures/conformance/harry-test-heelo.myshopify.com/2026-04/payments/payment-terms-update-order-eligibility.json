@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-08T13:48:29.095Z",
+  "capturedAt": "2026-07-20T06:15:44.465Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "cases": {
@@ -9,7 +9,7 @@
           "query": "mutation PaymentTermsUpdateEligibilityOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFinancialStatus\n        closed\n        closedAt\n        cancelledAt\n        totalOutstandingSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        currentTotalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n        totalPriceSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
           "variables": {
             "order": {
-              "email": "payment-terms-update-paid-1778248107276@example.com",
+              "email": "payment-terms-update-paid-1784528143130@example.com",
               "note": "payment terms update eligibility paid capture",
               "tags": ["shopify-draft-proxy", "payment-terms-update-eligibility", "paid"],
               "test": true,
@@ -31,7 +31,7 @@
                   },
                   "requiresShipping": false,
                   "taxable": false,
-                  "sku": "sdp-payment-terms-update-paid-1778248107276"
+                  "sku": "sdp-payment-terms-update-paid-1784528143130"
                 }
               ]
             },
@@ -45,8 +45,8 @@
             "data": {
               "orderCreate": {
                 "order": {
-                  "id": "gid://shopify/Order/8736291586354",
-                  "name": "#1403",
+                  "id": "gid://shopify/Order/8980250820914",
+                  "name": "#1887",
                   "displayFinancialStatus": null,
                   "closed": false,
                   "closedAt": null,
@@ -101,7 +101,7 @@
         "paymentTermsCreate": {
           "query": "mutation PaymentTermsUpdateEligibilityCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      paymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        paymentSchedules(first: 2) {\n          nodes {\n            id\n            issuedAt\n            dueAt\n            completedAt\n            due\n            amount {\n              amount\n              currencyCode\n            }\n            balanceDue {\n              amount\n              currencyCode\n            }\n            totalBalance {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
           "variables": {
-            "referenceId": "gid://shopify/Order/8736291586354",
+            "referenceId": "gid://shopify/Order/8980250820914",
             "attrs": {
               "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
               "paymentSchedules": [
@@ -115,9 +115,9 @@
             "data": {
               "paymentTermsCreate": {
                 "paymentTerms": {
-                  "id": "gid://shopify/PaymentTerms/146330812722",
-                  "due": false,
-                  "overdue": false,
+                  "id": "gid://shopify/PaymentTerms/165219041586",
+                  "due": true,
+                  "overdue": true,
                   "dueInDays": 30,
                   "paymentTermsName": "Net 30",
                   "paymentTermsType": "NET",
@@ -125,11 +125,11 @@
                   "paymentSchedules": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/PaymentSchedule/178776178994",
+                        "id": "gid://shopify/PaymentSchedule/207963914546",
                         "issuedAt": "2026-05-05T00:00:00Z",
                         "dueAt": "2026-06-04T00:00:00Z",
                         "completedAt": null,
-                        "due": false,
+                        "due": true,
                         "amount": {
                           "amount": "12.5",
                           "currencyCode": "USD"
@@ -166,14 +166,14 @@
           "query": "mutation PaymentTermsUpdateEligibilityOrderMarkAsPaid($input: OrderMarkAsPaidInput!) {\n    orderMarkAsPaid(input: $input) {\n      order {\n        id\n        displayFinancialStatus\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
           "variables": {
             "input": {
-              "id": "gid://shopify/Order/8736291586354"
+              "id": "gid://shopify/Order/8980250820914"
             }
           },
           "response": {
             "data": {
               "orderMarkAsPaid": {
                 "order": {
-                  "id": "gid://shopify/Order/8736291586354",
+                  "id": "gid://shopify/Order/8980250820914",
                   "displayFinancialStatus": "PAID"
                 },
                 "userErrors": []
@@ -194,14 +194,14 @@
         }
       },
       "hydrate": {
-        "query": "query PaymentTermsHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }",
+        "query": "query PaymentTermsHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          name\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          name\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }",
         "variables": {
-          "id": "gid://shopify/PaymentTerms/146330812722"
+          "id": "gid://shopify/PaymentTerms/165219041586"
         },
         "response": {
           "data": {
             "paymentTerms": {
-              "id": "gid://shopify/PaymentTerms/146330812722",
+              "id": "gid://shopify/PaymentTerms/165219041586",
               "due": false,
               "overdue": false,
               "dueInDays": 30,
@@ -209,8 +209,9 @@
               "paymentTermsType": "NET",
               "translatedName": "Net 30",
               "order": {
-                "id": "gid://shopify/Order/8736291586354",
-                "email": "payment-terms-update-paid-1778248107276@example.com",
+                "id": "gid://shopify/Order/8980250820914",
+                "name": "#1887",
+                "email": "payment-terms-update-paid-1784528143130@example.com",
                 "closed": false,
                 "closedAt": null,
                 "cancelledAt": null,
@@ -257,10 +258,10 @@
               "paymentSchedules": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/PaymentSchedule/178776178994",
+                    "id": "gid://shopify/PaymentSchedule/207963914546",
                     "dueAt": "2026-06-04T00:00:00Z",
                     "issuedAt": "2026-05-05T00:00:00Z",
-                    "completedAt": "2026-05-08T13:48:28Z",
+                    "completedAt": "2026-07-20T06:15:44Z",
                     "due": false,
                     "amount": {
                       "amount": "0.0",
@@ -295,7 +296,7 @@
       "query": "mutation PaymentTermsUpdateOrderEligibility($input: PaymentTermsUpdateInput!) {\n    paymentTermsUpdate(input: $input) {\n      paymentTerms {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
       "variables": {
         "input": {
-          "paymentTermsId": "gid://shopify/PaymentTerms/146330812722",
+          "paymentTermsId": "gid://shopify/PaymentTerms/165219041586",
           "paymentTermsAttributes": {
             "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
             "paymentSchedules": [
@@ -337,15 +338,15 @@
     {
       "operationName": "PaymentTermsHydrate",
       "variables": {
-        "id": "gid://shopify/PaymentTerms/146330812722"
+        "id": "gid://shopify/PaymentTerms/165219041586"
       },
-      "query": "query PaymentTermsHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }",
+      "query": "query PaymentTermsHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          name\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          name\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "paymentTerms": {
-              "id": "gid://shopify/PaymentTerms/146330812722",
+              "id": "gid://shopify/PaymentTerms/165219041586",
               "due": false,
               "overdue": false,
               "dueInDays": 30,
@@ -353,8 +354,9 @@
               "paymentTermsType": "NET",
               "translatedName": "Net 30",
               "order": {
-                "id": "gid://shopify/Order/8736291586354",
-                "email": "payment-terms-update-paid-1778248107276@example.com",
+                "id": "gid://shopify/Order/8980250820914",
+                "name": "#1887",
+                "email": "payment-terms-update-paid-1784528143130@example.com",
                 "closed": false,
                 "closedAt": null,
                 "cancelledAt": null,
@@ -401,10 +403,10 @@
               "paymentSchedules": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/PaymentSchedule/178776178994",
+                    "id": "gid://shopify/PaymentSchedule/207963914546",
                     "dueAt": "2026-06-04T00:00:00Z",
                     "issuedAt": "2026-05-05T00:00:00Z",
-                    "completedAt": "2026-05-08T13:48:28Z",
+                    "completedAt": "2026-07-20T06:15:44Z",
                     "due": false,
                     "amount": {
                       "amount": "0.0",

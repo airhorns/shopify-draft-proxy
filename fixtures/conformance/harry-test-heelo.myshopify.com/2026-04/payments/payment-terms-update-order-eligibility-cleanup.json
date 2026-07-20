@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-08T13:48:29.890Z",
+  "capturedAt": "2026-07-20T06:15:44.790Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "cleanup": {
@@ -7,13 +7,13 @@
       "query": "mutation PaymentTermsUpdateEligibilityTermsCleanup($input: PaymentTermsDeleteInput!) {\n    paymentTermsDelete(input: $input) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
       "variables": {
         "input": {
-          "paymentTermsId": "gid://shopify/PaymentTerms/146330812722"
+          "paymentTermsId": "gid://shopify/PaymentTerms/165219041586"
         }
       },
       "response": {
         "data": {
           "paymentTermsDelete": {
-            "deletedId": "gid://shopify/PaymentTerms/146330812722",
+            "deletedId": "gid://shopify/PaymentTerms/165219041586",
             "userErrors": []
           }
         },
@@ -33,7 +33,7 @@
     "orderCancel": {
       "query": "mutation PaymentTermsUpdateEligibilityOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "orderId": "gid://shopify/Order/8736291586354",
+        "orderId": "gid://shopify/Order/8980250820914",
         "reason": "OTHER",
         "notifyCustomer": false,
         "restock": false
@@ -42,7 +42,7 @@
         "data": {
           "orderCancel": {
             "job": {
-              "id": "gid://shopify/Job/34ceb863-28a7-4839-a1b4-5d11af8ab06f",
+              "id": "gid://shopify/Job/ffe5722d-7b96-4ea5-b77b-c6d59b8e74e1",
               "done": false
             },
             "orderCancelUserErrors": [],

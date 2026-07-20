@@ -1014,6 +1014,30 @@ pub(crate) fn load_order(
         .unwrap_or(NodeLoadState::NeedsHydration)
 }
 
+pub(crate) fn load_payment_schedule(
+    proxy: &DraftProxy,
+    id: &str,
+    _request: Option<&Request>,
+) -> NodeLoadState<EntityRef> {
+    if proxy.store.staged.deleted_payment_schedule_ids.contains(id) {
+        NodeLoadState::KnownMissing
+    } else {
+        NodeLoadState::NeedsHydration
+    }
+}
+
+pub(crate) fn load_payment_terms(
+    proxy: &DraftProxy,
+    id: &str,
+    _request: Option<&Request>,
+) -> NodeLoadState<EntityRef> {
+    if proxy.store.staged.deleted_payment_terms_ids.contains(id) {
+        NodeLoadState::KnownMissing
+    } else {
+        NodeLoadState::NeedsHydration
+    }
+}
+
 pub(crate) fn load_backup_region(
     proxy: &DraftProxy,
     id: &str,

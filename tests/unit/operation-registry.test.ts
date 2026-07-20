@@ -245,8 +245,8 @@ describe('operation registry', () => {
       registeredMutationCount: 438,
       implementedMutationCount: 413,
       implementedMutationRuntimeTestEvidence: {
-        withRuntimeTests: 138,
-        withoutRuntimeTests: 275,
+        withRuntimeTests: 139,
+        withoutRuntimeTests: 274,
       },
       declaredUnimplemented: [
         'companyContactSendWelcomeEmail',
@@ -360,9 +360,9 @@ describe('operation registry', () => {
   it('audits captured Shopify Node implementors against the explicit Rust resolver inventory', () => {
     expect(nodeResolverCoverageAudit()).toEqual({
       capturedNodeImplementorCount: 203,
-      localNodeResolverTypeCount: 84,
+      localNodeResolverTypeCount: 86,
       localResolverBehaviorCounts: {
-        projectLocalRecord: 81,
+        projectLocalRecord: 83,
         returnKnownNull: 3,
       },
       unsupported: [
@@ -439,8 +439,6 @@ describe('operation registry', () => {
         'OrderTransaction',
         'PaymentCustomization',
         'PaymentMandate',
-        'PaymentSchedule',
-        'PaymentTerms',
         'PaymentTermsTemplate',
         'PointOfSaleDevicePaymentSession',
         'PriceList',

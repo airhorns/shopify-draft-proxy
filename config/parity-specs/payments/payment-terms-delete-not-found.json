@@ -4,7 +4,8 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "no-upstream-passthrough"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-delete-not-found.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-delete-not-found.json",
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-cold-delete.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "comparisonMode": "captured-vs-proxy-request",
@@ -23,5 +24,5 @@
       }
     ]
   },
-  "notes": "Live Shopify 2026-04 capture for paymentTermsDelete not-found. The scenario compares the full selected delete payload, including deletedId and userErrors { field, message, code }, and proves the public enum code is PAYMENT_TERMS_DELETE_UNSUCCESSFUL."
+  "notes": "Live Shopify 2026-04 capture for paymentTermsDelete not-found. The scenario compares the full selected delete payload, including deletedId and userErrors { field, message, code }, and proves the public enum code is PAYMENT_TERMS_DELETE_UNSUCCESSFUL. The supplemental cold-delete capture provides the exact query and variables for the shared confirmed-missing PaymentTermsHydrate cassette."
 }

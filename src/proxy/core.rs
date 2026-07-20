@@ -900,6 +900,33 @@ impl DraftProxy {
             snapshot["stagedState"]["paymentCustomizations"] =
                 json!(self.store.staged.payment_customizations.clone());
         }
+        if !self.store.staged.deleted_payment_terms_ids.is_empty() {
+            snapshot["stagedState"]["deletedPaymentTermsIds"] = json!(self
+                .store
+                .staged
+                .deleted_payment_terms_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self.store.staged.known_missing_payment_terms_ids.is_empty() {
+            snapshot["stagedState"]["knownMissingPaymentTermsIds"] = json!(self
+                .store
+                .staged
+                .known_missing_payment_terms_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self.store.staged.deleted_payment_schedule_ids.is_empty() {
+            snapshot["stagedState"]["deletedPaymentScheduleIds"] = json!(self
+                .store
+                .staged
+                .deleted_payment_schedule_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self
             .store
             .staged
@@ -2321,6 +2348,24 @@ impl DraftProxy {
             });
         self.store.staged.payment_customizations =
             value_map_from_json(state["stagedState"].get("paymentCustomizations"));
+        self.store.staged.known_missing_payment_terms_ids = state["stagedState"]
+            .get("knownMissingPaymentTermsIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.deleted_payment_terms_ids = state["stagedState"]
+            .get("deletedPaymentTermsIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.deleted_payment_schedule_ids = state["stagedState"]
+            .get("deletedPaymentScheduleIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.deleted_payment_customization_ids = state["stagedState"]
             .get("deletedPaymentCustomizationIds")
             .map(string_array_from_json)

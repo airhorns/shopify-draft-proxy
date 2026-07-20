@@ -7,6 +7,7 @@ import {
   defaultApiVersionForCapture,
   diffValues,
   parseJsonlRecordsForParity,
+  recordedUpstreamCallsFromCaptures,
   scenarioClockFromCapture,
   selectPaths,
 } from '../../scripts/parity-run.js';
@@ -146,6 +147,20 @@ describe('parity runner JSONL targets', () => {
 });
 
 describe('Rust parity runner cassette matching', () => {
+  it('combines exact upstream calls from every declared live capture in file order', () => {
+    const first = {
+      upstreamCalls: [{ query: 'query First { shop { id } }', variables: {} }],
+    };
+    const supplemental = {
+      upstreamCalls: [{ query: 'query Second { shop { name } }', variables: {} }],
+    };
+
+    expect(recordedUpstreamCallsFromCaptures([first, {}, supplemental])).toEqual([
+      first.upstreamCalls[0],
+      supplemental.upstreamCalls[0],
+    ]);
+  });
+
   it('accepts Storefront API parity requests as first-class captured scenario inputs', () => {
     expect(
       paritySpecSchema.parse({

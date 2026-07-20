@@ -324,6 +324,12 @@ function deepClone<T>(value: T): T {
   return value === undefined ? value : (JSON.parse(JSON.stringify(value)) as T);
 }
 
+export function recordedUpstreamCallsFromCaptures(captures: Array<Record<string, unknown>>): RecordedUpstreamCall[] {
+  return captures.flatMap((capture) =>
+    Array.isArray(capture['upstreamCalls']) ? (capture['upstreamCalls'] as RecordedUpstreamCall[]) : [],
+  );
+}
+
 function productDomainResourceType(id: string): 'Product' | 'ProductVariant' | 'Collection' | null {
   if (id.startsWith('gid://shopify/ProductVariant/')) return 'ProductVariant';
   if (id.startsWith('gid://shopify/Product/')) return 'Product';
@@ -1063,11 +1069,17 @@ async function runSpec(
 ): Promise<string[]> {
   const relativeSpecPath = path.relative(repoRoot, specPath);
   const spec = await readJsonFile<ParitySpec>(specPath);
-  const capturePath = spec.liveCaptureFiles?.[0];
+  const [capturePath, ...supplementalCapturePaths] = spec.liveCaptureFiles ?? [];
   if (!capturePath) return [`${relativeSpecPath}: spec has no liveCaptureFiles[0]`];
-  const capture = await readJsonFile<Record<string, unknown>>(path.resolve(repoRoot, capturePath));
+  const captures = await Promise.all(
+    [capturePath, ...supplementalCapturePaths].map(
+      async (candidatePath) => await readJsonFile<Record<string, unknown>>(path.resolve(repoRoot, candidatePath)),
+    ),
+  );
+  const capture = captures[0];
+  if (!capture) return [`${relativeSpecPath}: primary live capture could not be loaded`];
   const defaultApiVersion = defaultApiVersionForCapture(capturePath, capture);
-  const upstreamCalls = (capture['upstreamCalls'] ?? []) as RecordedUpstreamCall[];
+  const upstreamCalls = recordedUpstreamCallsFromCaptures(captures);
   cassette.setCalls(upstreamCalls);
   proxy.restoreState(cleanState);
   await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
