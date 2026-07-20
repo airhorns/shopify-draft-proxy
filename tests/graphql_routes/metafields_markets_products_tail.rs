@@ -13512,6 +13512,60 @@ fn product_duplicate_fixture_shape_does_not_replay_canned_data() {
 }
 
 #[test]
+fn product_duplicate_preserves_null_seo_from_hydrated_source() {
+    let source_id = "gid://shopify/Product/duplicate-null-seo-source";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_requests.lock().unwrap().push(body.clone());
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("ProductsHydrateNodes")));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [{
+                            "__typename": "Product",
+                            "id": source_id,
+                            "title": "Hydrated null SEO source",
+                            "handle": "hydrated-null-seo-source",
+                            "status": "ACTIVE",
+                            "seo": { "title": Value::Null, "description": Value::Null }
+                        }]
+                    }
+                }),
+            }
+        });
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DuplicateNullSeo($productId: ID!) {
+          productDuplicate(productId: $productId, newTitle: "Hydrated null SEO copy") {
+            newProduct { id seo { title description } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "productId": source_id }),
+    ));
+
+    assert_eq!(duplicate.status, 200);
+    assert_eq!(
+        duplicate.body["data"]["productDuplicate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        duplicate.body["data"]["productDuplicate"]["newProduct"]["seo"],
+        json!({ "title": Value::Null, "description": Value::Null })
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+}
+
+#[test]
 fn product_duplicate_respects_new_status_override_and_validates_invalid_status() {
     let mut proxy = snapshot_proxy();
 

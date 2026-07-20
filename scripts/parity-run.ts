@@ -933,6 +933,21 @@ function captureResponseForTarget(capture: unknown, target: ComparisonTarget): P
     const status = getPath(capture, `${responsePath}.status`);
     return { status: typeof status === 'number' ? status : 200, body: response };
   }
+  const dataMatch = /\.data(?:\.|\[|$)/u.exec(target.capturePath);
+  if (dataMatch !== null) {
+    const dataIndex = dataMatch.index;
+    const responsePath = target.capturePath.slice(0, dataIndex);
+    const response = getPath(capture, responsePath);
+    const responseObject = isPlainObject(response) ? (response as Record<string, unknown>) : null;
+    const data = responseObject?.['data'];
+    const dataValues = isPlainObject(data) ? Object.values(data) : [];
+    const isSingleEntityResponse =
+      dataValues.length === 1 && isPlainObject(dataValues[0]) && typeof dataValues[0]['id'] === 'string';
+    if (responseObject !== null && isSingleEntityResponse) {
+      const status = responseObject['status'];
+      return { status: typeof status === 'number' ? status : 200, body: responseObject };
+    }
+  }
   return null;
 }
 

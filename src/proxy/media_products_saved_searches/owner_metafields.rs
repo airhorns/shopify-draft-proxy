@@ -493,16 +493,7 @@ impl DraftProxy {
             .extend(observed_value_field_paths(node));
         match shopify_gid_resource_type(&id) {
             Some("Product") => {
-                let merged = self
-                    .store
-                    .product_by_id(&id)
-                    .map(product_state_json)
-                    .map(|mut existing| {
-                        merge_json_values(&mut existing, node);
-                        existing
-                    })
-                    .unwrap_or_else(|| node.clone());
-                self.store.stage_observed_product_json(&merged);
+                self.store.stage_observed_product_json(node);
             }
             Some("ProductVariant") => {
                 let merged = self
@@ -2570,6 +2561,41 @@ mod tests {
         assert!(query.contains("metafields(first: 2, namespace: \"custom\")"));
         assert!(query.contains("metafield(namespace: \"custom\", key: \"color\")"));
         assert!(query.contains("metafield(namespace: \"custom\", key: \"featured\")"));
+    }
+
+    #[test]
+    fn later_null_product_observation_replaces_stale_metafield_projection() {
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::Snapshot,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        });
+        proxy.stage_observed_owner_parent_record(&json!({
+            "id": PRODUCT_ID,
+            "metafield": {
+                "id": "gid://shopify/Metafield/1",
+                "namespace": "custom",
+                "key": "removed",
+                "type": "single_line_text_field",
+                "value": "stale"
+            }
+        }));
+        proxy.stage_observed_owner_parent_record(&json!({
+            "id": PRODUCT_ID,
+            "metafield": Value::Null
+        }));
+
+        let product = proxy
+            .store
+            .product_by_id(PRODUCT_ID)
+            .expect("observed product should remain staged");
+        assert_eq!(
+            proxy.product_canonical_value(product)["metafield"],
+            Value::Null
+        );
     }
 
     #[test]

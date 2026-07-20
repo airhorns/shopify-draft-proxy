@@ -1923,7 +1923,28 @@ impl Store {
             .product_by_id(id)
             .map(product_state_json)
             .unwrap_or_else(|| json!({}));
-        merge_json_values(&mut merged, value);
+        let Some(merged_object) = merged.as_object_mut() else {
+            return;
+        };
+        if let Some(extra_fields) = merged_object
+            .remove("extraFields")
+            .and_then(|extra_fields| extra_fields.as_object().cloned())
+        {
+            merged_object.extend(extra_fields);
+        }
+        let mut observed = value.clone();
+        let Some(observed_object) = observed.as_object_mut() else {
+            return;
+        };
+        if let Some(extra_fields) = observed_object
+            .remove("extraFields")
+            .and_then(|extra_fields| extra_fields.as_object().cloned())
+        {
+            let explicit_fields = std::mem::take(observed_object);
+            observed_object.extend(extra_fields);
+            observed_object.extend(explicit_fields);
+        }
+        merge_json_values(&mut merged, &observed);
         if let Some(product) = product_state_from_json(&merged) {
             self.stage_product(product);
         }
