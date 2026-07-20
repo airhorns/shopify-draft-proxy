@@ -15,7 +15,7 @@ use shopify_draft_proxy::upstream::{
 };
 
 const DEFAULT_API_VERSION: &str = "2025-01";
-const STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
+const STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v2";
 
 pyo3::create_exception!(
     shopify_draft_proxy._native,

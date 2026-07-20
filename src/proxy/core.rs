@@ -7,6 +7,66 @@ fn format_runtime_timestamp(timestamp: time::OffsetDateTime) -> String {
         .expect("UTC timestamps should format as RFC3339")
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RustStateDumpV2 {
+    schema: String,
+    created_at: String,
+    /// Backward-compatible, consumer-readable inspection view. The exhaustive
+    /// runtime representation lives in `runtime_state`.
+    state: Value,
+    runtime_state: PersistedRuntimeState,
+    log: PersistedLog,
+    next_synthetic_id: u64,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistedRuntimeState {
+    /// `Store` derives serde directly, so adding a store field cannot silently
+    /// omit it from dump/restore the way the legacy hand-written mirrors did.
+    store: Store,
+    shop_sells_subscriptions: Option<bool>,
+    last_mutation_timestamp: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct PersistedLog {
+    entries: Vec<Value>,
+}
+
+const LEGACY_RUST_STATE_DUMP_REQUIRED_PATHS: &[&str] = &[
+    "state.baseState",
+    "state.baseState.products",
+    "state.baseState.productOrder",
+    "state.baseState.savedSearches",
+    "state.baseState.savedSearchOrder",
+    "state.stagedState",
+    "state.stagedState.products",
+    "state.stagedState.productOrder",
+    "state.stagedState.deletedProductIds",
+    "state.stagedState.savedSearches",
+    "state.stagedState.savedSearchOrder",
+    "state.stagedState.deletedSavedSearchIds",
+    "state.stagedState.shippingPackages",
+    "state.stagedState.deletedShippingPackageIds",
+    "state.stagedState.delegatedAccessTokens",
+    "state.stagedState.customers",
+    "state.stagedState.deletedCustomerIds",
+    "state.stagedState.customerOrders",
+    "log.entries",
+];
+
+fn legacy_dump_shape_error(dump: &Value) -> Option<String> {
+    if !dump.get("state").is_some_and(Value::is_object) {
+        return Some("Rust state dump is missing state".to_string());
+    }
+    LEGACY_RUST_STATE_DUMP_REQUIRED_PATHS
+        .iter()
+        .find(|path| !rust_state_dump_path_exists(dump, path))
+        .map(|path| format!("Rust state dump is missing {path}"))
+}
+
 #[cfg(test)]
 pub(in crate::proxy) fn guarded_upstream_transport(
     transport: impl Fn(Request) -> Response + Send + Sync + 'static,
@@ -1443,58 +1503,130 @@ impl DraftProxy {
                     .map(str::to_string)
             })
             .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string());
-        ok_json(json!({
-            "schema": RUST_STATE_DUMP_SCHEMA,
-            "createdAt": created_at,
-            "state": self.state_snapshot(),
-            "log": { "entries": self.log_entries },
-            "nextSyntheticId": self.next_synthetic_id
-        }))
+        let dump = RustStateDumpV2 {
+            schema: RUST_STATE_DUMP_SCHEMA.to_string(),
+            created_at,
+            state: self.state_snapshot(),
+            runtime_state: PersistedRuntimeState {
+                store: self.store.clone(),
+                shop_sells_subscriptions: self.shop_sells_subscriptions,
+                last_mutation_timestamp: self.last_mutation_timestamp.map(format_runtime_timestamp),
+            },
+            log: PersistedLog {
+                entries: self.log_entries.clone(),
+            },
+            next_synthetic_id: self.next_synthetic_id,
+        };
+        ok_json(
+            serde_json::to_value(dump)
+                .expect("the structurally serializable Rust state dump should encode as JSON"),
+        )
     }
 
     pub(in crate::proxy) fn restore_state(&mut self, request: &Request) -> Response {
         let Ok(dump) = serde_json::from_str::<Value>(&request.body) else {
             return json_error(400, "Invalid Rust state dump JSON");
         };
-        if dump.get("schema").and_then(Value::as_str) != Some(RUST_STATE_DUMP_SCHEMA) {
-            return json_error(400, "Unsupported Rust state dump schema");
+        match dump.get("schema").and_then(Value::as_str) {
+            Some(RUST_STATE_DUMP_SCHEMA) => self.restore_v2_state(dump),
+            Some(LEGACY_RUST_STATE_DUMP_SCHEMA) => self.restore_legacy_state(request, true),
+            _ => json_error(400, "Unsupported Rust state dump schema"),
         }
-        let Some(state) = dump.get("state") else {
-            return json_error(400, "Rust state dump is missing state");
+    }
+
+    fn restore_v2_state(&mut self, dump: Value) -> Response {
+        if let Some(message) = legacy_dump_shape_error(&dump) {
+            return json_error(400, &message);
+        }
+        let Ok(dump) = serde_json::from_value::<RustStateDumpV2>(dump) else {
+            return json_error(400, "Invalid Rust v2 state dump");
         };
-        if !state.is_object() {
-            return json_error(400, "Rust state dump is missing state");
+        if dump.next_synthetic_id == 0 {
+            return json_error(400, "Invalid Rust synthetic identity");
         }
-        for path in [
-            "state.baseState",
-            "state.baseState.products",
-            "state.baseState.productOrder",
-            "state.baseState.savedSearches",
-            "state.baseState.savedSearchOrder",
-            "state.stagedState",
-            "state.stagedState.products",
-            "state.stagedState.productOrder",
-            "state.stagedState.deletedProductIds",
-            "state.stagedState.savedSearches",
-            "state.stagedState.savedSearchOrder",
-            "state.stagedState.deletedSavedSearchIds",
-            "state.stagedState.shippingPackages",
-            "state.stagedState.deletedShippingPackageIds",
-            "state.stagedState.delegatedAccessTokens",
-            "state.stagedState.customers",
-            "state.stagedState.deletedCustomerIds",
-            "state.stagedState.customerOrders",
-            "log.entries",
-        ] {
-            if !rust_state_dump_path_exists(&dump, path) {
-                return json_error(400, &format!("Rust state dump is missing {path}"));
+        let last_mutation_timestamp = match dump.runtime_state.last_mutation_timestamp.as_deref() {
+            Some(timestamp) => match time::OffsetDateTime::parse(
+                timestamp,
+                &time::format_description::well_known::Rfc3339,
+            ) {
+                Ok(timestamp) => Some(timestamp),
+                Err(_) => return json_error(400, "Invalid Rust mutation timestamp"),
+            },
+            None => None,
+        };
+
+        // Keep the legacy inspection view editable for existing fixture/setup
+        // helpers. An unchanged view needs no second field-by-field restore;
+        // edited legacy fields are overlaid on the exhaustive decoded store.
+        let mut canonical = self.clone();
+        canonical.store = dump.runtime_state.store.clone();
+        let legacy_state_was_edited = dump.state != canonical.state_snapshot();
+
+        let mut restored = self.clone();
+        restored.store = dump.runtime_state.store;
+        restored.log_entries = dump.log.entries;
+        restored.next_synthetic_id = dump.next_synthetic_id;
+        restored.shop_sells_subscriptions = dump.runtime_state.shop_sells_subscriptions;
+        restored.last_mutation_timestamp = last_mutation_timestamp;
+        restored.execution_session = ExecutionSession::default();
+
+        if legacy_state_was_edited {
+            let legacy_dump = json!({
+                "schema": LEGACY_RUST_STATE_DUMP_SCHEMA,
+                "createdAt": dump.created_at,
+                "state": dump.state,
+                "log": { "entries": restored.log_entries.clone() },
+                "nextSyntheticId": restored.next_synthetic_id
+            });
+            let response = restored.restore_legacy_state(
+                &Request {
+                    method: "POST".to_string(),
+                    path: "/__meta/restore".to_string(),
+                    headers: BTreeMap::new(),
+                    body: legacy_dump.to_string(),
+                },
+                false,
+            );
+            if response.status != 200 {
+                return response;
             }
         }
+
+        self.store = restored.store;
+        self.log_entries = restored.log_entries;
+        self.next_synthetic_id = restored.next_synthetic_id;
+        self.shop_sells_subscriptions = restored.shop_sells_subscriptions;
+        self.last_mutation_timestamp = restored.last_mutation_timestamp;
+        self.execution_session = ExecutionSession::default();
+
+        ok_json(json!({ "ok": true, "message": "state restored" }))
+    }
+
+    fn restore_legacy_state(&mut self, request: &Request, replace_store: bool) -> Response {
+        let Ok(dump) = serde_json::from_str::<Value>(&request.body) else {
+            return json_error(400, "Invalid Rust state dump JSON");
+        };
+        if dump.get("schema").and_then(Value::as_str) != Some(LEGACY_RUST_STATE_DUMP_SCHEMA) {
+            return json_error(400, "Unsupported Rust state dump schema");
+        }
+        if let Some(message) = legacy_dump_shape_error(&dump) {
+            return json_error(400, &message);
+        }
+        let state = &dump["state"];
         let Some(next_synthetic_id) = dump.get("nextSyntheticId").and_then(Value::as_u64) else {
             return json_error(400, "Invalid Rust synthetic identity");
         };
         if next_synthetic_id == 0 {
             return json_error(400, "Invalid Rust synthetic identity");
+        }
+
+        if replace_store {
+            self.store = Store::with_default_baseline();
+            self.log_entries.clear();
+            self.next_synthetic_id = 1;
+            self.shop_sells_subscriptions = None;
+            self.last_mutation_timestamp = None;
+            self.execution_session = ExecutionSession::default();
         }
 
         self.store.products.base.replace_with_order(

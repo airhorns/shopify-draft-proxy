@@ -374,7 +374,7 @@ fn draft_proxy_route_and_snapshot_helpers_match_current_behavior() {
     assert_eq!(dump.status, 200);
     assert_eq!(
         dump.body["schema"],
-        json!("shopify-draft-proxy-rust-state/v1")
+        json!("shopify-draft-proxy-rust-state/v2")
     );
     assert_eq!(dump.body["createdAt"], json!("2026-04-29T12:00:00.000Z"));
     assert_eq!(dump.body["log"], json!({ "entries": [] }));
@@ -1378,7 +1378,7 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
     assert_eq!(dump.status, 200);
     assert_eq!(
         dump.body["schema"],
-        json!("shopify-draft-proxy-rust-state/v1")
+        json!("shopify-draft-proxy-rust-state/v2")
     );
     assert_eq!(dump.body["createdAt"], json!("2026-05-21T00:00:00.000Z"));
     assert_eq!(dump.body["log"]["entries"].as_array().unwrap().len(), 2);
@@ -2212,6 +2212,63 @@ fn restore_state_round_trips_order_customer_and_b2b_records() {
     assert_ne!(
         next_order.body["data"]["orderCreate"]["order"]["id"],
         regular_order_id
+    );
+}
+
+#[test]
+fn restore_accepts_v1_dumps_with_replacement_semantics() {
+    let mut source = snapshot_proxy();
+    let product = source.process_request(graphql_request(
+        &json!({
+            "query": "mutation { productCreate(product: { title: \"Legacy restored product\", handle: \"legacy-restored-product\" }) { product { id } userErrors { message } } }"
+        })
+        .to_string(),
+    ));
+    assert_eq!(
+        product.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let mut legacy = source
+        .process_request(request_with_body("POST", "/__meta/dump", ""))
+        .body;
+    legacy["schema"] = json!("shopify-draft-proxy-rust-state/v1");
+    legacy
+        .as_object_mut()
+        .expect("dump envelope")
+        .remove("runtimeState");
+
+    let mut reused = snapshot_proxy();
+    let stale_webhook = reused.process_request(graphql_request(
+        &json!({
+            "query": "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"https://hooks.example.com/legacy-stale\", format: JSON }) { webhookSubscription { id } userErrors { message } } }"
+        })
+        .to_string(),
+    ));
+    assert_eq!(
+        stale_webhook.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let restore = reused.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &legacy.to_string(),
+    ));
+    assert_eq!(restore.status, 200, "restore body: {}", restore.body);
+    let read = reused.process_request(graphql_request(
+        &json!({
+            "query": "{ productByIdentifier(identifier: { handle: \"legacy-restored-product\" }) { title } webhookSubscriptionsCount { count } }"
+        })
+        .to_string(),
+    ));
+    assert_eq!(
+        read.body["data"]["productByIdentifier"]["title"],
+        json!("Legacy restored product")
+    );
+    assert_eq!(
+        read.body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 0 }),
+        "v1 restore must clear response-affecting fields omitted by that schema"
     );
 }
 
