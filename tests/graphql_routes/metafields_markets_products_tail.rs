@@ -1536,6 +1536,151 @@ fn metafields_delete_live_hybrid_staged_value_does_not_passthrough() {
 }
 
 #[test]
+fn generic_product_domain_metafields_set_accepts_idempotent_malformed_digest_atomically() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+    let owner_id = "gid://shopify/Product/987654398";
+
+    let initial = proxy.process_request(json_graphql_request(
+        r#"
+        mutation IdempotentMalformedDigestSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Wool"}]}),
+    ));
+    assert_eq!(
+        initial.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+    let digest = initial.body["data"]["metafieldsSet"]["metafields"][0]["compareDigest"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+
+    let rejected_batch = proxy.process_request(json_graphql_request(
+        r#"
+        mutation IdempotentMalformedDigestSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Wool", "compareDigest": "not-a-hex-digest"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "flag", "type": "boolean", "value": "yes"}
+        ]}),
+    ));
+    assert_eq!(
+        rejected_batch.body["data"]["metafieldsSet"]["metafields"],
+        json!([])
+    );
+    assert_eq!(
+        rejected_batch.body["data"]["metafieldsSet"]["userErrors"],
+        json!([{
+            "field": ["metafields", "1", "value"],
+            "message": "Value must be true or false.",
+            "code": "INVALID_VALUE",
+            "elementIndex": null
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+
+    let after_rejected_batch = proxy.process_request(json_graphql_request(
+        r#"
+        query IdempotentMalformedDigestRead($id: ID!) {
+          product(id: $id) {
+            material: metafield(namespace: "custom", key: "material") { value compareDigest }
+            flag: metafield(namespace: "custom", key: "flag") { value }
+          }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(
+        after_rejected_batch.body["data"]["product"]["material"],
+        json!({"value": "Wool", "compareDigest": digest})
+    );
+    assert_eq!(
+        after_rejected_batch.body["data"]["product"]["flag"],
+        Value::Null
+    );
+
+    let accepted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation IdempotentMalformedDigestSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Wool", "compareDigest": "not-a-hex-digest"}]}),
+    ));
+    assert_eq!(
+        accepted.body["data"]["metafieldsSet"],
+        json!({
+            "metafields": [{
+                "namespace": "custom",
+                "key": "material",
+                "type": "single_line_text_field",
+                "value": "Wool",
+                "compareDigest": digest
+            }],
+            "userErrors": []
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+
+    let rejected_change = proxy.process_request(json_graphql_request(
+        r#"
+        mutation IdempotentMalformedDigestSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Silk", "compareDigest": "not-a-hex-digest"}]}),
+    ));
+    assert_eq!(
+        rejected_change.body["data"]["metafieldsSet"],
+        json!({
+            "metafields": [],
+            "userErrors": [{
+                "field": ["metafields", "0"],
+                "message": "The resource has been updated since it was loaded. Try again with an updated `compareDigest` value.",
+                "code": "STALE_OBJECT",
+                "elementIndex": null
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+
+    let after_rejected_change = proxy.process_request(json_graphql_request(
+        r#"
+        query IdempotentMalformedDigestRead($id: ID!) {
+          product(id: $id) {
+            material: metafield(namespace: "custom", key: "material") { value compareDigest }
+          }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(
+        after_rejected_change.body["data"]["product"]["material"],
+        json!({"value": "Wool", "compareDigest": digest})
+    );
+}
+
+#[test]
 fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
     let mut proxy = configured_proxy(
         ReadMode::Snapshot,
@@ -1573,7 +1718,7 @@ fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
         }
         "#,
         json!({"metafields": [
-            {"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Silk", "compareDigest": "stale"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Silk", "compareDigest": "0000000000000000000000000000000000000000000000000000000000000000"},
             {"ownerId": owner_id, "namespace": "custom", "key": "flag", "type": "boolean", "value": "yes"}
         ]}),
     ));
@@ -1669,7 +1814,7 @@ fn generic_product_domain_metafields_set_rejects_compare_digest_without_current_
           }
         }
         "#,
-        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "missing", "type": "single_line_text_field", "value": "New", "compareDigest": "no-current-row"}]}),
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "missing", "type": "single_line_text_field", "value": "New", "compareDigest": "0000000000000000000000000000000000000000000000000000000000000000"}]}),
     ));
     assert_eq!(
         invalid_compare_digest.body["data"]["metafieldsSet"]["metafields"],
@@ -1683,6 +1828,7 @@ fn generic_product_domain_metafields_set_rejects_compare_digest_without_current_
         invalid_compare_digest.body["data"]["metafieldsSet"]["userErrors"][0]["field"],
         json!(["metafields", "0"])
     );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]

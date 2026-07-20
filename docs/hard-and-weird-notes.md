@@ -3246,6 +3246,7 @@ Important captured behavior:
 - A stale `compareDigest` returns `userErrors[{ field: ['metafields', '0'], code: 'STALE_OBJECT', elementIndex: null }]`, leaves `metafields: []`, and does not mutate downstream product metafields.
 - A string `compareDigest` for an absent `(ownerId, namespace, key)` row returns `INVALID_COMPARE_DIGEST` at `['metafields', '0']`, leaves `metafields: []`, and does not create the submitted row.
 - `compareDigest: null` creates the metafield only when it is absent from the effective owner-scoped set.
+- Existing-row CAS is idempotency-sensitive. When the submitted effective type and value are identical to the current row, Shopify accepts a malformed non-hex string digest, returns the existing metafield with empty `userErrors`, and preserves the same downstream value and digest. A captured second request using that exact token with a changed value returns `STALE_OBJECT` and leaves the row untouched.
 - More than 25 inputs returns `metafields: null` plus a resolver-level userError at `['metafields']`.
 - Missing `type` for a new metafield is a resolver-level userError (`Type can't be blank`) and is atomic.
 - Missing `ownerId`, `key`, or `value` in variables fails earlier as a top-level GraphQL `INVALID_VARIABLE` error.
@@ -3255,6 +3256,7 @@ Important captured behavior:
 Practical rule:
 
 - validate the full `metafieldsSet` input batch before replacing the staged product metafield set when any resolver-level error is present
+- classify an exactly identical existing row before comparing a supplied string digest; this is a narrow idempotent-write short-circuit, not a general malformed-digest bypass
 - keep required-input GraphQL validation branches separate from resolver `userErrors`
 - do not broaden owner support from this evidence; these fixtures remain product-owned metafield coverage
 

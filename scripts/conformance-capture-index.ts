@@ -2871,6 +2871,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafields-set-malformed-existing-digest',
+    scriptPath: 'scripts/capture-metafields-set-malformed-existing-digest-conformance.mts',
+    purpose: 'Idempotent existing-row metafieldsSet behavior for a malformed non-hex compareDigest string.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-malformed-existing-digest.json',
+      'config/parity-specs/products/metafieldsSet-malformed-existing-digest.json',
+      'config/parity-requests/products/metafieldsSet-malformed-existing-product-create.graphql',
+      'config/parity-requests/products/metafieldsSet-malformed-existing-mutation.graphql',
+      'config/parity-requests/products/metafieldsSet-malformed-existing-downstream-read.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable product and deletes it after the idempotent metafield/read flow.',
+    expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'metafields',
     captureId: 'product-metafield-mutations',
     scriptPath: 'scripts/capture-product-metafield-mutation-conformance.mts',
     purpose: 'Product-scoped metafieldsSet/metafieldsDelete mutation behavior.',
