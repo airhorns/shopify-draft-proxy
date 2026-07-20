@@ -96,6 +96,12 @@ complete: singular reads without a staged overlay remain authoritative upstream
 reads. Once an entity has a staged update or tombstone, that overlay takes
 precedence over later upstream observations.
 
+A Company observed only for owner-metafield resolution retains requested-field
+completeness separately from its staged record. Later `company(id:)` and generic
+Node reads hydrate unobserved company fields and merge them with the local
+metafield overlay. A Company metafield effect without an observed Company does
+not fabricate the parent, and a company tombstone remains authoritative.
+
 Before a locally supported B2B mutation makes not-found, uniqueness, ownership,
 or membership decisions in LiveHybrid mode, it issues query-only prerequisite
 reads for referenced real Shopify IDs. External-ID and contact-email checks use

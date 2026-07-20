@@ -276,6 +276,62 @@ fn shared_root_response(responses: &BTreeMap<String, Response>) -> Option<&Respo
     responses.all(|response| response == first).then_some(first)
 }
 
+pub(in crate::proxy) fn selected_field_paths_for_type(
+    selections: &[SelectedField],
+    concrete_type: &str,
+    version: AdminApiVersion,
+) -> BTreeSet<Vec<String>> {
+    let selections = selections
+        .iter()
+        .filter(|selection| {
+            selection.type_condition.as_deref().is_none_or(|condition| {
+                crate::admin_graphql::output_type_condition_applies(
+                    version,
+                    concrete_type,
+                    condition,
+                )
+            })
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    // The concrete GID type only disambiguates fragments directly below the
+    // Node root. Nested abstract fields have their own runtime concrete type,
+    // so retain their fragment selections conservatively.
+    selected_field_paths(&selections)
+}
+
+fn node_requested_field_paths_by_type(
+    root_name: &str,
+    arguments: &BTreeMap<String, Value>,
+    selections: &[SelectedField],
+    version: AdminApiVersion,
+) -> BTreeMap<String, BTreeSet<Vec<String>>> {
+    let ids = match root_name {
+        "node" => arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .into_iter()
+            .map(str::to_string)
+            .collect::<Vec<_>>(),
+        "nodes" => arguments
+            .get("ids")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(str::to_string)
+            .collect::<Vec<_>>(),
+        _ => Vec::new(),
+    };
+    ids.into_iter()
+        .filter_map(|id| shopify_gid_resource_type(&id).map(str::to_string))
+        .map(|type_name| {
+            let paths = selected_field_paths_for_type(selections, &type_name, version);
+            (type_name, paths)
+        })
+        .collect()
+}
+
 impl RootFieldExecutor for ProxyRootExecutor {
     fn execute_root(&self, invocation: RootFieldInvocation) -> Result<RootFieldResult, String> {
         let RootFieldInvocation {
@@ -408,6 +464,12 @@ impl RootFieldExecutor for ProxyRootExecutor {
                 .iter()
                 .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
                 .collect();
+            let requested_field_paths_by_type = node_requested_field_paths_by_type(
+                &root_name,
+                &arguments,
+                &call.field.selection,
+                self.version,
+            );
             let registration = self
                 .proxy
                 .lock()
@@ -443,6 +505,7 @@ impl RootFieldExecutor for ProxyRootExecutor {
                         raw_arguments: call.field.raw_arguments.clone(),
                         arguments,
                         requested_field_paths,
+                        requested_field_paths_by_type,
                         upstream_value,
                         // Native resolvers receive the caller's complete request.
                         // A domain that needs upstream evidence therefore warms the
@@ -1520,6 +1583,7 @@ impl DraftProxy {
                 raw_arguments,
                 arguments,
                 requested_field_paths: BTreeSet::new(),
+                requested_field_paths_by_type: BTreeMap::new(),
                 upstream_value: None,
                 request,
                 query: &query,

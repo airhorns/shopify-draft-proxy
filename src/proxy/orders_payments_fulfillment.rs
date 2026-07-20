@@ -538,6 +538,27 @@ impl DraftProxy {
             ..
         } = invocation;
         let arguments = resolved_arguments_from_json(&arguments);
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && root_field == "order"
+            && resolved_string_field(&arguments, "id").is_some_and(|id| {
+                self.owner_parent_is_partial(&id)
+                    && !self.owner_parent_shape_is_complete(&id, &requested_field_paths)
+            })
+        {
+            let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+            if !result.transport_succeeded || !result.outcome.errors.is_empty() {
+                return result.outcome;
+            }
+            let order = result
+                .data
+                .get(response_key)
+                .cloned()
+                .unwrap_or(Value::Null);
+            if order.is_null() {
+                return result.outcome;
+            }
+            self.stage_observed_owner_metafield_node(&order);
+        }
         let requests_payment_terms = requested_field_paths
             .iter()
             .any(|path| path.iter().any(|field| field == "paymentTerms"));

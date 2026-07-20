@@ -1042,6 +1042,14 @@ fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_name
         ReadMode::Snapshot,
         Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
     );
+    let (product_id, variant_id) =
+        create_metafield_product_and_variant_owners(&mut proxy, "Natural metafield owner");
+    let collection_id =
+        create_metafield_collection_owner(&mut proxy, "Natural metafield collection");
+    let setup_log_len = log_snapshot(&proxy)["entries"]
+        .as_array()
+        .expect("setup log entries")
+        .len();
 
     let set = proxy.process_request(json_graphql_request(
         r#"
@@ -1063,9 +1071,9 @@ fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_name
         }
         "#,
         json!({"metafields": [
-            {"ownerId": "gid://shopify/Product/987654321", "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Wool"},
-            {"ownerId": "gid://shopify/ProductVariant/987654322", "namespace": "custom", "key": "variant_care", "type": "single_line_text_field", "value": "Spot clean"},
-            {"ownerId": "gid://shopify/Collection/987654323", "namespace": "custom", "key": "collection_season", "type": "single_line_text_field", "value": "Winter"}
+            {"ownerId": product_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Wool"},
+            {"ownerId": variant_id, "namespace": "custom", "key": "variant_care", "type": "single_line_text_field", "value": "Spot clean"},
+            {"ownerId": collection_id, "namespace": "custom", "key": "collection_season", "type": "single_line_text_field", "value": "Winter"}
         ]}),
     ));
     assert_eq!(set.status, 200);
@@ -1104,9 +1112,9 @@ fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_name
         }
         "#,
         json!({
-            "productId": "gid://shopify/Product/987654321",
-            "variantId": "gid://shopify/ProductVariant/987654322",
-            "collectionId": "gid://shopify/Collection/987654323"
+            "productId": product_id,
+            "variantId": variant_id,
+            "collectionId": collection_id
         }),
     ));
     assert_eq!(read.status, 200);
@@ -1133,10 +1141,10 @@ fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_name
         }
         "#,
         json!({"metafields": [
-            {"ownerId": "gid://shopify/Product/987654321", "namespace": "custom", "key": "material"},
-            {"ownerId": "gid://shopify/ProductVariant/987654322", "namespace": "custom", "key": "variant_care"},
-            {"ownerId": "gid://shopify/Collection/987654323", "namespace": "custom", "key": "collection_season"},
-            {"ownerId": "gid://shopify/Product/987654321", "namespace": "custom", "key": "missing"}
+            {"ownerId": product_id, "namespace": "custom", "key": "material"},
+            {"ownerId": variant_id, "namespace": "custom", "key": "variant_care"},
+            {"ownerId": collection_id, "namespace": "custom", "key": "collection_season"},
+            {"ownerId": product_id, "namespace": "custom", "key": "missing"}
         ]}),
     ));
     assert_eq!(delete.status, 200);
@@ -1146,7 +1154,7 @@ fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_name
     );
     assert_eq!(
         delete.body["data"]["metafieldsDelete"]["deletedMetafields"][0],
-        json!({"ownerId": "gid://shopify/Product/987654321", "namespace": "custom", "key": "material"})
+        json!({"ownerId": product_id, "namespace": "custom", "key": "material"})
     );
     assert_eq!(
         delete.body["data"]["metafieldsDelete"]["deletedMetafields"][3],
@@ -1162,9 +1170,9 @@ fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_name
         }
         "#,
         json!({
-            "productId": "gid://shopify/Product/987654321",
-            "variantId": "gid://shopify/ProductVariant/987654322",
-            "collectionId": "gid://shopify/Collection/987654323"
+            "productId": product_id,
+            "variantId": variant_id,
+            "collectionId": collection_id
         }),
     ));
     assert_eq!(post_delete.body["data"]["product"]["material"], Value::Null);
@@ -1183,12 +1191,13 @@ fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_name
         headers: Default::default(),
         body: String::new(),
     });
-    assert_eq!(log.body["entries"].as_array().unwrap().len(), 2);
-    assert!(log.body["entries"][0]["rawBody"]
+    let entries = log.body["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), setup_log_len + 2);
+    assert!(entries[setup_log_len]["rawBody"]
         .as_str()
         .unwrap()
         .contains("NaturalOwnerMetafieldsSet"));
-    assert!(log.body["entries"][1]["rawBody"]
+    assert!(entries[setup_log_len + 1]["rawBody"]
         .as_str()
         .unwrap()
         .contains("NaturalOwnerMetafieldsDelete"));
@@ -1319,6 +1328,11 @@ fn metafields_delete_removes_staged_owner_metafields_by_identifier() {
         ReadMode::Snapshot,
         Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
     );
+    let (product_id, variant_id) =
+        create_metafield_product_and_variant_owners(&mut proxy, "Metafield delete owner");
+    let collection_id =
+        create_metafield_collection_owner(&mut proxy, "Metafield delete collection");
+    let setup_log_len = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
 
     let set = proxy.process_request(json_graphql_request(
         r#"
@@ -1330,9 +1344,9 @@ fn metafields_delete_removes_staged_owner_metafields_by_identifier() {
         }
         "#,
         json!({"metafields": [
-            {"ownerId": "gid://shopify/Product/170001", "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Cotton"},
-            {"ownerId": "gid://shopify/ProductVariant/170002", "namespace": "custom", "key": "care", "type": "single_line_text_field", "value": "Machine wash"},
-            {"ownerId": "gid://shopify/Collection/170003", "namespace": "custom", "key": "season", "type": "single_line_text_field", "value": "Summer"}
+            {"ownerId": product_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Cotton"},
+            {"ownerId": variant_id, "namespace": "custom", "key": "care", "type": "single_line_text_field", "value": "Machine wash"},
+            {"ownerId": collection_id, "namespace": "custom", "key": "season", "type": "single_line_text_field", "value": "Summer"}
         ]}),
     ));
     assert_eq!(set.status, 200);
@@ -1347,9 +1361,9 @@ fn metafields_delete_removes_staged_owner_metafields_by_identifier() {
         }
     "#;
     for (owner_id, key) in [
-        ("gid://shopify/Product/170001", "material"),
-        ("gid://shopify/ProductVariant/170002", "care"),
-        ("gid://shopify/Collection/170003", "season"),
+        (product_id.as_str(), "material"),
+        (variant_id.as_str(), "care"),
+        (collection_id.as_str(), "season"),
     ] {
         let delete = proxy.process_request(json_graphql_request(
             delete_query,
@@ -1387,9 +1401,9 @@ fn metafields_delete_removes_staged_owner_metafields_by_identifier() {
         }
         "#,
         json!({
-            "productId": "gid://shopify/Product/170001",
-            "variantId": "gid://shopify/ProductVariant/170002",
-            "collectionId": "gid://shopify/Collection/170003"
+            "productId": product_id,
+            "variantId": variant_id,
+            "collectionId": collection_id
         }),
     ));
     assert_eq!(post_delete.status, 200);
@@ -1430,14 +1444,14 @@ fn metafields_delete_removes_staged_owner_metafields_by_identifier() {
     let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().unwrap();
     assert_eq!(entries.len(), log_len_before_missing + 1);
-    assert_eq!(entries.len(), 5);
+    assert_eq!(entries.len(), setup_log_len + 5);
     assert_eq!(
-        entries[1]["interpreted"]["primaryRootField"],
+        entries[setup_log_len + 1]["interpreted"]["primaryRootField"],
         "metafieldsDelete"
     );
     assert_eq!(
-        entries[1]["stagedResourceIds"],
-        json!(["gid://shopify/Product/170001"])
+        entries[setup_log_len + 1]["stagedResourceIds"],
+        json!([product_id])
     );
     assert!(entries.iter().all(|entry| {
         !entry["stagedResourceIds"]
@@ -1446,7 +1460,7 @@ fn metafields_delete_removes_staged_owner_metafields_by_identifier() {
             .iter()
             .any(|id| id.as_str() == Some("gid://shopify/Metafield/170099"))
     }));
-    assert!(entries[1]["rawBody"]
+    assert!(entries[setup_log_len + 1]["rawBody"]
         .as_str()
         .unwrap()
         .contains("OwnerMetafieldsDelete"));
@@ -1454,7 +1468,7 @@ fn metafields_delete_removes_staged_owner_metafields_by_identifier() {
     let repeat_log_len = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     let repeat_deleted = proxy.process_request(json_graphql_request(
         delete_query,
-        json!({"metafields": [{"ownerId": "gid://shopify/Product/170001", "namespace": "custom", "key": "material"}]}),
+        json!({"metafields": [{"ownerId": product_id, "namespace": "custom", "key": "material"}]}),
     ));
     assert_eq!(repeat_deleted.status, 200);
     assert_eq!(
@@ -1541,7 +1555,7 @@ fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
         ReadMode::Snapshot,
         Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
     );
-    let owner_id = "gid://shopify/Product/987654399";
+    let owner_id = create_metafield_product_owner(&mut proxy, "Natural CAS metafield owner");
 
     let initial = proxy.process_request(json_graphql_request(
         r#"
@@ -2265,6 +2279,10 @@ fn metafields_set_does_not_infer_variant_reference_exists_when_hydration_fails()
 #[test]
 fn metafields_set_stages_owner_metafield_connections_for_product_and_customer_reads() {
     let mut proxy = snapshot_proxy();
+    let product_id =
+        create_metafield_product_owner(&mut proxy, "Product metafield connection owner");
+    let customer_id =
+        create_metafield_customer_owner(&mut proxy, "metafield-connection-owner@example.test");
 
     let product_set = proxy.process_request(json_graphql_request(
         r#"
@@ -2276,9 +2294,9 @@ fn metafields_set_stages_owner_metafield_connections_for_product_and_customer_re
         }
         "#,
         json!({"metafields": [
-            {"ownerId": "gid://shopify/Product/10173071262002", "namespace": "har294_test", "key": "boolean", "type": "boolean", "value": "true"},
-            {"ownerId": "gid://shopify/Product/10173071262002", "namespace": "har294_test", "key": "json", "type": "json", "value": "{\"ingredient\":\"flour\",\"amount\":0.3}"},
-            {"ownerId": "gid://shopify/Product/10173071262002", "namespace": "har294_test", "key": "number_decimal", "type": "number_decimal", "value": "10.4"}
+            {"ownerId": product_id, "namespace": "har294_test", "key": "boolean", "type": "boolean", "value": "true"},
+            {"ownerId": product_id, "namespace": "har294_test", "key": "json", "type": "json", "value": "{\"ingredient\":\"flour\",\"amount\":0.3}"},
+            {"ownerId": product_id, "namespace": "har294_test", "key": "number_decimal", "type": "number_decimal", "value": "10.4"}
         ]}),
     ));
     assert_eq!(
@@ -2304,11 +2322,11 @@ fn metafields_set_stages_owner_metafield_connections_for_product_and_customer_re
           product(id: $id) { id metafields(first: 100, namespace: $namespace) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }
         }
         "#,
-        json!({"id": "gid://shopify/Product/10173071262002", "namespace": "har294_test"}),
+        json!({"id": product_id, "namespace": "har294_test"}),
     ));
     assert_eq!(
         product_read.body["data"]["product"]["id"],
-        json!("gid://shopify/Product/10173071262002")
+        json!(product_id)
     );
     assert_eq!(
         product_read.body["data"]["product"]["metafields"]["nodes"]
@@ -2328,7 +2346,7 @@ fn metafields_set_stages_owner_metafield_connections_for_product_and_customer_re
           metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message code } }
         }
         "#,
-        json!({"metafields": [{"ownerId": "gid://shopify/Customer/1", "namespace": "har691_value_customer_mosma2dg", "key": "value", "type": "single_line_text_field", "value": "CUSTOMER metafieldsSet value"}]}),
+        json!({"metafields": [{"ownerId": customer_id, "namespace": "har691_value_customer_mosma2dg", "key": "value", "type": "single_line_text_field", "value": "CUSTOMER metafieldsSet value"}]}),
     ));
     assert_eq!(
         customer_set.body["data"]["metafieldsSet"]["userErrors"],
@@ -2341,7 +2359,7 @@ fn metafields_set_stages_owner_metafield_connections_for_product_and_customer_re
           customer(id: $id) { id metafield(namespace: $namespace, key: $key) { id namespace key type value } metafields(first: 10, namespace: $namespace) { nodes { id namespace key type value } } }
         }
         "#,
-        json!({"id": "gid://shopify/Customer/1", "namespace": "har691_value_customer_mosma2dg", "key": "value"}),
+        json!({"id": customer_id, "namespace": "har691_value_customer_mosma2dg", "key": "value"}),
     ));
     assert_eq!(
         customer_read.body["data"]["customer"]["metafield"]["value"],
@@ -2356,7 +2374,7 @@ fn metafields_set_stages_owner_metafield_connections_for_product_and_customer_re
 #[test]
 fn metafields_set_preserves_custom_namespace_type_named_keys() {
     let mut proxy = snapshot_proxy();
-    let owner_id = "gid://shopify/Product/1741";
+    let owner_id = create_metafield_product_owner(&mut proxy, "Typed metafield keys owner");
     let json_value = "{\"a\":1}";
     let rating_value = "{\"scale_min\":\"1.0\",\"scale_max\":\"5.0\",\"value\":\"4.5\"}";
     let money_value = "{\"amount\":\"12.34\",\"currency_code\":\"USD\"}";
@@ -2625,8 +2643,10 @@ fn metafields_set_rejects_malformed_owner_id_without_defaulting_to_product() {
 fn owner_scoped_metafields_do_not_leak_between_products() {
     let mut proxy = snapshot_proxy();
 
-    let owner_with_metafields = "gid://shopify/Product/10173071262002";
-    let owner_without_metafields = "gid://shopify/Product/10173071262003";
+    let owner_with_metafields =
+        create_metafield_product_owner(&mut proxy, "Populated metafield owner");
+    let owner_without_metafields =
+        create_metafield_product_owner(&mut proxy, "Empty metafield owner");
     let namespace = "owner_scope_isolation";
 
     let set = proxy.process_request(json_graphql_request(
@@ -2709,7 +2729,7 @@ fn owner_scoped_metafields_do_not_leak_between_products() {
 #[test]
 fn owner_metafields_connection_filters_keys_reverse_and_paginates_staged_state() {
     let mut proxy = snapshot_proxy();
-    let owner_id = "gid://shopify/Product/1950001";
+    let owner_id = create_metafield_product_owner(&mut proxy, "Paginated metafield owner");
 
     let set = proxy.process_request(json_graphql_request(
         r#"
@@ -2847,7 +2867,7 @@ fn owner_metafields_connection_filters_keys_reverse_and_paginates_staged_state()
 fn metafields_app_namespace_set_delete_stages_product_readback() {
     let mut proxy = snapshot_proxy();
     let api_client_id = "999999999999";
-    let owner_id = "gid://shopify/Product/10180596236594";
+    let owner_id = create_metafield_product_owner(&mut proxy, "App namespace metafield owner");
     let canonical_namespace = "app--999999999999--value_namespace_mowuw5ai";
     let default_namespace = "app--999999999999";
 
@@ -11387,6 +11407,7 @@ fn custom_data_metafield_type_matrix_sets_and_reads_product_owned_values() {
     ))
     .unwrap();
     let mut proxy = snapshot_proxy();
+    let owner_id = create_metafield_product_owner(&mut proxy, "Custom data metafield owner");
     let set_query = include_str!(
         "../../config/parity-requests/metafields/custom-data-metafield-type-matrix-set.graphql"
     );
@@ -11419,6 +11440,12 @@ fn custom_data_metafield_type_matrix_sets_and_reads_product_owned_values() {
             .collect();
         let expected_set_len = set_metafields.len();
         set_variables["metafields"] = json!(set_metafields);
+        for metafield in set_variables["metafields"]
+            .as_array_mut()
+            .expect("metafield batch inputs")
+        {
+            metafield["ownerId"] = json!(owner_id);
+        }
 
         let set_response = proxy.process_request(json_graphql_request(set_query, set_variables));
         assert_eq!(set_response.status, 200);
@@ -11434,7 +11461,8 @@ fn custom_data_metafield_type_matrix_sets_and_reads_product_owned_values() {
             expected_set_len
         );
 
-        let read_variables = batch["downstreamRead"]["request"]["variables"].clone();
+        let mut read_variables = batch["downstreamRead"]["request"]["variables"].clone();
+        read_variables["id"] = json!(owner_id);
         let read_response = proxy.process_request(json_graphql_request(read_query, read_variables));
         assert_eq!(read_response.status, 200);
         let expected_nodes: Vec<&Value> = batch["downstreamRead"]["response"]["data"]["product"]
@@ -11492,15 +11520,30 @@ fn product_metafields_set_stages_product_owned_readbacks() {
                     .iter()
                     .any(|input| input["compareDigest"].as_str().is_some())
             });
-        let mut proxy = if needs_owner_hydration {
-            owner_metafield_hydration_proxy(fixture.clone())
+        let (mut proxy, staged_owner_id) = if needs_owner_hydration {
+            (owner_metafield_hydration_proxy(fixture.clone()), None)
         } else {
-            snapshot_proxy()
+            let mut proxy = snapshot_proxy();
+            let owner_id = create_metafield_product_owner(
+                &mut proxy,
+                &format!("MetafieldsSet runtime owner {case}"),
+            );
+            (proxy, Some(owner_id))
         };
+
+        let mut mutation_variables = fixture["mutation"]["variables"].clone();
+        if let Some(owner_id) = &staged_owner_id {
+            for metafield in mutation_variables["metafields"]
+                .as_array_mut()
+                .expect("metafieldsSet fixture inputs")
+            {
+                metafield["ownerId"] = json!(owner_id);
+            }
+        }
 
         let mutation = proxy.process_request(app_namespace_graphql_request(
             mutation_query,
-            fixture["mutation"]["variables"].clone(),
+            mutation_variables.clone(),
             "347082227713",
         ));
         assert_eq!(mutation.status, 200, "{case}");
@@ -11533,13 +11576,15 @@ fn product_metafields_set_stages_product_owned_readbacks() {
             assert_eq!(actual["value"], expected["value"], "{case} value");
         }
 
-        let downstream = proxy.process_request(json_graphql_request(
-            read_query,
-            fixture["downstreamReadVariables"].clone(),
-        ));
+        let mut downstream_variables = fixture["downstreamReadVariables"].clone();
+        if let Some(owner_id) = &staged_owner_id {
+            downstream_variables["id"] = json!(owner_id);
+        }
+        let downstream =
+            proxy.process_request(json_graphql_request(read_query, downstream_variables));
         assert_eq!(downstream.status, 200, "{case}");
         if actual_metafields.is_empty() {
-            let attempted_values = fixture["mutation"]["variables"]["metafields"]
+            let attempted_values = mutation_variables["metafields"]
                 .as_array()
                 .map(Vec::as_slice)
                 .unwrap_or(&[])

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use graphql_parser::query::{
     parse_query, Definition, Directive, Document, Field, OperationDefinition, Selection, Type,
@@ -73,6 +73,25 @@ pub struct SelectedField {
     pub arguments: BTreeMap<String, ResolvedValue>,
     pub selection: Vec<SelectedField>,
     pub type_condition: Option<String>,
+}
+
+pub(crate) fn selected_field_paths(selections: &[SelectedField]) -> BTreeSet<Vec<String>> {
+    fn collect(
+        selections: &[SelectedField],
+        prefix: &mut Vec<String>,
+        paths: &mut BTreeSet<Vec<String>>,
+    ) {
+        for selection in selections {
+            prefix.push(selection.name.clone());
+            paths.insert(prefix.clone());
+            collect(&selection.selection, prefix, paths);
+            prefix.pop();
+        }
+    }
+
+    let mut paths = BTreeSet::new();
+    collect(selections, &mut Vec::new(), &mut paths);
+    paths
 }
 
 #[derive(Debug, Clone, PartialEq)]

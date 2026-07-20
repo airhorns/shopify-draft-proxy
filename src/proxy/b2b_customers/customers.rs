@@ -320,14 +320,17 @@ impl DraftProxy {
         &self,
         root_name: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
+        requested_field_paths: &BTreeSet<Vec<String>>,
     ) -> bool {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return false;
         }
         match root_name {
             "customer" => resolved_string_field(arguments, "id").is_some_and(|id| {
-                !self.store.staged.customers.contains_key(&id)
-                    && !self.store.staged.customers.is_tombstoned(&id)
+                !self.store.staged.customers.is_tombstoned(&id)
+                    && (!self.store.staged.customers.contains_key(&id)
+                        || (self.owner_parent_is_partial(&id)
+                            && !self.owner_parent_shape_is_complete(&id, requested_field_paths)))
             }),
             "customerByIdentifier" => {
                 resolved_object_field(arguments, "identifier").is_some_and(|identifier| {
@@ -552,7 +555,6 @@ impl DraftProxy {
     /// nulling the whole customer root before that resolver is reached.
     fn customer_related_state_exists(&self, id: &str) -> bool {
         self.store_credit_owner_has_accounts(id)
-            || self.owner_has_metafield_local_effects(id)
             || self
                 .store
                 .staged

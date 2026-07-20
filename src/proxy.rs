@@ -10,9 +10,10 @@ use serde_json::{json, Value};
 use crate::graphql::{
     parse_operation, parse_operation_with_variables,
     parse_operation_with_variables_and_operation_name, parsed_document, root_field_arguments,
-    root_fields, selected_operation, selected_operation_query, variable_definition_info,
-    variables_with_operation_defaults, OperationSelectionError, OperationType, RawArgumentValue,
-    ResolvedValue, RootFieldSelection, SelectedField, SourceLocation,
+    root_fields, selected_field_paths, selected_operation, selected_operation_query,
+    variable_definition_info, variables_with_operation_defaults, OperationSelectionError,
+    OperationType, RawArgumentValue, ResolvedValue, RootFieldSelection, SelectedField,
+    SourceLocation,
 };
 use crate::node_resolver_inventory::{EntityRef, NodeLoadState};
 use crate::operation_registry::{
@@ -645,6 +646,11 @@ struct StagedState {
     product_option_linked_metaobject_definition_ids: BTreeSet<String>,
     owner_metafields: BTreeMap<String, Vec<Value>>,
     deleted_owner_metafields: BTreeSet<(String, String, String)>,
+    /// Canonical parent records first learned through owner-metafield hydration
+    /// are partial observations, not complete resource snapshots. Paths are
+    /// stored separately from record/effect presence so later roots can hydrate
+    /// only when their requested parent shape has not been observed.
+    owner_parent_observed_field_paths: BTreeMap<String, BTreeSet<Vec<String>>>,
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     deleted_metafield_definitions: BTreeSet<MetafieldDefinitionKey>,
     metafield_reference_ids: BTreeSet<String>,
@@ -1907,8 +1913,19 @@ impl Store {
     }
 
     fn stage_observed_product_json(&mut self, value: &Value) {
-        if let Some(product) = product_state_from_json(value) {
-            self.stage_observed_product(product);
+        let Some(id) = value.get("id").and_then(Value::as_str) else {
+            return;
+        };
+        if self.product_is_tombstoned(id) {
+            return;
+        }
+        let mut merged = self
+            .product_by_id(id)
+            .map(product_state_json)
+            .unwrap_or_else(|| json!({}));
+        merge_json_values(&mut merged, value);
+        if let Some(product) = product_state_from_json(&merged) {
+            self.stage_product(product);
         }
     }
 
@@ -2211,6 +2228,23 @@ impl Store {
         self.product_variants
             .staged
             .stage(variant.id.clone(), variant);
+    }
+
+    fn stage_observed_product_variant_json(&mut self, value: &Value) {
+        let Some(id) = value.get("id").and_then(Value::as_str) else {
+            return;
+        };
+        if self.product_variants.staged.is_tombstoned(id) {
+            return;
+        }
+        let mut merged = self
+            .product_variant_by_id(id)
+            .map(product_variant_state_json)
+            .unwrap_or_else(|| json!({}));
+        merge_json_values(&mut merged, value);
+        if let Some(variant) = product_variant_state_from_observed_json(&merged) {
+            self.stage_product_variant(variant);
+        }
     }
 
     fn observe_base_product_variant(&mut self, variant: ProductVariantRecord) {

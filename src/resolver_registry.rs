@@ -121,6 +121,9 @@ pub(crate) struct RootInvocation<'a> {
     /// Output paths selected by the executable GraphQL engine. Domain roots
     /// may use this only to plan hydration; projection remains engine-owned.
     pub requested_field_paths: BTreeSet<Vec<String>>,
+    /// Node roots retain fragment-aware paths per concrete resource type so
+    /// hydration completeness ignores selections on sibling implementations.
+    pub requested_field_paths_by_type: BTreeMap<String, BTreeSet<Vec<String>>>,
     /// When a request-scoped read preflight fetched the original operation,
     /// this is the current root value normalized back to canonical schema field
     /// names. Aliases are a transport concern and never leak into domain/store

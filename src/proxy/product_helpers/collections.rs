@@ -655,13 +655,7 @@ impl DraftProxy {
         let identifier = BTreeMap::from([("id".to_string(), ResolvedValue::String(id.clone()))]);
         self.hydrate_collection_identifier_if_needed(&invocation, &identifier, None);
         let value = self.collection_canonical_value_by_id(&id);
-        ResolverOutcome::value(
-            if value.is_null() && self.owner_has_metafield_local_effects(&id) {
-                json!({ "__typename": "Collection", "id": id })
-            } else {
-                value
-            },
-        )
+        ResolverOutcome::value(value)
     }
 
     pub(crate) fn collections_root(
@@ -777,12 +771,11 @@ impl DraftProxy {
                     .filter(|handle| !handle.is_empty())
             });
         let needs_upstream = id.as_deref().is_some_and(|id| {
-            self.store.collection_by_id(id).is_none()
-                && !self.store.collection_is_deleted(id)
-                && !self
-                    .execution_session
-                    .owner_metafield_hydrated_ids
-                    .contains(id)
+            !self.store.collection_is_deleted(id)
+                && (self.store.collection_by_id(id).is_none()
+                    || (self.owner_parent_is_partial(id)
+                        && !self
+                            .owner_parent_shape_is_complete(id, &invocation.requested_field_paths)))
         }) || handle.as_deref().is_some_and(|handle| {
             self.store.collection_by_handle(handle).is_none()
                 && !self.store.collection_handle_is_deleted(handle)
@@ -790,9 +783,10 @@ impl DraftProxy {
         if !needs_upstream {
             return;
         }
-        let response = (self.upstream_transport)(invocation.request.clone());
-        if response.status < 400 {
-            self.observe_collections_read_response(&response);
+        let result = self
+            .cached_or_forward_upstream_graphql_result(invocation.request, invocation.response_key);
+        if result.transport_succeeded && result.outcome.errors.is_empty() {
+            self.observe_collection_value(&result.data);
         }
     }
 
@@ -871,9 +865,13 @@ impl DraftProxy {
                     .get("handle")
                     .and_then(Value::as_str)
                     .is_some_and(|handle| self.store.collection_handle_is_deleted(handle))
-                && self.store.collection_by_id(id).is_none()
+                && (self.store.collection_by_id(id).is_none() || self.owner_parent_is_partial(id))
             {
-                self.stage_collection_from_observed_json(value);
+                if self.owner_parent_is_partial(id) {
+                    self.stage_observed_owner_metafield_node(value);
+                } else {
+                    self.stage_collection_from_observed_json(value);
+                }
             }
         }
         match value {
