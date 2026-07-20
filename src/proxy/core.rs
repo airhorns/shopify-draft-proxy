@@ -520,7 +520,8 @@ impl DraftProxy {
                 "publicationCount": self.store.base.publication_count,
                 "availableLocales": available_locales,
                 "shopLocales": self.store.base.shop_locales.clone(),
-                "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>()
+                "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>(),
+                "localizationSourceResources": self.store.base.localization_source_resources.clone()
         });
         let staged_state = json!({
                 "products": product_state_map_json(&self.store.products.staged.records),
@@ -1269,6 +1270,10 @@ impl DraftProxy {
             snapshot["stagedState"]["localizationTranslations"] =
                 json!(self.store.staged.localization_translations.clone());
         }
+        if !self.store.staged.localization_source_resources.is_empty() {
+            snapshot["stagedState"]["localizationSourceResources"] =
+                json!(self.store.staged.localization_source_resources.clone());
+        }
         if !self.store.staged.localization_resources.is_empty() {
             snapshot["stagedState"]["localizationResources"] =
                 json!(self.store.staged.localization_resources.clone());
@@ -1953,6 +1958,8 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.base.localization_source_resources =
+            value_map_from_json(state["baseState"].get("localizationSourceResources"));
         self.store.base.function_metadata =
             value_map_from_json(state["baseState"].get("functionMetadata"));
         self.store.base.function_metadata_order = state["baseState"]
@@ -2807,6 +2814,8 @@ impl DraftProxy {
             .as_array()
             .cloned()
             .unwrap_or_default();
+        self.store.staged.localization_source_resources =
+            value_map_from_json(state["stagedState"].get("localizationSourceResources"));
         self.store.staged.localization_resources = state["stagedState"]["localizationResources"]
             .as_object()
             .map(|resources| {

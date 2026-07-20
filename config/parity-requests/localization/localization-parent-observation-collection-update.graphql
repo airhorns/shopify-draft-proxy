@@ -1,0 +1,28 @@
+mutation LocalizationParentObservationCollectionUpdate($input: CollectionInput!) {
+  collectionUpdate(input: $input) {
+    collection {
+      id
+      title
+      handle
+      descriptionHtml
+      updatedAt
+      templateSuffix
+      sortOrder
+      seo {
+        title
+        description
+      }
+      products(first: 10) {
+        nodes {
+          id
+          title
+          handle
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

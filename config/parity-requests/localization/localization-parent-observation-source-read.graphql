@@ -1,0 +1,22 @@
+query LocalizationParentObservationSourceRead($productId: ID!, $collectionId: ID!) {
+  productSource: translatableResource(resourceId: $productId) {
+    resourceId
+    translatableContent {
+      key
+      value
+      digest
+      locale
+      type
+    }
+  }
+  collectionSource: translatableResource(resourceId: $collectionId) {
+    resourceId
+    translatableContent {
+      key
+      value
+      digest
+      locale
+      type
+    }
+  }
+}

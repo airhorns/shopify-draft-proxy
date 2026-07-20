@@ -208,6 +208,7 @@ describe('Rust HTTP adapter route surface', { timeout: adapterTestTimeoutMs }, (
               }),
             }),
             localizationProductIds: [],
+            localizationSourceResources: {},
             metafieldDefinitions: {},
             metafieldDefinitionOwnerCatalogs: [],
             metafieldDefinitionNamespaces: [],

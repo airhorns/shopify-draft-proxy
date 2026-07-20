@@ -1160,20 +1160,6 @@ fn localization_content_entry(key: &str, value: &str, locale: &str, content_type
     })
 }
 
-fn collection_set_seo_field(
-    object: &mut serde_json::Map<String, Value>,
-    field: &str,
-    value: String,
-) {
-    let seo = object.entry("seo".to_string()).or_insert_with(|| json!({}));
-    if !seo.is_object() {
-        *seo = json!({});
-    }
-    if let Some(seo_object) = seo.as_object_mut() {
-        seo_object.insert(field.to_string(), json!(value));
-    }
-}
-
 pub(in crate::proxy) fn localization_resource_type_matches(
     resource_id: &str,
     resource_type: &str,

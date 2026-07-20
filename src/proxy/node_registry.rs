@@ -411,12 +411,6 @@ impl DraftProxy {
         for node in &nodes {
             self.observe_node_response_value(node);
         }
-        for node in nodes {
-            let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
-            if is_shopify_gid_of_type(id, "Collection") {
-                self.stage_collection_from_observed_json(&node);
-            }
-        }
     }
 
     fn observe_node_response_value(&mut self, node: &Value) {
