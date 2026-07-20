@@ -2282,7 +2282,9 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        if self.config.read_mode == ReadMode::Snapshot {
+        if self.config.read_mode == ReadMode::Snapshot
+            && invocation.root_name != "productCreateMedia"
+        {
             return resolver_http_error_outcome(
                 400,
                 format!(
@@ -2317,11 +2319,31 @@ impl DraftProxy {
                 invocation.response_key,
             );
         };
-        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
-            invocation.root_name,
-            "products",
-            Vec::new(),
-        ))
+        let has_errors = ["userErrors", "mediaUserErrors"].iter().any(|key| {
+            payload
+                .get(key)
+                .and_then(Value::as_array)
+                .is_some_and(|errors| !errors.is_empty())
+        });
+        let has_effect = payload
+            .get("media")
+            .and_then(Value::as_array)
+            .is_some_and(|media| !media.is_empty())
+            || payload
+                .get("deletedMediaIds")
+                .and_then(Value::as_array)
+                .is_some_and(|ids| !ids.is_empty())
+            || payload.get("job").is_some_and(Value::is_object);
+        let outcome = ResolverOutcome::value(payload);
+        if has_errors && !has_effect {
+            outcome
+        } else {
+            outcome.with_log_draft(LogDraft::staged(
+                invocation.root_name,
+                "products",
+                Vec::new(),
+            ))
+        }
     }
 
     /// productCreateMedia stages newly uploaded media on a product. Each media
@@ -2673,6 +2695,9 @@ impl DraftProxy {
     fn ensure_product_for_media(&mut self, request: &Request, product_id: &str) -> bool {
         if self.store.product_staged_or_base(product_id).is_some() {
             return true;
+        }
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return false;
         }
         self.hydrate_product_nodes_for_observation_with_request(
             request,

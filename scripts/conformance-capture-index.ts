@@ -3939,13 +3939,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-product-variant-media-validation-conformance.ts',
     purpose:
-      'productVariantAppendMedia and productVariantDetachMedia validation for pair-count, media-count, duplicate-variant, invalid-media-type, cross-product, non-ready, already-attached, and unattached detach targets.',
+      'productVariantAppendMedia and productVariantDetachMedia lifecycle and validation for successful append/detach readbacks plus pair-count, media-count, duplicate-variant, invalid-media-type, cross-product, non-ready, already-attached, and unattached detach targets.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-variant-media-validation.json`,
       'config/parity-specs/products/product_variant_append_media_validation.json',
       'config/parity-requests/products/product-variant-media-validation-append.graphql',
       'config/parity-requests/products/product-variant-media-validation-detach.graphql',
+      'config/parity-requests/products/product-variant-media-validation-read.graphql',
       'config/parity-requests/products/product-variant-media-validation-product-create-media.graphql',
       'config/parity-requests/products/product-variant-media-validation-product-create.graphql',
       'config/parity-requests/products/product-variant-media-validation-product-update-media.graphql',
