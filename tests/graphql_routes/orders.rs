@@ -91,6 +91,144 @@ fn read_order_payment_projection(proxy: &mut DraftProxy, id: Value) -> Value {
         .clone()
 }
 
+fn payment_transaction_hydration_order(order_id: &str, transaction_id: &str) -> Value {
+    json!({
+        "id": order_id,
+        "presentmentCurrencyCode": "CAD",
+        "displayFinancialStatus": "AUTHORIZED",
+        "capturable": true,
+        "totalCapturable": "25.00",
+        "totalCapturableSet": {
+            "shopMoney": { "amount": "25.0", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "25.0", "currencyCode": "CAD" }
+        },
+        "totalOutstandingSet": {
+            "shopMoney": { "amount": "0.0", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "0.0", "currencyCode": "CAD" }
+        },
+        "totalReceivedSet": {
+            "shopMoney": { "amount": "0.0", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "0.0", "currencyCode": "CAD" }
+        },
+        "netPaymentSet": {
+            "shopMoney": { "amount": "0.0", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "0.0", "currencyCode": "CAD" }
+        },
+        "paymentGatewayNames": ["manual"],
+        "transactions": [{
+            "id": transaction_id,
+            "kind": "AUTHORIZATION",
+            "status": "SUCCESS",
+            "gateway": "manual",
+            "manualPaymentGateway": true,
+            "manuallyCapturable": false,
+            "multiCapturable": false,
+            "amountSet": {
+                "shopMoney": { "amount": "25.0", "currencyCode": "CAD" },
+                "presentmentMoney": { "amount": "25.0", "currencyCode": "CAD" }
+            },
+            "parentTransaction": null
+        }]
+    })
+}
+
+const PAYMENT_TRANSACTION_WARM_ORDER_QUERY: &str = r#"
+    query WarmPaymentTransactionOrder($id: ID!) {
+      order(id: $id) {
+        id
+        presentmentCurrencyCode
+        displayFinancialStatus
+        capturable
+        totalCapturable
+        totalCapturableSet {
+          shopMoney { amount currencyCode }
+          presentmentMoney { amount currencyCode }
+        }
+        totalOutstandingSet {
+          shopMoney { amount currencyCode }
+          presentmentMoney { amount currencyCode }
+        }
+        totalReceivedSet {
+          shopMoney { amount currencyCode }
+          presentmentMoney { amount currencyCode }
+        }
+        netPaymentSet {
+          shopMoney { amount currencyCode }
+          presentmentMoney { amount currencyCode }
+        }
+        paymentGatewayNames
+        transactions {
+          id
+          kind
+          status
+          gateway
+          manualPaymentGateway
+          manuallyCapturable
+          multiCapturable
+          amountSet {
+            shopMoney { amount currencyCode }
+            presentmentMoney { amount currencyCode }
+          }
+          parentTransaction { id kind status }
+        }
+      }
+    }
+"#;
+
+fn payment_transaction_capture_request(order_id: &str, transaction_id: &str) -> Request {
+    json_graphql_request(
+        r#"
+        mutation ColdPaymentTransactionCapture($input: OrderCaptureInput!) {
+          orderCapture(input: $input) {
+            transaction {
+              id
+              kind
+              status
+              gateway
+              amountSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+              parentTransaction { id kind status }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": order_id,
+                "parentTransactionId": transaction_id,
+                "amount": "25.00"
+            }
+        }),
+    )
+}
+
+fn payment_transaction_void_request(transaction_id: &str) -> Request {
+    json_graphql_request(
+        r#"
+        mutation ColdPaymentTransactionVoid($id: ID!) {
+          transactionVoid(parentTransactionId: $id) {
+            transaction {
+              id
+              kind
+              status
+              gateway
+              amountSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+              parentTransaction { id kind status }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": transaction_id }),
+    )
+}
+
 fn read_preserved_mandate_order(proxy: &mut DraftProxy, id: Value) -> Value {
     proxy
         .process_request(json_graphql_request(
@@ -13591,6 +13729,463 @@ fn order_create_mandate_payment_preserves_existing_staged_order() {
 }
 
 #[test]
+fn payment_transaction_cold_hydration_capture_matches_warm_public_read_execution() {
+    let order_id = "gid://shopify/Order/88001";
+    let transaction_id = "gid://shopify/OrderTransaction/88002";
+    let hydrated_order = payment_transaction_hydration_order(order_id, transaction_id);
+    let mut executions = Vec::new();
+
+    for warm_first in [false, true] {
+        let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let calls_for_transport = Arc::clone(&upstream_calls);
+        let order_for_transport = hydrated_order.clone();
+        let mut proxy =
+            configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+                let body: Value = serde_json::from_str(&request.body).expect("GraphQL body");
+                assert!(body["query"]
+                    .as_str()
+                    .is_some_and(|query| query.trim_start().starts_with("query")));
+                assert_eq!(body["variables"]["id"], json!("gid://shopify/Order/88001"));
+                calls_for_transport.lock().unwrap().push(body);
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "order": order_for_transport } }),
+                }
+            });
+
+        if warm_first {
+            let warm = proxy.process_request(json_graphql_request(
+                PAYMENT_TRANSACTION_WARM_ORDER_QUERY,
+                json!({ "id": order_id }),
+            ));
+            assert_eq!(warm.status, 200);
+            assert_eq!(warm.body["data"]["order"]["id"], json!(order_id));
+        }
+
+        let capture = proxy.process_request(payment_transaction_capture_request(
+            order_id,
+            transaction_id,
+        ));
+        assert_eq!(capture.status, 200);
+        assert_eq!(
+            capture.body["data"]["orderCapture"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            capture.body["data"]["orderCapture"]["transaction"]["kind"],
+            json!("CAPTURE")
+        );
+
+        let downstream = read_order_payment_projection(&mut proxy, json!(order_id));
+        assert_eq!(downstream["displayFinancialStatus"], json!("PAID"));
+        assert_eq!(downstream["capturable"], json!(false));
+        assert_eq!(downstream["totalCapturable"], json!("0.0"));
+        assert_eq!(
+            downstream["totalOutstandingSet"]["shopMoney"]["amount"],
+            json!("0.0")
+        );
+        assert_eq!(
+            downstream["totalReceivedSet"]["shopMoney"]["amount"],
+            json!("25.0")
+        );
+        assert_eq!(downstream["transactions"].as_array().unwrap().len(), 2);
+
+        let state_before_rejections = state_snapshot(&proxy);
+        let log_before_rejections = log_snapshot(&proxy);
+        let already_captured = proxy.process_request(payment_transaction_capture_request(
+            order_id,
+            transaction_id,
+        ));
+        assert_eq!(
+            already_captured.body["data"]["orderCapture"],
+            json!({
+                "transaction": Value::Null,
+                "userErrors": [{
+                    "field": Value::Null,
+                    "message": "Can only capture successful authorizations"
+                }]
+            })
+        );
+        let capture_transaction_id = capture.body["data"]["orderCapture"]["transaction"]["id"]
+            .as_str()
+            .expect("capture transaction id");
+        let wrong_parent = proxy.process_request(payment_transaction_capture_request(
+            order_id,
+            capture_transaction_id,
+        ));
+        assert_eq!(
+            wrong_parent.body["data"]["orderCapture"],
+            json!({
+                "transaction": Value::Null,
+                "userErrors": [{
+                    "field": Value::Null,
+                    "message": "Parent transaction should be a successful authorization"
+                }]
+            })
+        );
+        assert_eq!(state_snapshot(&proxy), state_before_rejections);
+        assert_eq!(log_snapshot(&proxy), log_before_rejections);
+        assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+        assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+        assert!(state_snapshot(&proxy)["stagedState"]["orders"][order_id].is_object());
+
+        executions.push((capture.body, downstream));
+    }
+
+    assert_eq!(executions[0], executions[1]);
+}
+
+#[test]
+fn payment_transaction_capture_rehydrates_an_incomplete_observed_order() {
+    let order_id = "gid://shopify/Order/88011";
+    let transaction_id = "gid://shopify/OrderTransaction/88012";
+    let hydrated_order = payment_transaction_hydration_order(order_id, transaction_id);
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let calls_for_transport = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("GraphQL body");
+            let query = body["query"].as_str().expect("query");
+            assert!(query.trim_start().starts_with("query"));
+            let is_narrow_read = query.contains("NarrowPaymentTransactionOrder");
+            calls_for_transport.lock().unwrap().push(body);
+            let order = if is_narrow_read {
+                json!({
+                    "id": order_id,
+                    "transactions": [{ "id": transaction_id }]
+                })
+            } else {
+                hydrated_order.clone()
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "order": order } }),
+            }
+        });
+
+    let narrow_read = proxy.process_request(json_graphql_request(
+        "query NarrowPaymentTransactionOrder($id: ID!) { order(id: $id) { id } }",
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(narrow_read.body["data"]["order"]["id"], json!(order_id));
+
+    let capture = proxy.process_request(payment_transaction_capture_request(
+        order_id,
+        transaction_id,
+    ));
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["transaction"]["kind"],
+        json!("CAPTURE")
+    );
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert!(calls.iter().all(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query"))));
+}
+
+#[test]
+fn payment_transaction_cold_hydration_void_matches_warm_public_read_execution() {
+    let order_id = "gid://shopify/Order/88101";
+    let transaction_id = "gid://shopify/OrderTransaction/88102";
+    let hydrated_order = payment_transaction_hydration_order(order_id, transaction_id);
+    let mut executions = Vec::new();
+
+    for warm_first in [false, true] {
+        let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let calls_for_transport = Arc::clone(&upstream_calls);
+        let order_for_transport = hydrated_order.clone();
+        let mut proxy =
+            configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+                let body: Value = serde_json::from_str(&request.body).expect("GraphQL body");
+                let query = body["query"].as_str().expect("query");
+                assert!(query.trim_start().starts_with("query"));
+                calls_for_transport.lock().unwrap().push(body.clone());
+                let data = if query.contains("node(id:") {
+                    json!({
+                        "transaction": {
+                            "__typename": "OrderTransaction",
+                            "id": "gid://shopify/OrderTransaction/88102",
+                            "kind": "AUTHORIZATION",
+                            "status": "SUCCESS",
+                            "gateway": "manual",
+                            "manualPaymentGateway": true,
+                            "manuallyCapturable": true,
+                            "multiCapturable": false,
+                            "amountSet": {
+                                "shopMoney": { "amount": "25.0", "currencyCode": "CAD" },
+                                "presentmentMoney": { "amount": "25.0", "currencyCode": "CAD" }
+                            },
+                            "parentTransaction": null,
+                            "order": order_for_transport
+                        }
+                    })
+                } else {
+                    assert_eq!(body["variables"]["id"], json!("gid://shopify/Order/88101"));
+                    json!({ "order": order_for_transport })
+                };
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": data }),
+                }
+            });
+
+        if warm_first {
+            let warm = proxy.process_request(json_graphql_request(
+                PAYMENT_TRANSACTION_WARM_ORDER_QUERY,
+                json!({ "id": order_id }),
+            ));
+            assert_eq!(warm.status, 200);
+            assert_eq!(warm.body["data"]["order"]["id"], json!(order_id));
+        }
+
+        let void = proxy.process_request(payment_transaction_void_request(transaction_id));
+        assert_eq!(void.status, 200);
+        assert_eq!(
+            void.body["data"]["transactionVoid"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            void.body["data"]["transactionVoid"]["transaction"]["kind"],
+            json!("VOID")
+        );
+        assert_eq!(
+            void.body["data"]["transactionVoid"]["transaction"]["amountSet"]["shopMoney"]["amount"],
+            json!("0.0")
+        );
+
+        let downstream = read_order_payment_projection(&mut proxy, json!(order_id));
+        assert_eq!(downstream["displayFinancialStatus"], json!("VOIDED"));
+        assert_eq!(downstream["capturable"], json!(false));
+        assert_eq!(downstream["totalCapturable"], json!("0.0"));
+        assert_eq!(
+            downstream["totalOutstandingSet"]["shopMoney"]["amount"],
+            json!("25.0")
+        );
+        assert_eq!(
+            downstream["totalReceivedSet"]["shopMoney"]["amount"],
+            json!("0.0")
+        );
+        assert_eq!(downstream["transactions"].as_array().unwrap().len(), 2);
+
+        let state_before_repeat = state_snapshot(&proxy);
+        let log_before_repeat = log_snapshot(&proxy);
+        let already_voided =
+            proxy.process_request(payment_transaction_void_request(transaction_id));
+        assert_eq!(
+            already_voided.body["data"]["transactionVoid"],
+            json!({
+                "transaction": Value::Null,
+                "userErrors": [{
+                    "field": ["parentTransactionId"],
+                    "message": "Parent transaction require a parent_id referring to a voidable transaction",
+                    "code": "AUTH_NOT_VOIDABLE"
+                }]
+            })
+        );
+        assert_eq!(state_snapshot(&proxy), state_before_repeat);
+        assert_eq!(log_snapshot(&proxy), log_before_repeat);
+        assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+        assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+
+        executions.push((void.body, downstream));
+    }
+
+    assert_eq!(executions[0], executions[1]);
+}
+
+#[test]
+fn payment_transaction_cold_hydration_failures_stay_unresolved_and_immutable() {
+    let order_id = "gid://shopify/Order/88201";
+    let transaction_id = "gid://shopify/OrderTransaction/88202";
+
+    for incomplete_response in [false, true] {
+        for request in [
+            payment_transaction_capture_request(order_id, transaction_id),
+            payment_transaction_void_request(transaction_id),
+        ] {
+            let calls = Arc::new(AtomicUsize::new(0));
+            let calls_for_transport = Arc::clone(&calls);
+            let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+                move |request| {
+                    let request_body: Value =
+                        serde_json::from_str(&request.body).expect("GraphQL body");
+                    let query = request_body["query"].as_str().expect("query");
+                    assert!(query.trim_start().starts_with("query"));
+                    calls_for_transport.fetch_add(1, Ordering::SeqCst);
+                    if incomplete_response {
+                        let data = if query.contains("node(id:") {
+                            json!({
+                                "transaction": {
+                                    "__typename": "OrderTransaction",
+                                    "id": transaction_id,
+                                    "order": {
+                                        "id": order_id,
+                                        "transactions": [{ "id": transaction_id }]
+                                    }
+                                }
+                            })
+                        } else {
+                            json!({
+                                "order": {
+                                    "id": order_id,
+                                    "transactions": [{ "id": transaction_id }]
+                                }
+                            })
+                        };
+                        Response {
+                            status: 200,
+                            headers: Default::default(),
+                            body: json!({ "data": data }),
+                        }
+                    } else {
+                        Response {
+                            status: 503,
+                            headers: Default::default(),
+                            body: json!({ "errors": [{ "message": "upstream unavailable" }] }),
+                        }
+                    }
+                },
+            );
+            let state_before = state_snapshot(&proxy);
+            let log_before = log_snapshot(&proxy);
+
+            let response = proxy.process_request(request);
+            let serialized = response.body.to_string();
+            assert_eq!(response.status, 200);
+            assert!(response.body["errors"].is_array());
+            assert!(!serialized.contains("Unable to find parent transaction"));
+            assert!(!serialized.contains("Transaction does not exist"));
+            assert!(!serialized.contains("AUTH_NOT_SUCCESSFUL"));
+            assert_eq!(calls.load(Ordering::SeqCst), 1);
+            assert_eq!(state_snapshot(&proxy), state_before);
+            assert_eq!(log_snapshot(&proxy), log_before);
+        }
+    }
+}
+
+#[test]
+fn payment_transaction_cold_hydration_confirms_misses_and_keeps_snapshot_local() {
+    let order_id = "gid://shopify/Order/88301";
+    let transaction_id = "gid://shopify/OrderTransaction/88302";
+
+    let capture_calls = Arc::new(AtomicUsize::new(0));
+    let calls_for_transport = Arc::clone(&capture_calls);
+    let mut live_capture =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            calls_for_transport.fetch_add(1, Ordering::SeqCst);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "order": Value::Null } }),
+            }
+        });
+    let capture = live_capture.process_request(payment_transaction_capture_request(
+        order_id,
+        transaction_id,
+    ));
+    assert_eq!(capture_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["userErrors"],
+        json!([{ "field": ["id"], "message": "Order does not exist" }])
+    );
+    assert_eq!(log_snapshot(&live_capture)["entries"], json!([]));
+
+    let void_calls = Arc::new(AtomicUsize::new(0));
+    let calls_for_transport = Arc::clone(&void_calls);
+    let mut live_void =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            calls_for_transport.fetch_add(1, Ordering::SeqCst);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "transaction": Value::Null } }),
+            }
+        });
+    let void = live_void.process_request(payment_transaction_void_request(transaction_id));
+    assert_eq!(void_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        void.body["data"]["transactionVoid"]["userErrors"],
+        json!([{
+            "field": ["parentTransactionId"],
+            "message": "Transaction does not exist",
+            "code": "TRANSACTION_NOT_FOUND"
+        }])
+    );
+    assert_eq!(log_snapshot(&live_void)["entries"], json!([]));
+
+    let failed_order_id = "gid://shopify/Order/88303";
+    let failed_transaction_id = "gid://shopify/OrderTransaction/88304";
+    let mut failed_order =
+        payment_transaction_hydration_order(failed_order_id, failed_transaction_id);
+    failed_order["transactions"][0]["status"] = json!("FAILURE");
+    failed_order["displayFinancialStatus"] = Value::Null;
+    failed_order["capturable"] = json!(false);
+    let failed_for_transport = failed_order.clone();
+    let mut failed_void =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "transaction": {
+                        "__typename": "OrderTransaction",
+                        "id": failed_transaction_id,
+                        "kind": "AUTHORIZATION",
+                        "status": "FAILURE",
+                        "gateway": "manual",
+                        "manualPaymentGateway": true,
+                        "manuallyCapturable": false,
+                        "multiCapturable": false,
+                        "amountSet": failed_for_transport["transactions"][0]["amountSet"].clone(),
+                        "parentTransaction": Value::Null,
+                        "order": failed_for_transport
+                    }
+                }
+            }),
+        });
+    let failed_response =
+        failed_void.process_request(payment_transaction_void_request(failed_transaction_id));
+    assert_eq!(
+        failed_response.body["data"]["transactionVoid"],
+        json!({
+            "transaction": Value::Null,
+            "userErrors": [{
+                "field": ["parentTransactionId"],
+                "message": "Parent transaction must be a successful authorization",
+                "code": "AUTH_NOT_SUCCESSFUL"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&failed_void)["entries"], json!([]));
+
+    let mut snapshot = snapshot_proxy().with_upstream_transport(|_| {
+        panic!("Snapshot payment transaction mutations must not hydrate upstream")
+    });
+    let snapshot_capture = snapshot.process_request(payment_transaction_capture_request(
+        order_id,
+        transaction_id,
+    ));
+    assert_eq!(
+        snapshot_capture.body["data"]["orderCapture"]["userErrors"][0]["message"],
+        json!("Unable to find parent transaction")
+    );
+    let snapshot_void = snapshot.process_request(payment_transaction_void_request(transaction_id));
+    assert_eq!(
+        snapshot_void.body["data"]["transactionVoid"]["userErrors"][0]["code"],
+        json!("TRANSACTION_NOT_FOUND")
+    );
+    assert_eq!(log_snapshot(&snapshot)["entries"], json!([]));
+}
+
+#[test]
 fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
@@ -14834,8 +15429,8 @@ fn order_payment_transactions_use_order_transaction_state_not_magic_values() {
     assert_eq!(
         non_authorization_parent.body["data"]["orderCapture"]["userErrors"],
         json!([{
-            "field": ["parentTransactionId"],
-            "message": "Parent transaction must be a successful authorization"
+            "field": null,
+            "message": "Parent transaction should be a successful authorization"
         }])
     );
 
@@ -14905,7 +15500,7 @@ fn order_payment_transactions_use_order_transaction_state_not_magic_values() {
     );
     assert_eq!(
         void_b.body["data"]["transactionVoid"]["transaction"]["amountSet"]["shopMoney"]["amount"],
-        json!("20.0")
+        json!("0.0")
     );
 
     let missing_void = proxy.process_request(json_graphql_request(

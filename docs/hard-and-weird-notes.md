@@ -4514,3 +4514,39 @@ Practical rule:
 - distinguish an authoritative null node from transport, GraphQL, or incomplete
   response failures; all failure classes must leave product/category state
   unchanged, but only the authoritative miss is proven invalid
+
+## 108. Payment void amount and cold-hydration errors are not inferred from the authorization
+
+Admin GraphQL 2026-04 capture against a disposable manual authorization showed
+that a successful `transactionVoid` does not echo the authorization amount. The
+returned `VOID` transaction has `amountSet.shopMoney.amount: "0.0"`, while the
+downstream order restores the full authorization amount to
+`totalOutstandingSet`, clears capturable/received/net totals, and reports
+`displayFinancialStatus: VOIDED`.
+
+The same capture separated several errors that are easy to collapse into a
+single local not-found response:
+
+- a confirmed missing capture order returns `field: ["id"]` and `Order does not
+exist`
+- an existing order with no matching parent returns `field: null` and `Unable to
+find parent transaction`
+- using a successful `CAPTURE` as the capture parent returns `field: null` and
+  `Parent transaction should be a successful authorization`
+- recapturing a fully consumed authorization returns `field: null` and `Can only
+capture successful authorizations`
+- voiding a failed authorization returns `AUTH_NOT_SUCCESSFUL` and `Parent
+transaction must be a successful authorization`
+- repeating a void returns `AUTH_NOT_VOIDABLE` and the captured voidability
+  message
+
+Practical rule:
+
+- query-hydrate an unobserved real order or transaction before applying these
+  validation branches, but never send the supported mutation upstream
+- treat only an authoritative null order/node as confirmed missing; transport,
+  non-success HTTP, GraphQL-error, wrong-identity, and incomplete hydrate
+  responses remain unresolved and must not change state or logs
+- compute capture/void results from the hydrated transaction and order money
+  graph, including the zero-valued VOID transaction, rather than copying a
+  plausible amount into the mutation payload
