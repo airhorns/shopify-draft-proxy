@@ -1924,10 +1924,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'media-file-update-validation-branches',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-media-file-update-validation-branches.ts',
-    purpose: 'fileUpdate readiness, type, filename, source/version, and typed-GID validation branches.',
+    purpose:
+      'fileUpdate mixed-batch partial success with two READY files, indexed field validation, and immediate files/nodes readback.',
     requiredAuthScopes: ['read_files', 'write_files'],
-    fixtureOutputs: [`${CAPTURE_ROOT}media-file-update-validation-branches.json`],
-    cleanupBehavior: 'Creates disposable image/video files and deletes all returned file IDs during cleanup.',
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-update-mixed-batch-partial-success.json`,
+      'config/parity-specs/media/media-file-update-mixed-batch-partial-success.json',
+      'config/parity-requests/media/media-file-update-mixed-batch-create.graphql',
+      'config/parity-requests/media/media-file-update-mixed-batch-update.graphql',
+      'config/parity-requests/media/media-file-update-mixed-batch-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable image files plus validation image/video files, waits for READY where required, and deletes every returned file ID during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
