@@ -1751,15 +1751,6 @@ impl DraftProxy {
                 });
             }
         };
-        let mut linked_metaobject_definition =
-            if let Some(meta_type) = template.standard_metaobject_definition_type.as_deref() {
-                match self.prepare_linked_standard_metaobject_definition(request, meta_type) {
-                    Some(definition) => Some(definition),
-                    None => return linked_standard_metafield_definition_not_found_payload(),
-                }
-            } else {
-                None
-            };
         // Deprecated standardMetafieldDefinitionEnable inputs translate into
         // their modern capability/access equivalents before validation, matching
         // Shopify's behavior of mapping the legacy flags onto the structured
@@ -1842,7 +1833,12 @@ impl DraftProxy {
             } else if resolved_bool_field(&args, "pin") == Some(false) {
                 existing_definition["pinnedPosition"] = Value::Null;
             }
-            if let Some(prepared) = linked_metaobject_definition.take() {
+            if let Some(meta_type) = template.standard_metaobject_definition_type.as_deref() {
+                let Some(prepared) =
+                    self.prepare_linked_standard_metaobject_definition(request, meta_type)
+                else {
+                    return linked_standard_metafield_definition_not_found_payload();
+                };
                 let id = self.stage_linked_standard_metaobject_definition(prepared);
                 replace_metaobject_definition_id_validation(&mut existing_definition, &id);
             }
@@ -1941,7 +1937,12 @@ impl DraftProxy {
             definition["pinnedPosition"] =
                 json!(self.next_metafield_definition_pin_position(owner_type));
         }
-        if let Some(prepared) = linked_metaobject_definition {
+        if let Some(meta_type) = template.standard_metaobject_definition_type.as_deref() {
+            let Some(prepared) =
+                self.prepare_linked_standard_metaobject_definition(request, meta_type)
+            else {
+                return linked_standard_metafield_definition_not_found_payload();
+            };
             let id = self.stage_linked_standard_metaobject_definition(prepared);
             replace_metaobject_definition_id_validation(&mut definition, &id);
         }

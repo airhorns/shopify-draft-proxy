@@ -4533,10 +4533,13 @@ correct.
 
 Practical rule:
 
-- in LiveHybrid, hydrate the shop-local standard definition by type before
-  staging a linked standard metafield definition
+- in LiveHybrid, attempt to hydrate the shop-local standard definition by type
+  before staging; an explicit `null` proves absence, while a failed or
+  incomplete lookup may fall back only to the captured shop/version template
 - in snapshot mode, allocate an identity only when a captured standard template
   can materialize the complete local definition record
+- run capability, pinning, and other enable validations before definition
+  lookup or staging so rejected writes preserve Shopify's error precedence
 - use that one effective definition for validation, direct/by-type/Node reads,
   linked values, metafield references, and product options
 - return the captured `TEMPLATE_NOT_FOUND` null/error shape when no backed

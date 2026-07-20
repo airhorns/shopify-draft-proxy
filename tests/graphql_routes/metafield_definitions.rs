@@ -4870,7 +4870,17 @@ fn live_hybrid_linked_standard_metafield_does_not_fallback_after_authoritative_m
             }]
         })
     );
-    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+    assert_eq!(
+        upstream_requests
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|body| body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("metaobjectDefinitionByType")))
+            .count(),
+        1
+    );
     assert_eq!(
         state_snapshot(&proxy)["stagedState"]
             .get("metaobjectDefinitions")
@@ -4878,6 +4888,181 @@ fn live_hybrid_linked_standard_metafield_does_not_fallback_after_authoritative_m
             .unwrap_or_else(|| json!({})),
         json!({})
     );
+}
+
+#[test]
+fn live_hybrid_linked_standard_metafield_uses_captured_template_without_authoritative_result() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_requests = Arc::clone(&upstream_requests);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let is_definition_by_type = body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("metaobjectDefinitionByType"));
+            upstream_requests.lock().unwrap().push(body);
+            if is_definition_by_type {
+                Response {
+                    status: 500,
+                    headers: Default::default(),
+                    body: json!({"errors": [{"message": "No matching authoritative lookup"}]}),
+                }
+            } else {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({"data": {}}),
+                }
+            }
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EnableColorPatternWithoutAuthoritativeResult {
+          standardMetafieldDefinitionEnable(ownerType: PRODUCT, namespace: "shopify", key: "color-pattern") {
+            createdDefinition { validations { name value } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["standardMetafieldDefinitionEnable"]["userErrors"],
+        json!([])
+    );
+    let definition_id = response.body["data"]["standardMetafieldDefinitionEnable"]
+        ["createdDefinition"]["validations"][0]["value"]
+        .as_str()
+        .expect("captured template fallback should stage a resolvable definition")
+        .to_string();
+    assert!(!definition_id.contains("/standard-"));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCapturedColorPatternDefinition($id: ID!) {
+          direct: metaobjectDefinition(id: $id) { id type name }
+          relay: node(id: $id) { __typename ... on MetaobjectDefinition { id type name } }
+        }
+        "#,
+        json!({"id": definition_id}),
+    ));
+    assert_eq!(
+        read.body["data"],
+        json!({
+            "direct": {"id": definition_id, "type": "shopify--color-pattern", "name": "Color"},
+            "relay": {
+                "__typename": "MetaobjectDefinition",
+                "id": definition_id,
+                "type": "shopify--color-pattern",
+                "name": "Color"
+            }
+        })
+    );
+    assert_eq!(
+        upstream_requests
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|body| body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("metaobjectDefinitionByType")))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn live_hybrid_linked_standard_metafield_validations_precede_definition_lookup() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_requests = Arc::clone(&upstream_requests);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            upstream_requests.lock().unwrap().push(body.clone());
+            assert!(
+                !body["query"]
+                    .as_str()
+                    .is_some_and(|query| query.contains("metaobjectDefinitionByType")),
+                "linked definition lookup must not run before enable validation: {}",
+                request.body
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"metafieldDefinitions": {
+                    "nodes": [],
+                    "pageInfo": {"hasNextPage": false, "endCursor": null}
+                }}}),
+            }
+        }
+    });
+
+    let invalid_capability = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RejectMaterialUniqueValues {
+          standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            namespace: "shopify"
+            key: "material"
+            capabilities: { uniqueValues: { enabled: true } }
+          ) {
+            createdDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_capability.body["data"]["standardMetafieldDefinitionEnable"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "The capability unique_values is not valid for this definition.",
+            "code": "INVALID_CAPABILITY"
+        }])
+    );
+
+    let invalid_pin = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RejectPinnedMaterial {
+          standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            namespace: "shopify"
+            key: "material"
+            pin: true
+          ) {
+            createdDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_pin.body["data"]["standardMetafieldDefinitionEnable"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "Constrained metafield definitions do not support pinning.",
+            "code": "UNSUPPORTED_PINNING"
+        }])
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]
+            .get("metaobjectDefinitions")
+            .cloned()
+            .unwrap_or_else(|| json!({})),
+        json!({})
+    );
+    assert!(upstream_requests
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|body| body["query"]
+            .as_str()
+            .is_some_and(|query| !query.contains("metaobjectDefinitionByType"))));
 }
 
 #[test]

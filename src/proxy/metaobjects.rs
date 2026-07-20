@@ -7,6 +7,13 @@ pub(in crate::proxy) enum PreparedLinkedStandardMetaobjectDefinition {
     SnapshotTemplate(Value),
 }
 
+enum MetaobjectDefinitionByTypeFetch {
+    Found(Value),
+    NotFound,
+    NoAuthoritativeResult,
+    Failed,
+}
+
 pub(in crate::proxy) fn metaobject_field_resolver_registrations() -> Vec<FieldResolverRegistration>
 {
     [
@@ -5070,9 +5077,9 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         meta_type: &str,
-    ) -> Option<Value> {
+    ) -> MetaobjectDefinitionByTypeFetch {
         if meta_type.trim().is_empty() {
-            return None;
+            return MetaobjectDefinitionByTypeFetch::Failed;
         }
         let query = "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }";
         let body = json!({
@@ -5081,16 +5088,30 @@ impl DraftProxy {
         });
         let response = self.upstream_post(request, body);
         if response.status < 200 || response.status >= 300 {
-            return None;
+            return MetaobjectDefinitionByTypeFetch::Failed;
         }
-        Some(
-            response
-                .body
-                .get("data")
-                .and_then(|data| data.get("metaobjectDefinitionByType"))
-                .filter(|definition| definition.is_object())?
-                .clone(),
-        )
+        if response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_some_and(|errors| !errors.is_empty())
+        {
+            return MetaobjectDefinitionByTypeFetch::Failed;
+        }
+        let Some(definition) = response
+            .body
+            .get("data")
+            .and_then(|data| data.get("metaobjectDefinitionByType"))
+        else {
+            return MetaobjectDefinitionByTypeFetch::NoAuthoritativeResult;
+        };
+        if definition.is_null() {
+            return MetaobjectDefinitionByTypeFetch::NotFound;
+        }
+        if !definition.is_object() {
+            return MetaobjectDefinitionByTypeFetch::Failed;
+        }
+        MetaobjectDefinitionByTypeFetch::Found(definition.clone())
     }
 
     fn hydrate_metaobject_definition_by_type(
@@ -5101,7 +5122,11 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
-        let definition = self.fetch_metaobject_definition_by_type(request, meta_type)?;
+        let MetaobjectDefinitionByTypeFetch::Found(definition) =
+            self.fetch_metaobject_definition_by_type(request, meta_type)
+        else {
+            return None;
+        };
         let id = definition
             .get("id")
             .and_then(Value::as_str)
@@ -5146,7 +5171,19 @@ impl DraftProxy {
                 .map(PreparedLinkedStandardMetaobjectDefinition::SnapshotTemplate);
         }
 
-        let definition = self.fetch_metaobject_definition_by_type(request, meta_type)?;
+        let definition = match self.fetch_metaobject_definition_by_type(request, meta_type) {
+            MetaobjectDefinitionByTypeFetch::Found(definition) => definition,
+            // An explicit null is authoritative absence. A failed lookup or a
+            // response without the requested field is not, so a captured
+            // shop/version template may still back a resolvable local identity.
+            MetaobjectDefinitionByTypeFetch::NoAuthoritativeResult
+            | MetaobjectDefinitionByTypeFetch::Failed => {
+                return standard_metaobject_definition_template(meta_type)
+                    .cloned()
+                    .map(PreparedLinkedStandardMetaobjectDefinition::SnapshotTemplate);
+            }
+            MetaobjectDefinitionByTypeFetch::NotFound => return None,
+        };
         let id = definition
             .get("id")
             .and_then(Value::as_str)
