@@ -4496,7 +4496,6 @@ Practical rule:
   when no observed state establishes currency
 - keep unavailable money as null and allow schema nullability to determine the
   caller-visible error boundary
-
 ## 107. Taxonomy category GID structure is not category evidence
 
 Live Admin GraphQL 2025-01 capture tested a syntactically plausible but
@@ -4514,3 +4513,20 @@ Practical rule:
 - distinguish an authoritative null node from transport, GraphQL, or incomplete
   response failures; all failure classes must leave product/category state
   unchanged, but only the authoritative miss is proven invalid
+
+## 108. A saved-search page is not an absence proof for mutation targets
+
+Saved-search connections are paginated, so observing one upstream page cannot
+prove that an arbitrary SavedSearch ID does not exist. Mutation-first
+`savedSearchUpdate` and `savedSearchDelete` therefore use an ID-specific
+read-only `node(id:)` hydration before returning Shopify's not-found userError.
+Only a staged tombstone or the ID-specific null result makes absence
+authoritative for that request; supported mutations still stage locally.
+
+The public SavedSearch type exposes identity, name, query, resource type,
+legacy ID, search terms, and filters. It does not expose created/updated
+timestamps in the captured Admin schemas, so the proxy preserves every public
+authoritative field and the request app identity without inventing timestamp or
+ownership values that Shopify did not return. Staged records and tombstones are
+also registered with generic Node loading so singular and list readback share
+the same effective state.

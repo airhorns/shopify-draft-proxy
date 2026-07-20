@@ -360,9 +360,9 @@ describe('operation registry', () => {
   it('audits captured Shopify Node implementors against the explicit Rust resolver inventory', () => {
     expect(nodeResolverCoverageAudit()).toEqual({
       capturedNodeImplementorCount: 203,
-      localNodeResolverTypeCount: 84,
+      localNodeResolverTypeCount: 85,
       localResolverBehaviorCounts: {
-        projectLocalRecord: 81,
+        projectLocalRecord: 82,
         returnKnownNull: 3,
       },
       unsupported: [
@@ -458,7 +458,6 @@ describe('operation registry', () => {
         'ReturnReasonDefinition',
         'ReverseFulfillmentOrderDisposition',
         'SaleAdditionalFee',
-        'SavedSearch',
         'ScriptTag',
         'SellingPlan',
         'SellingPlanGroup',
