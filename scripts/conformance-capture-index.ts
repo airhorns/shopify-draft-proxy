@@ -8115,6 +8115,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'collections',
+    captureId: 'collection-handle-dedup',
+    scriptPath: 'scripts/capture-collection-handle-dedup-conformance.mts',
+    purpose:
+      'collectionCreate generated-handle reservation for repeated nonnumeric titles and generated handles ending in digits.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-handle-dedup-parity.json`,
+      'config/parity-specs/products/collectionCreate-handle-dedup.json',
+      'config/parity-requests/products/collectionCreate-handle-dedup.graphql',
+    ],
+    cleanupBehavior:
+      'Creates four disposable collections through repeated-title collectionCreate calls, then deletes them in reverse order during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'collections',
     captureId: 'collection-product-membership-job-parity',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-collection-product-membership-job-conformance.mts',

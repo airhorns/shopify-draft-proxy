@@ -79,7 +79,7 @@ impl DraftProxy {
             ));
         }
 
-        Ok(next_available_product_handle(&candidate, &occupied))
+        Ok(next_available_generated_handle(&candidate, &occupied))
     }
 }
 
@@ -100,7 +100,7 @@ fn normalize_product_handle(value: &str) -> String {
     handle
 }
 
-fn next_available_product_handle(candidate: &str, occupied: &BTreeSet<String>) -> String {
+fn next_available_generated_handle(candidate: &str, occupied: &BTreeSet<String>) -> String {
     let trailing_digit_count = candidate
         .chars()
         .rev()

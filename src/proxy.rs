@@ -2049,6 +2049,10 @@ impl Store {
         self.staged.collections.get(id)
     }
 
+    fn collections(&self) -> Vec<Value> {
+        self.staged.collections.values().cloned().collect()
+    }
+
     fn collection_by_handle(&self, handle: &str) -> Option<&Value> {
         let handle = handle.trim();
         if handle.is_empty() || self.collection_handle_is_deleted(handle) {
