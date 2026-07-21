@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
@@ -43,6 +43,10 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'bulk-operations');
 const outputPath = path.join(outputDir, 'bulk-operation-status-catalog-cancel.json');
 
+async function readParityRequest(name: string): Promise<string> {
+  return await readFile(path.join('config', 'parity-requests', 'bulk-operations', name), 'utf8');
+}
+
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
@@ -71,6 +75,9 @@ const bulkOperationByIdQuery = `#graphql
     }
   }
 `;
+
+const bulkOperationNodeQuery = await readParityRequest('bulk-operation-node-read.graphql');
+const bulkOperationNodesQuery = await readParityRequest('bulk-operation-nodes-read.graphql');
 
 const bulkOperationHydrateCassetteQuery =
   'query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }';
@@ -335,6 +342,19 @@ function numericIdFromGid(gid: string): string {
   return gid.slice(gid.lastIndexOf('/') + 1);
 }
 
+function firstCapturedProduct(pages: CapturedInteraction[]): Record<string, unknown> {
+  for (const page of pages) {
+    const connection = asRecord(readData(page)?.['products']);
+    for (const node of Array.isArray(connection?.['nodes']) ? connection['nodes'] : []) {
+      const product = asRecord(node);
+      if (typeof product?.['id'] === 'string' && typeof product['title'] === 'string') {
+        return product;
+      }
+    }
+  }
+  throw new Error('Product catalog hydration did not capture a product for mixed Node evidence.');
+}
+
 async function captureProductCatalogPages(): Promise<CapturedInteraction[]> {
   const pages: CapturedInteraction[] = [];
   const seenCursors = new Set<string>();
@@ -427,7 +447,9 @@ async function captureRunQueryLifecycle(
   query: string,
   options: { cancelImmediately?: boolean } = {},
 ): Promise<Record<string, unknown>> {
-  upstreamCalls.push(...(await captureProductCatalogPages()));
+  const productCatalogPages = await captureProductCatalogPages();
+  upstreamCalls.push(...productCatalogPages);
+  const mixedProduct = firstCapturedProduct(productCatalogPages);
   const run = await capture('BulkOperationRunQueryCapture', bulkOperationRunQueryMutation, { query });
   const bulkOperation = readPayloadBulkOperation(run, 'bulkOperationRunQuery');
   const id = readBulkOperationId(bulkOperation);
@@ -435,6 +457,7 @@ async function captureRunQueryLifecycle(
   const lifecycle: Record<string, unknown> = {
     run,
     id,
+    mixedProduct,
     userErrors,
   };
 
@@ -456,6 +479,15 @@ async function captureRunQueryLifecycle(
   const terminalOperation = findTerminalBulkOperation(lifecycle['statusPolls'] as CapturedInteraction[]);
   if (terminalOperation) {
     lifecycle['terminalOperation'] = terminalOperation;
+    lifecycle['nodeReads'] = {
+      nonNull: await capture('BulkOperationNodeRead', bulkOperationNodeQuery, { id }),
+      missing: await capture('BulkOperationNodeRead', bulkOperationNodeQuery, {
+        id: unknownBulkOperationId,
+      }),
+      mixed: await capture('BulkOperationNodesRead', bulkOperationNodesQuery, {
+        ids: [id, unknownBulkOperationId, mixedProduct['id'], id],
+      }),
+    };
     const resultUrl = readBulkOperationUrl(terminalOperation);
     if (resultUrl) {
       lifecycle['result'] = await captureBulkOperationResult(resultUrl);
