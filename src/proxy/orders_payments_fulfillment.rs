@@ -191,7 +191,7 @@ fn canonical_orders_field_parent(
         "Order" => proxy
             .store
             .observed_order_by_id(id)
-            .map(|order| proxy.payment_terms_owner_record_with_effective_due(order))
+            .map(|order| proxy.payment_terms_owner_record_with_effective_due(&order))
             .map(|order| proxy.order_with_return_status_value(&order)),
         "DraftOrder" => proxy
             .store
@@ -401,6 +401,7 @@ impl DraftProxy {
             context.request,
             context.root_field,
             context.arguments,
+            context.requested_field_paths,
             context.query,
             context.variables,
         ) {
@@ -500,11 +501,12 @@ impl DraftProxy {
         if shared_catalog_read {
             let arguments = resolved_arguments_from_json(&invocation.arguments);
             let has_local_overlay = match invocation.root_name {
-                "order" => resolved_string_field(&arguments, "id").is_some_and(|id| {
-                    self.store.staged.orders.contains_key(&id)
-                        || self.store.staged.orders.is_tombstoned(&id)
-                }),
-                "orders" | "ordersCount" => !self.store.staged.orders.is_empty(),
+                "order" => resolved_string_field(&arguments, "id")
+                    .is_some_and(|id| self.store.order_has_staged_effect(&id)),
+                "orders" | "ordersCount" => {
+                    !self.store.staged.orders.is_empty()
+                        || !self.store.staged.order_overlays.is_empty()
+                }
                 "draftOrder" => resolved_string_field(&arguments, "id").is_some_and(|id| {
                     self.store.staged.draft_orders.contains_key(&id)
                         || self.store.staged.draft_orders.is_tombstoned(&id)
@@ -675,27 +677,42 @@ impl DraftProxy {
                     outcome
                 } else if let Some(outcome) = self.remaining_order_local_outcome(&context) {
                     outcome
-                } else if let Some(outcome) = self
-                    .order_create_local_outcome(request, root_field, &arguments, query, variables)
-                {
+                } else if let Some(outcome) = self.order_create_local_outcome(
+                    request,
+                    root_field,
+                    &arguments,
+                    &requested_field_paths,
+                    query,
+                    variables,
+                ) {
                     outcome
                 } else {
                     self.customer_order_create(&arguments)
                 }
             }
             "orderUpdate" => {
-                if let Some(outcome) = self
-                    .order_create_local_outcome(request, root_field, &arguments, query, variables)
-                {
+                if let Some(outcome) = self.order_create_local_outcome(
+                    request,
+                    root_field,
+                    &arguments,
+                    &requested_field_paths,
+                    query,
+                    variables,
+                ) {
                     outcome
                 } else {
                     self.orders_stage_locally_unmodeled_shape_outcome(root_field)
                 }
             }
             "orderClose" | "orderOpen" => {
-                if let Some(outcome) = self
-                    .order_create_local_outcome(request, root_field, &arguments, query, variables)
-                {
+                if let Some(outcome) = self.order_create_local_outcome(
+                    request,
+                    root_field,
+                    &arguments,
+                    &requested_field_paths,
+                    query,
+                    variables,
+                ) {
                     outcome
                 } else {
                     resolver_http_error_outcome(
@@ -922,8 +939,78 @@ const ORDER_EDIT_HYDRATE_QUERY: &str =
 // forward under the strict cassette matcher.
 const RETURN_ORDER_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/orders/return-order-hydrate.graphql");
+const ORDER_IDENTITY_HYDRATE_QUERY: &str =
+    "query OrdersOrderIdentityHydrate($id: ID!) {\n  order(id: $id) { id }\n}\n";
+// This summary is a real Shopify-recorded query from the orderUpdate input
+// validation scenario. It intentionally excludes lineItems so scalar-only
+// updates have a one-request budget independent of the order's line count.
+// Keep the recorded whitespace in a Rust literal because standalone GraphQL
+// files are repository-formatted and the cassette matcher compares query text.
+const ORDER_SUMMARY_HYDRATE_QUERY: &str = concat!(
+    "query OrderUpdateInputValidationRead($id: ID!) {\n",
+    "    order(id: $id) {\n",
+    "      \n",
+    "  id\n",
+    "  name\n",
+    "  updatedAt\n",
+    "  email\n",
+    "  phone\n",
+    "  poNumber\n",
+    "  note\n",
+    "  tags\n",
+    "  customer {\n",
+    "    id\n",
+    "    email\n",
+    "    displayName\n",
+    "  }\n",
+    "  customAttributes {\n",
+    "    key\n",
+    "    value\n",
+    "  }\n",
+    "  shippingAddress {\n",
+    "    firstName\n",
+    "    lastName\n",
+    "    address1\n",
+    "    address2\n",
+    "    company\n",
+    "    city\n",
+    "    province\n",
+    "    provinceCode\n",
+    "    country\n",
+    "    countryCodeV2\n",
+    "    zip\n",
+    "    phone\n",
+    "  }\n",
+    "  gift: metafield(namespace: \"custom\", key: \"gift\") {\n",
+    "    id\n",
+    "    namespace\n",
+    "    key\n",
+    "    type\n",
+    "    value\n",
+    "  }\n",
+    "  metafields(first: 10) {\n",
+    "    nodes {\n",
+    "      id\n",
+    "      namespace\n",
+    "      key\n",
+    "      type\n",
+    "      value\n",
+    "    }\n",
+    "  }\n",
+    "\n",
+    "    }\n",
+    "  }",
+);
 const ORDER_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/orders/order-hydrate-pageable.graphql");
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::proxy) enum OrderHydrationProfile {
+    Identity,
+    Summary,
+    BroadSummary,
+    CompleteLineItems,
+}
 // These hydrate queries are forwarded verbatim to the backend; their exact text
 // must match the recorded `OrdersDraftOrder*Hydrate` cassette calls (compact
 // two-space layout, customer carries firstName/lastName) so the strict cassette
