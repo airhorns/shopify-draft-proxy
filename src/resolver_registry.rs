@@ -88,6 +88,17 @@ pub(crate) struct OperationRootInvocation {
     pub arguments: BTreeMap<String, Value>,
 }
 
+/// Selection-free metadata for one direct child selected beneath a root.
+/// Connection domains use this shallow inventory to associate aliased
+/// upstream windows with their coerced arguments without reparsing the
+/// caller's document or receiving a nested selection tree.
+#[derive(Debug, Clone)]
+pub(crate) struct RootChildInvocation {
+    pub name: String,
+    pub response_key: String,
+    pub arguments: BTreeMap<String, Value>,
+}
+
 /// One engine-validated root invocation. Native resolvers receive the values
 /// coerced by the selected surface/version schema rather than reparsing raw
 /// variable input.
@@ -112,6 +123,7 @@ pub(crate) struct RootInvocation<'a> {
     /// multi-root read; nested output selections remain engine-owned.
     pub operation_root_names: Vec<String>,
     pub operation_roots: Vec<OperationRootInvocation>,
+    pub root_children: Vec<RootChildInvocation>,
     pub variable_definitions: &'a BTreeMap<String, VariableDefinitionInfo>,
     /// Original literal/variable sources are retained for Shopify-compatible
     /// validation branches that distinguish omission, explicit null, and an

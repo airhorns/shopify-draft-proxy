@@ -18,8 +18,6 @@ Read roots:
 - `taxonomy`
 - `domain(id:)`
 - `backupRegion`
-- `staffMember`
-- `staffMembers`
 
 Mutation roots:
 
@@ -27,24 +25,29 @@ Mutation roots:
 - `flowGenerateSignature`
 - `flowTriggerReceive`
 
+Tracked but unimplemented read roots:
+
+- `staffMember`
+- `staffMembers`
+
 ### Local behavior
 
 Snapshot reads are conservative and only model shapes backed by checked-in evidence:
 
-- `publicApiVersions` returns the captured Admin API version window.
+- `publicApiVersions` returns normalized API version rows observed from Shopify or restored base state. Snapshot mode returns an empty list when no versions have been observed; it does not derive or invent versions from the executable schema manifest.
 - `node(id:)` and `nodes(ids:)` dispatch by GID type to an existing local detail handler or serializer. They preserve input order for `nodes(ids:)`; well-formed but absent, unsupported, or unknown-type GIDs return `null`, while malformed global IDs fail before execution with Shopify's top-level `Invalid global id '<value>'` coercion error envelope and no `data` payload. Generic Node dispatch does not create domain support by itself. Mixed operations that select `shop` plus generic `node` / `nodes` use the same central Node dispatcher for the Node roots, so store-property overlay reads do not have a separate, narrower Node implementation.
 - Supported generic Node families include records that already exist in normalized local state for products, product options and option values, product variants, catalog and inventory records (`InventoryItem`, `InventoryLevel`, `InventoryQuantity`, `InventoryAdjustmentGroup`, `InventoryTransfer`, `InventoryTransferLineItem`, `InventoryShipment`, and `InventoryShipmentLineItem`), metafields, selling plans, customers, customer mailing addresses, customer payment methods, store-credit accounts and credit/debit transaction records, B2B companies and selected nested records, app billing/access records, store/shop/location/business-entity records, files, saved searches, payment terms, finance/POS/dispute no-data records, bulk operations, metafield/metaobject definitions, orders/fulfillments/returns/draft orders, gift cards and credit/debit transaction records, delivery profiles and selected nested records, discount wrappers, marketing/events/webhooks/segments, markets and price lists, taxonomy categories, and supported online-store records.
 - Unsupported generic Node implementors and resource families without a local lifecycle/read model return Shopify-like `null` entries instead of partial fabricated objects.
 - `job(id:)` resolves staged or fixture-backed generic `Job` nodes. Collection product-membership jobs staged by supported collection mutations read back as completed with a selected `query { __typename }` QueryRoot link. Unknown arbitrary Job GIDs preserve the captured compatibility payload shape. Well-formed non-Job GIDs return Shopify's top-level `RESOURCE_NOT_FOUND` `Invalid id: <gid>` error with `data.<field>: null`.
 - `domain(id:)` resolves domains by ID from the effective local shop domain set, including hydrated/base shop `primaryDomain`, captured `shop.domains`, and domains staged through modeled web-presence state. Unknown IDs in local/snapshot state return `null`.
 - `backupRegion` returns the staged backup-region state. In LiveHybrid, a cold read hydrates the current upstream `backupRegion` before projecting the caller's selection; snapshot mode returns `null` until a local mutation stages a region.
-- `taxonomy.categories(...)` reads normalized taxonomy category records from snapshot/local state. It supports captured hierarchy fields, raw Shopify cursors, selected `pageInfo`, simple term matching over captured `id`, `name`, and `fullName`, and hierarchy filters limited to categories already present in local state. The proxy does not invent taxonomy rows.
-- `staffMember` and `staffMembers` return the captured field-level `ACCESS_DENIED` blocker for the current credential posture.
+- `taxonomy.categories(...)` normalizes only rows returned by Shopify or restored base state. Exact observed windows are keyed by all connection arguments, while proven-complete scopes retain their own ordered rows and opaque cursors for local `first` / `last` / `before` / `after` windows. Partial search and hierarchy windows remain scoped to their original arguments and never widen into a global taxonomy scan. Snapshot misses return an empty connection; the proxy does not invent taxonomy rows, labels, hierarchy, or cursors.
+- `TaxonomyCategory` participates in generic `node(id:)` and `nodes(ids:)` dispatch from the same normalized graph. Cold LiveHybrid batches retain input order and null slots; a category is locally reusable for Node reads only after all supported ordinary category fields have been observed.
 - The by-id not-found parity scenario records implemented singular `id:` read roots returning `null` for non-existent GIDs. Credential-restricted roots preserve their captured Shopify error envelopes without expanding local support for those domains.
 
 LiveHybrid/cassette behavior:
 
-- Cold `publicApiVersions`, `taxonomy`, `domain(id:)`, and selected `node` / `nodes` reads can forward to cassette/upstream responses when no local platform state or staged serializer-owned resource is available. Successful forwarded Node responses are observed through the dispatch-level Node hydration path and populate the owning local store records for modeled domains.
+- Cold `publicApiVersions`, `taxonomy`, `domain(id:)`, and selected `node` / `nodes` reads forward the caller's complete document at most once when local observations cannot answer every selected field and argument scope. The raw response preserves aliases, errors, status, headers, and opaque cursors. Successful returned platform rows are normalized for later reads; incomplete or failed windows remain upstream-owned.
 - Once local state exists, supported reads use the local serializer path so snapshot behavior and read-after-write effects remain local.
 
 Mutation behavior:
@@ -59,9 +62,9 @@ Mutation behavior:
 
 ### Boundaries
 
-- Generic Node dispatch remains unsupported for families without an owning local lifecycle/read model, including product taxonomy, product variant components, quantity price breaks, delivery profile item IDs, order delivery methods, B2B staff/catalog nested records, and non-empty finance/POS/dispute records. `StoreCreditAccountDebitRevertTransaction` is projected only when a normalized transaction row already exists; the current public local store-credit mutation slice does not create debit-revert rows.
-- `staffMember` and `staffMembers` are access-blocked only; authorized staff catalog behavior requires separate staff identity evidence and a staff state model.
+- Generic Node dispatch remains unsupported for families without an owning local lifecycle/read model, including taxonomy types other than `TaxonomyCategory`, product variant components, quantity price breaks, delivery profile item IDs, order delivery methods, B2B staff/catalog nested records, and non-empty finance/POS/dispute records. `StoreCreditAccountDebitRevertTransaction` is projected only when a normalized transaction row already exists; the current public local store-credit mutation slice does not create debit-revert rows.
+- `staffMember` and `staffMembers` remain unimplemented passthrough roots. The current captures establish only a credential-level `ACCESS_DENIED` boundary; authorized staff catalog behavior requires separate staff identity evidence and a staff state model.
 - `backupRegionUpdate` does not invent `MarketRegionCountry` objects for countries absent from effective Markets data. Valid but uncovered countries still return `REGION_NOT_FOUND`; unsupported Markets countries are rejected by the Markets lifecycle before they can provide backup-region coverage.
-- `taxonomy.categories(...)` is not exhaustive global taxonomy coverage; missing captured rows produce Shopify-like empty connections.
+- `taxonomy.categories(...)` is not exhaustive global taxonomy coverage. Unobserved snapshot scopes produce Shopify-like empty connections, and partial LiveHybrid scopes continue to read through rather than treating unrelated observed rows as complete.
 - Flow helper mutations record local metadata only. They do not deliver Flow triggers or prove external Flow automation execution.
-- No root listed here is registry-only. Validation-only branches include GraphQL input coercion for required arguments and captured local guardrails that fail before staging.
+- `staffMember` and `staffMembers` are tracked but unimplemented. Validation-only branches include GraphQL input coercion for required arguments and captured local guardrails that fail before staging.

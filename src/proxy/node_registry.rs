@@ -92,6 +92,13 @@ impl DraftProxy {
                 &outcome.value,
                 invocation.request,
             );
+            let authoritative_misses = outcome.errors.is_empty();
+            self.observe_taxonomy_node_root_value(
+                invocation.root_name,
+                &arguments,
+                &outcome.value,
+                authoritative_misses,
+            );
             // The node loader has overlaid canonical local entities onto the
             // transport result. Keep those entities on the local resolver path
             // so domain fields such as InventoryItem.variant can resolve from
@@ -137,6 +144,12 @@ impl DraftProxy {
                     &arguments,
                     &result.outcome.value,
                     invocation.request,
+                );
+                self.observe_taxonomy_node_root_value(
+                    invocation.root_name,
+                    &arguments,
+                    &result.outcome.value,
+                    result.outcome.errors.is_empty(),
                 );
                 result.outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
             }
@@ -829,6 +842,21 @@ pub(crate) fn load_product_variant(
     value.map_or(NodeLoadState::NeedsHydration, |value| {
         NodeLoadState::Found(EntityRef::new("ProductVariant", id, value))
     })
+}
+
+pub(crate) fn load_taxonomy_category(
+    proxy: &DraftProxy,
+    id: &str,
+    _request: Option<&Request>,
+) -> NodeLoadState<EntityRef> {
+    if !is_shopify_gid_of_type(id, "TaxonomyCategory") {
+        return NodeLoadState::UnsupportedType;
+    }
+    entity_load_state(
+        "TaxonomyCategory",
+        id,
+        proxy.taxonomy_category_node_value(id),
+    )
 }
 
 pub(crate) fn load_inventory_item(

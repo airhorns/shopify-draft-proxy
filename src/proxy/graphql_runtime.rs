@@ -161,6 +161,7 @@ pub(crate) fn field_resolver_registrations() -> Vec<FieldResolverRegistration> {
             job_query_field,
         ),
     ]);
+    registrations.extend(super::admin_platform::admin_platform_field_resolver_registrations());
     registrations.extend(product_field_resolver_registrations());
     registrations.extend(super::selling_plans::selling_plan_field_resolver_registrations());
     registrations.extend(inventory_field_resolver_registrations());
@@ -439,6 +440,20 @@ impl RootFieldExecutor for ProxyRootExecutor {
                         operation_path: &call.operation_path,
                         operation_root_names: call.operation_root_names.clone(),
                         operation_roots: call.operation_roots.clone(),
+                        root_children: call
+                            .field
+                            .selection
+                            .iter()
+                            .map(|field| crate::resolver_registry::RootChildInvocation {
+                                name: field.name.clone(),
+                                response_key: field.response_key.clone(),
+                                arguments: field
+                                    .arguments
+                                    .iter()
+                                    .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+                                    .collect(),
+                            })
+                            .collect(),
                         variable_definitions: &call.variable_definitions,
                         raw_arguments: call.field.raw_arguments.clone(),
                         arguments,
@@ -1510,6 +1525,21 @@ impl DraftProxy {
                         name: root.name.clone(),
                         response_key: root.response_key.clone(),
                         arguments: root
+                            .arguments
+                            .iter()
+                            .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+                            .collect(),
+                    })
+                    .collect(),
+                root_children: prepared
+                    .map(|call| &call.field.selection)
+                    .or_else(|| compatibility_root_field.map(|field| &field.selection))
+                    .into_iter()
+                    .flatten()
+                    .map(|field| crate::resolver_registry::RootChildInvocation {
+                        name: field.name.clone(),
+                        response_key: field.response_key.clone(),
+                        arguments: field
                             .arguments
                             .iter()
                             .map(|(name, value)| (name.clone(), resolved_value_json(value)))
