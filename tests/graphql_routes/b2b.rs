@@ -2144,6 +2144,15 @@ fn b2b_mutation_first_hydrates_contact_role_staff_address_and_customer_relations
         contact_update.body["data"]["companyContactUpdate"]["companyContact"]["title"],
         json!("Hydrated buyer")
     );
+    let post_contact_dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(
+        post_contact_dump.body["state"]["baseState"]["b2bCustomers"][B2B_HYDRATE_TEST_CUSTOMER_ID]
+            ["email"],
+        json!("buyer@example.com")
+    );
+    assert!(post_contact_dump.body["state"]["stagedState"]["customers"]
+        .get(B2B_HYDRATE_TEST_CUSTOMER_ID)
+        .is_none());
 
     let delete_address = proxy.process_request(json_graphql_request(
         r#"
@@ -2263,15 +2272,23 @@ fn b2b_mutation_first_hydrates_contact_role_staff_address_and_customer_relations
     assert!(calls.iter().all(|body| body["query"]
         .as_str()
         .is_some_and(|query| !query.contains("mutation"))));
-    assert!(calls
-        .iter()
-        .any(|body| { body["operationName"] == json!("B2BCompanyAddressOwnerHydrate") }));
-    assert!(
+    assert!(calls.iter().all(|body| {
+        !matches!(
+            body["operationName"].as_str(),
+            Some(
+                "B2BCompanyAddressOwnerHydrate"
+                    | "B2BCompanyCatalogPageHydrate"
+                    | "B2BLocationAssignmentsPageHydrate"
+            )
+        )
+    }));
+    assert_eq!(
         calls
             .iter()
             .filter(|body| { body["operationName"] == json!("B2BMutationTargetsHydrate") })
-            .count()
-            >= 6
+            .count(),
+        5,
+        "already staged relationship targets must not be hydrated again"
     );
 }
 
@@ -2337,16 +2354,14 @@ fn b2b_assign_customer_as_contact_mutation_first_hydrates_and_reads_relationship
         .to_string();
 
     let calls = captured.lock().expect("captured upstream");
-    assert_eq!(calls.len(), 2);
-    let hydrated_ids = calls
+    assert_eq!(calls.len(), 1, "submitted ids should hydrate in one batch");
+    let hydrated_ids = serde_json::from_str::<Value>(&calls[0].body).expect("upstream body")
+        ["variables"]["ids"]
+        .as_array()
+        .expect("batched hydrate ids")
         .iter()
-        .map(|request| {
-            serde_json::from_str::<Value>(&request.body).expect("upstream body")["variables"]["ids"]
-                [0]
-            .as_str()
-            .expect("hydrate id")
-            .to_string()
-        })
+        .filter_map(Value::as_str)
+        .map(str::to_string)
         .collect::<Vec<_>>();
     assert_eq!(
         hydrated_ids,
@@ -2404,7 +2419,22 @@ fn b2b_assign_customer_as_contact_mutation_first_hydrates_and_reads_relationship
         readback.body["data"]["customer"]["companyContactProfiles"][0]["id"],
         json!(contact_id)
     );
-    assert_eq!(captured.lock().expect("captured upstream").len(), 2);
+    assert_eq!(captured.lock().expect("captured upstream").len(), 1);
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["baseState"]["b2bCustomers"][B2B_HYDRATE_TEST_ASSIGNABLE_CUSTOMER_ID]
+            ["email"],
+        json!("assignable@example.com"),
+        "upstream customer observations belong to base state"
+    );
+    assert!(
+        dump.body["state"]["stagedState"]["customers"]
+            .get(B2B_HYDRATE_TEST_ASSIGNABLE_CUSTOMER_ID)
+            .is_none(),
+        "assigning a customer as a contact must not stage the observed customer itself"
+    );
 
     let log = log_snapshot(&proxy);
     let entry = log["entries"]
@@ -2545,19 +2575,6 @@ fn b2b_mutation_hydration_pages_partial_company_memberships_before_delete_decisi
                         }]
                     }
                 }),
-                "B2BCompanyCatalogPageHydrate" => json!({
-                    "data": {
-                        "company": {
-                            "__typename": "Company",
-                            "id": company_id,
-                            "name": "Paged company",
-                            "locations": {
-                                "nodes": [{ "id": sibling_location_id, "name": "Paged sibling" }],
-                                "pageInfo": { "hasNextPage": false, "endCursor": "page-two" }
-                            }
-                        }
-                    }
-                }),
                 _ => json!({
                     "data": {
                         "companyLocation": {
@@ -2593,6 +2610,15 @@ fn b2b_mutation_hydration_pages_partial_company_memberships_before_delete_decisi
         json!({ "deletedCompanyLocationId": deleted_location_id, "userErrors": [] })
     );
 
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["baseState"]["b2bRelationshipCompleteness"]
+            [format!("company:{company_id}:locations")],
+        json!("partial"),
+        "a page with hasNextPage must remain explicit partial evidence"
+    );
+
     let deleted_read = proxy.process_request(json_graphql_request(
         "query B2BDeletedPagedLocation($id: ID!) { companyLocation(id: $id) { id } }",
         json!({ "id": deleted_location_id }),
@@ -2613,18 +2639,362 @@ fn b2b_mutation_hydration_pages_partial_company_memberships_before_delete_decisi
     );
 
     let calls = captured.lock().expect("captured upstream");
-    assert_eq!(calls.len(), 3);
+    assert_eq!(calls.len(), 2);
     assert_eq!(
         calls[0]["operationName"],
         json!("B2BMutationTargetsHydrate")
     );
-    assert_eq!(
-        calls[1]["operationName"],
-        json!("B2BCompanyCatalogPageHydrate")
-    );
-    assert!(calls[2]["query"]
+    assert!(calls[1]["query"]
         .as_str()
         .is_some_and(|query| query.contains("query B2BSiblingPagedLocation")));
+    assert!(calls
+        .iter()
+        .all(|call| { call["operationName"] != json!("B2BCompanyCatalogPageHydrate") }));
+}
+
+#[test]
+fn b2b_mutation_hydration_batches_and_deduplicates_many_ids_without_child_page_walks() {
+    let unique_company_ids = (0..25)
+        .map(|index| format!("gid://shopify/Company/{}", 9_810_000 + index))
+        .collect::<Vec<_>>();
+    let submitted_company_ids = unique_company_ids
+        .iter()
+        .chain(unique_company_ids.iter())
+        .cloned()
+        .collect::<Vec<_>>();
+    let captured = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).expect("upstream body");
+            assert_eq!(
+                body["operationName"],
+                json!("B2BMutationTargetsHydrate"),
+                "multi-page child relationships must not trigger follow-up catalog requests"
+            );
+            let nodes = body["variables"]["ids"]
+                .as_array()
+                .expect("batched ids")
+                .iter()
+                .filter_map(Value::as_str)
+                .enumerate()
+                .map(|(index, company_id)| {
+                    let location_id = format!("gid://shopify/CompanyLocation/{}", 9_820_000 + index);
+                    let contact_id = format!("gid://shopify/CompanyContact/{}", 9_830_000 + index);
+                    json!({
+                        "__typename": "Company",
+                        "id": company_id,
+                        "name": format!("Large company {index}"),
+                        "locations": {
+                            "nodes": [{
+                                "__typename": "CompanyLocation",
+                                "id": location_id,
+                                "name": format!("Location {index}"),
+                                "roleAssignments": {
+                                    "nodes": [],
+                                    "pageInfo": { "hasNextPage": true, "endCursor": "location-role-page" }
+                                },
+                                "staffMemberAssignments": {
+                                    "nodes": [],
+                                    "pageInfo": { "hasNextPage": true, "endCursor": "staff-page" }
+                                }
+                            }],
+                            "pageInfo": { "hasNextPage": true, "endCursor": "location-page" }
+                        },
+                        "contacts": {
+                            "nodes": [{
+                                "__typename": "CompanyContact",
+                                "id": contact_id,
+                                "title": "Buyer",
+                                "roleAssignments": {
+                                    "nodes": [],
+                                    "pageInfo": { "hasNextPage": true, "endCursor": "contact-role-page" }
+                                }
+                            }],
+                            "pageInfo": { "hasNextPage": true, "endCursor": "contact-page" }
+                        },
+                        "contactRoles": {
+                            "nodes": [],
+                            "pageInfo": { "hasNextPage": true, "endCursor": "role-page" }
+                        }
+                    })
+                })
+                .collect::<Vec<_>>();
+            captured.lock().expect("captured upstream").push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "nodes": nodes } }),
+            }
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BDeleteManyCompanies($companyIds: [ID!]!) {
+          companiesDelete(companyIds: $companyIds) {
+            deletedCompanyIds
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyIds": submitted_company_ids }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["companiesDelete"]["deletedCompanyIds"]
+            .as_array()
+            .expect("deleted company ids")
+            .len(),
+        50,
+        "hydration deduplication must not rewrite the mutation's submitted result order"
+    );
+
+    let calls = captured.lock().expect("captured upstream");
+    assert_eq!(calls.len(), 1, "50 submitted IDs should use one node batch");
+    let hydrated_ids = calls[0]["variables"]["ids"]
+        .as_array()
+        .expect("hydrated ids");
+    assert_eq!(hydrated_ids.len(), 25, "duplicate IDs must be removed");
+    assert!(calls[0]["query"]
+        .as_str()
+        .is_some_and(|query| !query.contains("locations(first: 50)")
+            && !query.contains("contacts(first: 50)")
+            && !query.contains("contactRoles(first: 50)")));
+}
+
+#[test]
+fn b2b_cold_address_delete_uses_direct_identity_and_masks_later_owner_observation() {
+    let address_id = "gid://shopify/CompanyAddress/9891001";
+    let location_id = "gid://shopify/CompanyLocation/9892001";
+    let company_id = "gid://shopify/Company/9893001";
+    let captured = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).expect("upstream body");
+            let response_body = if body["operationName"] == json!("B2BMutationTargetsHydrate") {
+                json!({
+                    "data": {
+                        "nodes": [{
+                            "__typename": "CompanyAddress",
+                            "id": address_id,
+                            "address1": "1 Indexed Way",
+                            "companyName": "Indexed buyer",
+                            "countryCode": "CA"
+                        }]
+                    }
+                })
+            } else {
+                json!({
+                    "data": {
+                        "companyLocation": {
+                            "__typename": "CompanyLocation",
+                            "id": location_id,
+                            "name": "Indexed HQ",
+                            "billingAddress": {
+                                "__typename": "CompanyAddress",
+                                "id": address_id,
+                                "address1": "1 Indexed Way",
+                                "companyName": "Indexed buyer",
+                                "countryCode": "CA"
+                            },
+                            "shippingAddress": Value::Null,
+                            "company": {
+                                "__typename": "Company",
+                                "id": company_id,
+                                "name": "Indexed buyer"
+                            }
+                        }
+                    }
+                })
+            };
+            captured.lock().expect("captured upstream").push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: response_body,
+            }
+        }
+    });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BDeleteColdAddress($addressId: ID!) {
+          companyAddressDelete(addressId: $addressId) {
+            deletedAddressId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "addressId": address_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["companyAddressDelete"],
+        json!({ "deletedAddressId": address_id, "userErrors": [] })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BReadColdAddressOwner($locationId: ID!) {
+          companyLocation(id: $locationId) {
+            id
+            billingAddress { id }
+            shippingAddress { id }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["companyLocation"],
+        json!({
+            "id": location_id,
+            "billingAddress": Value::Null,
+            "shippingAddress": Value::Null
+        })
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert!(dump.body["state"]["stagedState"]["deletedB2bAddressIds"]
+        .as_array()
+        .is_some_and(|ids| ids.iter().any(|id| id == address_id)));
+    let calls = captured.lock().expect("captured upstream");
+    assert_eq!(calls.len(), 2);
+    assert!(calls
+        .iter()
+        .all(|call| { call["operationName"] != json!("B2BCompanyAddressOwnerHydrate") }));
+}
+
+#[test]
+fn b2b_role_membership_hydration_batches_targets_and_does_not_page_assignments() {
+    let location_id = "gid://shopify/CompanyLocation/9882001";
+    let company_id = "gid://shopify/Company/9883001";
+    let contacts = (0..25)
+        .map(|index| format!("gid://shopify/CompanyContact/{}", 9_884_000 + index))
+        .collect::<Vec<_>>();
+    let roles = (0..25)
+        .map(|index| format!("gid://shopify/CompanyContactRole/{}", 9_885_000 + index))
+        .collect::<Vec<_>>();
+    let roles_to_assign = contacts
+        .iter()
+        .zip(roles.iter())
+        .map(|(contact_id, role_id)| {
+            json!({
+                "companyContactId": contact_id,
+                "companyContactRoleId": role_id
+            })
+        })
+        .collect::<Vec<_>>();
+    let captured = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).expect("upstream body");
+            assert_eq!(body["operationName"], json!("B2BMutationTargetsHydrate"));
+            let nodes = body["variables"]["ids"]
+                .as_array()
+                .expect("batched role targets")
+                .iter()
+                .filter_map(Value::as_str)
+                .map(|id| match id.rsplit('/').next().and_then(|tail| tail.parse::<usize>().ok()) {
+                    Some(tail) if id.starts_with("gid://shopify/CompanyContact/") => {
+                        let index = tail - 9_884_000;
+                        let duplicate = index % 2 == 0;
+                        json!({
+                            "__typename": "CompanyContact",
+                            "id": id,
+                            "title": format!("Buyer {index}"),
+                            "company": { "__typename": "Company", "id": company_id, "name": "Role company" },
+                            "roleAssignments": {
+                                "nodes": if duplicate {
+                                    json!([{
+                                        "__typename": "CompanyContactRoleAssignment",
+                                        "id": format!("gid://shopify/CompanyContactRoleAssignment/{}", 9_886_000 + index),
+                                        "companyContact": { "id": id },
+                                        "companyLocation": { "id": location_id },
+                                        "role": { "id": format!("gid://shopify/CompanyContactRole/{}", 9_885_000 + index) }
+                                    }])
+                                } else {
+                                    json!([])
+                                },
+                                "pageInfo": {
+                                    "hasNextPage": duplicate,
+                                    "endCursor": duplicate.then_some("more-unrelated-assignments")
+                                }
+                            }
+                        })
+                    }
+                    Some(_) if id.starts_with("gid://shopify/CompanyContactRole/") => json!({
+                        "__typename": "CompanyContactRole",
+                        "id": id,
+                        "name": "Ordering only"
+                    }),
+                    _ if id == location_id => json!({
+                        "__typename": "CompanyLocation",
+                        "id": location_id,
+                        "name": "Role HQ",
+                        "company": { "__typename": "Company", "id": company_id, "name": "Role company" }
+                    }),
+                    _ => Value::Null,
+                })
+                .collect::<Vec<_>>();
+            captured.lock().expect("captured upstream").push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "nodes": nodes } }),
+            }
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAssignManyLocationRoles(
+          $locationId: ID!
+          $rolesToAssign: [CompanyLocationRoleAssign!]!
+        ) {
+          companyLocationAssignRoles(
+            companyLocationId: $locationId
+            rolesToAssign: $rolesToAssign
+          ) {
+            roleAssignments { id companyContact { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "locationId": location_id,
+            "rolesToAssign": roles_to_assign
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["companyLocationAssignRoles"]["roleAssignments"]
+            .as_array()
+            .expect("new role assignments")
+            .len(),
+        12
+    );
+    assert_eq!(
+        response.body["data"]["companyLocationAssignRoles"]["userErrors"]
+            .as_array()
+            .expect("duplicate role errors")
+            .len(),
+        13
+    );
+
+    let calls = captured.lock().expect("captured upstream");
+    assert_eq!(
+        calls.len(),
+        1,
+        "membership probes must share the node batch"
+    );
+    assert_eq!(calls[0]["variables"]["ids"].as_array().unwrap().len(), 51);
+    assert!(calls[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("roleAssignments(first: 1")
+            && !query.contains("B2BContactAssignmentsPageHydrate")));
 }
 
 #[test]
@@ -7591,6 +7961,32 @@ fn b2b_bulk_action_size_cap_rejects_oversized_inputs_before_validation() {
 }
 
 #[test]
+fn b2b_bulk_action_size_cap_rejects_before_live_hybrid_hydration() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport(|_| panic!("oversized local input must not hydrate upstream"));
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BBulkLimitCompaniesDeleteBeforeHydration($ids: [ID!]!) {
+          companiesDelete(companyIds: $ids) {
+            deletedCompanyIds
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "ids": b2b_test_ids("Company", 51) }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["companiesDelete"],
+        json!({
+            "deletedCompanyIds": [],
+            "userErrors": [b2b_bulk_limit_error("companyIds")]
+        })
+    );
+}
+
+#[test]
 fn b2b_bulk_action_size_cap_keeps_oversized_valid_company_delete_atomic() {
     let mut proxy = snapshot_proxy();
     let company_ids = (0..51)
@@ -7683,12 +8079,6 @@ fn b2b_mutation_first_hydrate_test_response(body: &Value) -> Response {
             "companies": { "nodes": [] },
             "companyLocations": { "nodes": [] },
             "customers": { "nodes": [] }
-        }),
-        Some("B2BCompanyAddressOwnerHydrate") => json!({
-            "companyLocations": {
-                "nodes": [b2b_mutation_first_hydrate_test_location()],
-                "pageInfo": { "hasNextPage": false, "endCursor": Value::Null }
-            }
         }),
         other => panic!("unexpected B2B hydrate test operation: {other:?}"),
     };

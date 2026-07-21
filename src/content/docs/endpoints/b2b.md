@@ -67,9 +67,10 @@ Admin API callers; there is no first-party merchant-admin local bypass in the
 proxy, so the cap applies even when the optional
 `x-shopify-draft-proxy-api-client-id` identity header is absent.
 
-The local B2B graph stores a hydrated LiveHybrid base catalog plus staged
-company, company location, company address, company contact, contact role,
-location-role assignment, and location-staff assignment overlays. When a
+The local B2B graph separates upstream-observed LiveHybrid records from staged
+mutation overlays for companies, company locations, company addresses, company
+contacts, customers, contact roles, location-role assignments, and
+location-staff assignments. When a
 LiveHybrid `companies`, `companiesCount`, or `companyLocations` read enters
 local B2B handling, the proxy observes upstream connection rows into the base
 catalog and observes `companiesCount` Count responses as count baselines keyed
@@ -78,7 +79,9 @@ to the base catalog, staged updates replace matching base rows by ID, and staged
 deletes tombstone base or staged rows so repeated upstream reads do not
 resurrect them. `companiesCount` starts from the observed upstream count
 baseline instead of deriving the total from a page-limited `companies`
-connection. `company(id:)`, `companyLocation(id:)`, `companies`,
+connection. Upstream observations do not make staged state dirty; only
+successful local mutation effects enter the staged overlay. `company(id:)`,
+`companyLocation(id:)`, `companies`,
 `companiesCount`, and `companyLocations` expand that effective graph for
 read-after-write, including nested `locations`, `contacts`, `contactRoles`,
 `roleAssignments`, and `staffMemberAssignments` connections. `Company.orders`
@@ -97,15 +100,20 @@ reads. Once an entity has a staged update or tombstone, that overlay takes
 precedence over later upstream observations.
 
 Before a locally supported B2B mutation makes not-found, uniqueness, ownership,
-or membership decisions in LiveHybrid mode, it issues query-only prerequisite
-reads for referenced real Shopify IDs. External-ID and contact-email checks use
-targeted upstream searches. Company location/contact/role connections and
-location/contact assignment connections continue through all upstream pages
-needed by the decision, and address deletion searches paginated company
-locations to establish the owning address slot. Direct `StaffMember` IDs are
-resolved individually even though the proxy does not hydrate a store-wide staff
-catalog. These prerequisite reads hydrate the base graph only; the original
-mutation remains local and is not sent upstream before `POST /__meta/commit`.
+cardinality, or membership decisions in LiveHybrid mode, it deduplicates
+referenced real Shopify IDs and resolves them through batched `nodes(ids:)`
+queries. Each mutation selects only the scalar and relationship evidence it
+needs. External-ID and contact-email checks use targeted upstream searches;
+location cardinality uses a bounded two-row probe; role membership uses an
+indexed one-row filter; and the staff-assignment limit uses a bounded 11-row
+probe. Only explicit contact `revokeAll` handling exhausts that contact's role
+assignment connection. Direct `CompanyAddress` identity establishes whether an
+address can be deleted without scanning the company-location catalog; observed
+owner indexes clear known slots, and an address tombstone masks a matching slot
+if its owner is observed later. Partial connection observations are marked as
+partial and are not used as whole-catalog absence evidence. These prerequisite
+reads hydrate the observed base graph only; the original mutation remains local
+and is not sent upstream before `POST /__meta/commit`.
 
 Local B2B list connections use the shared staged-connection path for filtering,
 sorting, `reverse`, cursor windows, and `pageInfo`. `companies` supports
@@ -143,7 +151,9 @@ role setup when those input objects are present. Its nested
 `companyContactCreate`, `companyContactUpdate`, `companyContactDelete`,
 `companyContactsDelete`, and `companyContactRemoveFromCompany` stage the
 company-contact lifecycle and keep company `contactIds`, contact customer data,
-role assignments, and downstream contact reads in sync. Local-format contact
+role assignments, and downstream contact reads in sync. Contact and company
+location tombstones suppress their assignment children during effective reads,
+so deletes do not need to enumerate unrelated assignment pages. Local-format contact
 phone input normalizes through the shop country observed from local state or a
 LiveHybrid query-only shop-country hydrate; if no country context is available,
 the proxy does not assume a default calling code. Deleting or removing the
@@ -202,9 +212,10 @@ assuming a North American calling code.
 `companyLocationAssignAddress` updates the requested address slots locally,
 rejects duplicate `addressTypes` with `INVALID_INPUT`, and preserves the
 existing `CompanyAddress` GID when reassigning the same address type.
-`companyAddressDelete` clears any staged location slot that references the
-deleted address; when billing and shipping share the same address it clears both
-slots and resets `billingSameAsShipping` to `false`.
+`companyAddressDelete` clears any indexed location slot that references the
+deleted address and records an address tombstone; when billing and shipping
+share the same address it clears both slots and resets
+`billingSameAsShipping` to `false`.
 
 `companyLocationAssignStaffMembers` and
 `companyLocationRemoveStaffMembers` stage staff assignment rows. Assignment
@@ -255,7 +266,8 @@ stored as a `DepositPercentage` object with the supplied `percentage` value.
   customer-visible email side effect. The proxy has no no-send model for it.
 - Staff assignment does not synthesize a full staff catalog, accept arbitrary
   numeric StaffMember GIDs, or support staff catalog reads. LiveHybrid mutation
-  prerequisites can resolve a referenced staff member through `nodes(ids:)`;
+  prerequisites can resolve referenced staff members through batched
+  `nodes(ids:)` queries;
   unresolved staff or assignment IDs return Shopify-like per-index errors.
 - Validation-only B2B parity specs prove guardrail payloads and no-stage
   behavior for those inputs only. They do not make the corresponding mutation

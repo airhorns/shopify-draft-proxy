@@ -290,11 +290,17 @@ impl DraftProxy {
             "customer" => resolved_string_field(arguments, "id").is_some_and(|id| {
                 self.store.staged.customers.contains_key(&id)
                     || self.store.staged.customers.is_tombstoned(&id)
+                    || self.store.base.b2b_customers.get(&id).is_some()
                     || self.store_credit_owner_has_accounts(&id)
                     || self.owner_has_metafield_local_effects(&id)
                     || requests_payment_methods
             }),
-            "customerByIdentifier" => !self.store.staged.customers.is_empty(),
+            "customerByIdentifier" => {
+                !self.store.staged.customers.is_empty()
+                    || resolved_object_field(arguments, "identifier").is_some_and(|identifier| {
+                        self.customer_staged_identifier_match(&identifier).is_some()
+                    })
+            }
             // A standalone `customers(query:)` / `customersCount` list read is
             // served from the staged overlay once this scenario has staged at
             // least one customer (e.g. a customerCreate or a privacy
@@ -319,7 +325,7 @@ impl DraftProxy {
         }
         match root_name {
             "customer" => resolved_string_field(arguments, "id").is_some_and(|id| {
-                !self.store.staged.customers.contains_key(&id)
+                self.b2b_effective_customer(&id).is_none()
                     && !self.store.staged.customers.is_tombstoned(&id)
             }),
             "customerByIdentifier" => {
@@ -530,6 +536,9 @@ impl DraftProxy {
         if let Some(customer) = self.store.staged.customers.get(&id) {
             return self.canonical_customer_value(&id, customer);
         }
+        if let Some(customer) = self.store.base.b2b_customers.get(&id) {
+            return self.canonical_customer_value(&id, customer);
+        }
         if let Some(customer) = upstream_value.filter(|customer| !customer.is_null()) {
             return self.canonical_customer_value(&id, customer);
         }
@@ -558,7 +567,7 @@ impl DraftProxy {
         if self.store.staged.customers.is_tombstoned(id) {
             return Some(Value::Null);
         }
-        self.store.staged.customers.get(id).cloned()
+        self.b2b_effective_customer(id)
     }
 
     pub(in crate::proxy) fn customer_address_node_value_by_id(&self, id: &str) -> Option<Value> {
@@ -1104,9 +1113,7 @@ impl DraftProxy {
     fn store_credit_owner_exists(&mut self, request: &Request, owner_id: &str) -> bool {
         match shopify_gid_resource_type(owner_id) {
             Some("Customer") => {
-                if self.store.staged.customers.contains_key(owner_id)
-                    && !self.store.staged.customers.is_tombstoned(owner_id)
-                {
+                if self.b2b_effective_customer(owner_id).is_some() {
                     true
                 } else {
                     self.hydrate_store_credit_customer_for_mutation(request, owner_id)
@@ -1123,18 +1130,10 @@ impl DraftProxy {
     fn store_credit_owner_json(&self, owner_id: &str) -> Value {
         match shopify_gid_resource_type(owner_id) {
             Some("Customer") => self
-                .store
-                .staged
-                .customers
-                .get(owner_id)
-                .cloned()
+                .b2b_effective_customer(owner_id)
                 .unwrap_or_else(|| json!({ "id": owner_id })),
             Some("CompanyLocation") => self
-                .store
-                .staged
-                .b2b_locations
-                .get(owner_id)
-                .cloned()
+                .b2b_effective_location(owner_id)
                 .unwrap_or_else(|| json!({ "id": owner_id })),
             _ => json!({ "id": owner_id }),
         }
@@ -1334,7 +1333,13 @@ impl DraftProxy {
             if self.store.staged.customers.is_tombstoned(&id) {
                 return Some(None);
             }
-            return self.store.staged.customers.get(&id).map(Some);
+            return self
+                .store
+                .staged
+                .customers
+                .get(&id)
+                .or_else(|| self.store.base.b2b_customers.get(&id))
+                .map(Some);
         }
         if let Some(custom_id) = customer_custom_id_from_identifier(identifier, None) {
             if self.customer_custom_id_has_local_valid_definition(&custom_id) {
@@ -1352,6 +1357,17 @@ impl DraftProxy {
             .iter()
             .find(|(id, customer)| self.customer_matches_identifier(id, customer, identifier))
             .map(|(_, customer)| Some(customer))
+            .or_else(|| {
+                self.store
+                    .base
+                    .b2b_customers
+                    .records
+                    .iter()
+                    .find(|(id, customer)| {
+                        self.customer_matches_identifier(id, customer, identifier)
+                    })
+                    .map(|(_, customer)| Some(customer))
+            })
     }
 
     fn customer_matches_identifier(
@@ -1449,6 +1465,15 @@ impl DraftProxy {
                 .cloned()
                 .unwrap_or(record);
             records_by_id.insert(id, record);
+        }
+        for id in &self.store.base.b2b_customers.order {
+            if records_by_id.contains_key(id) || self.store.staged.customers.is_tombstoned(id) {
+                continue;
+            }
+            if let Some(customer) = self.store.base.b2b_customers.get(id) {
+                ordered_ids.push(id.clone());
+                records_by_id.insert(id.clone(), customer.clone());
+            }
         }
         for (id, customer) in self.store.staged.customers.iter() {
             if self.store.staged.customers.is_tombstoned(id) {

@@ -423,6 +423,13 @@ struct Store {
     shop_policies: ResourceStore<ShopPolicyRecord>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum B2bRelationshipCompleteness {
+    Partial,
+    Complete,
+}
+
 #[derive(Clone, Default)]
 struct BaseState {
     delivery_profiles: OrderedRecords<Value>,
@@ -498,6 +505,10 @@ struct BaseState {
     b2b_role_assignments: OrderedRecords<Value>,
     b2b_staff_assignments: OrderedRecords<Value>,
     b2b_staff_member_ids: BTreeSet<String>,
+    b2b_customers: OrderedRecords<Value>,
+    b2b_relationship_completeness: BTreeMap<String, B2bRelationshipCompleteness>,
+    b2b_address_ids: BTreeSet<String>,
+    b2b_address_location_ids: BTreeMap<String, String>,
 }
 
 type MetafieldDefinitionKey = (String, String, String);
@@ -629,6 +640,8 @@ struct StagedState {
     b2b_role_assignments: BTreeMap<String, Value>,
     b2b_staff_assignments: BTreeMap<String, Value>,
     deleted_b2b_staff_assignment_ids: BTreeSet<String>,
+    b2b_address_location_ids: BTreeMap<String, String>,
+    deleted_b2b_address_ids: BTreeSet<String>,
     next_b2b_company_id: u64,
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     inventory_level_order: Vec<(String, String)>,

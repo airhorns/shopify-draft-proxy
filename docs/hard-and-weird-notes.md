@@ -2746,6 +2746,19 @@ can read the B2B company roots on that store. The capture showed:
 - `companies(first:, query:)` can be used for filtered empty-read evidence, but
   `companiesCount(query:)` is not accepted by Shopify 2026-04. Keep count
   behavior unfiltered unless a later schema version proves otherwise.
+- Shopify 2026-04 role-assignment connections accept indexed relationship
+  filters in both directions: `CompanyContact.roleAssignments` can filter by
+  `company_location_id:<numeric-tail>`, and
+  `CompanyLocation.roleAssignments` can filter by
+  `company_contact_id:<numeric-tail>`. Mutation preflight can therefore answer
+  one contact/location membership question without exhausting either
+  assignment catalog.
+- `CompanyAddress` exposes no owner or parent-location edge in the 2026-04
+  schema. A live `companyLocations(query:)` probe using the address ID did not
+  provide a usable indexed owner lookup. Address deletion preflight must use
+  direct address identity plus owner indexes learned from prior location reads;
+  it must not infer nonexistence from a partial location catalog or scan every
+  company location.
 
 Historical trap: the mutation roots were initially inventoried only as B2B
 blockers. Do not mark a B2B mutation supported from validation-only evidence;

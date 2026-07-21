@@ -365,7 +365,7 @@ fn b2b_company_contact_customer_field(
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     Ok(b2b_reference_value(invocation.parent, "customerId", |id| {
-        proxy.store.staged.customers.get(id).cloned()
+        proxy.b2b_effective_customer(id)
     }))
 }
 
@@ -922,6 +922,7 @@ impl DraftProxy {
             .staged
             .b2b_locations
             .insert(location_id.clone(), location.clone());
+        self.b2b_index_staged_location_addresses(&location);
         (
             json!({
                 "companyLocation": location,
@@ -959,6 +960,7 @@ const B2B_BULK_ACTION_LIMIT_REACHED_MESSAGE: &str =
     "Exceeded max input size of 50. Consider using BulkOperation.";
 const B2B_SHOP_COUNTRY_HYDRATE_QUERY: &str =
     "query B2BShopCountryHydrate { shop { shopAddress { countryCodeV2 countryCode } } }";
+const B2B_MUTATION_NODE_BATCH_SIZE: usize = 250;
 const B2B_COMPANY_LOCATION_HYDRATE_QUERY: &str = r#"
 query B2BCompanyLocationHydrate($id: ID!) {
   companyLocation(id: $id) {
@@ -989,8 +991,25 @@ query B2BCompanyLocationHydrate($id: ID!) {
   }
 }
 "#;
+const B2B_LOCATION_STORE_CREDIT_HYDRATE_SELECTION: &str = r#"      storeCreditAccounts(first: 1) @include(if: $includeLocationDeleteBlockers) {
+        nodes { id balance { amount currencyCode } }
+      }
+"#;
 const B2B_MUTATION_TARGETS_HYDRATE_QUERY: &str = r#"
-query B2BMutationTargetsHydrate($ids: [ID!]!) {
+query B2BMutationTargetsHydrate(
+  $ids: [ID!]!
+  $includeCompanyLocationCardinality: Boolean!
+  $includeCompanyDeleteBlockers: Boolean!
+  $includeLocationDeleteBlockers: Boolean!
+  $includeContactCustomer: Boolean!
+  $includeCustomerContactProfiles: Boolean!
+  $includeContactRoleMembership: Boolean!
+  $includeLocationRoleMembership: Boolean!
+  $includeStaffAssignments: Boolean!
+  $includeAllContactAssignments: Boolean!
+  $roleMembershipLocationQuery: String
+  $roleMembershipContactQuery: String
+) {
   nodes(ids: $ids) {
     __typename
     id
@@ -999,11 +1018,39 @@ query B2BMutationTargetsHydrate($ids: [ID!]!) {
     }
     ... on CompanyLocation {
       ...B2BHydrateLocation
-      company { ...B2BHydrateCompanyReference }
+      company {
+        ...B2BHydrateCompanyReference
+        locations(first: 2) @include(if: $includeCompanyLocationCardinality) {
+          nodes { id name }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+      ordersCount @include(if: $includeLocationDeleteBlockers) { count precision }
+      draftOrders(first: 1) @include(if: $includeLocationDeleteBlockers) { nodes { id } }
+      storeCreditAccounts(first: 1) @include(if: $includeLocationDeleteBlockers) {
+        nodes { id balance { amount currencyCode } }
+      }
+      roleAssignments(first: 1, query: $roleMembershipContactQuery) @include(if: $includeLocationRoleMembership) {
+        nodes { ...B2BHydrateRoleAssignment }
+        pageInfo { hasNextPage endCursor }
+      }
+      staffMemberAssignments(first: 11) @include(if: $includeStaffAssignments) {
+        nodes { ...B2BHydrateStaffAssignment }
+        pageInfo { hasNextPage endCursor }
+      }
     }
     ... on CompanyContact {
       ...B2BHydrateContact
       company { ...B2BHydrateCompanyReference }
+      customer @include(if: $includeContactCustomer) { ...B2BHydrateCustomer }
+      roleAssignments(first: 1, query: $roleMembershipLocationQuery) @include(if: $includeContactRoleMembership) {
+        nodes { ...B2BHydrateRoleAssignment }
+        pageInfo { hasNextPage endCursor }
+      }
+      allRoleAssignments: roleAssignments(first: 50) @include(if: $includeAllContactAssignments) {
+        nodes { ...B2BHydrateRoleAssignment }
+        pageInfo { hasNextPage endCursor }
+      }
     }
     ... on CompanyContactRole {
       ...B2BHydrateRole
@@ -1031,7 +1078,7 @@ query B2BMutationTargetsHydrate($ids: [ID!]!) {
     }
     ... on Customer {
       ...B2BHydrateCustomer
-      companyContactProfiles {
+      companyContactProfiles @include(if: $includeCustomerContactProfiles) {
         ...B2BHydrateContact
         company { ...B2BHydrateCompanyReference }
       }
@@ -1050,18 +1097,8 @@ fragment B2BHydrateCompany on Company {
   customerSince
   externalId
   note
-  locations(first: 50) {
-    nodes { id name }
-    pageInfo { hasNextPage endCursor }
-  }
-  contacts(first: 50) {
-    nodes { id title isMainContact }
-    pageInfo { hasNextPage endCursor }
-  }
-  contactRoles(first: 50) {
-    nodes { ...B2BHydrateRole }
-    pageInfo { hasNextPage endCursor }
-  }
+  ordersCount @include(if: $includeCompanyDeleteBlockers) { count precision }
+  draftOrders(first: 1) @include(if: $includeCompanyDeleteBlockers) { nodes { id } }
   mainContact { ...B2BHydrateContact }
 }
 
@@ -1070,18 +1107,6 @@ fragment B2BHydrateCompanyReference on Company {
   id
   name
   mainContact { id title isMainContact }
-  locations(first: 50) {
-    nodes { id name }
-    pageInfo { hasNextPage endCursor }
-  }
-  contacts(first: 50) {
-    nodes { id title isMainContact }
-    pageInfo { hasNextPage endCursor }
-  }
-  contactRoles(first: 50) {
-    nodes { ...B2BHydrateRole }
-    pageInfo { hasNextPage endCursor }
-  }
 }
 
 fragment B2BHydrateLocation on CompanyLocation {
@@ -1107,14 +1132,6 @@ fragment B2BHydrateLocation on CompanyLocation {
     deposit { __typename }
   }
   company { id name }
-  roleAssignments(first: 50) {
-    nodes { ...B2BHydrateRoleAssignment }
-    pageInfo { hasNextPage endCursor }
-  }
-  staffMemberAssignments(first: 50) {
-    nodes { ...B2BHydrateStaffAssignment }
-    pageInfo { hasNextPage endCursor }
-  }
 }
 
 fragment B2BHydrateContact on CompanyContact {
@@ -1122,14 +1139,9 @@ fragment B2BHydrateContact on CompanyContact {
   id
   createdAt
   title
-  locale
+  contactLocale: locale
   isMainContact
-  customer { ...B2BHydrateCustomer }
   company { id name }
-  roleAssignments(first: 50) {
-    nodes { ...B2BHydrateRoleAssignment }
-    pageInfo { hasNextPage endCursor }
-  }
 }
 
 fragment B2BHydrateCustomer on Customer {
@@ -1140,7 +1152,7 @@ fragment B2BHydrateCustomer on Customer {
   displayName
   email
   phone
-  locale
+  customerLocale: locale
   defaultEmailAddress { emailAddress }
   defaultPhoneNumber { phoneNumber }
 }
@@ -1155,6 +1167,7 @@ fragment B2BHydrateRole on CompanyContactRole {
 fragment B2BHydrateRoleAssignment on CompanyContactRoleAssignment {
   __typename
   id
+  company { id name }
   companyContact { id title }
   companyLocation { id name }
   role { id name note }
@@ -1185,6 +1198,15 @@ fragment B2BHydrateAddress on CompanyAddress {
   zoneCode
 }
 "#;
+
+fn b2b_mutation_targets_hydrate_query(request: &Request) -> String {
+    if admin_graphql_version(&request.path) == Some("2025-01") {
+        B2B_MUTATION_TARGETS_HYDRATE_QUERY.replace(B2B_LOCATION_STORE_CREDIT_HYDRATE_SELECTION, "")
+    } else {
+        B2B_MUTATION_TARGETS_HYDRATE_QUERY.to_string()
+    }
+}
+
 const B2B_MUTATION_SEARCH_HYDRATE_QUERY: &str = r#"
 query B2BMutationSearchHydrate(
   $includeCompanies: Boolean!
@@ -1257,112 +1279,6 @@ fragment B2BSearchContact on CompanyContact {
   customer { ...B2BSearchCustomer }
 }
 "#;
-const B2B_COMPANY_ADDRESS_OWNER_HYDRATE_QUERY: &str = r#"
-query B2BCompanyAddressOwnerHydrate($after: String) {
-  companyLocations(first: 50, after: $after) {
-    nodes {
-      __typename
-      id
-      name
-      billingAddress { ...B2BAddressOwnerAddress }
-      shippingAddress { ...B2BAddressOwnerAddress }
-      company { id name }
-    }
-    pageInfo { hasNextPage endCursor }
-  }
-}
-
-fragment B2BAddressOwnerAddress on CompanyAddress {
-  __typename
-  id
-  address1
-  address2
-  city
-  companyName
-  country
-  countryCode
-  firstName
-  lastName
-  phone
-  province
-  recipient
-  zip
-  zoneCode
-}
-"#;
-const B2B_COMPANY_CATALOG_PAGE_HYDRATE_QUERY: &str = r#"
-query B2BCompanyCatalogPageHydrate(
-  $id: ID!
-  $includeLocations: Boolean!
-  $includeContacts: Boolean!
-  $includeContactRoles: Boolean!
-  $locationsAfter: String
-  $contactsAfter: String
-  $contactRolesAfter: String
-) {
-  company(id: $id) {
-    __typename
-    id
-    name
-    locations(first: 50, after: $locationsAfter) @include(if: $includeLocations) {
-      nodes { id name }
-      pageInfo { hasNextPage endCursor }
-    }
-    contacts(first: 50, after: $contactsAfter) @include(if: $includeContacts) {
-      nodes { id title isMainContact }
-      pageInfo { hasNextPage endCursor }
-    }
-    contactRoles(first: 50, after: $contactRolesAfter) @include(if: $includeContactRoles) {
-      nodes { ...B2BCompanyCatalogPageRole }
-      pageInfo { hasNextPage endCursor }
-    }
-  }
-}
-
-fragment B2BCompanyCatalogPageRole on CompanyContactRole {
-  __typename
-  id
-  name
-  note
-}
-"#;
-const B2B_LOCATION_ASSIGNMENTS_PAGE_HYDRATE_QUERY: &str = r#"
-query B2BLocationAssignmentsPageHydrate(
-  $id: ID!
-  $includeRoleAssignments: Boolean!
-  $includeStaffAssignments: Boolean!
-  $roleAssignmentsAfter: String
-  $staffAssignmentsAfter: String
-) {
-  companyLocation(id: $id) {
-    __typename
-    id
-    roleAssignments(first: 50, after: $roleAssignmentsAfter) @include(if: $includeRoleAssignments) {
-      nodes { ...B2BLocationPageRoleAssignment }
-      pageInfo { hasNextPage endCursor }
-    }
-    staffMemberAssignments(first: 50, after: $staffAssignmentsAfter) @include(if: $includeStaffAssignments) {
-      nodes { ...B2BLocationPageStaffAssignment }
-      pageInfo { hasNextPage endCursor }
-    }
-  }
-}
-
-fragment B2BLocationPageRoleAssignment on CompanyContactRoleAssignment {
-  __typename
-  id
-  companyContact { id title }
-  companyLocation { id name }
-  role { id name note }
-}
-
-fragment B2BLocationPageStaffAssignment on CompanyLocationStaffMemberAssignment {
-  __typename
-  id
-  companyLocation { id name }
-  staffMember { id }
-}
-"#;
 const B2B_CONTACT_ASSIGNMENTS_PAGE_HYDRATE_QUERY: &str = r#"
 query B2BContactAssignmentsPageHydrate($id: ID!, $after: String) {
   companyContact(id: $id) {
@@ -1384,69 +1300,200 @@ fragment B2BContactPageRoleAssignment on CompanyContactRoleAssignment {
 }
 "#;
 
-fn b2b_collect_hydration_ids(value: &ResolvedValue, ids: &mut BTreeSet<String>) {
-    match value {
-        ResolvedValue::String(value) => {
-            if matches!(
-                shopify_gid_resource_type(value),
-                Some(
-                    "Company"
-                        | "CompanyLocation"
-                        | "CompanyContact"
-                        | "CompanyContactRole"
-                        | "CompanyContactRoleAssignment"
-                        | "CompanyLocationStaffMemberAssignment"
-                        | "CompanyAddress"
-                        | "Customer"
-                        | "StaffMember"
-                )
-            ) {
-                ids.insert(value.clone());
-            }
+#[derive(Default)]
+struct B2bMutationHydrationPlan {
+    ids: BTreeSet<String>,
+    include_company_location_cardinality: bool,
+    include_company_delete_blockers: bool,
+    include_location_delete_blockers: bool,
+    include_contact_customer: bool,
+    include_customer_contact_profiles: bool,
+    include_contact_role_membership: bool,
+    include_location_role_membership: bool,
+    include_staff_assignments: bool,
+    include_all_contact_assignments: bool,
+    role_membership_location_id: Option<String>,
+    role_membership_contact_id: Option<String>,
+}
+
+impl B2bMutationHydrationPlan {
+    fn add_id(&mut self, id: Option<String>) {
+        if let Some(id) = id.filter(|id| !id.is_empty()) {
+            self.ids.insert(id);
         }
-        ResolvedValue::List(values) => {
-            for value in values {
-                b2b_collect_hydration_ids(value, ids);
-            }
-        }
-        ResolvedValue::Object(values) => {
-            for value in values.values() {
-                b2b_collect_hydration_ids(value, ids);
-            }
-        }
-        ResolvedValue::Int(_)
-        | ResolvedValue::Float(_)
-        | ResolvedValue::Bool(_)
-        | ResolvedValue::Null => {}
+    }
+
+    fn add_ids(&mut self, ids: impl IntoIterator<Item = String>) {
+        self.ids.extend(ids.into_iter().filter(|id| !id.is_empty()));
     }
 }
 
-fn b2b_collect_typed_records(
-    value: &Value,
-    type_name: &str,
-    records: &mut BTreeMap<String, Value>,
-) {
-    match value {
-        Value::Array(values) => {
-            for value in values {
-                b2b_collect_typed_records(value, type_name, records);
-            }
+fn b2b_mutation_hydration_plan(field: &B2bRootInput) -> B2bMutationHydrationPlan {
+    let mut plan = B2bMutationHydrationPlan::default();
+    let oversized_bulk_input = match field.name.as_str() {
+        "companiesDelete" => list_string_field(&field.arguments, "companyIds").len(),
+        "companyContactsDelete" => list_string_field(&field.arguments, "companyContactIds").len(),
+        "companyContactAssignRoles" | "companyLocationAssignRoles" => {
+            resolved_object_list_field(&field.arguments, "rolesToAssign").len()
         }
-        Value::Object(object) => {
-            if object.get("__typename").and_then(Value::as_str) == Some(type_name) {
-                if let Some(id) = object.get("id").and_then(Value::as_str) {
-                    records
-                        .entry(id.to_string())
-                        .and_modify(|record| merge_json_values(record, value))
-                        .or_insert_with(|| value.clone());
-                }
+        "companyContactRevokeRoles" => {
+            list_string_field(&field.arguments, "roleAssignmentIds").len()
+        }
+        "companyLocationsDelete" => list_string_field(&field.arguments, "companyLocationIds").len(),
+        "companyLocationAssignStaffMembers" => {
+            list_string_field(&field.arguments, "staffMemberIds").len()
+        }
+        "companyLocationRemoveStaffMembers" => {
+            list_string_field(&field.arguments, "companyLocationStaffMemberAssignmentIds").len()
+        }
+        "companyLocationRevokeRoles" => list_string_field(&field.arguments, "rolesToRevoke").len(),
+        _ => 0,
+    } > B2B_BULK_ACTIONS_MAX_SIZE;
+    let invalid_empty_contact_revoke = field.name == "companyContactRevokeRoles"
+        && list_string_field(&field.arguments, "roleAssignmentIds").is_empty()
+        && !resolved_bool_field(&field.arguments, "revokeAll").unwrap_or(false);
+    if oversized_bulk_input || invalid_empty_contact_revoke {
+        return plan;
+    }
+    match field.name.as_str() {
+        "companyUpdate" => plan.add_id(resolved_string_field(&field.arguments, "companyId")),
+        "companyDelete" => {
+            plan.add_id(resolved_string_field(&field.arguments, "id"));
+            plan.include_company_delete_blockers = true;
+        }
+        "companiesDelete" => {
+            plan.add_ids(list_string_field(&field.arguments, "companyIds"));
+            plan.include_company_delete_blockers = true;
+        }
+        "companyContactCreate" | "companyLocationCreate" => {
+            plan.add_id(resolved_string_field(&field.arguments, "companyId"));
+        }
+        "companyContactUpdate" => {
+            plan.add_id(resolved_string_field(&field.arguments, "companyContactId"));
+            plan.include_contact_customer = true;
+        }
+        "companyContactDelete" | "companyContactRemoveFromCompany" => {
+            plan.add_id(resolved_string_field(&field.arguments, "companyContactId"));
+        }
+        "companyContactsDelete" => {
+            plan.add_ids(list_string_field(&field.arguments, "companyContactIds"));
+        }
+        "companyAssignMainContact" => {
+            plan.add_id(resolved_string_field(&field.arguments, "companyId"));
+            plan.add_id(resolved_string_field(&field.arguments, "companyContactId"));
+        }
+        "companyRevokeMainContact" => {
+            plan.add_id(resolved_string_field(&field.arguments, "companyId"));
+        }
+        "companyContactAssignRole" => {
+            let contact_id = resolved_string_field(&field.arguments, "companyContactId");
+            let location_id = resolved_string_field(&field.arguments, "companyLocationId");
+            plan.add_id(contact_id);
+            plan.add_id(location_id.clone());
+            plan.add_id(resolved_string_field(
+                &field.arguments,
+                "companyContactRoleId",
+            ));
+            plan.include_contact_role_membership = true;
+            plan.role_membership_location_id = location_id;
+        }
+        "companyContactAssignRoles" => {
+            let contact_id = resolved_string_field(&field.arguments, "companyContactId");
+            plan.add_id(contact_id.clone());
+            for input in resolved_object_list_field(&field.arguments, "rolesToAssign") {
+                plan.add_id(resolved_string_field(&input, "companyLocationId"));
+                plan.add_id(
+                    resolved_string_field(&input, "companyContactRoleId")
+                        .or_else(|| resolved_string_field(&input, "companyRoleId")),
+                );
             }
-            for value in object.values() {
-                b2b_collect_typed_records(value, type_name, records);
+            plan.include_location_role_membership = true;
+            plan.role_membership_contact_id = contact_id;
+        }
+        "companyContactRevokeRole" => {
+            plan.add_id(resolved_string_field(&field.arguments, "companyContactId"));
+            plan.add_id(resolved_string_field(
+                &field.arguments,
+                "companyContactRoleAssignmentId",
+            ));
+        }
+        "companyContactRevokeRoles" => {
+            plan.add_id(resolved_string_field(&field.arguments, "companyContactId"));
+            plan.add_ids(list_string_field(&field.arguments, "roleAssignmentIds"));
+            plan.include_all_contact_assignments =
+                resolved_bool_field(&field.arguments, "revokeAll").unwrap_or(false);
+        }
+        "companyLocationUpdate" | "companyLocationTaxSettingsUpdate" => {
+            plan.add_id(
+                resolved_string_field(&field.arguments, "companyLocationId")
+                    .or_else(|| resolved_string_field(&field.arguments, "locationId")),
+            );
+        }
+        "companyLocationDelete" => {
+            plan.add_id(
+                resolved_string_field(&field.arguments, "companyLocationId")
+                    .or_else(|| resolved_string_field(&field.arguments, "id")),
+            );
+            plan.include_company_location_cardinality = true;
+            plan.include_location_delete_blockers = true;
+        }
+        "companyLocationsDelete" => {
+            plan.add_ids(list_string_field(&field.arguments, "companyLocationIds"));
+            plan.include_company_location_cardinality = true;
+            plan.include_location_delete_blockers = true;
+        }
+        "companyLocationAssignAddress" => {
+            plan.add_id(
+                resolved_string_field(&field.arguments, "locationId")
+                    .or_else(|| resolved_string_field(&field.arguments, "companyLocationId")),
+            );
+        }
+        "companyAddressDelete" => {
+            plan.add_id(
+                resolved_string_field(&field.arguments, "addressId")
+                    .or_else(|| resolved_string_field(&field.arguments, "id")),
+            );
+        }
+        "companyLocationAssignStaffMembers" => {
+            plan.add_id(
+                resolved_string_field(&field.arguments, "companyLocationId")
+                    .or_else(|| resolved_string_field(&field.arguments, "locationId")),
+            );
+            plan.add_ids(list_string_field(&field.arguments, "staffMemberIds"));
+            plan.include_staff_assignments = true;
+        }
+        "companyLocationRemoveStaffMembers" => {
+            plan.add_ids(list_string_field(
+                &field.arguments,
+                "companyLocationStaffMemberAssignmentIds",
+            ));
+        }
+        "companyLocationAssignRoles" => {
+            let location_id = resolved_string_field(&field.arguments, "companyLocationId")
+                .or_else(|| resolved_string_field(&field.arguments, "locationId"));
+            plan.add_id(location_id.clone());
+            for input in resolved_object_list_field(&field.arguments, "rolesToAssign") {
+                plan.add_id(resolved_string_field(&input, "companyContactId"));
+                plan.add_id(
+                    resolved_string_field(&input, "companyContactRoleId")
+                        .or_else(|| resolved_string_field(&input, "companyRoleId")),
+                );
             }
+            plan.include_contact_role_membership = true;
+            plan.role_membership_location_id = location_id;
+        }
+        "companyLocationRevokeRoles" => {
+            plan.add_id(resolved_string_field(&field.arguments, "companyLocationId"));
+            plan.add_ids(list_string_field(&field.arguments, "rolesToRevoke"));
+        }
+        "companyAssignCustomerAsContact" => {
+            plan.add_id(resolved_string_field(&field.arguments, "companyId"));
+            plan.add_id(resolved_string_field(&field.arguments, "customerId"));
+            plan.include_customer_contact_profiles = true;
         }
         _ => {}
     }
+    plan
 }
 
 fn b2b_connection_next_cursor(connection: &Value) -> Option<String> {
@@ -1459,6 +1506,14 @@ fn b2b_connection_next_cursor(connection: &Value) -> Option<String> {
                 .map(str::to_string)
         })
         .flatten()
+}
+
+fn b2b_relationship_scope(owner_type: &str, owner_id: &str, relationship: &str) -> String {
+    format!("{owner_type}:{owner_id}:{relationship}")
+}
+
+fn b2b_contact_location_role_scope(contact_id: &str, location_id: &str) -> String {
+    format!("contact-location:{contact_id}:{location_id}:roleAssignments")
 }
 
 fn b2b_exact_search_query(value: &str) -> String {
@@ -1679,7 +1734,6 @@ impl DraftProxy {
     /// The canonical record is returned without GraphQL projection. The engine's
     /// surface-qualified field resolvers own relationship expansion and selection.
     pub(in crate::proxy) fn b2b_node_value_by_id(&self, id: &str) -> Option<Value> {
-        let staged = &self.store.staged;
         if let Some(assignment) = self.b2b_effective_role_assignment(id) {
             return Some(assignment);
         }
@@ -1695,17 +1749,7 @@ impl DraftProxy {
         if let Some(role) = self.b2b_effective_contact_role(id) {
             return Some(role);
         }
-        // CompanyAddress entities are not stored in their own map — they live
-        // nested on each staged location's billing/shipping slot — so a node read
-        // by address id scans staged locations for the matching address.
-        for location in staged.b2b_locations.values() {
-            for slot in ["billingAddress", "shippingAddress"] {
-                if location[slot]["id"].as_str() == Some(id) {
-                    return Some(location[slot].clone());
-                }
-            }
-        }
-        None
+        self.b2b_effective_address(id)
     }
 
     pub(in crate::proxy) fn b2b_company_outcome(
@@ -1806,38 +1850,46 @@ impl DraftProxy {
             return;
         }
 
-        let mut ids = BTreeSet::new();
-        for value in field.arguments.values() {
-            b2b_collect_hydration_ids(value, &mut ids);
-        }
-        let ids = ids
-            .into_iter()
+        let plan = b2b_mutation_hydration_plan(field);
+        let ids = plan
+            .ids
+            .iter()
             .filter(|id| !is_synthetic_gid(id) && !self.b2b_staged_knows_id(id))
+            .cloned()
             .collect::<Vec<_>>();
-        for chunk in ids.chunks(1) {
+        for chunk in ids.chunks(B2B_MUTATION_NODE_BATCH_SIZE) {
             let response = self.upstream_post(
                 request,
                 json!({
-                    "query": B2B_MUTATION_TARGETS_HYDRATE_QUERY,
+                    "query": b2b_mutation_targets_hydrate_query(request),
                     "operationName": "B2BMutationTargetsHydrate",
-                    "variables": { "ids": chunk },
+                    "variables": {
+                        "ids": chunk,
+                        "includeCompanyLocationCardinality": plan.include_company_location_cardinality,
+                        "includeCompanyDeleteBlockers": plan.include_company_delete_blockers,
+                        "includeLocationDeleteBlockers": plan.include_location_delete_blockers,
+                        "includeContactCustomer": plan.include_contact_customer,
+                        "includeCustomerContactProfiles": plan.include_customer_contact_profiles,
+                        "includeContactRoleMembership": plan.include_contact_role_membership,
+                        "includeLocationRoleMembership": plan.include_location_role_membership,
+                        "includeStaffAssignments": plan.include_staff_assignments,
+                        "includeAllContactAssignments": plan.include_all_contact_assignments,
+                        "roleMembershipLocationQuery": plan.role_membership_location_id.as_deref().map(|id| {
+                            format!("company_location_id:{}", resource_id_tail(id))
+                        }),
+                        "roleMembershipContactQuery": plan.role_membership_contact_id.as_deref().map(|id| {
+                            format!("company_contact_id:{}", resource_id_tail(id))
+                        }),
+                    },
                 }),
             );
             if (200..300).contains(&response.status) {
-                self.observe_b2b_mutation_hydrate_data(&response.body["data"]);
-                self.hydrate_b2b_mutation_connection_pages(request, &response.body["data"]);
+                self.observe_b2b_mutation_hydrate_data(&response.body["data"], &plan);
+                self.hydrate_b2b_planned_connection_pages(request, &response.body["data"], &plan);
             }
         }
 
         self.hydrate_b2b_mutation_searches(request, field);
-        if field.name == "companyAddressDelete" {
-            let address_id = resolved_string_field(&field.arguments, "addressId")
-                .or_else(|| resolved_string_field(&field.arguments, "id"))
-                .unwrap_or_default();
-            if !address_id.is_empty() && !self.b2b_staged_knows_id(&address_id) {
-                self.hydrate_b2b_company_address_owner(request);
-            }
-        }
     }
 
     fn b2b_staged_knows_id(&self, id: &str) -> bool {
@@ -1871,10 +1923,10 @@ impl DraftProxy {
                         .deleted_b2b_staff_assignment_ids
                         .contains(id)
             }
-            Some("CompanyAddress") => self.store.staged.b2b_locations.values().any(|location| {
-                location["billingAddress"]["id"].as_str() == Some(id)
-                    || location["shippingAddress"]["id"].as_str() == Some(id)
-            }),
+            Some("CompanyAddress") => {
+                self.store.staged.deleted_b2b_address_ids.contains(id)
+                    || self.store.staged.b2b_address_location_ids.contains_key(id)
+            }
             Some("Customer") => {
                 self.store.staged.customers.contains_key(id)
                     || self.store.staged.customers.is_tombstoned(id)
@@ -1936,36 +1988,7 @@ impl DraftProxy {
         }
     }
 
-    fn hydrate_b2b_company_address_owner(&mut self, request: &Request) {
-        let mut after = Value::Null;
-        loop {
-            let response = self.upstream_post(
-                request,
-                json!({
-                    "query": B2B_COMPANY_ADDRESS_OWNER_HYDRATE_QUERY,
-                    "operationName": "B2BCompanyAddressOwnerHydrate",
-                    "variables": { "after": after },
-                }),
-            );
-            if !(200..300).contains(&response.status) {
-                return;
-            }
-            let connection = &response.body["data"]["companyLocations"];
-            self.observe_b2b_location_connection(connection, None);
-            if !connection["pageInfo"]["hasNextPage"]
-                .as_bool()
-                .unwrap_or(false)
-            {
-                return;
-            }
-            let Some(cursor) = connection["pageInfo"]["endCursor"].as_str() else {
-                return;
-            };
-            after = json!(cursor);
-        }
-    }
-
-    fn observe_b2b_mutation_hydrate_data(&mut self, data: &Value) {
+    fn observe_b2b_mutation_hydrate_data(&mut self, data: &Value, plan: &B2bMutationHydrationPlan) {
         for node in data["nodes"].as_array().into_iter().flatten() {
             match node["__typename"].as_str() {
                 Some("Company") => {
@@ -1973,9 +1996,60 @@ impl DraftProxy {
                 }
                 Some("CompanyLocation") => {
                     self.observe_b2b_location_record(node, None);
+                    if let (Some(company_id), Some(connection)) = (
+                        node.pointer("/company/id").and_then(Value::as_str),
+                        node.pointer("/company/locations"),
+                    ) {
+                        self.observe_b2b_relationship_completeness(
+                            b2b_relationship_scope("company", company_id, "locations"),
+                            connection,
+                            plan.include_company_location_cardinality,
+                        );
+                    }
+                    if let (Some(location_id), Some(contact_id)) = (
+                        node["id"].as_str(),
+                        plan.role_membership_contact_id.as_deref(),
+                    ) {
+                        self.observe_b2b_relationship_completeness(
+                            b2b_contact_location_role_scope(contact_id, location_id),
+                            &node["roleAssignments"],
+                            plan.include_location_role_membership,
+                        );
+                    }
+                    if let Some(location_id) = node["id"].as_str() {
+                        self.observe_b2b_relationship_completeness(
+                            b2b_relationship_scope("location", location_id, "staffAssignments"),
+                            &node["staffMemberAssignments"],
+                            plan.include_staff_assignments,
+                        );
+                    }
                 }
                 Some("CompanyContact") => {
                     self.observe_b2b_contact_record(node, None);
+                    if let (Some(contact_id), Some(location_id)) = (
+                        node["id"].as_str(),
+                        plan.role_membership_location_id.as_deref(),
+                    ) {
+                        self.observe_b2b_relationship_completeness(
+                            b2b_contact_location_role_scope(contact_id, location_id),
+                            &node["roleAssignments"],
+                            plan.include_contact_role_membership,
+                        );
+                    }
+                    if let Some(contact_id) = node["id"].as_str() {
+                        for assignment in connection_nodes(&node["allRoleAssignments"]) {
+                            self.observe_b2b_role_assignment_record(
+                                &assignment,
+                                Some(contact_id),
+                                None,
+                            );
+                        }
+                        self.observe_b2b_relationship_completeness(
+                            b2b_relationship_scope("contact", contact_id, "roleAssignments"),
+                            &node["allRoleAssignments"],
+                            plan.include_all_contact_assignments,
+                        );
+                    }
                 }
                 Some("CompanyContactRole") => {
                     self.observe_b2b_contact_role_record(node, None);
@@ -1989,6 +2063,9 @@ impl DraftProxy {
                 Some("Customer") => {
                     self.observe_b2b_customer_record(node);
                 }
+                Some("CompanyAddress") => {
+                    self.observe_b2b_address_record(node, None);
+                }
                 Some("StaffMember") => {
                     if let Some(id) = node["id"].as_str() {
                         self.store.base.b2b_staff_member_ids.insert(id.to_string());
@@ -1999,106 +2076,36 @@ impl DraftProxy {
         }
     }
 
-    fn hydrate_b2b_mutation_connection_pages(&mut self, request: &Request, data: &Value) {
-        let mut companies = BTreeMap::new();
-        b2b_collect_typed_records(data, "Company", &mut companies);
-        for company in companies.values() {
-            self.hydrate_b2b_company_catalog_pages(request, company);
+    fn hydrate_b2b_planned_connection_pages(
+        &mut self,
+        request: &Request,
+        data: &Value,
+        plan: &B2bMutationHydrationPlan,
+    ) {
+        if !plan.include_all_contact_assignments {
+            return;
         }
-
-        let mut locations = BTreeMap::new();
-        b2b_collect_typed_records(data, "CompanyLocation", &mut locations);
-        for location in locations.values() {
-            self.hydrate_b2b_location_assignment_pages(request, location);
-        }
-
-        let mut contacts = BTreeMap::new();
-        b2b_collect_typed_records(data, "CompanyContact", &mut contacts);
-        for contact in contacts.values() {
-            self.hydrate_b2b_contact_assignment_pages(request, contact);
+        for contact in data["nodes"].as_array().into_iter().flatten() {
+            let Some(contact_id) = contact["id"].as_str() else {
+                continue;
+            };
+            if contact["__typename"].as_str() == Some("CompanyContact") {
+                self.hydrate_b2b_contact_assignment_pages(
+                    request,
+                    contact_id,
+                    &contact["allRoleAssignments"],
+                );
+            }
         }
     }
 
-    fn hydrate_b2b_company_catalog_pages(&mut self, request: &Request, company: &Value) {
-        let Some(company_id) = company["id"].as_str() else {
-            return;
-        };
-        let mut locations_after = b2b_connection_next_cursor(&company["locations"]);
-        let mut contacts_after = b2b_connection_next_cursor(&company["contacts"]);
-        let mut contact_roles_after = b2b_connection_next_cursor(&company["contactRoles"]);
-        while locations_after.is_some() || contacts_after.is_some() || contact_roles_after.is_some()
-        {
-            let response = self.upstream_post(
-                request,
-                json!({
-                    "query": B2B_COMPANY_CATALOG_PAGE_HYDRATE_QUERY,
-                    "operationName": "B2BCompanyCatalogPageHydrate",
-                    "variables": {
-                        "id": company_id,
-                        "includeLocations": locations_after.is_some(),
-                        "includeContacts": contacts_after.is_some(),
-                        "includeContactRoles": contact_roles_after.is_some(),
-                        "locationsAfter": locations_after,
-                        "contactsAfter": contacts_after,
-                        "contactRolesAfter": contact_roles_after,
-                    },
-                }),
-            );
-            if !(200..300).contains(&response.status) {
-                return;
-            }
-            let company = &response.body["data"]["company"];
-            if company.is_null() {
-                return;
-            }
-            locations_after = b2b_connection_next_cursor(&company["locations"]);
-            contacts_after = b2b_connection_next_cursor(&company["contacts"]);
-            contact_roles_after = b2b_connection_next_cursor(&company["contactRoles"]);
-            self.observe_b2b_company_record(company);
-        }
-    }
-
-    fn hydrate_b2b_location_assignment_pages(&mut self, request: &Request, location: &Value) {
-        let Some(location_id) = location["id"].as_str() else {
-            return;
-        };
-        let mut role_assignments_after = b2b_connection_next_cursor(&location["roleAssignments"]);
-        let mut staff_assignments_after =
-            b2b_connection_next_cursor(&location["staffMemberAssignments"]);
-        while role_assignments_after.is_some() || staff_assignments_after.is_some() {
-            let response = self.upstream_post(
-                request,
-                json!({
-                    "query": B2B_LOCATION_ASSIGNMENTS_PAGE_HYDRATE_QUERY,
-                    "operationName": "B2BLocationAssignmentsPageHydrate",
-                    "variables": {
-                        "id": location_id,
-                        "includeRoleAssignments": role_assignments_after.is_some(),
-                        "includeStaffAssignments": staff_assignments_after.is_some(),
-                        "roleAssignmentsAfter": role_assignments_after,
-                        "staffAssignmentsAfter": staff_assignments_after,
-                    },
-                }),
-            );
-            if !(200..300).contains(&response.status) {
-                return;
-            }
-            let location = &response.body["data"]["companyLocation"];
-            if location.is_null() {
-                return;
-            }
-            role_assignments_after = b2b_connection_next_cursor(&location["roleAssignments"]);
-            staff_assignments_after =
-                b2b_connection_next_cursor(&location["staffMemberAssignments"]);
-            self.observe_b2b_location_record(location, None);
-        }
-    }
-
-    fn hydrate_b2b_contact_assignment_pages(&mut self, request: &Request, contact: &Value) {
-        let Some(contact_id) = contact["id"].as_str() else {
-            return;
-        };
-        let mut after = b2b_connection_next_cursor(&contact["roleAssignments"]);
+    fn hydrate_b2b_contact_assignment_pages(
+        &mut self,
+        request: &Request,
+        contact_id: &str,
+        first_page: &Value,
+    ) {
+        let mut after = b2b_connection_next_cursor(first_page);
         while after.is_some() {
             let response = self.upstream_post(
                 request,
@@ -2118,6 +2125,55 @@ impl DraftProxy {
             after = b2b_connection_next_cursor(&contact["roleAssignments"]);
             self.observe_b2b_contact_record(contact, None);
         }
+        self.store.base.b2b_relationship_completeness.insert(
+            b2b_relationship_scope("contact", contact_id, "roleAssignments"),
+            B2bRelationshipCompleteness::Complete,
+        );
+    }
+
+    fn observe_b2b_relationship_completeness(
+        &mut self,
+        scope: String,
+        connection: &Value,
+        observed_from_first_page: bool,
+    ) {
+        if !observed_from_first_page || !connection.is_object() {
+            return;
+        }
+        let observed = if connection["pageInfo"]["hasNextPage"]
+            .as_bool()
+            .unwrap_or(false)
+        {
+            B2bRelationshipCompleteness::Partial
+        } else {
+            B2bRelationshipCompleteness::Complete
+        };
+        self.store
+            .base
+            .b2b_relationship_completeness
+            .entry(scope)
+            .and_modify(|current| {
+                if *current != B2bRelationshipCompleteness::Complete {
+                    *current = observed;
+                }
+            })
+            .or_insert(observed);
+    }
+
+    fn observe_b2b_address_record(
+        &mut self,
+        address: &Value,
+        location_id: Option<&str>,
+    ) -> Option<String> {
+        let address_id = address.get("id").and_then(Value::as_str)?.to_string();
+        self.store.base.b2b_address_ids.insert(address_id.clone());
+        if let Some(location_id) = location_id {
+            self.store
+                .base
+                .b2b_address_location_ids
+                .insert(address_id.clone(), location_id.to_string());
+        }
+        Some(address_id)
     }
 
     fn observe_b2b_customer_record(&mut self, customer: &Value) {
@@ -2125,10 +2181,14 @@ impl DraftProxy {
             return;
         };
         let mut record = customer.clone();
+        if let Some(locale) = record.get("customerLocale").cloned() {
+            record["locale"] = locale;
+        }
         if let Some(object) = record.as_object_mut() {
             object.remove("companyContactProfiles");
+            object.remove("customerLocale");
         }
-        self.store.staged.customers.insert(customer_id, record);
+        self.store.base.b2b_customers.insert(customer_id, record);
         for contact in customer["companyContactProfiles"]
             .as_array()
             .into_iter()
@@ -2147,11 +2207,21 @@ impl DraftProxy {
         first_name: Option<String>,
         last_name: Option<String>,
     ) -> String {
-        if let Some((id, _)) = self.store.staged.customers.iter().find(|(_, customer)| {
-            customer["email"].as_str().map(str::to_ascii_lowercase)
-                == Some(email.to_ascii_lowercase())
-        }) {
-            return id.clone();
+        let normalized_email = email.to_ascii_lowercase();
+        for id in self
+            .store
+            .base
+            .b2b_customers
+            .order
+            .iter()
+            .chain(self.store.staged.customers.order.iter())
+        {
+            if self.b2b_effective_customer(id).is_some_and(|customer| {
+                customer["email"].as_str().map(str::to_ascii_lowercase)
+                    == Some(normalized_email.clone())
+            }) {
+                return id.clone();
+            }
         }
         let id = self.next_proxy_synthetic_gid("Customer");
         let first = first_name.unwrap_or_default();
@@ -2228,7 +2298,7 @@ impl DraftProxy {
     ) -> (Value, &'static str, Vec<String>) {
         let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
         let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
-        let Some(customer) = self.store.staged.customers.get(&customer_id).cloned() else {
+        let Some(customer) = self.b2b_effective_customer(&customer_id) else {
             let error = b2b_company_user_error(
                 vec!["customerId"],
                 "Customer does not exist.",
@@ -2782,6 +2852,7 @@ impl DraftProxy {
             .staged
             .b2b_locations
             .insert(location_id.clone(), location.clone());
+        self.b2b_index_staged_location_addresses(&location);
         (
             b2b_company_location_payload(Some(&location), Vec::new()),
             "staged",
@@ -2828,8 +2899,22 @@ impl DraftProxy {
         // Customer record, which reads back as companyContact.customer — so a contact
         // update propagates those fields to the linked customer, keeping displayName
         // and the default email/phone addresses in sync the way Shopify does.
-        if let Some(customer_id) = contact["customerId"].as_str().map(str::to_string) {
-            if let Some(mut customer) = self.store.staged.customers.get(&customer_id).cloned() {
+        let updates_customer = ["firstName", "lastName", "email", "phone"]
+            .iter()
+            .any(|key| input.contains_key(*key));
+        if updates_customer {
+            let Some(customer_id) = contact["customerId"].as_str().map(str::to_string) else {
+                self.store
+                    .staged
+                    .b2b_contacts
+                    .insert(contact_id.clone(), contact.clone());
+                return (
+                    b2b_company_contact_payload(Some(&contact), Vec::new()),
+                    "staged",
+                    vec![contact_id],
+                );
+            };
+            if let Some(mut customer) = self.b2b_effective_customer(&customer_id) {
                 let phone_country_code = self.b2b_customer_phone_country_code(Some(&customer));
                 let existing_phone = customer["phone"].as_str().map(str::to_string);
                 for key in ["firstName", "lastName", "email", "phone"] {
@@ -3059,31 +3144,28 @@ impl DraftProxy {
         let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
         let contact_id =
             resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
-        let Some(company) = self.b2b_effective_company(&company_id) else {
+        let Some(_company) = self.b2b_effective_company(&company_id) else {
             return failed_payload_outcome(b2b_company_payload(
                 None,
                 vec![b2b_resource_not_found(["companyId"])],
             ));
         };
-        if !b2b_json_id_list(&company, "contactIds")
-            .iter()
-            .any(|id| id == &contact_id)
-        {
-            if self.b2b_effective_contact(&contact_id).is_some() {
-                return failed_payload_outcome(b2b_company_payload(
-                    None,
-                    vec![user_error(
-                        ["companyContactId"],
-                        "The company contact does not belong to the company.",
-                        Some("INVALID_INPUT"),
-                    )],
-                ));
-            }
+        let Some(contact) = self.b2b_effective_contact(&contact_id) else {
             return failed_payload_outcome(b2b_company_payload(
                 None,
                 vec![b2b_not_found(
                     ["companyContactId"],
                     "The company contact doesn't exist.",
+                )],
+            ));
+        };
+        if contact["companyId"].as_str() != Some(company_id.as_str()) {
+            return failed_payload_outcome(b2b_company_payload(
+                None,
+                vec![user_error(
+                    ["companyContactId"],
+                    "The company contact does not belong to the company.",
+                    Some("INVALID_INPUT"),
                 )],
             ));
         }
@@ -3169,11 +3251,16 @@ impl DraftProxy {
                 "userErrors": [b2b_not_found(["companyLocationId"], "The company location doesn't exist.")]
             }));
         }
-        let role_in_company = self
-            .b2b_effective_contact_role(&role_id)
-            .as_ref()
-            .is_some_and(|role| role["companyId"].as_str() == contact_company_id.as_deref());
-        if !role_in_company {
+        let Some(role) = self.b2b_effective_contact_role(&role_id) else {
+            return failed_payload_outcome(json!({
+                "companyContactRoleAssignment": Value::Null,
+                "userErrors": [b2b_not_found(["companyContactRoleId"], "The company contact role doesn't exist.")]
+            }));
+        };
+        if role["companyId"]
+            .as_str()
+            .is_some_and(|company_id| Some(company_id) != contact_company_id.as_deref())
+        {
             return failed_payload_outcome(json!({
                 "companyContactRoleAssignment": Value::Null,
                 "userErrors": [b2b_not_found(["companyContactRoleId"], "The company contact role doesn't exist.")]
@@ -3217,12 +3304,13 @@ impl DraftProxy {
         ) {
             return payload;
         }
-        if self.b2b_effective_contact(&contact_id).is_none() {
+        let Some(contact) = self.b2b_effective_contact(&contact_id) else {
             return failed_payload_outcome(json!({
                 "roleAssignments": Value::Null,
                 "userErrors": [b2b_resource_not_found(["companyContactId"])]
             }));
-        }
+        };
+        let contact_company_id = contact["companyId"].as_str();
         let mut assignments = Vec::new();
         let mut user_errors = Vec::new();
         for (index, input) in roles_to_assign.iter().enumerate() {
@@ -3230,7 +3318,11 @@ impl DraftProxy {
                 .or_else(|| resolved_string_field(input, "companyRoleId"))
                 .unwrap_or_default();
             let location_id = resolved_string_field(input, "companyLocationId").unwrap_or_default();
-            if self.b2b_effective_location(&location_id).is_none() {
+            let location = self.b2b_effective_location(&location_id);
+            if location
+                .as_ref()
+                .is_none_or(|location| location["companyId"].as_str() != contact_company_id)
+            {
                 user_errors.push(b2b_resource_not_found(json!([
                     "rolesToAssign",
                     index.to_string(),
@@ -3238,7 +3330,12 @@ impl DraftProxy {
                 ])));
                 continue;
             }
-            if self.b2b_effective_contact_role(&role_id).is_none() {
+            let role = self.b2b_effective_contact_role(&role_id);
+            if role.as_ref().is_none_or(|role| {
+                role["companyId"]
+                    .as_str()
+                    .is_some_and(|company_id| Some(company_id) != contact_company_id)
+            }) {
                 user_errors.push(b2b_resource_not_found(json!([
                     "rolesToAssign",
                     index.to_string(),
@@ -3411,7 +3508,7 @@ impl DraftProxy {
         assignment
     }
 
-    /// Deletes a company and its locations from staged state, refusing the delete
+    /// Tombstones a company and suppresses its child graph, refusing the delete
     /// when the company is still referenced (e.g. by an order's purchasing company)
     /// the way Shopify guards an in-use company.
     pub(in crate::proxy) fn b2b_company_delete_payload(
@@ -3493,11 +3590,19 @@ impl DraftProxy {
     /// order/draft-order's purchasing company, or one of its locations carries a
     /// positive store-credit balance.
     fn b2b_company_has_delete_blocker(&self, company_id: &str) -> bool {
-        self.store
-            .staged
-            .orders
-            .values()
-            .any(|order| b2b_record_references_company(order, company_id))
+        let embedded_blocker = self
+            .b2b_effective_company(company_id)
+            .is_some_and(|company| {
+                company["ordersCount"]["count"].as_u64().unwrap_or(0) > 0
+                    || !connection_nodes(&company["draftOrders"]).is_empty()
+            });
+        embedded_blocker
+            || self
+                .store
+                .staged
+                .orders
+                .values()
+                .any(|order| b2b_record_references_company(order, company_id))
             || self
                 .store
                 .staged
@@ -3516,42 +3621,28 @@ impl DraftProxy {
                 .any(|location_id| self.b2b_location_has_store_credit_balance(location_id))
     }
 
-    /// Every staged location id that belongs to a company, whether tracked via the
-    /// company's `locationIds` or back-referenced from the location's `companyId`.
+    /// Known location ids observed or staged directly on the company record.
+    /// Relationship completeness is tracked separately; this list is never treated
+    /// as proof that a live company has no additional locations.
     fn b2b_company_location_ids(&self, company_id: &str) -> Vec<String> {
         let mut ids = self
             .b2b_effective_company(company_id)
             .as_ref()
             .map(|company| b2b_json_id_list(company, "locationIds"))
             .unwrap_or_default();
-        ids.extend(
-            self.b2b_effective_locations()
-                .into_iter()
-                .filter(|location| {
-                    location.get("companyId").and_then(Value::as_str) == Some(company_id)
-                        || location["company"]["id"].as_str() == Some(company_id)
-                })
-                .filter_map(|location| location["id"].as_str().map(str::to_string)),
-        );
         ids.sort();
         ids.dedup();
         ids
     }
 
-    /// Removes a locally-staged company and all staged locations that point at it.
-    /// Keep this separate from `b2b_delete_company`: the passthrough cascade trusts the
-    /// removed company's explicit graph ids and also deletes contacts, while this local
-    /// path orphan-scans locations by company reference. Merge only with parity evidence.
+    /// Tombstones the company. Effective child readers honor their parent tombstone,
+    /// so deleting a large company does not need to enumerate every child record.
     fn b2b_remove_company_graph(&mut self, company_id: &str) {
-        let location_ids = self.b2b_company_location_ids(company_id);
         self.store.staged.b2b_companies.remove(company_id);
         self.store
             .staged
             .deleted_b2b_company_ids
             .insert(company_id.to_string());
-        for location_id in location_ids {
-            self.b2b_delete_company_location(&location_id);
-        }
     }
 
     pub(in crate::proxy) fn b2b_company_location_delete_payload(
@@ -3642,6 +3733,9 @@ impl DraftProxy {
         if self.b2b_company_location_is_only_location(location_id, &location) {
             return Some(B2bCompanyLocationDeleteBlocker::OnlyLocation);
         }
+        if location["ordersCount"]["count"].as_u64().unwrap_or(0) > 0 {
+            return Some(B2bCompanyLocationDeleteBlocker::Order);
+        }
         if self
             .store
             .staged
@@ -3657,12 +3751,13 @@ impl DraftProxy {
         {
             return Some(B2bCompanyLocationDeleteBlocker::Order);
         }
-        if self
-            .store
-            .staged
-            .draft_orders
-            .values()
-            .any(|draft_order| b2b_record_references_company_location(draft_order, location_id))
+        if !connection_nodes(&location["draftOrders"]).is_empty()
+            || self
+                .store
+                .staged
+                .draft_orders
+                .values()
+                .any(|draft_order| b2b_record_references_company_location(draft_order, location_id))
         {
             return Some(B2bCompanyLocationDeleteBlocker::DraftOrder);
         }
@@ -3674,12 +3769,24 @@ impl DraftProxy {
         let Some(company_id) = b2b_location_company_id(location) else {
             return false;
         };
-        self.b2b_company_location_ids(company_id)
+        let known_count = self
+            .b2b_company_location_ids(company_id)
             .iter()
             .filter(|id| self.b2b_effective_location(id.as_str()).is_some())
-            .count()
-            <= 1
-            && self.b2b_effective_location(location_id).is_some()
+            .count();
+        if known_count > 1 || self.b2b_effective_location(location_id).is_none() {
+            return false;
+        }
+        match self
+            .store
+            .base
+            .b2b_relationship_completeness
+            .get(&b2b_relationship_scope("company", company_id, "locations"))
+        {
+            Some(B2bRelationshipCompleteness::Complete) => known_count <= 1,
+            Some(B2bRelationshipCompleteness::Partial) => false,
+            None => is_synthetic_gid(company_id),
+        }
     }
 
     fn b2b_location_has_store_credit_balance(&self, location_id: &str) -> bool {
@@ -3756,7 +3863,8 @@ impl DraftProxy {
         self.store
             .staged
             .b2b_locations
-            .insert(location_id.clone(), location);
+            .insert(location_id.clone(), location.clone());
+        self.b2b_index_staged_location_addresses(&location);
         (
             json!({
                 "addresses": changed_addresses,
@@ -3767,15 +3875,19 @@ impl DraftProxy {
         )
     }
 
-    /// Nulls any staged location address (billing and/or shipping) that references
+    /// Nulls the indexed location address (billing and/or shipping) that references
     /// `address_id`. When a location shares one address record across both billing and
     /// shipping, deleting it nulls BOTH sides. Returns the ids of the touched locations.
     pub(in crate::proxy) fn b2b_delete_company_address(&mut self, address_id: &str) -> Vec<String> {
         let mut touched_location_ids = Vec::new();
         let location_ids = self
-            .b2b_effective_locations()
+            .store
+            .staged
+            .b2b_address_location_ids
+            .get(address_id)
+            .or_else(|| self.store.base.b2b_address_location_ids.get(address_id))
+            .cloned()
             .into_iter()
-            .filter_map(|location| location["id"].as_str().map(str::to_string))
             .collect::<Vec<_>>();
         for location_id in location_ids {
             let Some(mut location) = self.b2b_effective_location(&location_id) else {
@@ -3810,6 +3922,10 @@ impl DraftProxy {
                 .insert(location_id.clone(), location);
             touched_location_ids.push(location_id);
         }
+        self.store
+            .staged
+            .deleted_b2b_address_ids
+            .insert(address_id.to_string());
         touched_location_ids
     }
 
@@ -3820,20 +3936,24 @@ impl DraftProxy {
         let address_id = resolved_string_field(&field.arguments, "addressId")
             .or_else(|| resolved_string_field(&field.arguments, "id"))
             .unwrap_or_default();
-        let touched_location_ids = self.b2b_delete_company_address(&address_id);
-        if touched_location_ids.is_empty() {
+        if self.b2b_effective_address(&address_id).is_none() {
             return failed_payload_outcome(json!({
                 "deletedAddressId": Value::Null,
                 "userErrors": [b2b_not_found(["addressId"], "Company address was not found.")]
             }));
         }
+        let touched_location_ids = self.b2b_delete_company_address(&address_id);
         (
             json!({
                 "deletedAddressId": address_id,
                 "userErrors": []
             }),
             "staged",
-            touched_location_ids,
+            if touched_location_ids.is_empty() {
+                vec![address_id]
+            } else {
+                touched_location_ids
+            },
         )
     }
 
@@ -3990,12 +4110,13 @@ impl DraftProxy {
         ) {
             return payload;
         }
-        if self.b2b_effective_location(&location_id).is_none() {
+        let Some(location) = self.b2b_effective_location(&location_id) else {
             return failed_payload_outcome(json!({
                 "roleAssignments": Value::Null,
                 "userErrors": [b2b_not_found(["companyLocationId"], "Location does not exist.")]
             }));
         };
+        let location_company_id = location["companyId"].as_str();
         let mut assignments = Vec::new();
         let mut user_errors = Vec::new();
         for (index, input) in roles_to_assign.iter().enumerate() {
@@ -4003,7 +4124,11 @@ impl DraftProxy {
             let role_id = resolved_string_field(input, "companyContactRoleId")
                 .or_else(|| resolved_string_field(input, "companyRoleId"))
                 .unwrap_or_default();
-            if self.b2b_effective_contact(&contact_id).is_none() {
+            let contact = self.b2b_effective_contact(&contact_id);
+            if contact
+                .as_ref()
+                .is_none_or(|contact| contact["companyId"].as_str() != location_company_id)
+            {
                 user_errors.push(b2b_indexed_user_error(
                     "rolesToAssign",
                     index,
@@ -4012,7 +4137,12 @@ impl DraftProxy {
                 ));
                 continue;
             }
-            if self.b2b_effective_contact_role(&role_id).is_none() {
+            let role = self.b2b_effective_contact_role(&role_id);
+            if role.as_ref().is_none_or(|role| {
+                role["companyId"]
+                    .as_str()
+                    .is_some_and(|company_id| Some(company_id) != location_company_id)
+            }) {
                 user_errors.push(b2b_indexed_user_error(
                     "rolesToAssign",
                     index,
@@ -4313,6 +4443,18 @@ impl DraftProxy {
             record["buyerExperienceConfiguration"] =
                 b2b_buyer_experience_configuration_json(&BTreeMap::new());
         }
+        for slot in ["billingAddress", "shippingAddress"] {
+            let address = record[slot].clone();
+            let address_id = self.observe_b2b_address_record(&address, Some(&location_id));
+            if address_id.as_ref().is_some_and(|address_id| {
+                self.store
+                    .staged
+                    .deleted_b2b_address_ids
+                    .contains(address_id)
+            }) {
+                record[slot] = Value::Null;
+            }
+        }
         let billing_address_id = record["billingAddress"]["id"].as_str();
         let shipping_address_id = record["shippingAddress"]["id"].as_str();
         record["billingSameAsShipping"] =
@@ -4393,15 +4535,15 @@ impl DraftProxy {
             });
         merge_json_values(&mut record, contact);
         record["__typename"] = json!("CompanyContact");
+        if let Some(locale) = contact.get("contactLocale") {
+            record["locale"] = locale.clone();
+        }
         if let Some(company_id) = company_id.as_deref() {
             record["companyId"] = json!(company_id);
         }
         if let Some(customer_id) = contact["customer"]["id"].as_str() {
             record["customerId"] = json!(customer_id);
-            self.store
-                .staged
-                .customers
-                .insert(customer_id.to_string(), contact["customer"].clone());
+            self.observe_b2b_customer_record(&contact["customer"]);
         }
         for assignment in connection_nodes(&contact["roleAssignments"]) {
             self.observe_b2b_role_assignment_record(&assignment, Some(&contact_id), None);
@@ -4410,6 +4552,7 @@ impl DraftProxy {
             object.remove("company");
             object.remove("customer");
             object.remove("roleAssignments");
+            object.remove("contactLocale");
         }
         self.store
             .base
@@ -4483,7 +4626,7 @@ impl DraftProxy {
         {
             return Some(assignment_id);
         }
-        assignment
+        let company_id = assignment
             .get("company")
             .and_then(|company| self.observe_b2b_company_record(company));
         let contact_id = assignment
@@ -4501,9 +4644,9 @@ impl DraftProxy {
             .and_then(Value::as_str)
             .map(str::to_string)
             .or_else(|| {
-                assignment
-                    .get("role")
-                    .and_then(|role| self.observe_b2b_contact_role_record(role, None))
+                assignment.get("role").and_then(|role| {
+                    self.observe_b2b_contact_role_record(role, company_id.as_deref())
+                })
             });
         let location_id = assignment
             .get("companyLocationId")
@@ -4525,6 +4668,7 @@ impl DraftProxy {
                 json!({
                     "__typename": "CompanyContactRoleAssignment",
                     "id": assignment_id,
+                    "companyId": company_id.clone().map(Value::String).unwrap_or(Value::Null),
                     "companyContactId": contact_id.clone().map(Value::String).unwrap_or(Value::Null),
                     "companyContactRoleId": role_id.clone().map(Value::String).unwrap_or(Value::Null),
                     "companyLocationId": location_id.clone().map(Value::String).unwrap_or(Value::Null)
@@ -4532,6 +4676,9 @@ impl DraftProxy {
             });
         merge_json_values(&mut record, assignment);
         record["__typename"] = json!("CompanyContactRoleAssignment");
+        if let Some(company_id) = company_id.as_deref() {
+            record["companyId"] = json!(company_id);
+        }
         if let Some(contact_id) = contact_id.as_deref() {
             record["companyContactId"] = json!(contact_id);
         }
@@ -4542,6 +4689,7 @@ impl DraftProxy {
             record["companyLocationId"] = json!(location_id);
         }
         if let Some(object) = record.as_object_mut() {
+            object.remove("company");
             object.remove("companyContact");
             object.remove("role");
             object.remove("companyLocation");
@@ -4671,6 +4819,46 @@ impl DraftProxy {
         }
     }
 
+    fn b2b_index_staged_location_addresses(&mut self, location: &Value) {
+        let Some(location_id) = location["id"].as_str() else {
+            return;
+        };
+        for slot in ["billingAddress", "shippingAddress"] {
+            if let Some(address_id) = location[slot]["id"].as_str() {
+                self.store
+                    .staged
+                    .b2b_address_location_ids
+                    .insert(address_id.to_string(), location_id.to_string());
+            }
+        }
+    }
+
+    fn b2b_effective_address(&self, id: &str) -> Option<Value> {
+        if id.is_empty() || self.store.staged.deleted_b2b_address_ids.contains(id) {
+            return None;
+        }
+        if let Some(location_id) = self
+            .store
+            .staged
+            .b2b_address_location_ids
+            .get(id)
+            .or_else(|| self.store.base.b2b_address_location_ids.get(id))
+        {
+            let location = self.b2b_effective_location(location_id)?;
+            return ["billingAddress", "shippingAddress"]
+                .into_iter()
+                .find_map(|slot| {
+                    (location[slot]["id"].as_str() == Some(id)).then(|| location[slot].clone())
+                });
+        }
+        self.store.base.b2b_address_ids.contains(id).then(|| {
+            json!({
+                "__typename": "CompanyAddress",
+                "id": id
+            })
+        })
+    }
+
     fn b2b_effective_company(&self, id: &str) -> Option<Value> {
         if self.store.staged.deleted_b2b_company_ids.contains(id) {
             return None;
@@ -4683,28 +4871,68 @@ impl DraftProxy {
             .or_else(|| self.store.base.b2b_companies.get(id).cloned())
     }
 
-    fn b2b_effective_location(&self, id: &str) -> Option<Value> {
+    pub(in crate::proxy) fn b2b_effective_location(&self, id: &str) -> Option<Value> {
         if self.store.staged.b2b_locations.is_tombstoned(id) {
             return None;
         }
-        self.store
+        let mut location = self
+            .store
             .staged
             .b2b_locations
             .get(id)
             .cloned()
-            .or_else(|| self.store.base.b2b_locations.get(id).cloned())
+            .or_else(|| self.store.base.b2b_locations.get(id).cloned())?;
+        if location["companyId"]
+            .as_str()
+            .is_some_and(|company_id| self.b2b_effective_company(company_id).is_none())
+        {
+            return None;
+        }
+        for slot in ["billingAddress", "shippingAddress"] {
+            if location[slot]["id"].as_str().is_some_and(|address_id| {
+                self.store
+                    .staged
+                    .deleted_b2b_address_ids
+                    .contains(address_id)
+            }) {
+                location[slot] = Value::Null;
+            }
+        }
+        let billing_address_id = location["billingAddress"]["id"].as_str();
+        let shipping_address_id = location["shippingAddress"]["id"].as_str();
+        location["billingSameAsShipping"] =
+            json!(billing_address_id.is_some() && billing_address_id == shipping_address_id);
+        Some(location)
     }
 
     fn b2b_effective_contact(&self, id: &str) -> Option<Value> {
         if self.store.staged.deleted_b2b_contact_ids.contains(id) {
             return None;
         }
-        self.store
+        let mut contact = self
+            .store
             .staged
             .b2b_contacts
             .get(id)
             .cloned()
-            .or_else(|| self.store.base.b2b_contacts.get(id).cloned())
+            .or_else(|| self.store.base.b2b_contacts.get(id).cloned())?;
+        if let Some(company_id) = contact["companyId"].as_str() {
+            let company = self.b2b_effective_company(company_id)?;
+            contact["isMainContact"] = json!(company["mainContactId"].as_str() == Some(id));
+        }
+        Some(contact)
+    }
+
+    pub(in crate::proxy) fn b2b_effective_customer(&self, id: &str) -> Option<Value> {
+        if self.store.staged.customers.is_tombstoned(id) {
+            return None;
+        }
+        self.store
+            .staged
+            .customers
+            .get(id)
+            .cloned()
+            .or_else(|| self.store.base.b2b_customers.get(id).cloned())
     }
 
     pub(in crate::proxy) fn b2b_contacts_for_customer(&self, customer_id: &str) -> Vec<Value> {
@@ -4718,24 +4946,34 @@ impl DraftProxy {
                 }
             }
         }
-        for (id, contact) in &self.store.staged.b2b_contacts {
+        for id in self.store.staged.b2b_contacts.keys() {
             if seen.contains(id) || self.store.staged.deleted_b2b_contact_ids.contains(id) {
                 continue;
             }
-            if contact["customerId"].as_str() == Some(customer_id) {
-                contacts.push(contact.clone());
+            if let Some(contact) = self.b2b_effective_contact(id) {
+                if contact["customerId"].as_str() == Some(customer_id) {
+                    contacts.push(contact);
+                }
             }
         }
         contacts
     }
 
     fn b2b_effective_contact_role(&self, id: &str) -> Option<Value> {
-        self.store
+        let role = self
+            .store
             .staged
             .b2b_contact_roles
             .get(id)
             .cloned()
-            .or_else(|| self.store.base.b2b_contact_roles.get(id).cloned())
+            .or_else(|| self.store.base.b2b_contact_roles.get(id).cloned())?;
+        if role["companyId"]
+            .as_str()
+            .is_some_and(|company_id| self.b2b_effective_company(company_id).is_none())
+        {
+            return None;
+        }
+        Some(role)
     }
 
     fn b2b_effective_role_assignment(&self, id: &str) -> Option<Value> {
@@ -4747,12 +4985,26 @@ impl DraftProxy {
         {
             return None;
         }
-        self.store
+        let assignment = self
+            .store
             .staged
             .b2b_role_assignments
             .get(id)
             .cloned()
-            .or_else(|| self.store.base.b2b_role_assignments.get(id).cloned())
+            .or_else(|| self.store.base.b2b_role_assignments.get(id).cloned())?;
+        if assignment["companyId"]
+            .as_str()
+            .is_some_and(|company_id| self.b2b_effective_company(company_id).is_none())
+            || assignment["companyContactId"]
+                .as_str()
+                .is_some_and(|contact_id| self.b2b_effective_contact(contact_id).is_none())
+            || assignment["companyLocationId"]
+                .as_str()
+                .is_some_and(|location_id| self.b2b_effective_location(location_id).is_none())
+        {
+            return None;
+        }
+        Some(assignment)
     }
 
     fn b2b_effective_staff_assignment(&self, id: &str) -> Option<Value> {
@@ -4764,12 +5016,20 @@ impl DraftProxy {
         {
             return None;
         }
-        self.store
+        let assignment = self
+            .store
             .staged
             .b2b_staff_assignments
             .get(id)
             .cloned()
-            .or_else(|| self.store.base.b2b_staff_assignments.get(id).cloned())
+            .or_else(|| self.store.base.b2b_staff_assignments.get(id).cloned())?;
+        if assignment["companyLocationId"]
+            .as_str()
+            .is_some_and(|location_id| self.b2b_effective_location(location_id).is_none())
+        {
+            return None;
+        }
+        Some(assignment)
     }
 
     fn b2b_effective_companies(&self) -> Vec<Value> {
@@ -4812,10 +5072,16 @@ impl DraftProxy {
     }
 
     fn b2b_effective_locations(&self) -> Vec<Value> {
-        effective_records(
-            &self.store.base.b2b_locations,
-            &self.store.staged.b2b_locations,
-        )
+        let mut seen = BTreeSet::new();
+        self.store
+            .base
+            .b2b_locations
+            .order
+            .iter()
+            .chain(self.store.staged.b2b_locations.order.iter())
+            .filter(|id| seen.insert((*id).clone()))
+            .filter_map(|id| self.b2b_effective_location(id))
+            .collect()
     }
 
     fn b2b_effective_location_map(&self) -> BTreeMap<String, Value> {
@@ -5079,7 +5345,7 @@ impl DraftProxy {
                 }
             }
         }
-        for (id, assignment) in &self.store.staged.b2b_role_assignments {
+        for id in self.store.staged.b2b_role_assignments.keys() {
             if seen.contains(id)
                 || self
                     .store
@@ -5089,8 +5355,10 @@ impl DraftProxy {
             {
                 continue;
             }
-            if assignment["companyContactId"].as_str() == Some(contact_id) {
-                assignments.push(assignment.clone());
+            if let Some(assignment) = self.b2b_effective_role_assignment(id) {
+                if assignment["companyContactId"].as_str() == Some(contact_id) {
+                    assignments.push(assignment);
+                }
             }
         }
         // Synthetic ids share one monotonic counter, so numeric order is
@@ -5111,20 +5379,11 @@ impl DraftProxy {
         if location_id.is_empty() {
             return None;
         }
-        if self.store.staged.b2b_locations.is_tombstoned(location_id) {
-            return None;
-        }
-        self.store
-            .staged
-            .b2b_locations
-            .get(location_id)
-            .cloned()
-            .or_else(|| self.store.base.b2b_locations.get(location_id).cloned())
-            .or_else(|| {
-                request.and_then(|request| {
-                    self.hydrate_b2b_company_location_for_mutation(request, location_id)
-                })
+        self.b2b_effective_location(location_id).or_else(|| {
+            request.and_then(|request| {
+                self.hydrate_b2b_company_location_for_mutation(request, location_id)
             })
+        })
     }
 
     fn hydrate_b2b_company_location_for_mutation(
@@ -5150,80 +5409,8 @@ impl DraftProxy {
         if location.is_null() {
             return None;
         }
-        let location = self.normalize_and_stage_hydrated_b2b_company_location(location);
-        Some(location)
-    }
-
-    fn normalize_and_stage_hydrated_b2b_company_location(&mut self, mut location: Value) -> Value {
-        let Some(location_id) = location["id"].as_str().map(str::to_string) else {
-            return location;
-        };
-        if location.get("taxSettings").is_none_or(Value::is_null) {
-            location["taxSettings"] = json!({
-                "taxRegistrationId": Value::Null,
-                "taxExempt": false,
-                "taxExemptions": []
-            });
-        }
-        if location
-            .get("buyerExperienceConfiguration")
-            .is_none_or(Value::is_null)
-        {
-            location["buyerExperienceConfiguration"] =
-                b2b_buyer_experience_configuration_json(&BTreeMap::new());
-        }
-        if location.get("roleAssignmentIds").is_none() {
-            location["roleAssignmentIds"] = json!([]);
-        }
-        if location.get("staffAssignmentIds").is_none() {
-            location["staffAssignmentIds"] = json!([]);
-        }
-
-        if let Some(company) = location
-            .get("company")
-            .cloned()
-            .filter(|value| !value.is_null())
-        {
-            if let Some(company_id) = company["id"].as_str().map(str::to_string) {
-                location["companyId"] = json!(company_id.clone());
-                let mut company_record = self
-                    .store
-                    .staged
-                    .b2b_companies
-                    .get(&company_id)
-                    .cloned()
-                    .unwrap_or_else(|| {
-                        json!({
-                            "id": company_id,
-                            "name": company["name"].as_str().unwrap_or_default(),
-                            "locationIds": [],
-                            "contactIds": [],
-                            "contactRoleIds": [],
-                            "mainContactId": Value::Null
-                        })
-                    });
-                if let Some(name) = company["name"].as_str() {
-                    company_record["name"] = json!(name);
-                }
-                for id in b2b_json_id_list_from_connection(&company["locations"]) {
-                    b2b_push_json_id(&mut company_record, "locationIds", &id);
-                }
-                b2b_push_json_id(&mut company_record, "locationIds", &location_id);
-                self.store
-                    .staged
-                    .b2b_companies
-                    .insert(company_id, company_record);
-            }
-            if let Some(object) = location.as_object_mut() {
-                object.remove("company");
-            }
-        }
-
-        self.store
-            .staged
-            .b2b_locations
-            .insert(location_id, location.clone());
-        location
+        self.observe_b2b_location_record(&location, None)?;
+        self.b2b_effective_location(location_id)
     }
 
     fn b2b_build_company_location(
@@ -5316,7 +5503,8 @@ impl DraftProxy {
         self.store
             .staged
             .b2b_locations
-            .insert(location_id.to_string(), location);
+            .insert(location_id.to_string(), location.clone());
+        self.b2b_index_staged_location_addresses(&location);
         self.store
             .staged
             .b2b_companies
@@ -5346,86 +5534,11 @@ impl DraftProxy {
                     .insert(company_id.to_string(), company);
             }
         }
-        for assignment_id in b2b_json_id_list(&location, "roleAssignmentIds") {
-            let _ = self.b2b_remove_role_assignment(&assignment_id);
-        }
-        let role_assignment_ids = self
-            .store
-            .base
-            .b2b_role_assignments
-            .order
-            .iter()
-            .filter_map(|id| {
-                self.b2b_effective_role_assignment(id)
-                    .and_then(|assignment| {
-                        (assignment["companyLocationId"].as_str() == Some(location_id))
-                            .then(|| id.clone())
-                    })
-            })
-            .chain(
-                self.store
-                    .staged
-                    .b2b_role_assignments
-                    .iter()
-                    .filter(|&(_, assignment)| {
-                        assignment["companyLocationId"].as_str() == Some(location_id)
-                    })
-                    .map(|(id, _)| id.clone()),
-            )
-            .collect::<Vec<_>>();
-        for assignment_id in role_assignment_ids {
-            let _ = self.b2b_remove_role_assignment(&assignment_id);
-        }
-        for assignment_id in b2b_json_id_list(&location, "staffAssignmentIds") {
-            self.store
-                .staged
-                .b2b_staff_assignments
-                .remove(&assignment_id);
-            self.store
-                .staged
-                .deleted_b2b_staff_assignment_ids
-                .insert(assignment_id);
-        }
-        let staff_assignment_ids = self
-            .store
-            .base
-            .b2b_staff_assignments
-            .order
-            .iter()
-            .filter_map(|id| {
-                self.b2b_effective_staff_assignment(id)
-                    .and_then(|assignment| {
-                        (assignment["companyLocationId"].as_str() == Some(location_id))
-                            .then(|| id.clone())
-                    })
-            })
-            .chain(
-                self.store
-                    .staged
-                    .b2b_staff_assignments
-                    .iter()
-                    .filter(|&(_, assignment)| {
-                        assignment["companyLocationId"].as_str() == Some(location_id)
-                    })
-                    .map(|(id, _)| id.clone()),
-            )
-            .collect::<Vec<_>>();
-        for assignment_id in staff_assignment_ids {
-            self.store
-                .staged
-                .b2b_staff_assignments
-                .remove(&assignment_id);
-            self.store
-                .staged
-                .deleted_b2b_staff_assignment_ids
-                .insert(assignment_id);
-        }
     }
 
-    /// Cascade-delete a company contact and every artifact that referenced it,
-    /// mirroring Shopify: `companyContactDelete`, `companyContactsDelete`, and
-    /// `companyContactRemoveFromCompany` all clear the contact's location-side
-    /// role assignments and detach it from the owning company.
+    /// Tombstones a company contact and detaches it from the owning company.
+    /// Effective assignment readers suppress children of the tombstoned contact,
+    /// avoiding a full assignment scan while preserving Shopify's cascade reads.
     fn b2b_delete_company_contact(&mut self, contact_id: &str) {
         let removed = self
             .store
@@ -5453,17 +5566,6 @@ impl DraftProxy {
                 self.store.staged.b2b_companies.insert(company_id, company);
             }
         }
-
-        // Cascade-remove every role assignment that pointed at this contact,
-        // dropping the assignment ids from each location's `roleAssignmentIds`.
-        let assignment_ids: Vec<String> = self
-            .b2b_role_assignments_for_contact(contact_id)
-            .into_iter()
-            .filter_map(|assignment| assignment["id"].as_str().map(str::to_string))
-            .collect();
-        for assignment_id in assignment_ids {
-            let _ = self.b2b_remove_role_assignment(&assignment_id);
-        }
     }
 
     /// Removes a single role assignment from staged state and detaches it from its
@@ -5483,24 +5585,18 @@ impl DraftProxy {
         Some(assignment)
     }
 
-    /// Points a company's main contact at `main_contact_id` (or clears it when
-    /// None), keeping each contact's `isMainContact` flag in sync.
+    /// Points a company's main contact at `main_contact_id` (or clears it).
+    /// Contact reads derive `isMainContact` from this authoritative pointer, so
+    /// this does not enumerate a potentially partial contact catalog.
     fn b2b_set_main_contact(&mut self, company_id: &str, main_contact_id: Option<&str>) {
         let Some(mut company) = self.b2b_effective_company(company_id) else {
             return;
         };
         company["mainContactId"] = main_contact_id.map(|id| json!(id)).unwrap_or(Value::Null);
-        let contact_ids = b2b_json_id_list(&company, "contactIds");
         self.store
             .staged
             .b2b_companies
             .insert(company_id.to_string(), company);
-        for contact_id in contact_ids {
-            if let Some(mut contact) = self.b2b_effective_contact(&contact_id) {
-                contact["isMainContact"] = json!(main_contact_id == Some(contact_id.as_str()));
-                self.store.staged.b2b_contacts.insert(contact_id, contact);
-            }
-        }
     }
 
     fn b2b_remove_location_assignment_id(
@@ -6736,14 +6832,6 @@ fn b2b_json_id_list(record: &Value, field: &str) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
-}
-
-fn b2b_json_id_list_from_connection(connection: &Value) -> Vec<String> {
-    connection_nodes(connection)
-        .iter()
-        .filter_map(|node| node["id"].as_str())
-        .map(str::to_string)
-        .collect()
 }
 
 fn b2b_push_json_id(record: &mut Value, field: &str, id: &str) {
