@@ -199,6 +199,8 @@ impl DraftProxy {
             Route::MetaReset => {
                 self.log_entries.clear();
                 self.store.clear_staged();
+                self.store.base.customer_merge_customers.clear();
+                self.store.base.customer_merge_attached_completeness.clear();
                 self.next_synthetic_id = 1;
                 self.shop_sells_subscriptions = None;
                 self.last_mutation_timestamp = None;
@@ -459,6 +461,8 @@ impl DraftProxy {
             json!(base_metafield_definition_namespaces);
         let deleted_metafield_definitions_value = json!(deleted_metafield_definitions);
         let base_state = json!({
+                "customerMergeCustomers": self.store.base.customer_merge_customers.clone(),
+                "customerMergeAttachedCompleteness": self.store.base.customer_merge_attached_completeness.clone(),
                 "products": product_state_map_json(&self.store.products.base.records),
                 "productOrder": self.store.products.base.order,
                 "productVariants": product_variant_state_map_json(&self.store.product_variants.base.records),
@@ -1714,6 +1718,12 @@ impl DraftProxy {
             saved_search_state_map_from_json(&state["baseState"]["savedSearches"]),
             string_array_from_json(&state["baseState"]["savedSearchOrder"]),
         );
+        self.store.base.customer_merge_customers =
+            value_map_from_json(state["baseState"].get("customerMergeCustomers"));
+        self.store.base.customer_merge_attached_completeness = state["baseState"]
+            .get("customerMergeAttachedCompleteness")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
         self.store.base.discounts.replace_with_order(
             value_map_from_json(state["baseState"].get("discounts")),
             state["baseState"]

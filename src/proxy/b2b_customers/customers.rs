@@ -233,6 +233,9 @@ const CUSTOMER_MERGE_HYDRATE_QUERY: &str =
 const CUSTOMER_MERGE_ATTACHED_HYDRATE_QUERY: &str = include_str!(
     "../../../config/parity-requests/customers/customer-merge-attached-hydrate.graphql"
 );
+const CUSTOMER_MERGE_ATTACHED_PAGE_HYDRATE_QUERY: &str = include_str!(
+    "../../../config/parity-requests/customers/customer-merge-attached-page-hydrate.graphql"
+);
 const CUSTOMER_DELETE_SHOP_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/customers/customer-delete-shop-hydrate.graphql");
 const CUSTOMER_OVERLAY_CATALOG_HYDRATE_QUERY: &str = include_str!(
@@ -2630,45 +2633,51 @@ impl DraftProxy {
                 !id.is_empty()
                     && !self.store.staged.customers.contains_staged(id)
                     && !self.store.staged.customers.is_tombstoned(id)
+                    && !self
+                        .store
+                        .base
+                        .customer_merge_customers
+                        .contains_key(id.as_str())
             })
             .cloned()
             .collect::<Vec<_>>();
-        if ids_to_hydrate.is_empty() {
-            return Vec::new();
-        }
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": CUSTOMER_MERGE_HYDRATE_QUERY,
-                "operationName": "CustomerMergeHydrate",
-                "variables": { "ids": ids_to_hydrate },
-            }),
-        );
-        if !(200..300).contains(&response.status) {
-            return Vec::new();
-        }
-        let requested = ids_to_hydrate.into_iter().collect::<BTreeSet<_>>();
-        let mut hydrated = Vec::new();
-        let Some(nodes) = response.body["data"]["nodes"].as_array() else {
-            return hydrated;
-        };
-        for customer in nodes {
-            if customer.is_null() {
-                continue;
-            }
-            let Some(id) = customer.get("id").and_then(Value::as_str) else {
-                continue;
-            };
-            if !requested.contains(id) {
-                continue;
-            }
-            self.store.staged.customers.stage(
-                id.to_string(),
-                normalize_hydrated_customer_record(customer.clone()),
+        if !ids_to_hydrate.is_empty() {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": CUSTOMER_MERGE_HYDRATE_QUERY,
+                    "operationName": "CustomerMergeHydrate",
+                    "variables": { "ids": ids_to_hydrate },
+                }),
             );
-            hydrated.push(id.to_string());
+            if (200..300).contains(&response.status) {
+                let requested = ids_to_hydrate.into_iter().collect::<BTreeSet<_>>();
+                if let Some(nodes) = response.body["data"]["nodes"].as_array() {
+                    for customer in nodes {
+                        if customer.is_null() {
+                            continue;
+                        }
+                        let Some(id) = customer.get("id").and_then(Value::as_str) else {
+                            continue;
+                        };
+                        if requested.contains(id) {
+                            self.store.base.customer_merge_customers.insert(
+                                id.to_string(),
+                                normalize_hydrated_customer_record(customer.clone()),
+                            );
+                        }
+                    }
+                }
+            }
         }
-        hydrated
+        ids.iter()
+            .filter(|id| {
+                self.store.base.customer_merge_customers.contains_key(*id)
+                    && !self.store.staged.customers.contains_staged(id)
+                    && !self.store.staged.customers.is_tombstoned(id)
+            })
+            .cloned()
+            .collect()
     }
 
     /// Fetch the attached resources needed to apply the successful
@@ -2680,6 +2689,21 @@ impl DraftProxy {
         ids: &[String],
     ) {
         if self.config.read_mode == ReadMode::Snapshot || ids.is_empty() {
+            return;
+        }
+        let ids = ids
+            .iter()
+            .filter(|id| {
+                !self
+                    .store
+                    .base
+                    .customer_merge_attached_completeness
+                    .get(*id)
+                    .is_some_and(customer_merge_attached_is_complete)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        if ids.is_empty() {
             return;
         }
         let response = self.upstream_post(
@@ -2704,46 +2728,122 @@ impl DraftProxy {
                 continue;
             };
             if ids.iter().any(|requested| requested == id) {
-                self.stage_customer_merge_attached_resources(id, customer);
+                self.observe_customer_merge_attached_page(id, customer, false);
             }
+        }
+
+        let one_id = ids[0].clone();
+        let two_id = ids.get(1).cloned().unwrap_or_else(|| one_id.clone());
+        loop {
+            let variables = self.customer_merge_attached_page_variables(&one_id, &two_id, &ids);
+            if !customer_merge_attached_page_has_pending(&variables) {
+                break;
+            }
+            let before = customer_merge_attached_page_cursor_signature(&variables);
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": CUSTOMER_MERGE_ATTACHED_PAGE_HYDRATE_QUERY,
+                    "operationName": "CustomerMergeAttachedPageHydrate",
+                    "variables": variables,
+                }),
+            );
+            if !(200..300).contains(&response.status) {
+                break;
+            }
+            for (response_key, id) in [("one", one_id.as_str()), ("two", two_id.as_str())] {
+                let customer = &response.body["data"][response_key];
+                if !customer.is_null() && ids.iter().any(|requested| requested == id) {
+                    self.observe_customer_merge_attached_page(id, customer, true);
+                }
+            }
+            let after_variables =
+                self.customer_merge_attached_page_variables(&one_id, &two_id, &ids);
+            if !customer_merge_attached_page_has_pending(&after_variables)
+                || customer_merge_attached_page_cursor_signature(&after_variables) != before
+            {
+                continue;
+            }
+            break;
         }
     }
 
-    fn stage_customer_merge_attached_resources(&mut self, id: &str, customer: &Value) {
-        let orders = customer_merge_extract_order_records(id, &customer["orders"]);
-        if !orders.is_empty() {
-            self.store
-                .staged
-                .customer_orders
-                .insert(id.to_string(), orders);
-        }
-        let metafields = customer
-            .get("metafields")
-            .map(|connection| nodes_connection(connection_nodes(connection)));
-        let default_id = customer
-            .get("defaultAddress")
-            .and_then(|address| address.get("id"))
-            .and_then(Value::as_str)
-            .map(str::to_string);
-        if let Some(record) = self.store.staged.customers.get_mut(id) {
-            if customer.get("addressesV2").is_some() {
-                customer_rebuild_addresses(
-                    record,
-                    connection_nodes(&customer["addressesV2"]),
-                    default_id.as_deref(),
-                );
-            } else if customer.get("defaultAddress").is_some() {
-                record["defaultAddress"] = customer["defaultAddress"].clone();
-            }
-            if let Some(metafields) = metafields {
-                record["metafields"] = metafields;
-            }
-            for key in ["lastOrder", "numberOfOrders"] {
+    fn observe_customer_merge_attached_page(&mut self, id: &str, customer: &Value, append: bool) {
+        let mut completeness = self
+            .store
+            .base
+            .customer_merge_attached_completeness
+            .remove(id)
+            .unwrap_or_default();
+        let Some(record) = self.store.base.customer_merge_customers.get_mut(id) else {
+            return;
+        };
+        if !append {
+            for key in ["defaultAddress", "lastOrder", "numberOfOrders"] {
                 if let Some(value) = customer.get(key) {
                     record[key] = value.clone();
                 }
             }
         }
+        for (field, complete) in [
+            ("addressesV2", &mut completeness.addresses_v2),
+            ("metafields", &mut completeness.metafields),
+            ("orders", &mut completeness.orders),
+        ] {
+            let Some(page) = customer.get(field) else {
+                continue;
+            };
+            if append {
+                append_customer_merge_connection_page(&mut record[field], page, field == "orders");
+            } else {
+                record[field] = page.clone();
+            }
+            *complete = customer_merge_page_is_complete(page);
+        }
+        self.store
+            .base
+            .customer_merge_attached_completeness
+            .insert(id.to_string(), completeness);
+    }
+
+    fn customer_merge_attached_page_variables(
+        &self,
+        one_id: &str,
+        two_id: &str,
+        requested_ids: &[String],
+    ) -> Value {
+        let slot_variables = |id: &str, prefix: &str, enabled: bool| {
+            let requested = enabled && requested_ids.iter().any(|requested| requested == id);
+            let completeness = self
+                .store
+                .base
+                .customer_merge_attached_completeness
+                .get(id)
+                .cloned()
+                .unwrap_or_default();
+            let customer = self.store.base.customer_merge_customers.get(id);
+            let mut values = serde_json::Map::new();
+            for (field, complete, suffix) in [
+                ("addressesV2", completeness.addresses_v2, "Addresses"),
+                ("metafields", completeness.metafields, "Metafields"),
+                ("orders", completeness.orders, "Orders"),
+            ] {
+                let cursor = customer.and_then(|record| customer_merge_page_cursor(&record[field]));
+                values.insert(format!("{prefix}{suffix}After"), json!(cursor));
+                values.insert(
+                    format!("{prefix}{suffix}Pending"),
+                    json!(requested && !complete && cursor.is_some()),
+                );
+            }
+            values
+        };
+        let mut variables = serde_json::Map::from_iter([
+            ("oneId".to_string(), json!(one_id)),
+            ("twoId".to_string(), json!(two_id)),
+        ]);
+        variables.extend(slot_variables(one_id, "one", true));
+        variables.extend(slot_variables(two_id, "two", requested_ids.len() > 1));
+        Value::Object(variables)
     }
 
     fn customer_phone_country_code(
@@ -3940,6 +4040,63 @@ fn normalize_hydrated_customer_record(mut customer: Value) -> Value {
         customer["metafields"] = nodes_connection(nodes);
     }
     customer
+}
+
+fn customer_merge_attached_is_complete(completeness: &CustomerMergeAttachedCompleteness) -> bool {
+    completeness.addresses_v2 && completeness.metafields && completeness.orders
+}
+
+fn customer_merge_page_is_complete(connection: &Value) -> bool {
+    connection
+        .pointer("/pageInfo/hasNextPage")
+        .and_then(Value::as_bool)
+        == Some(false)
+}
+
+fn customer_merge_page_cursor(connection: &Value) -> Option<String> {
+    connection
+        .pointer("/pageInfo/endCursor")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+fn append_customer_merge_connection_page(existing: &mut Value, page: &Value, edges: bool) {
+    let collection_key = if edges { "edges" } else { "nodes" };
+    let mut values = existing
+        .get(collection_key)
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    values.extend(
+        page.get(collection_key)
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .cloned(),
+    );
+    existing[collection_key] = Value::Array(values);
+    if let Some(page_info) = page.get("pageInfo") {
+        existing["pageInfo"] = page_info.clone();
+    }
+}
+
+fn customer_merge_attached_page_has_pending(variables: &Value) -> bool {
+    variables.as_object().is_some_and(|variables| {
+        variables
+            .iter()
+            .any(|(key, value)| key.ends_with("Pending") && value.as_bool() == Some(true))
+    })
+}
+
+fn customer_merge_attached_page_cursor_signature(variables: &Value) -> String {
+    variables
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter(|(key, _)| key.ends_with("After") || key.ends_with("Pending"))
+        .map(|(key, value)| format!("{key}={value}"))
+        .collect::<Vec<_>>()
+        .join("|")
 }
 
 fn customer_display_name(first: Option<&str>, last: Option<&str>, email: Option<&str>) -> String {

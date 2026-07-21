@@ -3069,8 +3069,9 @@ Captured safe happy path for two synthetic customers:
 - downstream `customer(id: customerOneId)` and `customerByIdentifier(emailAddress: customer one email)` returned `null`
 - downstream `customer(id: customerTwoId)` and `customerByIdentifier(emailAddress: customer two email)` returned the merged customer
 - override `note` and `tags` replaced the default combined note/tag values; selected name/email fields followed the requested customer id override fields
-- HAR-291 keeps the base two-customer merge fixture separate from the attached-resource fixture; run `corepack pnpm conformance:capture-customer-merge-attached-resources` to refresh the address/metafield/order scenario
-- when the two customers had addresses, customer-owned metafields, and a source order, Shopify retained the result customer's default address, appended the source address to `addressesV2`, retained result-side metafield conflicts, copied source-only metafields with a new metafield id, and moved the source order to the result customer with the result customer's email
+- the base two-customer merge fixture stays separate from the attached-resource fixture; run `corepack pnpm conformance:capture-customer-merge-attached-resources` to refresh the address/metafield/order scenario
+- when the source customer had six addresses, six customer-owned metafields, and six orders, Shopify retained the result customer's default address, produced seven result addresses and seven result metafields, retained result-side metafield conflicts, copied source-only metafields with new metafield ids, and moved all six source orders to the result customer with the result customer's email
+- the initial merge-prerequisite hydrate returned five records for each source relationship with `hasNextPage: true`; one relationship-specific continuation page returned the sixth address, metafield, and order, and the full selected post-merge resources matched after excluding only volatile IDs, timestamps, cursors, and throttle metadata
 - the captured result customer kept `numberOfOrders: "0"` and `lastOrder: null` even after the source order became visible in `Customer.orders`
 - the captured result customer's `createdAt` matched the source customer timestamp when the source and result creation seconds differed
 - HAR-1534 captured deterministic resulting-customer selection branches: a valid `overrideFields.customerIdOfEmailToKeep` selecting `customerOneId` makes customer one survive; exactly one customer having an email makes that customer survive; a disposable `customerSendAccountInviteEmail` setup made customer one `INVITED`, and `INVITED` customer one beat `DISABLED` customer two when both had email and equal consent; when neither customer had an email, Shopify defaulted to `customerTwoId`.
@@ -3079,7 +3080,9 @@ Practical rule:
 
 - stage supported `customerMerge` locally for customers already present in the normalized graph, mark the source customer deleted, record the source-to-result id redirect for state inspection, and expose a local merge request for `customerMergeJobStatus`
 - do not fetch or mutate Shopify during normal runtime to discover missing merge customers; unknown ids should return captured `CustomerMergeUserError` payloads instead
-- model only attached resources with captured non-empty behavior and normalized local state: HAR-291 covers customer addresses, customer metafields, and orders
+- keep merge prerequisite observations in base state and stage only successful merge effects; validation failures must not partially transfer relationships
+- never treat a bounded attached-resource page as complete without `pageInfo` evidence. Track address, metafield, and order completeness separately, and continue only the incomplete relationships from their own cursors in a batched two-customer request
+- model only attached resources with captured non-empty behavior and normalized local state: the current captured slice covers customer addresses, customer metafields, and orders, including records beyond the first five
 - draft-order setup was captured, but not a downstream draft-order transfer read; draft orders, gift cards, discounts, and other attached resources remain deferred until fixtures capture their non-empty post-merge behavior
 
 ## 56. discountNodes code filter does not mirror codeDiscountNodes for native code discounts
