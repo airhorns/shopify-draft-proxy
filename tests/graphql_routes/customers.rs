@@ -2449,6 +2449,7 @@ fn live_hybrid_customer_overlay_keeps_staged_results_when_optional_hydration_fai
 #[test]
 fn live_hybrid_customer_overlay_merges_partial_aliases_without_losing_hydrated_fields() {
     let real_customer_id = "gid://shopify/Customer/9101";
+    let real_customer_cursor = "opaque-shopify-customer-cursor-9101";
     let live_staged_customer_id = "gid://shopify/Customer/9102";
     let tag = "overlay-regression";
     let real_customer = json!({
@@ -2521,9 +2522,45 @@ fn live_hybrid_customer_overlay_merges_partial_aliases_without_losing_hydrated_f
                     Response {
                         status: 200,
                         headers: Default::default(),
-                        body: json!({ "data": { "customers": { "nodes": nodes } } }),
+                        body: json!({
+                            "data": {
+                                "customers": {
+                                    "nodes": nodes,
+                                    "edges": [{
+                                        "cursor": real_customer_cursor,
+                                        "node": real_customer.clone()
+                                    }],
+                                    "pageInfo": {
+                                        "hasNextPage": false,
+                                        "hasPreviousPage": false,
+                                        "startCursor": real_customer_cursor,
+                                        "endCursor": real_customer_cursor
+                                    }
+                                }
+                            }
+                        }),
                     }
                 }
+                Some("DraftProxyConnectionOverlay") => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "overlayWindow": {
+                                "edges": [{
+                                    "cursor": real_customer_cursor,
+                                    "node": real_customer.clone()
+                                }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": real_customer_cursor,
+                                    "endCursor": real_customer_cursor
+                                }
+                            }
+                        }
+                    }),
+                },
                 _ => Response {
                     status: 200,
                     headers: Default::default(),
@@ -2540,12 +2577,12 @@ fn live_hybrid_customer_overlay_merges_partial_aliases_without_losing_hydrated_f
                                 }
                             },
                             "firstPage": {
-                                "edges": [{ "cursor": real_customer_id, "node": real_customer_edge_summary }],
+                                "edges": [{ "cursor": real_customer_cursor, "node": real_customer_edge_summary }],
                                 "pageInfo": {
                                     "hasNextPage": true,
                                     "hasPreviousPage": false,
-                                    "startCursor": real_customer_id,
-                                    "endCursor": real_customer_id
+                                    "startCursor": real_customer_cursor,
+                                    "endCursor": real_customer_cursor
                                 }
                             },
                             "matchingCatalog": {
@@ -2616,7 +2653,7 @@ fn live_hybrid_customer_overlay_merges_partial_aliases_without_losing_hydrated_f
     assert_eq!(
         read.body["data"]["firstPage"]["edges"],
         json!([{
-            "cursor": real_customer_id,
+            "cursor": real_customer_cursor,
             "node": { "id": real_customer_id, "email": "overlay-base@example.test", "displayName": "OverlayBase Live" }
         }])
     );
@@ -2625,8 +2662,8 @@ fn live_hybrid_customer_overlay_merges_partial_aliases_without_losing_hydrated_f
         json!({
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": real_customer_id,
-            "endCursor": real_customer_id
+            "startCursor": real_customer_cursor,
+            "endCursor": real_customer_cursor
         })
     );
     assert_eq!(
@@ -2641,6 +2678,186 @@ fn live_hybrid_customer_overlay_merges_partial_aliases_without_losing_hydrated_f
         read.body["data"]["totalCount"],
         json!({ "count": 12, "precision": "EXACT" })
     );
+}
+
+#[test]
+fn live_hybrid_customer_overlay_reconciles_idless_staged_shadows_with_opaque_cursors() {
+    let canada_cursor = "opaque-shopify-canada-customer-cursor";
+    let us_cursor = "opaque-shopify-us-customer-cursor";
+    let upstream_queries = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_queries = Arc::clone(&upstream_queries);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            captured_queries.lock().unwrap().push(query.clone());
+            if body["operationName"].as_str() == Some("CustomerDuplicateHydrate") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "customers": { "nodes": [] } } }),
+                };
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "byCountry": {
+                            "edges": [{
+                                "cursor": canada_cursor,
+                                "node": {
+                                    "email": "idless-canada@example.test",
+                                    "defaultAddress": {
+                                        "city": "Toronto",
+                                        "province": "Ontario",
+                                        "country": "Canada"
+                                    }
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": canada_cursor,
+                                "endCursor": canada_cursor
+                            }
+                        },
+                        "byDefault": {
+                            "edges": [{
+                                "cursor": canada_cursor,
+                                "node": { "email": "idless-canada@example.test" }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": canada_cursor,
+                                "endCursor": canada_cursor
+                            }
+                        },
+                        "byGroupedExclusion": {
+                            "edges": [{
+                                "cursor": us_cursor,
+                                "node": {
+                                    "email": "idless-us@example.test",
+                                    "tags": ["standard"]
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": us_cursor,
+                                "endCursor": us_cursor
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    create_customer_from_input(
+        &mut proxy,
+        json!({
+            "email": "idless-canada@example.test",
+            "firstName": "IdlessCanada",
+            "lastName": "Search",
+            "tags": ["VIP"],
+            "addresses": [{
+                "address1": "1 King St W",
+                "city": "Toronto",
+                "provinceCode": "ON",
+                "countryCode": "CA",
+                "zip": "M5H 1A1"
+            }]
+        }),
+    );
+    create_customer_from_input(
+        &mut proxy,
+        json!({
+            "email": "idless-us@example.test",
+            "firstName": "IdlessUs",
+            "lastName": "Search",
+            "tags": ["standard"],
+            "addresses": [{
+                "address1": "600 4th Ave",
+                "city": "Seattle",
+                "provinceCode": "WA",
+                "countryCode": "US",
+                "zip": "98104"
+            }]
+        }),
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerIdlessShadowOverlay(
+          $countryQuery: String!
+          $defaultQuery: String!
+          $exclusionQuery: String!
+        ) {
+          byCountry: customers(first: 10, query: $countryQuery, sortKey: NAME) {
+            edges { cursor node { email defaultAddress { city province country } } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          byDefault: customers(first: 10, query: $defaultQuery, sortKey: NAME) {
+            edges { cursor node { email } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          byGroupedExclusion: customers(first: 10, query: $exclusionQuery, sortKey: NAME) {
+            edges { cursor node { email tags } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({
+            "countryQuery": "country:Canada",
+            "defaultQuery": "Toronto",
+            "exclusionQuery": "state:DISABLED -tag:VIP"
+        }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["byCountry"]["edges"],
+        json!([{
+            "cursor": canada_cursor,
+            "node": {
+                "email": "idless-canada@example.test",
+                "defaultAddress": {
+                    "city": "Toronto",
+                    "province": "Ontario",
+                    "country": "Canada"
+                }
+            }
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["byDefault"]["edges"],
+        json!([{
+            "cursor": canada_cursor,
+            "node": { "email": "idless-canada@example.test" }
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["byGroupedExclusion"]["edges"],
+        json!([{
+            "cursor": us_cursor,
+            "node": { "email": "idless-us@example.test", "tags": ["standard"] }
+        }])
+    );
+    assert_eq!(
+        upstream_queries
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|query| query.contains("CustomerIdlessShadowOverlay"))
+            .count(),
+        1
+    );
+    assert!(!upstream_queries
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|query| query.contains("DraftProxyConnectionOverlay")));
 }
 
 #[test]

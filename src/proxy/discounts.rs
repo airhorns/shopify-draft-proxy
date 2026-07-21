@@ -288,6 +288,16 @@ struct DiscountMutationArguments<'a> {
     arguments: &'a BTreeMap<String, ResolvedValue>,
 }
 
+struct DiscountQueryInput<'a> {
+    root_name: &'a str,
+    arguments: &'a BTreeMap<String, ResolvedValue>,
+    response_key: &'a str,
+    requests_currency_code: bool,
+    mixed_local_read: bool,
+    operation_has_local_boundary: bool,
+    connection_overlay: ConnectionOverlayRequest<'a>,
+}
+
 impl<'a> From<&'a RootFieldSelection> for DiscountMutationArguments<'a> {
     fn from(field: &'a RootFieldSelection) -> Self {
         Self {
@@ -313,6 +323,8 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let mixed_local_read =
             self.discount_operation_has_mixed_local_read(&invocation.operation_roots);
+        let operation_has_local_boundary =
+            operation_has_local_connection_boundary(&invocation.operation_roots);
         let requests_currency_code = invocation
             .requested_field_paths
             .iter()
@@ -320,17 +332,34 @@ impl DraftProxy {
         let RootInvocation {
             response_key,
             arguments,
+            raw_arguments,
+            selection,
+            variable_definitions,
+            variables,
             request,
             root_name,
             ..
         } = invocation;
+        let arguments = resolved_arguments_from_json(&arguments);
         self.discounts_query_outcome(
             request,
-            root_name,
-            &resolved_arguments_from_json(&arguments),
-            response_key,
-            requests_currency_code,
-            mixed_local_read,
+            DiscountQueryInput {
+                root_name,
+                arguments: &arguments,
+                response_key,
+                requests_currency_code,
+                mixed_local_read,
+                operation_has_local_boundary,
+                connection_overlay: ConnectionOverlayRequest {
+                    root_name,
+                    arguments: &arguments,
+                    raw_arguments: &raw_arguments,
+                    selection: &selection,
+                    variable_definitions,
+                    variables,
+                    required_node_selection: "id",
+                },
+            },
         )
     }
 
@@ -395,21 +424,31 @@ const DISCOUNT_UNIQUENESS_QUERY: &str =
 const DISCOUNT_ITEM_REFS_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/discounts/discount-item-refs-hydrate.graphql");
 impl DraftProxy {
-    pub(in crate::proxy) fn discounts_query_outcome(
+    fn discounts_query_outcome(
         &mut self,
         request: &Request,
-        root_name: &str,
-        arguments: &BTreeMap<String, ResolvedValue>,
-        response_key: &str,
-        requests_currency_code: bool,
-        mixed_local_read: bool,
+        input: DiscountQueryInput<'_>,
     ) -> ResolverOutcome<Value> {
+        let DiscountQueryInput {
+            root_name,
+            arguments,
+            response_key,
+            requests_currency_code,
+            mixed_local_read,
+            operation_has_local_boundary,
+            connection_overlay,
+        } = input;
+        let has_local_boundary = matches!(
+            root_name,
+            "discountNodes" | "automaticDiscountNodes" | "codeDiscountNodes"
+        ) && connection_has_local_boundary(root_name, arguments);
         if requests_currency_code {
             self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
         if !mixed_local_read
             && self.config.read_mode == ReadMode::LiveHybrid
             && self.discount_read_root_is_cold(root_name, arguments)
+            && !operation_has_local_boundary
         {
             let outcome = self.cached_or_forward_upstream_root_outcome(request, response_key);
             if outcome.errors.is_empty() {
@@ -417,22 +456,146 @@ impl DraftProxy {
             }
             return outcome;
         }
+        if (mixed_local_read || operation_has_local_boundary)
+            && self.config.read_mode == ReadMode::LiveHybrid
+            && matches!(
+                root_name,
+                "discountNodes" | "automaticDiscountNodes" | "codeDiscountNodes"
+            )
+        {
+            let staged_impact = self
+                .store
+                .staged
+                .discounts
+                .len()
+                .saturating_add(self.store.staged.discounts.tombstones.len());
+            let window = self.bounded_connection_overlay_window(
+                request,
+                connection_overlay,
+                &Value::Null,
+                staged_impact,
+            );
+            self.observe_discount_root_value(root_name, arguments, &window);
+            return ResolverOutcome::value(
+                self.discount_overlay_connection_value(root_name, arguments, &window),
+            );
+        }
         let mut upstream_value = None;
+        let mut authoritative_connection = None;
+        let mut upstream_outcome = None;
         if !mixed_local_read
             && self.config.read_mode == ReadMode::LiveHybrid
             && self.discount_read_root_needs_live_hydration(root_name, arguments)
         {
-            let outcome = self.cached_or_forward_upstream_root_outcome(request, response_key);
+            let mut outcome = if has_local_boundary || operation_has_local_boundary {
+                ResolverOutcome::value(Value::Null)
+            } else {
+                self.cached_or_forward_upstream_root_outcome(request, response_key)
+            };
             if outcome.errors.is_empty() {
-                self.observe_discount_root_value(root_name, arguments, &outcome.value);
-                upstream_value = Some(outcome.value);
+                if matches!(
+                    root_name,
+                    "discountNodes" | "automaticDiscountNodes" | "codeDiscountNodes"
+                ) {
+                    let staged_impact = self
+                        .store
+                        .staged
+                        .discounts
+                        .len()
+                        .saturating_add(self.store.staged.discounts.tombstones.len());
+                    let window = self.bounded_connection_overlay_window(
+                        request,
+                        connection_overlay,
+                        &outcome.value,
+                        staged_impact,
+                    );
+                    self.observe_discount_root_value(root_name, arguments, &window);
+                    outcome.value = window.clone();
+                    authoritative_connection = Some(window);
+                } else {
+                    self.observe_discount_root_value(root_name, arguments, &outcome.value);
+                }
+                upstream_value = Some(outcome.value.clone());
+            }
+            upstream_outcome = Some(outcome);
+        }
+        let value = authoritative_connection.as_ref().map_or_else(
+            || self.discount_query_value(root_name, arguments, upstream_value.as_ref()),
+            |authoritative| {
+                self.discount_overlay_connection_value(root_name, arguments, authoritative)
+            },
+        );
+        let mut result = ResolverOutcome::value(value);
+        if let Some(upstream) = upstream_outcome {
+            let staged_count_fallback = root_name == "discountNodesCount"
+                && self.has_staged_discounts()
+                && !upstream.errors.is_empty();
+            if !staged_count_fallback {
+                result.errors = upstream.errors;
+                result.extensions.extend(upstream.extensions);
             }
         }
-        ResolverOutcome::value(self.discount_query_value(
-            root_name,
-            arguments,
-            upstream_value.as_ref(),
-        ))
+        result
+    }
+
+    fn discount_overlay_connection_value(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        authoritative: &Value,
+    ) -> Value {
+        let (kind, discount_key) = match root_name {
+            "automaticDiscountNodes" => (Some("automatic"), "automaticDiscount"),
+            "codeDiscountNodes" => (Some("code"), "codeDiscount"),
+            _ => (None, "discount"),
+        };
+        let authoritative_rows = observed_connection_rows(authoritative)
+            .into_iter()
+            .filter_map(|row| {
+                discount_record_from_upstream_node(&row.node, kind, discount_key).map(|node| {
+                    ObservedConnectionRow {
+                        cursor: row.cursor,
+                        node: self.discount_record_with_effective_status(&node),
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+        overlay_connection_value(
+            ConnectionOverlayInput {
+                authoritative: authoritative_rows,
+                local_records: self
+                    .store
+                    .staged
+                    .discounts
+                    .values()
+                    .map(|record| self.discount_record_with_effective_status(record))
+                    .collect(),
+                tombstones: &self.store.staged.discounts.tombstones,
+                arguments,
+                source_page_info: &authoritative["pageInfo"],
+            },
+            |record, query| {
+                if kind.is_none_or(|kind| discount_kind(record) == kind) {
+                    discount_search_decision(record, query)
+                } else {
+                    StagedSearchDecision::NoMatch
+                }
+            },
+            discount_staged_sort_key,
+            |record| {
+                if root_name == "discountNodes" {
+                    self.discount_admin_node_for_record(record)
+                } else {
+                    self.discount_node_for_record(record)
+                }
+            },
+            |record| {
+                stable_local_connection_cursor(
+                    root_name,
+                    record.get("id").and_then(Value::as_str).unwrap_or_default(),
+                )
+            },
+        )
     }
 
     fn discount_operation_has_mixed_local_read(
@@ -476,14 +639,48 @@ impl DraftProxy {
                 .is_some_and(|code| self.discount_tombstone_matches_code(code)),
             _ => false,
         });
+        let has_cold_identity_root = roots.iter().any(|root| {
+            matches!(
+                root.name.as_str(),
+                "discountNode"
+                    | "codeDiscountNode"
+                    | "automaticDiscountNode"
+                    | "codeDiscountNodeByCode"
+            ) && self.discount_read_root_is_cold(
+                &root.name,
+                &resolved_arguments_from_json(&root.arguments),
+            )
+        });
+        let has_local_identity_root = roots.iter().any(|root| {
+            matches!(
+                root.name.as_str(),
+                "discountNode"
+                    | "codeDiscountNode"
+                    | "automaticDiscountNode"
+                    | "codeDiscountNodeByCode"
+            ) && !self.discount_read_root_is_cold(
+                &root.name,
+                &resolved_arguments_from_json(&root.arguments),
+            )
+        });
         // A list connection mixed with a cold singular read still needs the
         // shared upstream snapshot unless an explicit local tombstone makes
         // the document authoritative. Counts remain eligible for mixed-local
         // execution: unlike a list they do not need upstream rows to render,
         // and forwarding their sibling synthetic IDs would leak local identity
         // into an upstream request.
-        if has_connection_root && !has_authoritative_tombstone {
-            return false;
+        if has_connection_root {
+            if !self.has_staged_discounts() {
+                return false;
+            }
+            if has_cold_identity_root && !has_authoritative_tombstone {
+                return false;
+            }
+            return has_local_identity_root || has_authoritative_tombstone;
+        }
+        let has_count_root = roots.iter().any(|root| root.name == "discountNodesCount");
+        if has_count_root && has_local_identity_root {
+            return true;
         }
         let cold = roots
             .iter()
@@ -2192,8 +2389,14 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         upstream_value: Option<&Value>,
     ) -> Value {
+        let baseline = upstream_value.or_else(|| {
+            self.store
+                .base
+                .discount_count_baselines
+                .get(&discount_count_baseline_key(arguments))
+        });
         upstream_count_value_with_staged_delta(
-            upstream_value,
+            baseline,
             self.staged_discount_count_delta(arguments),
             arguments,
         )

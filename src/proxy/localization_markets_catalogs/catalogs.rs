@@ -22,7 +22,7 @@ impl DraftProxy {
             .into_iter()
             .collect::<Vec<_>>();
         if !touched_ids.is_empty() {
-            self.mark_markets_family_dirty("catalogs");
+            self.mark_markets_ids_dirty("catalogs", touched_ids.clone());
             self.record_mutation_log_entry(request, query, variables, "catalog", touched_ids);
         }
         value
@@ -568,7 +568,7 @@ impl DraftProxy {
             push_unique_string(&mut touched_ids, id);
         }
         if !touched_ids.is_empty() {
-            self.mark_markets_family_dirty("priceLists");
+            self.mark_markets_ids_dirty("priceLists", touched_ids.clone());
             self.record_mutation_log_entry(request, query, variables, "priceList", touched_ids);
         }
         ResolverOutcome::value(outcome.value).with_errors(root_field_errors_from_json(

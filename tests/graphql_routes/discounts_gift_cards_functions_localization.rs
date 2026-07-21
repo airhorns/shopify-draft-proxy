@@ -1,5 +1,14 @@
 use super::common::*;
+use base64::Engine as _;
 use pretty_assertions::assert_eq;
+
+fn stable_overlay_cursor(root: &str, id: &str) -> String {
+    format!(
+        "local_{}",
+        base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(json!({ "source": "local", "root": root, "id": id }).to_string())
+    )
+}
 
 #[test]
 fn fixed_amount_discount_hydrates_shop_currency_before_serialization() {
@@ -2184,6 +2193,66 @@ fn discount_count_only_live_hybrid_preserves_upstream_total_with_staged_delta() 
         .any(|query| query.contains("discountNodesCount")));
 }
 
+#[test]
+fn discount_count_only_live_hybrid_falls_back_to_staged_matches_when_baseline_errors() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("DiscountUniquenessCheck") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "codeDiscountNodeByCode": null } }),
+                };
+            }
+            assert!(query.contains("discountNodesCount"));
+            Response {
+                status: 500,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "count baseline unavailable" }] }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCountFallbackDiscount($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Count fallback unique staged discount",
+            "code": "COUNT-FALLBACK-STAGED",
+            "startsAt": "2026-04-27T19:31:14Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CountFallbackAfterCreate($query: String!) {
+          discountNodesCount(query: $query) { count precision }
+        }
+        "#,
+        json!({ "query": "discount_class:order Count fallback unique" }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["discountNodesCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert!(read.body.get("errors").is_none());
+}
+
 fn starts_at_required_variables(starts_at: Option<Value>) -> Value {
     let mut variables = json!({
         "basicCode": {
@@ -3243,7 +3312,9 @@ fn discount_app_lifecycle_stages_updates_reads_and_deletes_without_local_runtime
     ));
     assert_eq!(
         read.body["data"]["codeDiscountNode"]["codeDiscount"]["title"],
-        json!("App lifecycle code updated")
+        json!("App lifecycle code updated"),
+        "{}",
+        read.body
     );
     assert_eq!(
         read.body["data"]["codeDiscountNodeByCode"]["id"],
@@ -5101,6 +5172,33 @@ fn discount_live_hybrid_catalog_merges_upstream_and_staged_discounts() {
                     body: json!({ "data": { "codeDiscountNodeByCode": null } }),
                 };
             }
+            if body["operationName"] == "DraftProxyConnectionOverlay" {
+                let node = if query.contains("overlayWindow: codeDiscountNodes") {
+                    code_node_for_transport.clone()
+                } else if query.contains("overlayWindow: automaticDiscountNodes") {
+                    automatic_node_for_transport.clone()
+                } else {
+                    panic!("unexpected discount overlay query: {query}");
+                };
+                let cursor = node["id"].clone();
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "overlayWindow": {
+                                "edges": [{ "cursor": cursor.clone(), "node": node }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": cursor.clone(),
+                                    "endCursor": cursor
+                                }
+                            }
+                        }
+                    }),
+                };
+            }
             let mut data = serde_json::Map::new();
             if query.contains("all: discountNodes") {
                 data.insert(
@@ -5235,7 +5333,7 @@ fn discount_live_hybrid_catalog_merges_upstream_and_staged_discounts() {
         json!({
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": staged_id,
+            "startCursor": stable_overlay_cursor("discountNodes", &staged_id),
             "endCursor": upstream_automatic_id
         })
     );
@@ -5383,13 +5481,17 @@ fn discount_live_hybrid_catalog_merges_upstream_and_staged_discounts() {
     assert_eq!(after_mutations.body["data"]["byCode"], json!(null));
 
     let calls = upstream_calls.lock().unwrap();
-    assert!(
+    assert_eq!(
         calls
             .iter()
-            .filter(|query| query.contains("codeOnly: codeDiscountNodes"))
-            .count()
-            >= 2,
-        "post-mutation discount catalog read should hydrate the upstream catalog, got {calls:?}"
+            .filter(|query| query.contains("query DraftProxyConnectionOverlay"))
+            .count(),
+        2,
+        "post-mutation aliases should use one bounded code and automatic window: {calls:?}"
+    );
+    assert!(
+        calls.len() <= 5,
+        "discount overlay transport budget: {calls:?}"
     );
 }
 
@@ -8809,7 +8911,7 @@ fn localization_translatable_resources_honor_reverse_and_cursor_windowing() {
 }
 
 #[test]
-fn localization_markets_read_hydrates_from_live_source_and_reuses_observed_market() {
+fn localization_markets_read_revalidates_an_unproven_partial_window() {
     let upstream_requests = Arc::new(Mutex::new(Vec::new()));
     let captured_requests = Arc::clone(&upstream_requests);
     let mut proxy =
@@ -8886,12 +8988,16 @@ fn localization_markets_read_hydrates_from_live_source_and_reuses_observed_marke
         );
     }
 
-    let cached = proxy.process_request(request);
+    let repeated = proxy.process_request(request);
     assert_eq!(
-        cached.body["data"]["markets"]["nodes"][0]["id"],
+        repeated.body["data"]["markets"]["nodes"][0]["id"],
         json!("gid://shopify/Market/97997685042")
     );
-    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        2,
+        "a nodes-only response does not prove connection completeness across requests"
+    );
 }
 
 #[test]

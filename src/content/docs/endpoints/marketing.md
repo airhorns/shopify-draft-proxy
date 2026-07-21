@@ -34,16 +34,16 @@ Snapshot reads are served from normalized marketing activity and event records h
 
 - Missing singular activity/event lookups return `null`.
 - Absent catalogs return non-null empty connections with empty `nodes`/`edges`, false page booleans, and null cursors.
-- Connection serialization preserves selected `nodes`, `edges`, `cursor`, and `pageInfo`. Local records use stable synthetic `cursor:<gid>` cursors and honor `first`, `last`, `after`, `before`, `reverse`, and modeled `sortKey` arguments with computed page booleans.
+- Connection serialization preserves selected `nodes`, `edges`, `cursor`, and `pageInfo`. Local records use stable proxy-opaque cursors and honor `first`, `last`, `after`, `before`, `reverse`, and modeled `sortKey` arguments with computed page booleans.
 - Local activity filtering supports `marketingActivityIds`, `remoteIds`, bare/default full-text terms, and keyed query terms for `app_id`, `app_name`, `created_at`, `id`, `marketing_campaign_id`, `scheduled_to_end_at`, `scheduled_to_start_at`, `tactic`, `title`, and `updated_at`. Legacy local query aliases such as `remote_id`, `description`, `status`, and `channel_handle` remain accepted. Unrecognized keyed terms are evaluated as default full-text against the supplied value instead of fail-closing the entire connection.
 - Local event filtering supports bare/default full-text terms plus `description`, `id`, `remote_id`, `channel_handle`, `started_at`, `scheduled_to_end_at`, `scheduled_to_start_at`, `tactic`, and `type`.
 - Modeled activity sort keys are `CREATED_AT` (default), `ID`, and `TITLE`. Modeled event sort keys are `ID` (default) and `STARTED_AT`.
 
-LiveHybrid marketing reads now forward to Shopify and observe returned marketing activity/event records as base catalog state:
+LiveHybrid marketing reads forward to Shopify and observe returned marketing activity/event records as base catalog state:
 
 - A cold LiveHybrid proxy with no local marketing overlay returns Shopify's upstream response verbatim for registered marketing read roots, preserving aliases, opaque cursors, pageInfo, and Shopify's own search/sort behavior for pre-existing rows.
-- After local staged marketing writes or tombstones exist, the proxy overlays staged activity/event records and tombstones on the observed base catalog, then recomputes selected marketing roots from the effective catalog without hiding unrelated upstream records. Non-marketing roots in the same upstream response are left intact.
-- Observed opaque cursors are retained on base activity/event records, while newly staged local records continue to use stable synthetic `cursor:<gid>` cursors.
+- After local staged marketing writes or tombstones exist, the proxy overlays staged activity/event records on bounded authoritative windows. It reuses rows from the caller's page and fetches only the requested size plus relevant staged activity changes plus one boundary row, in upstream pages of at most 250. Exact argument/selection windows are request-cached; partial windows never become complete marketing catalogs.
+- Observed opaque cursors are retained on base activity/event records. Newly staged rows use stable proxy-opaque cursors; follow-up reads apply those cursors locally and never forward them to Shopify.
 - The live `marketing-live-hybrid-non-empty-read` parity scenario captures two disposable Shopify external marketing activities and replays non-empty cold LiveHybrid activity/event reads through upstream cassette entries. Runtime tests cover staged create/update/delete overlay on top of that observed upstream catalog.
 
 External activity lifecycle:

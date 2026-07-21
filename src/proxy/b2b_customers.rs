@@ -19,7 +19,8 @@ pub(in crate::proxy) use self::consent::b2b_tax_settings_invalid_enum_error;
 use self::consent::{customer_update_inline_consent_errors, resolved_inline_consent_state};
 use self::customers::apply_customer_marketing_consent;
 pub(in crate::proxy) use self::customers::{
-    customer_field_resolver_registrations, customer_field_resolver_type_policies,
+    customer_count_baseline_key, customer_field_resolver_registrations,
+    customer_field_resolver_type_policies,
 };
 use self::merge_erasure::{
     connection_has_nodes, customer_merge_extract_order_records, customer_merge_job_from_request,
@@ -131,6 +132,8 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        let operation_has_local_boundary =
+            operation_has_local_connection_boundary(&invocation.operation_roots);
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let requests_payment_methods = invocation.requests_field_path(&["paymentMethods"]);
         if requests_payment_methods {
@@ -156,7 +159,7 @@ impl DraftProxy {
                 .as_ref()
                 .is_none_or(|response| response.body["data"].get(invocation.response_key).is_none())
         {
-            self.hydrate_customers_count_for_overlay_read(invocation.request);
+            self.hydrate_customers_count_for_overlay_read(invocation.request, &arguments);
         }
         if handle_customers
             && invocation
@@ -166,10 +169,16 @@ impl DraftProxy {
         {
             self.hydrate_shop_pricing_state_if_missing(invocation.request, true, false);
         }
-        let mut upstream_value = invocation.upstream_value;
+        let mut upstream_value =
+            if invocation.root_name == "customers" && operation_has_local_boundary {
+                Some(Value::Null)
+            } else {
+                invocation.upstream_value.clone()
+            };
         if upstream_value.is_none()
             && handle_customers
             && self.customer_overlay_needs_upstream_data(invocation.root_name, &arguments)
+            && !operation_has_local_boundary
         {
             let upstream = self.cached_or_forward_upstream_root_outcome(
                 invocation.request,
@@ -190,6 +199,15 @@ impl DraftProxy {
                 invocation.root_name,
                 &arguments,
                 upstream_value.as_ref(),
+                (invocation.root_name == "customers").then_some(ConnectionOverlayRequest {
+                    root_name: invocation.root_name,
+                    arguments: &arguments,
+                    raw_arguments: &invocation.raw_arguments,
+                    selection: &invocation.selection,
+                    variable_definitions: invocation.variable_definitions,
+                    variables: invocation.variables,
+                    required_node_selection: "id firstName lastName displayName email phone locale note canDelete verifiedEmail dataSaleOptOut taxExempt taxExemptions state tags createdAt updatedAt defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }",
+                }),
             )
         } else {
             self.store_credit_account_read_value(&arguments)

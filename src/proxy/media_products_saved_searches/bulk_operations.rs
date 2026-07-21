@@ -646,25 +646,102 @@ impl DraftProxy {
             return graphql_error_outcome(errors, invocation.response_key);
         }
 
-        let upstream_outcome =
-            if self.bulk_operation_read_needs_upstream(invocation.root_name, arguments) {
-                let result = self.cached_or_forward_upstream_graphql_result(
+        let has_connection_overlay = invocation.root_name == "bulkOperations"
+            && !self.store.staged.bulk_operations.is_empty();
+        let operation_has_local_boundary =
+            operation_has_local_connection_boundary(&invocation.operation_roots);
+        let mut authoritative_connection = None;
+        let upstream_outcome = if self
+            .bulk_operation_read_needs_upstream(invocation.root_name, arguments)
+        {
+            if operation_has_local_boundary && has_connection_overlay {
+                let staged_impact = self
+                    .store
+                    .staged
+                    .bulk_operations
+                    .len()
+                    .saturating_add(self.store.staged.bulk_operations.tombstones.len());
+                let window = self.bounded_connection_overlay_window(
+                    invocation.request,
+                    ConnectionOverlayRequest {
+                        root_name: invocation.root_name,
+                        arguments,
+                        raw_arguments: &invocation.raw_arguments,
+                        selection: &invocation.selection,
+                        variable_definitions: invocation.variable_definitions,
+                        variables: invocation.variables,
+                        required_node_selection: "id type status errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl",
+                    },
+                    &Value::Null,
+                    staged_impact,
+                );
+                self.observe_bulk_operation_read_result(
+                    invocation.response_key,
+                    invocation.root_name,
+                    arguments,
+                    &json!({ (invocation.response_key): window.clone() }),
+                );
+                authoritative_connection = Some(window);
+                None
+            } else {
+                let mut result = self.cached_or_forward_upstream_graphql_result(
                     invocation.request,
                     invocation.response_key,
                 );
                 if !result.transport_succeeded {
                     return result.outcome;
                 }
+                if invocation.root_name == "bulkOperations"
+                    && !has_connection_overlay
+                    && result.data.get(invocation.response_key).is_some()
+                {
+                    self.observe_bulk_operation_read_result(
+                        invocation.response_key,
+                        invocation.root_name,
+                        arguments,
+                        &result.data,
+                    );
+                    return result.outcome;
+                }
+                if has_connection_overlay {
+                    let staged_impact = self
+                        .store
+                        .staged
+                        .bulk_operations
+                        .len()
+                        .saturating_add(self.store.staged.bulk_operations.tombstones.len());
+                    let window = self.bounded_connection_overlay_window(
+                        invocation.request,
+                        ConnectionOverlayRequest {
+                            root_name: invocation.root_name,
+                            arguments,
+                            raw_arguments: &invocation.raw_arguments,
+                            selection: &invocation.selection,
+                            variable_definitions: invocation.variable_definitions,
+                            variables: invocation.variables,
+                            required_node_selection: "id type status errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl",
+                        },
+                        &result.outcome.value,
+                        staged_impact,
+                    );
+                    result.outcome.value = window.clone();
+                    authoritative_connection = Some(window);
+                }
+                let observation_data = authoritative_connection.as_ref().map_or_else(
+                    || result.data.clone(),
+                    |window| json!({ (invocation.response_key): window }),
+                );
                 self.observe_bulk_operation_read_result(
                     invocation.response_key,
                     invocation.root_name,
                     arguments,
-                    &result.data,
+                    &observation_data,
                 );
                 Some(result.outcome)
-            } else {
-                None
-            };
+            }
+        } else {
+            None
+        };
 
         let value = match invocation.root_name {
             "bulkOperation" => {
@@ -673,7 +750,12 @@ impl DraftProxy {
                     .cloned()
                     .unwrap_or(Value::Null)
             }
-            "bulkOperations" => self.bulk_operations_connection_value(arguments),
+            "bulkOperations" => authoritative_connection.as_ref().map_or_else(
+                || self.bulk_operations_connection_value(arguments),
+                |authoritative| {
+                    self.bulk_operations_overlay_connection_value(arguments, authoritative)
+                },
+            ),
             "currentBulkOperation" => {
                 let operation_type =
                     resolved_string_field(arguments, "type").unwrap_or_else(|| "QUERY".to_string());
@@ -733,26 +815,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
         if !self.store.base.bulk_operations_observed {
-            let requested = arguments
-                .get("first")
-                .and_then(|value| match value {
-                    ResolvedValue::Int(first) => Some(*first),
-                    _ => None,
-                })
-                .filter(|first| *first >= 0)
-                .map(|first| first as usize);
-            let matching_staged = self
-                .store
-                .staged
-                .bulk_operations
-                .values()
-                .filter(|operation| bulk_operation_matches_query(operation, arguments))
-                .count();
-            // A bounded window that can be filled entirely from locally staged
-            // operations is authoritative. Larger or unbounded windows still
-            // need the upstream catalog so staging one operation does not hide
-            // all pre-existing operations.
-            return requested.is_none_or(|requested| matching_staged < requested);
+            return true;
         }
         let sort_key = bulk_operation_connection_sort_key(arguments);
         self.store
@@ -778,7 +841,8 @@ impl DraftProxy {
                 self.observe_bulk_operation_value(value);
             }
             "bulkOperations" => {
-                self.store.base.bulk_operations_observed = true;
+                self.store.base.bulk_operations_observed =
+                    upstream_page_is_complete_baseline(value, arguments);
                 self.observe_bulk_operations_connection(arguments, value);
             }
             _ => {}
@@ -929,6 +993,42 @@ impl DraftProxy {
         connection_value_with_args(operations, arguments, |operation| {
             bulk_operation_connection_cursor(operation, &sort_key)
         })
+    }
+
+    fn bulk_operations_overlay_connection_value(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        authoritative: &Value,
+    ) -> Value {
+        overlay_connection_value(
+            ConnectionOverlayInput {
+                authoritative: observed_connection_rows(authoritative),
+                local_records: self
+                    .store
+                    .staged
+                    .bulk_operations
+                    .values()
+                    .cloned()
+                    .collect(),
+                tombstones: &self.store.staged.bulk_operations.tombstones,
+                arguments,
+                source_page_info: &authoritative["pageInfo"],
+            },
+            |operation, _query| {
+                StagedSearchDecision::from_bool(bulk_operation_matches_query(operation, arguments))
+            },
+            bulk_operation_staged_sort_key,
+            Value::clone,
+            |operation| {
+                stable_local_connection_cursor(
+                    "bulkOperations",
+                    operation
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default(),
+                )
+            },
+        )
     }
 
     pub(in crate::proxy) fn bulk_operation_run_query_outcome(
@@ -2218,6 +2318,129 @@ mod tests {
         assert!(ids.contains(&real_id.to_string()), "combined ids: {ids:?}");
         assert!(ids.contains(&staged_id), "combined ids: {ids:?}");
         assert_eq!(upstream_calls.lock().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn staged_bulk_operation_uses_one_bounded_refill_for_partial_catalog() {
+        let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let captured_calls = Arc::clone(&upstream_calls);
+        let first_page = [
+            observed_bulk_operation("gid://shopify/BulkOperation/104", "2026-01-04T00:00:00Z"),
+            observed_bulk_operation("gid://shopify/BulkOperation/103", "2026-01-03T00:00:00Z"),
+        ];
+        let refill_page = [
+            observed_bulk_operation("gid://shopify/BulkOperation/102", "2026-01-02T00:00:00Z"),
+            observed_bulk_operation("gid://shopify/BulkOperation/101", "2026-01-01T00:00:00Z"),
+        ];
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_base_products(vec![seed_product(
+            "gid://shopify/Product/1",
+            "Bounded bulk product",
+            "bounded-bulk-product",
+        )])
+        .with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_calls.lock().unwrap().push(body.clone());
+            if body["operationName"] == "BulkProductsCatalogHydrate" {
+                return Response {
+                    status: 200,
+                    headers: BTreeMap::new(),
+                    body: empty_bulk_products_catalog(),
+                };
+            }
+            let (response_key, rows, has_previous_page) =
+                if body["operationName"] == "DraftProxyConnectionOverlay" {
+                    ("overlayWindow", &refill_page, true)
+                } else {
+                    ("bulkOperations", &first_page, false)
+                };
+            let edges = rows
+                .iter()
+                .enumerate()
+                .map(|(index, node)| {
+                    json!({
+                        "cursor": format!("opaque-bulk-{}", index + if has_previous_page { 3 } else { 1 }),
+                        "node": node
+                    })
+                })
+                .collect::<Vec<_>>();
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: json!({
+                    "data": {
+                        (response_key): {
+                            "edges": edges,
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": has_previous_page,
+                                "startCursor": if has_previous_page { "opaque-bulk-3" } else { "opaque-bulk-1" },
+                                "endCursor": if has_previous_page { "opaque-bulk-4" } else { "opaque-bulk-2" }
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+        let staged = proxy.process_request(test_request(
+            r#"
+            mutation StageBoundedBulkOperation($query: String!) {
+              bulkOperationRunQuery(query: $query) {
+                bulkOperation { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "query": "{ products { edges { node { id } } } }" }),
+        ));
+        assert_eq!(
+            staged.body["data"]["bulkOperationRunQuery"]["userErrors"],
+            json!([])
+        );
+        upstream_calls.lock().unwrap().clear();
+
+        let response = proxy.process_request(test_request(
+            r#"
+            query BoundedBulkOperations {
+              bulkOperations(first: 2, sortKey: CREATED_AT) {
+                edges { cursor node { id createdAt } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            "#,
+            json!({}),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["bulkOperations"]["edges"][0]["cursor"],
+            json!("opaque-bulk-1")
+        );
+        assert_eq!(
+            response.body["data"]["bulkOperations"]["edges"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        let calls = upstream_calls.lock().unwrap();
+        assert_eq!(
+            calls.len(),
+            2,
+            "caller page plus one bounded refill: {calls:?}"
+        );
+        assert_eq!(calls[1]["operationName"], "DraftProxyConnectionOverlay");
+        assert!(calls[1]["query"]
+            .as_str()
+            .is_some_and(|query| query.contains("first: 2") && query.contains("opaque-bulk-2")));
     }
 
     #[test]
@@ -5182,6 +5405,22 @@ fn bulk_operation_sort_value(operation: &Value, sort_key: &str) -> String {
 
 fn bulk_operation_connection_sort_key(arguments: &BTreeMap<String, ResolvedValue>) -> String {
     resolved_string_field(arguments, "sortKey").unwrap_or_else(|| "CREATED_AT".to_string())
+}
+
+fn bulk_operation_staged_sort_key(operation: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let sort_key = sort_key.unwrap_or("CREATED_AT");
+    vec![
+        StagedSortValue::ReverseString(std::cmp::Reverse(bulk_operation_sort_value(
+            operation, sort_key,
+        ))),
+        StagedSortValue::ReverseString(std::cmp::Reverse(
+            operation
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+        )),
+    ]
 }
 
 fn bulk_operation_connection_cursor(operation: &Value, sort_key: &str) -> String {

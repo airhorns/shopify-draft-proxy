@@ -430,16 +430,81 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        let operation_has_local_boundary =
+            operation_has_local_connection_boundary(&invocation.operation_roots);
         let operation_roots = invocation.operation_roots.clone();
         let RootInvocation {
             response_key,
             request,
             root_name,
             arguments,
+            raw_arguments,
+            selection,
+            variable_definitions,
+            variables,
             requested_field_paths,
             ..
         } = invocation;
         let arguments = resolved_arguments_from_json(&arguments);
+        if self.config.read_mode == ReadMode::LiveHybrid {
+            if let Some(family) = markets_connection_family(root_name) {
+                if self.execution_session.markets_query_preflighted
+                    && self.execution_session.upstream_query_response.is_none()
+                {
+                    return ResolverOutcome::value(
+                        self.markets_overlay_query_value(root_name, &arguments),
+                    );
+                }
+                let mut outcome = if operation_has_local_boundary {
+                    ResolverOutcome::value(Value::Null)
+                } else {
+                    self.cached_or_forward_upstream_root_outcome(request, response_key)
+                };
+                if outcome.errors.is_empty() {
+                    let dirty = self.store.staged.markets_dirty_families.contains(family);
+                    if !dirty && !operation_has_local_boundary {
+                        self.hydrate_markets_from_upstream_root(
+                            &json!({ "data": { (response_key): outcome.value.clone() } }),
+                            root_name,
+                            response_key,
+                            &arguments,
+                        );
+                        return outcome;
+                    }
+                    let staged_impact = self
+                        .store
+                        .staged
+                        .markets_dirty_ids
+                        .get(family)
+                        .map(BTreeSet::len)
+                        .unwrap_or(1);
+                    let window = self.bounded_connection_overlay_window(
+                        request,
+                        ConnectionOverlayRequest {
+                            root_name,
+                            arguments: &arguments,
+                            raw_arguments: &raw_arguments,
+                            selection: &selection,
+                            variable_definitions,
+                            variables,
+                            required_node_selection: markets_required_node_selection(family),
+                        },
+                        &outcome.value,
+                        staged_impact,
+                    );
+                    self.hydrate_markets_from_upstream_root(
+                        &json!({ "data": { (response_key): window.clone() } }),
+                        root_name,
+                        response_key,
+                        &arguments,
+                    );
+                    outcome.value =
+                        self.markets_overlay_connection_value(family, &arguments, &window);
+                    outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
+                }
+                return outcome;
+            }
+        }
         if self.config.read_mode == ReadMode::LiveHybrid
             && !self.execution_session.markets_query_preflighted
             && self.markets_operation_should_fetch_upstream(&operation_roots)
@@ -462,6 +527,98 @@ impl DraftProxy {
             &requested_field_paths,
         );
         ResolverOutcome::value(self.markets_overlay_query_value(root_name, &arguments))
+    }
+
+    fn markets_overlay_connection_value(
+        &self,
+        family: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        authoritative: &Value,
+    ) -> Value {
+        let dirty_ids = self
+            .store
+            .staged
+            .markets_dirty_ids
+            .get(family)
+            .cloned()
+            .unwrap_or_default();
+        let (local_records, tombstones) = match family {
+            "markets" => {
+                let records = dirty_ids
+                    .iter()
+                    .filter_map(|id| self.store.staged.markets.get(id).cloned())
+                    .collect::<Vec<_>>();
+                let mut tombstones = dirty_ids
+                    .iter()
+                    .filter(|id| !self.store.staged.markets.contains_key(*id))
+                    .cloned()
+                    .collect::<BTreeSet<_>>();
+                tombstones.extend(self.store.staged.deleted_market_ids.iter().cloned());
+                (records, tombstones)
+            }
+            "catalogs" => {
+                markets_dirty_records_and_tombstones(&self.store.staged.catalogs, &dirty_ids)
+            }
+            "priceLists" => {
+                markets_dirty_records_and_tombstones(&self.store.staged.price_lists, &dirty_ids)
+            }
+            "webPresences" => {
+                markets_dirty_records_and_tombstones(&self.store.staged.web_presences, &dirty_ids)
+            }
+            _ => (Vec::new(), BTreeSet::new()),
+        };
+        let authoritative_rows = observed_connection_rows(authoritative);
+        match family {
+            "markets" => {
+                let authoritative_rows =
+                    reconcile_market_authoritative_rows(authoritative_rows, &local_records);
+                overlay_connection_value(
+                    ConnectionOverlayInput {
+                        authoritative: authoritative_rows,
+                        local_records,
+                        tombstones: &tombstones,
+                        arguments,
+                        source_page_info: &authoritative["pageInfo"],
+                    },
+                    market_search_decision,
+                    market_sort_key,
+                    Value::clone,
+                    |record| markets_local_cursor(family, record),
+                )
+            }
+            "catalogs" => {
+                let type_filter = resolved_string_field(arguments, "type");
+                overlay_connection_value(
+                    ConnectionOverlayInput {
+                        authoritative: authoritative_rows,
+                        local_records,
+                        tombstones: &tombstones,
+                        arguments,
+                        source_page_info: &authoritative["pageInfo"],
+                    },
+                    |catalog, query| {
+                        catalog_search_decision(catalog, query, type_filter.as_deref())
+                    },
+                    catalog_staged_sort_key,
+                    Value::clone,
+                    |record| markets_local_cursor(family, record),
+                )
+            }
+            "priceLists" | "webPresences" => overlay_connection_value(
+                ConnectionOverlayInput {
+                    authoritative: authoritative_rows,
+                    local_records,
+                    tombstones: &tombstones,
+                    arguments,
+                    source_page_info: &authoritative["pageInfo"],
+                },
+                |_record, _query| StagedSearchDecision::Match,
+                markets_id_sort_key,
+                Value::clone,
+                |record| markets_local_cursor(family, record),
+            ),
+            _ => connection_json(Vec::new()),
+        }
     }
 
     pub(crate) fn markets_mutation_root(
@@ -853,7 +1010,7 @@ impl DraftProxy {
             .into_iter()
             .collect::<Vec<_>>();
         if !staged_ids.is_empty() {
-            self.mark_markets_family_dirty("markets");
+            self.mark_markets_ids_dirty("markets", staged_ids.clone());
             self.record_mutation_log_entry(request, query, variables, &field.name, staged_ids);
         }
         value
@@ -1060,8 +1217,28 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn cascade_market_delete(&mut self, market_id: &str) {
-        self.mark_markets_family_dirty("catalogs");
-        self.mark_markets_family_dirty("webPresences");
+        let dirty_catalog_ids = self
+            .store
+            .staged
+            .catalogs
+            .iter()
+            .filter(|(_, catalog)| catalog_market_ids(catalog).iter().any(|id| id == market_id))
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
+        let dirty_web_presence_ids = self
+            .store
+            .staged
+            .web_presences
+            .iter()
+            .filter(|(_, web_presence)| {
+                web_presence_market_ids(web_presence)
+                    .iter()
+                    .any(|id| id == market_id)
+            })
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
+        self.mark_markets_ids_dirty("catalogs", dirty_catalog_ids);
+        self.mark_markets_ids_dirty("webPresences", dirty_web_presence_ids);
         self.store.staged.web_presences.retain(|_, web_presence| {
             !web_presence_market_ids(web_presence)
                 .iter()
@@ -1136,19 +1313,19 @@ impl DraftProxy {
         }
 
         for catalog_id in catalogs_to_add {
-            self.mark_markets_family_dirty("catalogs");
+            self.mark_markets_ids_dirty("catalogs", [catalog_id.clone()]);
             self.add_market_to_catalog(&catalog_id, &id);
         }
         for catalog_id in list_string_field(&input, "catalogsToDelete") {
-            self.mark_markets_family_dirty("catalogs");
+            self.mark_markets_ids_dirty("catalogs", [catalog_id.clone()]);
             self.remove_market_from_catalog(&catalog_id, &id);
         }
         for web_presence_id in web_presences_to_add {
-            self.mark_markets_family_dirty("webPresences");
+            self.mark_markets_ids_dirty("webPresences", [web_presence_id.clone()]);
             self.add_market_to_web_presence(&web_presence_id, &id);
         }
         for web_presence_id in list_string_field(&input, "webPresencesToDelete") {
-            self.mark_markets_family_dirty("webPresences");
+            self.mark_markets_ids_dirty("webPresences", [web_presence_id.clone()]);
             self.remove_market_from_web_presence(&web_presence_id, &id);
         }
 
@@ -1161,8 +1338,54 @@ impl DraftProxy {
             &shop_currency_code,
         );
         self.set_market_relation_fields(&mut updated_market, &id);
-        self.store.staged.markets.insert(id, updated_market.clone());
+        self.store
+            .staged
+            .markets
+            .insert(id.clone(), updated_market.clone());
+        if let Some(name) = updated_market.get("name").and_then(Value::as_str) {
+            self.refresh_market_reference_names(&id, name);
+        }
         self.selected_market_payload(field, updated_market, Vec::new())
+    }
+
+    fn refresh_market_reference_names(&mut self, market_id: &str, name: &str) {
+        let catalog_ids = self
+            .store
+            .staged
+            .catalogs
+            .iter()
+            .filter(|(_, catalog)| catalog_market_ids(catalog).iter().any(|id| id == market_id))
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
+        for id in &catalog_ids {
+            if let Some(catalog) = self.store.staged.catalogs.get_mut(id) {
+                update_market_connection_name(catalog, market_id, name);
+            }
+        }
+        if !catalog_ids.is_empty() {
+            self.mark_markets_ids_dirty("catalogs", catalog_ids);
+        }
+
+        let web_presence_ids = self
+            .store
+            .staged
+            .web_presences
+            .iter()
+            .filter(|(_, presence)| {
+                web_presence_market_ids(presence)
+                    .iter()
+                    .any(|id| id == market_id)
+            })
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
+        for id in &web_presence_ids {
+            if let Some(presence) = self.store.staged.web_presences.get_mut(id) {
+                update_market_connection_name(presence, market_id, name);
+            }
+        }
+        if !web_presence_ids.is_empty() {
+            self.mark_markets_ids_dirty("webPresences", web_presence_ids);
+        }
     }
 
     fn apply_market_update_scalar_fields(
@@ -1588,6 +1811,19 @@ impl DraftProxy {
             .insert(family.to_string());
     }
 
+    pub(in crate::proxy) fn mark_markets_ids_dirty<I>(&mut self, family: &str, ids: I)
+    where
+        I: IntoIterator<Item = String>,
+    {
+        self.mark_markets_family_dirty(family);
+        self.store
+            .staged
+            .markets_dirty_ids
+            .entry(family.to_string())
+            .or_default()
+            .extend(ids);
+    }
+
     fn markets_scope_needs_upstream(&self, key: &str) -> bool {
         if self.store.staged.markets_hydrated_scopes.contains(key) {
             return false;
@@ -1906,6 +2142,16 @@ impl DraftProxy {
         }
         for record in &catalog_records {
             if let Some(id) = record_gid(record, "") {
+                if self
+                    .store
+                    .staged
+                    .markets_dirty_ids
+                    .get("catalogs")
+                    .is_some_and(|ids| ids.contains(&id))
+                    && !self.store.staged.catalogs.contains_key(&id)
+                {
+                    continue;
+                }
                 let hydrated = self
                     .store
                     .staged
@@ -1931,6 +2177,16 @@ impl DraftProxy {
         }
         for record in &price_list_records {
             if let Some(id) = record_gid(record, "PriceList") {
+                if self
+                    .store
+                    .staged
+                    .markets_dirty_ids
+                    .get("priceLists")
+                    .is_some_and(|ids| ids.contains(&id))
+                    && !self.store.staged.price_lists.contains_key(&id)
+                {
+                    continue;
+                }
                 if let Some(existing) = self
                     .store
                     .staged
@@ -1978,6 +2234,16 @@ impl DraftProxy {
         );
         for record in &web_presence_records {
             if let Some(id) = record_gid(record, "MarketWebPresence") {
+                if self
+                    .store
+                    .staged
+                    .markets_dirty_ids
+                    .get("webPresences")
+                    .is_some_and(|ids| ids.contains(&id))
+                    && !self.store.staged.web_presences.contains_key(&id)
+                {
+                    continue;
+                }
                 // A web presence can surface both as a full top-level node (with
                 // its `markets` connection) and as a sparse `{id}` pointer nested
                 // under `market.webPresences`. Keep the richer projection so a
@@ -2109,22 +2375,17 @@ fn markets_hydration_scope_key(
 ) -> String {
     let scope_arguments = arguments
         .iter()
-        .filter(|(name, _)| !markets_pagination_argument(name))
-        .filter(|(name, value)| {
-            !(name.as_str() == "type" && matches!(value, ResolvedValue::Null)
-                || name.as_str() == "limit" && matches!(value, ResolvedValue::Int(10_000)))
+        .filter_map(|(name, value)| {
+            let value = resolved_value_json(value);
+            (!(value.is_null() || name == "limit" && value.as_i64() == Some(10_000)))
+                .then(|| (name.clone(), value))
         })
-        .map(|(name, value)| (name.clone(), resolved_value_json(value)))
         .collect::<serde_json::Map<_, _>>();
     format!("{family}:{}", Value::Object(scope_arguments))
 }
 
 fn markets_scope_family(key: &str) -> &str {
     key.split_once(':').map(|(family, _)| family).unwrap_or(key)
-}
-
-fn markets_pagination_argument(name: &str) -> bool {
-    matches!(name, "first" | "last" | "after" | "before")
 }
 
 fn markets_response_connection_complete(value: Option<&Value>) -> bool {
@@ -2135,10 +2396,123 @@ fn markets_response_connection_complete(value: Option<&Value>) -> bool {
         return false;
     }
     connection
-        .get("pageInfo")
-        .and_then(|page_info| page_info.get("hasNextPage"))
+        .pointer("/pageInfo/hasNextPage")
         .and_then(Value::as_bool)
-        != Some(true)
+        == Some(false)
+        && connection
+            .pointer("/pageInfo/hasPreviousPage")
+            .and_then(Value::as_bool)
+            == Some(false)
+}
+
+fn markets_connection_family(root_name: &str) -> Option<&'static str> {
+    match root_name {
+        "markets" => Some("markets"),
+        "catalogs" => Some("catalogs"),
+        "priceLists" => Some("priceLists"),
+        "webPresences" => Some("webPresences"),
+        _ => None,
+    }
+}
+
+fn markets_required_node_selection(_family: &str) -> &'static str {
+    "id"
+}
+
+fn update_market_connection_name(record: &mut Value, market_id: &str, name: &str) {
+    if let Some(nodes) = record
+        .pointer_mut("/markets/nodes")
+        .and_then(Value::as_array_mut)
+    {
+        for market in nodes {
+            if market.get("id").and_then(Value::as_str) == Some(market_id) {
+                market["name"] = json!(name);
+            }
+        }
+    }
+    if let Some(edges) = record
+        .pointer_mut("/markets/edges")
+        .and_then(Value::as_array_mut)
+    {
+        for edge in edges {
+            if edge.pointer("/node/id").and_then(Value::as_str) == Some(market_id) {
+                edge["node"]["name"] = json!(name);
+            }
+        }
+    }
+}
+
+fn markets_dirty_records_and_tombstones(
+    records: &BTreeMap<String, Value>,
+    dirty_ids: &BTreeSet<String>,
+) -> (Vec<Value>, BTreeSet<String>) {
+    (
+        dirty_ids
+            .iter()
+            .filter_map(|id| records.get(id).cloned())
+            .collect(),
+        dirty_ids
+            .iter()
+            .filter(|id| !records.contains_key(*id))
+            .cloned()
+            .collect(),
+    )
+}
+
+fn markets_id_sort_key(record: &Value, _sort_key: Option<&str>) -> StagedSortKey {
+    vec![resource_id_tail_sort_value(
+        record.get("id").and_then(Value::as_str),
+    )]
+}
+
+fn markets_local_cursor(family: &str, record: &Value) -> String {
+    stable_local_connection_cursor(
+        family,
+        record.get("id").and_then(Value::as_str).unwrap_or_default(),
+    )
+}
+
+fn reconcile_market_authoritative_rows(
+    mut authoritative: Vec<ObservedConnectionRow>,
+    local_records: &[Value],
+) -> Vec<ObservedConnectionRow> {
+    let mut local_candidates = BTreeMap::<String, Vec<&Value>>::new();
+    for record in local_records {
+        if let Some(name) = record.get("name").and_then(Value::as_str) {
+            local_candidates
+                .entry(name.to_ascii_lowercase())
+                .or_default()
+                .push(record);
+        }
+    }
+    let local_by_unique_name = local_candidates
+        .into_iter()
+        .filter_map(|(name, records)| (records.len() == 1).then(|| (name, records[0])))
+        .collect::<BTreeMap<_, _>>();
+    let mut authoritative_name_counts = BTreeMap::<String, usize>::new();
+    for row in &authoritative {
+        if let Some(name) = row.node.get("name").and_then(Value::as_str) {
+            *authoritative_name_counts
+                .entry(name.to_ascii_lowercase())
+                .or_default() += 1;
+        }
+    }
+    for row in &mut authoritative {
+        let Some(name) = row
+            .node
+            .get("name")
+            .and_then(Value::as_str)
+            .map(str::to_ascii_lowercase)
+        else {
+            continue;
+        };
+        if authoritative_name_counts.get(&name) == Some(&1) {
+            if let Some(local) = local_by_unique_name.get(&name) {
+                row.node = (*local).clone();
+            }
+        }
+    }
+    authoritative
 }
 
 fn markets_record_is_richer_than_existing(

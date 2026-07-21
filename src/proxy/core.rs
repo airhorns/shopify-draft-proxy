@@ -573,7 +573,11 @@ impl DraftProxy {
                 "nextStorefrontCartAppliedGiftCardId": self.store.staged.next_storefront_cart_applied_gift_card_id,
                 "nextStorefrontCartMetafieldId": self.store.staged.next_storefront_cart_metafield_id,
                 "nextStorefrontCartDeliveryAddressId": self.store.staged.next_storefront_cart_delivery_address_id,
-                "customersCountBase": self.store.staged.customers_count_base,
+                "customersCountBase": self.store.staged.customer_count_baselines
+                    .get(&customer_count_baseline_key(&BTreeMap::new()))
+                    .and_then(|count| count.get("count"))
+                    .and_then(Value::as_u64),
+                "customerCountBaselines": self.store.staged.customer_count_baselines.clone(),
                 "storeCreditAccounts": self.store.staged.store_credit_accounts.records.clone(),
                 "storeCreditAccountOrder": self.store.staged.store_credit_accounts.order.clone(),
                 "storeCreditTransactions": self.store.staged.store_credit_transactions.clone(),
@@ -1256,6 +1260,10 @@ impl DraftProxy {
         if !self.store.staged.markets_upstream_counts.is_empty() {
             snapshot["stagedState"]["marketsUpstreamCounts"] =
                 json!(self.store.staged.markets_upstream_counts.clone());
+        }
+        if !self.store.staged.markets_dirty_ids.is_empty() {
+            snapshot["stagedState"]["marketsDirtyIds"] =
+                json!(self.store.staged.markets_dirty_ids.clone());
         }
         if !self.store.staged.available_backup_regions.is_empty() {
             snapshot["stagedState"]["availableBackupRegions"] =
@@ -2274,8 +2282,16 @@ impl DraftProxy {
             "nextStorefrontCartDeliveryAddressId",
             1,
         );
-        self.store.staged.customers_count_base =
-            state["stagedState"]["customersCountBase"].as_u64();
+        self.store.staged.customer_count_baselines =
+            value_map_from_json(state["stagedState"].get("customerCountBaselines"));
+        if self.store.staged.customer_count_baselines.is_empty() {
+            if let Some(count) = state["stagedState"]["customersCountBase"].as_u64() {
+                self.store.staged.customer_count_baselines.insert(
+                    customer_count_baseline_key(&BTreeMap::new()),
+                    count_object(count),
+                );
+            }
+        }
         replace_staged_value_records(
             &mut self.store.staged.store_credit_accounts,
             &state["stagedState"],
@@ -2790,6 +2806,28 @@ impl DraftProxy {
             value_map_from_json(state["stagedState"].get("webPresences"));
         self.store.staged.markets_upstream_counts =
             value_map_from_json(state["stagedState"].get("marketsUpstreamCounts"));
+        self.store.staged.markets_dirty_ids = state["stagedState"]
+            .get("marketsDirtyIds")
+            .and_then(Value::as_object)
+            .map(|families| {
+                families
+                    .iter()
+                    .map(|(family, ids)| {
+                        (
+                            family.clone(),
+                            string_array_from_json(ids).into_iter().collect(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.markets_dirty_families = self
+            .store
+            .staged
+            .markets_dirty_ids
+            .keys()
+            .cloned()
+            .collect();
         self.store.staged.available_backup_regions =
             value_map_from_json(state["stagedState"].get("availableBackupRegions"));
         self.store.staged.shop_locales = state["stagedState"]

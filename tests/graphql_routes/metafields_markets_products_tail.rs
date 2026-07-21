@@ -5909,6 +5909,44 @@ fn market_update_top_level_lists_fetch_after_preflight() {
                 };
             }
 
+            if call_index == 3 {
+                assert_eq!(
+                    body["operationName"],
+                    json!("DraftProxyConnectionOverlay")
+                );
+                assert!(
+                    query.contains("overlayWindow: catalogs")
+                        && query.contains(other_catalog_id),
+                    "third call should be the bounded catalogs boundary refill: {query}"
+                );
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "overlayWindow": {
+                                "edges": [{
+                                    "cursor": "opaque-third-catalog",
+                                    "node": {
+                                        "__typename": "MarketCatalog",
+                                        "id": "gid://shopify/MarketCatalog/18001112",
+                                        "title": "Boundary Catalog",
+                                        "status": "ACTIVE",
+                                        "markets": { "nodes": [] }
+                                    }
+                                }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": true,
+                                    "startCursor": "opaque-third-catalog",
+                                    "endCursor": "opaque-third-catalog"
+                                }
+                            }
+                        }
+                    }),
+                };
+            }
+
             assert_eq!(
                 call_index, 2,
                 "only the target preflight and the subsequent top-level family read should fetch upstream"
@@ -6206,8 +6244,8 @@ fn market_update_top_level_lists_fetch_after_preflight() {
     assert_eq!(top_level_read.status, 200);
     assert_eq!(
         upstream_bodies.lock().unwrap().len(),
-        2,
-        "top-level markets-family roots after a narrow by-id preflight must fetch upstream baseline"
+        3,
+        "top-level markets-family roots must fetch the caller page plus one bounded boundary refill"
     );
     let market_names = [
         "primaryMarketFromList",
@@ -6248,7 +6286,9 @@ fn market_update_top_level_lists_fetch_after_preflight() {
     assert!(catalog_titles.contains(&json!("Other Catalog")));
     assert_eq!(
         top_level_read.body["data"]["catalogsCount"],
-        json!({ "count": 3, "precision": "EXACT" })
+        json!({ "count": 3, "precision": "EXACT" }),
+        "{}",
+        top_level_read.body
     );
     let price_list_nodes = top_level_read.body["data"]["priceLists"]["nodes"]
         .as_array()
@@ -6299,6 +6339,39 @@ fn market_delete_live_hybrid_hydrates_existing_market_and_cascades_relations() {
                 !query.contains("marketDelete"),
                 "marketDelete must stage locally without upstream passthrough: {request:?}"
             );
+            if query.contains("LiveHybridExistingMarketDeleteRead") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "market": {
+                                "id": market_id,
+                                "name": "Delete Existing Market"
+                            },
+                            "catalog": {
+                                "id": catalog_id,
+                                "markets": { "nodes": [{ "id": market_id }] }
+                            },
+                            "webPresences": {
+                                "edges": [{
+                                    "cursor": "opaque-delete-presence",
+                                    "node": {
+                                        "id": web_presence_id,
+                                        "markets": { "nodes": [{ "id": market_id }] }
+                                    }
+                                }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": "opaque-delete-presence",
+                                    "endCursor": "opaque-delete-presence"
+                                }
+                            }
+                        }
+                    }),
+                };
+            }
             assert_eq!(
                 body["operationName"],
                 json!("MarketsMutationPreflightHydrate")
@@ -6418,8 +6491,8 @@ fn market_delete_live_hybrid_hydrates_existing_market_and_cascades_relations() {
     assert_eq!(readback.body["data"]["webPresences"]["nodes"], json!([]));
     assert_eq!(
         upstream_bodies.lock().unwrap().len(),
-        upstream_calls_after_delete,
-        "read-after-delete should serve from locally staged hydrated state"
+        upstream_calls_after_delete + 1,
+        "read-after-delete should fetch one bounded authoritative window"
     );
     assert!(log_snapshot(&proxy)["entries"][0]["rawBody"]
         .as_str()
@@ -6450,7 +6523,7 @@ fn market_delete_live_hybrid_hydrates_existing_market_and_cascades_relations() {
     );
     assert_eq!(
         upstream_bodies.lock().unwrap().len(),
-        upstream_calls_after_delete,
+        upstream_calls_after_delete + 1,
         "wrong-resource validation must not call upstream"
     );
 }
@@ -8505,20 +8578,23 @@ fn markets_live_hybrid_merges_cold_family_baseline_with_staged_delta() {
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let mut calls = upstream_calls_for_proxy.lock().unwrap();
             *calls += 1;
-            assert_eq!(
-                *calls, 1,
-                "only the mixed markets-family read should hydrate upstream"
+            assert!(
+                *calls <= 2,
+                "the initial read and exact follow-up window are the only upstream requests: {}",
+                request.body
             );
             let body: Value =
                 serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
             let query = body["query"].as_str().unwrap_or_default();
-            assert!(
-                query.contains("markets(")
-                    && query.contains("catalogs(")
-                    && query.contains("priceLists(")
-                    && query.contains("webPresences("),
-                "unexpected upstream query: {query}"
-            );
+            if *calls == 1 {
+                assert!(
+                    query.contains("markets(")
+                        && query.contains("catalogs(")
+                        && query.contains("priceLists(")
+                        && query.contains("webPresences("),
+                    "unexpected upstream query: {query}"
+                );
+            }
             let live_market = json!({
                 "__typename": "Market",
                 "id": live_market_id,
@@ -8624,7 +8700,7 @@ fn markets_live_hybrid_merges_cold_family_baseline_with_staged_delta() {
                             }
                         },
                         "catalogsWindow": {
-                            "nodes": [live_catalog],
+                            "nodes": [live_catalog.clone()],
                             "edges": [],
                             "pageInfo": {
                                 "hasNextPage": false,
@@ -8635,7 +8711,7 @@ fn markets_live_hybrid_merges_cold_family_baseline_with_staged_delta() {
                         },
                         "catalogsCount": { "count": 1, "precision": "EXACT" },
                         "priceLists": {
-                            "nodes": [live_price_list],
+                            "nodes": [live_price_list.clone()],
                             "edges": [],
                             "pageInfo": {
                                 "hasNextPage": false,
@@ -8652,6 +8728,26 @@ fn markets_live_hybrid_merges_cold_family_baseline_with_staged_delta() {
                                 "hasPreviousPage": false,
                                 "startCursor": live_presence_id,
                                 "endCursor": live_presence_id
+                            }
+                        },
+                        "secondCatalogPage": {
+                            "nodes": [live_catalog.clone()],
+                            "edges": [{ "cursor": live_catalog_id, "node": live_catalog }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": true,
+                                "startCursor": live_catalog_id,
+                                "endCursor": live_catalog_id
+                            }
+                        },
+                        "aliasedPriceLists": {
+                            "nodes": [live_price_list.clone()],
+                            "edges": [{ "cursor": live_price_list_id, "node": live_price_list }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": live_price_list_id,
+                                "endCursor": live_price_list_id
                             }
                         }
                     }
@@ -8876,8 +8972,8 @@ fn markets_live_hybrid_merges_cold_family_baseline_with_staged_delta() {
     assert_eq!(aliased_followup.status, 200);
     assert_eq!(
         *upstream_calls.lock().unwrap(),
-        1,
-        "hydrated effective graph should satisfy alias/pagination follow-up locally"
+        2,
+        "a different pagination window must not reuse a broader cached scope"
     );
     assert_eq!(
         aliased_followup.body["data"]["secondCatalogPage"]["pageInfo"]["hasPreviousPage"],
@@ -9030,6 +9126,18 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
             })
         } else if query.contains("MarketsMutationPreflightHydrate") {
             json!({ "nodes": [Value::Null] })
+        } else if query.contains("RustMarketWebPresenceHelperLocalRuntimeDeleteRead") {
+            json!({
+                "webPresences": {
+                    "edges": [],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                    }
+                }
+            })
         } else if query.contains("market(id:") {
             json!({ "market": Value::Null })
         } else {
