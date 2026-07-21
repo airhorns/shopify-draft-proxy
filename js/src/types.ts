@@ -52,15 +52,19 @@ export interface DraftProxyConfigSnapshot {
 export type DraftProxyLogSnapshot = unknown;
 export type DraftProxyStateSnapshot = unknown;
 
-export const DRAFT_PROXY_STATE_DUMP_SCHEMA = 'shopify-draft-proxy-rust-state/v1';
+export const DRAFT_PROXY_STATE_DUMP_SCHEMA = 'shopify-draft-proxy-rust-state/v2';
 
 export interface DraftProxyStateDump {
   schema: typeof DRAFT_PROXY_STATE_DUMP_SCHEMA;
-  version: 1;
   createdAt: string;
-  store: unknown;
-  syntheticIdentity: unknown;
-  extensions?: Record<string, unknown>;
+  state: DraftProxyStateSnapshot;
+  runtimeState: {
+    store: unknown;
+    shopSellsSubscriptions: boolean | null;
+    lastMutationTimestamp: string | null;
+  };
+  log: { entries: unknown[] };
+  nextSyntheticId: number;
 }
 
 export interface DraftProxyCommitAttemptRequest {

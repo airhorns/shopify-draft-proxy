@@ -77,6 +77,18 @@ fn graphql_request(query: &str, variables: Value) -> Request {
     )
 }
 
+fn current_graphql_request(query: &str, variables: Value) -> Request {
+    request(
+        "POST",
+        "/admin/api/2026-04/graphql.json",
+        &json!({
+            "query": query,
+            "variables": variables
+        })
+        .to_string(),
+    )
+}
+
 fn ok_json(body: Value) -> Response {
     Response {
         status: 200,
@@ -98,6 +110,441 @@ fn dump(proxy: &mut DraftProxy) -> Value {
 fn restore(proxy: &mut DraftProxy, body: &Value) {
     let response = proxy.process_request(request("POST", "/__meta/restore", &body.to_string()));
     assert_eq!(response.status, 200);
+}
+
+#[derive(Clone)]
+struct RepresentativeRoundTripIds {
+    webhook: Value,
+    selling_plan_group: Value,
+    draft_order: Value,
+}
+
+fn stage_representative_round_trip_state(proxy: &mut DraftProxy) -> RepresentativeRoundTripIds {
+    let app_subscription = proxy.process_request(current_graphql_request(
+        r#"
+        mutation CreateRoundTripSubscription {
+          appSubscriptionCreate(
+            name: "Round-trip subscription"
+            returnUrl: "https://app.example.test/return"
+            test: true
+            lineItems: [{
+              plan: {
+                appRecurringPricingDetails: {
+                  price: { amount: "10.00", currencyCode: USD }
+                  interval: EVERY_30_DAYS
+                }
+              }
+            }]
+          ) {
+            appSubscription { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        app_subscription.body["data"]["appSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let webhook = proxy.process_request(current_graphql_request(
+        r#"
+        mutation CreateRepresentativeWebhook {
+          webhookSubscriptionCreate(
+            topic: ORDERS_CREATE
+            webhookSubscription: { uri: "https://hooks.example.com/representative", format: JSON }
+          ) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        webhook.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let webhook_id =
+        webhook.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["id"].clone();
+
+    let media = proxy.process_request(current_graphql_request(
+        r#"
+        mutation CreateRepresentativeMedia($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "files": [{
+                "alt": "Round-trip media",
+                "contentType": "IMAGE",
+                "filename": "round-trip.jpg",
+                "originalSource": "https://cdn.example.com/round-trip.jpg"
+            }]
+        }),
+    ));
+    assert_eq!(media.body["data"]["fileCreate"]["userErrors"], json!([]));
+
+    let selling_plan = proxy.process_request(current_graphql_request(
+        r#"
+        mutation CreateRepresentativeSellingPlan($input: SellingPlanGroupInput!) {
+          sellingPlanGroupCreate(input: $input) {
+            sellingPlanGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Round-trip selling plan",
+                "options": ["Delivery frequency"],
+                "sellingPlansToCreate": [{
+                    "name": "Monthly",
+                    "options": ["Monthly"],
+                    "category": "SUBSCRIPTION",
+                    "billingPolicy": { "recurring": { "interval": "MONTH", "intervalCount": 1 } },
+                    "deliveryPolicy": { "recurring": { "interval": "MONTH", "intervalCount": 1 } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        selling_plan.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    let selling_plan_group =
+        selling_plan.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["id"].clone();
+
+    let market = proxy.process_request(current_graphql_request(
+        r#"
+        mutation CreateRepresentativeMarket($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "name": "Round-trip Canada", "regions": [{ "countryCode": "CA" }] } }),
+    ));
+    assert_eq!(market.body["data"]["marketCreate"]["userErrors"], json!([]));
+
+    let draft = proxy.process_request(current_graphql_request(
+        r#"
+        mutation CreateRepresentativePaymentTermsDraft($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "round-trip-terms@example.test",
+                "lineItems": [{
+                    "title": "Payment terms item",
+                    "quantity": 1,
+                    "originalUnitPrice": "18.50"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        draft.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_order = draft.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let payment_terms = proxy.process_request(current_graphql_request(
+        r#"
+        mutation CreateRepresentativePaymentTerms(
+          $referenceId: ID!
+          $attributes: PaymentTermsCreateInput!
+        ) {
+          paymentTermsCreate(
+            referenceId: $referenceId
+            paymentTermsAttributes: $attributes
+          ) {
+            paymentTerms { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "referenceId": draft_order.clone(),
+            "attributes": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+                "paymentSchedules": [{ "issuedAt": "2026-07-20T00:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        payment_terms.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
+    );
+
+    RepresentativeRoundTripIds {
+        webhook: webhook_id,
+        selling_plan_group,
+        draft_order,
+    }
+}
+
+fn representative_round_trip_reads(
+    proxy: &mut DraftProxy,
+    ids: &RepresentativeRoundTripIds,
+) -> Vec<Response> {
+    [
+        (
+            r#"
+            query ReadRoundTripBilling {
+              currentAppInstallation {
+                activeSubscriptions { id name status test }
+              }
+            }
+            "#,
+            json!({}),
+        ),
+        (
+            r#"
+            query ReadRoundTripWebhook($id: ID!) {
+              webhookSubscription(id: $id) { id topic uri format }
+              webhookSubscriptions(first: 10) { nodes { id topic uri format } }
+              webhookSubscriptionsCount { count }
+            }
+            "#,
+            json!({ "id": ids.webhook.clone() }),
+        ),
+        (
+            r#"
+            query ReadRoundTripMedia {
+              files(first: 10) {
+                nodes {
+                  id alt fileStatus
+                  ... on MediaImage { image { url } }
+                }
+              }
+            }
+            "#,
+            json!({}),
+        ),
+        (
+            r#"
+            query ReadRoundTripSellingPlan($id: ID!) {
+              sellingPlanGroup(id: $id) {
+                id name options
+                sellingPlans(first: 10) { nodes { id name category } }
+              }
+            }
+            "#,
+            json!({ "id": ids.selling_plan_group.clone() }),
+        ),
+        (
+            r#"
+            query ReadRoundTripMarkets {
+              markets(first: 10) { nodes { id name handle status } }
+            }
+            "#,
+            json!({}),
+        ),
+        (
+            r#"
+            query ReadRoundTripPaymentTerms($id: ID!) {
+              draftOrder(id: $id) {
+                id
+                paymentTerms {
+                  id paymentTermsName paymentTermsType
+                  paymentSchedules(first: 10) { nodes { id issuedAt dueAt } }
+                }
+              }
+            }
+            "#,
+            json!({ "id": ids.draft_order.clone() }),
+        ),
+    ]
+    .into_iter()
+    .map(|(query, variables)| proxy.process_request(current_graphql_request(query, variables)))
+    .collect()
+}
+
+#[test]
+fn structural_dump_restore_round_trips_representative_public_behavior() {
+    let mut source = snapshot_proxy();
+    let ids = stage_representative_round_trip_state(&mut source);
+    let expected_reads = representative_round_trip_reads(&mut source, &ids);
+    assert!(expected_reads
+        .iter()
+        .all(|response| response.status == 200 && response.body.get("errors").is_none()));
+    let expected_log = source.process_request(request("GET", "/__meta/log", ""));
+    let expected_roots = expected_log.body["entries"]
+        .as_array()
+        .expect("representative mutations should be logged")
+        .iter()
+        .map(|entry| entry["interpreted"]["primaryRootField"].clone())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        expected_roots,
+        vec![
+            json!("appSubscriptionCreate"),
+            json!("webhookSubscriptionCreate"),
+            json!("fileCreate"),
+            json!("sellingPlanGroupCreate"),
+            json!("marketCreate"),
+            json!("draftOrderCreate"),
+            json!("paymentTermsCreate")
+        ]
+    );
+    let source_dump = dump(&mut source);
+    assert_eq!(
+        source_dump["schema"],
+        json!("shopify-draft-proxy-rust-state/v2")
+    );
+    assert!(source_dump["runtimeState"]["store"].is_object());
+
+    let mut fresh = snapshot_proxy();
+    restore(&mut fresh, &source_dump);
+    assert_eq!(
+        representative_round_trip_reads(&mut fresh, &ids),
+        expected_reads
+    );
+    assert_eq!(
+        fresh.process_request(request("GET", "/__meta/log", "")),
+        expected_log
+    );
+
+    let mut reused = snapshot_proxy();
+    let _ = reused.process_request(current_graphql_request(
+        "mutation { productCreate(product: { title: \"Stale product\" }) { product { id } } }",
+        json!({}),
+    ));
+    restore(&mut reused, &source_dump);
+    assert_eq!(
+        representative_round_trip_reads(&mut reused, &ids),
+        expected_reads
+    );
+    assert_eq!(
+        reused.process_request(request("GET", "/__meta/log", "")),
+        expected_log
+    );
+
+    let next_fresh = fresh.process_request(current_graphql_request(
+        r#"
+        mutation CreateNextRoundTripWebhook {
+          webhookSubscriptionCreate(
+            topic: SHOP_UPDATE
+            webhookSubscription: { uri: "https://hooks.example.com/next-fresh", format: JSON }
+          ) { webhookSubscription { id } userErrors { field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    let next_reused = reused.process_request(current_graphql_request(
+        r#"
+        mutation CreateNextRoundTripWebhook {
+          webhookSubscriptionCreate(
+            topic: SHOP_UPDATE
+            webhookSubscription: { uri: "https://hooks.example.com/next-reused", format: JSON }
+          ) { webhookSubscription { id } userErrors { field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        next_fresh.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["id"],
+        next_reused.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["id"],
+        "synthetic identity must resume identically after fresh and reused restore"
+    );
+
+    let reset = fresh.process_request(request("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let mut clean = snapshot_proxy();
+    assert_eq!(
+        representative_round_trip_reads(&mut fresh, &ids),
+        representative_round_trip_reads(&mut clean, &ids),
+        "reset restored state must expose the same public behavior as a fresh proxy"
+    );
+    assert_eq!(
+        fresh.process_request(request("GET", "/__meta/log", "")),
+        clean.process_request(request("GET", "/__meta/log", ""))
+    );
+}
+
+#[test]
+fn dump_restore_preserves_webhook_reads_and_replaces_reused_state() {
+    const CREATE: &str = r#"
+        mutation CreateRoundTripWebhook($uri: URL!) {
+          webhookSubscriptionCreate(
+            topic: ORDERS_CREATE
+            webhookSubscription: { uri: $uri, format: JSON }
+          ) {
+            webhookSubscription { id topic uri }
+            userErrors { field message }
+          }
+        }
+    "#;
+    const READ: &str = r#"
+        query ReadRoundTripWebhooks($id: ID!) {
+          webhookSubscription(id: $id) { id topic uri }
+          webhookSubscriptions(first: 10) { nodes { id topic uri } }
+          webhookSubscriptionsCount { count }
+        }
+    "#;
+
+    let mut source = snapshot_proxy();
+    let create = source.process_request(current_graphql_request(
+        CREATE,
+        json!({ "uri": "https://hooks.example.com/round-trip-source" }),
+    ));
+    assert_eq!(
+        create.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let source_id =
+        create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["id"].clone();
+    let expected = source.process_request(current_graphql_request(
+        READ,
+        json!({ "id": source_id.clone() }),
+    ));
+    let source_dump = dump(&mut source);
+
+    let mut fresh = snapshot_proxy();
+    restore(&mut fresh, &source_dump);
+    assert_eq!(
+        fresh.process_request(current_graphql_request(
+            READ,
+            json!({ "id": source_id.clone() }),
+        )),
+        expected,
+        "fresh restore must preserve response-affecting webhook state"
+    );
+
+    let mut reused = snapshot_proxy();
+    let _first_stale = reused.process_request(current_graphql_request(
+        CREATE,
+        json!({ "uri": "https://hooks.example.com/first-stale-reused-state" }),
+    ));
+    let stale = reused.process_request(current_graphql_request(
+        CREATE,
+        json!({ "uri": "https://hooks.example.com/stale-reused-state" }),
+    ));
+    let stale_id =
+        stale.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["id"].clone();
+    restore(&mut reused, &source_dump);
+    assert_eq!(
+        reused.process_request(current_graphql_request(READ, json!({ "id": source_id }),)),
+        expected,
+        "restore into a reused proxy must replace prior state"
+    );
+    let stale_read =
+        reused.process_request(current_graphql_request(READ, json!({ "id": stale_id })));
+    assert_eq!(stale_read.body["data"]["webhookSubscription"], Value::Null);
+    assert_eq!(
+        stale_read.body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 1 })
+    );
 }
 
 #[test]

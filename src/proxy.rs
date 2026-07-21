@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{json, Value};
 
 use crate::graphql::{
@@ -29,7 +29,8 @@ pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 1
 pub(in crate::proxy) const METAFIELDS_SET_INPUT_LIMIT: usize = 25;
 pub(in crate::proxy) const API_CLIENT_ID_HEADER: &str = "x-shopify-draft-proxy-api-client-id";
 pub(in crate::proxy) const ACCESS_SCOPES_HEADER: &str = "x-shopify-draft-proxy-access-scopes";
-const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
+const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v2";
+const LEGACY_RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
 const OBSERVED_COLLECTION_BASELINE_FIELD: &str = "__shopifyDraftProxyObservedCollectionBaseline";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -356,7 +357,7 @@ struct SavedSearchRecord {
     api_client_id: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct ResourceStore<T> {
     base: OrderedRecords<T>,
     staged: StagedRecords<T>,
@@ -413,7 +414,8 @@ struct ShopPolicyRecord {
     translations: Vec<Value>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Store {
     base: BaseState,
     staged: StagedState,
@@ -423,7 +425,8 @@ struct Store {
     shop_policies: ResourceStore<ShopPolicyRecord>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct BaseState {
     delivery_profiles: OrderedRecords<Value>,
     delivery_promise_providers: OrderedRecords<Value>,
@@ -447,13 +450,25 @@ struct BaseState {
     bulk_operations: OrderedRecords<Value>,
     bulk_operations_observed: bool,
     locations: OrderedRecords<Value>,
+    #[serde(
+        serialize_with = "serialize_btree_map_as_entries",
+        deserialize_with = "deserialize_btree_map_from_entries"
+    )]
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     inventory_level_order: Vec<(String, String)>,
+    #[serde(
+        serialize_with = "serialize_btree_map_as_entries",
+        deserialize_with = "deserialize_btree_map_from_entries"
+    )]
     inventory_level_ids: BTreeMap<(String, String), String>,
     inventory_level_cursors: BTreeMap<String, String>,
     inventory_item_cursors: BTreeMap<String, String>,
     inventory_items_catalog_hydrated: bool,
     inactive_inventory_levels: BTreeSet<(String, String)>,
+    #[serde(
+        serialize_with = "serialize_btree_map_as_entries",
+        deserialize_with = "deserialize_btree_map_from_entries"
+    )]
     inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     gift_cards: BTreeMap<String, Value>,
     gift_card_configuration: Option<Value>,
@@ -486,6 +501,10 @@ struct BaseState {
     function_fulfillment_constraint_rules: BTreeMap<String, Value>,
     function_fulfillment_constraint_rule_order: Vec<String>,
     function_fulfillment_constraint_rules_catalog_hydrated: bool,
+    #[serde(
+        serialize_with = "serialize_btree_map_as_entries",
+        deserialize_with = "deserialize_btree_map_from_entries"
+    )]
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     metafield_definition_owner_catalogs: BTreeSet<String>,
     metafield_definition_namespaces: BTreeSet<(String, String)>,
@@ -502,7 +521,8 @@ struct BaseState {
 
 type MetafieldDefinitionKey = (String, String, String);
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct StagedState {
     product_feeds: StagedRecords<Value>,
     selling_plan_groups: StagedRecords<SellingPlanGroupRecord>,
@@ -630,8 +650,16 @@ struct StagedState {
     b2b_staff_assignments: BTreeMap<String, Value>,
     deleted_b2b_staff_assignment_ids: BTreeSet<String>,
     next_b2b_company_id: u64,
+    #[serde(
+        serialize_with = "serialize_btree_map_as_entries",
+        deserialize_with = "deserialize_btree_map_from_entries"
+    )]
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     inventory_level_order: Vec<(String, String)>,
+    #[serde(
+        serialize_with = "serialize_btree_map_as_entries",
+        deserialize_with = "deserialize_btree_map_from_entries"
+    )]
     inventory_level_ids: BTreeMap<(String, String), String>,
     // Opaque Relay pagination cursors for InventoryLevel connection edges, keyed by
     // the level's gid. These tokens encode Shopify's internal row ids and cannot be
@@ -640,6 +668,10 @@ struct StagedState {
     inventory_level_cursors: BTreeMap<String, String>,
     inactive_inventory_levels: BTreeSet<(String, String)>,
     active_inventory_levels: BTreeSet<(String, String)>,
+    #[serde(
+        serialize_with = "serialize_btree_map_as_entries",
+        deserialize_with = "deserialize_btree_map_from_entries"
+    )]
     inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     next_inventory_quantity_timestamp: u64,
     inventory_adjustment_groups: BTreeMap<String, Value>,
@@ -653,6 +685,10 @@ struct StagedState {
     product_option_linked_metaobject_definition_ids: BTreeSet<String>,
     owner_metafields: BTreeMap<String, Vec<Value>>,
     deleted_owner_metafields: BTreeSet<(String, String, String)>,
+    #[serde(
+        serialize_with = "serialize_btree_map_as_entries",
+        deserialize_with = "deserialize_btree_map_from_entries"
+    )]
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     deleted_metafield_definitions: BTreeSet<MetafieldDefinitionKey>,
     metafield_reference_ids: BTreeSet<String>,
@@ -811,13 +847,13 @@ struct InventoryShipmentTrackingRecord {
     arrives_at: Option<String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct OrderedRecords<T> {
     records: BTreeMap<String, T>,
     order: Vec<String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct StagedRecords<T> {
     records: BTreeMap<String, T>,
     order: Vec<String>,
@@ -841,6 +877,29 @@ impl<T> Default for StagedRecords<T> {
             tombstones: BTreeSet::new(),
         }
     }
+}
+
+fn serialize_btree_map_as_entries<S, K, V>(
+    value: &BTreeMap<K, V>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+    K: Serialize + Ord,
+    V: Serialize,
+{
+    value.iter().collect::<Vec<_>>().serialize(serializer)
+}
+
+fn deserialize_btree_map_from_entries<'de, D, K, V>(
+    deserializer: D,
+) -> Result<BTreeMap<K, V>, D::Error>
+where
+    D: Deserializer<'de>,
+    K: Deserialize<'de> + Ord,
+    V: Deserialize<'de>,
+{
+    Vec::<(K, V)>::deserialize(deserializer).map(|entries| entries.into_iter().collect())
 }
 
 impl<T> OrderedRecords<T> {
@@ -2693,9 +2752,9 @@ pub struct DraftProxy {
     /// Per-scenario cache of the upstream shop's `shop.features.sellsSubscriptions`
     /// capability. Populated lazily by forwarding a `DraftProxyShopSubscriptionCapability`
     /// probe the first time a discount mutation touches subscription/recurring fields.
-    /// Intentionally NOT part of the dump/restore snapshot so it survives
-    /// `restoreState` between a scenario's targets; it is reset on `/__meta/reset`,
-    /// which the parity runner issues at the start of every scenario.
+    /// This affects validation and is therefore persisted in v2 dumps. It is
+    /// still reset on `/__meta/reset`, which the parity runner issues at the
+    /// start of every scenario.
     shop_sells_subscriptions: Option<bool>,
     clock: RuntimeClock,
     last_mutation_timestamp: Option<time::OffsetDateTime>,
