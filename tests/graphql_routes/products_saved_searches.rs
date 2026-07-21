@@ -4406,14 +4406,38 @@ fn product_variants_bulk_update_sorts_user_errors_by_field_and_code() {
 }
 
 #[test]
-fn product_media_roots_without_store_backed_handlers_fail_closed() {
+fn snapshot_variant_media_and_create_media_honor_local_prerequisite_boundaries() {
     let mut proxy = snapshot_proxy();
 
-    for (root, query) in [
+    for (root, error_field, query) in [
         (
             "productCreateMedia",
+            "mediaUserErrors",
             r#"mutation { productCreateMedia(productId: "gid://shopify/Product/optioned", media: [{ originalSource: "not-a-url", mediaContentType: IMAGE }]) { media { id } mediaUserErrors { message } } }"#,
         ),
+        (
+            "productVariantAppendMedia",
+            "userErrors",
+            r#"mutation { productVariantAppendMedia(productId: "gid://shopify/Product/optioned", variantMedia: [{ variantId: "gid://shopify/ProductVariant/child", mediaIds: ["gid://shopify/MediaImage/ready"] }]) { productVariants { id } userErrors { message } } }"#,
+        ),
+        (
+            "productVariantDetachMedia",
+            "userErrors",
+            r#"mutation { productVariantDetachMedia(productId: "gid://shopify/Product/optioned", variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/ready"] }]) { productVariants { id } userErrors { message } } }"#,
+        ),
+    ] {
+        let response = proxy.process_request(json_graphql_request(query, json!({})));
+        assert_eq!(response.status, 200, "{root} should return a payload error");
+        assert!(
+            response.body["data"][root][error_field]
+                .as_array()
+                .is_some_and(|errors| !errors.is_empty()),
+            "{root} should report its missing prerequisite through {error_field}: {}",
+            response.body
+        );
+    }
+
+    for (root, query) in [
         (
             "productUpdateMedia",
             r#"mutation { productUpdateMedia(productId: "gid://shopify/Product/optioned", media: [{ id: "gid://shopify/MediaImage/missing", alt: "Missing" }]) { media { id } mediaUserErrors { message } } }"#,
@@ -4426,17 +4450,12 @@ fn product_media_roots_without_store_backed_handlers_fail_closed() {
             "productReorderMedia",
             r#"mutation { productReorderMedia(id: "gid://shopify/Product/optioned", moves: [{ id: "gid://shopify/MediaImage/missing", newPosition: "0" }]) { job { id } mediaUserErrors { message } } }"#,
         ),
-        (
-            "productVariantAppendMedia",
-            r#"mutation { productVariantAppendMedia(productId: "gid://shopify/Product/optioned", variantMedia: [{ variantId: "gid://shopify/ProductVariant/child", mediaIds: ["gid://shopify/MediaImage/ready"] }]) { productVariants { id } userErrors { message } } }"#,
-        ),
-        (
-            "productVariantDetachMedia",
-            r#"mutation { productVariantDetachMedia(productId: "gid://shopify/Product/optioned", variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/ready"] }]) { productVariants { id } userErrors { message } } }"#,
-        ),
     ] {
         let response = proxy.process_request(json_graphql_request(query, json!({})));
-        assert_eq!(response.status, 400, "{root} should fail closed");
+        assert_eq!(
+            response.status, 400,
+            "{root} should retain its partial boundary"
+        );
         assert_engine_resolver_failure(
             &response,
             root,
@@ -4444,6 +4463,212 @@ fn product_media_roots_without_store_backed_handlers_fail_closed() {
         );
     }
     assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
+}
+
+#[test]
+fn snapshot_variant_media_lifecycle_uses_public_graphql_prerequisites() {
+    let mut proxy = snapshot_proxy()
+        .with_upstream_transport(|_| panic!("snapshot variant media lifecycle must stay local"));
+
+    let (product_id, variant_id) =
+        create_product_for_relationship_test(&mut proxy, "Snapshot variant media", None);
+    let (other_product_id, other_variant_id) =
+        create_product_for_relationship_test(&mut proxy, "Other snapshot variant media", None);
+    let ready_media_id =
+        create_product_media_for_test(&mut proxy, &product_id, "IMAGE", "Ready image");
+    let external_video_id =
+        create_product_media_for_test(&mut proxy, &product_id, "EXTERNAL_VIDEO", "External video");
+    let other_media_id =
+        create_product_media_for_test(&mut proxy, &other_product_id, "IMAGE", "Other image");
+
+    let media_read = proxy.process_request(json_graphql_request(
+        r#"
+        query PollSnapshotProductMedia($id: ID!) {
+          product(id: $id) {
+            media(first: 10) { nodes { id status } }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(media_read.status, 200);
+    assert_eq!(
+        media_read.body["data"]["product"]["media"]["nodes"][0],
+        json!({ "id": ready_media_id, "status": "READY" })
+    );
+
+    let log_before_controls = log_snapshot(&proxy);
+    let missing_product_errors = append_variant_media_for_test(
+        &mut proxy,
+        "gid://shopify/Product/missing",
+        json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+    );
+    assert_eq!(
+        missing_product_errors[0]["code"],
+        json!("PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT")
+    );
+    assert_eq!(log_snapshot(&proxy), log_before_controls);
+
+    let control_cases = [
+        (
+            json!([{ "variantId": "gid://shopify/ProductVariant/missing", "mediaIds": [ready_media_id] }]),
+            "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT",
+        ),
+        (
+            json!([{ "variantId": other_variant_id, "mediaIds": [ready_media_id] }]),
+            "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT",
+        ),
+        (
+            json!([{ "variantId": variant_id, "mediaIds": ["gid://shopify/MediaImage/missing"] }]),
+            "MEDIA_DOES_NOT_EXIST_ON_PRODUCT",
+        ),
+        (
+            json!([{ "variantId": variant_id, "mediaIds": [other_media_id] }]),
+            "MEDIA_DOES_NOT_EXIST_ON_PRODUCT",
+        ),
+        (
+            json!([{ "variantId": variant_id, "mediaIds": [external_video_id] }]),
+            "INVALID_MEDIA_TYPE",
+        ),
+        (
+            json!([
+                { "variantId": variant_id, "mediaIds": [ready_media_id] },
+                { "variantId": variant_id, "mediaIds": [ready_media_id] }
+            ]),
+            "PRODUCT_VARIANT_SPECIFIED_MULTIPLE_TIMES",
+        ),
+    ];
+    for (variant_media, expected_code) in control_cases {
+        let errors = append_variant_media_for_test(&mut proxy, &product_id, variant_media);
+        assert_eq!(errors[0]["code"], json!(expected_code));
+        assert_eq!(
+            log_snapshot(&proxy),
+            log_before_controls,
+            "rejected append {expected_code} must not stage a mutation log entry"
+        );
+    }
+
+    let detached_errors = detach_variant_media_for_test(
+        &mut proxy,
+        &product_id,
+        json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+    );
+    assert_eq!(
+        detached_errors[0]["code"],
+        json!("MEDIA_IS_NOT_ATTACHED_TO_VARIANT")
+    );
+    assert_eq!(log_snapshot(&proxy), log_before_controls);
+
+    assert_eq!(
+        append_variant_media_for_test(
+            &mut proxy,
+            &product_id,
+            json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+        ),
+        json!([])
+    );
+    let attached_read = proxy.process_request(json_graphql_request(
+        r#"
+        query SnapshotVariantMediaAttached($id: ID!) {
+          productVariant(id: $id) {
+            media(first: 10) { nodes { id alt mediaContentType status } }
+          }
+        }
+        "#,
+        json!({ "id": variant_id }),
+    ));
+    assert_eq!(attached_read.status, 200);
+    assert_eq!(
+        attached_read.body["data"]["productVariant"]["media"]["nodes"],
+        json!([{
+            "id": ready_media_id,
+            "alt": "Ready image",
+            "mediaContentType": "IMAGE",
+            "status": "READY"
+        }])
+    );
+
+    let log_after_append = log_snapshot(&proxy);
+    let duplicate_errors = append_variant_media_for_test(
+        &mut proxy,
+        &product_id,
+        json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+    );
+    assert_eq!(
+        duplicate_errors[0]["code"],
+        json!("PRODUCT_VARIANT_ALREADY_HAS_MEDIA")
+    );
+    assert_eq!(log_snapshot(&proxy), log_after_append);
+
+    assert_eq!(
+        detach_variant_media_for_test(
+            &mut proxy,
+            &product_id,
+            json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+        ),
+        json!([])
+    );
+    let detached_read = proxy.process_request(json_graphql_request(
+        r#"
+        query SnapshotVariantMediaDetached($productId: ID!, $variantId: ID!) {
+          product(id: $productId) {
+            media(first: 10) { nodes { id } }
+          }
+          productVariant(id: $variantId) {
+            media(first: 10) { nodes { id } }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "variantId": variant_id }),
+    ));
+    assert_eq!(detached_read.status, 200);
+    assert_eq!(
+        detached_read.body["data"]["productVariant"]["media"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        detached_read.body["data"]["product"]["media"]["nodes"],
+        json!([{ "id": ready_media_id }, { "id": external_video_id }]),
+        "detaching variant media must not remove it from the product media library"
+    );
+
+    let log_after_detach = log_snapshot(&proxy);
+    let detached_again_errors = detach_variant_media_for_test(
+        &mut proxy,
+        &product_id,
+        json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+    );
+    assert_eq!(
+        detached_again_errors[0]["code"],
+        json!("MEDIA_IS_NOT_ATTACHED_TO_VARIANT")
+    );
+    assert_eq!(log_snapshot(&proxy), log_after_detach);
+
+    let entries = log_after_detach["entries"].as_array().expect("log entries");
+    let roots = entries
+        .iter()
+        .map(|entry| entry["interpreted"]["primaryRootField"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        roots,
+        vec![
+            "productCreate",
+            "productCreate",
+            "productCreateMedia",
+            "productCreateMedia",
+            "productCreateMedia",
+            "productVariantAppendMedia",
+            "productVariantDetachMedia"
+        ]
+    );
+    assert!(entries[5]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("productVariantAppendMedia"));
+    assert!(entries[6]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("productVariantDetachMedia"));
 }
 
 #[test]
@@ -4578,6 +4803,26 @@ fn product_variant_media_validation_guards_match_captured_shopify_errors() {
             "field": ["variantMedia", "0", "variantId"],
             "message": "The given variant already has attached media.",
             "code": "PRODUCT_VARIANT_ALREADY_HAS_MEDIA"
+        }])
+    );
+    assert_eq!(
+        detach_variant_media_for_test(
+            &mut proxy,
+            product_id,
+            json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+        ),
+        json!([])
+    );
+    assert_eq!(
+        detach_variant_media_for_test(
+            &mut proxy,
+            product_id,
+            json!([{ "variantId": variant_id, "mediaIds": [ready_media_id] }]),
+        ),
+        json!([{
+            "field": ["variantMedia", "0", "variantId"],
+            "message": "The specified media is not attached to the specified variant.",
+            "code": "MEDIA_IS_NOT_ATTACHED_TO_VARIANT"
         }])
     );
     assert_eq!(*forwarded.lock().unwrap(), 0);
@@ -6827,15 +7072,16 @@ fn product_reorder_media_without_store_backed_handler_fails_closed() {
 }
 
 #[test]
-fn product_create_and_delete_media_without_store_backed_handlers_fail_closed() {
-    let mut proxy = snapshot_proxy();
+fn snapshot_create_media_returns_payload_errors_while_delete_media_fails_closed() {
+    let mut proxy = snapshot_proxy()
+        .with_upstream_transport(|_| panic!("snapshot product media must not hydrate upstream"));
 
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation ProductCreateMediaParityPlan($productId: ID!, $media: [CreateMediaInput!]!) {
           productCreateMedia(productId: $productId, media: $media) {
             media { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } }
-            mediaUserErrors { field message }
+            mediaUserErrors { field message code }
             product { id media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } }
           }
         }
@@ -6849,11 +7095,18 @@ fn product_create_and_delete_media_without_store_backed_handlers_fail_closed() {
             }]
         }),
     ));
-    assert_eq!(create.status, 400);
-    assert_engine_resolver_failure(
-        &create,
-        "productCreateMedia",
-        "No mutation dispatcher implemented for root field: productCreateMedia",
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreateMedia"],
+        json!({
+            "media": Value::Null,
+            "mediaUserErrors": [{
+                "field": ["productId"],
+                "message": "Product does not exist",
+                "code": "PRODUCT_DOES_NOT_EXIST"
+            }],
+            "product": Value::Null
+        })
     );
 
     let create_read = proxy.process_request(json_graphql_request(

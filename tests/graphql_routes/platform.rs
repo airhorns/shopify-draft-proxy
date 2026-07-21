@@ -444,6 +444,73 @@ fn create_fulfillment_order_test_order(proxy: &mut DraftProxy, quantity: i64) ->
     (order, fulfillment_order)
 }
 
+fn split_fulfillment_order_batch(proxy: &mut DraftProxy, splits: Value) -> Response {
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation SplitFulfillmentOrderBatch($splits: [FulfillmentOrderSplitInput!]!) {
+          fulfillmentOrderSplit(fulfillmentOrderSplits: $splits) {
+            fulfillmentOrderSplits {
+              fulfillmentOrder {
+                id
+                status
+                requestStatus
+                updatedAt
+                supportedActions { action }
+                lineItems(first: 5) {
+                  nodes { id totalQuantity remainingQuantity lineItem { id fulfillableQuantity } }
+                }
+              }
+              remainingFulfillmentOrder {
+                id
+                status
+                requestStatus
+                updatedAt
+                supportedActions { action }
+                lineItems(first: 5) {
+                  nodes { id totalQuantity remainingQuantity lineItem { id fulfillableQuantity } }
+                }
+              }
+              replacementFulfillmentOrder { id }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "splits": splits }),
+    ))
+}
+
+fn merge_fulfillment_order_batch(proxy: &mut DraftProxy, inputs: Value) -> Response {
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation MergeFulfillmentOrderBatch($inputs: [FulfillmentOrderMergeInput!]!) {
+          fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $inputs) {
+            fulfillmentOrderMerges {
+              fulfillmentOrder {
+                id
+                status
+                requestStatus
+                updatedAt
+                supportedActions { action }
+                lineItems(first: 5) {
+                  nodes { id totalQuantity remainingQuantity lineItem { id fulfillableQuantity } }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "inputs": inputs }),
+    ))
+}
+
+fn fulfillment_order_dump(proxy: &mut DraftProxy) -> Value {
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    dump.body
+}
+
 fn create_inventory_item_for_location_test(proxy: &mut DraftProxy, title: &str) -> String {
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1720,6 +1787,295 @@ fn fulfillment_order_split_and_merge_stage_remaining_records_and_read_back() {
             .len(),
         2
     );
+}
+
+#[test]
+fn fulfillment_order_split_batch_rolls_back_when_a_later_input_fails() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let mut proxy = snapshot_proxy_with_clock(clock);
+    let (_, first) = create_fulfillment_order_test_order(&mut proxy, 3);
+    let (_, second) = create_fulfillment_order_test_order(&mut proxy, 2);
+    let mut untouched_control = proxy.clone();
+    let before_failure = fulfillment_order_dump(&mut proxy);
+
+    let failed = split_fulfillment_order_batch(
+        &mut proxy,
+        json!([
+            {
+                "fulfillmentOrderId": first["id"],
+                "fulfillmentOrderLineItems": [{
+                    "id": first["lineItems"]["nodes"][0]["id"],
+                    "quantity": 1
+                }]
+            },
+            {
+                "fulfillmentOrderId": second["id"],
+                "fulfillmentOrderLineItems": [{
+                    "id": second["lineItems"]["nodes"][0]["id"],
+                    "quantity": 3
+                }]
+            }
+        ]),
+    );
+
+    let payload = &failed.body["data"]["fulfillmentOrderSplit"];
+    assert_eq!(payload["fulfillmentOrderSplits"], Value::Null);
+    assert_eq!(
+        payload["userErrors"],
+        json!([{
+            "field": null,
+            "message": "Invalid fulfillment order line item quantity requested.",
+            "code": null
+        }])
+    );
+    assert_eq!(fulfillment_order_dump(&mut proxy), before_failure);
+
+    let succeeding_inputs = json!([{
+        "fulfillmentOrderId": first["id"],
+        "fulfillmentOrderLineItems": [{
+            "id": first["lineItems"]["nodes"][0]["id"],
+            "quantity": 1
+        }]
+    }]);
+    let after_failure = split_fulfillment_order_batch(&mut proxy, succeeding_inputs.clone());
+    let untouched = split_fulfillment_order_batch(&mut untouched_control, succeeding_inputs);
+    assert_eq!(after_failure.body, untouched.body);
+    assert_eq!(
+        fulfillment_order_dump(&mut proxy),
+        fulfillment_order_dump(&mut untouched_control)
+    );
+}
+
+#[test]
+fn fulfillment_order_split_live_hydration_rolls_back_with_the_failed_batch() {
+    let first_order = fulfillment_order_order_fixture(
+        "gid://shopify/Order/live-atomic-first",
+        "#live-atomic-first",
+        "gid://shopify/FulfillmentOrder/live-atomic-first",
+        "gid://shopify/FulfillmentOrderLineItem/live-atomic-first",
+        3,
+        "OPEN",
+    );
+    let second_order = fulfillment_order_order_fixture(
+        "gid://shopify/Order/live-atomic-second",
+        "#live-atomic-second",
+        "gid://shopify/FulfillmentOrder/live-atomic-second",
+        "gid://shopify/FulfillmentOrderLineItem/live-atomic-second",
+        2,
+        "OPEN",
+    );
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        fulfillment_order_hydrate_transport(vec![first_order, second_order]),
+    );
+    let before_failure = fulfillment_order_dump(&mut proxy);
+
+    let failed = split_fulfillment_order_batch(
+        &mut proxy,
+        json!([
+            {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/live-atomic-first",
+                "fulfillmentOrderLineItems": [{
+                    "id": "gid://shopify/FulfillmentOrderLineItem/live-atomic-first",
+                    "quantity": 1
+                }]
+            },
+            {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/live-atomic-second",
+                "fulfillmentOrderLineItems": [{
+                    "id": "gid://shopify/FulfillmentOrderLineItem/live-atomic-second",
+                    "quantity": 3
+                }]
+            }
+        ]),
+    );
+
+    assert_eq!(
+        failed.body["data"]["fulfillmentOrderSplit"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "Invalid fulfillment order line item quantity requested.",
+            "code": null
+        }])
+    );
+    assert_eq!(fulfillment_order_dump(&mut proxy), before_failure);
+}
+
+#[test]
+fn fulfillment_order_merge_batch_rolls_back_when_a_later_input_fails() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let mut proxy = snapshot_proxy_with_clock(clock);
+    let (_, first) = create_fulfillment_order_test_order(&mut proxy, 2);
+    let (_, second) = create_fulfillment_order_test_order(&mut proxy, 2);
+    let first_split = split_fulfillment_order_batch(
+        &mut proxy,
+        json!([{
+            "fulfillmentOrderId": first["id"],
+            "fulfillmentOrderLineItems": [{
+                "id": first["lineItems"]["nodes"][0]["id"],
+                "quantity": 1
+            }]
+        }]),
+    );
+    let second_split = split_fulfillment_order_batch(
+        &mut proxy,
+        json!([{
+            "fulfillmentOrderId": second["id"],
+            "fulfillmentOrderLineItems": [{
+                "id": second["lineItems"]["nodes"][0]["id"],
+                "quantity": 1
+            }]
+        }]),
+    );
+    let first_remaining = first_split.body["data"]["fulfillmentOrderSplit"]
+        ["fulfillmentOrderSplits"][0]["remainingFulfillmentOrder"]
+        .clone();
+    let second_remaining = second_split.body["data"]["fulfillmentOrderSplit"]
+        ["fulfillmentOrderSplits"][0]["remainingFulfillmentOrder"]
+        .clone();
+    let mut untouched_control = proxy.clone();
+    let before_failure = fulfillment_order_dump(&mut proxy);
+
+    let failed = merge_fulfillment_order_batch(
+        &mut proxy,
+        json!([
+            {
+                "mergeIntents": [
+                    { "fulfillmentOrderId": first["id"] },
+                    { "fulfillmentOrderId": first_remaining["id"] }
+                ]
+            },
+            {
+                "mergeIntents": [
+                    { "fulfillmentOrderId": second["id"] },
+                    {
+                        "fulfillmentOrderId": second_remaining["id"],
+                        "fulfillmentOrderLineItems": [{
+                            "id": second_remaining["lineItems"]["nodes"][0]["id"],
+                            "quantity": 2
+                        }]
+                    }
+                ]
+            }
+        ]),
+    );
+
+    let payload = &failed.body["data"]["fulfillmentOrderMerge"];
+    assert_eq!(payload["fulfillmentOrderMerges"], Value::Null);
+    assert_eq!(
+        payload["userErrors"],
+        json!([{
+            "field": null,
+            "message": "Invalid fulfillment order line item quantity requested.",
+            "code": null
+        }])
+    );
+    assert_eq!(fulfillment_order_dump(&mut proxy), before_failure);
+
+    let succeeding_inputs = json!([{
+        "mergeIntents": [
+            { "fulfillmentOrderId": first["id"] },
+            { "fulfillmentOrderId": first_remaining["id"] }
+        ]
+    }]);
+    let after_failure = merge_fulfillment_order_batch(&mut proxy, succeeding_inputs.clone());
+    let untouched = merge_fulfillment_order_batch(&mut untouched_control, succeeding_inputs);
+    assert_eq!(after_failure.body, untouched.body);
+    assert_eq!(
+        fulfillment_order_dump(&mut proxy),
+        fulfillment_order_dump(&mut untouched_control)
+    );
+}
+
+#[test]
+fn fulfillment_order_split_and_merge_valid_multi_entry_batches_stage_every_result() {
+    let mut proxy = snapshot_proxy();
+    let (first_order, first) = create_fulfillment_order_test_order(&mut proxy, 2);
+    let (second_order, second) = create_fulfillment_order_test_order(&mut proxy, 2);
+
+    let split = split_fulfillment_order_batch(
+        &mut proxy,
+        json!([
+            {
+                "fulfillmentOrderId": first["id"],
+                "fulfillmentOrderLineItems": [{
+                    "id": first["lineItems"]["nodes"][0]["id"],
+                    "quantity": 1
+                }]
+            },
+            {
+                "fulfillmentOrderId": second["id"],
+                "fulfillmentOrderLineItems": [{
+                    "id": second["lineItems"]["nodes"][0]["id"],
+                    "quantity": 1
+                }]
+            }
+        ]),
+    );
+    let split_payload = &split.body["data"]["fulfillmentOrderSplit"];
+    assert_eq!(split_payload["userErrors"], json!([]));
+    let split_results = split_payload["fulfillmentOrderSplits"].as_array().unwrap();
+    assert_eq!(split_results.len(), 2);
+    let first_remaining_id = split_results[0]["remainingFulfillmentOrder"]["id"].clone();
+    let second_remaining_id = split_results[1]["remainingFulfillmentOrder"]["id"].clone();
+
+    let merge = merge_fulfillment_order_batch(
+        &mut proxy,
+        json!([
+            {
+                "mergeIntents": [
+                    { "fulfillmentOrderId": first["id"] },
+                    { "fulfillmentOrderId": first_remaining_id }
+                ]
+            },
+            {
+                "mergeIntents": [
+                    { "fulfillmentOrderId": second["id"] },
+                    { "fulfillmentOrderId": second_remaining_id }
+                ]
+            }
+        ]),
+    );
+    let merge_payload = &merge.body["data"]["fulfillmentOrderMerge"];
+    assert_eq!(merge_payload["userErrors"], json!([]));
+    let merge_results = merge_payload["fulfillmentOrderMerges"].as_array().unwrap();
+    assert_eq!(merge_results.len(), 2);
+    assert!(merge_results.iter().all(|result| {
+        result["fulfillmentOrder"]["lineItems"]["nodes"][0]["remainingQuantity"] == json!(2)
+    }));
+
+    for order_id in [first_order["id"].clone(), second_order["id"].clone()] {
+        let read = proxy.process_request(json_graphql_request(
+            r#"
+            query ReadAfterValidFulfillmentOrderBatch($id: ID!) {
+              order(id: $id) {
+                fulfillmentOrders(first: 5) {
+                  nodes {
+                    id
+                    status
+                    supportedActions { action }
+                    lineItems(first: 5) { nodes { totalQuantity remainingQuantity } }
+                  }
+                }
+              }
+            }
+            "#,
+            json!({ "id": order_id }),
+        ));
+        let nodes = read.body["data"]["order"]["fulfillmentOrders"]["nodes"]
+            .as_array()
+            .unwrap();
+        assert_eq!(nodes.len(), 2);
+        assert_eq!(nodes[0]["status"], json!("OPEN"));
+        assert_eq!(
+            nodes[0]["lineItems"]["nodes"][0]["remainingQuantity"],
+            json!(2)
+        );
+        assert_eq!(nodes[1]["status"], json!("CLOSED"));
+        assert_eq!(
+            nodes[1]["lineItems"]["nodes"][0]["remainingQuantity"],
+            json!(0)
+        );
+    }
 }
 
 #[test]
@@ -6160,6 +6516,245 @@ fn location_deactivate_hydrates_fixture_gid_instead_of_using_fixture_table() {
 }
 
 #[test]
+fn location_deactivate_cold_source_and_destination_hydrate_independently() {
+    let source_id = "gid://shopify/Location/cold-deactivate-source";
+    let destination_id = "gid://shopify/Location/cold-deactivate-destination";
+    let calls = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_calls = Arc::clone(&calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(request.clone());
+            let location = match body["variables"]["id"].as_str() {
+                Some(id) if id == source_id => json!({
+                    "id": source_id,
+                    "name": "Cold source",
+                    "isActive": true,
+                    "activatable": true,
+                    "deactivatable": true,
+                    "deletable": false,
+                    "fulfillsOnlineOrders": false,
+                    "hasActiveInventory": false,
+                    "hasUnfulfilledOrders": false,
+                    "isFulfillmentService": false,
+                    "isPrimary": false,
+                    "shipsInventory": true,
+                    "address": { "city": "Boston", "countryCode": "US" },
+                    "localPickupSettingsV2": null
+                }),
+                Some(id) if id == destination_id => json!({
+                    "id": destination_id,
+                    "name": "Cold destination",
+                    "isActive": true,
+                    "activatable": true,
+                    "deactivatable": true,
+                    "deletable": false,
+                    "fulfillsOnlineOrders": false,
+                    "hasActiveInventory": false,
+                    "hasUnfulfilledOrders": false,
+                    "isFulfillmentService": false,
+                    "isPrimary": false,
+                    "shipsInventory": true,
+                    "address": { "city": "Chicago", "countryCode": "US" },
+                    "localPickupSettingsV2": null
+                }),
+                _ => Value::Null,
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "location": location } }),
+            }
+        });
+    let mutation_query = r#"
+        mutation ColdLocationDeactivate($source: ID!, $destination: ID!) {
+          locationDeactivate(locationId: $source, destinationLocationId: $destination) {
+            location { id name isActive address { city countryCode } }
+            locationDeactivateUserErrors { field message code }
+          }
+        }
+    "#;
+    let mut mutation_request = json_graphql_request(
+        mutation_query,
+        json!({ "source": source_id, "destination": destination_id }),
+    );
+    mutation_request.path = "/admin/api/2025-10/graphql.json".to_string();
+    mutation_request.headers.insert(
+        "X-Shopify-Access-Token".to_string(),
+        "deactivate-caller-token".to_string(),
+    );
+    let deactivate = proxy.process_request(mutation_request);
+    assert_eq!(
+        deactivate.body["data"]["locationDeactivate"],
+        json!({
+            "location": {
+                "id": source_id,
+                "name": "Cold source",
+                "isActive": false,
+                "address": { "city": "Boston", "countryCode": "US" }
+            },
+            "locationDeactivateUserErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdLocationDeactivateRead($source: ID!, $destination: ID!) {
+          source: location(id: $source) { id name isActive address { city } }
+          destination: location(id: $destination) { id name isActive address { city } }
+        }
+        "#,
+        json!({ "source": source_id, "destination": destination_id }),
+    ));
+    assert_eq!(
+        read.body["data"],
+        json!({
+            "source": {
+                "id": source_id,
+                "name": "Cold source",
+                "isActive": false,
+                "address": { "city": "Boston" }
+            },
+            "destination": {
+                "id": destination_id,
+                "name": "Cold destination",
+                "isActive": true,
+                "address": { "city": "Chicago" }
+            }
+        })
+    );
+    let calls = calls.lock().unwrap();
+    assert_eq!(
+        calls.len(),
+        2,
+        "source and destination should each hydrate once"
+    );
+    for (call, id) in calls.iter().zip([source_id, destination_id]) {
+        assert_eq!(call.method, "POST");
+        assert_eq!(call.path, "/admin/api/2025-10/graphql.json");
+        assert_eq!(
+            call.headers.get("X-Shopify-Access-Token"),
+            Some(&"deactivate-caller-token".to_string())
+        );
+        let body: Value = serde_json::from_str(&call.body).unwrap();
+        assert_eq!(body["variables"], json!({ "id": id }));
+        assert!(body["query"]
+            .as_str()
+            .is_some_and(|query| query.trim_start().starts_with("query ")));
+    }
+    drop(calls);
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    let raw_body: Value =
+        serde_json::from_str(log["entries"][0]["rawBody"].as_str().unwrap()).unwrap();
+    assert_eq!(raw_body["query"], json!(mutation_query));
+}
+
+#[test]
+fn location_deactivate_cold_destination_evidence_distinguishes_inactive_missing_and_unresolved() {
+    let source_id = "gid://shopify/Location/cold-evidence-source";
+    let destination_id = "gid://shopify/Location/cold-evidence-destination";
+    for (destination_response, expected_status, expected_code) in [
+        (
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "location": {
+                            "id": destination_id,
+                            "name": "Inactive destination",
+                            "isActive": false,
+                            "isFulfillmentService": false
+                        }
+                    }
+                }),
+            },
+            200,
+            Some("DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE"),
+        ),
+        (
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "location": null } }),
+            },
+            200,
+            Some("DESTINATION_LOCATION_NOT_SHOPIFY_MANAGED"),
+        ),
+        (
+            Response {
+                status: 503,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "hydration unavailable" }] }),
+            },
+            503,
+            None,
+        ),
+    ] {
+        let calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let captured_calls = Arc::clone(&calls);
+        let destination_response = destination_response.clone();
+        let mut proxy =
+            configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+                let body = serde_json::from_str::<Value>(&request.body).unwrap();
+                captured_calls.lock().unwrap().push(body.clone());
+                if body["variables"]["id"] == source_id {
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({
+                            "data": {
+                                "location": {
+                                    "id": source_id,
+                                    "name": "Cold evidence source",
+                                    "isActive": true,
+                                    "deactivatable": true,
+                                    "deletable": false,
+                                    "fulfillsOnlineOrders": false,
+                                    "hasActiveInventory": false,
+                                    "hasUnfulfilledOrders": false,
+                                    "isFulfillmentService": false,
+                                    "isPrimary": false,
+                                    "shipsInventory": true
+                                }
+                            }
+                        }),
+                    }
+                } else {
+                    destination_response.clone()
+                }
+            });
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation ColdDestinationEvidence($source: ID!, $destination: ID!) {
+              locationDeactivate(locationId: $source, destinationLocationId: $destination)
+                @idempotent(key: "cold-destination-evidence") {
+                location { id isActive }
+                locationDeactivateUserErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "source": source_id, "destination": destination_id }),
+        ));
+        assert_eq!(response.status, expected_status);
+        if let Some(expected_code) = expected_code {
+            assert_eq!(
+                response.body["data"]["locationDeactivate"]["locationDeactivateUserErrors"][0]
+                    ["code"],
+                json!(expected_code)
+            );
+        } else {
+            assert!(response.body["errors"][0]["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("hydrate location validation target")));
+        }
+        assert_eq!(calls.lock().unwrap().len(), 2);
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    }
+}
+
+#[test]
 fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
     let product_id = "gid://shopify/Product/9102";
     let mut proxy = snapshot_proxy().with_base_products(vec![platform_inventory_base_product(
@@ -6642,7 +7237,9 @@ fn location_deactivate_recomputes_inventory_for_hydrated_base_location() {
 
 #[test]
 fn location_deactivate_with_destination_relocates_and_merges_inventory_quantities() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy().with_upstream_transport(|_| {
+        panic!("snapshot location deactivation must not call upstream")
+    });
     let source_location_id = create_location_for_platform_test(&mut proxy, "Source location");
     let destination_location_id =
         create_location_for_platform_test(&mut proxy, "Destination location");

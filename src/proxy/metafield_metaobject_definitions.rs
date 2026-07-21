@@ -727,6 +727,17 @@ impl DraftProxy {
                 ),
             ]);
         };
+        let definition_id = definition["id"].as_str().unwrap_or_default();
+        if self.automated_collection_uses_metafield_definition(definition_id) {
+            return metafield_definition_delete_null_payload(vec![
+                metafield_definition_user_error(
+                    "MetafieldDefinitionDeleteUserError",
+                    Value::Null,
+                    "Cannot proceed with this action. This definition is used in one or more automated collections.",
+                    "METAFIELD_DEFINITION_IN_USE",
+                ),
+            ]);
+        }
         if !delete_all {
             let type_name = definition["type"]["name"].as_str().unwrap_or_default();
             let namespace = definition["namespace"].as_str().unwrap_or_default();
@@ -1125,7 +1136,7 @@ impl DraftProxy {
         definitions
     }
 
-    fn effective_metafield_definition_by_id(
+    pub(in crate::proxy) fn effective_metafield_definition_by_id(
         &self,
         id: &str,
     ) -> Option<(MetafieldDefinitionKey, Value)> {

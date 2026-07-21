@@ -2955,6 +2955,255 @@ fn metafield_definition_lifecycle_mutations_validate_and_stage_real_inputs() {
 }
 
 #[test]
+fn metafield_definition_delete_rejects_automated_collection_dependencies_atomically() {
+    let mut proxy = snapshot_proxy();
+    let namespace = "automated_collection_dependency";
+    let key = "shade";
+
+    let product_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AutomatedCollectionDependencyProductCreate($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Automated collection dependency product" } }),
+    ));
+    assert_eq!(
+        product_create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = product_create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("productCreate should stage a product id")
+        .to_string();
+
+    let definition_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AutomatedCollectionDependencyDefinitionCreate($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition {
+              id
+              namespace
+              key
+              capabilities { smartCollectionCondition { enabled eligible } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "name": "Automated collection dependency",
+                "namespace": namespace,
+                "key": key,
+                "ownerType": "PRODUCT",
+                "type": "single_line_text_field",
+                "capabilities": { "smartCollectionCondition": { "enabled": true } }
+            }
+        }),
+    ));
+    assert_eq!(
+        definition_create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    let definition_id = definition_create.body["data"]["metafieldDefinitionCreate"]
+        ["createdDefinition"]["id"]
+        .as_str()
+        .expect("metafieldDefinitionCreate should stage a definition id")
+        .to_string();
+
+    let metafields_set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AutomatedCollectionDependencyMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key type value }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "metafields": [{
+                "ownerId": product_id,
+                "namespace": namespace,
+                "key": key,
+                "type": "single_line_text_field",
+                "value": "blue"
+            }]
+        }),
+    ));
+    assert_eq!(
+        metafields_set.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+
+    let collection_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AutomatedCollectionDependencyCollectionCreate($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection {
+              id
+              title
+              ruleSet { rules { column relation condition } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Automated collection dependency",
+                "ruleSet": {
+                    "appliedDisjunctively": false,
+                    "rules": [{
+                        "column": "PRODUCT_METAFIELD_DEFINITION",
+                        "relation": "EQUALS",
+                        "condition": "blue",
+                        "conditionObjectId": definition_id
+                    }]
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        collection_create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_id = collection_create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .expect("collectionCreate should stage a collection id")
+        .to_string();
+
+    let read_state = |proxy: &mut DraftProxy| {
+        proxy.process_request(json_graphql_request(
+            r#"
+            query AutomatedCollectionDependencyRead(
+              $definitionId: ID!
+              $productId: ID!
+              $collectionId: ID!
+              $namespace: String!
+              $key: String!
+            ) {
+              metafieldDefinition(id: $definitionId) {
+                id
+                namespace
+                key
+                capabilities { smartCollectionCondition { enabled eligible } }
+              }
+              product(id: $productId) {
+                id
+                metafield(namespace: $namespace, key: $key) {
+                  id
+                  namespace
+                  key
+                  type
+                  value
+                }
+              }
+              collection(id: $collectionId) {
+                id
+                title
+                ruleSet {
+                  appliedDisjunctively
+                  rules {
+                    column
+                    relation
+                    condition
+                    conditionObject {
+                      __typename
+                      ... on CollectionRuleMetafieldCondition {
+                        metafieldDefinition { id namespace key }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            "#,
+            json!({
+                "definitionId": definition_id,
+                "productId": product_id,
+                "collectionId": collection_id,
+                "namespace": namespace,
+                "key": key
+            }),
+        ))
+    };
+
+    let read_before = read_state(&mut proxy);
+    assert_eq!(read_before.status, 200);
+    assert_eq!(read_before.body.get("errors"), None);
+    assert_eq!(
+        read_before.body["data"]["collection"]["ruleSet"]["rules"][0]["conditionObject"]
+            ["metafieldDefinition"]["id"],
+        json!(definition_id)
+    );
+    let log_before = log_snapshot(&proxy);
+    assert_eq!(log_before["entries"].as_array().map(Vec::len), Some(4));
+
+    let expected_delete = json!({
+        "deletedDefinitionId": null,
+        "deletedDefinition": null,
+        "userErrors": [{
+            "__typename": "MetafieldDefinitionDeleteUserError",
+            "field": null,
+            "message": "Cannot proceed with this action. This definition is used in one or more automated collections.",
+            "code": "METAFIELD_DEFINITION_IN_USE"
+        }]
+    });
+    let delete_without_flag = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AutomatedCollectionDependencyDeleteWithoutFlag($id: ID!) {
+          metafieldDefinitionDelete(id: $id) {
+            deletedDefinitionId
+            deletedDefinition { ownerType namespace key }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({ "id": definition_id }),
+    ));
+    assert_eq!(
+        delete_without_flag.body["data"]["metafieldDefinitionDelete"],
+        expected_delete
+    );
+    assert_eq!(log_snapshot(&proxy), log_before);
+    assert_eq!(read_state(&mut proxy).body, read_before.body);
+
+    for delete_all in [false, true] {
+        let delete = proxy.process_request(json_graphql_request(
+            r#"
+            mutation AutomatedCollectionDependencyDeleteWithFlag(
+              $id: ID!
+              $deleteAllAssociatedMetafields: Boolean!
+            ) {
+              metafieldDefinitionDelete(
+                id: $id
+                deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields
+              ) {
+                deletedDefinitionId
+                deletedDefinition { ownerType namespace key }
+                userErrors { __typename field message code }
+              }
+            }
+            "#,
+            json!({
+                "id": definition_id,
+                "deleteAllAssociatedMetafields": delete_all
+            }),
+        ));
+        assert_eq!(
+            delete.body["data"]["metafieldDefinitionDelete"],
+            expected_delete
+        );
+        assert_eq!(log_snapshot(&proxy), log_before);
+        assert_eq!(read_state(&mut proxy).body, read_before.body);
+    }
+}
+
+#[test]
 fn metafield_definition_delete_enforces_type_guards_without_associated_values() {
     let mut proxy = snapshot_proxy();
 

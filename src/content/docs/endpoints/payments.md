@@ -42,6 +42,14 @@ email at runtime. Live success capture still needs a safe
 disposable-customer/no-recipient plan before expanding beyond local intent and
 validation behavior.
 
+Cold real authorizations are supported for `orderCapture` and
+`transactionVoid` in LiveHybrid. The order-owned handlers issue at most one
+query-only hydrate for the referenced order or transaction, then validate and
+stage the payment mutation locally against the effective order graph. Snapshot
+stays local-only. Confirmed missing resources use Shopify's captured payload
+errors, while unresolved upstream failures remain resolver errors and leave
+state and mutation logs unchanged.
+
 ### Supported roots
 
 - `paymentCustomization(id:)`

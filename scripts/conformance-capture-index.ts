@@ -3395,6 +3395,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-automated-collection-dependency',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-automated-collection-dependency-conformance.mts',
+    purpose:
+      'metafieldDefinitionDelete dependency guards for product definitions referenced by automated collection rules.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-automated-collection-dependency.json`,
+      'config/parity-specs/metafields/metafield-definition-automated-collection-dependency.json',
+      'config/parity-requests/metafields/metafield-definition-automated-collection-dependency-product-create.graphql',
+      'config/parity-requests/metafields/metafield-definition-automated-collection-dependency-definition-create.graphql',
+      'config/parity-requests/metafields/metafield-definition-automated-collection-dependency-metafields-set.graphql',
+      'config/parity-requests/metafields/metafield-definition-automated-collection-dependency-collection-create.graphql',
+      'config/parity-requests/metafields/metafield-definition-automated-collection-dependency-delete.graphql',
+      'config/parity-requests/metafields/metafield-definition-automated-collection-dependency-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable product, product metafield definition/value, and automated collection rule; deletes the collection before the definition and product during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-protected-guards',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metafield-definition-protected-guards-conformance.mts',
@@ -3990,13 +4012,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-product-variant-media-validation-conformance.ts',
     purpose:
-      'productVariantAppendMedia and productVariantDetachMedia validation for pair-count, media-count, duplicate-variant, invalid-media-type, cross-product, non-ready, already-attached, and unattached detach targets.',
+      'productVariantAppendMedia and productVariantDetachMedia lifecycle and validation for successful append/detach readbacks plus pair-count, media-count, duplicate-variant, invalid-media-type, cross-product, non-ready, already-attached, and unattached detach targets.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-variant-media-validation.json`,
       'config/parity-specs/products/product_variant_append_media_validation.json',
       'config/parity-requests/products/product-variant-media-validation-append.graphql',
       'config/parity-requests/products/product-variant-media-validation-detach.graphql',
+      'config/parity-requests/products/product-variant-media-validation-read.graphql',
       'config/parity-requests/products/product-variant-media-validation-product-create-media.graphql',
       'config/parity-requests/products/product-variant-media-validation-product-create.graphql',
       'config/parity-requests/products/product-variant-media-validation-product-update-media.graphql',
@@ -8494,6 +8517,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-deactivate-cold-targets',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-location-deactivate-cold-targets-conformance.mts',
+    purpose:
+      'locationDeactivate mutation-first hydration for independent source and active, inactive, or missing destination targets plus downstream readback.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-deactivate-cold-targets.json`,
+      'config/parity-specs/store-properties/location-deactivate-cold-targets.json',
+      'config/parity-requests/store-properties/location-deactivate-cold-targets.graphql',
+      'config/parity-requests/store-properties/location-deactivate-cold-target-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable source plus active and inactive destination locations, captures the controls and successful deactivation, then deactivates/deletes every disposable location.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'location-delete-inventory-level-cascade',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-location-delete-inventory-level-cascade-conformance.mts',
@@ -8872,6 +8913,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'Uses public OrderTransaction fields only; private paymentId/paymentReferenceId projection remains runtime-test-backed.',
+  },
+  {
+    domain: 'payments',
+    captureId: 'order-payment-transaction-cold-hydration',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-payment-transaction-cold-hydration-conformance.ts',
+    purpose:
+      'Mutation-first and read-warmed orderCapture/transactionVoid behavior against the same real manual authorization targets, including exact query-only hydrate cassettes and post-transition validation.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'capture_payments_for_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-payment-transaction-cold-hydration.json`,
+      'config/parity-specs/payments/order-payment-transaction-cold-hydration.json',
+      'config/parity-requests/payments/order-payment-transaction-hydrate-by-order.graphql',
+      'config/parity-requests/payments/order-payment-transaction-hydrate-by-transaction.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable successful and failed manual authorization orders, captures/voids the successful authorizations, records validation/readback, then cancels every created order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The capture app also needs the cancel-orders permission for cleanup. The fixture records exact order(id:) and node(id:) documents as upstreamCalls. Proxy parity repeats each real success target from clean state as mutation-first and after a public warm read; no live mutation document is used as a runtime upstream call.',
   },
   {
     domain: 'payments',
@@ -12956,6 +13017,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable orders, splits fulfillment orders to produce mergeable pairs, captures validation and success branches, then cancels the orders.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-batch-atomicity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-batch-atomicity-conformance.ts',
+    purpose:
+      'fulfillmentOrderSplit and fulfillmentOrderMerge valid-first/invalid-second batch rollback with full downstream order reads.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-batch-atomicity.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-split-batch-atomicity.json',
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-merge-batch-atomicity.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-batch-atomicity-orders.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-split-batch-atomicity.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-merge-batch-atomicity.graphql',
+    ],
+    cleanupBehavior:
+      'Creates four disposable orders, splits two into mergeable pairs, asserts both rejected batches preserve full order state, then cancels every order.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

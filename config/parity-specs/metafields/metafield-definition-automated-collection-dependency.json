@@ -1,0 +1,343 @@
+{
+  "scenarioId": "metafield-definition-automated-collection-dependency",
+  "operationNames": [
+    "productCreate",
+    "metafieldDefinitionCreate",
+    "metafieldsSet",
+    "collectionCreate",
+    "metafieldDefinitionDelete",
+    "metafieldDefinition",
+    "product",
+    "collection"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "runtime-staging",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-automated-collection-dependency.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-product-create.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.productCreate.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-create-setup",
+        "capturePath": "$.productCreate.response.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy stages a deterministic synthetic product ID while Shopify returned the live-store product ID."
+          }
+        ]
+      },
+      {
+        "name": "definition-create-setup",
+        "capturePath": "$.definitionCreate.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-definition-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.definitionCreate.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "metafields-set-setup",
+        "capturePath": "$.metafieldsSet.response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-metafields-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "metafields": [
+              {
+                "ownerId": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                },
+                "namespace": {
+                  "fromCapturePath": "$.metafieldsSet.request.variables.metafields[0].namespace"
+                },
+                "key": {
+                  "fromCapturePath": "$.metafieldsSet.request.variables.metafields[0].key"
+                },
+                "type": {
+                  "fromCapturePath": "$.metafieldsSet.request.variables.metafields[0].type"
+                },
+                "value": {
+                  "fromCapturePath": "$.metafieldsSet.request.variables.metafields[0].value"
+                }
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafields[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages a deterministic synthetic metafield ID while Shopify returned the live-store metafield ID."
+          }
+        ]
+      },
+      {
+        "name": "automated-collection-create-setup",
+        "capturePath": "$.collectionCreate.response.data.collectionCreate",
+        "proxyPath": "$.data.collectionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-collection-create.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.collectionCreate.request.variables.input.title"
+              },
+              "ruleSet": {
+                "appliedDisjunctively": false,
+                "rules": [
+                  {
+                    "column": "PRODUCT_METAFIELD_DEFINITION",
+                    "relation": "EQUALS",
+                    "condition": "blue",
+                    "conditionObjectId": {
+                      "fromProxyResponse": "definition-create-setup",
+                      "path": "$.data.metafieldDefinitionCreate.createdDefinition.id"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The proxy stages a deterministic synthetic collection ID while Shopify returned the live-store collection ID."
+          },
+          {
+            "path": "$.collection.ruleSet.rules[0].conditionObject.metafieldDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The collection rule points at the definition allocated independently by Shopify and the proxy."
+          }
+        ]
+      },
+      {
+        "name": "read-before-delete",
+        "capturePath": "$.readBeforeDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "definitionId": {
+              "fromProxyResponse": "definition-create-setup",
+              "path": "$.data.metafieldDefinitionCreate.createdDefinition.id"
+            },
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "collectionId": {
+              "fromProxyResponse": "automated-collection-create-setup",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "namespace": {
+              "fromCapturePath": "$.readBeforeDelete.request.variables.namespace"
+            },
+            "key": {
+              "fromCapturePath": "$.readBeforeDelete.request.variables.key"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafieldDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy and Shopify allocate definition IDs independently."
+          },
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy and Shopify allocate product IDs independently."
+          },
+          {
+            "path": "$.product.metafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy and Shopify allocate metafield IDs independently."
+          },
+          {
+            "path": "$.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The proxy and Shopify allocate collection IDs independently."
+          },
+          {
+            "path": "$.collection.ruleSet.rules[0].conditionObject.metafieldDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The collection rule points at the definition allocated independently by Shopify and the proxy."
+          }
+        ]
+      },
+      {
+        "name": "delete-false-dependency-user-error",
+        "capturePath": "$.deleteFalse.response.data.metafieldDefinitionDelete",
+        "proxyPath": "$.data.metafieldDefinitionDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-delete.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "definition-create-setup",
+              "path": "$.data.metafieldDefinitionCreate.createdDefinition.id"
+            },
+            "deleteAllAssociatedMetafields": false
+          }
+        }
+      },
+      {
+        "name": "read-after-false-delete-rejection",
+        "capturePath": "$.readAfterFalse.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "definitionId": {
+              "fromProxyResponse": "definition-create-setup",
+              "path": "$.data.metafieldDefinitionCreate.createdDefinition.id"
+            },
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "collectionId": {
+              "fromProxyResponse": "automated-collection-create-setup",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "namespace": {
+              "fromCapturePath": "$.readAfterFalse.request.variables.namespace"
+            },
+            "key": {
+              "fromCapturePath": "$.readAfterFalse.request.variables.key"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafieldDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy and Shopify allocate definition IDs independently."
+          },
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy and Shopify allocate product IDs independently."
+          },
+          {
+            "path": "$.product.metafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy and Shopify allocate metafield IDs independently."
+          },
+          {
+            "path": "$.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The proxy and Shopify allocate collection IDs independently."
+          },
+          {
+            "path": "$.collection.ruleSet.rules[0].conditionObject.metafieldDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The collection rule points at the definition allocated independently by Shopify and the proxy."
+          }
+        ]
+      },
+      {
+        "name": "delete-true-dependency-user-error",
+        "capturePath": "$.deleteTrue.response.data.metafieldDefinitionDelete",
+        "proxyPath": "$.data.metafieldDefinitionDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-delete.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "definition-create-setup",
+              "path": "$.data.metafieldDefinitionCreate.createdDefinition.id"
+            },
+            "deleteAllAssociatedMetafields": true
+          }
+        }
+      },
+      {
+        "name": "read-after-true-delete-rejection",
+        "capturePath": "$.readAfterTrue.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-automated-collection-dependency-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "definitionId": {
+              "fromProxyResponse": "definition-create-setup",
+              "path": "$.data.metafieldDefinitionCreate.createdDefinition.id"
+            },
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "collectionId": {
+              "fromProxyResponse": "automated-collection-create-setup",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "namespace": {
+              "fromCapturePath": "$.readAfterTrue.request.variables.namespace"
+            },
+            "key": {
+              "fromCapturePath": "$.readAfterTrue.request.variables.key"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafieldDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy and Shopify allocate definition IDs independently."
+          },
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy and Shopify allocate product IDs independently."
+          },
+          {
+            "path": "$.product.metafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy and Shopify allocate metafield IDs independently."
+          },
+          {
+            "path": "$.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The proxy and Shopify allocate collection IDs independently."
+          },
+          {
+            "path": "$.collection.ruleSet.rules[0].conditionObject.metafieldDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The collection rule points at the definition allocated independently by Shopify and the proxy."
+          }
+        ]
+      }
+    ]
+  },
+  "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
+  "notes": "Captured Shopify Admin 2026-04 behavior for a disposable PRODUCT metafield definition with smartCollectionCondition enabled, an associated product metafield, and an automated collection rule whose conditionObjectId references the definition. Both false and true deleteAllAssociatedMetafields requests return METAFIELD_DEFINITION_IN_USE with a null field and leave the definition, metafield value, and collection rule unchanged. Replay stages every setup mutation through the public GraphQL surface and compares whole selected payloads/readbacks with only independently allocated resource IDs excluded."
+}

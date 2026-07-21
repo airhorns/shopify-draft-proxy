@@ -2794,6 +2794,22 @@ Practical rule for the proxy:
 - require a valid active destination location before locally deactivating a stocked location, then move effective inventory levels to that destination
 - compute `locationDelete` guard userErrors from the effective local `Location` record and tombstone only successful deletes so downstream location and inventory-level reads stop exposing the deleted location while meta/log state retains the staged mutation evidence
 
+Cold 2026-04 mutation captures add an important evidence distinction. A
+`locationDeactivate` destination lookup that returned a real inactive Location
+produced `DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE`, while a successful
+`location(id:)` lookup returning `null` produced
+`DESTINATION_LOCATION_NOT_SHOPIFY_MANAGED`. Query transport or GraphQL failure
+does not prove either state. Local-pickup captures likewise show that
+mutation-first enable and disable must hydrate the submitted Location before
+returning `ACTIVE_LOCATION_NOT_FOUND`; an active fulfillment-service-managed
+Location remained eligible in the captured pickup flow.
+
+Practical rule: keep each submitted Location target in an independent found,
+confirmed-missing, or unresolved evidence state. Only a successful Shopify
+lookup may select a missing/inactive userError branch, and successful staging
+must merge over the hydrated record rather than replace its authoritative name
+or management fields.
+
 ### 47b. `location` detail reads should reuse the effective inventory graph
 
 HAR-168 promoted the first Store properties location detail read slice from scaffold to runtime support.
@@ -3607,10 +3623,12 @@ Captured facts:
 - Closing an `OPEN` fulfillment order assigned to an API fulfillment-service location is still rejected by Shopify with `The fulfillment order is not in an in progress state.`; do not treat API-service assignment alone as sufficient for close success.
 - `fulfillmentOrderReschedule` has a local scheduled success model and read-after-write runtime tests, but the checked-in Shopify capture still only proves the non-scheduled reschedule guardrail. Do not present the scheduled reschedule success branch as live-captured parity until a real scheduled fulfillment-order setup and cassette exists.
 - `fulfillmentOrdersSetFulfillmentDeadline` accepts an existing fulfillment order after `fulfillmentOrderCancel` leaves it `CLOSED`; Shopify writes `fulfillBy` and returns `success: true` with empty `userErrors`. For syntactically valid but never-created fulfillment-order IDs, Admin GraphQL 2025-01 and 2026-04 return `success: false` with message `Fulfillment orders could not be found.`, `field: null`, and `code: null`; `gid://shopify/FulfillmentOrder/0` is a different top-level invalid-id branch. The checked-in anchor is `config/parity-specs/shipping-fulfillments/fulfillment-order-set-deadline-closed-not-found.json`.
+- Admin GraphQL 2026-04 rejects an entire `fulfillmentOrderSplit` or `fulfillmentOrderMerge` input batch when a valid first entry is followed by an excessive-quantity second entry. Both payloads return a null result list plus `field: null`, `code: null`, and `Invalid fulfillment order line item quantity requested.`; full downstream reads of both owning orders remain unchanged.
 
 Practical rule:
 
 - do not model fulfillment-order lifecycle roots as simple status patches; partial hold/move/cancel behavior affects line-item quantities and replacement fulfillment-order identities
+- validate split/merge batches against isolated state and publish the transaction only when every entry succeeds; rejected batches must not retain hydrated records, line changes, synthetic identities, timestamps, or replay entries
 - keep `fulfillmentOrdersReroute` unimplemented for full support until success-path fixtures exist, even if local guardrails are mirrored; `fulfillmentOrderClose` has captured API-service success parity, and `fulfillmentOrderReschedule` has local scheduled staging but still needs a live scheduled success cassette before broadening beyond that modeled slice
 
 ## 71. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
@@ -4629,3 +4647,67 @@ Practical rule:
   one row succeeds; associate that entry with only the successfully staged IDs
 - do not generalize this result to other validation buckets without equivalent
   captured mixed-batch evidence
+
+## 110. Automated collection dependencies override metafield definition deletion flags
+
+Admin GraphQL 2026-04 live capture created a disposable product definition with
+`smartCollectionCondition` enabled, set a matching product metafield, and
+created an automated collection whose `PRODUCT_METAFIELD_DEFINITION` rule used
+the definition as its `conditionObjectId`. Deleting the definition with
+`deleteAllAssociatedMetafields: false` and then `true` returned the same error:
+
+- `deletedDefinitionId: null` and `deletedDefinition: null`
+- `field: null`
+- code `METAFIELD_DEFINITION_IN_USE`
+- message `Cannot proceed with this action. This definition is used in one or more automated collections.`
+
+After both rejections, the definition, product metafield value, collection, and
+rule-to-definition condition object were unchanged. Removing the collection
+first allowed cleanup to delete the definition and product. The checked-in
+evidence and strict replay contract are
+`config/parity-specs/metafields/metafield-definition-automated-collection-dependency.json`.
+
+Practical rule:
+
+- retain `conditionObjectId` as normalized collection-rule relationship state;
+  the visible condition object alone is not enough when selection sets omit it
+- check effective, non-tombstoned automated collection rules before every
+  definition delete, regardless of `deleteAllAssociatedMetafields`
+- return the dependency error before changing definitions, metafields,
+  collections, synthetic identity, pin positions, or replayable mutation logs
+
+## 111. Payment void amount and cold-hydration errors are not inferred from the authorization
+
+Admin GraphQL 2026-04 capture against a disposable manual authorization showed
+that a successful `transactionVoid` does not echo the authorization amount. The
+returned `VOID` transaction has `amountSet.shopMoney.amount: "0.0"`, while the
+downstream order restores the full authorization amount to
+`totalOutstandingSet`, clears capturable/received/net totals, and reports
+`displayFinancialStatus: VOIDED`.
+
+The same capture separated several errors that are easy to collapse into a
+single local not-found response:
+
+- a confirmed missing capture order returns `field: ["id"]` and `Order does not
+exist`
+- an existing order with no matching parent returns `field: null` and `Unable to
+find parent transaction`
+- using a successful `CAPTURE` as the capture parent returns `field: null` and
+  `Parent transaction should be a successful authorization`
+- recapturing a fully consumed authorization returns `field: null` and `Can only
+capture successful authorizations`
+- voiding a failed authorization returns `AUTH_NOT_SUCCESSFUL` and `Parent
+transaction must be a successful authorization`
+- repeating a void returns `AUTH_NOT_VOIDABLE` and the captured voidability
+  message
+
+Practical rule:
+
+- query-hydrate an unobserved real order or transaction before applying these
+  validation branches, but never send the supported mutation upstream
+- treat only an authoritative null order/node as confirmed missing; transport,
+  non-success HTTP, GraphQL-error, wrong-identity, and incomplete hydrate
+  responses remain unresolved and must not change state or logs
+- compute capture/void results from the hydrated transaction and order money
+  graph, including the zero-valued VOID transaction, rather than copying a
+  plausible amount into the mutation payload
