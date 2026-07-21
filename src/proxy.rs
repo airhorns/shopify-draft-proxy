@@ -2642,6 +2642,10 @@ struct ExecutionSession {
     upstream_query_response: Option<Response>,
     upstream_query_data: Option<Value>,
     upstream_query_selections: BTreeMap<String, Vec<SelectedField>>,
+    /// Request-scoped widened connection pages keyed by the canonical root and
+    /// complete caller argument window. A partial page is useful only for that
+    /// exact window; it must never become a store-wide completeness claim.
+    connection_overlay_windows: BTreeMap<String, Value>,
     localization_context_preflighted: bool,
     markets_query_preflighted: bool,
     node_hydration: Option<RequestNodeHydration>,

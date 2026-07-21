@@ -1,0 +1,29 @@
+mutation GiftCardLiveHybridOverlayCreate($code: String!, $initialValue: Decimal!, $expiresOn: Date!) {
+  giftCardCreate(
+    input: {
+      code: $code
+      initialValue: $initialValue
+      expiresOn: $expiresOn
+      note: "LiveHybrid bounded overlay staged create"
+    }
+  ) {
+    giftCard {
+      id
+      lastCharacters
+      enabled
+      expiresOn
+      initialValue {
+        amount
+        currencyCode
+      }
+      balance {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

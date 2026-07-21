@@ -14157,6 +14157,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'gift-cards',
+    captureId: 'gift-card-live-hybrid-overlay-windowing',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-gift-card-live-hybrid-overlay-windowing-conformance.ts',
+    purpose:
+      'Gift-card LiveHybrid overlay parity for authoritative rows plus staged-equivalent create, sort-changing update, enabled-filter removal, and reverse connection windows.',
+    requiredAuthScopes: ['read_gift_cards', 'write_gift_cards'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-live-hybrid-overlay-windowing.json`,
+      'config/parity-specs/gift-cards/gift-card-live-hybrid-overlay-windowing.json',
+      'config/parity-requests/gift-cards/gift-card-live-hybrid-overlay-create.graphql',
+      'config/parity-requests/gift-cards/gift-card-live-hybrid-overlay-read.graphql',
+      'config/parity-requests/gift-cards/gift-card-live-hybrid-overlay-update.graphql',
+      'config/parity-requests/gift-cards/gift-card-live-hybrid-overlay-deactivate.graphql',
+    ],
+    cleanupBehavior:
+      'Creates four disposable authoritative gift cards and one staged-equivalent card, records base-only upstream cassettes before local-equivalent mutations, then deactivates every created card.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'gift-cards',
     captureId: 'gift-card-create-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-gift-card-create-validation-conformance.ts',

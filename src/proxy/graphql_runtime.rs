@@ -19,7 +19,10 @@ use crate::resolver_registry::{
 /// Normalize a resolver value back to schema field names. Aliases belong to
 /// the caller-facing GraphQL response; domain values, request caches, and
 /// stores own canonical entity values.
-fn canonicalize_resolver_value(value: &Value, selections: &[SelectedField]) -> Value {
+pub(in crate::proxy) fn canonicalize_resolver_value(
+    value: &Value,
+    selections: &[SelectedField],
+) -> Value {
     if value.is_null() || selections.is_empty() {
         return value.clone();
     }
@@ -443,6 +446,7 @@ impl RootFieldExecutor for ProxyRootExecutor {
                         raw_arguments: call.field.raw_arguments.clone(),
                         arguments,
                         requested_field_paths,
+                        selection: call.field.selection.clone(),
                         upstream_value,
                         // Native resolvers receive the caller's complete request.
                         // A domain that needs upstream evidence therefore warms the
@@ -1520,6 +1524,10 @@ impl DraftProxy {
                 raw_arguments,
                 arguments,
                 requested_field_paths: BTreeSet::new(),
+                selection: prepared
+                    .map(|call| call.field.selection.clone())
+                    .or_else(|| compatibility_root_field.map(|field| field.selection.clone()))
+                    .unwrap_or_default(),
                 upstream_value: None,
                 request,
                 query: &query,
@@ -2375,7 +2383,9 @@ fn serialize_selection_set(selection: &[SelectedField]) -> String {
     )
 }
 
-fn serialize_raw_arguments(arguments: &BTreeMap<String, RawArgumentValue>) -> String {
+pub(in crate::proxy) fn serialize_raw_arguments(
+    arguments: &BTreeMap<String, RawArgumentValue>,
+) -> String {
     if arguments.is_empty() {
         return String::new();
     }
@@ -2403,7 +2413,7 @@ fn serialize_resolved_arguments(arguments: &BTreeMap<String, ResolvedValue>) -> 
     )
 }
 
-fn serialize_raw_argument_value(value: &RawArgumentValue) -> String {
+pub(in crate::proxy) fn serialize_raw_argument_value(value: &RawArgumentValue) -> String {
     match value {
         RawArgumentValue::String(value) => quote_graphql_string(value),
         RawArgumentValue::Int(value) => value.to_string(),
