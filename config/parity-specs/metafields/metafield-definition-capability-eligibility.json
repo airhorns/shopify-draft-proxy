@@ -79,5 +79,5 @@
       }
     ]
   },
-  "notes": "Captured against Shopify Admin 2026-04. The scenario preflights for zero pre-existing PRODUCT admin-filterable definitions, then creates 50 disposable PRODUCT admin-filterable definitions in one namespace to trigger the ownerType limit on the 51st create. Cleanup deletes every created definition."
+  "notes": "Captured against Shopify Admin 2026-04. The scenario preflights for zero pre-existing PRODUCT admin-filterable definitions, records exact identity misses and bounded merchant threshold context, then creates 50 disposable PRODUCT admin-filterable definitions in one namespace to trigger the ownerType limit on the 51st create. Cleanup deletes every created definition."
 }

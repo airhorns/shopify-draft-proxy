@@ -6011,7 +6011,34 @@ fn storefront_shop_metafields_use_staged_shop_owner_without_hydration() {
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,
         Some(UnsupportedMutationMode::Passthrough),
-    );
+    )
+    .with_upstream_transport(|request| {
+        let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+        match body["operationName"].as_str().unwrap_or_default() {
+            "MetafieldDefinitionHydrateByIdentifier" => Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "metafieldDefinition": null } }),
+            },
+            "MetafieldDefinitionsHydrateResourceScope" => Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "metafieldDefinitions": {
+                            "nodes": [],
+                            "pageInfo": { "hasNextPage": false, "endCursor": null }
+                        }
+                    }
+                }),
+            },
+            _ => Response {
+                status: 502,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "No setup hydration configured" }] }),
+            },
+        }
+    });
 
     stage_metafield_definition(
         &mut proxy,

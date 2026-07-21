@@ -973,8 +973,11 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "draftOrderCountBaselines": {},
                     "draftOrderOrder": [],
                     "draftOrders": {},
-                    "metafieldDefinitionNamespaces": [],
-                    "metafieldDefinitionOwnerCatalogs": [],
+                    "metafieldDefinitionObservedIdentities": [],
+                    "metafieldDefinitionObservedIds": [],
+                    "metafieldDefinitionPinnedOwnerScopes": [],
+                    "metafieldDefinitionResourceScopes": [],
+                    "metafieldDefinitionWindows": {},
                     "metafieldDefinitions": {},
                     "productOrder": [
                         "gid://shopify/Product/base"

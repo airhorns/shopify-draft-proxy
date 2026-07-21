@@ -4629,3 +4629,44 @@ Practical rule:
   one row succeeds; associate that entry with only the successfully staged IDs
 - do not generalize this result to other validation buckets without equivalent
   captured mixed-batch evidence
+
+## 110. Admin 2025-01 rejects a null metafield-definition pinned filter
+
+Live read-only Admin GraphQL 2025-01 probes showed that a
+`metafieldDefinitions` connection document containing
+`pinnedStatus: $pinnedStatus` returns a top-level
+`INTERNAL_SERVER_ERROR` when `$pinnedStatus` is explicitly `null`. The
+same connection, variables, and selection succeed when the argument is omitted.
+Supplying the schema-coerced default `ANY`, or an explicit `PINNED` or
+`UNPINNED`, succeeds and remains the correct bounded filter.
+
+Practical rule:
+
+- preserve the executable schema's coerced `ANY` default in bounded hydration
+  requests; do not replace it with null
+- continue keying cached definition windows by the caller's full argument set;
+  the document split is an upstream compatibility detail, not catalog
+  completeness evidence
+
+## 111. Metafield-definition mutation limits can lead search indexing
+
+Live Admin 2026-04 recording created disposable PRODUCT definitions until the
+authoritative create mutation returned `RESOURCE_TYPE_LIMIT_EXCEEDED` at the
+256-definition merchant boundary. Immediately afterward, the bounded
+`metafieldDefinitions(query: "-namespace:app--*")` window exposed fewer than
+256 merchant rows before converging. The mutation limit and connection search
+index are therefore not transactionally synchronized during rapid bulk setup.
+
+The same capture confirms that the merchant resource-limit bucket excludes the
+Shopify-owned `shopify` namespace but includes enabled standard-template
+definitions in ordinary merchant namespaces. App-reserved namespaces remain
+bucketed by their app identity.
+
+Practical rule:
+
+- use bounded argument-keyed threshold evidence and known staged deltas at
+  runtime; never treat the observed rows as a complete owner catalog
+- live recorders that rapidly construct a boundary must wait for the bounded
+  search window to converge before saving its production-equivalent cassette
+- count enabled standard definitions in their merchant/app bucket, but do not
+  count Shopify's system namespace as merchant capacity

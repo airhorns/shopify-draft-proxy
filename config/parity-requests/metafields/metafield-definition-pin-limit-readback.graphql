@@ -1,0 +1,14 @@
+query MetafieldDefinitionPinLimitReadback($namespace: String!) {
+  metafieldDefinitions(
+    ownerType: PRODUCT
+    first: 10
+    namespace: $namespace
+    pinnedStatus: ANY
+    sortKey: PINNED_POSITION
+  ) {
+    nodes {
+      key
+      pinnedPosition
+    }
+  }
+}
