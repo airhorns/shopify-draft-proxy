@@ -85,6 +85,7 @@ impl DraftProxy {
                     &arguments,
                     &outcome.value,
                 );
+                self.observe_bulk_operation_node_root_value(invocation.root_name, &outcome.value);
             }
             outcome.value = self.node_value_with_upstream_fallback(
                 invocation.root_name,
@@ -121,6 +122,10 @@ impl DraftProxy {
                         &arguments,
                         &result.outcome.value,
                     );
+                    self.observe_bulk_operation_node_root_value(
+                        invocation.root_name,
+                        &result.outcome.value,
+                    );
                 }
                 if let Some(value) = result
                     .data
@@ -152,6 +157,18 @@ impl DraftProxy {
             )
             .unwrap_or(Value::Null),
         )
+    }
+
+    fn observe_bulk_operation_node_root_value(&mut self, root_name: &str, value: &Value) {
+        match root_name {
+            "node" => self.observe_bulk_operation_value(value),
+            "nodes" => {
+                for node in value.as_array().into_iter().flatten() {
+                    self.observe_bulk_operation_value(node);
+                }
+            }
+            _ => {}
+        }
     }
 
     fn local_node_root_value(
@@ -675,6 +692,11 @@ simple_loader!(
         "CompanyContactRoleAssignment",
         "CompanyLocation",
     ]
+);
+simple_loader!(
+    load_bulk_operation,
+    bulk_operation_node_value_by_id,
+    ["BulkOperation"]
 );
 simple_loader!(load_customer, customer_node_value_by_id, ["Customer"]);
 simple_loader!(

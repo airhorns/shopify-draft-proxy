@@ -1,0 +1,237 @@
+{
+  "scenarioId": "bulk-operation-node-read-after-write",
+  "operationNames": ["productCreate", "bulkOperationRunQuery", "node", "nodes"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "nullability-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-status-catalog-cancel.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-parity.graphql",
+    "variablesCapturePath": "$.lifecycle.queryExportToTerminal.run.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Compares real Shopify BulkOperation Relay Node behavior after a query job reaches terminal state. Proxy replay stages the equivalent query job through the public mutation, resolves its effective record locally, preserves a captured null miss, and batches the staged job with a captured Product while retaining order and duplicates.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "run-query-created-operation",
+        "preserveProxyState": true,
+        "capturePath": "$.lifecycle.queryExportToTerminal.run.response.data.bulkOperationRunQuery.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation",
+        "expectedDifferences": [
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy allocates a session-owned timestamp for the locally staged job."
+          },
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:BulkOperation",
+            "reason": "Shopify and the proxy allocate different job IDs."
+          }
+        ]
+      },
+      {
+        "name": "effective-bulk-operation-node",
+        "preserveProxyState": true,
+        "capturePath": "$.lifecycle.queryExportToTerminal.nodeReads.nonNull.response.data.effective",
+        "proxyPath": "$.data.effective",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "run-query-created-operation",
+              "path": "$.data.bulkOperationRunQuery.bulkOperation.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.completedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy completes its local export with a session-owned timestamp."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy allocates a session-owned timestamp for the locally staged job."
+          },
+          {
+            "path": "$.fileSize",
+            "matcher": "non-empty-string",
+            "reason": "Artifact size depends on each environment's exported catalog."
+          },
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:BulkOperation",
+            "reason": "Shopify and the proxy allocate different job IDs."
+          },
+          {
+            "path": "$.objectCount",
+            "matcher": "non-empty-string",
+            "reason": "Object count depends on each environment's exported catalog."
+          },
+          {
+            "path": "$.rootObjectCount",
+            "matcher": "non-empty-string",
+            "reason": "Root object count depends on each environment's exported catalog."
+          },
+          {
+            "path": "$.url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify signs a storage URL while the proxy exposes its local artifact URL."
+          }
+        ]
+      },
+      {
+        "name": "unknown-bulk-operation-node-null",
+        "preserveProxyState": true,
+        "capturePath": "$.lifecycle.queryExportToTerminal.nodeReads.missing.response.data.effective",
+        "proxyPath": "$.data.effective",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.lifecycle.queryExportToTerminal.nodeReads.missing.variables.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "mixed-product-public-setup",
+        "preserveProxyState": true,
+        "capturePath": "$.lifecycle.queryExportToTerminal.mixedProduct",
+        "proxyPath": "$.data.productCreate.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-node-product-setup.graphql",
+          "variables": {
+            "product": {
+              "title": {
+                "fromCapturePath": "$.lifecycle.queryExportToTerminal.mixedProduct.title"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy creates a public-surface local Product equivalent to the captured mixed-type row."
+          }
+        ]
+      },
+      {
+        "name": "mixed-ordered-duplicate-bulk-operation-nodes",
+        "preserveProxyState": true,
+        "capturePath": "$.lifecycle.queryExportToTerminal.nodeReads.mixed.response.data.aliasedBatch",
+        "proxyPath": "$.data.aliasedBatch",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-nodes-read.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromProxyResponse": "run-query-created-operation",
+                "path": "$.data.bulkOperationRunQuery.bulkOperation.id"
+              },
+              {
+                "fromCapturePath": "$.lifecycle.queryExportToTerminal.nodeReads.mixed.variables.ids[1]"
+              },
+              {
+                "fromProxyResponse": "mixed-product-public-setup",
+                "path": "$.data.productCreate.product.id"
+              },
+              {
+                "fromProxyResponse": "run-query-created-operation",
+                "path": "$.data.bulkOperationRunQuery.bulkOperation.id"
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$[0].completedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy completes its local export with a session-owned timestamp."
+          },
+          {
+            "path": "$[0].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy allocates a session-owned timestamp for the locally staged job."
+          },
+          {
+            "path": "$[0].fileSize",
+            "matcher": "non-empty-string",
+            "reason": "Artifact size depends on each environment's exported catalog."
+          },
+          {
+            "path": "$[0].id",
+            "matcher": "shopify-gid:BulkOperation",
+            "reason": "Shopify and the proxy allocate different job IDs."
+          },
+          {
+            "path": "$[0].objectCount",
+            "matcher": "non-empty-string",
+            "reason": "Object count depends on each environment's exported catalog."
+          },
+          {
+            "path": "$[0].rootObjectCount",
+            "matcher": "non-empty-string",
+            "reason": "Root object count depends on each environment's exported catalog."
+          },
+          {
+            "path": "$[0].url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify signs a storage URL while the proxy exposes its local artifact URL."
+          },
+          {
+            "path": "$[2].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the proxy use different IDs for the equivalent mixed Product row."
+          },
+          {
+            "path": "$[3].completedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The duplicated local job keeps the same session-owned completion timestamp."
+          },
+          {
+            "path": "$[3].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The duplicated local job keeps the same session-owned creation timestamp."
+          },
+          {
+            "path": "$[3].fileSize",
+            "matcher": "non-empty-string",
+            "reason": "Artifact size depends on each environment's exported catalog."
+          },
+          {
+            "path": "$[3].id",
+            "matcher": "shopify-gid:BulkOperation",
+            "reason": "Shopify and the proxy allocate different job IDs."
+          },
+          {
+            "path": "$[3].objectCount",
+            "matcher": "non-empty-string",
+            "reason": "Object count depends on each environment's exported catalog."
+          },
+          {
+            "path": "$[3].rootObjectCount",
+            "matcher": "non-empty-string",
+            "reason": "Root object count depends on each environment's exported catalog."
+          },
+          {
+            "path": "$[3].url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify signs a storage URL while the proxy exposes its local artifact URL."
+          }
+        ]
+      }
+    ]
+  }
+}
