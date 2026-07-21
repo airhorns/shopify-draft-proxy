@@ -1058,9 +1058,13 @@ impl DraftProxy {
         let mut base = self.return_record_with_effective_reverse_orders(return_value);
         base["__typename"] = json!("Return");
         if let Some(order_id) = return_value["order"]["id"].as_str() {
+            let relationship_order = return_value["order"].clone();
             let mut order = self
-                .staged_order_record_for_id(order_id)
-                .unwrap_or_else(|| return_value["order"].clone());
+                .store
+                .observed_order_by_id(order_id)
+                .cloned()
+                .map(|observed| shallow_merged_object(observed, relationship_order.clone()))
+                .unwrap_or(relationship_order);
             if order.get("id").is_none() {
                 order["id"] = json!(order_id);
             }
@@ -1576,9 +1580,10 @@ impl DraftProxy {
         self.store
             .staged
             .returns_by_order
-            .entry(order_id)
+            .entry(order_id.clone())
             .or_default()
             .push(return_id.clone());
+        self.store.staged.orders.insert(order_id, order);
         ResolverOutcome::value(self.return_payload(return_record, Vec::new()))
             .with_log_draft(LogDraft::staged(root_name, "orders", vec![return_id]))
     }

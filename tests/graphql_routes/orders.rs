@@ -3603,7 +3603,13 @@ fn return_atomicity_request(
                 return {
                   id
                   status
-                  order { id updatedAt }
+                  order {
+                    id
+                    name
+                    updatedAt
+                    returnStatus
+                    returns(first: 5) { nodes { id status } }
+                  }
                   returnLineItems(first: 5) { nodes { id quantity } }
                   reverseFulfillmentOrders(first: 5) {
                     nodes { id lineItems(first: 5) { nodes { id totalQuantity } } }
@@ -3622,7 +3628,13 @@ fn return_atomicity_request(
                 return {
                   id
                   status
-                  order { id updatedAt }
+                  order {
+                    id
+                    name
+                    updatedAt
+                    returnStatus
+                    returns(first: 5) { nodes { id status } }
+                  }
                   returnLineItems(first: 5) { nodes { id quantity } }
                 }
                 userErrors { field message code }
@@ -3695,6 +3707,24 @@ fn return_create_and_request_reject_mixed_batches_atomically_before_retry() {
         let retry = rejected_then_retry.process_request(retry_request);
         assert_eq!(retry.status, 200);
         assert_eq!(retry.body["data"][root]["userErrors"], json!([]));
+        let retry_order = &retry.body["data"][root]["return"]["order"];
+        assert!(retry_order["name"]
+            .as_str()
+            .is_some_and(|name| !name.is_empty()));
+        assert_eq!(
+            retry_order["returnStatus"],
+            json!(if root == "returnCreate" {
+                "IN_PROGRESS"
+            } else {
+                "RETURN_REQUESTED"
+            })
+        );
+        let retry_return_id = &retry.body["data"][root]["return"]["id"];
+        assert!(retry_order["returns"]["nodes"]
+            .as_array()
+            .expect("return payload order should expose staged returns")
+            .iter()
+            .any(|return_value| &return_value["id"] == retry_return_id));
         let retry_log = log_snapshot(&rejected_then_retry);
         assert_eq!(retry_log["entries"].as_array().unwrap().len(), 1);
         assert_eq!(retry_log["entries"][0]["rawBody"], json!(retry_raw_body));
