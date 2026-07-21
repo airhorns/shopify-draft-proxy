@@ -8888,6 +8888,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}return-quantity-validation.json`,
       'config/parity-specs/orders/returnRequest-quantity-cap.json',
       'config/parity-specs/orders/removeFromReturn-quantity-validation.json',
+      'config/parity-requests/orders/return-fulfillment-line-items-hydrate.graphql',
     ],
     cleanupBehavior:
       'Creates and fulfills disposable orders, opens returns for quantity preconditions, records validation failures, and leaves the disposable return records as captured evidence.',
