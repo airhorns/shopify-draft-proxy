@@ -1966,6 +1966,7 @@ fn b2b_company_contact_cold_live_hybrid_read_forwards_authoritative_relationship
           companyContact(id: $id) {
             id
             title
+            isMainContact
             company { id name }
             customer { id email }
             roleAssignments(first: 5) {
@@ -1976,6 +1977,11 @@ fn b2b_company_contact_cold_live_hybrid_read_forwards_authoritative_relationship
         "#,
         json!({ "id": B2B_HYDRATE_TEST_CONTACT_ID }),
     ));
+    assert_eq!(
+        response.body["data"]["companyContact"]["isMainContact"],
+        json!(true),
+        "a partial company reference must not erase direct main-contact evidence"
+    );
     assert_eq!(
         response.body["data"]["companyContact"]["company"],
         json!({
@@ -2305,7 +2311,6 @@ fn b2b_assign_customer_as_contact_mutation_first_hydrates_and_reads_relationship
                 Some(&"assign-customer-token".to_string())
             );
             let body = serde_json::from_str::<Value>(&request.body).expect("upstream body");
-            assert_eq!(body["operationName"], json!("B2BMutationTargetsHydrate"));
             assert!(body["query"]
                 .as_str()
                 .is_some_and(|query| !query.contains("mutation")));
@@ -2313,7 +2318,29 @@ fn b2b_assign_customer_as_contact_mutation_first_hydrates_and_reads_relationship
                 .lock()
                 .expect("captured upstream")
                 .push(request.clone());
-            b2b_mutation_first_hydrate_test_response(&body)
+            match body["operationName"].as_str() {
+                Some("B2BMutationTargetsHydrate") => {
+                    let mut response = b2b_mutation_first_hydrate_test_response(&body);
+                    if let Some(company) = response.body["data"]["nodes"]
+                        .as_array_mut()
+                        .and_then(|nodes| {
+                            nodes
+                                .iter_mut()
+                                .find(|node| node["__typename"] == "Company")
+                        })
+                        .and_then(Value::as_object_mut)
+                    {
+                        company.remove("locations");
+                        company.remove("contacts");
+                        company.remove("contactRoles");
+                    }
+                    response
+                }
+                Some("B2BCompanyContactsWindowHydrate") => {
+                    b2b_company_contacts_window_hydrate_test_response()
+                }
+                other => panic!("unexpected assign-customer hydrate operation: {other:?}"),
+            }
         }
     });
 
@@ -2372,7 +2399,7 @@ fn b2b_assign_customer_as_contact_mutation_first_hydrates_and_reads_relationship
     );
     drop(calls);
 
-    let readback = proxy.process_request(json_graphql_request(
+    let mut readback_request = json_graphql_request(
         r#"
         query B2BAssignCustomerAsContactMutationFirstReadback(
           $companyId: ID!
@@ -2381,7 +2408,7 @@ fn b2b_assign_customer_as_contact_mutation_first_hydrates_and_reads_relationship
         ) {
           company(id: $companyId) {
             id
-            contacts(first: 5) { nodes { id } }
+            contacts(first: 5) { nodes { id customer { id email } } }
           }
           companyContact(id: $companyContactId) {
             id
@@ -2399,13 +2426,22 @@ fn b2b_assign_customer_as_contact_mutation_first_hydrates_and_reads_relationship
             "companyContactId": contact_id,
             "customerId": B2B_HYDRATE_TEST_ASSIGNABLE_CUSTOMER_ID
         }),
-    ));
+    );
+    readback_request.headers.insert(
+        "X-Shopify-Access-Token".to_string(),
+        "assign-customer-token".to_string(),
+    );
+    let readback = proxy.process_request(readback_request);
     assert_eq!(readback.status, 200);
     assert_eq!(
         readback.body["errors"],
         Value::Null,
         "readback: {}",
         readback.body
+    );
+    assert_eq!(
+        readback.body["data"]["company"]["contacts"]["nodes"][0]["customer"]["id"],
+        json!(B2B_HYDRATE_TEST_CUSTOMER_ID)
     );
     assert_eq!(
         readback.body["data"]["company"]["contacts"]["nodes"][1]["id"],
@@ -2419,7 +2455,14 @@ fn b2b_assign_customer_as_contact_mutation_first_hydrates_and_reads_relationship
         readback.body["data"]["customer"]["companyContactProfiles"][0]["id"],
         json!(contact_id)
     );
-    assert_eq!(captured.lock().expect("captured upstream").len(), 1);
+    let calls = captured.lock().expect("captured upstream");
+    assert_eq!(calls.len(), 2);
+    assert_eq!(
+        serde_json::from_str::<Value>(&calls[1].body).expect("contacts window body")
+            ["operationName"],
+        json!("B2BCompanyContactsWindowHydrate")
+    );
+    drop(calls);
 
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
     assert_eq!(dump.status, 200);
@@ -8086,6 +8129,47 @@ fn b2b_mutation_first_hydrate_test_response(body: &Value) -> Response {
         status: 200,
         headers: Default::default(),
         body: json!({ "data": data }),
+    }
+}
+
+fn b2b_company_contacts_window_hydrate_test_response() -> Response {
+    let main_contact = json!({
+        "__typename": "CompanyContact",
+        "id": B2B_HYDRATE_TEST_CONTACT_ID,
+        "createdAt": "2026-07-21T00:00:00Z",
+        "title": "Buyer",
+        "locale": "en",
+        "isMainContact": true,
+        "customer": {
+            "__typename": "Customer",
+            "id": B2B_HYDRATE_TEST_CUSTOMER_ID,
+            "firstName": "Hydrated",
+            "lastName": "Buyer",
+            "displayName": "Hydrated Buyer",
+            "email": "buyer@example.com",
+            "phone": Value::Null,
+            "locale": "en",
+            "defaultEmailAddress": { "emailAddress": "buyer@example.com" },
+            "defaultPhoneNumber": Value::Null
+        }
+    });
+    Response {
+        status: 200,
+        headers: Default::default(),
+        body: json!({
+            "data": {
+                "company": {
+                    "__typename": "Company",
+                    "id": B2B_HYDRATE_TEST_COMPANY_ID,
+                    "name": "Hydrated Buyer",
+                    "mainContact": main_contact.clone(),
+                    "contacts": {
+                        "nodes": [main_contact],
+                        "pageInfo": { "hasNextPage": true, "endCursor": "partial-contact-window" }
+                    }
+                }
+            }
+        }),
     }
 }
 

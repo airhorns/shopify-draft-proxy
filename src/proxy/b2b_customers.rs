@@ -32,6 +32,7 @@ pub(in crate::proxy) struct B2bRootInput {
     location: SourceLocation,
     raw_arguments: BTreeMap<String, RawArgumentValue>,
     arguments: BTreeMap<String, ResolvedValue>,
+    requested_field_paths: BTreeSet<Vec<String>>,
 }
 
 fn b2b_root_input(invocation: &RootInvocation<'_>) -> B2bRootInput {
@@ -41,6 +42,7 @@ fn b2b_root_input(invocation: &RootInvocation<'_>) -> B2bRootInput {
         location: invocation.root_location,
         raw_arguments: invocation.raw_arguments.clone(),
         arguments: resolved_arguments_from_json(&invocation.arguments),
+        requested_field_paths: invocation.requested_field_paths.clone(),
     }
 }
 

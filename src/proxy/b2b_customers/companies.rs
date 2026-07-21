@@ -1207,6 +1207,42 @@ fn b2b_mutation_targets_hydrate_query(request: &Request) -> String {
     }
 }
 
+const B2B_COMPANY_CONTACTS_WINDOW_HYDRATE_QUERY: &str = r#"
+query B2BCompanyContactsWindowHydrate($id: ID!) {
+  company(id: $id) {
+    __typename
+    id
+    name
+    mainContact { ...B2BCompanyContactsWindowContact }
+    contacts(first: 50) {
+      nodes { ...B2BCompanyContactsWindowContact }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}
+
+fragment B2BCompanyContactsWindowContact on CompanyContact {
+  __typename
+  id
+  createdAt
+  title
+  locale
+  isMainContact
+  customer {
+    __typename
+    id
+    firstName
+    lastName
+    displayName
+    email
+    phone
+    locale
+    defaultEmailAddress { emailAddress }
+    defaultPhoneNumber { phoneNumber }
+  }
+}
+"#;
+
 const B2B_MUTATION_SEARCH_HYDRATE_QUERY: &str = r#"
 query B2BMutationSearchHydrate(
   $includeCompanies: Boolean!
@@ -1774,6 +1810,19 @@ impl DraftProxy {
                 return None;
             }
         }
+        if operation_type == OperationType::Query
+            && self.config.read_mode == ReadMode::LiveHybrid
+            && field.name == "company"
+            && self.b2b_root_has_staged_match(field)
+            && field
+                .requested_field_paths
+                .iter()
+                .any(|path| path.first().is_some_and(|field| field == "contacts"))
+        {
+            if let Some(company_id) = resolved_string_field(&field.arguments, "id") {
+                self.hydrate_b2b_company_contacts_window(request, &company_id);
+            }
+        }
 
         match operation_type {
             OperationType::Mutation => {
@@ -1890,6 +1939,38 @@ impl DraftProxy {
         }
 
         self.hydrate_b2b_mutation_searches(request, field);
+    }
+
+    fn hydrate_b2b_company_contacts_window(&mut self, request: &Request, company_id: &str) {
+        if company_id.is_empty() || is_synthetic_gid(company_id) {
+            return;
+        }
+        let scope = b2b_relationship_scope("company", company_id, "contacts");
+        if self
+            .store
+            .base
+            .b2b_relationship_completeness
+            .contains_key(&scope)
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": B2B_COMPANY_CONTACTS_WINDOW_HYDRATE_QUERY,
+                "operationName": "B2BCompanyContactsWindowHydrate",
+                "variables": { "id": company_id },
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let company = &response.body["data"]["company"];
+        if company.is_null() {
+            return;
+        }
+        self.observe_b2b_company_record(company);
+        self.observe_b2b_relationship_completeness(scope, &company["contacts"], true);
     }
 
     fn b2b_staged_knows_id(&self, id: &str) -> bool {
@@ -4324,8 +4405,7 @@ impl DraftProxy {
                     "note": Value::Null,
                     "locationIds": [],
                     "contactIds": [],
-                    "contactRoleIds": [],
-                    "mainContactId": Value::Null
+                    "contactRoleIds": []
                 })
             });
         merge_json_values(&mut record, company);
@@ -4335,10 +4415,6 @@ impl DraftProxy {
                 record[key] = json!([]);
             }
         }
-        if record.get("mainContactId").is_none() {
-            record["mainContactId"] = Value::Null;
-        }
-
         for location in connection_nodes(&company["locations"]) {
             if let Some(location_id) =
                 self.observe_b2b_location_record(&location, Some(&company_id))
@@ -4349,12 +4425,20 @@ impl DraftProxy {
         for contact in connection_nodes(&company["contacts"]) {
             if let Some(contact_id) = self.observe_b2b_contact_record(&contact, Some(&company_id)) {
                 b2b_push_json_id(&mut record, "contactIds", &contact_id);
+                if contact["isMainContact"].as_bool() == Some(true) {
+                    record["mainContactId"] = json!(contact_id);
+                }
             }
         }
-        if let Some(main_contact_id) =
-            self.observe_b2b_contact_record(&company["mainContact"], Some(&company_id))
-        {
-            record["mainContactId"] = json!(main_contact_id);
+        if company.get("mainContact").is_some() {
+            if let Some(main_contact_id) =
+                self.observe_b2b_contact_record(&company["mainContact"], Some(&company_id))
+            {
+                b2b_push_json_id(&mut record, "contactIds", &main_contact_id);
+                record["mainContactId"] = json!(main_contact_id);
+            } else {
+                record["mainContactId"] = Value::Null;
+            }
         }
         for role in connection_nodes(&company["contactRoles"]) {
             if let Some(role_id) = self.observe_b2b_contact_role_record(&role, Some(&company_id)) {
@@ -4560,6 +4644,21 @@ impl DraftProxy {
             .insert(contact_id.clone(), record);
         if let Some(company_id) = company_id {
             self.b2b_add_base_company_contact_id(&company_id, &contact_id);
+            if contact["isMainContact"].as_bool() == Some(true) {
+                if let Some(mut company) = self.store.base.b2b_companies.get(&company_id).cloned() {
+                    company["mainContactId"] = json!(contact_id);
+                    self.store.base.b2b_companies.insert(company_id, company);
+                }
+            } else if contact["isMainContact"].as_bool() == Some(false) {
+                if let Some(mut company) = self.store.base.b2b_companies.get(&company_id).cloned() {
+                    if company["mainContactId"].as_str() == Some(contact_id.as_str()) {
+                        if let Some(object) = company.as_object_mut() {
+                            object.remove("mainContactId");
+                        }
+                        self.store.base.b2b_companies.insert(company_id, company);
+                    }
+                }
+            }
         }
         Some(contact_id)
     }
@@ -4918,7 +5017,9 @@ impl DraftProxy {
             .or_else(|| self.store.base.b2b_contacts.get(id).cloned())?;
         if let Some(company_id) = contact["companyId"].as_str() {
             let company = self.b2b_effective_company(company_id)?;
-            contact["isMainContact"] = json!(company["mainContactId"].as_str() == Some(id));
+            if company.get("mainContactId").is_some() {
+                contact["isMainContact"] = json!(company["mainContactId"].as_str() == Some(id));
+            }
         }
         Some(contact)
     }
