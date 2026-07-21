@@ -30,8 +30,30 @@
           "variablesCapturePath": "$.returnCreateQuantityCap.variables",
           "apiVersion": "2026-04"
         }
+      },
+      {
+        "name": "return-request-mixed-valid-missing-line-rejection",
+        "capturePath": "$.expected.returnRequestMixedValidMissing.data.returnRequest",
+        "proxyPath": "$.data.returnRequest",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-request-quantity-cap.graphql",
+          "variablesCapturePath": "$.returnRequestMixedValidMissing.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "return-create-mixed-valid-missing-line-rejection",
+        "capturePath": "$.expected.returnCreateMixedValidMissing.data.returnCreate",
+        "proxyPath": "$.data.returnCreate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-create-quantity-validation.graphql",
+          "variablesCapturePath": "$.returnCreateMixedValidMissing.variables",
+          "apiVersion": "2026-04"
+        }
       }
     ]
   },
-  "notes": "Live 2026-04 Admin API capture for returnRequest and returnCreate quantity validation after an existing open return consumes part of a fulfilled line. The recorder creates and fulfills disposable orders, opens a first return, records the proxy's cold order hydrate as an upstream cassette, then captures the over-remaining-quantity userErrors. Replacement for retired synthetic/local-runtime orders evidence."
+  "notes": "Live 2026-04 Admin API capture for returnRequest and returnCreate quantity validation after an existing open return consumes part of a fulfilled line, plus mixed batches whose valid first line is followed by a globally confirmed missing fulfillment line. The recorder creates and fulfills disposable orders, records the bounded order and fulfillment-line probes as exact upstream cassettes, and captures root-specific NOT_FOUND errors without a created return. Replacement for retired synthetic/local-runtime orders evidence."
 }

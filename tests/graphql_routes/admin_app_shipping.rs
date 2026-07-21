@@ -1007,6 +1007,291 @@ fn bulk_operation_reads_are_operation_name_independent_and_store_backed() {
 }
 
 #[test]
+fn bulk_operation_node_reads_share_snapshot_effective_state_and_reset_discards_jobs() {
+    let upstream_hits = Arc::new(Mutex::new(0usize));
+    let mut proxy = configured_proxy(ReadMode::Snapshot, None).with_upstream_transport({
+        let upstream_hits = Arc::clone(&upstream_hits);
+        move |_request| {
+            *upstream_hits.lock().unwrap() += 1;
+            shopify_draft_proxy::proxy::Response {
+                status: 500,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "snapshot must not call upstream" }] }),
+            }
+        }
+    });
+    let product_id = create_bulk_metadata_product(&mut proxy, "Bulk Node mixed product");
+    let run = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunForNodeRead($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": "{ products { edges { node { id } } } }" }),
+    ));
+    assert_eq!(
+        run.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([])
+    );
+    let bulk_operation_id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let unknown_id = "gid://shopify/BulkOperation/9999999999999";
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query EffectiveBulkOperationNodes($bulkOperationId: ID!, $unknownId: ID!, $ids: [ID!]!) {
+          direct: bulkOperation(id: $bulkOperationId) {
+            __typename
+            ...BulkOperationNodeFields
+          }
+          effective: node(id: $bulkOperationId) {
+            __typename
+            ...BulkOperationNodeFields
+          }
+          missing: node(id: $unknownId) {
+            __typename
+            ...BulkOperationNodeFields
+          }
+          aliasedBatch: nodes(ids: $ids) {
+            __typename
+            ...BulkOperationNodeFields
+            ... on Product { id title }
+          }
+        }
+
+        fragment BulkOperationNodeFields on BulkOperation {
+          id
+          status
+          type
+          errorCode
+          createdAt
+          completedAt
+          objectCount
+          rootObjectCount
+          fileSize
+          url
+          partialDataUrl
+          query
+        }
+        "#,
+        json!({
+            "bulkOperationId": bulk_operation_id,
+            "unknownId": unknown_id,
+            "ids": [bulk_operation_id, unknown_id, product_id, bulk_operation_id]
+        }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["errors"], Value::Null);
+    assert_eq!(read.body["data"]["effective"], read.body["data"]["direct"]);
+    assert_eq!(
+        read.body["data"]["effective"]["__typename"],
+        json!("BulkOperation")
+    );
+    assert_eq!(read.body["data"]["missing"], Value::Null);
+    assert_eq!(
+        read.body["data"]["aliasedBatch"],
+        json!([
+            read.body["data"]["direct"].clone(),
+            Value::Null,
+            {
+                "__typename": "Product",
+                "id": product_id,
+                "title": "Bulk Node mixed product"
+            },
+            read.body["data"]["direct"].clone()
+        ])
+    );
+    assert_eq!(*upstream_hits.lock().unwrap(), 0);
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(
+        log["entries"].as_array().unwrap().last().unwrap()["interpreted"]["primaryRootField"],
+        json!("bulkOperationRunQuery")
+    );
+    assert!(log["entries"].as_array().unwrap().last().unwrap()["query"]
+        .as_str()
+        .unwrap()
+        .contains("bulkOperationRunQuery"));
+
+    let reset = proxy.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let after_reset = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkOperationNodeAfterReset($id: ID!) {
+          node(id: $id) { __typename ... on BulkOperation { id status } }
+        }
+        "#,
+        json!({ "id": bulk_operation_id }),
+    ));
+    assert_eq!(after_reset.body["data"]["node"], Value::Null);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(*upstream_hits.lock().unwrap(), 0);
+}
+
+#[test]
+fn bulk_operation_nodes_batch_cold_live_hybrid_loads_and_overlay_cancel_state() {
+    let bulk_operation_id = "gid://shopify/BulkOperation/8123456789012";
+    let unknown_id = "gid://shopify/BulkOperation/9999999999999";
+    let query = "{ products { edges { node { id } } } }";
+    let hydrated_operation = json!({
+        "__typename": "BulkOperation",
+        "id": bulk_operation_id,
+        "status": "RUNNING",
+        "type": "QUERY",
+        "errorCode": null,
+        "createdAt": "2026-07-21T00:00:00Z",
+        "completedAt": null,
+        "objectCount": "3",
+        "rootObjectCount": "2",
+        "fileSize": null,
+        "url": null,
+        "partialDataUrl": null,
+        "query": query
+    });
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_requests = Arc::clone(&upstream_requests);
+        let hydrated_operation = hydrated_operation.clone();
+        move |request| {
+            upstream_requests
+                .lock()
+                .unwrap()
+                .push(serde_json::from_str(&request.body).unwrap());
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "aliasedBatch": [
+                            hydrated_operation,
+                            null,
+                            null,
+                            hydrated_operation
+                        ]
+                    }
+                }),
+            }
+        }
+    });
+    let product_id = create_bulk_metadata_product(&mut proxy, "Live Bulk Node mixed product");
+
+    let batch = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdBulkOperationBatch($ids: [ID!]!) {
+          aliasedBatch: nodes(ids: $ids) {
+            __typename
+            ...BulkOperationNodeFields
+            ... on Product { id title }
+          }
+        }
+
+        fragment BulkOperationNodeFields on BulkOperation {
+          id
+          status
+          type
+          errorCode
+          createdAt
+          completedAt
+          objectCount
+          rootObjectCount
+          fileSize
+          url
+          partialDataUrl
+          query
+        }
+        "#,
+        json!({ "ids": [bulk_operation_id, unknown_id, product_id, bulk_operation_id] }),
+    ));
+
+    assert_eq!(batch.status, 200);
+    assert_eq!(batch.body["errors"], Value::Null);
+    assert_eq!(batch.body["data"]["aliasedBatch"][0], hydrated_operation);
+    assert_eq!(batch.body["data"]["aliasedBatch"][1], Value::Null);
+    assert_eq!(
+        batch.body["data"]["aliasedBatch"][2],
+        json!({
+            "__typename": "Product",
+            "id": product_id,
+            "title": "Live Bulk Node mixed product"
+        })
+    );
+    assert_eq!(batch.body["data"]["aliasedBatch"][3], hydrated_operation);
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+
+    let dedicated = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadHydratedBulkOperation($id: ID!) {
+          bulkOperation(id: $id) { id status type objectCount query }
+        }
+        "#,
+        json!({ "id": bulk_operation_id }),
+    ));
+    assert_eq!(
+        dedicated.body["data"]["bulkOperation"]["status"],
+        json!("RUNNING")
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CancelHydratedBulkOperation($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type objectCount query }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": bulk_operation_id }),
+    ));
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
+        json!("CANCELING")
+    );
+
+    let staged_node = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCanceledBulkOperationNode($id: ID!) {
+          effective: node(id: $id) {
+            __typename
+            ... on BulkOperation { id status type objectCount query }
+          }
+        }
+        "#,
+        json!({ "id": bulk_operation_id }),
+    ));
+    assert_eq!(
+        staged_node.body["data"]["effective"],
+        json!({
+            "__typename": "BulkOperation",
+            "id": bulk_operation_id,
+            "status": "CANCELING",
+            "type": "QUERY",
+            "objectCount": "3",
+            "query": query
+        })
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+    assert_eq!(
+        log_snapshot(&proxy)["entries"]
+            .as_array()
+            .unwrap()
+            .last()
+            .unwrap()["interpreted"]["primaryRootField"],
+        json!("bulkOperationCancel")
+    );
+}
+
+#[test]
 fn bulk_operation_completed_url_is_absolute_and_serves_jsonl_artifact() {
     let mut proxy = snapshot_proxy();
 

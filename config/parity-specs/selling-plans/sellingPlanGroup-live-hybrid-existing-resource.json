@@ -13,7 +13,7 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "cold-existing-group-read-hydrates",
+        "name": "cold-existing-group-read-reuses-caller-window",
         "capturePath": "$.scenarios.coldGroupRead.response.data.sellingPlanGroup",
         "proxyPath": "$.data.sellingPlanGroup",
         "isolatedProxy": true,
@@ -44,5 +44,5 @@
       }
     ]
   },
-  "notes": "Captured against a disposable Shopify product and selling-plan group. The proxy starts without local selling-plan state; cold reads and existing-resource updates can only pass by using the recorded read-only sellingPlanGroupHydrateNodes upstreamCalls cassette and then rendering/staging locally. Before the LiveHybrid fix, the read target returned null and the update target attempted to forward the caller mutation upstream."
+  "notes": "Captured against a disposable Shopify product and selling-plan group. The proxy starts without local selling-plan state: the cold read reuses the exact caller document once, while the update uses the recorded bounded scalar/count hydrate, membership probes, relationship windows, and downstream mixed read before rendering and staging locally."
 }

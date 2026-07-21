@@ -1,0 +1,25 @@
+query BulkOperationNodesRead($ids: [ID!]!) {
+  aliasedBatch: nodes(ids: $ids) {
+    __typename
+    ...BulkOperationNodeFields
+    ... on Product {
+      id
+      title
+    }
+  }
+}
+
+fragment BulkOperationNodeFields on BulkOperation {
+  id
+  status
+  type
+  errorCode
+  createdAt
+  completedAt
+  objectCount
+  rootObjectCount
+  fileSize
+  url
+  partialDataUrl
+  query
+}
