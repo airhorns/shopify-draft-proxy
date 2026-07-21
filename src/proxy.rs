@@ -2057,6 +2057,10 @@ impl Store {
         self.staged.collections.get(id)
     }
 
+    fn collections(&self) -> Vec<Value> {
+        self.staged.collections.values().cloned().collect()
+    }
+
     fn collection_by_handle(&self, handle: &str) -> Option<&Value> {
         let handle = handle.trim();
         if handle.is_empty() || self.collection_handle_is_deleted(handle) {
@@ -2642,6 +2646,7 @@ struct ExecutionSession {
     upstream_query_response: Option<Response>,
     upstream_query_data: Option<Value>,
     upstream_query_selections: BTreeMap<String, Vec<SelectedField>>,
+    collection_list_reads_started_cold: bool,
     localization_context_preflighted: bool,
     markets_query_preflighted: bool,
     node_hydration: Option<RequestNodeHydration>,

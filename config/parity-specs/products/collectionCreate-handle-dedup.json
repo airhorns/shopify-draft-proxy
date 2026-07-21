@@ -1,0 +1,84 @@
+{
+  "scenarioId": "collection-handle-dedup",
+  "operationNames": ["collectionCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/collection-handle-dedup-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/store_state.rs"],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/collectionCreate-handle-dedup.graphql",
+    "variablesCapturePath": "$.operations.nonnumericFirst.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify collectionCreate generated-handle reservation for both suffix branches. Replaying the same nonnumeric title reserves the -1 family, while replaying a generated handle ending in 41 increments that numeric tail to 42. Proxy replay earns every collision through public collectionCreate requests and keeps the writes local until explicit commit.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.collectionCreate.collection.id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "Shopify and the local draft proxy allocate collection ids independently."
+      }
+    ],
+    "targets": [
+      {
+        "name": "generated-nonnumeric-source",
+        "capturePath": "$.operations.nonnumericFirst.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "generated-nonnumeric-suffix-family",
+        "capturePath": "$.operations.nonnumericSecond.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-handle-dedup.graphql",
+          "variablesCapturePath": "$.operations.nonnumericSecond.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.collectionCreate.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Shopify and the local draft proxy allocate collection ids independently."
+          }
+        ]
+      },
+      {
+        "name": "generated-numeric-tail-source",
+        "capturePath": "$.operations.numericFirst.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-handle-dedup.graphql",
+          "variablesCapturePath": "$.operations.numericFirst.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.collectionCreate.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Shopify and the local draft proxy allocate collection ids independently."
+          }
+        ]
+      },
+      {
+        "name": "generated-numeric-tail-increment",
+        "capturePath": "$.operations.numericSecond.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-handle-dedup.graphql",
+          "variablesCapturePath": "$.operations.numericSecond.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.collectionCreate.collection.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Shopify and the local draft proxy allocate collection ids independently."
+          }
+        ]
+      }
+    ]
+  }
+}

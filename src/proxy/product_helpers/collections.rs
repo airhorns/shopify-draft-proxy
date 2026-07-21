@@ -678,13 +678,26 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
-        if self.config.read_mode == ReadMode::Live
-            || (self.config.read_mode != ReadMode::Snapshot && !self.store.has_collection_state())
-        {
+        if self.config.read_mode == ReadMode::Live {
             return self.cached_or_forward_upstream_root_outcome(
                 invocation.request,
                 invocation.response_key,
             );
+        }
+        if self.config.read_mode != ReadMode::Snapshot
+            && (self.execution_session.collection_list_reads_started_cold
+                || !self.store.has_collection_state())
+        {
+            let should_observe = !self.execution_session.collection_list_reads_started_cold;
+            self.execution_session.collection_list_reads_started_cold = true;
+            let result = self.cached_or_forward_upstream_graphql_result(
+                invocation.request,
+                invocation.response_key,
+            );
+            if should_observe && result.transport_succeeded {
+                self.observe_collection_value(&result.data);
+            }
+            return result.outcome;
         }
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         if self.config.read_mode == ReadMode::LiveHybrid {
@@ -704,7 +717,9 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         if self.config.read_mode == ReadMode::Live
-            || (self.config.read_mode != ReadMode::Snapshot && !self.store.has_collection_state())
+            || (self.config.read_mode != ReadMode::Snapshot
+                && (self.execution_session.collection_list_reads_started_cold
+                    || !self.store.has_collection_state()))
         {
             return self.cached_or_forward_upstream_root_outcome(
                 invocation.request,
@@ -957,12 +972,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> StagedConnectionResult<Value> {
         staged_connection_query(
-            self.store
-                .staged
-                .collections
-                .values()
-                .cloned()
-                .collect::<Vec<_>>(),
+            self.store.collections(),
             arguments,
             |collection, query| self.collection_search_decision(collection, query),
             collection_staged_sort_key,
@@ -2585,25 +2595,22 @@ impl DraftProxy {
             .filter(|handle| !handle.trim().is_empty())
             .map(str::to_string)
             .unwrap_or_else(|| slugify_handle(title));
-        let base = strip_numeric_suffix(&requested);
-        let mut candidate = requested;
-        let mut suffix = 1;
-        while self.collection_handle_exists(&candidate, current_id) {
-            candidate = format!("{base}-{suffix}");
-            suffix += 1;
-        }
-        candidate
-    }
-
-    fn collection_handle_exists(&self, handle: &str, current_id: Option<&str>) -> bool {
-        self.store
-            .staged
-            .collections
-            .iter()
-            .any(|(id, collection)| {
-                Some(id.as_str()) != current_id
-                    && collection.get("handle").and_then(Value::as_str) == Some(handle)
+        let occupied = self
+            .store
+            .collections()
+            .into_iter()
+            .filter(|collection| collection.get("id").and_then(Value::as_str) != current_id)
+            .filter_map(|collection| {
+                collection
+                    .get("handle")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
             })
+            .collect::<BTreeSet<_>>();
+        if !occupied.contains(&requested) {
+            return requested;
+        }
+        next_available_generated_handle(&requested, &occupied)
     }
 }
 
@@ -3269,15 +3276,4 @@ fn collection_user_error<const N: usize>(field: [&str; N], message: &str) -> Val
 
 fn collection_user_error_null_field(message: &str) -> Value {
     user_error_omit_code(Value::Null, message, None)
-}
-
-fn strip_numeric_suffix(handle: &str) -> String {
-    let Some((base, suffix)) = handle.rsplit_once('-') else {
-        return handle.to_string();
-    };
-    if suffix.chars().all(|ch| ch.is_ascii_digit()) && !base.is_empty() {
-        base.to_string()
-    } else {
-        handle.to_string()
-    }
 }

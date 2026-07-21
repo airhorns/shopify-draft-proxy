@@ -1,0 +1,267 @@
+{
+  "scenarioId": "collection-handle-dedup",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-07-20T04:06:58.398Z",
+  "operations": {
+    "nonnumericFirst": {
+      "request": {
+        "query": "#graphql\n  mutation CollectionHandleLifecycleCreate($input: CollectionInput!) {\n    collectionCreate(input: $input) {\n      collection {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "title": "Collection Handle Nonnumeric mrspdqch"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": {
+              "id": "gid://shopify/Collection/514591785266",
+              "title": "Collection Handle Nonnumeric mrspdqch",
+              "handle": "collection-handle-nonnumeric-mrspdqch"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "nonnumericSecond": {
+      "request": {
+        "query": "#graphql\n  mutation CollectionHandleLifecycleCreate($input: CollectionInput!) {\n    collectionCreate(input: $input) {\n      collection {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "title": "Collection Handle Nonnumeric mrspdqch"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": {
+              "id": "gid://shopify/Collection/514591818034",
+              "title": "Collection Handle Nonnumeric mrspdqch",
+              "handle": "collection-handle-nonnumeric-mrspdqch-1"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "numericFirst": {
+      "request": {
+        "query": "#graphql\n  mutation CollectionHandleLifecycleCreate($input: CollectionInput!) {\n    collectionCreate(input: $input) {\n      collection {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "title": "Collection Handle Numeric mrspdqch 41"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": {
+              "id": "gid://shopify/Collection/514591850802",
+              "title": "Collection Handle Numeric mrspdqch 41",
+              "handle": "collection-handle-numeric-mrspdqch-41"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "numericSecond": {
+      "request": {
+        "query": "#graphql\n  mutation CollectionHandleLifecycleCreate($input: CollectionInput!) {\n    collectionCreate(input: $input) {\n      collection {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "title": "Collection Handle Numeric mrspdqch 41"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": {
+              "id": "gid://shopify/Collection/514591883570",
+              "title": "Collection Handle Numeric mrspdqch 41",
+              "handle": "collection-handle-numeric-mrspdqch-42"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "#graphql\n  mutation CollectionHandleLifecycleCleanup($input: CollectionDeleteInput!) {\n    collectionDelete(input: $input) {\n      deletedCollectionId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Collection/514591883570"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "collectionDelete": {
+            "deletedCollectionId": "gid://shopify/Collection/514591883570",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation CollectionHandleLifecycleCleanup($input: CollectionDeleteInput!) {\n    collectionDelete(input: $input) {\n      deletedCollectionId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Collection/514591850802"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "collectionDelete": {
+            "deletedCollectionId": "gid://shopify/Collection/514591850802",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation CollectionHandleLifecycleCleanup($input: CollectionDeleteInput!) {\n    collectionDelete(input: $input) {\n      deletedCollectionId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Collection/514591818034"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "collectionDelete": {
+            "deletedCollectionId": "gid://shopify/Collection/514591818034",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation CollectionHandleLifecycleCleanup($input: CollectionDeleteInput!) {\n    collectionDelete(input: $input) {\n      deletedCollectionId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Collection/514591785266"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "collectionDelete": {
+            "deletedCollectionId": "gid://shopify/Collection/514591785266",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
