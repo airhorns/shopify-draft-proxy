@@ -767,6 +767,66 @@ fn live_hybrid_definition_create_uses_bounded_probes_past_large_unrelated_catalo
 }
 
 #[test]
+fn live_hybrid_definition_bounded_context_failure_is_schema_valid_and_atomic() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            match body["operationName"].as_str().unwrap_or_default() {
+                "MetafieldDefinitionHydrateByIdentifier" => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "metafieldDefinition": null } }),
+                },
+                "MetafieldDefinitionsHydrateResourceScope" => Response {
+                    status: 502,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "bounded context unavailable" }] }),
+                },
+                operation_name => panic!("unexpected prerequisite operation: {operation_name}"),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateWithoutBoundedContext($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({ "definition": {
+            "ownerType": "PRODUCT",
+            "namespace": "bounded_context_failure",
+            "key": "target",
+            "name": "Bounded context failure",
+            "type": "single_line_text_field"
+        }}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert!(response.body.get("errors").is_none());
+    assert_eq!(
+        response.body["data"]["metafieldDefinitionCreate"],
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "__typename": "MetafieldDefinitionCreateUserError",
+                "field": ["definition"],
+                "message": "Unable to validate metafield definition limits from bounded upstream evidence.",
+                "code": null
+            }]
+        })
+    );
+    assert!(
+        state_snapshot(&proxy)["stagedState"]["metafieldDefinitions"]
+            .as_object()
+            .is_none_or(serde_json::Map::is_empty)
+    );
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
+}
+
+#[test]
 fn live_hybrid_definition_mutation_budgets_stay_fixed_near_limits_in_large_catalogs() {
     let unrelated_app_definitions = (0..5_001)
         .map(|index| {
@@ -3889,9 +3949,9 @@ fn metafield_definition_lifecycle_mutations_validate_and_stage_real_inputs() {
             "ownerType": "CUSTOMER",
             "name": "Updated tier",
             "description": "Readable tier",
-            "validations": [{ "name": "max", "value": "32" }],
+                "validations": [{ "name": "max", "value": "32" }],
                 "constraints": {
-                    "key": "category",
+                    "key": null,
                     "values": {
                     "nodes": [{ "value": "ap-2" }]
                     }

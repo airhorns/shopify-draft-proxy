@@ -199,11 +199,11 @@ fn admin_filterable_definition_limit_message(owner_type: &str) -> String {
 }
 
 fn metafield_definition_bounded_context_error(typename: &str, field: Value) -> Value {
-    metafield_definition_user_error(
+    metafield_definition_user_error_with_code_value(
         typename,
         field,
         "Unable to validate metafield definition limits from bounded upstream evidence.",
-        "INTERNAL_ERROR",
+        Value::Null,
     )
 }
 
@@ -3595,11 +3595,12 @@ fn apply_metafield_definition_constraints_update(
     else {
         return;
     };
-    let current_key = definition["constraints"]["key"].clone();
     let next_key = match constraints.get("key") {
-        Some(ResolvedValue::String(value)) => json!(value),
+        // Shopify's current constraintsUpdates projection retains the values
+        // and constrained-definition behavior while returning a null key.
+        Some(ResolvedValue::String(_)) => Value::Null,
         Some(ResolvedValue::Null) => Value::Null,
-        _ => current_key,
+        _ => definition["constraints"]["key"].clone(),
     };
     let mut values = definition["constraints"]["values"]["nodes"]
         .as_array()

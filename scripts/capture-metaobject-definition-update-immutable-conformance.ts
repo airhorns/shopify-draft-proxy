@@ -18,6 +18,16 @@ type Capture = {
   response: unknown;
 };
 
+type UpstreamCall = {
+  method: 'POST';
+  apiSurface: 'admin';
+  path: string;
+  operationName: string;
+  variables: Record<string, unknown>;
+  query: string;
+  response: { status: number; body: unknown };
+};
+
 type Seed = {
   runId: string;
   standardType: string;
@@ -47,6 +57,9 @@ const requestPaths = {
   standardEnable: 'config/parity-requests/metaobjects/standard-metaobject-definition-enable-catalog.graphql',
   immutableUpdate: 'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-immutable-update.graphql',
   immutableRead: 'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-immutable-read.graphql',
+  metafieldHydrateByIdentifier: 'config/parity-requests/metafields/metafield-definition-hydrate-by-identifier.graphql',
+  metafieldHydrateResourceScope:
+    'config/parity-requests/metafields/metafield-definitions-hydrate-resource-scope.graphql',
 };
 
 const queries = Object.fromEntries(
@@ -336,6 +349,56 @@ async function captureGraphql(name: string, query: string, variables: Record<str
   return captureFromResult(name, query, variables, result);
 }
 
+function upstreamCallFromCapture(operationName: string, capture: Capture): UpstreamCall {
+  return {
+    method: 'POST',
+    apiSurface: 'admin',
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    operationName,
+    variables: capture.request.variables,
+    query: capture.request.query,
+    response: { status: capture.status, body: capture.response },
+  };
+}
+
+async function captureMetafieldDefinitionResourceScope(): Promise<UpstreamCall[]> {
+  const upstreamCalls: UpstreamCall[] = [];
+  let after: string | null = null;
+  let observedMerchantDefinitions = 0;
+  for (let page = 0; page < 3; page += 1) {
+    const capture = await captureGraphql(
+      'metafield-definitions-hydrate-resource-scope',
+      queries.metafieldHydrateResourceScope,
+      {
+        ownerType: 'PRODUCT',
+        query: '-namespace:app--*',
+        first: 250,
+        after,
+      },
+    );
+    upstreamCalls.push(upstreamCallFromCapture('MetafieldDefinitionsHydrateResourceScope', capture));
+
+    const nodes = readPath(capture.response, ['data', 'metafieldDefinitions', 'nodes']);
+    if (!Array.isArray(nodes)) {
+      throw new Error(`metafield resource-scope page ${page + 1} did not return nodes`);
+    }
+    observedMerchantDefinitions += nodes.filter((node) => {
+      const namespace = readObject(node)?.['namespace'];
+      return typeof namespace === 'string' && namespace !== 'shopify';
+    }).length;
+    const pageInfo = readObject(readPath(capture.response, ['data', 'metafieldDefinitions', 'pageInfo']));
+    if (observedMerchantDefinitions >= 256 || pageInfo?.['hasNextPage'] !== true) {
+      break;
+    }
+    const endCursor = pageInfo['endCursor'];
+    if (typeof endCursor !== 'string') {
+      throw new Error(`metafield resource-scope page ${page + 1} omitted endCursor`);
+    }
+    after = endCursor;
+  }
+  return upstreamCalls;
+}
+
 async function cleanup(cleanupCaptures: Capture[]): Promise<void> {
   if (seed.linkedProductId) {
     cleanupCaptures.push(
@@ -403,6 +466,7 @@ async function writeBlocker(stage: string, error: unknown, captures: Capture[]):
 
 const captures: Capture[] = [];
 const cleanupCaptures: Capture[] = [];
+const upstreamCalls: UpstreamCall[] = [];
 
 try {
   const beforeStandard = await captureGraphql('before-standard-definition-by-type', definitionByTypeQuery, {
@@ -426,6 +490,7 @@ try {
     'standard-enable',
   );
   captures.push(standardEnable);
+  upstreamCalls.push(upstreamCallFromCapture('StandardMetaobjectDefinitionEnable', standardEnable));
 
   const standardUpdate = await captureGraphql('standard-update-immutable', queries.immutableUpdate, {
     id: seed.standardDefinitionId,
@@ -510,6 +575,19 @@ try {
   }
 
   const linkedMetafieldNamespace = `linked_option_${runId}`;
+  const linkedMetafieldIdentity = await captureGraphql(
+    'linked-metafield-definition-hydrate-by-identifier',
+    queries.metafieldHydrateByIdentifier,
+    {
+      identifier: {
+        ownerType: 'PRODUCT',
+        namespace: linkedMetafieldNamespace,
+        key: 'choice',
+      },
+    },
+  );
+  upstreamCalls.push(upstreamCallFromCapture('MetafieldDefinitionHydrateByIdentifier', linkedMetafieldIdentity));
+  upstreamCalls.push(...(await captureMetafieldDefinitionResourceScope()));
   const linkedMetafieldDefinition = await captureGraphql(
     'linked-metafield-definition-create',
     createMetafieldDefinitionMutation,
@@ -609,7 +687,7 @@ try {
         linkedProductOptions,
         linkedDisplayNameUpdate,
         cleanup: cleanupCaptures,
-        upstreamCalls: [],
+        upstreamCalls,
       },
       null,
       2,

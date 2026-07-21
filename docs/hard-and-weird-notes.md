@@ -1714,6 +1714,19 @@ Useful behavior:
 
 Keep local storage keyed by owner type as well as namespace/key; filtering by owner type after a namespace/key lookup is not enough.
 
+## 19e. `constraintsUpdates` applies category values while projecting a null key
+
+A fresh Admin GraphQL 2026-04 capture of `metafieldDefinitionUpdate` showed that
+`constraintsUpdates: [{ key: "category", values: [...] }]` retains the submitted
+category values and changes constrained-definition behavior, but both the
+mutation payload and the downstream definition read return
+`constraints.key: null`. The older expectation that this projection echoes
+`"category"` is not current Shopify behavior.
+
+Keep the effective constraint values independently from the projected key. A
+null key in this response is not evidence that Shopify ignored or removed the
+constraint update.
+
 ## 20. Metaobject read no-data behavior is clean, but setup access has a trap
 
 HAR-240 captured the first Admin GraphQL 2026-04 metaobject read fixture against `harry-test-heelo.myshopify.com`.
