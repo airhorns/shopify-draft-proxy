@@ -10,6 +10,13 @@ struct GiftCardMutationInput {
     requests_transactions: bool,
 }
 
+struct GiftCardReadInput<'a> {
+    response_key: &'a str,
+    requests_transactions: bool,
+    operation_roots: &'a [crate::resolver_registry::OperationRootInvocation],
+    connection_overlay: ConnectionOverlayRequest<'a>,
+}
+
 pub(in crate::proxy) fn gift_card_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
     vec![FieldResolverRegistration::explicit(
         ApiSurface::Admin,
@@ -89,17 +96,31 @@ impl DraftProxy {
         let RootInvocation {
             response_key,
             arguments,
+            raw_arguments,
+            selection,
+            variable_definitions,
+            variables,
             request,
             root_name,
             ..
         } = invocation;
+        let arguments = resolved_arguments_from_json(&arguments);
         self.gift_card_read_outcome(
             request,
-            root_name,
-            &resolved_arguments_from_json(&arguments),
-            response_key,
-            requests_transactions,
-            &operation_roots,
+            GiftCardReadInput {
+                response_key,
+                requests_transactions,
+                operation_roots: &operation_roots,
+                connection_overlay: ConnectionOverlayRequest {
+                    root_name,
+                    arguments: &arguments,
+                    raw_arguments: &raw_arguments,
+                    selection: &selection,
+                    variable_definitions,
+                    variables,
+                    required_node_selection: "id lastCharacters maskedCode enabled deactivatedAt expiresOn createdAt updatedAt initialValue { amount currencyCode } balance { amount currencyCode } customer { id displayName } recipientAttributes { recipient { id } }",
+                },
+            },
         )
     }
 
@@ -338,15 +359,19 @@ fn push_gift_card_transaction(card: &mut Value, transaction: Value) {
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn gift_card_read_outcome(
+    fn gift_card_read_outcome(
         &mut self,
         request: &Request,
-        root_name: &str,
-        arguments: &BTreeMap<String, ResolvedValue>,
-        response_key: &str,
-        requests_transactions: bool,
-        operation_roots: &[crate::resolver_registry::OperationRootInvocation],
+        input: GiftCardReadInput<'_>,
     ) -> ResolverOutcome<Value> {
+        let GiftCardReadInput {
+            response_key,
+            requests_transactions,
+            operation_roots,
+            connection_overlay,
+        } = input;
+        let root_name = connection_overlay.root_name;
+        let arguments = connection_overlay.arguments;
         let operation_needs_upstream =
             self.gift_card_root_needs_upstream(root_name, arguments, requests_transactions)
                 || operation_roots.iter().any(|root| {
@@ -357,31 +382,61 @@ impl DraftProxy {
                     )
                 });
         if self.config.read_mode == ReadMode::LiveHybrid && operation_needs_upstream {
-            let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
-            let mut outcome = result.outcome;
+            let has_local_boundary =
+                root_name == "giftCards" && connection_has_local_boundary(root_name, arguments);
+            let (mut outcome, upstream_data) = if has_local_boundary {
+                (ResolverOutcome::value(Value::Null), Value::Null)
+            } else {
+                let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+                (result.outcome, result.data)
+            };
             if outcome.errors.is_empty() {
-                for root in operation_roots {
-                    let Some(value) = result.data.get(&root.response_key) else {
-                        continue;
-                    };
-                    self.observe_gift_card_root_value(
-                        &root.name,
-                        &resolved_arguments_from_json(&root.arguments),
-                        value,
-                    );
+                if !has_local_boundary {
+                    for root in operation_roots {
+                        let Some(value) = upstream_data.get(&root.response_key) else {
+                            continue;
+                        };
+                        self.observe_gift_card_root_value(
+                            &root.name,
+                            &resolved_arguments_from_json(&root.arguments),
+                            value,
+                        );
+                    }
                 }
-                let canonical_upstream = result
-                    .data
+                let canonical_upstream = upstream_data
                     .get(response_key)
                     .cloned()
                     .unwrap_or_else(|| outcome.value.clone());
                 if self.has_gift_card_overlay_state() {
-                    outcome.value =
-                        self.overlay_gift_card_read_value(root_name, arguments, canonical_upstream);
+                    outcome.value = if root_name == "giftCards" {
+                        let authoritative = self.bounded_connection_overlay_window(
+                            request,
+                            connection_overlay,
+                            &canonical_upstream,
+                            self.gift_card_staged_connection_impact(arguments),
+                        );
+                        self.observe_gift_card_connection_value(&authoritative);
+                        self.gift_card_overlay_connection_value(arguments, &authoritative)
+                    } else {
+                        self.overlay_gift_card_read_value(root_name, arguments, canonical_upstream)
+                    };
                     outcome.value_source = crate::admin_graphql::ResolverValueSource::Local;
                 }
             }
             return outcome;
+        }
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && root_name == "giftCards"
+            && self.has_gift_card_overlay_state()
+        {
+            let authoritative = json!({
+                "nodes": [],
+                "edges": [],
+                "pageInfo": empty_page_info(),
+            });
+            return ResolverOutcome::value(
+                self.gift_card_overlay_connection_value(arguments, &authoritative),
+            );
         }
         ResolverOutcome::value(self.gift_card_read_value(root_name, arguments))
     }
@@ -602,10 +657,7 @@ impl DraftProxy {
                     })
                     .unwrap_or(upstream)
             }
-            "giftCards" => {
-                self.overlay_gift_card_connection(&mut upstream, arguments);
-                upstream
-            }
+            "giftCards" => upstream,
             "giftCardsCount" => {
                 self.overlay_gift_card_count(&mut upstream, arguments);
                 upstream
@@ -615,109 +667,70 @@ impl DraftProxy {
         }
     }
 
-    fn overlay_gift_card_connection(
+    fn gift_card_staged_connection_impact(
         &self,
-        connection: &mut Value,
         arguments: &BTreeMap<String, ResolvedValue>,
-    ) {
-        if self.gift_card_query_baseline_complete(arguments) {
-            *connection = self.gift_card_connection_value(arguments);
-            return;
-        }
-        if !connection.is_object() {
-            *connection = self.gift_card_connection_value(arguments);
-            return;
-        }
+    ) -> usize {
         let query = resolved_string_field(arguments, "query").unwrap_or_default();
-        let mut seen_ids = BTreeSet::new();
-        if let Some(nodes) = connection.get_mut("nodes").and_then(Value::as_array_mut) {
-            nodes.retain_mut(|node| {
-                let Some(id) = node.get("id").and_then(Value::as_str).map(str::to_string) else {
-                    return true;
-                };
-                if let Some(card) = self.store.staged.gift_cards.get(&id) {
-                    if gift_card_matches_search_query(card, &query) {
-                        *node = gift_card_merge_seeded_transactions_if_missing(card.clone(), node);
-                        seen_ids.insert(id);
-                        true
-                    } else {
-                        false
-                    }
-                } else {
-                    seen_ids.insert(id);
-                    true
-                }
-            });
-        }
-        if let Some(edges) = connection.get_mut("edges").and_then(Value::as_array_mut) {
-            edges.retain_mut(|edge| {
-                let Some(id) = edge["node"]
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-                else {
-                    return true;
-                };
-                if let Some(card) = self.store.staged.gift_cards.get(&id) {
-                    if gift_card_matches_search_query(card, &query) {
-                        edge["node"] = gift_card_merge_seeded_transactions_if_missing(
-                            card.clone(),
-                            &edge["node"],
-                        );
-                        seen_ids.insert(id);
-                        true
-                    } else {
-                        false
-                    }
-                } else {
-                    seen_ids.insert(id);
-                    true
-                }
-            });
-        }
-        let staged_cards = self
-            .store
+        self.store
             .staged
             .gift_cards
             .iter()
-            .filter(|(id, card)| {
-                !seen_ids.contains(*id) && gift_card_matches_search_query(card, &query)
+            .filter(|(id, staged)| {
+                gift_card_matches_search_query(staged, &query)
+                    || self
+                        .store
+                        .base
+                        .gift_cards
+                        .get(*id)
+                        .is_some_and(|base| gift_card_matches_search_query(base, &query))
             })
-            .map(|(_, card)| card.clone())
-            .collect::<Vec<_>>();
-        if staged_cards.is_empty() {
-            return;
-        }
-        let result = staged_connection_query(
-            staged_cards,
-            arguments,
+            .count()
+    }
+
+    fn gift_card_overlay_connection_value(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        authoritative: &Value,
+    ) -> Value {
+        let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
+        let authoritative_rows = observed_connection_rows(authoritative)
+            .into_iter()
+            .map(|row| {
+                let mut node = row.node;
+                apply_gift_card_cursor_sort_hint(&mut node, row.cursor.as_deref(), arguments);
+                ObservedConnectionRow {
+                    cursor: row.cursor,
+                    node,
+                }
+            })
+            .collect();
+        let tombstones = BTreeSet::new();
+        overlay_connection_value(
+            ConnectionOverlayInput {
+                authoritative: authoritative_rows,
+                local_records: self
+                    .store
+                    .staged
+                    .gift_cards
+                    .values()
+                    .filter(|card| gift_card_matches_opaque_cursor_window(card, arguments))
+                    .cloned()
+                    .collect(),
+                tombstones: &tombstones,
+                arguments,
+                source_page_info: &authoritative["pageInfo"],
+            },
             gift_card_search_decision,
-            |card, sort_key| {
-                gift_card_staged_sort_key(
-                    card,
-                    sort_key,
-                    resolved_bool_field(arguments, "reverse").unwrap_or(false),
+            |card, sort_key| gift_card_staged_sort_key(card, sort_key, reverse),
+            |card| card.clone(),
+            |card| {
+                stable_local_connection_cursor(
+                    "giftCards",
+                    card.get("id").and_then(Value::as_str).unwrap_or_default(),
                 )
             },
-            value_id_cursor,
-        );
-        let local = connection_json_with_cursor(
-            result.records,
-            |_, card| value_id_cursor(card),
-            result.page_info,
-        );
-        if let (Some(existing), Some(additional)) = (
-            connection.get_mut("nodes").and_then(Value::as_array_mut),
-            local.get("nodes").and_then(Value::as_array),
-        ) {
-            existing.extend(additional.iter().cloned());
-        }
-        if let (Some(existing), Some(additional)) = (
-            connection.get_mut("edges").and_then(Value::as_array_mut),
-            local.get("edges").and_then(Value::as_array),
-        ) {
-            existing.extend(additional.iter().cloned());
-        }
+        )
     }
 
     fn overlay_gift_card_count(
@@ -1902,6 +1915,22 @@ fn gift_card_gid_tail_sort_value(card: &Value) -> StagedSortValue {
 }
 
 fn gift_card_string_sort_value(card: &Value, field: &str) -> StagedSortValue {
+    if field == "expiresOn" {
+        return card
+            .get(field)
+            .and_then(Value::as_str)
+            .and_then(parse_iso_date_epoch_days)
+            .map(StagedSortValue::I64)
+            .unwrap_or(StagedSortValue::Null);
+    }
+    if matches!(field, "createdAt" | "updatedAt" | "deactivatedAt") {
+        return card
+            .get(field)
+            .and_then(Value::as_str)
+            .and_then(parse_rfc3339_epoch_seconds)
+            .map(StagedSortValue::I64)
+            .unwrap_or(StagedSortValue::Null);
+    }
     card.get(field)
         .and_then(Value::as_str)
         .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
@@ -1951,7 +1980,8 @@ fn gift_card_customer_name_sort_value(card: &Value) -> StagedSortValue {
 fn gift_card_disabled_at_sort_value(card: &Value, reverse: bool) -> StagedSortValue {
     card.get("deactivatedAt")
         .and_then(Value::as_str)
-        .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
+        .and_then(parse_rfc3339_epoch_seconds)
+        .map(StagedSortValue::I64)
         .unwrap_or_else(|| {
             if reverse {
                 StagedSortValue::Null
@@ -1961,21 +1991,144 @@ fn gift_card_disabled_at_sort_value(card: &Value, reverse: bool) -> StagedSortVa
         })
 }
 
-fn gift_card_staged_sort_key(card: &Value, sort_key: Option<&str>, reverse: bool) -> StagedSortKey {
-    let primary = match sort_key.unwrap_or("ID") {
-        "AMOUNT_SPENT" => gift_card_amount_spent_sort_value(card),
-        "BALANCE" => gift_card_money_sort_value(card, "balance"),
-        "CODE" => gift_card_code_sort_value(card),
-        "CREATED_AT" => gift_card_string_sort_value(card, "createdAt"),
-        "CUSTOMER_NAME" => gift_card_customer_name_sort_value(card),
-        "DISABLED_AT" => gift_card_disabled_at_sort_value(card, reverse),
-        "EXPIRES_ON" => gift_card_string_sort_value(card, "expiresOn"),
-        "INITIAL_VALUE" => gift_card_money_sort_value(card, "initialValue"),
-        "UPDATED_AT" => gift_card_string_sort_value(card, "updatedAt"),
-        "ID" | "RELEVANCE" => gift_card_gid_tail_sort_value(card),
-        _ => gift_card_gid_tail_sort_value(card),
+const GIFT_CARD_CURSOR_SORT_HINT: &str = "__proxyGiftCardCursorSortHint";
+
+fn apply_gift_card_cursor_sort_hint(
+    card: &mut Value,
+    cursor: Option<&str>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) {
+    let sort_key = resolved_string_field(arguments, "sortKey").unwrap_or_else(|| "ID".to_string());
+    let has_selected_sort_value = match sort_key.as_str() {
+        "AMOUNT_SPENT" => card["initialValue"].is_object() && card["balance"].is_object(),
+        "BALANCE" => card["balance"].is_object(),
+        "CODE" => ["giftCardCode", "maskedCode", "lastCharacters"]
+            .iter()
+            .any(|field| card.get(*field).and_then(Value::as_str).is_some()),
+        "CREATED_AT" => card.get("createdAt").and_then(Value::as_str).is_some(),
+        "CUSTOMER_NAME" => ["displayName", "email", "id"].iter().any(|field| {
+            card["customer"]
+                .get(*field)
+                .and_then(Value::as_str)
+                .is_some()
+        }),
+        "DISABLED_AT" => card.get("deactivatedAt").is_some(),
+        "EXPIRES_ON" => card.get("expiresOn").is_some(),
+        "INITIAL_VALUE" => card["initialValue"].is_object(),
+        "UPDATED_AT" => card.get("updatedAt").and_then(Value::as_str).is_some(),
+        "ID" | "RELEVANCE" => card.get("id").and_then(Value::as_str).is_some(),
+        _ => true,
     };
+    if has_selected_sort_value {
+        return;
+    }
+    let Some(hint) = cursor.and_then(shopify_connection_cursor_last_value) else {
+        return;
+    };
+    card[GIFT_CARD_CURSOR_SORT_HINT] = hint;
+}
+
+fn gift_card_cursor_sort_hint_value(
+    card: &Value,
+    sort_key: &str,
+    reverse: bool,
+) -> Option<StagedSortValue> {
+    let value = card.get(GIFT_CARD_CURSOR_SORT_HINT)?;
+    if value.is_null() {
+        return Some(if sort_key == "DISABLED_AT" && !reverse {
+            StagedSortValue::String("~".to_string())
+        } else {
+            StagedSortValue::Null
+        });
+    }
+    if matches!(sort_key, "AMOUNT_SPENT" | "BALANCE" | "INITIAL_VALUE") {
+        let number = value
+            .as_f64()
+            .or_else(|| value.as_str().and_then(|value| value.parse::<f64>().ok()))?;
+        return Some(StagedSortValue::I64((number * 1_000_000.0).round() as i64));
+    }
+    if sort_key == "EXPIRES_ON" {
+        return value
+            .as_i64()
+            .map(|milliseconds| StagedSortValue::I64(milliseconds.div_euclid(86_400_000)));
+    }
+    if matches!(sort_key, "CREATED_AT" | "UPDATED_AT" | "DISABLED_AT") {
+        return value
+            .as_i64()
+            .map(|milliseconds| StagedSortValue::I64(milliseconds.div_euclid(1_000)));
+    }
+    value
+        .as_str()
+        .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
+}
+
+fn gift_card_staged_sort_key(card: &Value, sort_key: Option<&str>, reverse: bool) -> StagedSortKey {
+    let sort_key = sort_key.unwrap_or("ID");
+    let primary =
+        gift_card_cursor_sort_hint_value(card, sort_key, reverse).unwrap_or_else(
+            || match sort_key {
+                "AMOUNT_SPENT" => gift_card_amount_spent_sort_value(card),
+                "BALANCE" => gift_card_money_sort_value(card, "balance"),
+                "CODE" => gift_card_code_sort_value(card),
+                "CREATED_AT" => gift_card_string_sort_value(card, "createdAt"),
+                "CUSTOMER_NAME" => gift_card_customer_name_sort_value(card),
+                "DISABLED_AT" => gift_card_disabled_at_sort_value(card, reverse),
+                "EXPIRES_ON" => gift_card_string_sort_value(card, "expiresOn"),
+                "INITIAL_VALUE" => gift_card_money_sort_value(card, "initialValue"),
+                "UPDATED_AT" => gift_card_string_sort_value(card, "updatedAt"),
+                "ID" | "RELEVANCE" => gift_card_gid_tail_sort_value(card),
+                _ => gift_card_gid_tail_sort_value(card),
+            },
+        );
     vec![primary, gift_card_gid_tail_sort_value(card)]
+}
+
+fn gift_card_cursor_boundary_sort_key(
+    cursor: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Option<StagedSortKey> {
+    let last_id = shopify_connection_cursor_last_id(cursor)?;
+    let last_value = shopify_connection_cursor_last_value(cursor)?;
+    let boundary = json!({
+        "id": format!("gid://shopify/GiftCard/{last_id}"),
+        GIFT_CARD_CURSOR_SORT_HINT: last_value,
+    });
+    let sort_key = resolved_string_field(arguments, "sortKey");
+    let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
+    Some(gift_card_staged_sort_key(
+        &boundary,
+        sort_key.as_deref(),
+        reverse,
+    ))
+}
+
+fn gift_card_matches_opaque_cursor_window(
+    card: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    let sort_key = resolved_string_field(arguments, "sortKey");
+    let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
+    let card_key = gift_card_staged_sort_key(card, sort_key.as_deref(), reverse);
+    for (argument, expected) in [("after", Ordering::Greater), ("before", Ordering::Less)] {
+        let Some(cursor) = resolved_string_field(arguments, argument) else {
+            continue;
+        };
+        let Some(boundary_key) = gift_card_cursor_boundary_sort_key(&cursor, arguments) else {
+            // Proxy-local cursors are applied after the full mixed window is
+            // assembled. Undecodable authoritative cursors retain the existing
+            // bounded behavior rather than being forwarded or fabricated.
+            continue;
+        };
+        let ordering = if reverse {
+            card_key.cmp(&boundary_key).reverse()
+        } else {
+            card_key.cmp(&boundary_key)
+        };
+        if ordering != expected {
+            return false;
+        }
+    }
+    true
 }
 
 fn gift_card_search_terms(query: &str) -> Vec<String> {

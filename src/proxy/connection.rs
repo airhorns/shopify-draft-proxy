@@ -1,4 +1,5 @@
 use super::*;
+use base64::Engine as _;
 
 pub(in crate::proxy) fn connection_page_info(
     has_next_page: bool,
@@ -133,11 +134,682 @@ pub(in crate::proxy) struct ObservedConnectionRow {
     pub(in crate::proxy) node: Value,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::proxy) enum ConnectionOverlayDirection {
+    Forward,
+    Backward,
+}
+
+/// A connection overlay never needs a shop-wide baseline. It needs the caller's
+/// requested rows, enough extra authoritative rows to absorb every relevant
+/// staged delta, and one more row to prove the outgoing boundary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::proxy) struct ConnectionOverlayPlan {
+    pub(in crate::proxy) direction: ConnectionOverlayDirection,
+    pub(in crate::proxy) requested_size: usize,
+    pub(in crate::proxy) fetch_size: usize,
+}
+
+impl ConnectionOverlayPlan {
+    pub(in crate::proxy) fn from_arguments(
+        arguments: &BTreeMap<String, ResolvedValue>,
+        staged_impact: usize,
+    ) -> Self {
+        let backwards = arguments.contains_key("last") && !arguments.contains_key("first");
+        let requested_size = if backwards {
+            resolved_int_field(arguments, "last")
+        } else {
+            resolved_int_field(arguments, "first")
+        }
+        .filter(|size| *size >= 0)
+        .and_then(|size| usize::try_from(size).ok())
+        .unwrap_or(50);
+        Self {
+            direction: if backwards {
+                ConnectionOverlayDirection::Backward
+            } else {
+                ConnectionOverlayDirection::Forward
+            },
+            requested_size,
+            fetch_size: requested_size
+                .saturating_add(staged_impact)
+                .saturating_add(1),
+        }
+    }
+}
+
+pub(in crate::proxy) struct ConnectionOverlayRequest<'a> {
+    pub(in crate::proxy) root_name: &'a str,
+    pub(in crate::proxy) arguments: &'a BTreeMap<String, ResolvedValue>,
+    pub(in crate::proxy) raw_arguments: &'a BTreeMap<String, RawArgumentValue>,
+    pub(in crate::proxy) selection: &'a [SelectedField],
+    pub(in crate::proxy) variable_definitions:
+        &'a BTreeMap<String, crate::graphql::VariableDefinitionInfo>,
+    pub(in crate::proxy) variables: &'a BTreeMap<String, ResolvedValue>,
+    /// Unaliased fields required by the domain's filter/sort adapter. Requested
+    /// node fields are added automatically.
+    pub(in crate::proxy) required_node_selection: &'a str,
+}
+
+pub(in crate::proxy) fn stable_local_connection_cursor(root_name: &str, id: &str) -> String {
+    let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .encode(json!({ "source": "local", "root": root_name, "id": id }).to_string());
+    format!("local_{encoded}")
+}
+
+/// Decode the ordering value Shopify embeds in its otherwise opaque connection
+/// cursor. Domain adapters may use this only to recover a captured sort key
+/// omitted from a partial node selection; the original cursor remains the
+/// authoritative pagination boundary.
+fn shopify_connection_cursor_payload(cursor: &str) -> Option<Value> {
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(cursor)
+        .or_else(|_| base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(cursor))
+        .ok()?;
+    serde_json::from_slice::<Value>(&decoded).ok()
+}
+
+pub(in crate::proxy) fn shopify_connection_cursor_last_value(cursor: &str) -> Option<Value> {
+    shopify_connection_cursor_payload(cursor)?
+        .get("last_value")
+        .cloned()
+}
+
+pub(in crate::proxy) fn shopify_connection_cursor_last_id(cursor: &str) -> Option<String> {
+    let value = shopify_connection_cursor_payload(cursor)?
+        .get("last_id")
+        .cloned()?;
+    match value {
+        Value::String(value) => Some(value),
+        Value::Number(value) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+fn stable_local_connection_cursor_root(cursor: &str) -> Option<String> {
+    let encoded = cursor.strip_prefix("local_")?;
+    let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(encoded)
+        .ok()?;
+    let payload = serde_json::from_slice::<Value>(&decoded).ok()?;
+    (payload.get("source").and_then(Value::as_str) == Some("local"))
+        .then(|| {
+            payload
+                .get("root")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .flatten()
+}
+
+pub(in crate::proxy) fn connection_has_local_boundary(
+    root_name: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    ["after", "before"].into_iter().any(|name| {
+        resolved_string_field(arguments, name).is_some_and(|cursor| {
+            stable_local_connection_cursor_root(&cursor).as_deref() == Some(root_name)
+        })
+    })
+}
+
+fn selected_connection_node_fields(selection: &[SelectedField]) -> Vec<SelectedField> {
+    let mut fields = Vec::new();
+    for selected in selection {
+        match selected.name.as_str() {
+            "nodes" => fields.extend(selected.selection.clone()),
+            "edges" => {
+                for edge_field in &selected.selection {
+                    if edge_field.name == "node" {
+                        fields.extend(edge_field.selection.clone());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut seen = BTreeSet::new();
+    fields
+        .into_iter()
+        .filter(|field| seen.insert(super::graphql_runtime::serialize_selected_field(field)))
+        .collect()
+}
+
+fn collect_raw_argument_variables(value: &RawArgumentValue, variables: &mut BTreeSet<String>) {
+    match value {
+        RawArgumentValue::List(values) => {
+            for value in values {
+                collect_raw_argument_variables(value, variables);
+            }
+        }
+        RawArgumentValue::Object(fields) => {
+            for value in fields.values() {
+                collect_raw_argument_variables(value, variables);
+            }
+        }
+        RawArgumentValue::Variable { name, .. } => {
+            variables.insert(name.clone());
+        }
+        RawArgumentValue::String(_)
+        | RawArgumentValue::Int(_)
+        | RawArgumentValue::Float(_)
+        | RawArgumentValue::Bool(_)
+        | RawArgumentValue::Null
+        | RawArgumentValue::Enum(_) => {}
+    }
+}
+
+fn connection_overlay_query(
+    request: &ConnectionOverlayRequest<'_>,
+    plan: ConnectionOverlayPlan,
+    page_size: usize,
+    boundary_cursor: Option<&str>,
+) -> (String, serde_json::Map<String, Value>) {
+    let mut arguments = request.raw_arguments.clone();
+    // Proxy-owned cursors have meaning only after authoritative and staged
+    // rows are merged. Never leak one to Shopify: restart the bounded fetch at
+    // the directional origin, then apply the local boundary in the shared
+    // overlay renderer below.
+    for name in ["after", "before"] {
+        if resolved_string_field(request.arguments, name).is_some_and(|cursor| {
+            stable_local_connection_cursor_root(&cursor).as_deref() == Some(request.root_name)
+        }) {
+            arguments.remove(name);
+        }
+    }
+    match plan.direction {
+        ConnectionOverlayDirection::Forward => {
+            arguments.remove("last");
+            arguments.insert("first".to_string(), RawArgumentValue::Int(page_size as i64));
+            if let Some(cursor) = boundary_cursor {
+                arguments.insert(
+                    "after".to_string(),
+                    RawArgumentValue::String(cursor.to_string()),
+                );
+            }
+        }
+        ConnectionOverlayDirection::Backward => {
+            arguments.remove("first");
+            arguments.insert("last".to_string(), RawArgumentValue::Int(page_size as i64));
+            if let Some(cursor) = boundary_cursor {
+                arguments.insert(
+                    "before".to_string(),
+                    RawArgumentValue::String(cursor.to_string()),
+                );
+            }
+        }
+    }
+
+    let mut used_variables = BTreeSet::new();
+    for value in arguments.values() {
+        collect_raw_argument_variables(value, &mut used_variables);
+    }
+    let definitions = used_variables
+        .iter()
+        .filter_map(|name| request.variable_definitions.get(name))
+        .map(|definition| format!("${}: {}", definition.name, definition.type_display))
+        .collect::<Vec<_>>();
+    let definitions = if definitions.is_empty() {
+        String::new()
+    } else {
+        format!("({})", definitions.join(", "))
+    };
+
+    let requested_fields = selected_connection_node_fields(request.selection)
+        .iter()
+        .map(super::graphql_runtime::serialize_selected_field)
+        .collect::<Vec<_>>()
+        .join(" ");
+    let node_selection = match (
+        requested_fields.trim().is_empty(),
+        request.required_node_selection.trim().is_empty(),
+    ) {
+        (true, true) => "id".to_string(),
+        (false, true) => requested_fields,
+        (true, false) => request.required_node_selection.to_string(),
+        (false, false) => format!("{requested_fields} {}", request.required_node_selection),
+    };
+    let query = format!(
+        "query DraftProxyConnectionOverlay{definitions} {{ overlayWindow: {}{} {{ edges {{ cursor node {{ {node_selection} }} }} pageInfo {{ hasNextPage hasPreviousPage startCursor endCursor }} }} }}",
+        request.root_name,
+        super::graphql_runtime::serialize_raw_arguments(&arguments),
+    );
+    let variables = used_variables
+        .into_iter()
+        .filter_map(|name| {
+            request
+                .variables
+                .get(&name)
+                .map(|value| (name, resolved_value_json(value)))
+        })
+        .collect();
+    (query, variables)
+}
+
+fn overlay_connection_cache_key(
+    request: &Request,
+    overlay: &ConnectionOverlayRequest<'_>,
+    plan: ConnectionOverlayPlan,
+) -> String {
+    let arguments = overlay
+        .arguments
+        .iter()
+        .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+        .collect::<serde_json::Map<_, _>>();
+    let selection = selected_connection_node_fields(overlay.selection)
+        .iter()
+        .map(super::graphql_runtime::serialize_selected_field)
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!(
+        "{}\n{}\n{}\n{}\n{}\n{}",
+        request.path,
+        overlay.root_name,
+        Value::Object(arguments),
+        plan.fetch_size,
+        selection,
+        overlay.required_node_selection,
+    )
+}
+
+fn connection_directional_more(
+    connection: &Value,
+    direction: ConnectionOverlayDirection,
+) -> Option<bool> {
+    connection
+        .pointer(match direction {
+            ConnectionOverlayDirection::Forward => "/pageInfo/hasNextPage",
+            ConnectionOverlayDirection::Backward => "/pageInfo/hasPreviousPage",
+        })
+        .and_then(Value::as_bool)
+}
+
+fn connection_directional_cursor(
+    connection: &Value,
+    direction: ConnectionOverlayDirection,
+) -> Option<String> {
+    connection
+        .pointer(match direction {
+            ConnectionOverlayDirection::Forward => "/pageInfo/endCursor",
+            ConnectionOverlayDirection::Backward => "/pageInfo/startCursor",
+        })
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+fn canonical_observed_rows(
+    connection: &Value,
+    node_selection: &[SelectedField],
+) -> Vec<ObservedConnectionRow> {
+    observed_connection_rows(connection)
+        .into_iter()
+        .map(|row| ObservedConnectionRow {
+            cursor: row.cursor,
+            node: super::graphql_runtime::canonicalize_resolver_value(&row.node, node_selection),
+        })
+        .collect()
+}
+
+fn bounded_connection_value(
+    mut rows: Vec<ObservedConnectionRow>,
+    direction: ConnectionOverlayDirection,
+    fetch_size: usize,
+    has_previous_page: bool,
+    has_next_page: bool,
+) -> Value {
+    if rows.len() > fetch_size {
+        match direction {
+            ConnectionOverlayDirection::Forward => rows.truncate(fetch_size),
+            ConnectionOverlayDirection::Backward => {
+                rows.drain(..rows.len().saturating_sub(fetch_size));
+            }
+        }
+    }
+    let start_cursor = rows.first().and_then(|row| row.cursor.clone());
+    let end_cursor = rows.last().and_then(|row| row.cursor.clone());
+    let nodes = rows.iter().map(|row| row.node.clone()).collect::<Vec<_>>();
+    let edges = rows
+        .into_iter()
+        .map(|row| json!({ "cursor": row.cursor, "node": row.node }))
+        .collect::<Vec<_>>();
+    json!({
+        "nodes": nodes,
+        "edges": edges,
+        "pageInfo": connection_page_info(
+            has_next_page,
+            has_previous_page,
+            start_cursor,
+            end_cursor,
+        )
+    })
+}
+
+impl DraftProxy {
+    /// Return a request-scoped authoritative window for one staged overlay. The
+    /// caller's original document remains the first and only cold read unless
+    /// it carries a proxy-local boundary; this method then starts from a
+    /// scrubbed bounded origin. Additional pages are fetched only when a staged
+    /// delta makes the available page insufficient for local composition.
+    pub(in crate::proxy) fn bounded_connection_overlay_window(
+        &mut self,
+        request: &Request,
+        overlay: ConnectionOverlayRequest<'_>,
+        upstream_value: &Value,
+        staged_impact: usize,
+    ) -> Value {
+        let plan = ConnectionOverlayPlan::from_arguments(overlay.arguments, staged_impact);
+        let node_selection = selected_connection_node_fields(overlay.selection);
+        let original_is_connection =
+            upstream_value.get("edges").is_some() || upstream_value.get("nodes").is_some();
+        if original_is_connection
+            && connection_directional_more(upstream_value, plan.direction) == Some(false)
+        {
+            return upstream_value.clone();
+        }
+
+        let cache_key = overlay_connection_cache_key(request, &overlay, plan);
+        if let Some(window) = self
+            .execution_session
+            .connection_overlay_windows
+            .get(&cache_key)
+        {
+            return window.clone();
+        }
+
+        let mut rows = if original_is_connection {
+            canonical_observed_rows(upstream_value, &node_selection)
+        } else {
+            Vec::new()
+        };
+        let mut indexes = rows
+            .iter()
+            .enumerate()
+            .map(|(index, row)| (connection_node_identity(&row.node), index))
+            .collect::<BTreeMap<_, _>>();
+        let mut boundary_cursor = original_is_connection
+            .then(|| connection_directional_cursor(upstream_value, plan.direction))
+            .flatten()
+            .or_else(|| match plan.direction {
+                ConnectionOverlayDirection::Forward => {
+                    rows.last().and_then(|row| row.cursor.clone())
+                }
+                ConnectionOverlayDirection::Backward => {
+                    rows.first().and_then(|row| row.cursor.clone())
+                }
+            });
+        // A nodes-only caller page has no authoritative cursor or pageInfo to
+        // continue from. Re-fetch the same bounded argument window with edges
+        // and proof metadata instead of treating that partial observation as a
+        // complete catalog or repeatedly walking through duplicate nodes.
+        if original_is_connection && boundary_cursor.is_none() {
+            rows.clear();
+            indexes.clear();
+        }
+        let mut seen_boundaries = BTreeSet::new();
+        if let Some(cursor) = &boundary_cursor {
+            seen_boundaries.insert(cursor.clone());
+        }
+        let mut has_previous_page = upstream_value
+            .pointer("/pageInfo/hasPreviousPage")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let mut has_next_page = upstream_value
+            .pointer("/pageInfo/hasNextPage")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+
+        while rows.len() < plan.fetch_size {
+            let remaining = plan.fetch_size.saturating_sub(rows.len());
+            let page_size = remaining.min(250);
+            if page_size == 0 {
+                break;
+            }
+            let (query, variables) =
+                connection_overlay_query(&overlay, plan, page_size, boundary_cursor.as_deref());
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": query,
+                    "operationName": "DraftProxyConnectionOverlay",
+                    "variables": variables,
+                }),
+            );
+            if !(200..300).contains(&response.status) || response.body.get("errors").is_some() {
+                return upstream_value.clone();
+            }
+            let Some(connection) = response.body.pointer("/data/overlayWindow") else {
+                return upstream_value.clone();
+            };
+            let page_rows = canonical_observed_rows(connection, &node_selection);
+            let page_identities = page_rows
+                .iter()
+                .map(|row| connection_node_identity(&row.node))
+                .collect::<Vec<_>>();
+            match plan.direction {
+                ConnectionOverlayDirection::Forward => {
+                    for row in page_rows {
+                        let identity = connection_node_identity(&row.node);
+                        if let Some(index) = indexes.get(&identity).copied() {
+                            rows[index] = row;
+                        } else {
+                            indexes.insert(identity, rows.len());
+                            rows.push(row);
+                        }
+                    }
+                    has_next_page =
+                        connection_directional_more(connection, plan.direction).unwrap_or(false);
+                    if boundary_cursor.is_none() {
+                        has_previous_page = connection
+                            .pointer("/pageInfo/hasPreviousPage")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false);
+                    }
+                }
+                ConnectionOverlayDirection::Backward => {
+                    let mut combined = page_rows;
+                    combined.extend(rows);
+                    rows = Vec::new();
+                    indexes.clear();
+                    for row in combined {
+                        let identity = connection_node_identity(&row.node);
+                        if let Some(index) = indexes.get(&identity).copied() {
+                            rows[index] = row;
+                        } else {
+                            indexes.insert(identity, rows.len());
+                            rows.push(row);
+                        }
+                    }
+                    has_previous_page =
+                        connection_directional_more(connection, plan.direction).unwrap_or(false);
+                    if boundary_cursor.is_none() {
+                        has_next_page = connection
+                            .pointer("/pageInfo/hasNextPage")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false);
+                    }
+                }
+            }
+            if rows.len() >= plan.fetch_size
+                || connection_directional_more(connection, plan.direction) != Some(true)
+            {
+                break;
+            }
+            let Some(next_boundary) = connection_directional_cursor(connection, plan.direction)
+            else {
+                return upstream_value.clone();
+            };
+            if page_identities.is_empty() || !seen_boundaries.insert(next_boundary.clone()) {
+                return upstream_value.clone();
+            }
+            boundary_cursor = Some(next_boundary);
+        }
+
+        let window = bounded_connection_value(
+            rows,
+            plan.direction,
+            plan.fetch_size,
+            has_previous_page,
+            has_next_page,
+        );
+        self.execution_session
+            .connection_overlay_windows
+            .insert(cache_key, window.clone());
+        window
+    }
+}
+
+/// Merge a bounded authoritative window with all relevant staged rows. Domain
+/// adapters own only matching, sorting, and output shaping; cursor provenance,
+/// dedupe, boundary windowing, and pageInfo are shared here.
+pub(in crate::proxy) struct ConnectionOverlayInput<'a> {
+    pub(in crate::proxy) authoritative: Vec<ObservedConnectionRow>,
+    pub(in crate::proxy) local_records: Vec<Value>,
+    pub(in crate::proxy) tombstones: &'a BTreeSet<String>,
+    pub(in crate::proxy) arguments: &'a BTreeMap<String, ResolvedValue>,
+    pub(in crate::proxy) source_page_info: &'a Value,
+}
+
+pub(in crate::proxy) fn overlay_connection_value<Predicate, SortKey, NodeValue, LocalCursor>(
+    input: ConnectionOverlayInput<'_>,
+    predicate: Predicate,
+    sort_key: SortKey,
+    node_value: NodeValue,
+    local_cursor: LocalCursor,
+) -> Value
+where
+    Predicate: Fn(&Value, Option<&str>) -> StagedSearchDecision,
+    SortKey: Fn(&Value, Option<&str>) -> StagedSortKey,
+    NodeValue: Fn(&Value) -> Value,
+    LocalCursor: Fn(&Value) -> String,
+{
+    let ConnectionOverlayInput {
+        authoritative,
+        local_records,
+        tombstones,
+        arguments,
+        source_page_info,
+    } = input;
+    let mut rows_by_id = BTreeMap::<String, ObservedConnectionRow>::new();
+    for row in authoritative {
+        let id = connection_node_identity(&row.node);
+        if !tombstones.contains(&id) {
+            rows_by_id.insert(id, row);
+        }
+    }
+    for node in local_records {
+        let id = connection_node_identity(&node);
+        if tombstones.contains(&id) {
+            rows_by_id.remove(&id);
+            continue;
+        }
+        let cursor = rows_by_id
+            .get(&id)
+            .and_then(|row| row.cursor.clone())
+            .unwrap_or_else(|| local_cursor(&node));
+        rows_by_id.insert(
+            id,
+            ObservedConnectionRow {
+                cursor: Some(cursor),
+                node,
+            },
+        );
+    }
+
+    let query = resolved_string_field(arguments, "query");
+    let sort_key_name = resolved_string_field(arguments, "sortKey");
+    let mut rows = rows_by_id
+        .into_values()
+        .filter(|row| predicate(&row.node, query.as_deref()) == StagedSearchDecision::Match)
+        .collect::<Vec<_>>();
+    rows.sort_by(|left, right| {
+        sort_key(&left.node, sort_key_name.as_deref())
+            .cmp(&sort_key(&right.node, sort_key_name.as_deref()))
+            .then_with(|| {
+                connection_node_identity(&left.node).cmp(&connection_node_identity(&right.node))
+            })
+    });
+    if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+        rows.reverse();
+    }
+
+    if let Some(after) = resolved_string_field(arguments, "after") {
+        if let Some(position) = rows
+            .iter()
+            .position(|row| row.cursor.as_deref() == Some(after.as_str()))
+        {
+            rows.drain(..=position);
+        }
+    }
+    if let Some(before) = resolved_string_field(arguments, "before") {
+        if let Some(position) = rows
+            .iter()
+            .position(|row| row.cursor.as_deref() == Some(before.as_str()))
+        {
+            rows.truncate(position);
+        }
+    }
+
+    let plan = ConnectionOverlayPlan::from_arguments(arguments, 0);
+    let source_has_previous = source_page_info
+        .get("hasPreviousPage")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let source_has_next = source_page_info
+        .get("hasNextPage")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let (window, has_previous_page, has_next_page) = match plan.direction {
+        ConnectionOverlayDirection::Forward => {
+            let has_next = rows.len() > plan.requested_size || source_has_next;
+            let window = rows
+                .into_iter()
+                .take(plan.requested_size)
+                .collect::<Vec<_>>();
+            (
+                window,
+                source_has_previous || arguments.contains_key("after"),
+                has_next,
+            )
+        }
+        ConnectionOverlayDirection::Backward => {
+            let has_previous = rows.len() > plan.requested_size || source_has_previous;
+            let start = rows.len().saturating_sub(plan.requested_size);
+            let window = rows.into_iter().skip(start).collect::<Vec<_>>();
+            (
+                window,
+                has_previous,
+                source_has_next || arguments.contains_key("before"),
+            )
+        }
+    };
+    let start_cursor = window.first().and_then(|row| row.cursor.clone());
+    let end_cursor = window.last().and_then(|row| row.cursor.clone());
+    let nodes = window
+        .iter()
+        .map(|row| node_value(&row.node))
+        .collect::<Vec<_>>();
+    let edges = window
+        .iter()
+        .zip(nodes.iter())
+        .map(|(row, node)| json!({ "cursor": row.cursor, "node": node }))
+        .collect::<Vec<_>>();
+    json!({
+        "nodes": nodes,
+        "edges": edges,
+        "pageInfo": connection_page_info(
+            has_next_page,
+            has_previous_page,
+            start_cursor,
+            end_cursor,
+        )
+    })
+}
+
 /// Read a GraphQL connection without deriving cursors from its nodes. Edges are
 /// authoritative when present; `nodes` only fills records omitted from edges.
 pub(in crate::proxy) fn observed_connection_rows(connection: &Value) -> Vec<ObservedConnectionRow> {
-    let mut rows = Vec::new();
-    let mut seen = BTreeSet::new();
+    let mut rows = Vec::<ObservedConnectionRow>::new();
+    let mut indexes = BTreeMap::<String, usize>::new();
     for edge in connection
         .get("edges")
         .and_then(Value::as_array)
@@ -148,7 +820,10 @@ pub(in crate::proxy) fn observed_connection_rows(connection: &Value) -> Vec<Obse
             continue;
         };
         let identity = connection_node_identity(node);
-        if seen.insert(identity) {
+        if let Some(index) = indexes.get(&identity).copied() {
+            merge_connection_node_value(&mut rows[index].node, node);
+        } else {
+            indexes.insert(identity, rows.len());
             rows.push(ObservedConnectionRow {
                 cursor: edge
                     .get("cursor")
@@ -158,22 +833,55 @@ pub(in crate::proxy) fn observed_connection_rows(connection: &Value) -> Vec<Obse
             });
         }
     }
-    for node in connection
+    let node_values = connection
         .get("nodes")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
         .filter(|node| node.is_object())
-    {
+        .collect::<Vec<_>>();
+    let last_node_index = node_values.len().saturating_sub(1);
+    let start_cursor = connection
+        .pointer("/pageInfo/startCursor")
+        .and_then(Value::as_str);
+    let end_cursor = connection
+        .pointer("/pageInfo/endCursor")
+        .and_then(Value::as_str);
+    for (index, node) in node_values.into_iter().enumerate() {
         let identity = connection_node_identity(node);
-        if seen.insert(identity) {
+        if let Some(index) = indexes.get(&identity).copied() {
+            merge_connection_node_value(&mut rows[index].node, node);
+        } else {
+            indexes.insert(identity, rows.len());
+            let cursor = match (index == 0, index == last_node_index) {
+                (true, true) => start_cursor.or(end_cursor),
+                (true, false) => start_cursor,
+                (false, true) => end_cursor,
+                (false, false) => None,
+            };
             rows.push(ObservedConnectionRow {
-                cursor: None,
+                cursor: cursor.map(str::to_string),
                 node: node.clone(),
             });
         }
     }
     rows
+}
+
+fn merge_connection_node_value(target: &mut Value, observed: &Value) {
+    match (target, observed) {
+        (Value::Object(target), Value::Object(observed)) => {
+            for (key, value) in observed {
+                match target.get_mut(key) {
+                    Some(existing) => merge_connection_node_value(existing, value),
+                    None => {
+                        target.insert(key.clone(), value.clone());
+                    }
+                }
+            }
+        }
+        (target, observed) => *target = observed.clone(),
+    }
 }
 
 fn connection_node_identity(node: &Value) -> String {
@@ -590,5 +1298,261 @@ pub(in crate::proxy) fn snapshot_count_with_limit_precision(
             count_object_with_precision(limit as usize, "AT_LEAST")
         }
         _ => count_object_with_precision(count, "EXACT"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Arc, Mutex};
+
+    fn row(id: &str, rank: i64, cursor: &str) -> ObservedConnectionRow {
+        ObservedConnectionRow {
+            cursor: Some(cursor.to_string()),
+            node: json!({ "id": id, "rank": rank }),
+        }
+    }
+
+    fn rank_sort(node: &Value, _sort_key: Option<&str>) -> StagedSortKey {
+        vec![StagedSortValue::I64(
+            node.get("rank").and_then(Value::as_i64).unwrap_or_default(),
+        )]
+    }
+
+    #[test]
+    fn overlay_plan_is_bounded_by_window_impact_and_one_boundary() {
+        let forward = BTreeMap::from([("first".to_string(), ResolvedValue::Int(25))]);
+        assert_eq!(
+            ConnectionOverlayPlan::from_arguments(&forward, 4),
+            ConnectionOverlayPlan {
+                direction: ConnectionOverlayDirection::Forward,
+                requested_size: 25,
+                fetch_size: 30,
+            }
+        );
+
+        let backward = BTreeMap::from([("last".to_string(), ResolvedValue::Int(10))]);
+        assert_eq!(
+            ConnectionOverlayPlan::from_arguments(&backward, 2),
+            ConnectionOverlayPlan {
+                direction: ConnectionOverlayDirection::Backward,
+                requested_size: 10,
+                fetch_size: 13,
+            }
+        );
+    }
+
+    #[test]
+    fn local_boundary_is_recognized_and_removed_from_upstream_query() {
+        let cursor = stable_local_connection_cursor("customers", "gid://shopify/Customer/1");
+        let arguments = BTreeMap::from([
+            ("first".to_string(), ResolvedValue::Int(2)),
+            ("after".to_string(), ResolvedValue::String(cursor.clone())),
+        ]);
+        assert!(connection_has_local_boundary("customers", &arguments));
+        assert!(!connection_has_local_boundary("markets", &arguments));
+
+        let raw_arguments = BTreeMap::from([
+            ("first".to_string(), RawArgumentValue::Int(2)),
+            (
+                "after".to_string(),
+                RawArgumentValue::String(cursor.clone()),
+            ),
+        ]);
+        let request = ConnectionOverlayRequest {
+            root_name: "customers",
+            arguments: &arguments,
+            raw_arguments: &raw_arguments,
+            selection: &[],
+            variable_definitions: &BTreeMap::new(),
+            variables: &BTreeMap::new(),
+            required_node_selection: "id",
+        };
+        let (query, variables) = connection_overlay_query(
+            &request,
+            ConnectionOverlayPlan::from_arguments(&arguments, 1),
+            4,
+            None,
+        );
+        assert!(!query.contains(&cursor));
+        assert!(!query.contains("after:"));
+        assert!(query.contains("customers(first: 4)"));
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn shopify_cursor_exposes_captured_sort_value_without_replacing_cursor() {
+        let cursor = base64::engine::general_purpose::STANDARD
+            .encode(json!({ "last_id": 42, "last_value": "live, overlay" }).to_string());
+        assert_eq!(
+            shopify_connection_cursor_last_value(&cursor),
+            Some(json!("live, overlay"))
+        );
+        assert_eq!(
+            shopify_connection_cursor_last_id(&cursor),
+            Some("42".to_string())
+        );
+        assert_eq!(shopify_connection_cursor_last_value("opaque"), None);
+        assert_eq!(shopify_connection_cursor_last_id("opaque"), None);
+    }
+
+    #[test]
+    fn bounded_overlay_refills_a_large_partial_window_with_one_small_page() {
+        let calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let captured = Arc::clone(&calls);
+        let mut proxy =
+            DraftProxy::new(Config::default()).with_upstream_transport(move |request| {
+                let body: Value = serde_json::from_str(&request.body).unwrap();
+                captured.lock().unwrap().push(body);
+                Response {
+                    status: 200,
+                    headers: BTreeMap::new(),
+                    body: json!({
+                        "data": {
+                            "overlayWindow": {
+                                "edges": [
+                                    { "cursor": "opaque-201", "node": { "id": "gid://shopify/GiftCard/201" } },
+                                    { "cursor": "opaque-202", "node": { "id": "gid://shopify/GiftCard/202" } }
+                                ],
+                                "pageInfo": {
+                                    "hasNextPage": true,
+                                    "hasPreviousPage": true,
+                                    "startCursor": "opaque-201",
+                                    "endCursor": "opaque-202"
+                                }
+                            }
+                        }
+                    }),
+                }
+            });
+        let arguments = BTreeMap::from([("first".to_string(), ResolvedValue::Int(200))]);
+        let raw_arguments = BTreeMap::from([("first".to_string(), RawArgumentValue::Int(200))]);
+        let request = Request {
+            method: "POST".to_string(),
+            path: "/admin/api/2026-04/graphql.json".to_string(),
+            ..Request::default()
+        };
+        let source_edges = (1..=200)
+            .map(|id| {
+                json!({
+                    "cursor": format!("opaque-{id}"),
+                    "node": { "id": format!("gid://shopify/GiftCard/{id}") }
+                })
+            })
+            .collect::<Vec<_>>();
+        let source = json!({
+            "edges": source_edges,
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-1",
+                "endCursor": "opaque-200"
+            }
+        });
+
+        let window = proxy.bounded_connection_overlay_window(
+            &request,
+            ConnectionOverlayRequest {
+                root_name: "giftCards",
+                arguments: &arguments,
+                raw_arguments: &raw_arguments,
+                selection: &[],
+                variable_definitions: &BTreeMap::new(),
+                variables: &BTreeMap::new(),
+                required_node_selection: "id",
+            },
+            &source,
+            1,
+        );
+
+        assert_eq!(window["edges"].as_array().unwrap().len(), 202);
+        assert_eq!(window["edges"][0]["cursor"], json!("opaque-1"));
+        assert_eq!(window["edges"][201]["cursor"], json!("opaque-202"));
+        let calls = calls.lock().unwrap();
+        assert_eq!(calls.len(), 1, "only one refill request is needed");
+        let query = calls[0]["query"].as_str().unwrap();
+        assert!(query.contains("overlayWindow: giftCards"));
+        assert!(query.contains("first: 2"));
+        assert!(query.contains("after: \"opaque-200\""));
+    }
+
+    #[test]
+    fn overlay_refills_tombstone_and_keeps_authoritative_cursor() {
+        let arguments = BTreeMap::from([("first".to_string(), ResolvedValue::Int(2))]);
+        let tombstones = BTreeSet::from(["gid://shopify/Test/1".to_string()]);
+        let value = overlay_connection_value(
+            ConnectionOverlayInput {
+                authoritative: vec![
+                    row("gid://shopify/Test/1", 1, "opaque-1"),
+                    row("gid://shopify/Test/2", 2, "opaque-2"),
+                    row("gid://shopify/Test/3", 3, "opaque-3"),
+                ],
+                local_records: vec![
+                    json!({ "id": "gid://shopify/Test/2", "rank": 2, "title": "updated" }),
+                    json!({ "id": "gid://shopify/Test/local", "rank": 4 }),
+                ],
+                tombstones: &tombstones,
+                arguments: &arguments,
+                source_page_info: &json!({ "hasNextPage": true, "hasPreviousPage": false }),
+            },
+            |_node, _query| StagedSearchDecision::Match,
+            rank_sort,
+            Value::clone,
+            |node| {
+                stable_local_connection_cursor(
+                    "tests",
+                    node.get("id").and_then(Value::as_str).unwrap_or_default(),
+                )
+            },
+        );
+
+        assert_eq!(
+            value["edges"][0],
+            json!({
+                "cursor": "opaque-2",
+                "node": {
+                    "id": "gid://shopify/Test/2",
+                    "rank": 2,
+                    "title": "updated"
+                }
+            })
+        );
+        assert_eq!(value["edges"][1]["cursor"], json!("opaque-3"));
+        assert_eq!(value["pageInfo"]["hasNextPage"], json!(true));
+        assert_eq!(value["pageInfo"]["startCursor"], json!("opaque-2"));
+    }
+
+    #[test]
+    fn backward_overlay_uses_last_window_and_proves_previous_boundary() {
+        let arguments = BTreeMap::from([("last".to_string(), ResolvedValue::Int(2))]);
+        let value = overlay_connection_value(
+            ConnectionOverlayInput {
+                authoritative: vec![
+                    row("gid://shopify/Test/1", 1, "opaque-1"),
+                    row("gid://shopify/Test/2", 2, "opaque-2"),
+                    row("gid://shopify/Test/3", 3, "opaque-3"),
+                ],
+                local_records: Vec::new(),
+                tombstones: &BTreeSet::new(),
+                arguments: &arguments,
+                source_page_info: &json!({ "hasNextPage": false, "hasPreviousPage": true }),
+            },
+            |_node, _query| StagedSearchDecision::Match,
+            rank_sort,
+            Value::clone,
+            |_node| unreachable!("authoritative rows already have cursors"),
+        );
+
+        assert_eq!(
+            value["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|node| node["id"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            vec!["gid://shopify/Test/2", "gid://shopify/Test/3"]
+        );
+        assert_eq!(value["pageInfo"]["hasPreviousPage"], json!(true));
+        assert_eq!(value["pageInfo"]["endCursor"], json!("opaque-3"));
     }
 }

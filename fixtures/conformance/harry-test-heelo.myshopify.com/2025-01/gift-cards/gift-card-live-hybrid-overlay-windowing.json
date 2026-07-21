@@ -1,0 +1,2599 @@
+{
+  "scenarioId": "gift-card-live-hybrid-overlay-windowing",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "proxyVariables": {
+    "create": {
+      "code": "OVMRTUY2DZ437E",
+      "initialValue": "25.05",
+      "expiresOn": "2028-01-04"
+    },
+    "afterCreateRead": {
+      "query": "437",
+      "sortKey": "INITIAL_VALUE"
+    },
+    "update": {
+      "id": "gid://shopify/GiftCard/664334238002",
+      "expiresOn": "2028-01-06"
+    },
+    "afterSortChangingUpdateRead": {
+      "query": "437",
+      "sortKey": "EXPIRES_ON"
+    },
+    "deactivate": {
+      "id": "gid://shopify/GiftCard/664334270770"
+    },
+    "afterEnabledRemovalRead": {
+      "query": "437 AND status:enabled",
+      "sortKey": "INITIAL_VALUE"
+    }
+  },
+  "setup": {
+    "baseCreate": {
+      "operationName": "GiftCardLiveHybridOverlayBaseCreate",
+      "query": "mutation GiftCardLiveHybridOverlayBaseCreate(\n  $first: GiftCardCreateInput!\n  $second: GiftCardCreateInput!\n  $third: GiftCardCreateInput!\n  $fourth: GiftCardCreateInput!\n) {\n  first: giftCardCreate(input: $first) {\n    giftCard { id lastCharacters enabled expiresOn initialValue { amount currencyCode } balance { amount currencyCode } }\n    userErrors { field message }\n  }\n  second: giftCardCreate(input: $second) {\n    giftCard { id lastCharacters enabled expiresOn initialValue { amount currencyCode } balance { amount currencyCode } }\n    userErrors { field message }\n  }\n  third: giftCardCreate(input: $third) {\n    giftCard { id lastCharacters enabled expiresOn initialValue { amount currencyCode } balance { amount currencyCode } }\n    userErrors { field message }\n  }\n  fourth: giftCardCreate(input: $fourth) {\n    giftCard { id lastCharacters enabled expiresOn initialValue { amount currencyCode } balance { amount currencyCode } }\n    userErrors { field message }\n  }\n}\n",
+      "variables": {
+        "first": {
+          "code": "OVMRTUY2DZ437A",
+          "initialValue": "10.01",
+          "expiresOn": "2028-01-01",
+          "note": "LiveHybrid overlay authoritative A"
+        },
+        "second": {
+          "code": "OVMRTUY2DZ437B",
+          "initialValue": "20.02",
+          "expiresOn": "2028-01-03",
+          "note": "LiveHybrid overlay authoritative B"
+        },
+        "third": {
+          "code": "OVMRTUY2DZ437C",
+          "initialValue": "30.03",
+          "expiresOn": "2028-01-05",
+          "note": "LiveHybrid overlay authoritative C"
+        },
+        "fourth": {
+          "code": "OVMRTUY2DZ437D",
+          "initialValue": "40.04",
+          "expiresOn": "2028-01-07",
+          "note": "LiveHybrid overlay authoritative D"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "first": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/664334238002",
+                "lastCharacters": "437a",
+                "enabled": true,
+                "expiresOn": "2028-01-01",
+                "initialValue": {
+                  "amount": "10.01",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "10.01",
+                  "currencyCode": "CAD"
+                }
+              },
+              "userErrors": []
+            },
+            "second": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/664334270770",
+                "lastCharacters": "437b",
+                "enabled": true,
+                "expiresOn": "2028-01-03",
+                "initialValue": {
+                  "amount": "20.02",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "20.02",
+                  "currencyCode": "CAD"
+                }
+              },
+              "userErrors": []
+            },
+            "third": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/664334303538",
+                "lastCharacters": "437c",
+                "enabled": true,
+                "expiresOn": "2028-01-05",
+                "initialValue": {
+                  "amount": "30.03",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "30.03",
+                  "currencyCode": "CAD"
+                }
+              },
+              "userErrors": []
+            },
+            "fourth": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/664334336306",
+                "lastCharacters": "437d",
+                "enabled": true,
+                "expiresOn": "2028-01-07",
+                "initialValue": {
+                  "amount": "40.04",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "40.04",
+                  "currencyCode": "CAD"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 40,
+              "actualQueryCost": 40,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1960,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "initialValueBase": {
+      "operationName": "GiftCardLiveHybridOverlayRead",
+      "query": "query GiftCardLiveHybridOverlayRead($query: String!, $sortKey: GiftCardSortKeys!) {\n  forward: giftCards(first: 4, query: $query, sortKey: $sortKey) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverse: giftCards(first: 2, query: $query, sortKey: $sortKey, reverse: true) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "437",
+        "sortKey": "INITIAL_VALUE"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "forward": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/664334238002",
+                  "lastCharacters": "437a",
+                  "enabled": true,
+                  "expiresOn": "2028-01-01",
+                  "initialValue": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334270770",
+                  "lastCharacters": "437b",
+                  "enabled": true,
+                  "expiresOn": "2028-01-03",
+                  "initialValue": {
+                    "amount": "20.02",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "20.02",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334336306",
+                  "lastCharacters": "437d",
+                  "enabled": true,
+                  "expiresOn": "2028-01-07",
+                  "initialValue": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjEwLjAxfQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334238002",
+                    "lastCharacters": "437a",
+                    "enabled": true,
+                    "expiresOn": "2028-01-01",
+                    "initialValue": {
+                      "amount": "10.01",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "10.01",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyNzA3NzAsImxhc3RfdmFsdWUiOjIwLjAyfQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334270770",
+                    "lastCharacters": "437b",
+                    "enabled": true,
+                    "expiresOn": "2028-01-03",
+                    "initialValue": {
+                      "amount": "20.02",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "20.02",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334303538",
+                    "lastCharacters": "437c",
+                    "enabled": true,
+                    "expiresOn": "2028-01-05",
+                    "initialValue": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334336306",
+                    "lastCharacters": "437d",
+                    "enabled": true,
+                    "expiresOn": "2028-01-07",
+                    "initialValue": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjEwLjAxfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ=="
+              }
+            },
+            "reverse": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/664334336306",
+                  "lastCharacters": "437d",
+                  "enabled": true,
+                  "expiresOn": "2028-01-07",
+                  "initialValue": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334336306",
+                    "lastCharacters": "437d",
+                    "enabled": true,
+                    "expiresOn": "2028-01-07",
+                    "initialValue": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334303538",
+                    "lastCharacters": "437c",
+                    "enabled": true,
+                    "expiresOn": "2028-01-05",
+                    "initialValue": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "expiresOnBase": {
+      "operationName": "GiftCardLiveHybridOverlayRead",
+      "query": "query GiftCardLiveHybridOverlayRead($query: String!, $sortKey: GiftCardSortKeys!) {\n  forward: giftCards(first: 4, query: $query, sortKey: $sortKey) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverse: giftCards(first: 2, query: $query, sortKey: $sortKey, reverse: true) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "437",
+        "sortKey": "EXPIRES_ON"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "forward": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/664334238002",
+                  "lastCharacters": "437a",
+                  "enabled": true,
+                  "expiresOn": "2028-01-01",
+                  "initialValue": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334270770",
+                  "lastCharacters": "437b",
+                  "enabled": true,
+                  "expiresOn": "2028-01-03",
+                  "initialValue": {
+                    "amount": "20.02",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "20.02",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334336306",
+                  "lastCharacters": "437d",
+                  "enabled": true,
+                  "expiresOn": "2028-01-07",
+                  "initialValue": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjE4MzAyOTc2MDAwMDB9",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334238002",
+                    "lastCharacters": "437a",
+                    "enabled": true,
+                    "expiresOn": "2028-01-01",
+                    "initialValue": {
+                      "amount": "10.01",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "10.01",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyNzA3NzAsImxhc3RfdmFsdWUiOjE4MzA0NzA0MDAwMDB9",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334270770",
+                    "lastCharacters": "437b",
+                    "enabled": true,
+                    "expiresOn": "2028-01-03",
+                    "initialValue": {
+                      "amount": "20.02",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "20.02",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjE4MzA2NDMyMDAwMDB9",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334303538",
+                    "lastCharacters": "437c",
+                    "enabled": true,
+                    "expiresOn": "2028-01-05",
+                    "initialValue": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjE4MzA4MTYwMDAwMDB9",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334336306",
+                    "lastCharacters": "437d",
+                    "enabled": true,
+                    "expiresOn": "2028-01-07",
+                    "initialValue": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjE4MzAyOTc2MDAwMDB9",
+                "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjE4MzA4MTYwMDAwMDB9"
+              }
+            },
+            "reverse": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/664334336306",
+                  "lastCharacters": "437d",
+                  "enabled": true,
+                  "expiresOn": "2028-01-07",
+                  "initialValue": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjE4MzA4MTYwMDAwMDB9",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334336306",
+                    "lastCharacters": "437d",
+                    "enabled": true,
+                    "expiresOn": "2028-01-07",
+                    "initialValue": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjE4MzA2NDMyMDAwMDB9",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334303538",
+                    "lastCharacters": "437c",
+                    "enabled": true,
+                    "expiresOn": "2028-01-05",
+                    "initialValue": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjE4MzA4MTYwMDAwMDB9",
+                "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjE4MzA2NDMyMDAwMDB9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "enabledBase": {
+      "operationName": "GiftCardLiveHybridOverlayRead",
+      "query": "query GiftCardLiveHybridOverlayRead($query: String!, $sortKey: GiftCardSortKeys!) {\n  forward: giftCards(first: 4, query: $query, sortKey: $sortKey) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverse: giftCards(first: 2, query: $query, sortKey: $sortKey, reverse: true) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "437 AND status:enabled",
+        "sortKey": "INITIAL_VALUE"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "forward": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/664334238002",
+                  "lastCharacters": "437a",
+                  "enabled": true,
+                  "expiresOn": "2028-01-01",
+                  "initialValue": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334270770",
+                  "lastCharacters": "437b",
+                  "enabled": true,
+                  "expiresOn": "2028-01-03",
+                  "initialValue": {
+                    "amount": "20.02",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "20.02",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334336306",
+                  "lastCharacters": "437d",
+                  "enabled": true,
+                  "expiresOn": "2028-01-07",
+                  "initialValue": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjEwLjAxfQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334238002",
+                    "lastCharacters": "437a",
+                    "enabled": true,
+                    "expiresOn": "2028-01-01",
+                    "initialValue": {
+                      "amount": "10.01",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "10.01",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyNzA3NzAsImxhc3RfdmFsdWUiOjIwLjAyfQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334270770",
+                    "lastCharacters": "437b",
+                    "enabled": true,
+                    "expiresOn": "2028-01-03",
+                    "initialValue": {
+                      "amount": "20.02",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "20.02",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334303538",
+                    "lastCharacters": "437c",
+                    "enabled": true,
+                    "expiresOn": "2028-01-05",
+                    "initialValue": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334336306",
+                    "lastCharacters": "437d",
+                    "enabled": true,
+                    "expiresOn": "2028-01-07",
+                    "initialValue": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjEwLjAxfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ=="
+              }
+            },
+            "reverse": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/664334336306",
+                  "lastCharacters": "437d",
+                  "enabled": true,
+                  "expiresOn": "2028-01-07",
+                  "initialValue": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334336306",
+                    "lastCharacters": "437d",
+                    "enabled": true,
+                    "expiresOn": "2028-01-07",
+                    "initialValue": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334303538",
+                    "lastCharacters": "437c",
+                    "enabled": true,
+                    "expiresOn": "2028-01-05",
+                    "initialValue": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "liveStagedCreate": {
+    "operationName": "GiftCardLiveHybridOverlayCreate",
+    "query": "mutation GiftCardLiveHybridOverlayCreate($code: String!, $initialValue: Decimal!, $expiresOn: Date!) {\n  giftCardCreate(\n    input: {\n      code: $code\n      initialValue: $initialValue\n      expiresOn: $expiresOn\n      note: \"LiveHybrid bounded overlay staged create\"\n    }\n  ) {\n    giftCard {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "code": "OVMRTUY2DZ437E",
+      "initialValue": "25.05",
+      "expiresOn": "2028-01-04"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "giftCardCreate": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/664334369074",
+              "lastCharacters": "437e",
+              "enabled": true,
+              "expiresOn": "2028-01-04",
+              "initialValue": {
+                "amount": "25.05",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "25.05",
+                "currencyCode": "CAD"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "afterCreateRead": {
+    "operationName": "GiftCardLiveHybridOverlayRead",
+    "query": "query GiftCardLiveHybridOverlayRead($query: String!, $sortKey: GiftCardSortKeys!) {\n  forward: giftCards(first: 4, query: $query, sortKey: $sortKey) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverse: giftCards(first: 2, query: $query, sortKey: $sortKey, reverse: true) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "query": "437",
+      "sortKey": "INITIAL_VALUE"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "forward": {
+            "nodes": [
+              {
+                "id": "gid://shopify/GiftCard/664334238002",
+                "lastCharacters": "437a",
+                "enabled": true,
+                "expiresOn": "2028-01-01",
+                "initialValue": {
+                  "amount": "10.01",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "10.01",
+                  "currencyCode": "CAD"
+                }
+              },
+              {
+                "id": "gid://shopify/GiftCard/664334270770",
+                "lastCharacters": "437b",
+                "enabled": true,
+                "expiresOn": "2028-01-03",
+                "initialValue": {
+                  "amount": "20.02",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "20.02",
+                  "currencyCode": "CAD"
+                }
+              },
+              {
+                "id": "gid://shopify/GiftCard/664334369074",
+                "lastCharacters": "437e",
+                "enabled": true,
+                "expiresOn": "2028-01-04",
+                "initialValue": {
+                  "amount": "25.05",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "25.05",
+                  "currencyCode": "CAD"
+                }
+              },
+              {
+                "id": "gid://shopify/GiftCard/664334303538",
+                "lastCharacters": "437c",
+                "enabled": true,
+                "expiresOn": "2028-01-05",
+                "initialValue": {
+                  "amount": "30.03",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "30.03",
+                  "currencyCode": "CAD"
+                }
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjEwLjAxfQ==",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334238002",
+                  "lastCharacters": "437a",
+                  "enabled": true,
+                  "expiresOn": "2028-01-01",
+                  "initialValue": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyNzA3NzAsImxhc3RfdmFsdWUiOjIwLjAyfQ==",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334270770",
+                  "lastCharacters": "437b",
+                  "enabled": true,
+                  "expiresOn": "2028-01-03",
+                  "initialValue": {
+                    "amount": "20.02",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "20.02",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzNjkwNzQsImxhc3RfdmFsdWUiOjI1LjA1fQ==",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334369074",
+                  "lastCharacters": "437e",
+                  "enabled": true,
+                  "expiresOn": "2028-01-04",
+                  "initialValue": {
+                    "amount": "25.05",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "25.05",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ==",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjEwLjAxfQ==",
+              "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ=="
+            }
+          },
+          "reverse": {
+            "nodes": [
+              {
+                "id": "gid://shopify/GiftCard/664334336306",
+                "lastCharacters": "437d",
+                "enabled": true,
+                "expiresOn": "2028-01-07",
+                "initialValue": {
+                  "amount": "40.04",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "40.04",
+                  "currencyCode": "CAD"
+                }
+              },
+              {
+                "id": "gid://shopify/GiftCard/664334303538",
+                "lastCharacters": "437c",
+                "enabled": true,
+                "expiresOn": "2028-01-05",
+                "initialValue": {
+                  "amount": "30.03",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "30.03",
+                  "currencyCode": "CAD"
+                }
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334336306",
+                  "lastCharacters": "437d",
+                  "enabled": true,
+                  "expiresOn": "2028-01-07",
+                  "initialValue": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ==",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+              "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "liveSortChangingUpdate": {
+    "operationName": "GiftCardLiveHybridOverlayUpdate",
+    "query": "mutation GiftCardLiveHybridOverlayUpdate($id: ID!, $expiresOn: Date!) {\n  giftCardUpdate(id: $id, input: { expiresOn: $expiresOn }) {\n    giftCard {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/GiftCard/664334238002",
+      "expiresOn": "2028-01-06"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "giftCardUpdate": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/664334238002",
+              "lastCharacters": "437a",
+              "enabled": true,
+              "expiresOn": "2028-01-06",
+              "initialValue": {
+                "amount": "10.01",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "10.01",
+                "currencyCode": "CAD"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "afterSortChangingUpdateRead": {
+    "operationName": "GiftCardLiveHybridOverlayRead",
+    "query": "query GiftCardLiveHybridOverlayRead($query: String!, $sortKey: GiftCardSortKeys!) {\n  forward: giftCards(first: 4, query: $query, sortKey: $sortKey) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverse: giftCards(first: 2, query: $query, sortKey: $sortKey, reverse: true) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "query": "437",
+      "sortKey": "EXPIRES_ON"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "forward": {
+            "nodes": [
+              {
+                "id": "gid://shopify/GiftCard/664334270770",
+                "lastCharacters": "437b",
+                "enabled": true,
+                "expiresOn": "2028-01-03",
+                "initialValue": {
+                  "amount": "20.02",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "20.02",
+                  "currencyCode": "CAD"
+                }
+              },
+              {
+                "id": "gid://shopify/GiftCard/664334369074",
+                "lastCharacters": "437e",
+                "enabled": true,
+                "expiresOn": "2028-01-04",
+                "initialValue": {
+                  "amount": "25.05",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "25.05",
+                  "currencyCode": "CAD"
+                }
+              },
+              {
+                "id": "gid://shopify/GiftCard/664334303538",
+                "lastCharacters": "437c",
+                "enabled": true,
+                "expiresOn": "2028-01-05",
+                "initialValue": {
+                  "amount": "30.03",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "30.03",
+                  "currencyCode": "CAD"
+                }
+              },
+              {
+                "id": "gid://shopify/GiftCard/664334238002",
+                "lastCharacters": "437a",
+                "enabled": true,
+                "expiresOn": "2028-01-06",
+                "initialValue": {
+                  "amount": "10.01",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "10.01",
+                  "currencyCode": "CAD"
+                }
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyNzA3NzAsImxhc3RfdmFsdWUiOjE4MzA0NzA0MDAwMDB9",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334270770",
+                  "lastCharacters": "437b",
+                  "enabled": true,
+                  "expiresOn": "2028-01-03",
+                  "initialValue": {
+                    "amount": "20.02",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "20.02",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzNjkwNzQsImxhc3RfdmFsdWUiOjE4MzA1NTY4MDAwMDB9",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334369074",
+                  "lastCharacters": "437e",
+                  "enabled": true,
+                  "expiresOn": "2028-01-04",
+                  "initialValue": {
+                    "amount": "25.05",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "25.05",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjE4MzA2NDMyMDAwMDB9",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjE4MzA3Mjk2MDAwMDB9",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334238002",
+                  "lastCharacters": "437a",
+                  "enabled": true,
+                  "expiresOn": "2028-01-06",
+                  "initialValue": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQyNzA3NzAsImxhc3RfdmFsdWUiOjE4MzA0NzA0MDAwMDB9",
+              "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjE4MzA3Mjk2MDAwMDB9"
+            }
+          },
+          "reverse": {
+            "nodes": [
+              {
+                "id": "gid://shopify/GiftCard/664334336306",
+                "lastCharacters": "437d",
+                "enabled": true,
+                "expiresOn": "2028-01-07",
+                "initialValue": {
+                  "amount": "40.04",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "40.04",
+                  "currencyCode": "CAD"
+                }
+              },
+              {
+                "id": "gid://shopify/GiftCard/664334238002",
+                "lastCharacters": "437a",
+                "enabled": true,
+                "expiresOn": "2028-01-06",
+                "initialValue": {
+                  "amount": "10.01",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "10.01",
+                  "currencyCode": "CAD"
+                }
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjE4MzA4MTYwMDAwMDB9",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334336306",
+                  "lastCharacters": "437d",
+                  "enabled": true,
+                  "expiresOn": "2028-01-07",
+                  "initialValue": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjE4MzA3Mjk2MDAwMDB9",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334238002",
+                  "lastCharacters": "437a",
+                  "enabled": true,
+                  "expiresOn": "2028-01-06",
+                  "initialValue": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjE4MzA4MTYwMDAwMDB9",
+              "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjE4MzA3Mjk2MDAwMDB9"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "liveDeactivate": {
+    "operationName": "GiftCardLiveHybridOverlayDeactivate",
+    "query": "mutation GiftCardLiveHybridOverlayDeactivate($id: ID!) {\n  giftCardDeactivate(id: $id) {\n    giftCard {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/GiftCard/664334270770"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "giftCardDeactivate": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/664334270770",
+              "lastCharacters": "437b",
+              "enabled": false,
+              "expiresOn": "2028-01-03",
+              "initialValue": {
+                "amount": "20.02",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "20.02",
+                "currencyCode": "CAD"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "afterEnabledRemovalRead": {
+    "operationName": "GiftCardLiveHybridOverlayRead",
+    "query": "query GiftCardLiveHybridOverlayRead($query: String!, $sortKey: GiftCardSortKeys!) {\n  forward: giftCards(first: 4, query: $query, sortKey: $sortKey) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverse: giftCards(first: 2, query: $query, sortKey: $sortKey, reverse: true) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "query": "437 AND status:enabled",
+      "sortKey": "INITIAL_VALUE"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "forward": {
+            "nodes": [
+              {
+                "id": "gid://shopify/GiftCard/664334238002",
+                "lastCharacters": "437a",
+                "enabled": true,
+                "expiresOn": "2028-01-06",
+                "initialValue": {
+                  "amount": "10.01",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "10.01",
+                  "currencyCode": "CAD"
+                }
+              },
+              {
+                "id": "gid://shopify/GiftCard/664334369074",
+                "lastCharacters": "437e",
+                "enabled": true,
+                "expiresOn": "2028-01-04",
+                "initialValue": {
+                  "amount": "25.05",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "25.05",
+                  "currencyCode": "CAD"
+                }
+              },
+              {
+                "id": "gid://shopify/GiftCard/664334303538",
+                "lastCharacters": "437c",
+                "enabled": true,
+                "expiresOn": "2028-01-05",
+                "initialValue": {
+                  "amount": "30.03",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "30.03",
+                  "currencyCode": "CAD"
+                }
+              },
+              {
+                "id": "gid://shopify/GiftCard/664334336306",
+                "lastCharacters": "437d",
+                "enabled": true,
+                "expiresOn": "2028-01-07",
+                "initialValue": {
+                  "amount": "40.04",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "40.04",
+                  "currencyCode": "CAD"
+                }
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjEwLjAxfQ==",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334238002",
+                  "lastCharacters": "437a",
+                  "enabled": true,
+                  "expiresOn": "2028-01-06",
+                  "initialValue": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzNjkwNzQsImxhc3RfdmFsdWUiOjI1LjA1fQ==",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334369074",
+                  "lastCharacters": "437e",
+                  "enabled": true,
+                  "expiresOn": "2028-01-04",
+                  "initialValue": {
+                    "amount": "25.05",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "25.05",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ==",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334336306",
+                  "lastCharacters": "437d",
+                  "enabled": true,
+                  "expiresOn": "2028-01-07",
+                  "initialValue": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjEwLjAxfQ==",
+              "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ=="
+            }
+          },
+          "reverse": {
+            "nodes": [
+              {
+                "id": "gid://shopify/GiftCard/664334336306",
+                "lastCharacters": "437d",
+                "enabled": true,
+                "expiresOn": "2028-01-07",
+                "initialValue": {
+                  "amount": "40.04",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "40.04",
+                  "currencyCode": "CAD"
+                }
+              },
+              {
+                "id": "gid://shopify/GiftCard/664334303538",
+                "lastCharacters": "437c",
+                "enabled": true,
+                "expiresOn": "2028-01-05",
+                "initialValue": {
+                  "amount": "30.03",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "30.03",
+                  "currencyCode": "CAD"
+                }
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334336306",
+                  "lastCharacters": "437d",
+                  "enabled": true,
+                  "expiresOn": "2028-01-07",
+                  "initialValue": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ==",
+                "node": {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+              "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "id": "gid://shopify/GiftCard/664334369074",
+      "status": 200,
+      "body": {
+        "data": {
+          "giftCardDeactivate": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/664334369074",
+              "lastCharacters": "437e",
+              "enabled": false,
+              "expiresOn": "2028-01-04",
+              "initialValue": {
+                "amount": "25.05",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "25.05",
+                "currencyCode": "CAD"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/GiftCard/664334238002",
+      "status": 200,
+      "body": {
+        "data": {
+          "giftCardDeactivate": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/664334238002",
+              "lastCharacters": "437a",
+              "enabled": false,
+              "expiresOn": "2028-01-06",
+              "initialValue": {
+                "amount": "10.01",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "10.01",
+                "currencyCode": "CAD"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/GiftCard/664334303538",
+      "status": 200,
+      "body": {
+        "data": {
+          "giftCardDeactivate": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/664334303538",
+              "lastCharacters": "437c",
+              "enabled": false,
+              "expiresOn": "2028-01-05",
+              "initialValue": {
+                "amount": "30.03",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "30.03",
+                "currencyCode": "CAD"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1972,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/GiftCard/664334336306",
+      "status": 200,
+      "body": {
+        "data": {
+          "giftCardDeactivate": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/664334336306",
+              "lastCharacters": "437d",
+              "enabled": false,
+              "expiresOn": "2028-01-07",
+              "initialValue": {
+                "amount": "40.04",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "40.04",
+                "currencyCode": "CAD"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1963,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "GiftCardCreateConfiguration",
+      "variables": {},
+      "query": "#graphql\n  query GiftCardCreateConfiguration {\n    giftCardConfiguration {\n      issueLimit { amount currencyCode }\n      purchaseLimit { amount currencyCode }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCardConfiguration": {
+              "issueLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "purchaseLimit": {
+                "amount": "14000.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "GiftCardLiveHybridOverlayRead",
+      "variables": {
+        "query": "437",
+        "sortKey": "INITIAL_VALUE"
+      },
+      "query": "query GiftCardLiveHybridOverlayRead($query: String!, $sortKey: GiftCardSortKeys!) {\n  forward: giftCards(first: 4, query: $query, sortKey: $sortKey) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverse: giftCards(first: 2, query: $query, sortKey: $sortKey, reverse: true) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "forward": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/664334238002",
+                  "lastCharacters": "437a",
+                  "enabled": true,
+                  "expiresOn": "2028-01-01",
+                  "initialValue": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334270770",
+                  "lastCharacters": "437b",
+                  "enabled": true,
+                  "expiresOn": "2028-01-03",
+                  "initialValue": {
+                    "amount": "20.02",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "20.02",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334336306",
+                  "lastCharacters": "437d",
+                  "enabled": true,
+                  "expiresOn": "2028-01-07",
+                  "initialValue": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjEwLjAxfQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334238002",
+                    "lastCharacters": "437a",
+                    "enabled": true,
+                    "expiresOn": "2028-01-01",
+                    "initialValue": {
+                      "amount": "10.01",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "10.01",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyNzA3NzAsImxhc3RfdmFsdWUiOjIwLjAyfQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334270770",
+                    "lastCharacters": "437b",
+                    "enabled": true,
+                    "expiresOn": "2028-01-03",
+                    "initialValue": {
+                      "amount": "20.02",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "20.02",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334303538",
+                    "lastCharacters": "437c",
+                    "enabled": true,
+                    "expiresOn": "2028-01-05",
+                    "initialValue": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334336306",
+                    "lastCharacters": "437d",
+                    "enabled": true,
+                    "expiresOn": "2028-01-07",
+                    "initialValue": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjEwLjAxfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ=="
+              }
+            },
+            "reverse": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/664334336306",
+                  "lastCharacters": "437d",
+                  "enabled": true,
+                  "expiresOn": "2028-01-07",
+                  "initialValue": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334336306",
+                    "lastCharacters": "437d",
+                    "enabled": true,
+                    "expiresOn": "2028-01-07",
+                    "initialValue": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334303538",
+                    "lastCharacters": "437c",
+                    "enabled": true,
+                    "expiresOn": "2028-01-05",
+                    "initialValue": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "GiftCardLiveHybridOverlayRead",
+      "variables": {
+        "query": "437",
+        "sortKey": "EXPIRES_ON"
+      },
+      "query": "query GiftCardLiveHybridOverlayRead($query: String!, $sortKey: GiftCardSortKeys!) {\n  forward: giftCards(first: 4, query: $query, sortKey: $sortKey) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverse: giftCards(first: 2, query: $query, sortKey: $sortKey, reverse: true) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "forward": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/664334238002",
+                  "lastCharacters": "437a",
+                  "enabled": true,
+                  "expiresOn": "2028-01-01",
+                  "initialValue": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334270770",
+                  "lastCharacters": "437b",
+                  "enabled": true,
+                  "expiresOn": "2028-01-03",
+                  "initialValue": {
+                    "amount": "20.02",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "20.02",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334336306",
+                  "lastCharacters": "437d",
+                  "enabled": true,
+                  "expiresOn": "2028-01-07",
+                  "initialValue": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjE4MzAyOTc2MDAwMDB9",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334238002",
+                    "lastCharacters": "437a",
+                    "enabled": true,
+                    "expiresOn": "2028-01-01",
+                    "initialValue": {
+                      "amount": "10.01",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "10.01",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyNzA3NzAsImxhc3RfdmFsdWUiOjE4MzA0NzA0MDAwMDB9",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334270770",
+                    "lastCharacters": "437b",
+                    "enabled": true,
+                    "expiresOn": "2028-01-03",
+                    "initialValue": {
+                      "amount": "20.02",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "20.02",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjE4MzA2NDMyMDAwMDB9",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334303538",
+                    "lastCharacters": "437c",
+                    "enabled": true,
+                    "expiresOn": "2028-01-05",
+                    "initialValue": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjE4MzA4MTYwMDAwMDB9",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334336306",
+                    "lastCharacters": "437d",
+                    "enabled": true,
+                    "expiresOn": "2028-01-07",
+                    "initialValue": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjE4MzAyOTc2MDAwMDB9",
+                "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjE4MzA4MTYwMDAwMDB9"
+              }
+            },
+            "reverse": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/664334336306",
+                  "lastCharacters": "437d",
+                  "enabled": true,
+                  "expiresOn": "2028-01-07",
+                  "initialValue": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjE4MzA4MTYwMDAwMDB9",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334336306",
+                    "lastCharacters": "437d",
+                    "enabled": true,
+                    "expiresOn": "2028-01-07",
+                    "initialValue": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjE4MzA2NDMyMDAwMDB9",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334303538",
+                    "lastCharacters": "437c",
+                    "enabled": true,
+                    "expiresOn": "2028-01-05",
+                    "initialValue": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjE4MzA4MTYwMDAwMDB9",
+                "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjE4MzA2NDMyMDAwMDB9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "GiftCardLiveHybridOverlayRead",
+      "variables": {
+        "query": "437 AND status:enabled",
+        "sortKey": "INITIAL_VALUE"
+      },
+      "query": "query GiftCardLiveHybridOverlayRead($query: String!, $sortKey: GiftCardSortKeys!) {\n  forward: giftCards(first: 4, query: $query, sortKey: $sortKey) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverse: giftCards(first: 2, query: $query, sortKey: $sortKey, reverse: true) {\n    nodes {\n      id\n      lastCharacters\n      enabled\n      expiresOn\n      initialValue {\n        amount\n        currencyCode\n      }\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        lastCharacters\n        enabled\n        expiresOn\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "forward": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/664334238002",
+                  "lastCharacters": "437a",
+                  "enabled": true,
+                  "expiresOn": "2028-01-01",
+                  "initialValue": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "10.01",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334270770",
+                  "lastCharacters": "437b",
+                  "enabled": true,
+                  "expiresOn": "2028-01-03",
+                  "initialValue": {
+                    "amount": "20.02",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "20.02",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334336306",
+                  "lastCharacters": "437d",
+                  "enabled": true,
+                  "expiresOn": "2028-01-07",
+                  "initialValue": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjEwLjAxfQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334238002",
+                    "lastCharacters": "437a",
+                    "enabled": true,
+                    "expiresOn": "2028-01-01",
+                    "initialValue": {
+                      "amount": "10.01",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "10.01",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQyNzA3NzAsImxhc3RfdmFsdWUiOjIwLjAyfQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334270770",
+                    "lastCharacters": "437b",
+                    "enabled": true,
+                    "expiresOn": "2028-01-03",
+                    "initialValue": {
+                      "amount": "20.02",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "20.02",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334303538",
+                    "lastCharacters": "437c",
+                    "enabled": true,
+                    "expiresOn": "2028-01-05",
+                    "initialValue": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334336306",
+                    "lastCharacters": "437d",
+                    "enabled": true,
+                    "expiresOn": "2028-01-07",
+                    "initialValue": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQyMzgwMDIsImxhc3RfdmFsdWUiOjEwLjAxfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ=="
+              }
+            },
+            "reverse": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/664334336306",
+                  "lastCharacters": "437d",
+                  "enabled": true,
+                  "expiresOn": "2028-01-07",
+                  "initialValue": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "40.04",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/GiftCard/664334303538",
+                  "lastCharacters": "437c",
+                  "enabled": true,
+                  "expiresOn": "2028-01-05",
+                  "initialValue": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  },
+                  "balance": {
+                    "amount": "30.03",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334336306",
+                    "lastCharacters": "437d",
+                    "enabled": true,
+                    "expiresOn": "2028-01-07",
+                    "initialValue": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "40.04",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ==",
+                  "node": {
+                    "id": "gid://shopify/GiftCard/664334303538",
+                    "lastCharacters": "437c",
+                    "enabled": true,
+                    "expiresOn": "2028-01-05",
+                    "initialValue": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    },
+                    "balance": {
+                      "amount": "30.03",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMzYzMDYsImxhc3RfdmFsdWUiOjQwLjA0fQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2NjQzMzQzMDM1MzgsImxhc3RfdmFsdWUiOjMwLjAzfQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
