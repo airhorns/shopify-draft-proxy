@@ -2,8 +2,15 @@ use super::*;
 use crate::proxy::search::{parse_search_query, ParsedSearchTerm};
 
 const LOCATION_HYDRATE_QUERY: &str = r#"query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: "custom", key: "hours") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: ["available", "committed", "on_hand"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"#;
+const LOCATION_PICKUP_HYDRATE_QUERY: &str = r#"query ShippingLocationLocalPickupHydrate($id: ID!) { location(id: $id) { id name isActive isFulfillmentService localPickupSettingsV2 { pickupTime instructions } } }"#;
 const LOCATION_LIMIT_STATUS_QUERY: &str = r#"query StorePropertiesLocationLimitStatus($first: Int!) { shop { resourceLimits { locationLimit } } locations(first: $first, includeInactive: true, includeLegacy: true) { nodes { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } } pageInfo { hasNextPage } } }"#;
 const LOCATION_LIMIT_STATUS_FALLBACK_QUERY: &str = r#"query StorePropertiesLocationLimitStatus($first: Int!) { shop { resourceLimits { locationLimit } } locations(first: $first, includeInactive: true) { nodes { id isActive isFulfillmentService } pageInfo { hasNextPage } } }"#;
+
+enum LocationTargetEvidence {
+    Found(Value),
+    Missing,
+    Unresolved(u16),
+}
 
 struct LocationAddResolverContext<'a> {
     operation_path: &'a str,
@@ -81,17 +88,24 @@ impl DraftProxy {
         let RootInvocation {
             root_name,
             arguments,
+            request,
             ..
         } = invocation;
         let arguments = resolved_arguments_from_json(&arguments);
         let mut staged_ids = Vec::new();
-        let payload = match root_name {
-            "locationLocalPickupEnable" => {
-                self.location_local_pickup_enable_payload(&arguments, root_name, &mut staged_ids)
-            }
-            "locationLocalPickupDisable" => {
-                self.location_local_pickup_disable_payload(&arguments, root_name, &mut staged_ids)
-            }
+        let mut outcome = match root_name {
+            "locationLocalPickupEnable" => self.location_local_pickup_enable_outcome(
+                &arguments,
+                request,
+                root_name,
+                &mut staged_ids,
+            ),
+            "locationLocalPickupDisable" => self.location_local_pickup_disable_outcome(
+                &arguments,
+                request,
+                root_name,
+                &mut staged_ids,
+            ),
             _ => {
                 return resolver_http_error_outcome(
                     501,
@@ -99,7 +113,6 @@ impl DraftProxy {
                 );
             }
         };
-        let mut outcome = ResolverOutcome::value(payload);
         if !staged_ids.is_empty() {
             outcome = outcome.with_log_draft(LogDraft::staged(
                 root_name,
@@ -110,20 +123,35 @@ impl DraftProxy {
         outcome
     }
 
-    fn location_local_pickup_enable_payload(
+    fn location_local_pickup_enable_outcome(
         &mut self,
         arguments: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
         root_name: &str,
         staged_ids: &mut Vec<String>,
-    ) -> Value {
+    ) -> ResolverOutcome<Value> {
         let input = resolved_object_field(arguments, "localPickupSettings")
             .unwrap_or_else(|| arguments.clone());
         let location_id = resolved_string_field(&input, "locationId").unwrap_or_default();
+        if let LocationTargetEvidence::Unresolved(status) = self.location_target_evidence(
+            &location_id,
+            request,
+            "ShippingLocationLocalPickupHydrate",
+            LOCATION_PICKUP_HYDRATE_QUERY,
+        ) {
+            return resolver_http_error_outcome(
+                status,
+                "Unable to hydrate location validation target from Shopify.",
+            );
+        }
         let pickup_time = resolved_string_field(&input, "pickupTime").unwrap_or_default();
         let user_errors =
             self.location_local_pickup_enable_user_errors(&location_id, &pickup_time, root_name);
         if !user_errors.is_empty() {
-            return location_local_pickup_enable_payload_json(Value::Null, user_errors);
+            return ResolverOutcome::value(location_local_pickup_enable_payload_json(
+                Value::Null,
+                user_errors,
+            ));
         }
 
         let instructions = input
@@ -142,29 +170,42 @@ impl DraftProxy {
             .active_local_pickup_location(&location_id)
             .unwrap_or_else(|| self.staged_location_record(&location_id));
         location["isActive"] = json!(true);
-        location["isFulfillmentService"] = json!(false);
         location["localPickupSettingsV2"] = settings.clone();
         location["localPickupSettings"] = settings.clone();
         self.stage_local_pickup_location(location);
         staged_ids.push(location_id);
 
-        location_local_pickup_enable_payload_json(settings, Vec::new())
+        ResolverOutcome::value(location_local_pickup_enable_payload_json(
+            settings,
+            Vec::new(),
+        ))
     }
 
-    fn location_local_pickup_disable_payload(
+    fn location_local_pickup_disable_outcome(
         &mut self,
         arguments: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
         root_name: &str,
         staged_ids: &mut Vec<String>,
-    ) -> Value {
+    ) -> ResolverOutcome<Value> {
         let location_id = resolved_string_field(arguments, "locationId").unwrap_or_default();
+        if let LocationTargetEvidence::Unresolved(status) = self.location_target_evidence(
+            &location_id,
+            request,
+            "ShippingLocationLocalPickupHydrate",
+            LOCATION_PICKUP_HYDRATE_QUERY,
+        ) {
+            return resolver_http_error_outcome(
+                status,
+                "Unable to hydrate location validation target from Shopify.",
+            );
+        }
         let user_errors = self.location_local_pickup_location_user_errors(&location_id, root_name);
         if user_errors.is_empty() {
             let mut location = self
                 .active_local_pickup_location(&location_id)
                 .unwrap_or_else(|| self.staged_location_record(&location_id));
             location["isActive"] = json!(true);
-            location["isFulfillmentService"] = json!(false);
             location["localPickupSettingsV2"] = Value::Null;
             location["localPickupSettings"] = Value::Null;
             self.stage_local_pickup_location(location);
@@ -175,7 +216,10 @@ impl DraftProxy {
         } else {
             Value::Null
         };
-        location_local_pickup_disable_payload_json(payload_location_id, user_errors)
+        ResolverOutcome::value(location_local_pickup_disable_payload_json(
+            payload_location_id,
+            user_errors,
+        ))
     }
 
     fn location_local_pickup_enable_user_errors(
@@ -896,22 +940,21 @@ impl DraftProxy {
         })
     }
 
-    /// Hydrates a baseline location from upstream for lifecycle mutations
-    /// (activate/deactivate) when it is not already staged. Issues the recorded
-    /// `StorePropertiesLocationHydrate` query so the cassette replays the real
-    /// captured location, letting the proxy preserve the baseline
-    /// name/scope/state across the mutation instead of fabricating one. A miss
-    /// (no recorded call or null location) leaves the id unknown.
-    pub(in crate::proxy) fn ensure_location_hydrated(
+    /// Resolves one mutation-validation target without turning transport
+    /// uncertainty into Shopify business state. Local and snapshot state is
+    /// authoritative; LiveHybrid/Passthrough may issue one query-only lookup.
+    /// A 2xx `location: null` confirms absence, while transport/schema failures
+    /// remain unresolved so callers can stop rather than report not-found or
+    /// inactive incorrectly.
+    fn location_target_evidence(
         &mut self,
         location_id: &str,
         request: &Request,
-    ) {
-        if self.config.read_mode == ReadMode::Snapshot {
-            return;
-        }
-        if self.store.staged.locations.is_tombstoned(location_id) {
-            return;
+        operation_name: &str,
+        query: &str,
+    ) -> LocationTargetEvidence {
+        if location_id.is_empty() || self.store.staged.locations.is_tombstoned(location_id) {
+            return LocationTargetEvidence::Missing;
         }
         if self.store.staged.locations.contains_key(location_id)
             || self
@@ -920,30 +963,125 @@ impl DraftProxy {
                 .fulfillment_service_locations
                 .contains_key(location_id)
         {
-            return;
+            return LocationTargetEvidence::Found(
+                self.location_for_read(location_id)
+                    .expect("staged location should be readable"),
+            );
+        }
+        if let Some(location) = self.location_for_read(location_id) {
+            let required_fields: &[&str] = if query == LOCATION_PICKUP_HYDRATE_QUERY {
+                &["id", "isActive", "isFulfillmentService"]
+            } else {
+                &[
+                    "id",
+                    "deactivatable",
+                    "fulfillsOnlineOrders",
+                    "hasActiveInventory",
+                    "inventoryLevels",
+                    "isActive",
+                    "isFulfillmentService",
+                ]
+            };
+            if required_fields
+                .iter()
+                .all(|field| location.get(*field).is_some())
+            {
+                return LocationTargetEvidence::Found(location);
+            }
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return LocationTargetEvidence::Missing;
         }
         let response = self.upstream_post(
             request,
             json!({
-                "query": LOCATION_HYDRATE_QUERY,
+                "query": query,
+                "operationName": operation_name,
                 "variables": { "id": location_id }
             }),
         );
         if !(200..300).contains(&response.status) {
-            return;
+            return LocationTargetEvidence::Unresolved(response.status);
         }
-        let Some(node) = response
+        if response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_some_and(|errors| !errors.is_empty())
+        {
+            return LocationTargetEvidence::Unresolved(502);
+        }
+        let Some(location_value) = response
             .body
             .get("data")
             .and_then(|data| data.get("location"))
-            .filter(|node| node.is_object())
         else {
+            return LocationTargetEvidence::Unresolved(502);
+        };
+        if location_value.is_null() {
+            return LocationTargetEvidence::Missing;
+        }
+        if !location_value.is_object() {
+            return LocationTargetEvidence::Unresolved(502);
+        }
+
+        let mut record = location_value.clone();
+        if let Some(object) = record.as_object_mut() {
+            object
+                .entry("__typename".to_string())
+                .or_insert_with(|| json!("Location"));
+        }
+        if let Some(levels) = record
+            .get("inventoryLevels")
+            .and_then(|connection| connection.get("nodes"))
+            .and_then(Value::as_array)
+            .cloned()
+        {
+            for level in levels {
+                self.observe_inventory_level_node(&level);
+            }
+        }
+        let record = self
+            .location_for_read(location_id)
+            .map(|existing| shallow_merged_object(existing, record.clone()))
+            .unwrap_or(record);
+        self.store
+            .base
+            .locations
+            .insert(location_id.to_string(), record.clone());
+        LocationTargetEvidence::Found(record)
+    }
+
+    /// Hydrates a baseline location for existing lifecycle callers that only
+    /// need the observed record. Preserve their staged catalog placement: in
+    /// particular, fulfillment-order moves resolve destinations from the
+    /// fulfillment-service catalog. Deactivation and local-pickup mutations use
+    /// `location_target_evidence` directly so they retain missing versus
+    /// unresolved state without staging a validation-only read.
+    pub(in crate::proxy) fn ensure_location_hydrated(
+        &mut self,
+        location_id: &str,
+        request: &Request,
+    ) {
+        if self.config.read_mode == ReadMode::Snapshot
+            || self.store.staged.locations.is_tombstoned(location_id)
+            || self.store.staged.locations.contains_key(location_id)
+            || self
+                .store
+                .staged
+                .fulfillment_service_locations
+                .contains_key(location_id)
+        {
+            return;
+        }
+        let LocationTargetEvidence::Found(record) = self.location_target_evidence(
+            location_id,
+            request,
+            "StorePropertiesLocationHydrate",
+            LOCATION_HYDRATE_QUERY,
+        ) else {
             return;
         };
-        let mut record = node.clone();
-        if let Some(object) = record.as_object_mut() {
-            object.insert("__typename".to_string(), json!("Location"));
-        }
         if record.get("isFulfillmentService").and_then(Value::as_bool) == Some(true) {
             self.store
                 .staged
@@ -1158,20 +1296,17 @@ impl DraftProxy {
             .or_else(|| self.store.base.locations.get(location_id).cloned())
     }
 
-    /// A location is eligible for local-pickup mutations only when it resolves
-    /// to an active, non-fulfillment-service location from staged or observed
-    /// state. Unknown ids and inactive/fulfillment-service locations are
-    /// filtered out so the caller can raise `ACTIVE_LOCATION_NOT_FOUND`.
+    /// A location is eligible for local-pickup mutations when it resolves to an
+    /// active location from staged or observed state. Captured Shopify behavior
+    /// accepts an active delivery-profile location even when it is managed by a
+    /// fulfillment service; unknown and inactive ids raise
+    /// `ACTIVE_LOCATION_NOT_FOUND`.
     fn active_local_pickup_location(&self, location_id: &str) -> Option<Value> {
         self.location_for_read(location_id).filter(|location| {
             location
                 .get("isActive")
                 .and_then(Value::as_bool)
                 .unwrap_or(true)
-                && !location
-                    .get("isFulfillmentService")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(false)
         })
     }
 
@@ -1387,19 +1522,56 @@ impl DraftProxy {
         }
         let location_id = resolved_string_field(arguments, "locationId").unwrap_or_default();
         let destination_location_id = resolved_string_field(arguments, "destinationLocationId");
-        self.ensure_location_hydrated(&location_id, request);
-        let Some(source_location) = self.location_deactivate_source_location(&location_id) else {
-            return ResolverOutcome::value(location_deactivate_payload_json(
-                Value::Null,
-                vec![user_error(
-                    ["locationId"],
-                    "Location not found.",
-                    Some("LOCATION_NOT_FOUND"),
-                )],
-            ));
+        let source_location = match self.location_target_evidence(
+            &location_id,
+            request,
+            "StorePropertiesLocationHydrate",
+            LOCATION_HYDRATE_QUERY,
+        ) {
+            LocationTargetEvidence::Found(mut location) => {
+                location["hasActiveInventory"] =
+                    json!(self.location_effective_has_inventory(&location_id, &location));
+                location
+            }
+            LocationTargetEvidence::Missing => {
+                return ResolverOutcome::value(location_deactivate_payload_json(
+                    Value::Null,
+                    vec![user_error(
+                        ["locationId"],
+                        "Location not found.",
+                        Some("LOCATION_NOT_FOUND"),
+                    )],
+                ));
+            }
+            LocationTargetEvidence::Unresolved(status) => {
+                return resolver_http_error_outcome(
+                    status,
+                    "Unable to hydrate location validation target from Shopify.",
+                );
+            }
         };
-        let errors =
-            self.location_deactivate_errors(&source_location, destination_location_id.as_deref());
+        let destination_evidence = match destination_location_id.as_deref() {
+            Some(destination_id) => match self.location_target_evidence(
+                destination_id,
+                request,
+                "StorePropertiesLocationHydrate",
+                LOCATION_HYDRATE_QUERY,
+            ) {
+                LocationTargetEvidence::Unresolved(status) => {
+                    return resolver_http_error_outcome(
+                        status,
+                        "Unable to hydrate location validation target from Shopify.",
+                    );
+                }
+                evidence => Some(evidence),
+            },
+            None => None,
+        };
+        let errors = self.location_deactivate_errors(
+            &source_location,
+            destination_location_id.as_deref(),
+            destination_evidence.as_ref(),
+        );
         let staged = errors.is_empty();
         let location = if staged {
             if let Some(destination_location_id) = destination_location_id.as_deref() {
@@ -1431,6 +1603,7 @@ impl DraftProxy {
         &self,
         source_location: &Value,
         destination_location_id: Option<&str>,
+        destination_evidence: Option<&LocationTargetEvidence>,
     ) -> Vec<Value> {
         let location_id = source_location
             .get("id")
@@ -1440,7 +1613,20 @@ impl DraftProxy {
             Some(destination_id) if destination_id == location_id => vec![user_error(["destinationLocationId"], "Location could not be deactivated because the destination location cannot be set to the location to be deactivated.", Some("DESTINATION_LOCATION_IS_THE_SAME_LOCATION"))],
             Some(destination_id)
                 if destination_id.is_empty()
-                    || self.location_deactivate_destination_is_inactive(destination_id) =>
+                    || matches!(destination_evidence, Some(LocationTargetEvidence::Missing)) =>
+            {
+                vec![user_error(
+                    ["destinationLocationId"],
+                    "destination location not shopify managed",
+                    Some("DESTINATION_LOCATION_NOT_SHOPIFY_MANAGED"),
+                )]
+            }
+            Some(_)
+                if matches!(
+                    destination_evidence,
+                    Some(LocationTargetEvidence::Found(location))
+                        if location.get("isActive").and_then(Value::as_bool) != Some(true)
+                ) =>
             {
                 vec![destination_location_not_found_or_inactive_error()]
             }
@@ -1471,13 +1657,6 @@ impl DraftProxy {
         }
     }
 
-    fn location_deactivate_source_location(&self, location_id: &str) -> Option<Value> {
-        let mut location = self.location_for_read(location_id)?;
-        let has_active_inventory = self.location_effective_has_inventory(location_id, &location);
-        location["hasActiveInventory"] = json!(has_active_inventory);
-        Some(location)
-    }
-
     fn staged_location_record(&self, location_id: &str) -> Value {
         json!({
             "__typename": "Location",
@@ -1497,17 +1676,6 @@ impl DraftProxy {
         })
     }
 
-    fn location_deactivate_destination_is_inactive(&self, destination_id: &str) -> bool {
-        self.location_for_read(destination_id)
-            .and_then(|location| {
-                location
-                    .get("isActive")
-                    .and_then(Value::as_bool)
-                    .map(|is_active| !is_active)
-            })
-            .unwrap_or(true)
-    }
-
     fn has_other_online_order_fulfillment_location(&self, location_id: &str) -> bool {
         self.effective_location_records()
             .into_iter()
@@ -1525,14 +1693,16 @@ impl DraftProxy {
     }
 
     fn location_has_inventory(&self, location_id: &str) -> bool {
-        self.store
-            .staged
-            .inventory_levels
-            .iter()
-            .any(|((_, staged_location_id), quantities)| {
+        self.store.staged.inventory_levels.iter().any(
+            |((inventory_item_id, staged_location_id), quantities)| {
                 staged_location_id == location_id
+                    && self.inventory_level_is_active(&(
+                        inventory_item_id.clone(),
+                        staged_location_id.clone(),
+                    ))
                     && quantities.values().any(|quantity| *quantity > 0)
-            })
+            },
+        )
     }
 
     fn location_effective_has_inventory(&self, location_id: &str, location: &Value) -> bool {
@@ -1554,29 +1724,59 @@ impl DraftProxy {
     ) {
         let source_keys = self
             .store
-            .staged
+            .base
             .inventory_levels
             .keys()
+            .chain(self.store.staged.inventory_levels.keys())
             .filter(|(_, location_id)| location_id == source_location_id)
             .cloned()
-            .collect::<Vec<_>>();
-        for (inventory_item_id, source_location_id) in source_keys {
-            let Some(source_quantities) = self
-                .store
-                .staged
-                .inventory_levels
-                .remove(&(inventory_item_id.clone(), source_location_id))
+            .collect::<BTreeSet<_>>();
+        for source_key in source_keys {
+            let Some(source_quantities) = self.effective_inventory_level(&source_key).cloned()
             else {
                 continue;
             };
+            let inventory_item_id = source_key.0.clone();
+            let destination_key = (
+                inventory_item_id.clone(),
+                destination_location_id.to_string(),
+            );
+            self.stage_inventory_level_for_write(&destination_key);
             let destination_quantities = self
                 .store
                 .staged
                 .inventory_levels
-                .entry((inventory_item_id, destination_location_id.to_string()))
+                .entry(destination_key.clone())
                 .or_default();
             for (name, quantity) in source_quantities {
                 *destination_quantities.entry(name).or_insert(0) += quantity;
+            }
+            self.store
+                .staged
+                .inactive_inventory_levels
+                .insert(source_key.clone());
+            self.store
+                .staged
+                .active_inventory_levels
+                .remove(&source_key);
+            self.store
+                .staged
+                .inactive_inventory_levels
+                .remove(&destination_key);
+            self.store
+                .staged
+                .active_inventory_levels
+                .insert(destination_key.clone());
+            if !self
+                .store
+                .staged
+                .inventory_level_order
+                .contains(&destination_key)
+            {
+                self.store
+                    .staged
+                    .inventory_level_order
+                    .push(destination_key);
             }
         }
     }

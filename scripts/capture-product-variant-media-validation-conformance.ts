@@ -47,6 +47,9 @@ const appendDocument = await readGraphqlDocument(
 const detachDocument = await readGraphqlDocument(
   'config/parity-requests/products/product-variant-media-validation-detach.graphql',
 );
+const variantReadDocument = await readGraphqlDocument(
+  'config/parity-requests/products/product-variant-media-validation-read.graphql',
+);
 
 const productDeleteMutation = `#graphql
   mutation ProductVariantMediaValidationProductDelete($input: ProductDeleteInput!) {
@@ -379,11 +382,25 @@ try {
   });
   assertNoUserErrors(appendBaseReadyMedia, 'productVariantAppendMedia', 'append base ready media success');
 
+  const readAfterAppend = await runStep('read variant after media append', variantReadDocument, {
+    variantId: baseVariantId,
+  });
+
   const appendVariantAlreadyHasMedia = await runStep('append variant already has media', appendDocument, {
     productId: baseProductId,
     variantMedia: [{ variantId: baseVariantId, mediaIds: [baseSecondReadyMediaId] }],
   });
   assertUserErrors(appendVariantAlreadyHasMedia, 'productVariantAppendMedia', 'append variant already has media');
+
+  const detachBaseReadyMedia = await runStep('detach base ready media success', detachDocument, {
+    productId: baseProductId,
+    variantMedia: [{ variantId: baseVariantId, mediaIds: [baseReadyMediaId] }],
+  });
+  assertNoUserErrors(detachBaseReadyMedia, 'productVariantDetachMedia', 'detach base ready media success');
+
+  const readAfterDetach = await runStep('read variant after media detach', variantReadDocument, {
+    variantId: baseVariantId,
+  });
 
   fixturePayload = {
     capturedAt: new Date().toISOString(),
@@ -421,7 +438,10 @@ try {
       appendProcessingMedia,
       detachUnattachedMedia,
       appendBaseReadyMedia,
+      readAfterAppend,
       appendVariantAlreadyHasMedia,
+      detachBaseReadyMedia,
+      readAfterDetach,
     },
     upstreamCalls: [],
     cleanup,

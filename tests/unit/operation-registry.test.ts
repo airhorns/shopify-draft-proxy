@@ -245,8 +245,8 @@ describe('operation registry', () => {
       registeredMutationCount: 438,
       implementedMutationCount: 413,
       implementedMutationRuntimeTestEvidence: {
-        withRuntimeTests: 143,
-        withoutRuntimeTests: 270,
+        withRuntimeTests: 145,
+        withoutRuntimeTests: 268,
       },
       declaredUnimplemented: [
         'companyContactSendWelcomeEmail',

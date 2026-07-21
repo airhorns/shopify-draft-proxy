@@ -2314,6 +2314,47 @@ impl DraftProxy {
             .or_else(|| self.hydrate_order_for_fulfillment_order(fulfillment_order_id, request))
     }
 
+    pub(super) fn hydrate_orders_for_fulfillment_order_merge(
+        &mut self,
+        fulfillment_order_ids: &[String],
+        request: &Request,
+    ) {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return;
+        }
+        let mut seen = BTreeSet::new();
+        let missing_ids = fulfillment_order_ids
+            .iter()
+            .filter(|id| {
+                self.staged_order_id_for_fulfillment_order(id).is_none()
+                    && seen.insert((*id).clone())
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        if missing_ids.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": ORDERS_FULFILLMENT_ORDER_MERGE_HYDRATE_QUERY,
+                "variables": { "ids": missing_ids }
+            }),
+        );
+        if !response_is_success(&response) {
+            return;
+        }
+        for fulfillment_order in response.body["data"]["nodes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|node| node.is_object())
+            .cloned()
+        {
+            self.merge_hydrated_fulfillment_order_into_order(fulfillment_order);
+        }
+    }
+
     pub(super) fn stage_hydrated_order(&mut self, mut order: Value) -> Option<String> {
         normalize_hydrated_order(&mut order);
         let id = order.get("id").and_then(Value::as_str)?.to_string();

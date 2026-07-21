@@ -1,0 +1,48 @@
+{
+  "scenarioId": "fulfillment-order-merge-batch-atomicity",
+  "operationNames": ["fulfillmentOrderMerge"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-atomicity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-batch-atomicity.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/platform.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-batch-atomicity-orders.graphql",
+    "variablesCapturePath": "$.merge.before.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "merge-orders-before-failure",
+        "capturePath": "$.merge.before.response.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "merge-valid-first-invalid-second-rejected",
+        "capturePath": "$.merge.failure.response.payload.data.fulfillmentOrderMerge",
+        "proxyPath": "$.data.fulfillmentOrderMerge",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-merge-batch-atomicity.graphql",
+          "variablesCapturePath": "$.merge.failure.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "merge-orders-unchanged-after-failure",
+        "capturePath": "$.merge.after.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-batch-atomicity-orders.graphql",
+          "variablesCapturePath": "$.merge.after.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL evidence that a valid first fulfillmentOrderMerge input followed by an invalid second input returns fulfillmentOrderMerges: null and leaves both owning orders unchanged. The replay hydrates both orders through the public order query and keeps the supported mutation local."
+}

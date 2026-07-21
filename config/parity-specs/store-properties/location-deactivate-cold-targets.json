@@ -1,0 +1,70 @@
+{
+  "scenarioId": "location-deactivate-cold-targets",
+  "operationNames": ["locationDeactivate", "location"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "user-errors-parity", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-deactivate-cold-targets.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/platform.rs"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-deactivate-cold-targets.graphql",
+    "variablesCapturePath": "$.workflow.activeDestination.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cold-source-active-destination-success",
+        "capturePath": "$.workflow.activeDestination.response.payload.data.locationDeactivate",
+        "proxyPath": "$.data.locationDeactivate"
+      },
+      {
+        "name": "cold-source-read-after-deactivate",
+        "capturePath": "$.workflow.sourceRead.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-deactivate-cold-target-read.graphql",
+          "variablesCapturePath": "$.workflow.sourceRead.variables"
+        }
+      },
+      {
+        "name": "cold-destination-read-after-deactivate",
+        "capturePath": "$.workflow.destinationRead.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-deactivate-cold-target-read.graphql",
+          "variablesCapturePath": "$.workflow.destinationRead.variables"
+        }
+      },
+      {
+        "name": "cold-inactive-destination-error",
+        "capturePath": "$.workflow.inactiveDestination.response.payload.data.locationDeactivate",
+        "proxyPath": "$.data.locationDeactivate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-deactivate-cold-targets.graphql",
+          "variablesCapturePath": "$.workflow.inactiveDestination.variables"
+        }
+      },
+      {
+        "name": "cold-missing-destination-error",
+        "capturePath": "$.workflow.missingDestination.response.payload.data.locationDeactivate",
+        "proxyPath": "$.data.locationDeactivate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-deactivate-cold-targets.graphql",
+          "variablesCapturePath": "$.workflow.missingDestination.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Records Shopify Admin API 2026-04 mutation-first locationDeactivate behavior with independently cold source and destination hydration. Exact query-only cassettes prove active-destination success, staged source/destination readback, and distinct captured inactive versus confirmed-missing destination errors without seeded proxy state."
+}
