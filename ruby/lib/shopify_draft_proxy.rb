@@ -91,7 +91,7 @@ module ShopifyDraftProxy
 
     # Version token for a brand-new proxy: zero log entries, none settled, and
     # the synthetic id counter at its initial value. Mirrors the Rust
-    # `state_version()` format `"<len>:<settled>:<next_synthetic_id>"`, so it is
+    # `state_version()` format `"<len>:<change_counter>:<next_synthetic_id>"`, so it is
     # the baseline to compare a userland dump/restore seed of `nil` against.
     PRISTINE_STATE_VERSION = "0:0:1"
 
@@ -120,8 +120,9 @@ module ShopifyDraftProxy
         log = dump["log"] || dump[:log] || {}
         entries = log["entries"] || log[:entries] || []
         settled = entries.count { |entry| (entry["status"] || entry[:status]) != "staged" }
+        revision = dump["stateRevision"] || dump[:stateRevision] || 0
         next_id = dump["nextSyntheticId"] || dump[:nextSyntheticId] || 1
-        "#{entries.length}:#{settled}:#{next_id}"
+        "#{entries.length}:#{settled + revision}:#{next_id}"
       end
     end
 

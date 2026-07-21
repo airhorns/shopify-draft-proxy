@@ -1657,51 +1657,27 @@ fn run_bulk_operation_query(proxy: &mut DraftProxy, api_version: &str) -> Value 
 
 #[test]
 fn bulk_operation_run_query_allows_five_query_operations_before_2026_04_throttle() {
-    // Each cancel hydrates the requested operation id upstream as a CREATED QUERY, then stages
-    // it as CANCELING, so the non-terminal query count climbs without relying on a cheat.
-    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
-        |request: Request| {
-            let parsed: Value = serde_json::from_str(&request.body).unwrap_or_default();
-            if parsed["operationName"] == json!("BulkProductsCatalogHydrate") {
-                return empty_bulk_products_catalog_hydration_response();
-            }
-            let id = parsed["variables"]["id"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string();
-            bulk_operation_hydrate_response(bulk_operation_test_record(
-                &id,
-                "CREATED",
-                "QUERY",
-                "2026-04-27T20:35:00Z",
-                "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}",
-            ))
-        },
-    );
-    for index in 0..4 {
-        let id = format!("gid://shopify/BulkOperation/990000000000{index}");
-        let operation = cancel_bulk_operation(&mut proxy, &id, "2026-04");
-        assert_eq!(operation["type"], json!("QUERY"));
-        assert_eq!(operation["status"], json!("CANCELING"));
-
+    let mut proxy = snapshot_proxy();
+    let mut operation_ids = Vec::new();
+    for index in 0..5 {
         let allowed = run_bulk_operation_query(&mut proxy, "2026-04");
         assert!(
             allowed["bulkOperation"].is_object(),
-            "2026-04 must allow query run while only {} query operations are non-terminal: {allowed}",
-            index + 1
+            "2026-04 must allow query run while only {index} query operations are non-terminal: {allowed}"
         );
+        assert_eq!(allowed["bulkOperation"]["status"], json!("CREATED"));
         assert_eq!(allowed["userErrors"], json!([]));
+        operation_ids.push(allowed["bulkOperation"]["id"].as_str().unwrap().to_string());
     }
 
-    let fifth_id = "gid://shopify/BulkOperation/9900000000004";
-    cancel_bulk_operation(&mut proxy, fifth_id, "2026-04");
     let throttled = run_bulk_operation_query(&mut proxy, "2026-04");
     assert_eq!(throttled["bulkOperation"], Value::Null);
+    let joined_ids = operation_ids.join(", ");
     assert_eq!(
         throttled["userErrors"],
         json!([{
             "field": null,
-            "message": "A bulk query operation for this app and shop is already in progress: gid://shopify/BulkOperation/9900000000000, gid://shopify/BulkOperation/9900000000001, gid://shopify/BulkOperation/9900000000002, gid://shopify/BulkOperation/9900000000003, gid://shopify/BulkOperation/9900000000004.",
+            "message": format!("A bulk query operation for this app and shop is already in progress: {joined_ids}."),
             "code": "OPERATION_IN_PROGRESS"
         }])
     );
@@ -2872,6 +2848,14 @@ fn bulk_operation_cancel_completed_staged_operation_echoes_terminal_without_muta
         .as_str()
         .unwrap()
         .to_string();
+    let completed = proxy.process_request(json_graphql_request(
+        "query CompleteBeforeCancel($id: ID!) { bulkOperation(id: $id) { id status } }",
+        json!({ "id": id }),
+    ));
+    assert_eq!(
+        completed.body["data"]["bulkOperation"]["status"],
+        json!("COMPLETED")
+    );
 
     let cancel = proxy.process_request(json_graphql_request(
         r#"

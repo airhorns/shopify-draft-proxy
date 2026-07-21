@@ -74,6 +74,7 @@ impl DraftProxy {
             registry: ResolverRegistry::new(default_registry()),
             store: Store::with_default_baseline(),
             next_synthetic_id: 1,
+            state_revision: 0,
             shop_sells_subscriptions: None,
             clock: Arc::new(default_runtime_clock),
             last_mutation_timestamp: None,
@@ -163,8 +164,9 @@ impl DraftProxy {
         // response so embedders (e.g. the Ruby storage adapter) can decide
         // whether to persist without diffing or re-dumping the whole state on
         // reads. The tuple advances on any staged mutation (`log_entries` grows),
-        // on commit (staged entries become `settled`), on reset (all reset to
-        // `0:0:1`), and on restore (fields adopt the dumped values).
+        // poll-driven job transition (`state_revision` grows), commit (staged
+        // entries become settled), reset (all reset to `0:0:1`), and restore
+        // (fields adopt the dumped values).
         response
             .headers
             .insert("x-sdp-state-version".to_string(), self.state_version());
@@ -178,11 +180,11 @@ impl DraftProxy {
             .log_entries
             .iter()
             .filter(|entry| entry.get("status") != Some(&json!("staged")))
-            .count();
+            .count() as u64;
         format!(
             "{}:{}:{}",
             self.log_entries.len(),
-            settled,
+            settled.saturating_add(self.state_revision),
             self.next_synthetic_id
         )
     }
@@ -200,6 +202,7 @@ impl DraftProxy {
                 self.log_entries.clear();
                 self.store.clear_staged();
                 self.next_synthetic_id = 1;
+                self.state_revision = 0;
                 self.shop_sells_subscriptions = None;
                 self.last_mutation_timestamp = None;
                 self.execution_session = ExecutionSession::default();
@@ -887,6 +890,10 @@ impl DraftProxy {
             snapshot["stagedState"]["bulkOperationResults"] =
                 json!(self.store.staged.bulk_operation_results.clone());
         }
+        if !self.store.staged.bulk_query_executions.is_empty() {
+            snapshot["stagedState"]["bulkQueryExecutions"] =
+                json!(self.store.staged.bulk_query_executions.clone());
+        }
         if !self.store.staged.customer_payment_methods.is_empty() {
             snapshot["stagedState"]["customerPaymentMethods"] =
                 json!(self.store.staged.customer_payment_methods.clone());
@@ -1448,7 +1455,8 @@ impl DraftProxy {
             "createdAt": created_at,
             "state": self.state_snapshot(),
             "log": { "entries": self.log_entries },
-            "nextSyntheticId": self.next_synthetic_id
+            "nextSyntheticId": self.next_synthetic_id,
+            "stateRevision": self.state_revision
         }))
     }
 
@@ -1706,6 +1714,20 @@ impl DraftProxy {
                         result
                             .as_str()
                             .map(|result| (id.clone(), result.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.bulk_query_executions = state["stagedState"]
+            .get("bulkQueryExecutions")
+            .and_then(Value::as_object)
+            .map(|executions| {
+                executions
+                    .iter()
+                    .filter_map(|(id, execution)| {
+                        serde_json::from_value(execution.clone())
+                            .ok()
+                            .map(|execution| (id.clone(), execution))
                     })
                     .collect()
             })
@@ -2906,6 +2928,10 @@ impl DraftProxy {
             .cloned()
             .unwrap_or_default();
         self.next_synthetic_id = next_synthetic_id;
+        self.state_revision = dump
+            .get("stateRevision")
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
 
         ok_json(json!({ "ok": true, "message": "state restored" }))
     }

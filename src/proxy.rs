@@ -423,6 +423,20 @@ struct Store {
     shop_policies: ResourceStore<ShopPolicyRecord>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct BulkQueryExecution {
+    query: String,
+    request_path: String,
+    #[serde(default)]
+    after: Option<String>,
+    #[serde(default)]
+    seen_cursors: BTreeSet<String>,
+    #[serde(default)]
+    page_count: usize,
+    #[serde(default)]
+    cancel_requested: bool,
+}
+
 #[derive(Clone, Default)]
 struct BaseState {
     delivery_profiles: OrderedRecords<Value>,
@@ -571,6 +585,7 @@ struct StagedState {
     bulk_operation_staged_uploads: BTreeMap<String, Option<u64>>,
     bulk_operation_staged_upload_bodies: BTreeMap<String, String>,
     bulk_operation_results: BTreeMap<String, String>,
+    bulk_query_executions: BTreeMap<String, BulkQueryExecution>,
     discounts: StagedRecords<Value>,
     discount_code_index: BTreeMap<String, String>,
     discount_redeem_code_bulk_creations: BTreeMap<String, Value>,
@@ -2647,6 +2662,7 @@ struct ExecutionSession {
     node_hydration: Option<RequestNodeHydration>,
     owner_metafield_read_ids: BTreeSet<String>,
     owner_metafield_missing_ids: BTreeSet<String>,
+    bulk_query_execution_advanced: bool,
     entity_cache: RequestEntityCache,
 }
 
@@ -2690,6 +2706,7 @@ pub struct DraftProxy {
     registry: ResolverRegistry,
     store: Store,
     next_synthetic_id: u64,
+    state_revision: u64,
     /// Per-scenario cache of the upstream shop's `shop.features.sellsSubscriptions`
     /// capability. Populated lazily by forwarding a `DraftProxyShopSubscriptionCapability`
     /// probe the first time a discount mutation touches subscription/recurring fields.
