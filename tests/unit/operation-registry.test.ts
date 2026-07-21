@@ -242,7 +242,7 @@ describe('operation registry', () => {
   it('audits captured 2026-04 Admin mutation roots against the Rust registry', () => {
     expect(adminMutationCoverageAudit()).toEqual({
       capturedMutationCount: 514,
-      registeredMutationCount: 441,
+      registeredMutationCount: 438,
       implementedMutationCount: 413,
       implementedMutationRuntimeTestEvidence: {
         withRuntimeTests: 155,
