@@ -4735,3 +4735,29 @@ Practical rule:
 - compute capture/void results from the hydrated transaction and order money
   graph, including the zero-valued VOID transaction, rather than copying a
   plausible amount into the mutation payload
+
+## 112. Return precondition absence needs a bounded identity probe
+
+Admin GraphQL 2026-04 live capture sent `returnCreate` and `returnRequest`
+batches whose first fulfillment line was valid and whose second line ID did not
+exist. Shopify rejected the whole batch with `NOT_FOUND`, the message
+`Fulfillment Line Item was not found.`, and a root-specific path to the second
+`fulfillmentLineItemId`. No partial Return was returned.
+
+A bounded order hydrate cannot establish that error by itself. A requested line
+missing from the first fulfillment slice might exist elsewhere on a large order,
+belong to another order, or not exist globally. Treating all three cases as the
+captured not-found branch would turn incomplete relationship evidence into a
+false validation result.
+
+Practical rule:
+
+- keep query-only order prerequisites in observed/base state, never in the
+  staged mutation overlay
+- batch only the absent requested IDs through an exact `nodes(ids:)` probe; a
+  null node confirms the captured missing-line branch, while an existing node
+  without a proven order relationship remains unresolved
+- validate and plan the entire batch before allocating Return graph identities,
+  reading timestamps, staging records, or appending replay entries
+- discard partial observations on transport, GraphQL, or malformed-response
+  failures so a retry begins from the same mutation state
