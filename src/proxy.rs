@@ -224,6 +224,24 @@ struct SellingPlanGroupRecord {
     product_ids: Vec<String>,
     product_variant_ids: Vec<String>,
     #[serde(default)]
+    products_count: Option<usize>,
+    #[serde(default)]
+    product_variants_count: Option<usize>,
+    #[serde(default)]
+    products_complete: bool,
+    #[serde(default)]
+    product_variants_complete: bool,
+    #[serde(default)]
+    added_product_ids: BTreeSet<String>,
+    #[serde(default)]
+    removed_product_ids: BTreeSet<String>,
+    #[serde(default)]
+    added_product_variant_ids: BTreeSet<String>,
+    #[serde(default)]
+    removed_product_variant_ids: BTreeSet<String>,
+    #[serde(default)]
+    locally_staged: bool,
+    #[serde(default)]
     product_cursors: BTreeMap<String, String>,
     #[serde(default)]
     product_variant_cursors: BTreeMap<String, String>,
@@ -2447,7 +2465,8 @@ impl Store {
             .collect()
     }
 
-    fn stage_selling_plan_group(&mut self, group: SellingPlanGroupRecord) {
+    fn stage_selling_plan_group(&mut self, mut group: SellingPlanGroupRecord) {
+        group.locally_staged = true;
         self.staged.selling_plan_groups_overlay_dirty = true;
         self.staged
             .selling_plan_groups

@@ -242,11 +242,11 @@ describe('operation registry', () => {
   it('audits captured 2026-04 Admin mutation roots against the Rust registry', () => {
     expect(adminMutationCoverageAudit()).toEqual({
       capturedMutationCount: 514,
-      registeredMutationCount: 438,
+      registeredMutationCount: 441,
       implementedMutationCount: 413,
       implementedMutationRuntimeTestEvidence: {
-        withRuntimeTests: 141,
-        withoutRuntimeTests: 272,
+        withRuntimeTests: 152,
+        withoutRuntimeTests: 261,
       },
       declaredUnimplemented: [
         'companyContactSendWelcomeEmail',
