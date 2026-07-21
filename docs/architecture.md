@@ -269,12 +269,14 @@ The runtime should use normalized state rather than raw GraphQL blobs.
 
 `DraftProxy` owns a typed Rust `Store` for runtime resource state. Products, saved searches, and Storefront carts/lines use normalized records with shared effective-read helpers or deterministic order indexes, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary. Order and gift-card LiveHybrid hydration also stores known base records and related baseline/configuration data in `BaseState` so supported local mutations can overlay real upstream reads without runtime Shopify writes.
 
-The normalized product and saved-search portions currently include:
+The normalized product, saved-search, and order portions currently include:
 
 - `BaseState` for snapshot, fixture, or restored upstream state
 - `StagedState` for local inserts and updates
 - ordered ID arrays for deterministic effective lists and dump/restore round trips
 - tombstone sets for staged deletes
+
+Order observations also retain relationship-completeness metadata in base state. Base-backed `orderUpdate` writes are sparse staged overlays rather than copies of hydrated upstream records; effective order reads compose base evidence, a locally owned full record when present, and the sparse overlay in that order. Operation-specific LiveHybrid hydration profiles keep identity and summary work bounded; a broad summary may retain one partial relationship page, while only complete-relationship consumers paginate with cursor-cycle guards. This separation lets a later relationship hydrate add an omitted line-item tail without turning the observation into a staged write or replacing a local scalar edit.
 
 Core state categories:
 

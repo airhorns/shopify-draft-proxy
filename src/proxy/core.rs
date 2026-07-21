@@ -482,6 +482,9 @@ impl DraftProxy {
                 "deliveryPromiseCompleteNodeIds": self.store.base.delivery_promise_complete_node_ids.iter().cloned().collect::<Vec<_>>(),
                 "orders": self.store.base.orders.records.clone(),
                 "orderOrder": self.store.base.orders.order,
+                "orderSummaryCompleteIds": self.store.base.order_summaries_complete.iter().cloned().collect::<Vec<_>>(),
+                "orderBroadSummaryCompleteIds": self.store.base.order_broad_summaries_complete.iter().cloned().collect::<Vec<_>>(),
+                "orderLineItemsCompleteIds": self.store.base.order_line_items_complete.iter().cloned().collect::<Vec<_>>(),
                 "orderCountBaselines": self.store.base.order_count_baselines.clone(),
                 "discounts": self.store.base.discounts.records.clone(),
                 "discountOrder": self.store.base.discounts.order,
@@ -584,6 +587,7 @@ impl DraftProxy {
                 "taggableResources": self.store.staged.taggable_resources.clone(),
                 "abandonments": self.store.staged.abandonments.clone(),
                 "orders": self.store.staged.orders.records.clone(),
+                "orderOverlays": self.store.staged.order_overlays.clone(),
                 "deletedOrderIds": self.store.staged.orders.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "nextDraftOrderId": self.store.staged.next_draft_order_id,
                 "draftOrderTags": self.store.staged.draft_order_tags.clone(),
@@ -1512,6 +1516,24 @@ impl DraftProxy {
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
+        self.store.base.order_line_items_complete = state["baseState"]
+            .get("orderLineItemsCompleteIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.base.order_summaries_complete = state["baseState"]
+            .get("orderSummaryCompleteIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.base.order_broad_summaries_complete = state["baseState"]
+            .get("orderBroadSummaryCompleteIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.base.order_count_baselines =
             value_map_from_json(state["baseState"].get("orderCountBaselines"));
         self.store.base.draft_orders.replace_with_order(
@@ -2364,6 +2386,8 @@ impl DraftProxy {
             None,
             Some("deletedOrderIds"),
         );
+        self.store.staged.order_overlays =
+            value_map_from_json(state["stagedState"].get("orderOverlays"));
         self.store.staged.next_order_id =
             counter_from_json_with_floor(&state["stagedState"], "nextOrderId", 1);
         self.store.staged.next_order_number =

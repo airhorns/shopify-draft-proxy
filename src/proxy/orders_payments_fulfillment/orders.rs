@@ -733,6 +733,75 @@ pub(in crate::proxy) fn order_update_validation_errors(
     errors
 }
 
+fn order_update_staged_overlay(order: &Value, input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let mut overlay = serde_json::Map::new();
+    if let Some(id) = order.get("id") {
+        overlay.insert("id".to_string(), id.clone());
+    }
+    for field in [
+        "note",
+        "tags",
+        "customAttributes",
+        "email",
+        "phone",
+        "poNumber",
+        "shippingAddress",
+    ] {
+        if input.contains_key(field) {
+            overlay.insert(field.to_string(), order[field].clone());
+        }
+    }
+    if input.contains_key("metafields") {
+        overlay.insert("metafield".to_string(), order["metafield"].clone());
+        overlay.insert("metafields".to_string(), order["metafields"].clone());
+    }
+    if input.contains_key("localizedFields") || input.contains_key("localizationExtensions") {
+        overlay.insert(
+            "localizedFields".to_string(),
+            order["localizedFields"].clone(),
+        );
+        overlay.insert(
+            "localizationExtensions".to_string(),
+            order["localizationExtensions"].clone(),
+        );
+    }
+    overlay.insert("updatedAt".to_string(), order["updatedAt"].clone());
+    Value::Object(overlay)
+}
+
+fn order_hydration_profile_for_requested_fields(
+    requested_field_paths: &BTreeSet<Vec<String>>,
+) -> OrderHydrationProfile {
+    if requested_field_paths
+        .iter()
+        .any(|path| path.iter().any(|field| field == "lineItems"))
+    {
+        return OrderHydrationProfile::CompleteLineItems;
+    }
+    const BROAD_SUMMARY_FIELDS: &[&str] = &[
+        "billingAddress",
+        "currencyCode",
+        "presentmentCurrencyCode",
+        "displayFinancialStatus",
+        "displayFulfillmentStatus",
+        "currentTotalPriceSet",
+        "totalPriceSet",
+        "totalTaxSet",
+        "totalDiscountsSet",
+        "discountCodes",
+        "localizedFields",
+        "localizationExtensions",
+    ];
+    if requested_field_paths.iter().any(|path| {
+        path.iter()
+            .any(|field| BROAD_SUMMARY_FIELDS.contains(&field.as_str()))
+    }) {
+        OrderHydrationProfile::BroadSummary
+    } else {
+        OrderHydrationProfile::Summary
+    }
+}
+
 pub(in crate::proxy) fn order_update_metafields(
     order_id: &str,
     input: &BTreeMap<String, ResolvedValue>,
@@ -1717,6 +1786,7 @@ impl DraftProxy {
         request: &Request,
         root_field: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
+        requested_field_paths: &BTreeSet<Vec<String>>,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<ResolverOutcome<Value>> {
@@ -1734,13 +1804,12 @@ impl DraftProxy {
         }
         if matches!(root_field, "order" | "orders" | "ordersCount") {
             let staged_order_read = match root_field {
-                "order" => resolved_string_field(arguments, "id").is_some_and(|id| {
-                    self.store.staged.orders.contains_key(&id)
-                        || self.store.staged.orders.is_tombstoned(&id)
-                }),
+                "order" => resolved_string_field(arguments, "id")
+                    .is_some_and(|id| self.store.order_has_staged_effect(&id)),
                 "orders" | "ordersCount" => {
                     !self.store.staged.orders.is_empty()
                         || !self.store.staged.orders.tombstones.is_empty()
+                        || !self.store.staged.order_overlays.is_empty()
                 }
                 _ => false,
             };
@@ -1751,11 +1820,11 @@ impl DraftProxy {
                 match root_field {
                     "order" => {
                         if let Some(id) = resolved_string_field(arguments, "id") {
-                            if !self.store.staged.orders.contains_key(&id)
-                                && !self.store.staged.orders.is_tombstoned(&id)
-                            {
-                                self.ensure_order_hydrated(request, &id);
-                            }
+                            self.ensure_order_hydrated(
+                                request,
+                                &id,
+                                order_hydration_profile_for_requested_fields(requested_field_paths),
+                            );
                         }
                     }
                     "orders" | "ordersCount" => self.observe_live_hybrid_order_read(request),
@@ -1765,7 +1834,13 @@ impl DraftProxy {
         }
         let value = match root_field {
             "orderCreate" => self.stage_order_create(request, query, variables, arguments),
-            "orderUpdate" => self.stage_order_update(request, query, variables, arguments)?,
+            "orderUpdate" => self.stage_order_update(
+                request,
+                query,
+                variables,
+                arguments,
+                requested_field_paths,
+            )?,
             "orderClose" | "orderOpen" => {
                 self.stage_order_lifecycle(request, query, variables, root_field, arguments)
             }
@@ -1774,7 +1849,7 @@ impl DraftProxy {
                 let order = self
                     .store
                     .observed_order_by_id(&id)
-                    .map(|order| self.payment_terms_owner_record_with_effective_due(order))
+                    .map(|order| self.payment_terms_owner_record_with_effective_due(&order))
                     .unwrap_or(Value::Null);
                 self.order_with_return_status_value(&order)
             }
@@ -1864,12 +1939,24 @@ impl DraftProxy {
                 }
             }
         }
-        for (id, staged_order) in &self.store.staged.orders.records {
-            if self.store.staged.orders.is_tombstoned(id) {
+        let staged_ids = self
+            .store
+            .staged
+            .orders
+            .records
+            .keys()
+            .chain(self.store.staged.order_overlays.keys())
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        for id in staged_ids {
+            if self.store.staged.orders.is_tombstoned(&id) {
                 continue;
             }
-            let staged_matches = order_matches_count_query(staged_order, query.as_deref());
-            if let Some(base_order) = self.store.base.orders.records.get(id) {
+            let Some(staged_order) = self.store.observed_order_by_id(&id) else {
+                continue;
+            };
+            let staged_matches = order_matches_count_query(&staged_order, query.as_deref());
+            if let Some(base_order) = self.store.base.orders.records.get(&id) {
                 let base_matches = order_matches_count_query(base_order, query.as_deref());
                 delta += staged_matches as isize - base_matches as isize;
             } else if staged_matches {
@@ -1885,6 +1972,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         arguments: &BTreeMap<String, ResolvedValue>,
+        requested_field_paths: &BTreeSet<Vec<String>>,
     ) -> Option<Value> {
         let input = resolved_object_field(arguments, "input")?;
         if resolved_string_field(&input, "staffMemberId").is_some() {
@@ -1895,18 +1983,11 @@ impl DraftProxy {
         }
 
         let order_id = resolved_string_field(&input, "id")?;
-        // An update targets an order that already lives in the backend; pull its
-        // current state so the merge applies onto real fields (name, customer,
-        // line items) rather than a synthetic stub. Only hydrate when the order
-        // is not already staged: a record produced by an earlier local mutation
-        // (e.g. a prior orderUpdate accumulating localization entries) is more
-        // current than the backend snapshot and must not be clobbered. On a
-        // cassette miss this is a no-op and we fall through to the
-        // "Order does not exist" guard below.
-        if self.store.observed_order_by_id(&order_id).is_none() {
-            self.ensure_order_hydrated(request, &order_id);
+        if !self.store.staged.orders.contains_key(&order_id) {
+            let profile = order_hydration_profile_for_requested_fields(requested_field_paths);
+            self.ensure_order_hydrated(request, &order_id, profile);
         }
-        let Some(existing_order) = self.store.observed_order_by_id(&order_id).cloned() else {
+        let Some(existing_order) = self.store.observed_order_by_id(&order_id) else {
             return Some(json!({
                 "order": Value::Null,
                 "userErrors": [user_error_omit_code(["id"], "Order does not exist", None)]
@@ -1994,10 +2075,8 @@ impl DraftProxy {
         }
         order["updatedAt"] = json!(order_mutation_timestamp(self.mutation_log_ordinal() as u64));
 
-        self.store
-            .staged
-            .orders
-            .insert(order_id.clone(), order.clone());
+        let overlay = order_update_staged_overlay(&order, &input);
+        self.store.stage_order_overlay(order_id.clone(), overlay);
         for orders in self.store.staged.customer_orders.values_mut() {
             for customer_order in orders {
                 if customer_order["id"].as_str() == Some(order_id.as_str()) {
@@ -2186,7 +2265,7 @@ impl DraftProxy {
             .orders
             .get(id)
             .cloned()
-            .or_else(|| self.store.observed_order_by_id(id).cloned())
+            .or_else(|| self.store.observed_order_by_id(id))
             .or_else(|| self.hydrate_order_lifecycle_order(id, request, root_field))
     }
 
@@ -2294,7 +2373,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn staged_order_record_for_id(&self, order_id: &str) -> Option<Value> {
-        self.store.staged.orders.get(order_id).cloned().or_else(|| {
+        self.store.observed_order_by_id(order_id).or_else(|| {
             self.store
                 .staged
                 .orders
@@ -3614,7 +3693,7 @@ impl DraftProxy {
             && !self.store.staged.orders.is_tombstoned(&order_id)
             && self.store.observed_order_by_id(&order_id).is_none()
         {
-            self.ensure_order_hydrated(request, &order_id);
+            self.ensure_order_hydrated(request, &order_id, OrderHydrationProfile::Identity);
         }
         if self.store.observed_order_by_id(&order_id).is_none() {
             return Some(json!({
@@ -3639,6 +3718,7 @@ impl DraftProxy {
 
     pub(super) fn delete_staged_order(&mut self, order_id: &str) {
         self.store.staged.orders.remove(order_id);
+        self.store.staged.order_overlays.remove(order_id);
         self.store.staged.orders.tombstone(order_id.to_string());
 
         for orders in self.store.staged.customer_orders.values_mut() {

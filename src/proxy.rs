@@ -436,6 +436,9 @@ struct BaseState {
     delivery_promise_participant_previous_cursors: BTreeMap<String, String>,
     delivery_promise_complete_node_ids: BTreeSet<String>,
     orders: OrderedRecords<Value>,
+    order_summaries_complete: BTreeSet<String>,
+    order_broad_summaries_complete: BTreeSet<String>,
+    order_line_items_complete: BTreeSet<String>,
     order_count_baselines: BTreeMap<String, Value>,
     draft_orders: OrderedRecords<Value>,
     draft_order_count_baselines: BTreeMap<String, Value>,
@@ -690,6 +693,7 @@ struct StagedState {
     next_customer_payment_method_id: u64,
     abandonments: BTreeMap<String, Value>,
     orders: StagedRecords<Value>,
+    order_overlays: BTreeMap<String, Value>,
     draft_orders: StagedRecords<Value>,
     returns: BTreeMap<String, Value>,
     returns_by_order: BTreeMap<String, Vec<String>>,
@@ -1508,12 +1512,44 @@ impl Store {
         self.shop_policies.staged.stage(policy.id.clone(), policy);
     }
 
-    fn observed_order_by_id(&self, id: &str) -> Option<&Value> {
-        effective_get(&self.base.orders, &self.staged.orders, id)
+    fn order_has_staged_effect(&self, id: &str) -> bool {
+        self.staged.orders.contains_key(id)
+            || self.staged.orders.is_tombstoned(id)
+            || self.staged.order_overlays.contains_key(id)
+    }
+
+    fn observed_order_by_id(&self, id: &str) -> Option<Value> {
+        if self.staged.orders.is_tombstoned(id) {
+            return None;
+        }
+        let mut order = self
+            .staged
+            .orders
+            .get(id)
+            .or_else(|| self.base.orders.get(id))?
+            .clone();
+        if let Some(overlay) = self.staged.order_overlays.get(id) {
+            merge_json_values(&mut order, overlay);
+        }
+        Some(order)
     }
 
     fn effective_orders(&self) -> Vec<Value> {
-        effective_records(&self.base.orders, &self.staged.orders)
+        let mut records = Vec::new();
+        for id in &self.base.orders.order {
+            if let Some(order) = self.observed_order_by_id(id) {
+                records.push(order);
+            }
+        }
+        for id in &self.staged.orders.order {
+            if self.base.orders.records.contains_key(id) {
+                continue;
+            }
+            if let Some(order) = self.observed_order_by_id(id) {
+                records.push(order);
+            }
+        }
+        records
     }
 
     fn segment_by_id(&self, id: &str) -> Option<&Value> {
@@ -1552,13 +1588,82 @@ impl Store {
     }
 
     fn observe_base_order(&mut self, order: Value) {
+        let line_items_complete = order
+            .pointer("/lineItems/pageInfo")
+            .is_some_and(|page_info| {
+                page_info.get("hasNextPage").and_then(Value::as_bool) == Some(false)
+                    && page_info.get("hasPreviousPage").and_then(Value::as_bool) == Some(false)
+            });
+        self.observe_base_order_with_line_items(order, line_items_complete);
+    }
+
+    fn observe_base_order_with_line_items(&mut self, mut order: Value, line_items_complete: bool) {
         let Some(id) = order.get("id").and_then(Value::as_str).map(str::to_string) else {
             return;
         };
-        if self.staged.orders.is_tombstoned(&id) || self.staged.orders.contains_staged(&id) {
+        if self.staged.orders.is_tombstoned(&id) {
             return;
         }
-        self.base.orders.insert(id, order);
+        let existing_line_items_complete = self.base.order_line_items_complete.contains(&id);
+        if existing_line_items_complete && !line_items_complete {
+            if let Some(object) = order.as_object_mut() {
+                object.remove("lineItems");
+            }
+        }
+        if let Some(existing) = self.base.orders.records.get_mut(&id) {
+            merge_json_values(existing, &order);
+        } else {
+            self.base.orders.insert(id.clone(), order);
+        }
+        if line_items_complete {
+            self.base.order_line_items_complete.insert(id);
+        }
+    }
+
+    fn order_line_items_are_complete(&self, id: &str) -> bool {
+        self.base.order_line_items_complete.contains(id)
+            || (self.base.orders.get(id).is_none()
+                && self
+                    .staged
+                    .orders
+                    .get(id)
+                    .and_then(|order| order.pointer("/lineItems/pageInfo"))
+                    .is_some_and(|page_info| {
+                        page_info.get("hasNextPage").and_then(Value::as_bool) == Some(false)
+                            && page_info.get("hasPreviousPage").and_then(Value::as_bool)
+                                == Some(false)
+                    }))
+    }
+
+    fn order_summary_is_complete(&self, id: &str) -> bool {
+        self.base.order_summaries_complete.contains(id)
+    }
+
+    fn order_broad_summary_is_complete(&self, id: &str) -> bool {
+        self.base.order_broad_summaries_complete.contains(id)
+    }
+
+    fn mark_order_summary_complete(&mut self, id: &str) {
+        self.base.order_summaries_complete.insert(id.to_string());
+    }
+
+    fn mark_order_broad_summary_complete(&mut self, id: &str) {
+        self.base
+            .order_broad_summaries_complete
+            .insert(id.to_string());
+    }
+
+    fn stage_order_overlay(&mut self, id: String, overlay: Value) {
+        if let Some(staged) = self.staged.orders.get_mut(&id) {
+            merge_json_values(staged, &overlay);
+            return;
+        }
+        let target = self
+            .staged
+            .order_overlays
+            .entry(id)
+            .or_insert_with(|| json!({}));
+        merge_json_values(target, &overlay);
     }
 
     fn observe_order_count_baseline(&mut self, key: String, count: Value) {

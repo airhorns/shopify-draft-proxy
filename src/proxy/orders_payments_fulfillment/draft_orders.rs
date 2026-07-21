@@ -1497,7 +1497,11 @@ impl DraftProxy {
             }
             "draftOrderCreateFromOrder" => {
                 if let Some(order_id) = resolved_string_field(arguments, "orderId") {
-                    self.ensure_order_hydrated(request, &order_id);
+                    self.ensure_order_hydrated(
+                        request,
+                        &order_id,
+                        OrderHydrationProfile::CompleteLineItems,
+                    );
                 }
             }
             "draftOrderInvoicePreview" | "draftOrder" => {
@@ -1782,7 +1786,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let order_id = resolved_string_field(arguments, "orderId").unwrap_or_default();
-        let Some(order) = self.store.staged.orders.get(&order_id).cloned() else {
+        let Some(order) = self.store.observed_order_by_id(&order_id) else {
             return json!({
                 "draftOrder": Value::Null,
                 "userErrors": [user_error(["orderId"], "Order does not exist", Some("NOT_FOUND"))]
@@ -2048,20 +2052,95 @@ impl DraftProxy {
         self.store.observe_base_draft_order(draft_order);
     }
 
-    pub(super) fn ensure_order_hydrated(&mut self, request: &Request, id: &str) {
+    pub(super) fn ensure_order_hydrated(
+        &mut self,
+        request: &Request,
+        id: &str,
+        profile: OrderHydrationProfile,
+    ) {
         if self.config.read_mode == ReadMode::Snapshot
             || id.is_empty()
             || self.store.staged.orders.is_tombstoned(id)
         {
             return;
         }
-        // Always attempt a fresh upstream read so the order reflects its live
-        // state at the time of this operation. A precondition seed may hold an
-        // earlier snapshot of the same order (e.g. the total captured the moment
-        // a draft was completed in setup, before the store recalculated
-        // tax/shipping), so the recorded hydrate is authoritative when present.
-        // On a cassette miss / non-2xx response we keep whatever record is
-        // already staged rather than dropping it.
+        match profile {
+            OrderHydrationProfile::Identity if self.store.observed_order_by_id(id).is_some() => {
+                return;
+            }
+            OrderHydrationProfile::Summary if self.store.order_summary_is_complete(id) => return,
+            OrderHydrationProfile::BroadSummary
+                if self.store.order_broad_summary_is_complete(id) =>
+            {
+                return;
+            }
+            OrderHydrationProfile::CompleteLineItems
+                if self.store.order_line_items_are_complete(id) =>
+            {
+                return;
+            }
+            _ => {}
+        }
+        if profile != OrderHydrationProfile::CompleteLineItems {
+            let (query, operation_name) = match profile {
+                OrderHydrationProfile::Identity => {
+                    (ORDER_IDENTITY_HYDRATE_QUERY, "OrdersOrderIdentityHydrate")
+                }
+                OrderHydrationProfile::Summary => (
+                    ORDER_SUMMARY_HYDRATE_QUERY,
+                    "OrderUpdateInputValidationRead",
+                ),
+                OrderHydrationProfile::BroadSummary => (ORDER_HYDRATE_QUERY, "OrdersOrderHydrate"),
+                OrderHydrationProfile::CompleteLineItems => unreachable!(),
+            };
+            let variables = if profile == OrderHydrationProfile::BroadSummary {
+                json!({ "id": id, "lineItemsAfter": Value::Null })
+            } else {
+                json!({ "id": id })
+            };
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": query,
+                    "operationName": operation_name,
+                    "variables": variables
+                }),
+            );
+            if !(200..300).contains(&response.status) {
+                return;
+            }
+            let order = response.body["data"]["order"].clone();
+            if order.is_object() {
+                match profile {
+                    OrderHydrationProfile::Summary => {
+                        self.store.observe_base_order_with_line_items(order, false);
+                        self.store.mark_order_summary_complete(id);
+                    }
+                    OrderHydrationProfile::BroadSummary => {
+                        let line_items_complete =
+                            order
+                                .pointer("/lineItems/pageInfo")
+                                .is_some_and(|page_info| {
+                                    page_info.get("hasNextPage").and_then(Value::as_bool)
+                                        == Some(false)
+                                        && page_info.get("hasPreviousPage").and_then(Value::as_bool)
+                                            == Some(false)
+                                });
+                        self.store
+                            .observe_base_order_with_line_items(order, line_items_complete);
+                        self.store.mark_order_broad_summary_complete(id);
+                    }
+                    OrderHydrationProfile::Identity => {
+                        self.store.observe_base_order_with_line_items(order, false);
+                    }
+                    OrderHydrationProfile::CompleteLineItems => unreachable!(),
+                }
+            }
+            return;
+        }
+
+        // Complete-line-item consumers paginate the relationship with cursor
+        // cycle guards. Summary/identity consumers return above after one call.
         let mut line_items_after: Option<String> = None;
         let mut seen_cursors = BTreeSet::new();
         let mut hydrated_order: Option<Value> = None;
@@ -2121,7 +2200,7 @@ impl DraftProxy {
         order["lineItems"]["pageInfo"] =
             connection_page_info(false, false, first_line_item_cursor, last_line_item_cursor);
         normalize_hydrated_order(&mut order);
-        self.store.staged.orders.insert(id.to_string(), order);
+        self.store.observe_base_order_with_line_items(order, true);
     }
 
     pub(super) fn hydrate_draft_order_customer(

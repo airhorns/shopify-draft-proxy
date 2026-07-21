@@ -7677,7 +7677,7 @@ fn order_update_live_hybrid_hydration_miss_does_not_forward_mutation() {
     );
     let calls = upstream_calls.lock().expect("upstream calls");
     assert_eq!(calls.len(), 1);
-    assert!(calls[0].contains("query OrdersOrderHydrate"));
+    assert!(calls[0].contains("query OrderUpdateInputValidationRead"));
 }
 
 #[test]
@@ -7811,6 +7811,628 @@ fn order_update_live_hybrid_hydrates_all_order_line_item_pages() {
         .unwrap_or_default()
         .contains("pageInfo"));
     assert_eq!(calls[1]["variables"]["lineItemsAfter"], json!("cursor-10"));
+}
+
+#[test]
+fn order_update_live_hybrid_bounds_narrow_hydration_and_preserves_deferred_line_items() {
+    let line_items = (1..=12)
+        .map(|index| {
+            json!({
+                "id": format!("gid://shopify/LineItem/{index}"),
+                "title": format!("Hydrated line {index}"),
+                "name": format!("Hydrated line {index}"),
+                "quantity": 1,
+                "currentQuantity": 1,
+                "sku": format!("HYD-{index:02}"),
+                "variantTitle": Value::Null,
+                "requiresShipping": true,
+                "taxable": true,
+                "customAttributes": [],
+                "originalUnitPriceSet": { "shopMoney": { "amount": "1.00", "currencyCode": "USD" } },
+                "originalTotalSet": { "shopMoney": { "amount": "1.00", "currencyCode": "USD" } },
+                "variant": Value::Null,
+                "taxLines": []
+            })
+        })
+        .collect::<Vec<_>>();
+    let first_page = line_items[..10].to_vec();
+    let second_page = line_items[10..].to_vec();
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.trim_start().starts_with("query"),
+                "orderUpdate hydration must remain query-only: {}",
+                request.body
+            );
+            upstream_calls.lock().expect("upstream calls").push(body.clone());
+
+            if !query.contains("lineItems(") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "order": {
+                                "id": "gid://shopify/Order/1212121212",
+                                "name": "#1212",
+                                "email": "many-lines@example.test",
+                                "note": "before update",
+                                "tags": [],
+                                "customAttributes": [],
+                                "customer": Value::Null,
+                                "billingAddress": Value::Null,
+                                "shippingAddress": Value::Null,
+                                "currencyCode": "USD",
+                                "presentmentCurrencyCode": "USD",
+                                "displayFinancialStatus": "PAID",
+                                "displayFulfillmentStatus": "UNFULFILLED",
+                                "currentTotalPriceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } },
+                                "totalPriceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } },
+                                "totalTaxSet": { "shopMoney": { "amount": "0.00", "currencyCode": "USD" } },
+                                "totalDiscountsSet": { "shopMoney": { "amount": "0.00", "currencyCode": "USD" } },
+                                "discountCodes": []
+                            }
+                        }
+                    }),
+                };
+            }
+
+            assert_eq!(body["operationName"], json!("OrdersOrderHydrate"));
+            let after = body["variables"]["lineItemsAfter"].as_str();
+            let (nodes, has_next_page, end_cursor) = if after == Some("cursor-10") {
+                (second_page.clone(), false, "cursor-12")
+            } else {
+                (first_page.clone(), true, "cursor-10")
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "order": {
+                            "id": "gid://shopify/Order/1212121212",
+                            "name": "#1212",
+                            "email": "many-lines@example.test",
+                            "note": "before update",
+                            "tags": [],
+                            "customAttributes": [],
+                            "customer": Value::Null,
+                            "billingAddress": Value::Null,
+                            "shippingAddress": Value::Null,
+                            "currencyCode": "USD",
+                            "presentmentCurrencyCode": "USD",
+                            "displayFinancialStatus": "PAID",
+                            "displayFulfillmentStatus": "UNFULFILLED",
+                            "currentTotalPriceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } },
+                            "totalPriceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } },
+                            "totalTaxSet": { "shopMoney": { "amount": "0.00", "currencyCode": "USD" } },
+                            "totalDiscountsSet": { "shopMoney": { "amount": "0.00", "currencyCode": "USD" } },
+                            "discountCodes": [],
+                            "lineItems": {
+                                "nodes": nodes,
+                                "pageInfo": {
+                                    "hasNextPage": has_next_page,
+                                    "hasPreviousPage": false,
+                                    "startCursor": "cursor-1",
+                                    "endCursor": end_cursor
+                                }
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateManyLineOrderNarrowly($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { id note }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Order/1212121212",
+                "note": "after unrelated update"
+            }
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["orderUpdate"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["orderUpdate"]["order"],
+        json!({
+            "id": "gid://shopify/Order/1212121212",
+            "note": "after unrelated update"
+        })
+    );
+    {
+        let calls = upstream_calls.lock().expect("upstream calls");
+        assert_eq!(calls.len(), 1, "narrow update must use one bounded hydrate");
+        assert_eq!(
+            calls[0]["operationName"],
+            json!("OrderUpdateInputValidationRead")
+        );
+        assert!(!calls[0]["query"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("lineItems("));
+    }
+
+    let dump_after_update = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump_after_update.status, 200);
+    assert!(dump_after_update.body["state"]["baseState"]["orders"]
+        ["gid://shopify/Order/1212121212"]
+        .is_object());
+    assert!(dump_after_update.body["state"]["stagedState"]["orders"]
+        .as_object()
+        .is_some_and(|orders| orders.is_empty()));
+    assert_eq!(
+        dump_after_update.body["state"]["stagedState"]["orderOverlays"]
+            ["gid://shopify/Order/1212121212"]["note"],
+        json!("after unrelated update")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadManyLineOrderAfterNarrowUpdate($id: ID!) {
+          order(id: $id) {
+            id
+            note
+            lineItems(first: 20) {
+              nodes { id title quantity }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Order/1212121212" }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["order"]["note"],
+        json!("after unrelated update")
+    );
+    let read_lines = read.body["data"]["order"]["lineItems"]["nodes"]
+        .as_array()
+        .expect("deferred line item nodes");
+    assert_eq!(read_lines.len(), 12);
+    assert_eq!(read_lines[11]["title"], json!("Hydrated line 12"));
+
+    {
+        let calls = upstream_calls.lock().expect("upstream calls");
+        assert_eq!(calls.len(), 3);
+        assert_eq!(calls[1]["operationName"], json!("OrdersOrderHydrate"));
+        assert_eq!(calls[2]["variables"]["lineItemsAfter"], json!("cursor-10"));
+    }
+
+    let complete_dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(complete_dump.status, 200);
+    assert_eq!(
+        complete_dump.body["state"]["baseState"]["orderLineItemsCompleteIds"],
+        json!(["gid://shopify/Order/1212121212"])
+    );
+
+    let mut restored = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(|_| panic!("restored complete order should remain local"));
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &complete_dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let restored_read = restored.process_request(json_graphql_request(
+        r#"
+        query ReadRestoredManyLineOrder($id: ID!) {
+          order(id: $id) {
+            id
+            note
+            lineItems(first: 20) { nodes { id title quantity } }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Order/1212121212" }),
+    ));
+    assert_eq!(restored_read.status, 200);
+    assert_eq!(
+        restored_read.body["data"]["order"]["note"],
+        json!("after unrelated update")
+    );
+    assert_eq!(
+        restored_read.body["data"]["order"]["lineItems"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(12)
+    );
+}
+
+#[test]
+fn order_update_live_hybrid_bounds_unrelated_relationship_hydration_to_one_page() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("order hydrate body");
+            upstream_calls
+                .lock()
+                .expect("upstream calls")
+                .push(body.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "order": {
+                            "id": "gid://shopify/Order/565656",
+                            "name": "#5656",
+                            "lineItems": {
+                                "nodes": (1..=10).map(|index| json!({
+                                    "id": format!("gid://shopify/LineItem/{index}"),
+                                    "title": format!("Observed line {index}"),
+                                    "quantity": 1
+                                })).collect::<Vec<_>>(),
+                                "pageInfo": {
+                                    "hasNextPage": true,
+                                    "hasPreviousPage": false,
+                                    "startCursor": "cursor-1",
+                                    "endCursor": "cursor-10"
+                                }
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateOrderLocalizationWithoutScanningLines($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order {
+              id
+              localizedFields(first: 5) { nodes { key value } }
+              localizationExtensions(first: 5) { nodes { key value } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Order/565656",
+                "localizedFields": [{ "key": "TAX_CREDENTIAL_BR", "value": "52998224725" }]
+            }
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["orderUpdate"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["orderUpdate"]["order"]["localizedFields"]["nodes"],
+        json!([{ "key": "TAX_CREDENTIAL_BR", "value": "52998224725" }])
+    );
+    {
+        let calls = upstream_calls.lock().expect("upstream calls");
+        assert_eq!(
+            calls.len(),
+            1,
+            "unrelated update must not follow line cursors"
+        );
+        assert_eq!(calls[0]["operationName"], json!("OrdersOrderHydrate"));
+        assert_eq!(calls[0]["variables"]["lineItemsAfter"], Value::Null);
+    }
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["baseState"]["orderBroadSummaryCompleteIds"],
+        json!(["gid://shopify/Order/565656"])
+    );
+    assert_eq!(
+        dump.body["state"]["baseState"]["orderLineItemsCompleteIds"],
+        json!([])
+    );
+
+    let mut restored = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(|_| panic!("restored broad summary should remain reusable"));
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let second_update = restored.process_request(json_graphql_request(
+        r#"
+        mutation UpdateRestoredOrderLocalization($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { localizedFields(first: 5) { nodes { key value } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Order/565656",
+                "localizedFields": [{ "key": "SHIPPING_CREDENTIAL_BR", "value": "52998224725" }]
+            }
+        }),
+    ));
+    assert_eq!(second_update.status, 200);
+    assert_eq!(
+        second_update.body["data"]["orderUpdate"]["order"]["localizedFields"]["nodes"],
+        json!([
+            { "key": "TAX_CREDENTIAL_BR", "value": "52998224725" },
+            { "key": "SHIPPING_CREDENTIAL_BR", "value": "52998224725" }
+        ])
+    );
+}
+
+#[test]
+fn draft_order_create_from_order_live_hybrid_hydrates_every_line_item_page() {
+    let line_items = (1..=12)
+        .map(|index| {
+            json!({
+                "id": format!("gid://shopify/LineItem/{index}"),
+                "title": format!("Source line {index}"),
+                "name": format!("Source line {index}"),
+                "quantity": 1,
+                "currentQuantity": 1,
+                "sku": format!("SOURCE-{index:02}"),
+                "variantTitle": Value::Null,
+                "requiresShipping": true,
+                "taxable": true,
+                "customAttributes": [],
+                "originalUnitPriceSet": { "shopMoney": { "amount": "1.00", "currencyCode": "USD" } },
+                "originalTotalSet": { "shopMoney": { "amount": "1.00", "currencyCode": "USD" } },
+                "variant": Value::Null,
+                "taxLines": []
+            })
+        })
+        .collect::<Vec<_>>();
+    let first_page = line_items[..10].to_vec();
+    let second_page = line_items[10..].to_vec();
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("order hydrate body");
+            let after = body["variables"]["lineItemsAfter"].as_str();
+            let (nodes, has_next_page, start_cursor, end_cursor) =
+                if after == Some("cursor-10") {
+                    (second_page.clone(), false, "cursor-11", "cursor-12")
+                } else {
+                    (first_page.clone(), true, "cursor-1", "cursor-10")
+                };
+            upstream_calls.lock().expect("upstream calls").push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "order": {
+                            "id": "gid://shopify/Order/343434",
+                            "name": "#3434",
+                            "email": "source-order@example.test",
+                            "note": "source order",
+                            "tags": ["source-order"],
+                            "customAttributes": [],
+                            "customer": Value::Null,
+                            "billingAddress": Value::Null,
+                            "shippingAddress": Value::Null,
+                            "currencyCode": "USD",
+                            "presentmentCurrencyCode": "USD",
+                            "displayFinancialStatus": "PAID",
+                            "displayFulfillmentStatus": "UNFULFILLED",
+                            "currentTotalPriceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } },
+                            "totalPriceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } },
+                            "totalTaxSet": { "shopMoney": { "amount": "0.00", "currencyCode": "USD" } },
+                            "totalDiscountsSet": { "shopMoney": { "amount": "0.00", "currencyCode": "USD" } },
+                            "discountCodes": [],
+                            "lineItems": {
+                                "nodes": nodes,
+                                "pageInfo": {
+                                    "hasNextPage": has_next_page,
+                                    "hasPreviousPage": false,
+                                    "startCursor": start_cursor,
+                                    "endCursor": end_cursor
+                                }
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftFromLargeOrder($orderId: ID!) {
+          draftOrderCreateFromOrder(orderId: $orderId) {
+            draftOrder {
+              id
+              lineItems(first: 20) { nodes { title quantity sku } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "orderId": "gid://shopify/Order/343434" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["draftOrderCreateFromOrder"]["userErrors"],
+        json!([])
+    );
+    let draft_lines = response.body["data"]["draftOrderCreateFromOrder"]["draftOrder"]["lineItems"]
+        ["nodes"]
+        .as_array()
+        .expect("draft line items");
+    assert_eq!(draft_lines.len(), 12);
+    assert_eq!(draft_lines[11]["title"], json!("Source line 12"));
+
+    let calls = upstream_calls.lock().expect("upstream calls");
+    assert_eq!(calls.len(), 2);
+    assert!(calls
+        .iter()
+        .all(|call| call["operationName"] == json!("OrdersOrderHydrate")));
+    assert_eq!(calls[1]["variables"]["lineItemsAfter"], json!("cursor-10"));
+}
+
+#[test]
+fn rejected_order_update_is_atomic_during_bounded_live_hybrid_hydration() {
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |_| {
+            upstream_calls.fetch_add(1, Ordering::SeqCst);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "order": {
+                            "id": "gid://shopify/Order/515151",
+                            "name": "#5151",
+                            "phone": Value::Null,
+                            "lineItems": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false }
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+    let before = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+
+    let rejected = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RejectMalformedPhoneBeforeHydration($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { id phone }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Order/515151",
+                "phone": "not-a-phone"
+            }
+        }),
+    ));
+
+    assert_eq!(rejected.status, 200);
+    assert_eq!(
+        rejected.body["data"]["orderUpdate"]["userErrors"],
+        json!([{ "field": ["phone"], "message": "Phone is invalid" }])
+    );
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 1);
+
+    let after = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(
+        after.body["state"]["stagedState"],
+        before.body["state"]["stagedState"]
+    );
+    assert_eq!(after.body["log"], before.body["log"]);
+    assert_eq!(
+        after.body["nextSyntheticId"],
+        before.body["nextSyntheticId"]
+    );
+}
+
+#[test]
+fn order_delete_live_hybrid_uses_identity_only_hydration() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body");
+            upstream_calls
+                .lock()
+                .expect("upstream calls")
+                .push(body.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "order": { "id": "gid://shopify/Order/919191" }
+                    }
+                }),
+            }
+        }
+    });
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteLargeOrderWithoutLoadingItsLines($orderId: ID!) {
+          orderDelete(orderId: $orderId) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "orderId": "gid://shopify/Order/919191" }),
+    ));
+
+    assert_eq!(deleted.status, 200);
+    assert_eq!(
+        deleted.body["data"]["orderDelete"],
+        json!({
+            "deletedId": "gid://shopify/Order/919191",
+            "userErrors": []
+        })
+    );
+    let calls = upstream_calls.lock().expect("upstream calls");
+    assert_eq!(calls.len(), 1);
+    assert_eq!(
+        calls[0]["operationName"],
+        json!("OrdersOrderIdentityHydrate")
+    );
+    assert!(!calls[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("lineItems("));
 }
 
 #[test]
