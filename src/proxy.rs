@@ -436,6 +436,7 @@ struct BaseState {
     delivery_promise_participant_previous_cursors: BTreeMap<String, String>,
     delivery_promise_complete_node_ids: BTreeSet<String>,
     orders: OrderedRecords<Value>,
+    return_precondition_hydrated_order_ids: BTreeSet<String>,
     order_count_baselines: BTreeMap<String, Value>,
     draft_orders: OrderedRecords<Value>,
     draft_order_count_baselines: BTreeMap<String, Value>,

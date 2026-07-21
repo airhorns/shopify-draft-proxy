@@ -15,6 +15,43 @@ const PAYMENT_CUSTOMIZATION_HYDRATE_CATALOG_QUERY: &str = include_str!(
 const FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE: &str =
     "Setting final capture is not supported for this transaction's payment gateway. Please remove the parameter or set it to null, then try again.";
 
+pub(in crate::proxy) enum ReturnOrderHydration {
+    Resolved(Value),
+    ConfirmedMissing,
+    Unresolved(u16),
+}
+
+fn return_hydration_response_succeeded(response: &Response) -> bool {
+    response_is_success(response)
+        && response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_none_or(Vec::is_empty)
+}
+
+fn return_hydration_failure_status(response: &Response) -> u16 {
+    if (200..300).contains(&response.status) {
+        502
+    } else {
+        response.status
+    }
+}
+
+fn return_order_has_fulfillment_line_item(order: &Value, id: &str) -> bool {
+    order["fulfillments"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .flat_map(|fulfillment| {
+            fulfillment["fulfillmentLineItems"]["nodes"]
+                .as_array()
+                .into_iter()
+                .flatten()
+        })
+        .any(|line| line["id"].as_str() == Some(id))
+}
+
 pub(in crate::proxy) fn order_currency(order: &Value, shop_currency_code: &str) -> String {
     [
         &order["totalPriceSet"],
@@ -1200,20 +1237,48 @@ impl DraftProxy {
         }
     }
 
-    /// Hydrate the order a `returnCreate` / `returnRequest` runs against when it
-    /// was not created locally in this scenario. Forwards
-    /// `RETURN_ORDER_HYDRATE_QUERY` verbatim on a cold miss and observes the
-    /// order graph (fulfillment line items + any outstanding returns) into staged
-    /// state so the return engine validates against real store state rather than a
-    /// precondition seed. No-op when the order is already staged or reads are
-    /// snapshot-only.
-    pub(in crate::proxy) fn hydrate_order_for_return(&mut self, request: &Request, order_id: &str) {
-        if order_id.is_empty()
-            || self.staged_order_record_for_id(order_id).is_some()
-            || self.config.read_mode == ReadMode::Snapshot
-        {
-            return;
+    /// Resolve the bounded order evidence needed by `returnCreate` and
+    /// `returnRequest`. Successful query-only observations belong to base state,
+    /// never the staged write overlay. When a requested fulfillment line is not
+    /// in the bounded order slice, one batched Node query distinguishes a
+    /// globally confirmed miss from an existing line whose order relationship
+    /// remains unresolved.
+    pub(in crate::proxy) fn hydrate_order_for_return(
+        &mut self,
+        request: &Request,
+        order_id: &str,
+        requested_fulfillment_line_item_ids: &BTreeSet<String>,
+    ) -> ReturnOrderHydration {
+        if order_id.is_empty() {
+            return ReturnOrderHydration::ConfirmedMissing;
         }
+        if let Some(order) = self.staged_order_record_for_id(order_id) {
+            return ReturnOrderHydration::Resolved(order);
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return self
+                .store
+                .observed_order_by_id(order_id)
+                .cloned()
+                .map(ReturnOrderHydration::Resolved)
+                .unwrap_or(ReturnOrderHydration::ConfirmedMissing);
+        }
+        if self
+            .store
+            .base
+            .return_precondition_hydrated_order_ids
+            .contains(order_id)
+        {
+            if let Some(order) = self.store.observed_order_by_id(order_id).cloned() {
+                let all_requested_lines_observed = requested_fulfillment_line_item_ids
+                    .iter()
+                    .all(|id| return_order_has_fulfillment_line_item(&order, id));
+                if all_requested_lines_observed {
+                    return ReturnOrderHydration::Resolved(order);
+                }
+            }
+        }
+
         let response = self.upstream_post(
             request,
             json!({
@@ -1222,10 +1287,71 @@ impl DraftProxy {
                 "variables": { "id": order_id }
             }),
         );
-        let order = response.body["data"]["order"].clone();
-        if order.is_object() {
-            self.store.staged.orders.insert(order_id.to_string(), order);
+        if !return_hydration_response_succeeded(&response) {
+            return ReturnOrderHydration::Unresolved(return_hydration_failure_status(&response));
         }
+        let Some(order_value) = response.body.pointer("/data/order") else {
+            return ReturnOrderHydration::Unresolved(502);
+        };
+        if order_value.is_null() {
+            return ReturnOrderHydration::ConfirmedMissing;
+        }
+        if !order_value.is_object() {
+            return ReturnOrderHydration::Unresolved(502);
+        }
+        let mut order = order_value.clone();
+        normalize_hydrated_order(&mut order);
+
+        let missing_ids = requested_fulfillment_line_item_ids
+            .iter()
+            .filter(|id| !return_order_has_fulfillment_line_item(&order, id))
+            .cloned()
+            .collect::<Vec<_>>();
+        if !missing_ids.is_empty() {
+            let line_response = self.upstream_post(
+                request,
+                json!({
+                    "query": RETURN_FULFILLMENT_LINE_ITEMS_HYDRATE_QUERY,
+                    "operationName": "OrdersReturnFulfillmentLineItemsHydrate",
+                    "variables": { "ids": missing_ids.clone() }
+                }),
+            );
+            if !return_hydration_response_succeeded(&line_response) {
+                return ReturnOrderHydration::Unresolved(return_hydration_failure_status(
+                    &line_response,
+                ));
+            }
+            let Some(nodes) = line_response
+                .body
+                .pointer("/data/nodes")
+                .and_then(Value::as_array)
+            else {
+                return ReturnOrderHydration::Unresolved(502);
+            };
+            if nodes.len() != missing_ids.len() {
+                return ReturnOrderHydration::Unresolved(502);
+            }
+            for (node, expected_id) in nodes.iter().zip(&missing_ids) {
+                if node.is_null() {
+                    continue;
+                }
+                if node.get("__typename").and_then(Value::as_str) != Some("FulfillmentLineItem")
+                    || node.get("id").and_then(Value::as_str) != Some(expected_id)
+                {
+                    return ReturnOrderHydration::Unresolved(502);
+                }
+                // The requested line exists globally but the bounded order
+                // slice did not prove that it belongs to this order.
+                return ReturnOrderHydration::Unresolved(502);
+            }
+        }
+
+        self.store.observe_base_order(order.clone());
+        self.store
+            .base
+            .return_precondition_hydrated_order_ids
+            .insert(order_id.to_string());
+        ReturnOrderHydration::Resolved(order)
     }
 
     pub(crate) fn payment_transaction_mutation_root(

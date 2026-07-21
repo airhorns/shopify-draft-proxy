@@ -269,6 +269,7 @@ const returnRequestMutation = await readRequest('return-request-quantity-cap.gra
 const returnCreateMutation = await readRequest('return-create-quantity-validation.graphql');
 const removeFromReturnMutation = await readRequest('remove-from-return-quantity-validation.graphql');
 const returnOrderHydrateQuery = await readRequest('return-order-hydrate.graphql');
+const returnFulfillmentLineItemsHydrateQuery = await readRequest('return-fulfillment-line-items-hydrate.graphql');
 
 const stamp = new Date()
   .toISOString()
@@ -323,6 +324,24 @@ function returnInput(seed: ReturnQuantitySeed, quantity: number): JsonRecord {
       {
         fulfillmentLineItemId: seed.fulfillmentLineItemId,
         quantity,
+        returnReason: 'UNWANTED',
+      },
+    ],
+  };
+}
+
+function mixedReturnInput(seed: ReturnQuantitySeed, missingFulfillmentLineItemId: string): JsonRecord {
+  return {
+    orderId: seed.orderId,
+    returnLineItems: [
+      {
+        fulfillmentLineItemId: seed.fulfillmentLineItemId,
+        quantity: 1,
+        returnReason: 'UNWANTED',
+      },
+      {
+        fulfillmentLineItemId: missingFulfillmentLineItemId,
+        quantity: 1,
         returnReason: 'UNWANTED',
       },
     ],
@@ -460,6 +479,27 @@ async function seedPair(): Promise<{
 
 const { quantityCap, removal, freshCreateBlocked } = await seedPair();
 
+const missingFulfillmentLineItemId = 'gid://shopify/FulfillmentLineItem/999999999999999';
+const missingFulfillmentLineItemHydrate = await runGraphqlRequest<JsonRecord>(returnFulfillmentLineItemsHydrateQuery, {
+  ids: [missingFulfillmentLineItemId],
+});
+requireNoTopLevelErrors(missingFulfillmentLineItemHydrate, 'missing fulfillment line item hydrate');
+const missingHydrateNodes = readArray(readRecord(missingFulfillmentLineItemHydrate.payload['data'])?.['nodes']);
+if (missingHydrateNodes.length !== 1 || missingHydrateNodes[0] !== null) {
+  throw new Error(
+    `Expected the missing fulfillment line item probe to return one null node: ${JSON.stringify(missingFulfillmentLineItemHydrate.payload)}`,
+  );
+}
+
+const returnRequestMixedValidMissing = await capture(returnRequestMutation, {
+  input: mixedReturnInput(quantityCap, missingFulfillmentLineItemId),
+});
+requireUserErrors(returnRequestMixedValidMissing, 'returnRequest');
+const returnCreateMixedValidMissing = await capture(returnCreateMutation, {
+  returnInput: mixedReturnInput(quantityCap, missingFulfillmentLineItemId),
+});
+requireUserErrors(returnCreateMixedValidMissing, 'returnCreate');
+
 const existingReturnCreate = await capture(returnCreateMutation, {
   returnInput: returnInput(quantityCap, 1),
 });
@@ -537,7 +577,17 @@ await writeJson(fixturePath, {
     variables: returnCreateForRemoval.variables,
     response: returnCreateForRemoval.response.payload,
   },
+  returnRequestMixedValidMissing: {
+    variables: returnRequestMixedValidMissing.variables,
+    response: returnRequestMixedValidMissing.response.payload,
+  },
+  returnCreateMixedValidMissing: {
+    variables: returnCreateMixedValidMissing.variables,
+    response: returnCreateMixedValidMissing.response.payload,
+  },
   expected: {
+    returnRequestMixedValidMissing: returnRequestMixedValidMissing.response.payload,
+    returnCreateMixedValidMissing: returnCreateMixedValidMissing.response.payload,
     returnRequestQuantityCap: returnRequestQuantityCap.response.payload,
     returnCreateQuantityCap: returnCreateQuantityCap.response.payload,
     removeFromReturnOverQuantity: removeFromReturnOverQuantity.response.payload,
@@ -552,6 +602,15 @@ await writeJson(fixturePath, {
       response: {
         status: quantityCapHydrateAfterExistingReturn.status,
         body: quantityCapHydrateAfterExistingReturn.payload,
+      },
+    },
+    {
+      operationName: 'OrdersReturnFulfillmentLineItemsHydrate',
+      variables: { ids: [missingFulfillmentLineItemId] },
+      query: returnFulfillmentLineItemsHydrateQuery,
+      response: {
+        status: missingFulfillmentLineItemHydrate.status,
+        body: missingFulfillmentLineItemHydrate.payload,
       },
     },
     {

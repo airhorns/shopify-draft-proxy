@@ -922,6 +922,9 @@ const ORDER_EDIT_HYDRATE_QUERY: &str =
 // forward under the strict cassette matcher.
 const RETURN_ORDER_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/orders/return-order-hydrate.graphql");
+const RETURN_FULFILLMENT_LINE_ITEMS_HYDRATE_QUERY: &str = include_str!(
+    "../../config/parity-requests/orders/return-fulfillment-line-items-hydrate.graphql"
+);
 const ORDER_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/orders/order-hydrate-pageable.graphql");
 // These hydrate queries are forwarded verbatim to the backend; their exact text

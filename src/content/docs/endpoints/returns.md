@@ -31,7 +31,7 @@ Local staged mutations:
 - `removeFromReturn`
 - `returnProcess`
 
-### Behavior notes
+### Local behavior
 
 - `return(id:)` resolves staged return records and returns `null` for missing IDs in snapshot mode. Nested
   `Order.returns` reads are derived from the same staged return records through the order-to-return index, so top-level
@@ -67,6 +67,16 @@ Local staged mutations:
   cap as `returnCreate`. Public `notifyCustomer` input is accepted, but the public Admin schema does not expose the
   non-public `tmp_notify_customer` payload; variable-bound requests that include it fail with top-level
   `INVALID_VARIABLE` before local staging. The proxy does not send notification side effects.
+- `returnCreate` and `returnRequest` validate the complete line batch and build an allocation-free plan before creating
+  Return or ReturnLineItem IDs, reading the local clock, staging return/reverse-fulfillment records, or appending commit
+  replay entries. A rejected batch therefore leaves staged state, synthetic identity allocation, timestamps, and the
+  commit log unchanged; a successful retry observes the same identities and timestamps as a clean first attempt.
+- Cold live-hybrid return mutations resolve their order prerequisites with a bounded order query stored as observed base
+  evidence rather than as a staged write. If one or more requested fulfillment lines are outside that bounded order
+  slice, the proxy sends one batched `nodes(ids:)` query for only those line IDs. Authoritative `null` nodes produce the
+  captured root-specific `NOT_FOUND` line errors. Existing nodes whose relationship to the requested order is not proven,
+  transport failures, GraphQL errors, and malformed responses remain unresolved and abort without caching partial
+  evidence or changing mutation state. Snapshot mode never hydrates upstream.
 - `returnCreate` / `returnRequest` validate return-line reasons before order hydration, return staging, or mutation-log
   append. Public 2026-04 capture shows root-specific missing-reason shapes: `returnCreate` returns `NOT_FOUND` on
   `["returnInput", "returnLineItems", "0"]`, while `returnRequest` returns `BLANK` on
@@ -165,7 +175,7 @@ Local staged mutations:
   variable coercion on this Admin API version, so those hidden/internal fields are backed by local runtime tests rather
   than public success-path parity.
 
-### Unsupported, registry-only, and validation-only coverage
+### Boundaries
 
 - The singular `returnableFulfillment` root remains registry-only/unsupported.
 - Broader `returnCalculate` fidelity for exchange lines, return shipping fee calculations, discounts, and error behavior

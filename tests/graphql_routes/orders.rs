@@ -3525,6 +3525,364 @@ fn assert_no_return_validation_side_effects(proxy: &DraftProxy) {
     assert_eq!(log_snapshot(proxy)["entries"], json!([]));
 }
 
+fn return_quantity_validation_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-quantity-validation.json"
+    ))
+    .unwrap()
+}
+
+fn return_atomicity_hydrate_body() -> (Value, Value, String, String) {
+    let fixture = return_quantity_validation_fixture();
+    let mut body = fixture["upstreamCalls"][0]["response"]["body"].clone();
+    let line_item_body = fixture["upstreamCalls"][1]["response"]["body"].clone();
+    let order = &mut body["data"]["order"];
+    let order_id = order["id"].as_str().unwrap().to_string();
+    let fulfillment_line_item_id = order["fulfillments"][0]["fulfillmentLineItems"]["nodes"][0]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    order
+        .as_object_mut()
+        .expect("hydrated order should be an object")
+        .remove("updatedAt");
+    (body, line_item_body, order_id, fulfillment_line_item_id)
+}
+
+fn return_atomicity_proxy(
+    order_body: Value,
+    line_item_body: Value,
+    upstream_calls: Arc<AtomicUsize>,
+) -> DraftProxy {
+    configured_proxy(ReadMode::LiveHybrid, None)
+        .with_clock(|| utc_time(1_704_067_200))
+        .with_upstream_transport(move |request| {
+            upstream_calls.fetch_add(1, Ordering::SeqCst);
+            let request_body: Value = serde_json::from_str(&request.body).unwrap();
+            let body = match request_body["operationName"].as_str() {
+                Some("OrdersReturnOrderHydrate") => order_body.clone(),
+                Some("OrdersReturnFulfillmentLineItemsHydrate") => line_item_body.clone(),
+                operation_name => panic!("unexpected return hydrate operation {operation_name:?}"),
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body,
+            }
+        })
+}
+
+fn return_atomicity_request(
+    root: &str,
+    order_id: &str,
+    fulfillment_line_item_id: &str,
+    include_invalid_line: bool,
+) -> Request {
+    let mut return_line_items = vec![json!({
+        "fulfillmentLineItemId": fulfillment_line_item_id,
+        "quantity": 1,
+        "returnReason": "UNWANTED"
+    })];
+    if include_invalid_line {
+        return_line_items.push(json!({
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/999999999999999",
+            "quantity": 1,
+            "returnReason": "UNWANTED"
+        }));
+    }
+    let input = json!({
+        "orderId": order_id,
+        "returnLineItems": return_line_items
+    });
+    match root {
+        "returnCreate" => json_graphql_request(
+            r#"
+            mutation AtomicReturnCreate($returnInput: ReturnInput!) {
+              returnCreate(returnInput: $returnInput) {
+                return {
+                  id
+                  status
+                  order { id updatedAt }
+                  returnLineItems(first: 5) { nodes { id quantity } }
+                  reverseFulfillmentOrders(first: 5) {
+                    nodes { id lineItems(first: 5) { nodes { id totalQuantity } } }
+                  }
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "returnInput": input }),
+        ),
+        "returnRequest" => json_graphql_request(
+            r#"
+            mutation AtomicReturnRequest($input: ReturnRequestInput!) {
+              returnRequest(input: $input) {
+                return {
+                  id
+                  status
+                  order { id updatedAt }
+                  returnLineItems(first: 5) { nodes { id quantity } }
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "input": input }),
+        ),
+        _ => panic!("unexpected return root {root}"),
+    }
+}
+
+fn dump_snapshot(proxy: &mut DraftProxy) -> Value {
+    let response = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(response.status, 200);
+    response.body
+}
+
+#[test]
+fn return_create_and_request_reject_mixed_batches_atomically_before_retry() {
+    for root in ["returnCreate", "returnRequest"] {
+        let (hydrate_body, line_item_body, order_id, fulfillment_line_item_id) =
+            return_atomicity_hydrate_body();
+        let fixture = return_quantity_validation_fixture();
+        let rejected_calls = Arc::new(AtomicUsize::new(0));
+        let mut rejected_then_retry = return_atomicity_proxy(
+            hydrate_body.clone(),
+            line_item_body.clone(),
+            Arc::clone(&rejected_calls),
+        );
+        let before = dump_snapshot(&mut rejected_then_retry);
+
+        let rejected = rejected_then_retry.process_request(return_atomicity_request(
+            root,
+            &order_id,
+            &fulfillment_line_item_id,
+            true,
+        ));
+        assert_eq!(rejected.status, 200);
+        let expected_key = if root == "returnCreate" {
+            "returnCreateMixedValidMissing"
+        } else {
+            "returnRequestMixedValidMissing"
+        };
+        assert_eq!(
+            rejected.body["data"][root],
+            fixture["expected"][expected_key]["data"][root]
+        );
+
+        let after_rejection = dump_snapshot(&mut rejected_then_retry);
+        assert_eq!(
+            after_rejection["state"]["stagedState"], before["state"]["stagedState"],
+            "{root} rejection must not alter staged state"
+        );
+        assert_eq!(
+            after_rejection["nextSyntheticId"], before["nextSyntheticId"],
+            "{root} rejection must not consume synthetic identities"
+        );
+        assert_eq!(
+            after_rejection["log"], before["log"],
+            "{root} rejection must not append replay entries"
+        );
+        assert!(after_rejection["state"]["baseState"]["orders"]
+            .get(&order_id)
+            .is_some());
+
+        let retry_request =
+            return_atomicity_request(root, &order_id, &fulfillment_line_item_id, false);
+        let retry_raw_body = retry_request.body.clone();
+        let retry = rejected_then_retry.process_request(retry_request);
+        assert_eq!(retry.status, 200);
+        assert_eq!(retry.body["data"][root]["userErrors"], json!([]));
+        let retry_log = log_snapshot(&rejected_then_retry);
+        assert_eq!(retry_log["entries"].as_array().unwrap().len(), 1);
+        assert_eq!(retry_log["entries"][0]["rawBody"], json!(retry_raw_body));
+
+        let clean_calls = Arc::new(AtomicUsize::new(0));
+        let mut clean =
+            return_atomicity_proxy(hydrate_body, line_item_body, Arc::clone(&clean_calls));
+        let clean_success = clean.process_request(return_atomicity_request(
+            root,
+            &order_id,
+            &fulfillment_line_item_id,
+            false,
+        ));
+        assert_eq!(clean_success.status, 200);
+        assert_eq!(clean_success.body["data"][root]["userErrors"], json!([]));
+        assert_eq!(
+            retry.body["data"][root]["return"], clean_success.body["data"][root]["return"],
+            "{root} retry identities and timestamps must match a clean first attempt"
+        );
+        assert_eq!(rejected_calls.load(Ordering::SeqCst), 2);
+        assert_eq!(clean_calls.load(Ordering::SeqCst), 1);
+    }
+}
+
+#[test]
+fn return_hydration_transport_and_malformed_failures_are_atomic() {
+    for root in ["returnCreate", "returnRequest"] {
+        for (status, body, expected_status) in [
+            (
+                503,
+                json!({ "errors": [{ "message": "upstream unavailable" }] }),
+                503,
+            ),
+            (200, json!({ "data": {} }), 502),
+        ] {
+            let upstream_calls = Arc::new(AtomicUsize::new(0));
+            let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+                let upstream_calls = Arc::clone(&upstream_calls);
+                let body = body.clone();
+                move |_request| {
+                    upstream_calls.fetch_add(1, Ordering::SeqCst);
+                    Response {
+                        status,
+                        headers: Default::default(),
+                        body: body.clone(),
+                    }
+                }
+            });
+            let before = dump_snapshot(&mut proxy);
+            let response = proxy.process_request(return_atomicity_request(
+                root,
+                "gid://shopify/Order/atomic-hydration-failure",
+                "gid://shopify/FulfillmentLineItem/atomic-hydration-failure",
+                false,
+            ));
+            assert_eq!(response.status, expected_status);
+            assert_eq!(dump_snapshot(&mut proxy), before);
+            assert_eq!(upstream_calls.load(Ordering::SeqCst), 1);
+        }
+
+        let (order_body, _, order_id, _) = return_atomicity_hydrate_body();
+        let upstream_calls = Arc::new(AtomicUsize::new(0));
+        let mut malformed_line_probe = return_atomicity_proxy(
+            order_body,
+            json!({ "data": { "nodes": "malformed" } }),
+            Arc::clone(&upstream_calls),
+        );
+        let before = dump_snapshot(&mut malformed_line_probe);
+        let response = malformed_line_probe.process_request(return_atomicity_request(
+            root,
+            &order_id,
+            "gid://shopify/FulfillmentLineItem/999999999999999",
+            false,
+        ));
+        assert_eq!(response.status, 502);
+        assert_eq!(dump_snapshot(&mut malformed_line_probe), before);
+        assert_eq!(upstream_calls.load(Ordering::SeqCst), 2);
+    }
+}
+
+#[test]
+fn return_large_order_precondition_stays_bounded_and_unresolved() {
+    let (mut order_body, _, order_id, fulfillment_line_item_id) = return_atomicity_hydrate_body();
+    let target_line =
+        order_body["data"]["order"]["fulfillments"][0]["fulfillmentLineItems"]["nodes"][0].clone();
+    order_body["data"]["order"]["fulfillments"][0]["fulfillmentLineItems"]["nodes"] = Value::Array(
+        (0..50)
+            .map(|index| {
+                json!({
+                    "id": format!("gid://shopify/FulfillmentLineItem/bounded-{index}"),
+                    "quantity": 1,
+                    "lineItem": {
+                        "id": format!("gid://shopify/LineItem/bounded-{index}"),
+                        "title": format!("Bounded line {index}"),
+                        "variant": Value::Null
+                    }
+                })
+            })
+            .collect(),
+    );
+    let mut target_node = target_line;
+    target_node["__typename"] = json!("FulfillmentLineItem");
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let mut proxy = return_atomicity_proxy(
+        order_body,
+        json!({ "data": { "nodes": [target_node] } }),
+        Arc::clone(&upstream_calls),
+    );
+    let before = dump_snapshot(&mut proxy);
+
+    let response = proxy.process_request(return_atomicity_request(
+        "returnCreate",
+        &order_id,
+        &fulfillment_line_item_id,
+        false,
+    ));
+
+    assert_eq!(response.status, 502);
+    assert_eq!(dump_snapshot(&mut proxy), before);
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn valid_return_mutations_keep_original_ordered_commit_replay() {
+    let (mut order_body, line_item_body, order_id, fulfillment_line_item_id) =
+        return_atomicity_hydrate_body();
+    order_body["data"]["order"]["returns"] = json!({ "nodes": [] });
+    let committed_bodies = Arc::new(Mutex::new(Vec::<String>::new()));
+    let mut proxy =
+        return_atomicity_proxy(order_body, line_item_body, Arc::new(AtomicUsize::new(0)))
+            .with_commit_transport({
+                let committed_bodies = Arc::clone(&committed_bodies);
+                move |request| {
+                    committed_bodies.lock().unwrap().push(request.body.clone());
+                    let request_body: Value = serde_json::from_str(&request.body).unwrap();
+                    let query = request_body["query"].as_str().unwrap_or_default();
+                    let body = if query.contains("returnCreate") {
+                        json!({
+                            "data": {
+                                "returnCreate": {
+                                    "return": { "id": "gid://shopify/Return/committed-create" },
+                                    "userErrors": []
+                                }
+                            }
+                        })
+                    } else {
+                        json!({
+                            "data": {
+                                "returnRequest": {
+                                    "return": { "id": "gid://shopify/Return/committed-request" },
+                                    "userErrors": []
+                                }
+                            }
+                        })
+                    };
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body,
+                    }
+                }
+            });
+
+    let create_request =
+        return_atomicity_request("returnCreate", &order_id, &fulfillment_line_item_id, false);
+    let create_raw_body = create_request.body.clone();
+    let create = proxy.process_request(create_request);
+    assert_eq!(create.body["data"]["returnCreate"]["userErrors"], json!([]));
+
+    let request_request =
+        return_atomicity_request("returnRequest", &order_id, &fulfillment_line_item_id, false);
+    let request_raw_body = request_request.body.clone();
+    let request = proxy.process_request(request_request);
+    assert_eq!(
+        request.body["data"]["returnRequest"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+
+    let commit = proxy.process_request(request_with_body("POST", "/__meta/commit", "{}"));
+    assert_eq!(commit.status, 200);
+    assert_eq!(commit.body["ok"], json!(true));
+    assert_eq!(
+        *committed_bodies.lock().unwrap(),
+        vec![create_raw_body, request_raw_body]
+    );
+}
+
 fn live_return_reason_validation_proxy(upstream_calls: Arc<AtomicUsize>) -> DraftProxy {
     configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_request| {
         upstream_calls.fetch_add(1, Ordering::SeqCst);
