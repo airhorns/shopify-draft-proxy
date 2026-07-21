@@ -136,6 +136,12 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         load_online_store,
     ),
     node_entry!(
+        "BulkOperation",
+        "DraftProxy::bulk_operation_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+        load_bulk_operation,
+    ),
+    node_entry!(
         "CartTransform",
         "node_registry::load_cart_transform",
         NodeResolverBehavior::ProjectLocalRecord,
