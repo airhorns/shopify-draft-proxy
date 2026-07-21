@@ -121,6 +121,10 @@ pub(crate) struct RootInvocation<'a> {
     /// Output paths selected by the executable GraphQL engine. Domain roots
     /// may use this only to plan hydration; projection remains engine-owned.
     pub requested_field_paths: BTreeSet<Vec<String>>,
+    /// Engine-selected fields, including nested arguments. Shared hydration
+    /// planners may reuse these to request a bounded superset of the caller's
+    /// window; domain output projection remains engine-owned.
+    pub field_selection: Vec<crate::graphql::SelectedField>,
     /// When a request-scoped read preflight fetched the original operation,
     /// this is the current root value normalized back to canonical schema field
     /// names. Aliases are a transport concern and never leak into domain/store

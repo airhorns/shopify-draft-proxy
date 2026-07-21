@@ -165,122 +165,25 @@ const functionMetadataCatalogHydrateDocument = `query FunctionMetadataCatalogHyd
 }
 `;
 
-const functionHydrateByHandleDocument = `query FunctionHydrateByHandle {
-  shopifyFunctions(first: 100) {
-    nodes {
-      id
-      title
-      handle
-      apiType
-      description
-      appKey
-      app {
-        __typename
-        id
-        title
-        handle
-        apiKey
-      }
-    }
-  }
-}
-`;
-
-const functionValidationHydrateByIdDocument = `query FunctionValidationHydrateById($id: ID!) {
-  validation(id: $id) {
+const functionHydrateByIdDocument = `query FunctionHydrateById($id: String!) {
+  shopifyFunction(id: $id) {
     id
     title
-    enabled
-    blockOnFailure
-    shopifyFunction {
+    apiType
+    description
+    appKey
+    app {
+      __typename
       id
       title
-      handle
-      apiType
-      description
-      appKey
-      app {
-        __typename
-        id
-        title
-        handle
-        apiKey
-      }
-    }
-    metafields(first: 100) {
-      nodes {
-        id
-        namespace
-        key
-        type
-        value
-        updatedAt
-      }
+      apiKey
     }
   }
 }
 `;
 
-const functionValidationsHydrateDocument = `query FunctionValidationsHydrate {
-  validations(first: 100) {
-    nodes {
-      id
-      title
-      enabled
-      blockOnFailure
-      shopifyFunction {
-        id
-        title
-        handle
-        apiType
-        description
-        appKey
-        app {
-          __typename
-          id
-          title
-          handle
-          apiKey
-        }
-      }
-      metafields(first: 100) {
-        nodes {
-          id
-          namespace
-          key
-          type
-          value
-          updatedAt
-        }
-      }
-    }
-  }
-}
-`;
-
-const functionCartTransformsHydrateDocument = `query FunctionCartTransformsHydrate {
-  cartTransforms(first: 100) {
-    nodes {
-      id
-      functionId
-      blockOnFailure
-      metafields(first: 100) {
-        nodes {
-          id
-          namespace
-          key
-          type
-          value
-          compareDigest
-          ownerType
-          createdAt
-          updatedAt
-        }
-      }
-    }
-  }
-}
-`;
+const functionConnectionWindowHydrateThreeDocument = `query FunctionConnectionWindowHydrate { validations(first: 3, reverse: true) { edges { cursor node { id title enabled blockOnFailure shopifyFunction { id apiType } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }`;
+const functionConnectionWindowHydrateFourDocument = `query FunctionConnectionWindowHydrate { validations(first: 4, reverse: true) { edges { cursor node { id title enabled blockOnFailure shopifyFunction { id apiType } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }`;
 
 const inventoryDocument = `query FunctionsLiveHybridOverlayInventory {
   validations(first: 100) {
@@ -357,6 +260,8 @@ const baseCartTransformCreateDocument = `mutation FunctionsLiveHybridOverlayBase
 const baseValidationCreateDocument = await loadRequest('functions-live-hybrid-overlay-stage.graphql');
 const stagedValidationCreateDocument = baseValidationCreateDocument;
 const overlayReadDocument = await loadRequest('functions-live-hybrid-overlay-read.graphql');
+const windowReadDocument = await loadRequest('functions-live-hybrid-overlay-window.graphql');
+const stagedValidationDeleteDocument = await loadRequest('functions-live-hybrid-overlay-delete.graphql');
 
 async function cleanupExisting(
   validationFunction: FunctionNode,
@@ -404,6 +309,7 @@ const cartFunction = requireFunction(functionNodes, cartTransformFunctionHandle,
 const cleanupBefore = await cleanupExisting(validationFunction, cartFunction);
 
 let baseValidationId: string | null = null;
+let refillValidationId: string | null = null;
 let stagedValidationId: string | null = null;
 let baseCartTransformId: string | null = null;
 const cleanupAfter: Capture[] = [];
@@ -420,6 +326,17 @@ try {
   assertNoUserErrors(baseValidationCreate, 'validationCreate', 'base validationCreate');
   baseValidationId = validationId(baseValidationCreate, 'validationCreate');
 
+  const refillValidationCreate = await capture(baseValidationCreateDocument, {
+    validation: {
+      functionHandle: validationFunction.handle,
+      title: `${disposableTitlePrefix} refill validation`,
+      enable: false,
+      blockOnFailure: false,
+    },
+  });
+  assertNoUserErrors(refillValidationCreate, 'validationCreate', 'refill validationCreate');
+  refillValidationId = validationId(refillValidationCreate, 'validationCreate');
+
   const baseCartTransformCreate = await capture(baseCartTransformCreateDocument, {
     functionId: cartFunction.id,
     blockOnFailure: false,
@@ -435,29 +352,21 @@ try {
   assertNoUserErrors(baseCartTransformCreate, 'cartTransformCreate', 'base cartTransformCreate');
   baseCartTransformId = cartTransformId(baseCartTransformCreate);
 
-  const functionHydrateByHandle = await capture(functionHydrateByHandleDocument, {
-    handle: validationFunction.handle,
-    apiType: 'VALIDATION',
+  const functionHydrateById = await capture(functionHydrateByIdDocument, {
+    id: validationFunction.id,
   });
-  assertNoTopLevelErrors(functionHydrateByHandle.response, 'FunctionHydrateByHandle cassette');
+  assertNoTopLevelErrors(functionHydrateById.response, 'FunctionHydrateById cassette');
 
-  const functionValidationHydrateById = await capture(functionValidationHydrateByIdDocument, {
-    id: baseValidationId,
-  });
-  assertNoTopLevelErrors(functionValidationHydrateById.response, 'FunctionValidationHydrateById cassette');
-
-  const functionValidationsHydrate = await capture(functionValidationsHydrateDocument);
-  assertNoTopLevelErrors(functionValidationsHydrate.response, 'FunctionValidationsHydrate cassette');
-
-  const functionCartTransformsHydrate = await capture(functionCartTransformsHydrateDocument);
-  assertNoTopLevelErrors(functionCartTransformsHydrate.response, 'FunctionCartTransformsHydrate cassette');
-
-  const functionMetadataCatalogHydrate = await capture(functionMetadataCatalogHydrateDocument);
-  assertNoTopLevelErrors(functionMetadataCatalogHydrate.response, 'FunctionMetadataCatalogHydrate cassette');
+  const baseWindowFirst = await capture(windowReadDocument, { after: null });
+  assertNoTopLevelErrors(baseWindowFirst.response, 'base first window cassette');
+  const baseWindowRefillThree = await capture(functionConnectionWindowHydrateThreeDocument);
+  assertNoTopLevelErrors(baseWindowRefillThree.response, 'base three-row refill cassette');
+  const baseWindowRefillFour = await capture(functionConnectionWindowHydrateFourDocument);
+  assertNoTopLevelErrors(baseWindowRefillFour.response, 'base four-row refill cassette');
 
   const stagedValidationCreate = await capture(stagedValidationCreateDocument, {
     validation: {
-      functionHandle: validationFunction.handle,
+      functionId: validationFunction.id,
       title: `${disposableTitlePrefix} staged validation`,
       enable: true,
       blockOnFailure: false,
@@ -465,6 +374,23 @@ try {
   });
   assertNoUserErrors(stagedValidationCreate, 'validationCreate', 'staged validationCreate');
   stagedValidationId = validationId(stagedValidationCreate, 'validationCreate');
+
+  const windowFirst = await capture(windowReadDocument, { after: null });
+  assertNoTopLevelErrors(windowFirst.response, 'Functions overlay first window');
+  const stagedWindowCursor = readString(
+    readPath(windowFirst.response.payload, ['data', 'validations', 'pageInfo', 'endCursor']),
+  );
+  if (!stagedWindowCursor) {
+    throw new Error(`Functions overlay first window did not return a cursor: ${JSON.stringify(windowFirst, null, 2)}`);
+  }
+  const windowAfter = await capture(windowReadDocument, { after: stagedWindowCursor });
+  assertNoTopLevelErrors(windowAfter.response, 'Functions overlay after window');
+
+  const refillValidationDelete = await capture(stagedValidationDeleteDocument, { id: refillValidationId });
+  assertNoUserErrors(refillValidationDelete, 'validationDelete', 'refill validationDelete');
+  refillValidationId = null;
+  const windowAfterTombstone = await capture(windowReadDocument, { after: stagedWindowCursor });
+  assertNoTopLevelErrors(windowAfterTombstone.response, 'Functions overlay tombstone refill window');
 
   const overlayRead = await capture(overlayReadDocument, {
     stagedValidationId,
@@ -481,70 +407,66 @@ try {
     storeDomain,
     apiVersion,
     summary:
-      'Live Functions overlay evidence with one existing validation, one existing cart transform, and one later validation lifecycle.',
+      'Live Functions overlay evidence with two existing validations, one existing cart transform, and one later validation lifecycle.',
     shopifyFunctions: {
       validation: normalizeFunctionNode(validationFunction),
       cartTransform: normalizeFunctionNode(cartFunction),
     },
     cleanupBefore,
     baseValidationCreate,
+    refillValidationCreate,
     baseCartTransformCreate,
     stagedValidationCreate,
+    baseWindowFirst,
+    baseWindowRefillThree,
+    baseWindowRefillFour,
+    windowFirst,
+    windowAfter,
+    refillValidationDelete,
+    windowAfterTombstone,
     overlayRead,
     cleanupAfter,
     upstreamCalls: [
       {
-        operationName: 'FunctionHydrateByHandle',
-        variables: {
-          handle: validationFunction.handle,
-          apiType: 'VALIDATION',
-        },
-        query: functionHydrateByHandle.query,
+        operationName: 'FunctionHydrateById',
+        variables: { id: validationFunction.id },
+        query: functionHydrateById.query,
         response: {
-          status: functionHydrateByHandle.response.status,
-          body: functionHydrateByHandle.response.payload,
+          status: functionHydrateById.response.status,
+          body: functionHydrateById.response.payload,
         },
       },
       {
-        operationName: 'FunctionValidationHydrateById',
-        variables: { id: baseValidationId },
-        query: functionValidationHydrateById.query,
+        operationName: 'FunctionsLiveHybridOverlayWindow',
+        variables: { after: null },
+        query: baseWindowFirst.query,
         response: {
-          status: functionValidationHydrateById.response.status,
-          body: functionValidationHydrateById.response.payload,
+          status: baseWindowFirst.response.status,
+          body: baseWindowFirst.response.payload,
         },
       },
       {
-        operationName: 'FunctionValidationsHydrate',
+        operationName: 'FunctionConnectionWindowHydrate',
         variables: {},
-        query: functionValidationsHydrate.query,
+        query: baseWindowRefillThree.query,
         response: {
-          status: functionValidationsHydrate.response.status,
-          body: functionValidationsHydrate.response.payload,
+          status: baseWindowRefillThree.response.status,
+          body: baseWindowRefillThree.response.payload,
         },
       },
       {
-        operationName: 'FunctionCartTransformsHydrate',
+        operationName: 'FunctionConnectionWindowHydrate',
         variables: {},
-        query: functionCartTransformsHydrate.query,
+        query: baseWindowRefillFour.query,
         response: {
-          status: functionCartTransformsHydrate.response.status,
-          body: functionCartTransformsHydrate.response.payload,
-        },
-      },
-      {
-        operationName: 'FunctionMetadataCatalogHydrate',
-        variables: {},
-        query: functionMetadataCatalogHydrate.query,
-        response: {
-          status: functionMetadataCatalogHydrate.response.status,
-          body: functionMetadataCatalogHydrate.response.payload,
+          status: baseWindowRefillFour.response.status,
+          body: baseWindowRefillFour.response.payload,
         },
       },
     ],
     notes: {
       setup:
-        'The script removes disposable Function resources for the released conformance functions, creates one base validation and one base cart transform, records upstream hydrate cassettes from that base state, then creates the validation lifecycle that the proxy stages locally.',
+        'The script removes disposable Function resources for the released conformance functions, creates two base validations and one base cart transform, records exact first-page and bounded-refill cassettes from that base state, then creates the validation lifecycle that the proxy stages locally.',
       cleanup:
         'The finally block deletes the base validation, staged validation, and base cart transform when they were created.',
     },
@@ -554,6 +476,8 @@ try {
   stagedValidationId = null;
   if (baseValidationId) cleanupAfter.push(await capture(validationDeleteDocument, { id: baseValidationId }));
   baseValidationId = null;
+  if (refillValidationId) cleanupAfter.push(await capture(validationDeleteDocument, { id: refillValidationId }));
+  refillValidationId = null;
   if (baseCartTransformId) cleanupAfter.push(await capture(cartTransformDeleteDocument, { id: baseCartTransformId }));
   baseCartTransformId = null;
 
@@ -566,6 +490,9 @@ try {
   }
   if (baseValidationId) {
     cleanupAfter.push(await capture(validationDeleteDocument, { id: baseValidationId }));
+  }
+  if (refillValidationId) {
+    cleanupAfter.push(await capture(validationDeleteDocument, { id: refillValidationId }));
   }
   if (baseCartTransformId) {
     cleanupAfter.push(await capture(cartTransformDeleteDocument, { id: baseCartTransformId }));

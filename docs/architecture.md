@@ -75,9 +75,10 @@ propagation. Root resolvers are request-scoped and execute serially against the
 same instance-owned proxy. Each invocation receives the engine-coerced root
 arguments, raw argument-source metadata, root/operation source locations, and
 variable-definition metadata for compatibility validation. It also receives a
-set of engine-selected output paths for hydration planning plus a shallow,
-selection-free inventory of the operation's root names, response keys, and
-resolved arguments. The current root's arguments are engine-coerced; sibling
+set of engine-selected output paths and the current root's selected field tree
+for bounded transport planning, plus a shallow, selection-free inventory of the
+operation's root names, response keys, and resolved arguments. The current root's
+arguments are engine-coerced; sibling
 root arguments in compatibility planning come from the parsed operation. Those
 values may choose a narrow or broad hydration but never shape the returned JSON;
 output projection remains engine-owned. A local resolver receives `RootInvocation`,
@@ -116,7 +117,7 @@ replaced by local non-null execution errors.
 - The shared schema builder registers objects, interfaces, unions, enums, scalars, input objects, arguments, defaults, descriptions, and deprecations dynamically. This avoids maintaining thousands of handwritten Rust GraphQL wrapper types while still using a real GraphQL executor. Storefront's captured introspection JSON is deterministically rendered to SDL once before entering the same builder.
 - Captured custom scalars have explicit codecs. URL, RFC 3339 DateTime, decimal/money, integer, JSON, and string-like scalar families are validated deliberately, and schema construction fails when a new capture introduces an unknown scalar instead of silently treating it as arbitrary JSON.
 - Root fields share one generic resolver bridge. Domain code continues to model Shopify behavior and store effects directly; it does not need a second resolver-shaped copy of every function. Complex lifecycle behavior can remain in rich domain methods, while ordinary output fields are read from the returned typed JSON object by the generic schema resolver.
-- Native root callbacks consume engine-coerced `RootInvocation` data and return one canonical, alias-free value. Domain-specific input structs contain only the arguments and source metadata that behavior actually needs; they are not reduced copies of a GraphQL selection tree.
+- Native root callbacks consume engine-coerced `RootInvocation` data and return one canonical, alias-free value. Domain-specific input structs retain only the arguments, source metadata, and selected fields that behavior actually needs. Selected fields may plan a bounded upstream refill with the caller's exact nested arguments, but the executable engine still owns output projection.
 - Canonical parent values may carry unprojected relationship source data when mutation payload semantics differ from a later ordinary read. The explicit child-field resolver still owns arguments, sorting, windowing, and canonical child lookup; embedding relationship source data is not permission for the domain to pre-project the requested selection.
 - Returning a JSON object is not permission to return arbitrary shape. For every selected nested field, the executable schema validates its type and the generic object resolver reports an explicit `Local resolver did not implement Type.field` execution error when the domain result omits that field. The engine then applies GraphQL null propagation.
 - `ResolverRegistry` is owned by each `DraftProxy` and derives executable callbacks from implemented operation-registry entries. Admin registrations keep their public root names (`shop`, `products`); Storefront registrations receive globally unique internal names (`storefrontShop`, `storefrontProducts`). Surface-aware lookup performs that translation and also verifies the operation type and public root before returning a callback. Duplicate internal names fail registry construction, so same-named API roots cannot collide. There is no second checked-in local-routing inventory to synchronize. Every implemented capability domain has one distinct domain-owned callback, and structural tests prevent domains from collapsing back into a shared compatibility handler or crossing API surfaces.

@@ -1,19 +1,13 @@
 {
   "scenarioId": "functions-live-hybrid-overlay-read",
-  "operationNames": [
-    "validationCreate",
-    "validation",
-    "validations",
-    "cartTransforms",
-    "shopifyFunctions",
-    "shopifyFunction"
-  ],
+  "operationNames": ["validationCreate", "validationDelete", "validations"],
   "scenarioStatus": "captured",
   "assertionKinds": [
     "live-capture",
     "runtime-staging",
     "downstream-read-parity",
     "function-overlay",
+    "connection-windowing",
     "side-effect-boundary"
   ],
   "liveCaptureFiles": [
@@ -38,41 +32,87 @@
           {
             "path": "$.validation.id",
             "matcher": "shopify-gid:Validation",
-            "reason": "The proxy stages a synthetic Validation id while Shopify returns the live Validation id."
+            "reason": "The proxy stages a synthetic Validation ID while Shopify returns the live Validation ID."
           }
         ]
       },
       {
-        "name": "overlay-read-keeps-base-and-staged-records",
-        "capturePath": "$.overlayRead.response.payload.data",
-        "proxyPath": "$.data",
+        "name": "first-window-includes-staged-validation",
+        "capturePath": "$.windowFirst.response.payload.data.validations",
+        "proxyPath": "$.data.validations",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/functions/functions-live-hybrid-overlay-read.graphql",
+          "documentPath": "config/parity-requests/functions/functions-live-hybrid-overlay-window.graphql",
           "apiVersion": "2026-04",
-          "variables": {
-            "stagedValidationId": {
-              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
-            },
-            "baseValidationId": {
-              "fromCapturePath": "$.baseValidationCreate.response.payload.data.validationCreate.validation.id"
-            },
-            "cartFunctionId": {
-              "fromCapturePath": "$.shopifyFunctions.cartTransform.id"
-            },
-            "cartFunctionApiType": {
-              "fromCapturePath": "$.shopifyFunctions.cartTransform.apiType"
-            }
-          }
+          "variables": { "after": null }
         },
         "expectedDifferences": [
           {
-            "path": "$.stagedValidation.id",
+            "path": "$.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns an opaque cursor while the staged proxy row uses a stable local cursor."
+          },
+          {
+            "path": "$.edges[0].node.id",
             "matcher": "shopify-gid:Validation",
-            "reason": "The proxy reads back its synthetic staged Validation id while Shopify reads the live staged Validation id."
+            "reason": "The staged proxy row has a synthetic Validation ID."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns an opaque cursor while the staged proxy row uses a stable local cursor."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns an opaque cursor while the staged proxy row uses a stable local cursor."
           }
         ]
+      },
+      {
+        "name": "after-local-cursor-resumes-upstream-window",
+        "capturePath": "$.windowAfter.response.payload.data.validations",
+        "proxyPath": "$.data.validations",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-live-hybrid-overlay-window.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "after": {
+              "fromProxyResponse": "first-window-includes-staged-validation",
+              "path": "$.data.validations.pageInfo.endCursor"
+            }
+          }
+        }
+      },
+      {
+        "name": "tombstone-base-window-row",
+        "capturePath": "$.refillValidationDelete.response.payload.data.validationDelete",
+        "proxyPath": "$.data.validationDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-live-hybrid-overlay-delete.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.refillValidationCreate.response.payload.data.validationCreate.validation.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "tombstone-window-refills-from-bounded-cassette",
+        "capturePath": "$.windowAfterTombstone.response.payload.data.validations",
+        "proxyPath": "$.data.validations",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-live-hybrid-overlay-window.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "after": {
+              "fromProxyResponse": "first-window-includes-staged-validation",
+              "path": "$.data.validations.pageInfo.endCursor"
+            }
+          }
+        }
       }
     ]
   },
-  "notes": "Live Shopify Admin 2026-04 evidence for a LiveHybrid Functions overlay with existing upstream/base validation and cart-transform records plus one locally staged validation lifecycle. The fixture records exact upstreamCalls for the Function handle hydrate, singular validation hydrate, validations catalog hydrate, cartTransforms catalog hydrate, and shopifyFunctions catalog hydrate from the pre-mutation live shop state, matching the production proxy path where supported validationCreate remains local and upstream/base reads still hydrate from Shopify. Expected differences are limited to the locally staged Validation id."
+  "notes": "Live Shopify Admin 2026-04 evidence for a staged validation over two existing validations. The captured targets compare the first reverse window, continuation after the staged row, a base-row tombstone, and the refilled continuation. Exact upstreamCalls contain the production first-page caller document and bounded three/four-row refill documents; no fixed whole-catalog runtime hydrate is replayed. Expected differences are limited to the staged Validation ID and its local cursor."
 }

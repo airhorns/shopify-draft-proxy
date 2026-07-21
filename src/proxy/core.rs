@@ -708,40 +708,17 @@ impl DraftProxy {
             snapshot["baseState"]["functionMetadataOrder"] =
                 json!(self.store.base.function_metadata_order.clone());
         }
-        if self.store.base.function_metadata_catalog_hydrated {
-            snapshot["baseState"]["functionMetadataCatalogHydrated"] = json!(true);
-        }
-        if !self
-            .store
-            .base
-            .function_metadata_hydrated_api_types
-            .is_empty()
-        {
-            snapshot["baseState"]["functionMetadataHydratedApiTypes"] = json!(self
-                .store
-                .base
-                .function_metadata_hydrated_api_types
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>());
-        }
         if !self.store.base.function_validations.is_empty() {
             snapshot["baseState"]["functionValidations"] =
                 json!(self.store.base.function_validations.clone());
             snapshot["baseState"]["functionValidationOrder"] =
                 json!(self.store.base.function_validation_order.clone());
         }
-        if self.store.base.function_validations_catalog_hydrated {
-            snapshot["baseState"]["functionValidationsCatalogHydrated"] = json!(true);
-        }
         if !self.store.base.function_cart_transforms.is_empty() {
             snapshot["baseState"]["functionCartTransforms"] =
                 json!(self.store.base.function_cart_transforms.clone());
             snapshot["baseState"]["functionCartTransformOrder"] =
                 json!(self.store.base.function_cart_transform_order.clone());
-        }
-        if self.store.base.function_cart_transforms_catalog_hydrated {
-            snapshot["baseState"]["functionCartTransformsCatalogHydrated"] = json!(true);
         }
         if !self
             .store
@@ -760,13 +737,9 @@ impl DraftProxy {
                 .function_fulfillment_constraint_rule_order
                 .clone());
         }
-        if self
-            .store
-            .base
-            .function_fulfillment_constraint_rules_catalog_hydrated
-        {
-            snapshot["baseState"]["functionFulfillmentConstraintRulesCatalogHydrated"] =
-                json!(true);
+        if !self.store.base.function_connection_observations.is_empty() {
+            snapshot["baseState"]["functionConnectionObservations"] =
+                json!(self.store.base.function_connection_observations.clone());
         }
         if !self.store.staged.media_ready_on_read.is_empty() {
             snapshot["stagedState"]["mediaReadyOnReadIds"] = json!(self
@@ -1959,12 +1932,6 @@ impl DraftProxy {
             .get("functionMetadataOrder")
             .map(string_array_from_json)
             .unwrap_or_else(|| self.store.base.function_metadata.keys().cloned().collect());
-        self.store.base.function_metadata_catalog_hydrated = state["baseState"]
-            ["functionMetadataCatalogHydrated"]
-            .as_bool()
-            .unwrap_or(false);
-        self.store.base.function_metadata_hydrated_api_types =
-            string_set_from_json(state["baseState"].get("functionMetadataHydratedApiTypes"));
         self.store.base.function_validations =
             value_map_from_json(state["baseState"].get("functionValidations"));
         self.store.base.function_validation_order = state["baseState"]
@@ -1978,10 +1945,6 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
-        self.store.base.function_validations_catalog_hydrated = state["baseState"]
-            ["functionValidationsCatalogHydrated"]
-            .as_bool()
-            .unwrap_or(false);
         self.store.base.function_cart_transforms =
             value_map_from_json(state["baseState"].get("functionCartTransforms"));
         self.store.base.function_cart_transform_order = state["baseState"]
@@ -1995,10 +1958,6 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
-        self.store.base.function_cart_transforms_catalog_hydrated = state["baseState"]
-            ["functionCartTransformsCatalogHydrated"]
-            .as_bool()
-            .unwrap_or(false);
         self.store.base.function_fulfillment_constraint_rules =
             value_map_from_json(state["baseState"].get("functionFulfillmentConstraintRules"));
         self.store.base.function_fulfillment_constraint_rule_order = state["baseState"]
@@ -2012,12 +1971,8 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
-        self.store
-            .base
-            .function_fulfillment_constraint_rules_catalog_hydrated = state["baseState"]
-            ["functionFulfillmentConstraintRulesCatalogHydrated"]
-            .as_bool()
-            .unwrap_or(false);
+        self.store.base.function_connection_observations =
+            value_map_from_json(state["baseState"].get("functionConnectionObservations"));
         self.store.base.metafield_definitions =
             metafield_definition_map_from_json(state["baseState"].get("metafieldDefinitions"));
         self.store.base.metafield_definition_owner_catalogs = state["baseState"]

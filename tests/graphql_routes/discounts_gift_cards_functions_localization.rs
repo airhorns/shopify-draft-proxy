@@ -798,20 +798,75 @@ fn function_metadata_proxy_with_hits(hits: Arc<Mutex<Vec<Value>>>) -> DraftProxy
                     .collect::<Vec<_>>();
                 json!({ "data": { "shopifyFunctions": { "nodes": nodes } } })
             }
-            _ if query.contains("cartTransforms") => {
-                json!({ "data": { "cartTransforms": { "nodes": [] } } })
+            _ => {
+                let caller = request
+                    .headers
+                    .get("x-shopify-draft-proxy-api-client-id")
+                    .map(String::as_str);
+                let visible = test_function_metadata()
+                    .into_iter()
+                    .filter(|function| {
+                        caller.is_none_or(|caller| {
+                            function["app"]["apiKey"].as_str() == Some(caller)
+                                || function["app"]["id"]
+                                    .as_str()
+                                    .is_some_and(|id| id.ends_with(caller))
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                let connection = |nodes: Vec<Value>| {
+                    let edges = nodes
+                        .iter()
+                        .map(|node| {
+                            json!({
+                                "cursor": format!("opaque:{}", node["id"].as_str().unwrap_or_default()),
+                                "node": node
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    let start_cursor = edges.first().and_then(|edge| edge["cursor"].as_str());
+                    let end_cursor = edges.last().and_then(|edge| edge["cursor"].as_str());
+                    json!({
+                        "nodes": nodes,
+                        "edges": edges,
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": start_cursor,
+                            "endCursor": end_cursor
+                        }
+                    })
+                };
+                let validation_functions = visible
+                    .iter()
+                    .filter(|function| function["apiType"] == json!("VALIDATION"))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let cart_functions = visible
+                    .iter()
+                    .filter(|function| function["apiType"] == json!("CART_TRANSFORM"))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let requested_singular = visible.iter().find(|function| {
+                    function["id"]
+                        .as_str()
+                        .is_some_and(|id| query.contains(id))
+                });
+                json!({
+                    "data": {
+                        "validation": null,
+                        "validations": connection(Vec::new()),
+                        "cartTransforms": connection(Vec::new()),
+                        "fulfillmentConstraintRules": [],
+                        "shopifyFunctions": connection(visible.clone()),
+                        "validationFunctions": connection(validation_functions),
+                        "cartFunctions": connection(cart_functions),
+                        "shopifyFunction": requested_singular,
+                        "cartFunction": requested_singular,
+                        "ownedFunction": requested_singular
+                    }
+                })
             }
-            _ if query.contains("validations") => {
-                json!({ "data": { "validations": { "nodes": [] } } })
-            }
-            _ if query.contains("fulfillmentConstraintRules") => {
-                json!({ "data": { "fulfillmentConstraintRules": [] } })
-            }
-            _ => json!({
-                "errors": [{
-                    "message": format!("unexpected function metadata upstream request: {body}")
-                }]
-            }),
         };
         Response {
             status: 200,
@@ -876,6 +931,24 @@ fn function_fulfillment_constraint_rule_proxy_with_hits(
                     })
                     .unwrap_or(Value::Null);
                 json!({ "data": { "shopifyFunction": function } })
+            }
+            _ if query.contains("validations")
+                && query.contains("fulfillmentConstraintRules") =>
+            {
+                json!({
+                    "data": {
+                        "validations": {
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "fulfillmentConstraintRules": [upstream_rule.clone()]
+                    }
+                })
             }
             _ if query.contains("validations") => {
                 json!({ "data": { "validations": { "nodes": [] } } })
@@ -6501,7 +6574,1315 @@ fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
             "app": { "apiKey": "non-catalog-app-key" }
         })
     );
-    assert_eq!(*upstream_hits.lock().unwrap(), 1);
+    assert_eq!(*upstream_hits.lock().unwrap(), 2);
+}
+
+#[test]
+fn functions_live_hybrid_function_windows_do_not_treat_first_page_as_complete() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let first_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/window-validation-a",
+        "Window Validation A",
+        "window-validation-a",
+        "cart_checkout_validation",
+        "window-validation-app-key",
+        "window-validation-app",
+    );
+    let second_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/window-validation-b",
+        "Window Validation B",
+        "window-validation-b",
+        "cart_checkout_validation",
+        "window-validation-app-key",
+        "window-validation-app",
+    );
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value =
+            serde_json::from_str(&request.body).expect("function window request body should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let after = body["variables"]["after"].as_str();
+        let (function, cursor, has_next_page, has_previous_page) =
+            if after == Some("opaque-function-a") {
+                (second_function.clone(), "opaque-function-b", false, true)
+            } else {
+                (first_function.clone(), "opaque-function-a", true, false)
+            };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "shopifyFunctions": {
+                        "nodes": [function.clone()],
+                        "edges": [{ "cursor": cursor, "node": function }],
+                        "pageInfo": {
+                            "hasNextPage": has_next_page,
+                            "hasPreviousPage": has_previous_page,
+                            "startCursor": cursor,
+                            "endCursor": cursor
+                        }
+                    }
+                }
+            }),
+        }
+    });
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query FunctionWindowFirstPage {
+          shopifyFunctions(first: 1, apiType: "VALIDATION") {
+            edges { cursor node { id handle apiType } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["shopifyFunctions"]["edges"][0]["cursor"],
+        json!("opaque-function-a")
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageValidationBeforeWindowRead {
+          validationCreate(validation: { functionHandle: "window-validation-a", title: "Staged window validation" }) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["validationCreate"]["userErrors"],
+        json!([])
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query FunctionWindowSecondPage($after: String!) {
+          shopifyFunctions(first: 1, after: $after, apiType: "VALIDATION") {
+            edges { cursor node { id handle apiType } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": "opaque-function-a" }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["shopifyFunctions"]["edges"],
+        json!([{
+            "cursor": "opaque-function-b",
+            "node": {
+                "id": "gid://shopify/ShopifyFunction/window-validation-b",
+                "handle": "window-validation-b",
+                "apiType": "cart_checkout_validation"
+            }
+        }])
+    );
+    assert_eq!(
+        second_page.body["data"]["shopifyFunctions"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "opaque-function-b",
+            "endCursor": "opaque-function-b"
+        })
+    );
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(
+        hits.len(),
+        2,
+        "each requested cold window should forward once"
+    );
+    assert_eq!(hits[1]["variables"]["after"], json!("opaque-function-a"));
+}
+
+#[test]
+fn functions_live_hybrid_staged_insert_resumes_after_local_cursor_with_bounded_window() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/window-insert",
+        "Window Insert",
+        "window-insert",
+        "cart_checkout_validation",
+        "window-insert-key",
+        "window-insert-app",
+    );
+    let validation = |suffix: &str, title: &str| {
+        json!({
+            "id": format!("gid://shopify/Validation/{suffix}"),
+            "title": title,
+            "enabled": true,
+            "blockOnFailure": false,
+            "shopifyFunction": function.clone()
+        })
+    };
+    let alpha = validation("0", "Alpha");
+    let charlie = validation("2", "Charlie");
+    let delta = validation("3", "Delta");
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("staged-insert window request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let query = body["query"].as_str().unwrap_or_default();
+        if query.contains("shopifyFunctions") {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shopifyFunctions": {
+                            "nodes": [function.clone()],
+                            "edges": [{ "cursor": "opaque-function", "node": function.clone() }],
+                            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": "opaque-function", "endCursor": "opaque-function" }
+                        }
+                    }
+                }),
+            };
+        }
+        if body["operationName"] == json!("FunctionConnectionWindowHydrate") {
+            assert!(query.contains("after: \"opaque-alpha\""), "{query}");
+            assert!(!query.contains("cursor:gid://"), "{query}");
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "validations": {
+                            "nodes": [charlie.clone(), delta.clone()],
+                            "edges": [
+                                { "cursor": "opaque-charlie", "node": charlie.clone() },
+                                { "cursor": "opaque-delta", "node": delta.clone() }
+                            ],
+                            "pageInfo": { "hasNextPage": false, "hasPreviousPage": true, "startCursor": "opaque-charlie", "endCursor": "opaque-delta" }
+                        }
+                    }
+                }),
+            };
+        }
+        if body["variables"]["after"]
+            .as_str()
+            .is_some_and(|cursor| cursor.starts_with("cursor:gid://"))
+        {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "Shopify rejected a local cursor" }] }),
+            };
+        }
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "validations": {
+                        "nodes": [alpha.clone(), charlie.clone()],
+                        "edges": [
+                            { "cursor": "opaque-alpha", "node": alpha.clone() },
+                            { "cursor": "opaque-charlie", "node": charlie.clone() }
+                        ],
+                        "pageInfo": { "hasNextPage": true, "hasPreviousPage": false, "startCursor": "opaque-alpha", "endCursor": "opaque-charlie" }
+                    }
+                }
+            }),
+        }
+    });
+
+    proxy.process_request(json_graphql_request(
+        r#"query ObserveInsertFunction { shopifyFunctions(first: 1, apiType: "VALIDATION") { nodes { id title handle apiType appKey app { id apiKey } } } }"#,
+        json!({}),
+    ));
+    let create = proxy.process_request(json_graphql_request(
+        r#"mutation StageWindowInsert { validationCreate(validation: { functionHandle: "window-insert", title: "Bravo" }) { validation { id title } userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["validationCreate"]["userErrors"],
+        json!([])
+    );
+
+    let first = proxy.process_request(json_graphql_request(
+        r#"query ValidationInsertFirst { validations(first: 2, sortKey: ID) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        first.body["data"]["validations"]["edges"]
+            .as_array()
+            .unwrap_or_else(|| panic!("unexpected first page: {:#}", first.body))
+            .iter()
+            .map(|edge| edge["node"]["title"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["Alpha", "Bravo"]
+    );
+    let local_cursor = first.body["data"]["validations"]["pageInfo"]["endCursor"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(local_cursor.starts_with("cursor:gid://shopify/Validation/"));
+
+    let second = proxy.process_request(json_graphql_request(
+        r#"query ValidationInsertSecond($after: String!) { validations(first: 2, after: $after, sortKey: ID) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"#,
+        json!({ "after": local_cursor }),
+    ));
+    assert_eq!(
+        second.body["data"]["validations"]["edges"],
+        json!([
+            { "cursor": "opaque-charlie", "node": { "id": "gid://shopify/Validation/2", "title": "Charlie" } },
+            { "cursor": "opaque-delta", "node": { "id": "gid://shopify/Validation/3", "title": "Delta" } }
+        ])
+    );
+    assert_eq!(
+        second.body["data"]["validations"]["pageInfo"],
+        json!({ "hasNextPage": false, "hasPreviousPage": true, "startCursor": "opaque-charlie", "endCursor": "opaque-delta" })
+    );
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(
+        hits.len(),
+        3,
+        "catalog observation and one transport per requested window"
+    );
+}
+
+#[test]
+fn functions_live_hybrid_multiple_staged_inserts_continue_after_last_local_cursor() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/multiple-window-inserts",
+        "Multiple Window Inserts",
+        "multiple-window-inserts",
+        "cart_checkout_validation",
+        "multiple-window-inserts-key",
+        "multiple-window-inserts-app",
+    );
+    let base_validation = |suffix: &str, title: &str| {
+        json!({
+            "id": format!("gid://shopify/Validation/{suffix}"),
+            "title": title,
+            "enabled": true,
+            "blockOnFailure": false,
+            "shopifyFunction": function.clone()
+        })
+    };
+    let charlie = base_validation("base-c", "Charlie");
+    let bravo = base_validation("base-b", "Bravo");
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("multiple staged insert window request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        if body["query"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("shopifyFunctions")
+        {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shopifyFunctions": {
+                            "nodes": [function.clone()],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        }
+                    }
+                }),
+            };
+        }
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "validations": {
+                        "edges": [
+                            { "cursor": "opaque-charlie", "node": charlie.clone() },
+                            { "cursor": "opaque-bravo", "node": bravo.clone() }
+                        ],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-charlie",
+                            "endCursor": "opaque-bravo"
+                        }
+                    }
+                }
+            }),
+        }
+    });
+
+    proxy.process_request(json_graphql_request(
+        r#"query ObserveMultipleInsertFunction { shopifyFunctions(first: 1, apiType: "VALIDATION") { nodes { id title handle apiType appKey app { id apiKey } } } }"#,
+        json!({}),
+    ));
+    for title in ["Older staged validation", "Newer staged validation"] {
+        let create = proxy.process_request(json_graphql_request(
+            r#"mutation StageMultipleWindowInsert($title: String!) { validationCreate(validation: { functionHandle: "multiple-window-inserts", title: $title }) { validation { id title } userErrors { field message code } } }"#,
+            json!({ "title": title }),
+        ));
+        assert_eq!(
+            create.body["data"]["validationCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let first = proxy.process_request(json_graphql_request(
+        r#"query MultipleInsertFirst { validations(first: 2, reverse: true) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        first.body["data"]["validations"]["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|edge| edge["node"]["title"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["Newer staged validation", "Older staged validation"]
+    );
+    let local_cursor = first.body["data"]["validations"]["pageInfo"]["endCursor"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let second = proxy.process_request(json_graphql_request(
+        r#"query MultipleInsertSecond($after: String!) { validations(first: 2, after: $after, reverse: true) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"#,
+        json!({ "after": local_cursor }),
+    ));
+    assert_eq!(
+        second.body["data"]["validations"]["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|edge| edge["node"]["title"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["Charlie", "Bravo"]
+    );
+    assert_eq!(
+        upstream_hits.lock().unwrap().len(),
+        3,
+        "one Function observation and one transport per requested window"
+    );
+}
+
+#[test]
+fn functions_live_hybrid_validation_tombstones_use_one_bounded_refill_window() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let validation_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/window-validation",
+        "Window Validation",
+        "window-validation",
+        "cart_checkout_validation",
+        "window-validation-key",
+        "window-validation-app",
+    );
+    let validation = |suffix: &str| {
+        json!({
+            "id": format!("gid://shopify/Validation/{suffix}"),
+            "title": format!("Validation {suffix}"),
+            "enabled": true,
+            "blockOnFailure": false,
+            "shopifyFunction": validation_function.clone(),
+            "metafield": {
+                "namespace": "custom",
+                "key": "flag",
+                "type": "single_line_text_field",
+                "value": suffix
+            }
+        })
+    };
+    let validation_a = validation("a");
+    let validation_b = validation("b");
+    let validation_c = validation("c");
+    let validation_d = validation("d");
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("validation window request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let operation_name = body["operationName"].as_str().unwrap_or_default();
+        let nodes = if operation_name == "FunctionConnectionWindowHydrate" {
+            vec![
+                validation_a.clone(),
+                validation_b.clone(),
+                validation_c.clone(),
+                validation_d.clone(),
+            ]
+        } else {
+            vec![validation_a.clone(), validation_b.clone()]
+        };
+        let edges = nodes
+            .iter()
+            .map(|node| {
+                json!({
+                    "cursor": format!("opaque-validation-{}", node["title"].as_str().unwrap().chars().last().unwrap()),
+                    "node": node
+                })
+            })
+            .collect::<Vec<_>>();
+        let response = match operation_name {
+            "FunctionValidationHydrateById" => {
+                json!({ "data": { "validation": validation_a.clone() } })
+            }
+            "FunctionConnectionWindowHydrate" => json!({
+                "data": {
+                    "validations": {
+                        "nodes": nodes,
+                        "edges": edges,
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-validation-a",
+                            "endCursor": "opaque-validation-d"
+                        }
+                    }
+                }
+            }),
+            _ => json!({
+                "data": {
+                    "validations": {
+                        "nodes": nodes,
+                        "edges": edges,
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-validation-a",
+                            "endCursor": "opaque-validation-b"
+                        }
+                    }
+                }
+            }),
+        };
+        Response { status: 200, headers: Default::default(), body: response }
+    });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteValidationAtWindowBoundary($id: ID!) {
+          validationDelete(id: $id) { deletedId userErrors { field message code } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Validation/a" }),
+    ));
+    assert_eq!(
+        delete.body["data"]["validationDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ValidationWindowAfterTombstone {
+          validations(first: 2) {
+            edges {
+              cursor
+              node {
+                id
+                title
+                metafield(namespace: "custom", key: "flag") { value }
+              }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["validations"]["edges"],
+        json!([
+            {
+                "cursor": "opaque-validation-b",
+                "node": { "id": "gid://shopify/Validation/b", "title": "Validation b", "metafield": { "value": "b" } }
+            },
+            {
+                "cursor": "opaque-validation-c",
+                "node": { "id": "gid://shopify/Validation/c", "title": "Validation c", "metafield": { "value": "c" } }
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["validations"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "opaque-validation-b",
+            "endCursor": "opaque-validation-c"
+        })
+    );
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(
+        hits.len(),
+        3,
+        "targeted delete hydrate, caller read, and one refill only"
+    );
+    let refill = hits
+        .iter()
+        .find(|body| body["operationName"] == json!("FunctionConnectionWindowHydrate"))
+        .expect("bounded validation refill request");
+    let refill_query = refill["query"].as_str().unwrap();
+    assert!(
+        refill_query.contains("validations(first: 4"),
+        "{refill_query}"
+    );
+    assert!(refill_query.contains("metafield("), "{refill_query}");
+    assert!(!refill_query.contains("first: 100"), "{refill_query}");
+}
+
+#[test]
+fn functions_live_hybrid_validation_tombstone_wins_over_singular_upstream_value() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let validation = json!({
+        "id": "gid://shopify/Validation/singular-tombstone",
+        "title": "Deleted upstream validation",
+        "enabled": true,
+        "blockOnFailure": false
+    });
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("singular validation tombstone request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "validation": validation.clone() } }),
+        }
+    });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"mutation DeleteSingularValidation($id: ID!) { validationDelete(id: $id) { deletedId userErrors { field message code } } }"#,
+        json!({ "id": "gid://shopify/Validation/singular-tombstone" }),
+    ));
+    assert_eq!(
+        delete.body["data"]["validationDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query ReadDeletedSingularValidation($id: ID!) { validation(id: $id) { id title } }"#,
+        json!({ "id": "gid://shopify/Validation/singular-tombstone" }),
+    ));
+    assert_eq!(read.body["data"]["validation"], Value::Null);
+    assert_eq!(
+        upstream_hits.lock().unwrap().len(),
+        2,
+        "delete prerequisite and unchanged caller read only"
+    );
+}
+
+#[test]
+fn functions_live_hybrid_node_only_tombstone_hydrates_identity_and_cursors() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let validation = |suffix: &str| {
+        json!({
+            "id": format!("gid://shopify/Validation/node-only-{suffix}"),
+            "title": format!("Validation {suffix}"),
+            "enabled": true,
+            "blockOnFailure": false
+        })
+    };
+    let validation_a = validation("a");
+    let validation_b = validation("b");
+    let validation_c = validation("c");
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("node-only validation window request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        if body["operationName"] == json!("FunctionValidationHydrateById") {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "validation": validation_a.clone() } }),
+            };
+        }
+        if body["operationName"] == json!("FunctionConnectionWindowHydrate") {
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("node { title id }") || query.contains("node { id title }"),
+                "{query}"
+            );
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "validations": {
+                            "edges": [
+                                { "cursor": "opaque-node-only-a", "node": validation_a.clone() },
+                                { "cursor": "opaque-node-only-b", "node": validation_b.clone() },
+                                { "cursor": "opaque-node-only-c", "node": validation_c.clone() }
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "opaque-node-only-a",
+                                "endCursor": "opaque-node-only-c"
+                            }
+                        }
+                    }
+                }),
+            };
+        }
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "validations": {
+                        "nodes": [
+                            { "title": "Validation a" },
+                            { "title": "Validation b" }
+                        ],
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-node-only-a",
+                            "endCursor": "opaque-node-only-b"
+                        }
+                    }
+                }
+            }),
+        }
+    });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"mutation DeleteNodeOnlyValidation($id: ID!) { validationDelete(id: $id) { deletedId userErrors { field message code } } }"#,
+        json!({ "id": "gid://shopify/Validation/node-only-a" }),
+    ));
+    assert_eq!(
+        delete.body["data"]["validationDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query NodeOnlyValidationWindow { validations(first: 2) { nodes { title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["validations"],
+        json!({
+            "nodes": [
+                { "title": "Validation b" },
+                { "title": "Validation c" }
+            ],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "opaque-node-only-b",
+                "endCursor": "opaque-node-only-c"
+            }
+        })
+    );
+    assert_eq!(
+        upstream_hits.lock().unwrap().len(),
+        3,
+        "targeted delete, unchanged caller read, and one bounded identity refill"
+    );
+}
+
+#[test]
+fn functions_live_hybrid_large_catalog_max_window_uses_bounded_tail_refill() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("large Function catalog request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let validation = |index: usize| {
+            json!({
+                "id": format!("gid://shopify/Validation/large-{index:04}"),
+                "title": format!("Large validation {index:04}"),
+                "enabled": true,
+                "blockOnFailure": false
+            })
+        };
+        if body["operationName"] == json!("FunctionValidationHydrateById") {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "validation": validation(0) } }),
+            };
+        }
+        let (start, end, has_previous) =
+            if body["operationName"] == json!("FunctionConnectionWindowHydrate") {
+                let query = body["query"].as_str().unwrap_or_default();
+                assert!(
+                    query.contains("after: \"opaque-large-0249\"") && query.contains("first: 2"),
+                    "{query}"
+                );
+                (250, 252, true)
+            } else {
+                (0, 250, false)
+            };
+        let edges = (start..end)
+            .map(|index| {
+                json!({
+                    "cursor": format!("opaque-large-{index:04}"),
+                    "node": validation(index)
+                })
+            })
+            .collect::<Vec<_>>();
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "validations": {
+                        "edges": edges,
+                        "pageInfo": {
+                            "hasNextPage": true,
+                            "hasPreviousPage": has_previous,
+                            "startCursor": format!("opaque-large-{start:04}"),
+                            "endCursor": format!("opaque-large-{:04}", end - 1)
+                        }
+                    }
+                }
+            }),
+        }
+    });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"mutation DeleteLargeWindowValidation($id: ID!) { validationDelete(id: $id) { deletedId userErrors { field message code } } }"#,
+        json!({ "id": "gid://shopify/Validation/large-0000" }),
+    ));
+    assert_eq!(
+        delete.body["data"]["validationDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query LargeValidationWindow { validations(first: 250) { edges { cursor node { id title } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"#,
+        json!({}),
+    ));
+    let edges = read.body["data"]["validations"]["edges"]
+        .as_array()
+        .unwrap();
+    assert_eq!(edges.len(), 250);
+    assert_eq!(
+        edges.first().unwrap()["node"]["id"],
+        json!("gid://shopify/Validation/large-0001")
+    );
+    assert_eq!(
+        edges.last().unwrap()["node"]["id"],
+        json!("gid://shopify/Validation/large-0250")
+    );
+    assert_eq!(
+        read.body["data"]["validations"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "opaque-large-0001",
+            "endCursor": "opaque-large-0250"
+        })
+    );
+    assert_eq!(
+        upstream_hits.lock().unwrap().len(),
+        3,
+        "targeted delete, one caller window, and one two-row tail refill"
+    );
+}
+
+#[test]
+fn functions_live_hybrid_cart_transform_tombstones_use_one_bounded_refill_window() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let transform = |suffix: &str| {
+        json!({
+            "id": format!("gid://shopify/CartTransform/{suffix}"),
+            "functionId": format!("gid://shopify/ShopifyFunction/cart-{suffix}"),
+            "blockOnFailure": false
+        })
+    };
+    let transform_a = transform("a");
+    let transform_b = transform("b");
+    let transform_c = transform("c");
+    let transform_d = transform("d");
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("cart-transform window request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let operation_name = body["operationName"].as_str().unwrap_or_default();
+        if operation_name == "FunctionCartTransformHydrateById" {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "node": transform_a.clone() } }),
+            };
+        }
+        let nodes = if operation_name == "FunctionConnectionWindowHydrate" {
+            vec![transform_a.clone(), transform_b.clone(), transform_c.clone(), transform_d.clone()]
+        } else {
+            vec![transform_a.clone(), transform_b.clone()]
+        };
+        let edges = nodes
+            .iter()
+            .map(|node| {
+                json!({
+                    "cursor": format!("opaque-cart-{}", node["id"].as_str().unwrap().chars().last().unwrap()),
+                    "node": node
+                })
+            })
+            .collect::<Vec<_>>();
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "cartTransforms": {
+                        "nodes": nodes,
+                        "edges": edges,
+                        "pageInfo": {
+                            "hasNextPage": operation_name != "FunctionConnectionWindowHydrate",
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-cart-a",
+                            "endCursor": if operation_name == "FunctionConnectionWindowHydrate" { "opaque-cart-d" } else { "opaque-cart-b" }
+                        }
+                    }
+                }
+            }),
+        }
+    });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteCartTransformAtWindowBoundary($id: ID!) {
+          cartTransformDelete(id: $id) { deletedId userErrors { field message code } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/CartTransform/a" }),
+    ));
+    assert_eq!(
+        delete.body["data"]["cartTransformDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CartTransformWindowAfterTombstone {
+          cartTransforms(first: 2) {
+            edges { cursor node { id functionId blockOnFailure } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["cartTransforms"]["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|edge| edge["node"]["id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec![
+            "gid://shopify/CartTransform/b",
+            "gid://shopify/CartTransform/c"
+        ]
+    );
+    assert_eq!(
+        read.body["data"]["cartTransforms"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(
+        hits.len(),
+        3,
+        "targeted cart hydrate, caller read, and one refill only"
+    );
+    let refill_query = hits
+        .iter()
+        .find(|body| body["operationName"] == json!("FunctionConnectionWindowHydrate"))
+        .and_then(|body| body["query"].as_str())
+        .expect("bounded cart-transform refill request");
+    assert!(
+        refill_query.contains("cartTransforms(first: 4"),
+        "{refill_query}"
+    );
+    assert!(!refill_query.contains("first: 100"), "{refill_query}");
+}
+
+#[test]
+fn functions_partial_nested_metafield_observations_merge_without_catalog_paging() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let id = "gid://shopify/Validation/partial-metafield";
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("partial validation observation should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let query = body["query"].as_str().unwrap_or_default();
+        let mut node = json!({ "id": id, "title": "Upstream partial title" });
+        if query.contains("metafield(") {
+            node["metafield"] = json!({
+                "namespace": "custom",
+                "key": "preserved",
+                "value": "upstream-value"
+            });
+        }
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "validations": {
+                        "nodes": [node],
+                        "edges": [],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-partial",
+                            "endCursor": "opaque-partial"
+                        }
+                    }
+                }
+            }),
+        }
+    });
+
+    let cold = proxy.process_request(json_graphql_request(
+        r#"query ObserveNarrowValidation { validations(first: 1) { nodes { id title } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        cold.body["data"]["validations"]["nodes"][0]["title"],
+        json!("Upstream partial title")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdatePartiallyObservedValidation($id: ID!) {
+          validationUpdate(id: $id, validation: { title: "Locally updated title" }) {
+            validation { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+    assert_eq!(
+        update.body["data"]["validationUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadNarrowValidationMetafield {
+          validations(first: 1) {
+            nodes {
+              id
+              title
+              metafield(namespace: "custom", key: "preserved") { value }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["validations"]["nodes"][0],
+        json!({
+            "id": id,
+            "title": "Locally updated title",
+            "metafield": { "value": "upstream-value" }
+        })
+    );
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(
+        hits.len(),
+        2,
+        "the update must reuse the partial observation without a hydrate"
+    );
+    assert!(hits.iter().all(|body| {
+        !body["query"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("metafields(first: 100)")
+    }));
+}
+
+#[test]
+fn functions_cold_singular_node_and_nodes_reads_stay_targeted_and_batch_ids() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("targeted Function lookup request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let query = body["query"].as_str().unwrap_or_default();
+        let data = if query.contains("BatchedFunctionNodesLookup") {
+            json!({
+                "nodes": [
+                    {
+                        "__typename": "Validation",
+                        "id": "gid://shopify/Validation/batched",
+                        "title": "Batched validation"
+                    },
+                    {
+                        "__typename": "CartTransform",
+                        "id": "gid://shopify/CartTransform/batched",
+                        "functionId": "gid://shopify/ShopifyFunction/batched"
+                    }
+                ]
+            })
+        } else if query.contains("SingularFunctionNodeLookup") {
+            json!({
+                "node": {
+                    "__typename": "CartTransform",
+                    "id": "gid://shopify/CartTransform/singular",
+                    "functionId": "gid://shopify/ShopifyFunction/singular"
+                }
+            })
+        } else {
+            json!({
+                "validation": {
+                    "id": "gid://shopify/Validation/singular",
+                    "title": "Singular validation"
+                }
+            })
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": data }),
+        }
+    });
+
+    let singular = proxy.process_request(json_graphql_request(
+        r#"query SingularValidationLookup($id: ID!) { validation(id: $id) { id title } }"#,
+        json!({ "id": "gid://shopify/Validation/singular" }),
+    ));
+    assert_eq!(
+        singular.body["data"]["validation"]["title"],
+        json!("Singular validation")
+    );
+    let node = proxy.process_request(json_graphql_request(
+        r#"query SingularFunctionNodeLookup($id: ID!) { node(id: $id) { __typename ... on CartTransform { id functionId } } }"#,
+        json!({ "id": "gid://shopify/CartTransform/singular" }),
+    ));
+    assert_eq!(
+        node.body["data"]["node"]["id"],
+        json!("gid://shopify/CartTransform/singular")
+    );
+    let nodes = proxy.process_request(json_graphql_request(
+        r#"query BatchedFunctionNodesLookup($ids: [ID!]!) { nodes(ids: $ids) { __typename ... on Validation { id title } ... on CartTransform { id functionId } } }"#,
+        json!({
+            "ids": [
+                "gid://shopify/Validation/batched",
+                "gid://shopify/CartTransform/batched"
+            ]
+        }),
+    ));
+    assert_eq!(nodes.body["data"]["nodes"].as_array().unwrap().len(), 2);
+
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(
+        hits.len(),
+        3,
+        "each cold lookup should use one caller transport"
+    );
+    assert!(hits[0]["query"]
+        .as_str()
+        .unwrap()
+        .contains("SingularValidationLookup"));
+    assert!(hits[1]["query"]
+        .as_str()
+        .unwrap()
+        .contains("SingularFunctionNodeLookup"));
+    assert!(hits[2]["query"]
+        .as_str()
+        .unwrap()
+        .contains("BatchedFunctionNodesLookup"));
+    assert_eq!(
+        hits[2]["variables"]["ids"],
+        json!([
+            "gid://shopify/Validation/batched",
+            "gid://shopify/CartTransform/batched"
+        ])
+    );
+    assert!(hits.iter().all(|body| {
+        !body["query"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("first: 100")
+    }));
+}
+
+#[test]
+fn functions_scoped_connection_observations_round_trip_and_do_not_become_request_cache() {
+    let upstream_hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&upstream_hits);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |_request| {
+        *hit_counter.lock().unwrap() += 1;
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "shopifyFunctions": {
+                        "nodes": [],
+                        "edges": [],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }
+                }
+            }),
+        }
+    });
+    let mut forward_a = json_graphql_request(
+        r#"query ScopedFunctionsA { shopifyFunctions(first: 1, apiType: "VALIDATION") { edges { cursor node { id } } pageInfo { hasNextPage } } }"#,
+        json!({}),
+    );
+    forward_a.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    proxy.process_request(forward_a.clone());
+    let mut backward_a = json_graphql_request(
+        r#"query ScopedFunctionsBackward { shopifyFunctions(last: 1, before: "opaque-z", useCreationUi: true) { edges { cursor node { id } } pageInfo { hasPreviousPage } } }"#,
+        json!({}),
+    );
+    backward_a.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    proxy.process_request(backward_a);
+    let mut forward_b = forward_a;
+    forward_b.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-b".to_string(),
+    );
+    proxy.process_request(forward_b);
+    assert_eq!(*upstream_hits.lock().unwrap(), 3);
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    let observations = dump.body["state"]["baseState"]["functionConnectionObservations"]
+        .as_object()
+        .expect("scoped Function observations should dump");
+    assert_eq!(observations.len(), 3);
+    let scope_keys = observations
+        .values()
+        .filter_map(|observation| observation["scopeKey"].as_str())
+        .collect::<Vec<_>>();
+    assert!(scope_keys
+        .iter()
+        .any(|key| key.contains("app-a") && key.contains("forward")));
+    assert!(scope_keys
+        .iter()
+        .any(|key| key.contains("app-a") && key.contains("backward")));
+    assert!(scope_keys
+        .iter()
+        .any(|key| key.contains("app-b") && key.contains("forward")));
+    assert!(dump.body["state"]["baseState"]
+        .get("functionMetadataCatalogHydrated")
+        .is_none());
+
+    let restored_hits = Arc::new(Mutex::new(0usize));
+    let restored_counter = Arc::clone(&restored_hits);
+    let mut restored = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |_request| {
+        *restored_counter.lock().unwrap() += 1;
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "shopifyFunctions": {
+                        "nodes": [], "edges": [],
+                        "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null }
+                    }
+                }
+            }),
+        }
+    });
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let mut repeated = json_graphql_request(
+        r#"query ScopedFunctionsAAgain { shopifyFunctions(first: 1, apiType: "VALIDATION") { nodes { id } } }"#,
+        json!({}),
+    );
+    repeated.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    restored.process_request(repeated);
+    assert_eq!(
+        *restored_hits.lock().unwrap(),
+        1,
+        "restored observations are not request caches"
+    );
+    restored.process_request(request_with_body("POST", "/__meta/reset", ""));
+    let reset_dump = restored.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(
+        reset_dump.body["state"]["baseState"]["functionConnectionObservations"]
+            .as_object()
+            .unwrap()
+            .len(),
+        3,
+        "reset preserves base observations while clearing request-local caches"
+    );
 }
 
 #[test]
@@ -6609,8 +7990,8 @@ fn functions_hydrated_raw_api_types_remain_public_while_filters_use_canonical_ke
     );
     assert_eq!(
         *upstream_hits.lock().unwrap(),
-        1,
-        "local function read should use hydrated metadata without another upstream request"
+        2,
+        "each unaffected read should forward the caller's complete document once"
     );
 }
 
@@ -6659,6 +8040,26 @@ fn functions_shopify_functions_without_api_type_returns_all_local_metadata_and_w
                 .contains("shopifyFunctions"),
             "cold function read should forward the original shopifyFunctions query, got {body}"
         );
+        let query = body["query"].as_str().unwrap_or_default();
+        let (window, has_next_page, has_previous_page) =
+            if query.contains("HydrateUnfilteredFunctions") {
+                (upstream_functions.clone(), false, false)
+            } else if body["variables"]["after"].as_str() == Some("opaque-unfiltered-cart") {
+                (vec![upstream_functions[2].clone()], false, true)
+            } else {
+                (upstream_functions[..2].to_vec(), true, false)
+            };
+        let edges = window
+            .iter()
+            .map(|function| {
+                json!({
+                    "cursor": format!("opaque-{}", function["handle"].as_str().unwrap_or_default()),
+                    "node": function
+                })
+            })
+            .collect::<Vec<_>>();
+        let start_cursor = edges.first().and_then(|edge| edge["cursor"].as_str());
+        let end_cursor = edges.last().and_then(|edge| edge["cursor"].as_str());
         Response {
             status: 200,
             headers: Default::default(),
@@ -6666,13 +8067,17 @@ fn functions_shopify_functions_without_api_type_returns_all_local_metadata_and_w
                 "data": {
                     "cartFunction": upstream_functions[1].clone(),
                     "shopifyFunctions": {
-                        "nodes": upstream_functions.clone(),
+                        "nodes": window,
+                        "edges": edges,
                         "pageInfo": {
-                            "hasNextPage": false,
-                            "hasPreviousPage": false,
-                            "startCursor": "upstream-start",
-                            "endCursor": "upstream-end"
+                            "hasNextPage": has_next_page,
+                            "hasPreviousPage": has_previous_page,
+                            "startCursor": start_cursor,
+                            "endCursor": end_cursor
                         }
+                    },
+                    "cartFunctions": {
+                        "nodes": [upstream_functions[1].clone()]
                     },
                     "validationFunction": upstream_functions[0].clone()
                 }
@@ -6737,11 +8142,11 @@ fn functions_shopify_functions_without_api_type_returns_all_local_metadata_and_w
         first_page.body["data"]["shopifyFunctions"]["edges"],
         json!([
             {
-                "cursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-validation",
+                "cursor": "opaque-unfiltered-validation",
                 "node": { "handle": "unfiltered-validation" }
             },
             {
-                "cursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-cart",
+                "cursor": "opaque-unfiltered-cart",
                 "node": { "handle": "unfiltered-cart" }
             }
         ])
@@ -6751,8 +8156,8 @@ fn functions_shopify_functions_without_api_type_returns_all_local_metadata_and_w
         json!({
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-validation",
-            "endCursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-cart"
+            "startCursor": "opaque-unfiltered-validation",
+            "endCursor": "opaque-unfiltered-cart"
         })
     );
     assert_eq!(
@@ -6782,14 +8187,14 @@ fn functions_shopify_functions_without_api_type_returns_all_local_metadata_and_w
         json!({
             "hasNextPage": false,
             "hasPreviousPage": true,
-            "startCursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-payment",
-            "endCursor": "cursor:gid://shopify/ShopifyFunction/unfiltered-payment"
+            "startCursor": "opaque-unfiltered-payment",
+            "endCursor": "opaque-unfiltered-payment"
         })
     );
     assert_eq!(
         *upstream_hits.lock().unwrap(),
-        1,
-        "local function reads after hydration should not make another upstream request"
+        3,
+        "each unaffected requested window should forward once"
     );
 }
 
@@ -6888,6 +8293,48 @@ fn functions_live_hybrid_reads_merge_upstream_records_after_one_local_validation
             "FunctionValidationHydrateById" => {
                 json!({ "data": { "validation": upstream_validation.clone() } })
             }
+            _ if query.contains("ReadFunctionsOverlayAfterValidationStage") => json!({
+                "data": {
+                    "stagedValidation": null,
+                    "baseValidation": upstream_validation.clone(),
+                    "validations": {
+                        "nodes": [upstream_validation.clone()],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-upstream-validation",
+                            "endCursor": "opaque-upstream-validation"
+                        }
+                    },
+                    "cartTransforms": {
+                        "nodes": [upstream_cart_transform.clone()],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-upstream-cart-transform",
+                            "endCursor": "opaque-upstream-cart-transform"
+                        }
+                    },
+                    "allFunctions": {
+                        "nodes": [
+                            upstream_validation_function.clone(),
+                            upstream_cart_function.clone(),
+                            test_function_metadata_by_id_or_handle(None, Some("validation-local"))
+                                .expect("validation-local test metadata")
+                        ],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "opaque-upstream-validation-function",
+                            "endCursor": "opaque-upstream-cart-function"
+                        }
+                    },
+                    "cartFunctions": {
+                        "nodes": [upstream_cart_function.clone()]
+                    },
+                    "upstreamCartFunction": upstream_cart_function.clone()
+                }
+            }),
             _ if query.contains("validations") => json!({
                 "data": { "validations": { "nodes": [upstream_validation.clone()] } }
             }),
@@ -7899,7 +9346,7 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
         empty_read.body["data"]["fulfillmentConstraintRules"],
         json!([])
     );
-    assert_eq!(hydrate_requests.lock().unwrap().len(), 2);
+    assert_eq!(hydrate_requests.lock().unwrap().len(), 3);
     assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 3);
 
     let upstream_hydrate_requests = Arc::new(Mutex::new(Vec::new()));
@@ -8086,6 +9533,71 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
                 .contains("fulfillmentConstraintRules")),
         "combined read opened by validation overlay should hydrate fulfillmentConstraintRules"
     );
+}
+
+#[test]
+fn functions_fulfillment_constraint_rule_tombstone_hydrates_omitted_identity_once() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let rule = json!({
+        "id": "gid://shopify/FulfillmentConstraintRule/omitted-identity",
+        "deliveryMethodTypes": ["SHIPPING"],
+        "function": {
+            "id": "gid://shopify/ShopifyFunction/fulfillment-omitted-identity",
+            "title": "Fulfillment omitted identity",
+            "handle": "fulfillment-omitted-identity",
+            "apiType": "FULFILLMENT_CONSTRAINT_RULE"
+        }
+    });
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("fulfillment omitted identity request should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let value = if body["operationName"] == json!("FunctionListWindowHydrate")
+            || body["query"].as_str().unwrap_or_default().contains(" id ")
+        {
+            rule.clone()
+        } else {
+            json!({ "deliveryMethodTypes": ["SHIPPING"] })
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "fulfillmentConstraintRules": [value] } }),
+        }
+    });
+
+    let observe = proxy.process_request(json_graphql_request(
+        r#"query ObserveFulfillmentRuleIdentity { fulfillmentConstraintRules { id deliveryMethodTypes } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        observe.body["data"]["fulfillmentConstraintRules"][0]["id"],
+        json!("gid://shopify/FulfillmentConstraintRule/omitted-identity")
+    );
+    let delete = proxy.process_request(json_graphql_request(
+        r#"mutation DeleteFulfillmentRuleIdentity { fulfillmentConstraintRuleDelete(id: "gid://shopify/FulfillmentConstraintRule/omitted-identity") { success userErrors { code field message } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        delete.body["data"]["fulfillmentConstraintRuleDelete"],
+        json!({ "success": true, "userErrors": [] })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query ReadFulfillmentRuleWithoutIdentity { fulfillmentConstraintRules { deliveryMethodTypes } }"#,
+        json!({}),
+    ));
+    assert_eq!(read.body["data"]["fulfillmentConstraintRules"], json!([]));
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(hits.len(), 3);
+    let hydration_query = hits[2]["query"].as_str().unwrap_or_default();
+    assert!(hydration_query.contains("deliveryMethodTypes id"));
+    assert!(!hydration_query.contains("first: 100"));
 }
 
 #[test]
