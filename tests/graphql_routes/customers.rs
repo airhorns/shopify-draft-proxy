@@ -1230,8 +1230,57 @@ fn upstream_merge_scalar_customer(
     })
 }
 
+fn upstream_merge_address(index: usize) -> Value {
+    json!({
+        "id": format!("gid://shopify/MailingAddress/merge-source-{index}"),
+        "firstName": "Merge",
+        "lastName": "Source",
+        "address1": format!("{index} Source St"),
+        "address2": null,
+        "city": "Ottawa",
+        "company": null,
+        "province": "Ontario",
+        "provinceCode": "ON",
+        "country": "Canada",
+        "countryCodeV2": "CA",
+        "zip": format!("K1A 0B{index}"),
+        "phone": null,
+        "name": "Merge Source",
+        "formattedArea": format!("Ottawa ON K1A 0B{index}, Canada")
+    })
+}
+
+fn upstream_merge_metafield(index: usize) -> Value {
+    json!({
+        "id": format!("gid://shopify/Metafield/merge-source-{index}"),
+        "namespace": "custom",
+        "key": format!("source_{index}"),
+        "type": "single_line_text_field",
+        "value": format!("source-value-{index}")
+    })
+}
+
+fn upstream_merge_order_edge(index: usize) -> Value {
+    json!({
+        "cursor": format!("source-order-cursor-{index}"),
+        "node": {
+            "id": format!("gid://shopify/Order/merge-source-{index}"),
+            "name": format!("#{index:04}"),
+            "email": "merge-one@example.com",
+            "createdAt": format!("2026-06-{index:02}T00:00:00Z")
+        }
+    })
+}
+
+fn upstream_merge_page_info(has_next_page: bool, end_cursor: Option<&str>) -> Value {
+    json!({
+        "hasNextPage": has_next_page,
+        "endCursor": end_cursor
+    })
+}
+
 #[test]
-fn customer_merge_live_hybrid_uses_combined_bounded_cold_hydrates() {
+fn customer_merge_live_hybrid_pages_complete_attached_relationships() {
     let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured = Arc::clone(&upstream_calls);
     let one_id = "gid://shopify/Customer/merge-cold-one";
@@ -1242,11 +1291,13 @@ fn customer_merge_live_hybrid_uses_combined_bounded_cold_hydrates() {
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
             captured.lock().unwrap().push(body.clone());
-            let ids = json!([expected_one.clone(), expected_two.clone()]);
-            assert_eq!(body["variables"]["ids"], ids);
             let query = body["query"].as_str().expect("merge hydrate query");
             match body["operationName"].as_str() {
                 Some("CustomerMergeHydrate") => {
+                    assert_eq!(
+                        body["variables"]["ids"],
+                        json!([expected_one.clone(), expected_two.clone()])
+                    );
                     assert!(query.contains("nodes(ids: $ids)"));
                     assert!(!query.contains("addressesV2("));
                     assert!(!query.contains("metafields("));
@@ -1265,11 +1316,22 @@ fn customer_merge_live_hybrid_uses_combined_bounded_cold_hydrates() {
                     }
                 }
                 Some("CustomerMergeAttachedHydrate") => {
+                    assert_eq!(
+                        body["variables"]["ids"],
+                        json!([expected_one.clone(), expected_two.clone()])
+                    );
                     assert!(query.contains("nodes(ids: $ids)"));
                     assert!(query.contains("addressesV2(first: 5)"));
                     assert!(query.contains("metafields(first: 5)"));
                     assert!(query.contains("orders(first: 5"));
                     assert!(!query.contains("first: 250"));
+                    let addresses = (1..=6).map(upstream_merge_address).collect::<Vec<_>>();
+                    let metafields = (1..=6)
+                        .map(upstream_merge_metafield)
+                        .collect::<Vec<_>>();
+                    let orders = (1..=6)
+                        .map(upstream_merge_order_edge)
+                        .collect::<Vec<_>>();
                     Response {
                         status: 200,
                         headers: Default::default(),
@@ -1280,57 +1342,39 @@ fn customer_merge_live_hybrid_uses_combined_bounded_cold_hydrates() {
                                         "id": expected_one.clone(),
                                         "defaultAddress": null,
                                         "addressesV2": {
-                                            "nodes": [{
-                                                "id": "gid://shopify/MailingAddress/merge-one",
-                                                "firstName": "Merge",
-                                                "lastName": "One",
-                                                "address1": "1 Source St",
-                                                "address2": null,
-                                                "city": "Ottawa",
-                                                "company": null,
-                                                "province": "Ontario",
-                                                "provinceCode": "ON",
-                                                "country": "Canada",
-                                                "countryCodeV2": "CA",
-                                                "zip": "K1A 0B1",
-                                                "phone": null,
-                                                "name": "Merge One",
-                                                "formattedArea": "Ottawa ON K1A 0B1, Canada"
-                                            }]
+                                            "nodes": addresses[..5].to_vec(),
+                                            "pageInfo": upstream_merge_page_info(true, Some("source-address-cursor-5"))
                                         },
                                         "metafields": {
-                                            "nodes": [{
-                                                "id": "gid://shopify/Metafield/merge-one",
-                                                "namespace": "custom",
-                                                "key": "source",
-                                                "type": "single_line_text_field",
-                                                "value": "yes"
-                                            }]
+                                            "nodes": metafields[..5].to_vec(),
+                                            "pageInfo": upstream_merge_page_info(true, Some("source-metafield-cursor-5"))
                                         },
                                         "orders": {
-                                            "edges": [{
-                                                "cursor": "source-order-cursor",
-                                                "node": {
-                                                    "id": "gid://shopify/Order/merge-one",
-                                                    "name": "#1001",
-                                                    "email": "merge-one@example.com",
-                                                    "createdAt": "2026-06-02T00:00:00Z"
-                                                }
-                                            }]
+                                            "edges": orders[..5].to_vec(),
+                                            "pageInfo": upstream_merge_page_info(true, Some("source-order-cursor-5"))
                                         },
                                         "lastOrder": {
-                                            "id": "gid://shopify/Order/merge-one",
-                                            "name": "#1001",
+                                            "id": "gid://shopify/Order/merge-source-6",
+                                            "name": "#0006",
                                             "email": "merge-one@example.com",
-                                            "createdAt": "2026-06-02T00:00:00Z"
+                                            "createdAt": "2026-06-06T00:00:00Z"
                                         }
                                     },
                                     {
                                         "id": expected_two.clone(),
                                         "defaultAddress": null,
-                                        "addressesV2": { "nodes": [] },
-                                        "metafields": { "nodes": [] },
-                                        "orders": { "edges": [] },
+                                        "addressesV2": {
+                                            "nodes": [],
+                                            "pageInfo": upstream_merge_page_info(false, None)
+                                        },
+                                        "metafields": {
+                                            "nodes": [],
+                                            "pageInfo": upstream_merge_page_info(false, None)
+                                        },
+                                        "orders": {
+                                            "edges": [],
+                                            "pageInfo": upstream_merge_page_info(false, None)
+                                        },
                                         "lastOrder": null
                                     }
                                 ]
@@ -1338,6 +1382,72 @@ fn customer_merge_live_hybrid_uses_combined_bounded_cold_hydrates() {
                         }),
                     }
                 }
+                Some("CustomerMergeAttachedPageHydrate") => {
+                    assert!(query.contains("@include(if: $oneAddressesPending)"));
+                    assert!(query.contains("@include(if: $oneMetafieldsPending)"));
+                    assert!(query.contains("@include(if: $oneOrdersPending)"));
+                    assert_eq!(body["variables"]["oneId"], json!(expected_one));
+                    assert_eq!(body["variables"]["twoId"], json!(expected_two));
+                    for field in [
+                        "oneAddressesPending",
+                        "oneMetafieldsPending",
+                        "oneOrdersPending",
+                    ] {
+                        assert_eq!(body["variables"][field], json!(true));
+                    }
+                    for field in [
+                        "twoAddressesPending",
+                        "twoMetafieldsPending",
+                        "twoOrdersPending",
+                    ] {
+                        assert_eq!(body["variables"][field], json!(false));
+                    }
+                    assert_eq!(
+                        body["variables"]["oneAddressesAfter"],
+                        json!("source-address-cursor-5")
+                    );
+                    assert_eq!(
+                        body["variables"]["oneMetafieldsAfter"],
+                        json!("source-metafield-cursor-5")
+                    );
+                    assert_eq!(
+                        body["variables"]["oneOrdersAfter"],
+                        json!("source-order-cursor-5")
+                    );
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({
+                            "data": {
+                                "one": {
+                                    "id": expected_one,
+                                    "addressesV2": {
+                                        "nodes": [upstream_merge_address(6)],
+                                        "pageInfo": upstream_merge_page_info(false, Some("source-address-cursor-6"))
+                                    },
+                                    "metafields": {
+                                        "nodes": [upstream_merge_metafield(6)],
+                                        "pageInfo": upstream_merge_page_info(false, Some("source-metafield-cursor-6"))
+                                    },
+                                    "orders": {
+                                        "edges": [upstream_merge_order_edge(6)],
+                                        "pageInfo": upstream_merge_page_info(false, Some("source-order-cursor-6"))
+                                    }
+                                },
+                                "two": { "id": expected_two }
+                            }
+                        }),
+                    }
+                }
+                Some("CustomerCountHydrate") => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "customersCount": { "count": 100, "precision": "EXACT" }
+                        }
+                    }),
+                },
                 other => panic!("unexpected upstream operation: {other:?}"),
             }
         });
@@ -1359,36 +1469,108 @@ fn customer_merge_live_hybrid_uses_combined_bounded_cold_hydrates() {
         merge.body["data"]["customerMerge"]["resultingCustomerId"],
         json!(two_id)
     );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 3);
 
     let readback = proxy.process_request(json_graphql_request(
         r#"
-        query ColdMergeReadback($id: ID!) {
-          customer(id: $id) {
-            addressesV2(first: 5) { nodes { address1 city } }
-            metafields(first: 5) { nodes { namespace key value } }
-            orders(first: 5) { nodes { id name email } }
+        query ColdMergeReadback($source: ID!, $result: ID!, $tailAddress: ID!) {
+          source: customer(id: $source) { id }
+          result: customer(id: $result) {
+            addressesV2(first: 10) { nodes { id address1 city } }
+            metafields(first: 10) { nodes { id namespace key value } }
+            orders(first: 10) { nodes { id name email } }
           }
+          sourceNode: node(id: $source) { id }
+          resultNode: node(id: $result) {
+            ... on Customer {
+              id
+              addressesV2(first: 10) { nodes { id } }
+              metafields(first: 10) { nodes { id } }
+              orders(first: 10) { nodes { id email } }
+            }
+          }
+          tailAddressNode: node(id: $tailAddress) {
+            ... on MailingAddress { id address1 city }
+          }
+          customersCount { count precision }
         }
         "#,
-        json!({ "id": two_id }),
+        json!({
+            "source": one_id,
+            "result": two_id,
+            "tailAddress": "gid://shopify/MailingAddress/merge-source-6"
+        }),
     ));
+    assert_eq!(readback.body["data"]["source"], Value::Null);
+    assert_eq!(readback.body["data"]["sourceNode"], Value::Null);
+    let addresses = readback.body["data"]["result"]["addressesV2"]["nodes"]
+        .as_array()
+        .expect("addresses nodes");
+    let metafields = readback.body["data"]["result"]["metafields"]["nodes"]
+        .as_array()
+        .expect("metafield nodes");
+    let orders = readback.body["data"]["result"]["orders"]["nodes"]
+        .as_array()
+        .expect("order nodes");
+    assert_eq!(addresses.len(), 6);
+    assert_eq!(metafields.len(), 6);
+    assert_eq!(orders.len(), 6);
+    assert!(addresses
+        .iter()
+        .any(|address| { address["id"] == json!("gid://shopify/MailingAddress/merge-source-6") }));
+    assert!(metafields.iter().any(|metafield| {
+        metafield["key"] == json!("source_6")
+            && metafield["id"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("gid://shopify/Metafield/"))
+    }));
+    assert!(orders.iter().any(|order| {
+        order["id"] == json!("gid://shopify/Order/merge-source-6")
+            && order["email"] == json!("merge-two@example.com")
+    }));
+    assert_eq!(readback.body["data"]["resultNode"]["id"], json!(two_id));
     assert_eq!(
-        readback.body["data"]["customer"]["addressesV2"]["nodes"],
-        json!([{ "address1": "1 Source St", "city": "Ottawa" }])
+        readback.body["data"]["resultNode"]["addressesV2"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(6)
     );
     assert_eq!(
-        readback.body["data"]["customer"]["metafields"]["nodes"],
-        json!([{ "namespace": "custom", "key": "source", "value": "yes" }])
+        readback.body["data"]["resultNode"]["metafields"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(6)
     );
     assert_eq!(
-        readback.body["data"]["customer"]["orders"]["nodes"],
-        json!([{
-            "id": "gid://shopify/Order/merge-one",
-            "name": "#1001",
-            "email": "merge-two@example.com"
-        }])
+        readback.body["data"]["resultNode"]["orders"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(6)
     );
-    assert_eq!(upstream_calls.lock().unwrap().len(), 2);
+    assert_eq!(
+        readback.body["data"]["tailAddressNode"],
+        json!({
+            "id": "gid://shopify/MailingAddress/merge-source-6",
+            "address1": "6 Source St",
+            "city": "Ottawa"
+        })
+    );
+    assert_eq!(
+        readback.body["data"]["customersCount"],
+        json!({ "count": 99, "precision": "EXACT" })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 4);
+
+    let state = state_snapshot(&proxy);
+    assert_eq!(
+        state["baseState"]["customerMergeAttachedCompleteness"][one_id],
+        json!({ "addressesV2": true, "metafields": true, "orders": true })
+    );
+    assert!(state["baseState"]["customerMergeCustomers"]
+        .get(one_id)
+        .is_some());
+    assert!(state["stagedState"]["customers"].get(one_id).is_none());
+    assert!(state["stagedState"]["customers"].get(two_id).is_some());
 }
 
 #[test]
@@ -1452,6 +1634,19 @@ fn customer_merge_live_hybrid_validation_skips_attached_hydrate() {
         ])
     );
     assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    let state = state_snapshot(&proxy);
+    assert!(state["stagedState"]["customers"]
+        .as_object()
+        .is_some_and(serde_json::Map::is_empty));
+    assert!(state["stagedState"]["deletedCustomerIds"]
+        .as_array()
+        .is_some_and(Vec::is_empty));
+    assert!(state["baseState"]["customerMergeCustomers"]
+        .get(one_id)
+        .is_some());
+    assert!(state["baseState"]["customerMergeCustomers"]
+        .get(two_id)
+        .is_some());
 }
 
 #[test]

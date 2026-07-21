@@ -1,0 +1,47 @@
+query CustomerMergeAttachedPageHydrate(
+  $oneId: ID!
+  $twoId: ID!
+  $oneAddressesAfter: String
+  $oneAddressesPending: Boolean!
+  $oneMetafieldsAfter: String
+  $oneMetafieldsPending: Boolean!
+  $oneOrdersAfter: String
+  $oneOrdersPending: Boolean!
+  $twoAddressesAfter: String
+  $twoAddressesPending: Boolean!
+  $twoMetafieldsAfter: String
+  $twoMetafieldsPending: Boolean!
+  $twoOrdersAfter: String
+  $twoOrdersPending: Boolean!
+) {
+  one: customer(id: $oneId) {
+    id
+    addressesV2(first: 250, after: $oneAddressesAfter) @include(if: $oneAddressesPending) {
+      nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
+      pageInfo { hasNextPage endCursor }
+    }
+    metafields(first: 250, after: $oneMetafieldsAfter) @include(if: $oneMetafieldsPending) {
+      nodes { id namespace key type value }
+      pageInfo { hasNextPage endCursor }
+    }
+    orders(first: 250, after: $oneOrdersAfter, sortKey: CREATED_AT, reverse: true) @include(if: $oneOrdersPending) {
+      edges { cursor node { id name email createdAt } }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+  two: customer(id: $twoId) {
+    id
+    addressesV2(first: 250, after: $twoAddressesAfter) @include(if: $twoAddressesPending) {
+      nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
+      pageInfo { hasNextPage endCursor }
+    }
+    metafields(first: 250, after: $twoMetafieldsAfter) @include(if: $twoMetafieldsPending) {
+      nodes { id namespace key type value }
+      pageInfo { hasNextPage endCursor }
+    }
+    orders(first: 250, after: $twoOrdersAfter, sortKey: CREATED_AT, reverse: true) @include(if: $twoOrdersPending) {
+      edges { cursor node { id name email createdAt } }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}

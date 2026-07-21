@@ -180,17 +180,11 @@ impl DraftProxy {
         let override_fields =
             resolved_object_field(arguments, "overrideFields").unwrap_or_default();
         let one = self
-            .store
-            .staged
-            .customers
-            .get(one_id)
+            .customer_merge_effective_customer(one_id)
             .cloned()
             .unwrap_or(Value::Null);
         let two = self
-            .store
-            .staged
-            .customers
-            .get(two_id)
+            .customer_merge_effective_customer(two_id)
             .cloned()
             .unwrap_or(Value::Null);
         let (result_id, source_id) =
@@ -202,7 +196,18 @@ impl DraftProxy {
         };
         let source = if source_id == one_id { one } else { two };
         apply_customer_merge_overrides(&mut result, &source, &override_fields);
+        let retained_metafields = connection_nodes(&result["metafields"])
+            .iter()
+            .map(metafield_identity)
+            .collect::<BTreeSet<_>>();
         merge_customer_attached_resources(&mut result, &source);
+        if let Some(metafields) = result["metafields"]["nodes"].as_array_mut() {
+            for metafield in metafields {
+                if !retained_metafields.contains(&metafield_identity(metafield)) {
+                    metafield["id"] = json!(self.next_proxy_synthetic_gid("Metafield"));
+                }
+            }
+        }
         normalize_merged_customer_defaults(&mut result);
         // The resulting customer inherits the earliest creation date of the two
         // merged customers (it represents the older identity). ISO-8601 timestamps
@@ -223,6 +228,29 @@ impl DraftProxy {
         let result_email = result["email"].as_str().map(str::to_string);
         let result_metafields = result["metafields"].clone();
         let result_draft_order_customer = customer_merge_draft_order_customer(&result_id, &result);
+        let mut result_orders = self
+            .store
+            .staged
+            .customer_orders
+            .remove(&result_id)
+            .unwrap_or_else(|| customer_merge_extract_order_records(&result_id, &result["orders"]));
+        let mut source_orders = self
+            .store
+            .staged
+            .customer_orders
+            .remove(&source_id)
+            .unwrap_or_else(|| customer_merge_extract_order_records(&source_id, &source["orders"]));
+        if let Some(email) = &result_email {
+            for order in &mut source_orders {
+                if order.get("email").is_some() {
+                    order["email"] = json!(email);
+                }
+            }
+        }
+        for order in result_orders.iter_mut().chain(&mut source_orders) {
+            order["customer"] = result_draft_order_customer.clone();
+        }
+        result_orders.extend(source_orders);
 
         self.store
             .staged
@@ -235,20 +263,11 @@ impl DraftProxy {
             .staged
             .merged_customer_ids
             .insert(source_id.clone(), result_id.clone());
-        if let Some(mut source_orders) = self.store.staged.customer_orders.remove(&source_id) {
-            if let Some(email) = &result_email {
-                for order in &mut source_orders {
-                    if order.get("email").is_some() {
-                        order["email"] = json!(email);
-                    }
-                }
-            }
+        if !result_orders.is_empty() {
             self.store
                 .staged
                 .customer_orders
-                .entry(result_id.clone())
-                .or_default()
-                .extend(source_orders);
+                .insert(result_id.clone(), result_orders);
         }
         self.transfer_customer_draft_orders(&source_id, &result_id, &result_draft_order_customer);
 
@@ -277,13 +296,24 @@ impl DraftProxy {
 
     fn customer_exists(&self, id: &str) -> bool {
         !id.is_empty()
-            && self.store.staged.customers.contains_key(id)
+            && self.customer_merge_effective_customer(id).is_some()
             && !self.store.staged.customers.is_tombstoned(id)
     }
 
+    fn customer_merge_effective_customer(&self, id: &str) -> Option<&Value> {
+        if self.store.staged.customers.is_tombstoned(id) {
+            return None;
+        }
+        self.store
+            .staged
+            .customers
+            .get(id)
+            .or_else(|| self.store.base.customer_merge_customers.get(id))
+    }
+
     fn customer_merge_blocker_errors(&self, one_id: &str, two_id: &str) -> Vec<Value> {
-        let one = self.store.staged.customers.get(one_id);
-        let two = self.store.staged.customers.get(two_id);
+        let one = self.customer_merge_effective_customer(one_id);
+        let two = self.customer_merge_effective_customer(two_id);
         let mut errors = Vec::new();
         let combined_tags = one
             .into_iter()
@@ -327,10 +357,7 @@ impl DraftProxy {
         for (id, field_name) in [(one_id, "customerOneId"), (two_id, "customerTwoId")] {
             if self.customer_has_assigned_gift_card(id) {
                 let name = self
-                    .store
-                    .staged
-                    .customers
-                    .get(id)
+                    .customer_merge_effective_customer(id)
                     .and_then(|customer| customer["displayName"].as_str())
                     .filter(|name| !name.is_empty())
                     .unwrap_or("Customer");

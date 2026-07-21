@@ -60,6 +60,26 @@
         "reason": "Shopify allocates a new metafield ID when copying a source-only customer metafield during merge; the local proxy allocates its own synthetic metafield ID."
       },
       {
+        "path": "$.result.metafields.nodes[3].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Shopify allocates a new metafield ID when copying a source-only customer metafield during merge; the local proxy allocates its own synthetic metafield ID."
+      },
+      {
+        "path": "$.result.metafields.nodes[4].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Shopify allocates a new metafield ID when copying a source-only customer metafield during merge; the local proxy allocates its own synthetic metafield ID."
+      },
+      {
+        "path": "$.result.metafields.nodes[5].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Shopify allocates a new metafield ID when copying a source-only customer metafield during merge; the local proxy allocates its own synthetic metafield ID."
+      },
+      {
+        "path": "$.result.metafields.nodes[6].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Shopify allocates a new metafield ID when copying a source-only customer metafield during merge; the local proxy allocates its own synthetic metafield ID."
+      },
+      {
         "path": "$.result.metafieldsReverse.nodes[0].id",
         "matcher": "shopify-gid:Metafield",
         "reason": "Shopify allocates a new metafield ID when copying a source-only customer metafield during merge; the reversed local proxy connection surfaces its own synthetic metafield ID."
