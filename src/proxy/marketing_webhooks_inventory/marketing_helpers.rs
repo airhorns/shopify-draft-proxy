@@ -766,7 +766,7 @@ impl DraftProxy {
         if let Some(installed_app_id) =
             self.current_app_installation_app_id_for_request(&request_app_id)
         {
-            if let Some(installation) = self.store.staged.installed_apps.get(&installed_app_id) {
+            if let Some(installation) = self.app_installation_for_app(&installed_app_id) {
                 return MarketingActivityAppContext {
                     api_client_id,
                     app: marketing_app_json(installation.get("app"), &request_app_id),

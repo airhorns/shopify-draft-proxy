@@ -385,7 +385,7 @@ const fixture = {
   storeDomain,
   apiVersion,
   notes: [
-    'HAR-301 safe app/billing/access read capture. No billing, uninstall, scope revocation, or delegated-token mutations are executed.',
+    'Safe app/billing/access read capture. No billing, uninstall, scope revocation, or delegated-token mutations are executed.',
     'The active conformance app has no active subscriptions, no allSubscriptions rows, and no oneTimePurchases rows, so the fixture captures Shopify empty/no-data billing connection behavior for the installed app.',
     'The current credential can read currentAppInstallation, app/appByHandle/appByKey, and appInstallation for the active install. appInstallations returns ACCESS_DENIED and is recorded as a credential/access blocker.',
   ],
@@ -402,6 +402,17 @@ const fixture = {
   appLookups,
   appInstallationDetail,
   appInstallationsAccessProbe,
+  upstreamCalls: [appLookups, appInstallationDetail, appInstallationsAccessProbe].map((recorded) => ({
+    method: 'POST',
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    apiSurface: 'admin',
+    query: recorded.query,
+    variables: recorded.variables ?? {},
+    response: {
+      status: recorded.status,
+      body: recorded.payload,
+    },
+  })),
 };
 
 const outputPath = path.join(
@@ -416,6 +427,109 @@ const outputPath = path.join(
 
 await mkdir(path.dirname(outputPath), { recursive: true });
 await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+
+const parityRequestDirectory = path.join(process.cwd(), 'config', 'parity-requests', 'apps');
+await mkdir(parityRequestDirectory, { recursive: true });
+await writeFile(path.join(parityRequestDirectory, 'app-identity-lookups.graphql'), APP_LOOKUP_QUERY, 'utf8');
+await writeFile(
+  path.join(parityRequestDirectory, 'app-identity-lookups.variables.json'),
+  `${JSON.stringify(appLookups.variables ?? {}, null, 2)}\n`,
+  'utf8',
+);
+await writeFile(
+  path.join(parityRequestDirectory, 'app-installation-detail.graphql'),
+  APP_INSTALLATION_DETAIL_QUERY,
+  'utf8',
+);
+await writeFile(
+  path.join(parityRequestDirectory, 'app-installation-detail.variables.json'),
+  `${JSON.stringify(appInstallationDetail.variables ?? {}, null, 2)}\n`,
+  'utf8',
+);
+await writeFile(
+  path.join(parityRequestDirectory, 'app-installations-access-probe.graphql'),
+  APP_INSTALLATIONS_ACCESS_PROBE_QUERY,
+  'utf8',
+);
+await writeFile(
+  path.join(parityRequestDirectory, 'app-installations-access-probe.variables.json'),
+  `${JSON.stringify(appInstallationsAccessProbe.variables ?? {}, null, 2)}\n`,
+  'utf8',
+);
+
+const paritySpecPath = path.join(
+  process.cwd(),
+  'config',
+  'parity-specs',
+  'apps',
+  'app-identity-installation-lookups.json',
+);
+await mkdir(path.dirname(paritySpecPath), { recursive: true });
+await writeFile(
+  paritySpecPath,
+  `${JSON.stringify(
+    {
+      scenarioId: 'app-identity-installation-lookups',
+      operationNames: ['app', 'appByHandle', 'appByKey', 'appInstallation', 'appInstallations'],
+      scenarioStatus: 'captured',
+      assertionKinds: ['payload-shape', 'null-empty-behavior', 'upstream-read-parity'],
+      liveCaptureFiles: [`fixtures/conformance/${storeDomain}/${apiVersion}/apps/app-billing-access-read.json`],
+      runtimeTestFiles: ['tests/graphql_routes/admin_app.rs'],
+      comparisonMode: 'captured-vs-proxy-request',
+      proxyRequest: {
+        documentPath: 'config/parity-requests/apps/app-identity-lookups.graphql',
+        variablesPath: 'config/parity-requests/apps/app-identity-lookups.variables.json',
+        apiVersion,
+      },
+      comparison: {
+        mode: 'strict-json',
+        expectedDifferences: [],
+        targets: [
+          {
+            name: 'lookup-app-by-id-and-missing-id',
+            capturePath: '$.appLookups.payload.data.appById',
+            proxyPath: '$.data.appById',
+          },
+          {
+            name: 'lookup-app-by-handle-and-missing-handle',
+            capturePath: '$.appLookups.payload.data.appByHandle',
+            proxyPath: '$.data.appByHandle',
+          },
+          {
+            name: 'lookup-app-by-key-and-missing-key',
+            capturePath: '$.appLookups.payload.data.appByKey',
+            proxyPath: '$.data.appByKey',
+          },
+          {
+            name: 'lookup-app-installation-by-id',
+            capturePath: '$.appInstallationDetail.payload.data.appInstallation',
+            proxyPath: '$.data.appInstallation',
+            proxyRequest: {
+              documentPath: 'config/parity-requests/apps/app-installation-detail.graphql',
+              variablesPath: 'config/parity-requests/apps/app-installation-detail.variables.json',
+              apiVersion,
+            },
+          },
+          {
+            name: 'installation-catalog-access-denied-blocker',
+            capturePath: '$.appInstallationsAccessProbe.payload',
+            proxyPath: '$',
+            proxyRequest: {
+              documentPath: 'config/parity-requests/apps/app-installations-access-probe.graphql',
+              variablesPath: 'config/parity-requests/apps/app-installations-access-probe.variables.json',
+              apiVersion,
+            },
+          },
+        ],
+      },
+      notes:
+        'Captured Shopify lookup parity for app ID, handle, API key, installation ID, and missing singular values. The current credential still returns ACCESS_DENIED for appInstallations, so a non-empty catalog comparison remains explicitly blocked and no catalog payload is synthesized.',
+    },
+    null,
+    2,
+  )}\n`,
+  'utf8',
+);
 
 // oxlint-disable-next-line no-console -- CLI capture scripts intentionally write the generated fixture path.
 console.log(outputPath);

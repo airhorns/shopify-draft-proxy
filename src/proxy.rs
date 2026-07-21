@@ -413,6 +413,21 @@ struct ShopPolicyRecord {
     translations: Vec<Value>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+struct AppInstallationCatalogWindow {
+    installation_ids: Vec<String>,
+    cursors: BTreeMap<String, String>,
+    page_info: Value,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+struct AppInstallationCatalogScope {
+    installation_ids: Vec<String>,
+    cursors: BTreeMap<String, String>,
+    complete: bool,
+    windows: BTreeMap<String, AppInstallationCatalogWindow>,
+}
+
 #[derive(Clone)]
 struct Store {
     base: BaseState,
@@ -458,6 +473,14 @@ struct BaseState {
     gift_cards: BTreeMap<String, Value>,
     gift_card_configuration: Option<Value>,
     gift_card_complete_queries: BTreeSet<String>,
+    apps: OrderedRecords<Value>,
+    app_installations: OrderedRecords<Value>,
+    app_installation_ids_by_app_id: BTreeMap<String, String>,
+    app_ids_by_handle: BTreeMap<String, String>,
+    app_ids_by_api_key: BTreeMap<String, String>,
+    current_app_ids_by_request_context: BTreeMap<String, String>,
+    app_installation_catalog_scopes: BTreeMap<String, AppInstallationCatalogScope>,
+    backup_region_access_scopes_by_request_context: BTreeMap<String, Vec<String>>,
     shop: Value,
     storefront_shop: Value,
     storefront_localizations: BTreeMap<String, Value>,

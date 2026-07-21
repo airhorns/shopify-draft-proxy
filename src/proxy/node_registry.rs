@@ -476,30 +476,28 @@ impl DraftProxy {
         id: &str,
         request: Option<&Request>,
     ) -> Option<Value> {
-        for (app_id, installation) in &self.store.staged.installed_apps {
-            if app_installation_id(installation).as_deref() == Some(id) {
-                if self.store.staged.uninstalled_app_ids.contains(app_id) {
-                    return Some(Value::Null);
-                }
-                let revoked_access_scopes = self
-                    .store
-                    .staged
-                    .revoked_app_access_scopes
-                    .get(app_id)
-                    .cloned()
-                    .unwrap_or_default();
-                return Some(current_app_installation_node_value(
-                    installation,
-                    &self.store.staged.app_subscriptions,
-                    &self.store.staged.app_one_time_purchases,
-                    &revoked_access_scopes,
-                ));
+        if is_shopify_gid_of_type(id, "App") {
+            if let Some(app) = self.effective_app_value_by_id(id) {
+                return Some(app);
             }
-            if installation.pointer("/app/id").and_then(Value::as_str) == Some(id) {
-                return installation.get("app").cloned();
+        } else if is_shopify_gid_of_type(id, "AppInstallation") {
+            if let Some(installation) = self.effective_app_installation_value_by_id(id) {
+                return Some(installation);
+            }
+            if self
+                .store
+                .staged
+                .installed_apps
+                .iter()
+                .any(|(app_id, installation)| {
+                    self.store.staged.uninstalled_app_ids.contains(app_id)
+                        && app_installation_id(installation).as_deref() == Some(id)
+                })
+            {
+                return Some(Value::Null);
             }
         }
-        if let Some(request) = request {
+        if let Some(request) = request.filter(|request| request_has_explicit_app_context(request)) {
             let app_id = request_app_gid(request);
             let installation = current_app_installation_from_request(request);
             if app_installation_id(&installation).as_deref() == Some(id) {
@@ -521,7 +519,9 @@ impl DraftProxy {
                 ));
             }
             if installation.pointer("/app/id").and_then(Value::as_str) == Some(id) {
-                return installation.get("app").cloned();
+                let mut app = installation.get("app").cloned().unwrap_or(Value::Null);
+                app["installation"] = installation;
+                return Some(app);
             }
         }
         self.store

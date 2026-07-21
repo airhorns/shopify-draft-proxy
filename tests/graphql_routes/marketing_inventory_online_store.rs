@@ -2593,6 +2593,14 @@ fn marketing_external_activity_app_title_uses_installed_app_model() {
         "x-shopify-draft-proxy-api-client-id".to_string(),
         "347082227713".to_string(),
     );
+    create.headers.insert(
+        "x-shopify-draft-proxy-app-title".to_string(),
+        "Hermes Marketing".to_string(),
+    );
+    create.headers.insert(
+        "x-shopify-draft-proxy-app-handle".to_string(),
+        "hermes-marketing".to_string(),
+    );
     let create = proxy.process_request(create);
     assert_eq!(
         create.body["data"]["createExternal"]["userErrors"],

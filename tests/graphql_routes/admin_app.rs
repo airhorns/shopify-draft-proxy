@@ -1577,11 +1577,7 @@ fn observed_current_app_installation_identity_survives_local_app_mutation_withou
                                 "id": app_id,
                                 "handle": "hermes-conformance-products",
                                 "title": "Hermes Conformance Products"
-                            },
-                            "accessScopes": [
-                                { "handle": "read_products", "description": "Read products" },
-                                { "handle": "write_products", "description": "Write products" }
-                            ]
+                            }
                         }
                     }
                 }),
@@ -1612,6 +1608,22 @@ fn observed_current_app_installation_identity_survives_local_app_mutation_withou
         })
     );
     assert_eq!(*upstream_calls.lock().unwrap(), 1);
+
+    let delegate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateFromObservedIdentityOnly {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
+            delegateAccessToken { accessScopes }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        delegate.body["data"]["delegateAccessTokenCreate"]["userErrors"],
+        json!([])
+    );
 
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -1675,8 +1687,8 @@ fn observed_current_app_installation_identity_survives_local_app_mutation_withou
     );
     assert_eq!(
         *upstream_calls.lock().unwrap(),
-        1,
-        "local app mutation and readback must not call upstream again"
+        2,
+        "local app mutation readback overlays one fresh complete caller response"
     );
 }
 
@@ -3391,4 +3403,691 @@ fn create_delegate_access_token_for_removed_app_tests(proxy: &mut DraftProxy) ->
         .as_str()
         .unwrap()
         .to_string()
+}
+
+fn app_lookup_test_app(id: &str, api_key: &str, handle: &str, title: &str) -> Value {
+    json!({
+        "__typename": "App",
+        "id": id,
+        "apiKey": api_key,
+        "handle": handle,
+        "title": title,
+        "developerName": "Example developer",
+        "embedded": true,
+        "previouslyInstalled": false,
+        "requestedAccessScopes": []
+    })
+}
+
+fn app_lookup_test_installation(id: &str, app: Value, access_scope_handles: &[&str]) -> Value {
+    json!({
+        "__typename": "AppInstallation",
+        "id": id,
+        "launchUrl": format!("https://example.test/admin/apps/{}", app["handle"].as_str().unwrap()),
+        "uninstallUrl": null,
+        "app": app,
+        "accessScopes": access_scope_handles
+            .iter()
+            .map(|handle| json!({ "handle": handle, "description": format!("Scope {handle}") }))
+            .collect::<Vec<_>>(),
+        "activeSubscriptions": []
+    })
+}
+
+fn app_lookup_request_headers(
+    request: &mut Request,
+    app_id: &str,
+    installation_id: &str,
+    handle: &str,
+    api_key: &str,
+) {
+    request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        app_id.to_string(),
+    );
+    request.headers.insert(
+        "x-shopify-draft-proxy-app-installation-id".to_string(),
+        installation_id.to_string(),
+    );
+    request.headers.insert(
+        "x-shopify-draft-proxy-app-handle".to_string(),
+        handle.to_string(),
+    );
+    request.headers.insert(
+        "x-shopify-draft-proxy-app-api-key".to_string(),
+        api_key.to_string(),
+    );
+}
+
+#[test]
+fn app_lookup_snapshot_misses_are_empty_and_request_context_is_ephemeral() {
+    let app_id = "gid://shopify/App/101";
+    let installation_id = "gid://shopify/AppInstallation/201";
+    let mut proxy = snapshot_proxy();
+
+    let misses = proxy.process_request(json_graphql_request(
+        r#"
+        query AppLookupSnapshotMisses($appId: ID!, $installationId: ID!) {
+          byId: app(id: $appId) { id }
+          byHandle: appByHandle(handle: "missing-app") { id }
+          byKey: appByKey(apiKey: "missing-key") { id }
+          installation: appInstallation(id: $installationId) { id }
+          catalog: appInstallations(first: 10) {
+            nodes { id }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "appId": app_id, "installationId": installation_id }),
+    ));
+    assert_eq!(
+        misses.body["data"],
+        json!({
+            "byId": null,
+            "byHandle": null,
+            "byKey": null,
+            "installation": null,
+            "catalog": {
+                "nodes": [],
+                "edges": [],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                }
+            }
+        })
+    );
+
+    let mut contextual_request = json_graphql_request(
+        r#"
+        query RequestOwnedAppContext($appId: ID!, $installationId: ID!) {
+          current: currentAppInstallation { id app { id apiKey handle } }
+          app: app(id: $appId) { id apiKey handle installation { id } }
+          installation: appInstallation(id: $installationId) { id app { id apiKey handle } }
+          node(id: $installationId) {
+            ... on AppInstallation { id app { id apiKey handle } }
+          }
+        }
+        "#,
+        json!({ "appId": app_id, "installationId": installation_id }),
+    );
+    app_lookup_request_headers(
+        &mut contextual_request,
+        app_id,
+        installation_id,
+        "request-app",
+        "request-api-key",
+    );
+    contextual_request.headers.insert(
+        "x-shopify-access-token".to_string(),
+        "shpat-request-context-secret".to_string(),
+    );
+    let contextual = proxy.process_request(contextual_request);
+    let expected_installation = json!({
+        "id": installation_id,
+        "app": { "id": app_id, "apiKey": "request-api-key", "handle": "request-app" }
+    });
+    assert_eq!(
+        contextual.body["data"],
+        json!({
+            "current": expected_installation,
+            "app": {
+                "id": app_id,
+                "apiKey": "request-api-key",
+                "handle": "request-app",
+                "installation": { "id": installation_id }
+            },
+            "installation": expected_installation,
+            "node": expected_installation
+        })
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.body["state"]["baseState"]["apps"], json!({}));
+    assert_eq!(
+        dump.body["state"]["baseState"]["appInstallations"],
+        json!({})
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["installedApps"],
+        json!({})
+    );
+    assert!(!dump
+        .body
+        .to_string()
+        .contains("shpat-request-context-secret"));
+
+    let isolated = proxy.process_request(json_graphql_request(
+        r#"query($id: ID!) { app(id: $id) { id } }"#,
+        json!({ "id": app_id }),
+    ));
+    assert_eq!(isolated.body["data"]["app"], Value::Null);
+
+    let mut other_proxy = snapshot_proxy();
+    let other = other_proxy.process_request(json_graphql_request(
+        r#"query($id: ID!) { app(id: $id) { id } }"#,
+        json!({ "id": app_id }),
+    ));
+    assert_eq!(other.body["data"]["app"], Value::Null);
+}
+
+#[test]
+fn app_lookup_roots_and_nodes_share_one_live_observed_identity_graph() {
+    let app_a_id = "gid://shopify/App/101";
+    let app_b_id = "gid://shopify/App/102";
+    let installation_a_id = "gid://shopify/AppInstallation/201";
+    let installation_b_id = "gid://shopify/AppInstallation/202";
+    let app_a = app_lookup_test_app(app_a_id, "key-a", "alpha-app", "Alpha app");
+    let app_b = app_lookup_test_app(app_b_id, "key-b", "beta-app", "Beta app");
+    let installation_a =
+        app_lookup_test_installation(installation_a_id, app_a.clone(), &["read_orders"]);
+    let installation_b =
+        app_lookup_test_installation(installation_b_id, app_b.clone(), &["read_products"]);
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let app_a = app_a.clone();
+        let installation_a = installation_a.clone();
+        let installation_b = installation_b.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "byId": app_a,
+                        "byHandle": app_a,
+                        "byKey": app_a,
+                        "installation": installation_a,
+                        "catalog": {
+                            "nodes": [installation_a, installation_b],
+                            "edges": [
+                                { "cursor": "opaque-install-a", "node": installation_a },
+                                { "cursor": "opaque-install-b", "node": installation_b }
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "opaque-install-a",
+                                "endCursor": "opaque-install-b"
+                            }
+                        },
+                        "current": installation_a
+                    }
+                }),
+            }
+        }
+    });
+
+    let lookup = proxy.process_request(json_graphql_request(
+        r#"
+        query MultiAppLookup($appId: ID!, $installationId: ID!, $handle: String!, $key: String!) {
+          byId: app(id: $appId) { id apiKey handle }
+          byHandle: appByHandle(handle: $handle) { id apiKey handle }
+          byKey: appByKey(apiKey: $key) { id apiKey handle }
+          installation: appInstallation(id: $installationId) { id app { id apiKey handle } }
+          catalog: appInstallations(first: 2, sortKey: APP_TITLE, privacy: PUBLIC) {
+            nodes { id app { id apiKey handle } }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          current: currentAppInstallation { id app { id apiKey handle } }
+        }
+        "#,
+        json!({
+            "appId": app_a_id,
+            "installationId": installation_a_id,
+            "handle": "alpha-app",
+            "key": "key-a"
+        }),
+    ));
+    assert_eq!(lookup.status, 200, "{}", lookup.body);
+    assert_eq!(lookup.body["data"]["byId"]["id"], json!(app_a_id));
+    assert_eq!(
+        lookup.body["data"]["catalog"]["edges"][1]["cursor"],
+        json!("opaque-install-b")
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+
+    let nodes = proxy.process_request(json_graphql_request(
+        r#"
+        query AppGraphNodes($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on App { id apiKey handle installation { id } }
+            ... on AppInstallation { id app { id apiKey handle } }
+          }
+        }
+        "#,
+        json!({ "ids": [app_a_id, installation_a_id, app_b_id, installation_b_id] }),
+    ));
+    assert_eq!(nodes.status, 200, "{}", nodes.body);
+    assert_eq!(nodes.body["data"]["nodes"][0]["id"], json!(app_a_id));
+    assert_eq!(
+        nodes.body["data"]["nodes"][0]["installation"]["id"],
+        json!(installation_a_id)
+    );
+    assert_eq!(nodes.body["data"]["nodes"][3]["app"]["id"], json!(app_b_id));
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn app_lookup_local_effects_overlay_one_complete_caller_read_and_partial_window() {
+    let app_a_id = "gid://shopify/App/101";
+    let app_b_id = "gid://shopify/App/102";
+    let installation_a_id = "gid://shopify/AppInstallation/201";
+    let installation_b_id = "gid://shopify/AppInstallation/202";
+    let app_a = app_lookup_test_app(app_a_id, "key-a", "alpha-app", "Alpha app");
+    let app_b = app_lookup_test_app(app_b_id, "key-b", "beta-app", "Beta app");
+    let installation_a = app_lookup_test_installation(
+        installation_a_id,
+        app_a.clone(),
+        &["read_orders", "write_orders"],
+    );
+    let installation_b = app_lookup_test_installation(installation_b_id, app_b, &["read_products"]);
+    let calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&calls);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let installation_a = installation_a.clone();
+        let installation_b = installation_b.clone();
+        let app_a = app_a.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let mut calls = captured_calls.lock().unwrap();
+            calls.push(body);
+            let overlay = calls.len() == 2;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: if overlay {
+                    json!({ "data": {
+                        "current": installation_a,
+                        "byHandle": {
+                            "id": app_a["id"],
+                            "apiKey": app_a["apiKey"],
+                            "handle": app_a["handle"],
+                            "installation": installation_a
+                        },
+                        "installation": installation_a,
+                        "catalog": {
+                            "nodes": [installation_a, installation_b],
+                            "edges": [
+                                { "cursor": "opaque-partial-a", "node": installation_a },
+                                { "cursor": "opaque-partial-b", "node": installation_b }
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": true,
+                                "startCursor": "opaque-partial-a",
+                                "endCursor": "opaque-partial-b"
+                            }
+                        },
+                        "shop": { "id": "gid://shopify/Shop/1", "name": "Unrelated shop" }
+                    } })
+                } else {
+                    json!({ "data": {
+                        "current": installation_a,
+                        "catalog": {
+                            "nodes": [installation_a, installation_b],
+                            "edges": [
+                                { "cursor": "opaque-partial-a", "node": installation_a },
+                                { "cursor": "opaque-partial-b", "node": installation_b }
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": true,
+                                "hasPreviousPage": true,
+                                "startCursor": "opaque-partial-a",
+                                "endCursor": "opaque-partial-b"
+                            }
+                        }
+                    } })
+                },
+            }
+        }
+    });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydratePartialAppWindow {
+          current: currentAppInstallation { id app { id apiKey handle } accessScopes { handle } }
+          catalog: appInstallations(first: 2, after: "opaque-before", sortKey: APP_TITLE, privacy: PUBLIC) {
+            nodes { id app { id apiKey handle } accessScopes { handle } }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(hydrate.status, 200, "{}", hydrate.body);
+
+    let mut revoke_request = json_graphql_request(
+        r#"
+        mutation RevokeOneScope {
+          appRevokeAccessScopes(scopes: ["write_orders"]) {
+            revoked { handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    app_lookup_request_headers(
+        &mut revoke_request,
+        app_a_id,
+        installation_a_id,
+        "alpha-app",
+        "key-a",
+    );
+    let revoke = proxy.process_request(revoke_request);
+    assert_eq!(
+        revoke.body["data"]["appRevokeAccessScopes"]["userErrors"],
+        json!([])
+    );
+
+    let mut overlay_request = json_graphql_request(
+        r#"
+        query OverlayPartialAppWindow {
+          current: currentAppInstallation { id app { id apiKey handle } accessScopes { handle } }
+          byHandle: appByHandle(handle: "alpha-app") {
+            id apiKey handle installation { id accessScopes { handle } }
+          }
+          installation: appInstallation(id: "gid://shopify/AppInstallation/201") {
+            id accessScopes { handle } app { id apiKey handle }
+          }
+          catalog: appInstallations(first: 2, after: "opaque-before", sortKey: APP_TITLE, privacy: PUBLIC) {
+            nodes { id app { id apiKey handle } accessScopes { handle } }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          shop { id name }
+        }
+        "#,
+        json!({}),
+    );
+    app_lookup_request_headers(
+        &mut overlay_request,
+        app_a_id,
+        installation_a_id,
+        "alpha-app",
+        "key-a",
+    );
+    let overlay = proxy.process_request(overlay_request);
+    assert_eq!(overlay.status, 200, "{}", overlay.body);
+    for value in [
+        &overlay.body["data"]["current"]["accessScopes"],
+        &overlay.body["data"]["byHandle"]["installation"]["accessScopes"],
+        &overlay.body["data"]["installation"]["accessScopes"],
+        &overlay.body["data"]["catalog"]["nodes"][0]["accessScopes"],
+    ] {
+        assert_eq!(*value, json!([{ "handle": "read_orders" }]));
+    }
+    assert_eq!(
+        overlay.body["data"]["catalog"]["nodes"][1]["accessScopes"],
+        json!([{ "handle": "read_products" }])
+    );
+    assert_eq!(
+        overlay.body["data"]["catalog"]["edges"],
+        json!([
+            { "cursor": "opaque-partial-a", "node": { "id": installation_a_id } },
+            { "cursor": "opaque-partial-b", "node": { "id": installation_b_id } }
+        ])
+    );
+    assert_eq!(
+        overlay.body["data"]["catalog"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": true,
+            "startCursor": "opaque-partial-a",
+            "endCursor": "opaque-partial-b"
+        })
+    );
+    assert_eq!(
+        overlay.body["data"]["shop"],
+        json!({ "id": "gid://shopify/Shop/1", "name": "Unrelated shop" })
+    );
+    let calls = calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert!(
+        calls[1]["query"].as_str().is_some_and(
+            |query| query.contains("OverlayPartialAppWindow") && query.contains("shop {")
+        )
+    );
+}
+
+#[test]
+fn app_installation_complete_scopes_restore_sort_reverse_and_cursor_windows() {
+    let app_a = app_lookup_test_app("gid://shopify/App/101", "key-a", "alpha", "Alpha");
+    let app_b = app_lookup_test_app("gid://shopify/App/102", "key-b", "beta", "Beta");
+    let app_c = app_lookup_test_app("gid://shopify/App/103", "key-c", "gamma", "Gamma");
+    let install_a = app_lookup_test_installation(
+        "gid://shopify/AppInstallation/201",
+        app_a,
+        &["read_products"],
+    );
+    let install_b = app_lookup_test_installation(
+        "gid://shopify/AppInstallation/202",
+        app_b,
+        &["read_products"],
+    );
+    let install_c = app_lookup_test_installation(
+        "gid://shopify/AppInstallation/203",
+        app_c,
+        &["read_products"],
+    );
+    let calls = Arc::new(Mutex::new(0usize));
+    let captured_calls = Arc::clone(&calls);
+    let mut live = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let install_a = install_a.clone();
+        let install_b = install_b.clone();
+        let install_c = install_c.clone();
+        move |_request| {
+            *captured_calls.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": {
+                    "publicApps": {
+                        "nodes": [install_a, install_b, install_c],
+                        "edges": [
+                            { "cursor": "cursor-alpha", "node": install_a },
+                            { "cursor": "cursor-beta", "node": install_b },
+                            { "cursor": "cursor-gamma", "node": install_c }
+                        ],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "cursor-alpha",
+                            "endCursor": "cursor-gamma"
+                        }
+                    },
+                    "channelApps": {
+                        "nodes": [install_b],
+                        "edges": [{ "cursor": "cursor-channel-beta", "node": install_b }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": "cursor-channel-beta",
+                            "endCursor": "cursor-channel-beta"
+                        }
+                    }
+                } }),
+            }
+        }
+    });
+    let observed = live.process_request(json_graphql_request(
+        r#"
+        query ObserveCompleteAppScopes {
+          publicApps: appInstallations(first: 10, sortKey: APP_TITLE, privacy: PUBLIC) {
+            nodes { id app { id apiKey handle title } }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          channelApps: appInstallations(first: 10, sortKey: APP_TITLE, category: CHANNEL, privacy: PUBLIC) {
+            nodes { id app { id apiKey handle title } }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(observed.status, 200, "{}", observed.body);
+    assert_eq!(*calls.lock().unwrap(), 1);
+
+    let dump = live.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert!(
+        dump.body["state"]["baseState"]["appInstallationCatalogScopes"]
+            .as_object()
+            .is_some_and(|scopes| scopes.len() == 2)
+    );
+    let mut restored = snapshot_proxy().with_upstream_transport(|_| {
+        panic!("restored complete app-installation scopes must stay local")
+    });
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200, "{}", restore.body);
+
+    let reverse = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredAppCatalogWindows {
+          reverse: appInstallations(first: 2, reverse: true, sortKey: APP_TITLE, privacy: PUBLIC) {
+            nodes { id app { title } }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          after: appInstallations(first: 1, after: "cursor-beta", sortKey: APP_TITLE, privacy: PUBLIC) {
+            nodes { id app { title } }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          channel: appInstallations(first: 10, sortKey: APP_TITLE, category: CHANNEL, privacy: PUBLIC) {
+            nodes { id app { title } }
+          }
+          privateApps: appInstallations(first: 10, sortKey: APP_TITLE, privacy: PRIVATE) {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(reverse.status, 200, "{}", reverse.body);
+    assert_eq!(
+        reverse.body["data"]["reverse"]["nodes"],
+        json!([
+            { "id": "gid://shopify/AppInstallation/203", "app": { "title": "Gamma" } },
+            { "id": "gid://shopify/AppInstallation/202", "app": { "title": "Beta" } }
+        ])
+    );
+    assert_eq!(
+        reverse.body["data"]["reverse"]["edges"],
+        json!([
+            { "cursor": "cursor-gamma", "node": { "id": "gid://shopify/AppInstallation/203" } },
+            { "cursor": "cursor-beta", "node": { "id": "gid://shopify/AppInstallation/202" } }
+        ])
+    );
+    assert_eq!(
+        reverse.body["data"]["after"]["nodes"],
+        json!([{ "id": "gid://shopify/AppInstallation/203", "app": { "title": "Gamma" } }])
+    );
+    assert_eq!(
+        reverse.body["data"]["channel"]["nodes"],
+        json!([{ "id": "gid://shopify/AppInstallation/202", "app": { "title": "Beta" } }])
+    );
+    assert_eq!(reverse.body["data"]["privateApps"]["nodes"], json!([]));
+
+    let reset = restored.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let after_reset = restored.process_request(json_graphql_request(
+        r#"query { appInstallations(first: 10, sortKey: APP_TITLE, privacy: PUBLIC) { nodes { id } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_reset.body["data"]["appInstallations"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(3)
+    );
+}
+
+#[test]
+fn app_installations_large_cold_catalog_observes_only_the_requested_page_once() {
+    let requested_rows = 125usize;
+    let installations = (0..requested_rows)
+        .map(|index| {
+            let app_id = format!("gid://shopify/App/{}", 10_000 + index);
+            let installation_id = format!("gid://shopify/AppInstallation/{}", 20_000 + index);
+            let app = app_lookup_test_app(
+                &app_id,
+                &format!("key-{index}"),
+                &format!("app-{index}"),
+                &format!("App {index:03}"),
+            );
+            app_lookup_test_installation(&installation_id, app, &["read_products"])
+        })
+        .collect::<Vec<_>>();
+    let calls = Arc::new(Mutex::new(0usize));
+    let captured_calls = Arc::clone(&calls);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let installations = installations.clone();
+        move |_request| {
+            *captured_calls.lock().unwrap() += 1;
+            let edges = installations
+                .iter()
+                .enumerate()
+                .map(|(index, installation)| {
+                    json!({ "cursor": format!("opaque-large-{index}"), "node": installation })
+                })
+                .collect::<Vec<_>>();
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "appInstallations": {
+                    "nodes": installations,
+                    "edges": edges,
+                    "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "opaque-large-0",
+                        "endCursor": format!("opaque-large-{}", requested_rows - 1)
+                    }
+                } } }),
+            }
+        }
+    });
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query LargeAppInstallationPage($first: Int!) {
+          appInstallations(first: $first, sortKey: INSTALLED_AT, privacy: PUBLIC) {
+            nodes { id app { id handle } }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "first": requested_rows }),
+    ));
+    assert_eq!(response.status, 200, "{}", response.body);
+    assert_eq!(
+        response.body["data"]["appInstallations"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(requested_rows)
+    );
+    assert_eq!(*calls.lock().unwrap(), 1);
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(
+        dump.body["state"]["baseState"]["appInstallations"]
+            .as_object()
+            .map(|records| records.len()),
+        Some(requested_rows)
+    );
 }

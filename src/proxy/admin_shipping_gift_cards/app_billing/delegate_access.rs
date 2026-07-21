@@ -43,13 +43,15 @@ impl DraftProxy {
         let app_id = self.ensure_current_app_installation(invocation.request);
         let granted_scopes = self
             .app_installation_for_app(&app_id)
+            .as_ref()
             .map(app_access_scope_handles)
             .unwrap_or_default();
         let legacy_default_scope = |scope: &str| {
             self.app_installation_for_app(&app_id)
+                .as_ref()
                 .and_then(|installation| installation.get("__draftProxySource"))
                 .and_then(Value::as_str)
-                == Some("default")
+                .is_some_and(|source| matches!(source, "default" | "observed-identity-only"))
                 && matches!(
                     scope,
                     "read_products" | "write_products" | "read_markets" | "write_markets"
@@ -208,7 +210,7 @@ impl DraftProxy {
 
         let mut user_errors = Vec::new();
         let app_id = self.ensure_current_app_installation(invocation.request);
-        let installation = self.app_installation_for_app(&app_id).cloned();
+        let installation = self.app_installation_for_app(&app_id);
         let granted_scopes = installation
             .as_ref()
             .map(app_access_scope_handles)
@@ -222,7 +224,7 @@ impl DraftProxy {
                 .as_ref()
                 .and_then(|installation| installation.get("__draftProxySource"))
                 .and_then(Value::as_str)
-                == Some("default")
+                .is_some_and(|source| matches!(source, "default" | "observed-identity-only"))
                 && matches!(scope, "read_products" | "write_products")
         };
 
