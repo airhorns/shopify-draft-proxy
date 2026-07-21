@@ -8160,6 +8160,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'collections',
+    captureId: 'collection-membership-cross-page',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-collection-membership-cross-page-conformance.ts',
+    purpose:
+      'Collection add, remove, and reorder behavior across the first ten manual members, including exact target probes, bounded connection refill, counts, hasProduct, reverse links, cursors, and pageInfo.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-membership-cross-page.json`,
+      'config/parity-specs/products/collection-membership-cross-page.json',
+      'config/parity-requests/products/collection-membership-cross-page-add.graphql',
+      'config/parity-requests/products/collection-membership-cross-page-after-read.graphql',
+      'config/parity-requests/products/collection-membership-cross-page-first-read.graphql',
+      'config/parity-requests/products/collection-membership-cross-page-remove.graphql',
+      'config/parity-requests/products/collection-membership-cross-page-reorder.graphql',
+    ],
+    cleanupBehavior:
+      'Creates fourteen disposable products and one manual collection, captures cross-page membership transitions, then deletes the collection and products in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'collections',
     captureId: 'collection-update-ruleset-job-parity',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-collection-update-ruleset-job-conformance.mts',

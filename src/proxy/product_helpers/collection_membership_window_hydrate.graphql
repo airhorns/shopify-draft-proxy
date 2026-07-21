@@ -1,0 +1,36 @@
+query CollectionMembershipWindowHydrate(
+  $id: ID!
+  $first: Int
+  $after: String
+  $last: Int
+  $before: String
+  $reverse: Boolean
+  $sortKey: ProductCollectionSortKeys
+) {
+  collection(id: $id) {
+    products(first: $first, after: $after, last: $last, before: $before, reverse: $reverse, sortKey: $sortKey) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          status
+          createdAt
+          updatedAt
+          vendor
+          productType
+          tags
+          totalInventory
+          tracksInventory
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

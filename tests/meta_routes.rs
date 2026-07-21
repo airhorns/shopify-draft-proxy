@@ -923,6 +923,10 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
     let state = proxy.process_request(request("GET", "/__meta/state"));
     assert_eq!(state.status, 200);
     assert_eq!(state.body["stagedState"]["collections"], json!({}));
+    assert_eq!(
+        state.body["stagedState"]["collectionMemberships"],
+        json!({})
+    );
     assert_eq!(state.body["stagedState"]["deletedCollectionIds"], json!([]));
     assert_eq!(
         state.body["stagedState"]["deletedCollectionHandles"],
@@ -934,6 +938,10 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
         .as_object_mut()
         .expect("stagedState is object")
         .remove("collections");
+    state_body["stagedState"]
+        .as_object_mut()
+        .expect("stagedState is object")
+        .remove("collectionMemberships");
     state_body["stagedState"]
         .as_object_mut()
         .expect("stagedState is object")

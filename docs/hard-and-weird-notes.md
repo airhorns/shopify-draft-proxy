@@ -2876,6 +2876,16 @@ Live collection capture for `collectionReorderProducts` exposed two easy traps:
 
 `collectionReorderProducts` itself returns an async `Job` payload with `done: false` on success, and downstream `collection.products(sortKey: COLLECTION_DEFAULT)` plus `sortKey: MANUAL` both reflected the reordered manual order in the captured two-product slice. Reorder parity should therefore seed a manual collection baseline before staging moves, and should treat only the opaque job id as nondeterministic.
 
+### 48a. A collection page is evidence about a window, not the whole membership
+
+Cross-page 2025-01 capture with fourteen disposable products exposed three membership rules that are easy to lose in a local overlay:
+
+- the first ten `Collection.products` rows do not prove that later members are absent, so add/remove/reorder hydration must retain an incomplete authoritative baseline plus ordered deltas instead of replacing the collection membership with that page
+- `collectionAddProducts` can return the added row while its immediate selected `productsCount` is still the pre-add value; the immediate downstream collection read returns the recomputed count
+- removing a later member must refill the caller's requested window from subsequent upstream rows, while moving a later member changes relative order across the boundary without deleting untouched reverse `Product.collections` links
+
+The practical local rule is to probe submitted targets directly, preserve opaque cursors on observed rows, and hydrate only enough of a requested connection window to fill or prove its boundary. Add/remove probe budgets should depend on the submitted targets, not collection size. Reorder may prefetch through the greatest requested destination because positional semantics need that prefix, but the request remains explicitly capped rather than silently enumerating an arbitrarily large collection.
+
 ## 49. Business entity Store properties reads expose payments-adjacent data
 
 The first `businessEntities` / `businessEntity` capture for Admin GraphQL 2026-04 showed a single primary entity on the conformance store. `businessEntity` without an `id` returned that primary entity, and an unknown `gid://shopify/BusinessEntity/...` returned `null`.
