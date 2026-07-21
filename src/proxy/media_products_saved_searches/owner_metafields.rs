@@ -582,7 +582,14 @@ impl DraftProxy {
                         };
                         let current_digest =
                             owner_metafield_compare_digest(&existing).unwrap_or_default();
-                        if supplied == &current_digest {
+                        let submitted_type =
+                            self.metafields_set_effective_type(input, api_client_id);
+                        let submitted_value = resolved_string_field(input, "value");
+                        let is_idempotent = submitted_type.as_deref()
+                            == existing.get("type").and_then(Value::as_str)
+                            && submitted_value.as_deref()
+                                == existing.get("value").and_then(Value::as_str);
+                        if is_idempotent || supplied == &current_digest {
                             None
                         } else {
                             Some(metafields_set_row_user_error(

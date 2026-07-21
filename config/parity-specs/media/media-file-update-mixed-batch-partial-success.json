@@ -1,0 +1,146 @@
+{
+  "scenarioId": "media-file-update-mixed-batch-partial-success",
+  "operationNames": ["fileCreate", "fileUpdate", "files", "nodes"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-update-mixed-batch-partial-success.json"
+  ],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-update-mixed-batch-create.graphql",
+    "variablesCapturePath": "$.setup.imageCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Real Admin GraphQL capture of two READY image files updated in one fileUpdate call. Shopify returns and persists the valid alt update while reporting the second row's indexed ALT_VALUE_LIMIT_EXCEEDED userError; immediate files and nodes reads keep the rejected row unchanged.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "both-files-ready-before-mixed-update",
+        "capturePath": "$.setup.mixedReadyRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-update-mixed-batch-read.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+              },
+              {
+                "fromPrimaryProxyPath": "$.data.fileCreate.files[1].id"
+              }
+            ],
+            "query": {
+              "fromCapturePath": "$.setup.mixedReadyRead.variables.query"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.files.nodes[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "Shopify and the local proxy allocate different MediaImage ids for disposable setup files."
+          },
+          {
+            "path": "$.files.nodes[1].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "Shopify and the local proxy allocate different MediaImage ids for disposable setup files."
+          },
+          {
+            "path": "$.nodes[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "Shopify and the local proxy allocate different MediaImage ids for disposable setup files."
+          },
+          {
+            "path": "$.nodes[1].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "Shopify and the local proxy allocate different MediaImage ids for disposable setup files."
+          }
+        ]
+      },
+      {
+        "name": "mixed-batch-returns-valid-file-and-indexed-error",
+        "capturePath": "$.mixedBatch.mutation.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-update-mixed-batch-update.graphql",
+          "variables": {
+            "files": [
+              {
+                "id": {
+                  "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+                },
+                "alt": "Mixed batch valid row after update"
+              },
+              {
+                "id": {
+                  "fromPrimaryProxyPath": "$.data.fileCreate.files[1].id"
+                },
+                "alt": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.files[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "Shopify and the local proxy allocate different MediaImage ids for disposable setup files."
+          }
+        ]
+      },
+      {
+        "name": "mixed-batch-files-and-nodes-read-successful-subset",
+        "capturePath": "$.mixedBatch.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-update-mixed-batch-read.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+              },
+              {
+                "fromPrimaryProxyPath": "$.data.fileCreate.files[1].id"
+              }
+            ],
+            "query": {
+              "fromCapturePath": "$.setup.mixedReadyRead.variables.query"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.files.nodes[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "Shopify and the local proxy allocate different MediaImage ids for disposable setup files."
+          },
+          {
+            "path": "$.files.nodes[1].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "Shopify and the local proxy allocate different MediaImage ids for disposable setup files."
+          },
+          {
+            "path": "$.nodes[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "Shopify and the local proxy allocate different MediaImage ids for disposable setup files."
+          },
+          {
+            "path": "$.nodes[1].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "Shopify and the local proxy allocate different MediaImage ids for disposable setup files."
+          }
+        ]
+      }
+    ]
+  }
+}

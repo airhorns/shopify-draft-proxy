@@ -1,0 +1,16 @@
+query OrdersReturnFulfillmentLineItemsHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    ... on FulfillmentLineItem {
+      id
+      quantity
+      lineItem {
+        id
+        title
+        variant {
+          id
+        }
+      }
+    }
+  }
+}

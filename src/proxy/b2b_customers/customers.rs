@@ -21,6 +21,11 @@ pub(in crate::proxy) fn customer_field_resolver_registrations() -> Vec<FieldReso
                 "storeCreditAccounts",
                 customer_store_credit_accounts_field,
             ),
+            (
+                "Customer",
+                "companyContactProfiles",
+                customer_company_contact_profiles_field,
+            ),
             ("Customer", "metafield", customer_metafield_field),
             ("Customer", "metafields", customer_metafields_field),
         ]
@@ -120,6 +125,16 @@ fn customer_payment_methods_field(
     ))
 }
 
+fn customer_company_contact_profiles_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(Value::Array(proxy.b2b_contacts_for_customer(
+        customer_parent_id(invocation)?,
+    )))
+}
+
 fn customer_store_credit_accounts_field(
     proxy: &mut DraftProxy,
     _request: &Request,
@@ -191,32 +206,10 @@ struct CustomerCustomIdUpstreamLookup {
     found_id: Option<String>,
 }
 
-const CUSTOMER_HYDRATE_QUERY: &str = r#"
-query CustomerHydrate($id: ID!) {
-  customer(id: $id) {
-    id
-    firstName
-    lastName
-    displayName
-    email
-    phone
-    locale
-    note
-    canDelete
-    verifiedEmail
-    dataSaleOptOut
-    taxExempt
-    taxExemptions
-    state
-    tags
-    createdAt
-    updatedAt
-    defaultEmailAddress { emailAddress }
-    defaultPhoneNumber { phoneNumber }
-    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
-  }
-}
-"#;
+// Shared with capture scripts so mutation-first customer hydration cassettes
+// byte-match the production read issued before a supported local mutation.
+const CUSTOMER_HYDRATE_QUERY: &str =
+    include_str!("../../../config/parity-requests/customers/customer-hydrate.graphql");
 // Shared with the parity capture scripts via include_str! so recorded address-aware
 // `CustomerHydrate` cassettes byte-match the request forwarded when address nodes
 // are required for validation/output. The leading newline is significant: the
@@ -1914,26 +1907,24 @@ impl DraftProxy {
     ) -> (Value, Vec<String>, Vec<Value>) {
         let input = resolved_object_field(arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let customer_exists = !id.is_empty() && self.customer_exists_for_mutation(request, &id);
+        let existing_customer = (!id.is_empty())
+            .then(|| self.customer_existing_for_update(request, &id, false))
+            .flatten();
         self.hydrate_customer_delete_shop_if_requested(
             request,
             requests_shop,
             requested_field_paths,
         );
         let selected_shop = self.customer_delete_shop_payload(requests_shop);
-        let payload = if !customer_exists {
+        let payload = if existing_customer.is_none() {
             json!({
                 "deletedCustomerId": null,
                 "shop": selected_shop.clone(),
                 "userErrors": [user_error_omit_code(["id"], "Customer can't be found", None)]
             })
-        } else if self
-            .store
-            .staged
-            .customer_orders
-            .get(&id)
-            .map(|orders| !orders.is_empty())
-            .unwrap_or(false)
+        } else if existing_customer
+            .as_ref()
+            .is_some_and(|customer| !self.customer_can_delete_value(&id, customer))
         {
             json!({
                 "deletedCustomerId": null,

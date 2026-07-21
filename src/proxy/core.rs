@@ -482,6 +482,7 @@ impl DraftProxy {
                 "deliveryPromiseCompleteNodeIds": self.store.base.delivery_promise_complete_node_ids.iter().cloned().collect::<Vec<_>>(),
                 "orders": self.store.base.orders.records.clone(),
                 "orderOrder": self.store.base.orders.order,
+                "returnPreconditionHydratedOrderIds": self.store.base.return_precondition_hydrated_order_ids.iter().cloned().collect::<Vec<_>>(),
                 "orderCountBaselines": self.store.base.order_count_baselines.clone(),
                 "discounts": self.store.base.discounts.records.clone(),
                 "discountOrder": self.store.base.discounts.order,
@@ -1512,6 +1513,8 @@ impl DraftProxy {
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
+        self.store.base.return_precondition_hydrated_order_ids =
+            string_set_from_json(state["baseState"].get("returnPreconditionHydratedOrderIds"));
         self.store.base.order_count_baselines =
             value_map_from_json(state["baseState"].get("orderCountBaselines"));
         self.store.base.draft_orders.replace_with_order(

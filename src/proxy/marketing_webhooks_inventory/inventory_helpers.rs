@@ -518,7 +518,9 @@ fn inventory_item_locations_count_field(
     invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
 ) -> Result<Value, String> {
     let id = inventory_parent_id(invocation)?;
-    Ok(count_object(proxy.inventory_levels_for_item(id).len()))
+    Ok(count_object(
+        proxy.active_inventory_levels_for_item(id).len(),
+    ))
 }
 
 fn inventory_item_variant_field(

@@ -3968,6 +3968,29 @@ fn order_create_inventory_decrement_uses_staged_default_location() {
     let mut proxy = inventory_seed_proxy();
     let (variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "DEFAULT-LOC");
     let location_id = add_inventory_test_location(&mut proxy, "Primary Fulfillment");
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedDefaultLocationInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {
+            "name": "available",
+            "reason": "correction",
+            "quantities": [{
+                "inventoryItemId": inventory_item_id,
+                "locationId": location_id,
+                "quantity": 0,
+                "changeFromQuantity": null
+            }]
+        }}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
 
     let order = proxy.process_request(json_graphql_request(
         r#"
@@ -4022,6 +4045,371 @@ fn order_create_inventory_decrement_uses_staged_default_location() {
             {"name": "on_hand", "quantity": 0}
         ])
     );
+}
+
+#[test]
+fn order_create_does_not_derive_inventory_item_identity_from_an_unresolved_variant_tail() {
+    let mut proxy = inventory_seed_proxy();
+    let first_location_id = add_inventory_test_location(&mut proxy, "Unresolved primary");
+    let second_location_id = add_inventory_test_location(&mut proxy, "Unresolved secondary");
+    assert_ne!(first_location_id, second_location_id);
+
+    let order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrderCreateUnresolvedVariantInventory($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id lineItems(first: 5) { nodes { variant { id } quantity } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "unresolved-variant-inventory@example.com",
+                "currency": "USD",
+                "lineItems": [{
+                    "variantId": "gid://shopify/ProductVariant/424242",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        order.body["data"]["orderCreate"],
+        json!({
+            "order": Value::Null,
+            "userErrors": [
+                {"field": ["order"], "message": "Order Line items is invalid"},
+                {"field": ["order", "lineItems"], "message": "Line items Name can't be blank"},
+                {"field": ["order", "lineItems"], "message": "Line items Title can't be blank"}
+            ]
+        })
+    );
+
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["inventoryLevels"],
+        Value::Null,
+        "an unresolved ProductVariant must not create an InventoryItem with the same numeric tail"
+    );
+}
+
+fn order_create_inventory_preflight_variant(
+    variant_id: &str,
+    inventory_item_id: &str,
+    levels: &[(&str, &str, i64, i64)],
+) -> Value {
+    let inventory_quantity = levels
+        .iter()
+        .map(|(_, _, available, _)| *available)
+        .sum::<i64>();
+    json!({
+        "__typename": "ProductVariant",
+        "id": variant_id,
+        "title": "Default Title",
+        "sku": "COLD-ORDER",
+        "barcode": Value::Null,
+        "price": "10.00",
+        "compareAtPrice": Value::Null,
+        "taxable": true,
+        "inventoryPolicy": "DENY",
+        "inventoryQuantity": inventory_quantity,
+        "selectedOptions": [{"name": "Title", "value": "Default Title"}],
+        "product": {
+            "id": "gid://shopify/Product/700001",
+            "title": "Cold order product",
+            "handle": "cold-order-product",
+            "status": "ACTIVE",
+            "totalInventory": 0,
+            "tracksInventory": true
+        },
+        "inventoryItem": {
+            "id": inventory_item_id,
+            "tracked": true,
+            "requiresShipping": true,
+            "countryCodeOfOrigin": Value::Null,
+            "provinceCodeOfOrigin": Value::Null,
+            "harmonizedSystemCode": Value::Null,
+            "measurement": {"weight": {"value": 0.0, "unit": "KILOGRAMS"}},
+            "inventoryLevels": {
+                "nodes": levels
+                    .iter()
+                    .enumerate()
+                    .map(|(index, (location_id, location_name, available, on_hand))| json!({
+                        "id": format!(
+                            "gid://shopify/InventoryLevel/{}?inventory_item_id={}",
+                            800001 + index,
+                            inventory_item_id.rsplit('/').next().unwrap()
+                        ),
+                        "location": {"id": location_id, "name": location_name},
+                        "quantities": [
+                            {"name": "available", "quantity": available, "updatedAt": Value::Null},
+                            {"name": "on_hand", "quantity": on_hand, "updatedAt": Value::Null}
+                        ]
+                    }))
+                    .collect::<Vec<_>>()
+            }
+        }
+    })
+}
+
+#[test]
+fn order_create_hydrates_distinct_variant_inventory_identity_and_decrements_stocked_location() {
+    let variant_id = "gid://shopify/ProductVariant/700101";
+    let inventory_item_id = "gid://shopify/InventoryItem/900909";
+    let default_location_id = "gid://shopify/Location/710001";
+    let origin_location_id = "gid://shopify/Location/710002";
+    let destination_location_id = "gid://shopify/Location/710003";
+    assert_ne!(
+        variant_id.rsplit('/').next(),
+        inventory_item_id.rsplit('/').next()
+    );
+    let variant = order_create_inventory_preflight_variant(
+        variant_id,
+        inventory_item_id,
+        &[
+            (default_location_id, "Default", 0, 0),
+            (origin_location_id, "Origin", 5, 5),
+            (destination_location_id, "Destination", 0, 0),
+        ],
+    );
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            upstream_calls.lock().unwrap().push(body.clone());
+            assert_eq!(
+                body["query"],
+                json!(include_str!(
+                    "../../config/parity-requests/orders/order-create-inventory-preflight.graphql"
+                )
+                .trim_end())
+            );
+            assert_eq!(
+                body["operationName"],
+                json!("OrdersOrderCreateInventoryPreflight")
+            );
+            assert_eq!(body["variables"]["ids"], json!([variant_id]));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"nodes": [variant.clone()]}}),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ColdVariantOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+          orderCreate(order: $order, options: $options) {
+            order { id lineItems(first: 5) { nodes { quantity variant { id } } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "cold-order@example.com",
+                "currency": "USD",
+                "lineItems": [{
+                    "variantId": variant_id,
+                    "quantity": 2,
+                    "priceSet": {"shopMoney": {"amount": "10.00", "currencyCode": "USD"}}
+                }]
+            },
+            "options": {"inventoryBehaviour": "DECREMENT_IGNORING_POLICY"}
+        }),
+    ));
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        create.body["data"]["orderCreate"]["order"]["lineItems"]["nodes"][0]["variant"]["id"],
+        json!(variant_id)
+    );
+
+    let inventory = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadColdOrderInventory($id: ID!) {
+          inventoryItem(id: $id) {
+            variant { id inventoryQuantity }
+            inventoryLevels(first: 10) {
+              nodes {
+                location { id }
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": inventory_item_id}),
+    ));
+    assert_eq!(
+        inventory.body["data"]["inventoryItem"],
+        json!({
+            "variant": {"id": variant_id, "inventoryQuantity": 3},
+            "inventoryLevels": {"nodes": [
+                {"location": {"id": default_location_id}, "quantities": [
+                    {"name": "available", "quantity": 0},
+                    {"name": "on_hand", "quantity": 0}
+                ]},
+                {"location": {"id": origin_location_id}, "quantities": [
+                    {"name": "available", "quantity": 3},
+                    {"name": "on_hand", "quantity": 5}
+                ]},
+                {"location": {"id": destination_location_id}, "quantities": [
+                    {"name": "available", "quantity": 0},
+                    {"name": "on_hand", "quantity": 0}
+                ]}
+            ]}
+        })
+    );
+
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadColdOrderProduct($id: ID!) {
+          product(id: $id) {
+            totalInventory
+            variants(first: 5) {
+              nodes { id inventoryQuantity inventoryItem { id } }
+            }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/Product/700001"}),
+    ));
+    assert_eq!(
+        product.body["data"]["product"],
+        json!({
+            "totalInventory": 0,
+            "variants": {"nodes": [{
+                "id": variant_id,
+                "inventoryQuantity": 3,
+                "inventoryItem": {"id": inventory_item_id}
+            }]}
+        })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn order_create_mixed_resolved_and_unresolved_variants_applies_no_inventory_effects() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![inventory_activation_base_product()]);
+    let (variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "ATOMIC-ORDER");
+    let default_location_id = add_inventory_test_location(&mut proxy, "Atomic default");
+    let origin_location_id = add_inventory_test_location(&mut proxy, "Atomic origin");
+    let destination_location_id = add_inventory_test_location(&mut proxy, "Atomic destination");
+    assert_ne!(default_location_id, origin_location_id);
+    assert_ne!(origin_location_id, destination_location_id);
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedAtomicOrderInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) { userErrors { field message } }
+        }
+        "#,
+        json!({"input": {
+            "name": "available",
+            "reason": "correction",
+            "quantities": [{
+                "inventoryItemId": inventory_item_id,
+                "locationId": origin_location_id,
+                "quantity": 5,
+                "changeFromQuantity": null
+            }]
+        }}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+    let item_tail = inventory_item_id
+        .rsplit('/')
+        .next()
+        .unwrap()
+        .split('?')
+        .next()
+        .unwrap();
+    let unresolved_variant_id = format!("gid://shopify/ProductVariant/{item_tail}");
+    assert_ne!(variant_id, unresolved_variant_id);
+    let log_entries_before = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    let orders_before = state_snapshot(&proxy)["stagedState"]["orders"].clone();
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    proxy = proxy.with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        let unresolved_variant_id = unresolved_variant_id.clone();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            upstream_calls.lock().unwrap().push(body.clone());
+            assert_eq!(
+                body["operationName"],
+                json!("OrdersOrderCreateInventoryPreflight")
+            );
+            assert_eq!(body["variables"]["ids"], json!([unresolved_variant_id]));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"nodes": [Value::Null]}}),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AtomicOrderCreate($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"order": {
+            "currency": "USD",
+            "lineItems": [
+                {"variantId": variant_id, "quantity": 2, "priceSet": {"shopMoney": {"amount": "10.00", "currencyCode": "USD"}}},
+                {"variantId": unresolved_variant_id, "quantity": 1, "priceSet": {"shopMoney": {"amount": "10.00", "currencyCode": "USD"}}}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["orderCreate"],
+        json!({
+            "order": Value::Null,
+            "userErrors": [
+                {"field": ["order"], "message": "Order Line items is invalid"},
+                {"field": ["order", "lineItems"], "message": "Line items Name can't be blank"},
+                {"field": ["order", "lineItems"], "message": "Line items Title can't be blank"}
+            ]
+        })
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["orders"],
+        orders_before
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_entries_before
+    );
+
+    let inventory = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAtomicOrderInventory($id: ID!) {
+          inventoryItem(id: $id) {
+            inventoryLevels(first: 10) {
+              nodes { location { id } quantities(names: ["available"]) { name quantity } }
+            }
+          }
+        }
+        "#,
+        json!({"id": inventory_item_id}),
+    ));
+    assert_eq!(
+        inventory.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"],
+        json!([{
+            "location": {"id": origin_location_id},
+            "quantities": [{"name": "available", "quantity": 5}]
+        }])
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
 #[test]
@@ -16188,6 +16576,188 @@ fn media_file_create_poll_ready_then_update_succeeds() {
             "userErrors": []
         })
     );
+}
+
+#[test]
+fn media_file_update_mixed_batch_preserves_per_item_partial_success() {
+    let mut proxy = snapshot_proxy().with_upstream_transport(|request| {
+        panic!(
+            "supported file mutations and snapshot reads must stay local, got upstream request: {}",
+            request.body
+        )
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileMixedBatchSeed($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id alt fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {
+                "alt": "Valid row before update",
+                "contentType": "IMAGE",
+                "filename": "mixed-valid.jpg",
+                "originalSource": "https://cdn.example.com/mixed-valid.jpg"
+            },
+            {
+                "alt": "Invalid row before update",
+                "contentType": "IMAGE",
+                "filename": "mixed-invalid.jpg",
+                "originalSource": "https://cdn.example.com/mixed-invalid.jpg"
+            }
+        ]}),
+    ));
+    assert_eq!(create.body["data"]["fileCreate"]["userErrors"], json!([]));
+    let valid_id = create.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .expect("valid seed id")
+        .to_string();
+    let invalid_id = create.body["data"]["fileCreate"]["files"][1]["id"]
+        .as_str()
+        .expect("invalid seed id")
+        .to_string();
+
+    let ready = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileMixedBatchReadyPoll {
+          files(first: 10) { nodes { id alt fileStatus } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        ready.body["data"]["files"]["nodes"][0]["fileStatus"],
+        json!("READY")
+    );
+    assert_eq!(
+        ready.body["data"]["files"]["nodes"][1]["fileStatus"],
+        json!("READY")
+    );
+
+    let update_query = r#"
+        mutation MediaFileMixedBatchUpdate($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files { id alt fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#;
+    let atomic_conflict = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"files": [
+            {"id": valid_id, "alt": "Must remain unchanged"},
+            {
+                "id": invalid_id,
+                "originalSource": "https://cdn.example.com/mixed-source.jpg",
+                "previewImageSource": "https://cdn.example.com/mixed-preview.jpg"
+            }
+        ]}),
+    ));
+    assert_eq!(
+        atomic_conflict.body["data"]["fileUpdate"],
+        json!({
+            "files": [],
+            "userErrors": [
+                {
+                    "field": ["files", "1", "previewImageSource"],
+                    "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                    "code": "INVALID"
+                },
+                {
+                    "field": ["files", "1", "originalSource"],
+                    "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                    "code": "INVALID"
+                }
+            ]
+        })
+    );
+    let after_atomic_conflict = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileMixedBatchAtomicRead($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            id
+            ... on MediaImage { alt fileStatus }
+          }
+        }
+        "#,
+        json!({"ids": [valid_id, invalid_id]}),
+    ));
+    assert_eq!(
+        after_atomic_conflict.body["data"]["nodes"],
+        json!([
+            {"id": valid_id, "alt": "Valid row before update", "fileStatus": "READY"},
+            {"id": invalid_id, "alt": "Invalid row before update", "fileStatus": "READY"}
+        ])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"files": [
+            {"id": valid_id, "alt": "Valid row after update"},
+            {"id": invalid_id, "alt": "x".repeat(513)}
+        ]}),
+    ));
+    assert_eq!(
+        update.body["data"]["fileUpdate"],
+        json!({
+            "files": [{
+                "id": valid_id,
+                "alt": "Valid row after update",
+                "fileStatus": "READY"
+            }],
+            "userErrors": [{
+                "field": ["files", "1", "alt"],
+                "message": "The alt value exceeds the maximum limit of 512 characters.",
+                "code": "ALT_VALUE_LIMIT_EXCEEDED"
+            }]
+        })
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileMixedBatchDownstream($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            id
+            __typename
+            ... on MediaImage { alt fileStatus }
+          }
+        }
+        "#,
+        json!({"ids": [valid_id, invalid_id]}),
+    ));
+    assert_eq!(
+        downstream.body["data"]["nodes"],
+        json!([
+            {
+                "id": valid_id,
+                "__typename": "MediaImage",
+                "alt": "Valid row after update",
+                "fileStatus": "READY"
+            },
+            {
+                "id": invalid_id,
+                "__typename": "MediaImage",
+                "alt": "Invalid row before update",
+                "fileStatus": "READY"
+            }
+        ])
+    );
+
+    let log = log_snapshot(&proxy);
+    let update_entries = log["entries"]
+        .as_array()
+        .expect("log entries")
+        .iter()
+        .filter(|entry| entry["interpreted"]["primaryRootField"] == json!("fileUpdate"))
+        .collect::<Vec<_>>();
+    assert_eq!(update_entries.len(), 1);
+    assert_eq!(update_entries[0]["operationName"], Value::Null);
+    assert_eq!(update_entries[0]["query"], json!(update_query));
+    assert_eq!(update_entries[0]["stagedResourceIds"], json!([valid_id]));
 }
 
 #[test]

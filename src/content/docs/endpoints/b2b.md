@@ -160,6 +160,16 @@ explicit input when supplied; otherwise contact-create paths use the shop's
 primary locale, and `companyAssignCustomerAsContact` uses the assigned customer's
 locale before falling back to the shop primary locale.
 
+In LiveHybrid mode, `companyAssignCustomerAsContact` resolves an unknown
+persisted company and customer through narrow query-only reads before applying
+local validation. The mutation itself remains local until commit replay. A
+missing company returns `RESOURCE_NOT_FOUND` at `["companyId"]` before customer
+validation; a missing customer returns the corresponding error at
+`["customerId"]`. Successful assignment stages the contact and relationship so
+`Company.contacts`, `companyContact(id:)`, and
+`Customer.companyContactProfiles` expose the same customer-company link without
+an earlier client hydration read.
+
 `companyAssignMainContact` and `companyRevokeMainContact` stage the company's
 single `mainContactId` pointer and derive each contact's `isMainContact` from
 that pointer. Assigning an unknown contact returns `RESOURCE_NOT_FOUND`;

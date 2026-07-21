@@ -224,6 +224,24 @@ struct SellingPlanGroupRecord {
     product_ids: Vec<String>,
     product_variant_ids: Vec<String>,
     #[serde(default)]
+    products_count: Option<usize>,
+    #[serde(default)]
+    product_variants_count: Option<usize>,
+    #[serde(default)]
+    products_complete: bool,
+    #[serde(default)]
+    product_variants_complete: bool,
+    #[serde(default)]
+    added_product_ids: BTreeSet<String>,
+    #[serde(default)]
+    removed_product_ids: BTreeSet<String>,
+    #[serde(default)]
+    added_product_variant_ids: BTreeSet<String>,
+    #[serde(default)]
+    removed_product_variant_ids: BTreeSet<String>,
+    #[serde(default)]
+    locally_staged: bool,
+    #[serde(default)]
     product_cursors: BTreeMap<String, String>,
     #[serde(default)]
     product_variant_cursors: BTreeMap<String, String>,
@@ -343,9 +361,17 @@ struct SavedSearchRecord {
     id: String,
     #[serde(default)]
     cursor: Option<String>,
+    #[serde(default)]
+    legacy_resource_id: String,
     name: String,
     query: String,
     resource_type: String,
+    #[serde(default)]
+    search_terms: String,
+    #[serde(default)]
+    filters: Vec<(String, String)>,
+    #[serde(default)]
+    api_client_id: String,
 }
 
 #[derive(Clone)]
@@ -428,6 +454,7 @@ struct BaseState {
     delivery_promise_participant_previous_cursors: BTreeMap<String, String>,
     delivery_promise_complete_node_ids: BTreeSet<String>,
     orders: OrderedRecords<Value>,
+    return_precondition_hydrated_order_ids: BTreeSet<String>,
     order_count_baselines: BTreeMap<String, Value>,
     draft_orders: OrderedRecords<Value>,
     draft_order_count_baselines: BTreeMap<String, Value>,
@@ -2438,7 +2465,8 @@ impl Store {
             .collect()
     }
 
-    fn stage_selling_plan_group(&mut self, group: SellingPlanGroupRecord) {
+    fn stage_selling_plan_group(&mut self, mut group: SellingPlanGroupRecord) {
+        group.locally_staged = true;
         self.staged.selling_plan_groups_overlay_dirty = true;
         self.staged
             .selling_plan_groups

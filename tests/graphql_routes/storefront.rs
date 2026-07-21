@@ -3251,6 +3251,182 @@ fn storefront_cart_delivery_lifecycle_stages_rates_selection_and_state_round_tri
 }
 
 #[test]
+fn storefront_cart_strict_address_validation_uses_country_metadata() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("Storefront cart address validation must stay local"));
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({ "currencyCode": "USD" });
+    });
+    let create_cart = |proxy: &mut DraftProxy, country_code: &str| {
+        let response = proxy.process_request(storefront_graphql_request(
+            include_str!("../../config/parity-requests/storefront/storefront-cart-create.graphql"),
+            json!({ "input": { "buyerIdentity": { "countryCode": country_code } } }),
+        ));
+        response.body["data"]["cartCreate"]["cart"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("strict address cart create failed: {}", response.body))
+            .to_string()
+    };
+    let add_addresses = |proxy: &mut DraftProxy, cart_id: &str, addresses: Value| {
+        proxy.process_request(storefront_graphql_request(
+            include_str!(
+                "../../config/parity-requests/storefront/storefront-cart-delivery-addresses-add.graphql"
+            ),
+            json!({ "cartId": cart_id, "addresses": addresses }),
+        ))
+    };
+
+    let emirates_cart_id = create_cart(&mut proxy, "AE");
+    let emirates_required = add_addresses(
+        &mut proxy,
+        &emirates_cart_id,
+        json!([{
+            "address": { "deliveryAddress": { "countryCode": "AE" } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        emirates_required.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([
+            { "field": ["addresses", "0", "address", "deliveryAddress", "lastName"], "message": "A last name is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "address1"], "message": "An address is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "provinceCode"], "message": "The specified country requires a zone.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "city"], "message": "A city is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" }
+        ])
+    );
+    assert_eq!(
+        emirates_required.body["data"]["cartDeliveryAddressesAdd"]["cart"]["delivery"]["addresses"],
+        json!([])
+    );
+
+    let emirates_invalid_zone = add_addresses(
+        &mut proxy,
+        &emirates_cart_id,
+        json!([{
+            "address": { "deliveryAddress": {
+                "firstName": "Cart", "lastName": "Buyer", "address1": "1 Example Street",
+                "city": "Dubai", "provinceCode": "ZZ", "countryCode": "AE"
+            } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        emirates_invalid_zone.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([{
+            "field": ["addresses", "0", "address", "deliveryAddress", "provinceCode"],
+            "message": "The specified country requires a zone.",
+            "code": "ADDRESS_FIELD_IS_REQUIRED"
+        }])
+    );
+    assert_eq!(
+        emirates_invalid_zone.body["data"]["cartDeliveryAddressesAdd"]["cart"]["delivery"]
+            ["addresses"],
+        json!([])
+    );
+
+    let emirates_valid = add_addresses(
+        &mut proxy,
+        &emirates_cart_id,
+        json!([{
+            "address": { "deliveryAddress": {
+                "firstName": "Cart", "lastName": "Buyer", "address1": "1 Example Street",
+                "city": "Dubai", "provinceCode": "du", "countryCode": "AE"
+            } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        emirates_valid.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([])
+    );
+    let emirates_address = &emirates_valid.body["data"]["cartDeliveryAddressesAdd"]["cart"]
+        ["delivery"]["addresses"][0]["address"];
+    assert_eq!(emirates_address["provinceCode"], json!("DU"));
+    assert_eq!(emirates_address["zip"], Value::Null);
+
+    let singapore_cart_id = create_cart(&mut proxy, "SG");
+    let singapore_valid = add_addresses(
+        &mut proxy,
+        &singapore_cart_id,
+        json!([{
+            "address": { "deliveryAddress": {
+                "lastName": "Buyer", "address1": "1 Example Street", "countryCode": "SG",
+                "zip": "018989"
+            } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        singapore_valid.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([])
+    );
+    let singapore_address = &singapore_valid.body["data"]["cartDeliveryAddressesAdd"]["cart"]
+        ["delivery"]["addresses"][0]["address"];
+    assert_eq!(singapore_address["city"], Value::Null);
+    assert_eq!(singapore_address["provinceCode"], Value::Null);
+    assert_eq!(singapore_address["zip"], json!("018989"));
+
+    let lenient_cart_id = create_cart(&mut proxy, "AU");
+    let lenient = add_addresses(
+        &mut proxy,
+        &lenient_cart_id,
+        json!([{
+            "address": { "deliveryAddress": { "countryCode": "AU" } }
+        }]),
+    );
+    assert_eq!(
+        lenient.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        lenient.body["data"]["cartDeliveryAddressesAdd"]["cart"]["delivery"]["addresses"][0]
+            ["address"]["countryCode"],
+        json!("AU")
+    );
+
+    let australia_cart_id = create_cart(&mut proxy, "AU");
+    let australia_required = add_addresses(
+        &mut proxy,
+        &australia_cart_id,
+        json!([{
+            "address": { "deliveryAddress": { "countryCode": "AU" } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        australia_required.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([
+            { "field": ["addresses", "0", "address", "deliveryAddress", "lastName"], "message": "A last name is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "address1"], "message": "An address is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "provinceCode"], "message": "The specified country requires a zone.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "zip"], "message": "Country specified requires a postal code in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "city"], "message": "A city is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" }
+        ])
+    );
+
+    let australia_postal_normalized = add_addresses(
+        &mut proxy,
+        &australia_cart_id,
+        json!([{
+            "address": { "deliveryAddress": {
+                "firstName": "Cart", "lastName": "Buyer", "address1": "1 Example Street",
+                "city": "Sydney", "provinceCode": "ZZ", "countryCode": "AU", "zip": "2000"
+            } },
+            "validationStrategy": "STRICT"
+        }]),
+    );
+    assert_eq!(
+        australia_postal_normalized.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        australia_postal_normalized.body["data"]["cartDeliveryAddressesAdd"]["cart"]["delivery"]
+            ["addresses"][0]["address"]["provinceCode"],
+        json!("NSW")
+    );
+}
+
+#[test]
 fn storefront_cart_delivery_validates_ownership_inputs_and_stale_options() {
     let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
         .with_upstream_transport(|_| panic!("Storefront cart delivery validation must stay local"));

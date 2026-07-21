@@ -65,6 +65,22 @@ Change-level error that can be emitted alongside a name error. The checked-in
 anchor is
 `config/parity-specs/segments/segment-create-name-failure-short-circuits-query-grammar.json`.
 
+## Current: Deleted Segment detail reads return `NOT_FOUND`, while catalog reads omit the row
+
+Live Admin GraphQL 2025-01 capture showed two distinct post-delete read shapes
+for the same segment. A direct `segment(id:)` selection returned `null` plus a
+top-level `NOT_FOUND` error whose message is `Segment does not exist`. In the
+same request, `segments(query: "id:<gid>")` returned no matching nodes and
+`segmentsCount(query: "id:<gid>")` excluded the deleted segment without adding
+another error.
+
+Practical rule: an effective segment tombstone must remain authoritative in
+LiveHybrid. Detail projection synthesizes Shopify's error envelope locally and
+must not refetch the deleted row upstream; catalog and count overlays suppress
+the row without turning ordinary absence into a GraphQL error. The captured
+anchor is
+`config/parity-specs/segments/segment-mutation-first-hydration.json`.
+
 ## Current: Shopify empty-data behavior is field-specific, not generic
 
 "Return empty data when missing" sounds simple, but in practice Shopify behavior depends on the field shape:
@@ -129,6 +145,31 @@ mutation payloads and downstream reads after processed quantities change, and
 `removeFromReturn` for the final line closes the return with `totalQuantity: 0`,
 so the aggregate becomes `RETURNED`. The checked-in anchor is
 `config/parity-specs/orders/order-return-status-lifecycle.json`.
+
+## Current: orderCreate inventory identity and location sourcing are independent
+
+Shopify assigns ProductVariant and InventoryItem IDs independently. A live
+2025-01 `orderCreate` capture used a variant and item with deliberately different
+numeric tails, then showed that a fake ProductVariant whose tail matched the real
+InventoryItem did not resolve. Shopify rejected that order with invalid
+line-item errors and left the real item's inventory unchanged.
+
+The same capture exposed a location-selection trap. The hydrated item had three
+active inventory levels in order: the shop default with zero available, an
+origin with five available, and a destination with zero available. Creating an
+order for quantity two decremented the stocked origin to three instead of
+driving the first/default level negative. `on_hand` stayed five while only
+`available` changed, and the variant aggregate became three. The immediate
+`product(id:)` read retained its observed `totalInventory: 0` baseline even
+though its variant reported `inventoryQuantity: 3`; do not overwrite a cold
+hydrated product aggregate with a locally recomputed sum in this branch.
+
+Practical rule: hydrate and retain the actual ProductVariant → InventoryItem →
+inventory-level graph before applying order effects. Aggregate repeated lines by
+item, prefer an adequately stocked active level, preserve `on_hand`, and reject
+an unresolved variant atomically. Never infer a cross-resource relationship
+from similar GID tails. The checked-in anchor is
+`config/parity-specs/products/inventory-default-location-carrier-connection.json`.
 
 ## Current: Variant fixed-price duplicate inputs are last-write-wins
 
@@ -264,6 +305,28 @@ Unknown countries and country-specific province mismatches still return payload
 `userErrors` (`Country is invalid` / `Province is invalid`) and do not stage a
 local address. The executable evidence is
 `config/parity-specs/customers/customer_address_country_province_validation.json`.
+
+## Current: Storefront cart STRICT address requirements vary by country
+
+Storefront API 2026-04 cart captures across every `CountryCode` value show that
+`STRICT` delivery-address validation is not a universal postal/city rule.
+`lastName` and `address1` are always required, but postal code, city, and zone
+requirements vary by country. For example, the United Arab Emirates requires a
+zone but accepts no postal code, while Singapore accepts no city or zone.
+
+The same capture exposed normalization that is more than uppercasing: an
+Australian address with `provinceCode: ZZ` and postal code `2000` is accepted
+as `NSW`. An invalid Emirates zone is reported as the required-zone error,
+while lowercase `du` is accepted as `DU`. Unsupported countries add a final
+`Country is not supported` error, and the unknown-region code orders the
+country-required error before the city-required error.
+
+Practical rule: derive Storefront `STRICT` requirements and error order from
+the captured country model, and reuse shared country/subdivision lookups only
+where their semantics match. Do not apply these required-field rules to the
+non-`STRICT` path or infer Storefront behavior from Admin customer/B2B
+validation alone. The executable anchor is
+`config/parity-specs/storefront/storefront-cart-strict-address-validation.json`.
 
 ## Current: Online-store body HTML is not scrubbed by Admin GraphQL
 
@@ -997,6 +1060,10 @@ Once the repo had creation/editing scaffolding for direct orders and draft order
   - broader happy-path probes with concrete ids were blocked differently under the host credential at that point:
     - `fulfillmentTrackingInfoUpdate` returned `ACCESS_DENIED` requiring one of `write_assigned_fulfillment_orders`, `write_merchant_managed_fulfillment_orders`, or `write_third_party_fulfillment_orders`, plus the `fulfill_and_ship_orders` permission
     - `fulfillmentCancel` returned a generic `ACCESS_DENIED` payload on this host
+- a later Admin GraphQL 2026-04 multi-group capture showed that `fulfillmentCreate` validates non-positive line-item quantities across the complete input before reporting an unknown fulfillment order or cross-order/cross-location relationship error; the quantity error keeps the full group and line indexes in its `field` path
+- after quantity validation, every fulfillment-order group must resolve and all groups must share one order and assigned location; Shopify reports those relationship failures on `field: ["fulfillment"]` and lists the conflicting numeric IDs in ascending order
+- missing later-group line items return `Fulfillment order line item does not exist.`, while over-quantity requests return `Invalid fulfillment order line item quantity requested.`
+- a valid request across two same-location fulfillment orders split from one order creates one fulfillment; when both fulfillment-order lines reference the same order line item, Shopify aggregates them into one fulfillment line item with the combined quantity and closes both fulfillment orders
 
 Practical rule:
 
@@ -1560,6 +1627,7 @@ The first staged media-write increment surfaced a few durable modeling constrain
 - media validation is not uniformly atomic: empty create/update/delete inputs are accepted as empty successes, mixed `productCreateMedia` inputs create the valid image media while returning indexed errors for invalid image URLs, but mixed `productUpdateMedia` and `productDeleteMedia` batches with an unknown media ID reject the whole batch and leave existing media unchanged
 - unknown product IDs for media mutations use `Product does not exist`; unknown media IDs use root-level media fields (`media` for update, `mediaIds` for delete) rather than the indexed item path
 - `productUpdateMedia` and `productDeleteMedia` aggregate multiple missing media IDs into a single `MEDIA_DOES_NOT_EXIST` error: the message comma-joins all missing GIDs in request order and pluralizes to `Media ids ... do not exist`; one missing ID stays singular as `Media id ... does not exist`
+- `productReorderMedia` interprets `moves` as an ordered command sequence over the complete existing media list, not as a replacement list or a set sorted by `newPosition`; unmoved nodes retain relative order and metadata, repeated IDs are moved again from their latest position, and a same-position move remains a no-op while the mutation still returns an async job
 - `productVariantAppendMedia` and `productVariantDetachMedia` validation field paths in the 2026-04 live capture stay rooted in public camel-case input names: the pair cap uses `["variantMedia"]`, per-pair media count uses `["variantMedia", "0", "mediaIds"]`, duplicate/already-attached variants use `["variantMedia", "0", "variantId"]`, and unattached detach still uses `["variantMedia", "0", "variantId"]`
 
 That means media writes are not just three new mutation cases — they also force the media serializer to understand richer node identity/state, inline-fragment selection semantics, and a small upload lifecycle (`UPLOADED` → `PROCESSING` → `READY`) before update parity is credible.
@@ -2441,6 +2509,8 @@ Observed live behavior on this host:
 - `defaultPhoneNumber.phoneNumber` was masked in the write payloads too; do not invent an unmasked local phone echo just because the input phone is known locally
 - `customerUpdate` against an unknown id returned `customer: null` with `userErrors[{ field: ['id'], message: 'Customer does not exist' }]`
 - `customerDelete` against an unknown id returned `deletedCustomerId: null` with `userErrors[{ field: ['id'], message: "Customer can't be found" }]`
+- a cold `customerDelete` target with real order history returned `canDelete: false` from the narrow preflight Customer read, then returned `deletedCustomerId: null` with `userErrors[{ field: ['id'], message: 'Customer can’t be deleted because they have associated orders' }]`; a no-order control returned `canDelete: true` and deleted successfully
+- deleting the disposable real order during cleanup did not make the customer deletable on the immediate follow-up attempt, so the captured `canDelete` decision reflects authoritative order history rather than only the currently listable order row
 - `customerCreate(input: { email: "" })` did not complain specifically about email format on this host; instead it returned a broader validation message with `field: null`: `A name, phone number, or email address must be present`
 
 Practical rule for the proxy:
@@ -2450,6 +2520,7 @@ Practical rule for the proxy:
 - rebuild `displayName` from effective name/email state after staged create/update so downstream `customer` and `customers` reads stay aligned
 - mask staged `defaultPhoneNumber.phoneNumber` in the same practical style as the captured live payload instead of echoing raw phone input
 - preserve the captured validation distinctions exactly: null-field missing-identity create error, `Customer does not exist` for unknown-id update, and `Customer can't be found` for unknown-id delete
+- for mutation-first deletes, use the hydrated Customer `canDelete` decision instead of fetching an entire order catalog; keep locally indexed order blockers for staged customers, and only tombstone/log the mutation after the precondition succeeds
 
 ### 44a. CustomerInput validation failures are payload userErrors and must be state-invariant
 
@@ -2722,6 +2793,22 @@ Practical rule for the proxy:
 - require field-level `@idempotent(key: "...")` before activate/deactivate staging only on numeric Admin API routes `>= 2026-04`
 - require a valid active destination location before locally deactivating a stocked location, then move effective inventory levels to that destination
 - compute `locationDelete` guard userErrors from the effective local `Location` record and tombstone only successful deletes so downstream location and inventory-level reads stop exposing the deleted location while meta/log state retains the staged mutation evidence
+
+Cold 2026-04 mutation captures add an important evidence distinction. A
+`locationDeactivate` destination lookup that returned a real inactive Location
+produced `DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE`, while a successful
+`location(id:)` lookup returning `null` produced
+`DESTINATION_LOCATION_NOT_SHOPIFY_MANAGED`. Query transport or GraphQL failure
+does not prove either state. Local-pickup captures likewise show that
+mutation-first enable and disable must hydrate the submitted Location before
+returning `ACTIVE_LOCATION_NOT_FOUND`; an active fulfillment-service-managed
+Location remained eligible in the captured pickup flow.
+
+Practical rule: keep each submitted Location target in an independent found,
+confirmed-missing, or unresolved evidence state. Only a successful Shopify
+lookup may select a missing/inactive userError branch, and successful staging
+must merge over the hydrated record rather than replace its authoritative name
+or management fields.
 
 ### 47b. `location` detail reads should reuse the effective inventory graph
 
@@ -3247,6 +3334,7 @@ Important captured behavior:
 - A stale `compareDigest` returns `userErrors[{ field: ['metafields', '0'], code: 'STALE_OBJECT', elementIndex: null }]`, leaves `metafields: []`, and does not mutate downstream product metafields.
 - A string `compareDigest` for an absent `(ownerId, namespace, key)` row returns `INVALID_COMPARE_DIGEST` at `['metafields', '0']`, leaves `metafields: []`, and does not create the submitted row.
 - `compareDigest: null` creates the metafield only when it is absent from the effective owner-scoped set.
+- Existing-row CAS is idempotency-sensitive. When the submitted effective type and value are identical to the current row, Shopify accepts a malformed non-hex string digest, returns the existing metafield with empty `userErrors`, and preserves the same downstream value and digest. A captured second request using that exact token with a changed value returns `STALE_OBJECT` and leaves the row untouched.
 - More than 25 inputs returns `metafields: null` plus a resolver-level userError at `['metafields']`.
 - Missing `type` for a new metafield is a resolver-level userError (`Type can't be blank`) and is atomic.
 - Missing `ownerId`, `key`, or `value` in variables fails earlier as a top-level GraphQL `INVALID_VARIABLE` error.
@@ -3256,6 +3344,7 @@ Important captured behavior:
 Practical rule:
 
 - validate the full `metafieldsSet` input batch before replacing the staged product metafield set when any resolver-level error is present
+- classify an exactly identical existing row before comparing a supplied string digest; this is a narrow idempotent-write short-circuit, not a general malformed-digest bypass
 - keep required-input GraphQL validation branches separate from resolver `userErrors`
 - do not broaden owner support from this evidence; these fixtures remain product-owned metafield coverage
 
@@ -3535,10 +3624,12 @@ Captured facts:
 - Closing an `OPEN` fulfillment order assigned to an API fulfillment-service location is still rejected by Shopify with `The fulfillment order is not in an in progress state.`; do not treat API-service assignment alone as sufficient for close success.
 - `fulfillmentOrderReschedule` has a local scheduled success model and read-after-write runtime tests, but the checked-in Shopify capture still only proves the non-scheduled reschedule guardrail. Do not present the scheduled reschedule success branch as live-captured parity until a real scheduled fulfillment-order setup and cassette exists.
 - `fulfillmentOrdersSetFulfillmentDeadline` accepts an existing fulfillment order after `fulfillmentOrderCancel` leaves it `CLOSED`; Shopify writes `fulfillBy` and returns `success: true` with empty `userErrors`. For syntactically valid but never-created fulfillment-order IDs, Admin GraphQL 2025-01 and 2026-04 return `success: false` with message `Fulfillment orders could not be found.`, `field: null`, and `code: null`; `gid://shopify/FulfillmentOrder/0` is a different top-level invalid-id branch. The checked-in anchor is `config/parity-specs/shipping-fulfillments/fulfillment-order-set-deadline-closed-not-found.json`.
+- Admin GraphQL 2026-04 rejects an entire `fulfillmentOrderSplit` or `fulfillmentOrderMerge` input batch when a valid first entry is followed by an excessive-quantity second entry. Both payloads return a null result list plus `field: null`, `code: null`, and `Invalid fulfillment order line item quantity requested.`; full downstream reads of both owning orders remain unchanged.
 
 Practical rule:
 
 - do not model fulfillment-order lifecycle roots as simple status patches; partial hold/move/cancel behavior affects line-item quantities and replacement fulfillment-order identities
+- validate split/merge batches against isolated state and publish the transaction only when every entry succeeds; rejected batches must not retain hydrated records, line changes, synthetic identities, timestamps, or replay entries
 - keep `fulfillmentOrdersReroute` unimplemented for full support until success-path fixtures exist, even if local guardrails are mirrored; `fulfillmentOrderClose` has captured API-service success parity, and `fulfillmentOrderReschedule` has local scheduled staging but still needs a live scheduled success cassette before broadening beyond that modeled slice
 
 ## 71. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
@@ -4515,3 +4606,135 @@ Practical rule:
 - distinguish an authoritative null node from transport, GraphQL, or incomplete
   response failures; all failure classes must leave product/category state
   unchanged, but only the authoritative miss is proven invalid
+
+## 108. A saved-search page is not an absence proof for mutation targets
+
+Saved-search connections are paginated, so observing one upstream page cannot
+prove that an arbitrary SavedSearch ID does not exist. Mutation-first
+`savedSearchUpdate` and `savedSearchDelete` therefore use an ID-specific
+read-only `node(id:)` hydration before returning Shopify's not-found userError.
+Only a staged tombstone or the ID-specific null result makes absence
+authoritative for that request; supported mutations still stage locally.
+
+The public SavedSearch type exposes identity, name, query, resource type,
+legacy ID, search terms, and filters. It does not expose created/updated
+timestamps in the captured Admin schemas, so the proxy preserves every public
+authoritative field and the request app identity without inventing timestamp or
+ownership values that Shopify did not return. Staged records and tombstones are
+also registered with generic Node loading so singular and list readback share
+the same effective state.
+
+## 109. READY `fileUpdate` batches can combine row success with indexed errors
+
+Admin GraphQL 2026-04 live capture created two disposable image files, waited
+until both were `READY`, and sent one valid alt update plus one 513-character
+alt update in the same `fileUpdate` call. Shopify returned the successfully
+updated file and one `ALT_VALUE_LIMIT_EXCEEDED` userError at
+`["files", "1", "alt"]`. Immediate `files` and `nodes` reads showed the valid
+alt while the rejected file retained its prior alt.
+
+This is narrower than making `fileUpdate` generally non-atomic. Missing IDs and
+non-READY targets are resolved before the row-scoped alt check, and existing
+source-conflict, media-target, version, and reference validations remain
+whole-batch boundaries until a live mixed-row capture proves otherwise.
+
+Practical rule:
+
+- retain the input index when collecting alt-limit userErrors, skip only those
+  rejected rows, and return successful files in their original input order
+- stage the successful subset into the shared file graph so `files`, `node`, and
+  `nodes` agree with the mutation payload while rejected rows remain unchanged
+- append one replay entry containing the original raw batch only when at least
+  one row succeeds; associate that entry with only the successfully staged IDs
+- do not generalize this result to other validation buckets without equivalent
+  captured mixed-batch evidence
+
+## 110. Automated collection dependencies override metafield definition deletion flags
+
+Admin GraphQL 2026-04 live capture created a disposable product definition with
+`smartCollectionCondition` enabled, set a matching product metafield, and
+created an automated collection whose `PRODUCT_METAFIELD_DEFINITION` rule used
+the definition as its `conditionObjectId`. Deleting the definition with
+`deleteAllAssociatedMetafields: false` and then `true` returned the same error:
+
+- `deletedDefinitionId: null` and `deletedDefinition: null`
+- `field: null`
+- code `METAFIELD_DEFINITION_IN_USE`
+- message `Cannot proceed with this action. This definition is used in one or more automated collections.`
+
+After both rejections, the definition, product metafield value, collection, and
+rule-to-definition condition object were unchanged. Removing the collection
+first allowed cleanup to delete the definition and product. The checked-in
+evidence and strict replay contract are
+`config/parity-specs/metafields/metafield-definition-automated-collection-dependency.json`.
+
+Practical rule:
+
+- retain `conditionObjectId` as normalized collection-rule relationship state;
+  the visible condition object alone is not enough when selection sets omit it
+- check effective, non-tombstoned automated collection rules before every
+  definition delete, regardless of `deleteAllAssociatedMetafields`
+- return the dependency error before changing definitions, metafields,
+  collections, synthetic identity, pin positions, or replayable mutation logs
+
+## 111. Payment void amount and cold-hydration errors are not inferred from the authorization
+
+Admin GraphQL 2026-04 capture against a disposable manual authorization showed
+that a successful `transactionVoid` does not echo the authorization amount. The
+returned `VOID` transaction has `amountSet.shopMoney.amount: "0.0"`, while the
+downstream order restores the full authorization amount to
+`totalOutstandingSet`, clears capturable/received/net totals, and reports
+`displayFinancialStatus: VOIDED`.
+
+The same capture separated several errors that are easy to collapse into a
+single local not-found response:
+
+- a confirmed missing capture order returns `field: ["id"]` and `Order does not
+exist`
+- an existing order with no matching parent returns `field: null` and `Unable to
+find parent transaction`
+- using a successful `CAPTURE` as the capture parent returns `field: null` and
+  `Parent transaction should be a successful authorization`
+- recapturing a fully consumed authorization returns `field: null` and `Can only
+capture successful authorizations`
+- voiding a failed authorization returns `AUTH_NOT_SUCCESSFUL` and `Parent
+transaction must be a successful authorization`
+- repeating a void returns `AUTH_NOT_VOIDABLE` and the captured voidability
+  message
+
+Practical rule:
+
+- query-hydrate an unobserved real order or transaction before applying these
+  validation branches, but never send the supported mutation upstream
+- treat only an authoritative null order/node as confirmed missing; transport,
+  non-success HTTP, GraphQL-error, wrong-identity, and incomplete hydrate
+  responses remain unresolved and must not change state or logs
+- compute capture/void results from the hydrated transaction and order money
+  graph, including the zero-valued VOID transaction, rather than copying a
+  plausible amount into the mutation payload
+
+## 112. Return precondition absence needs a bounded identity probe
+
+Admin GraphQL 2026-04 live capture sent `returnCreate` and `returnRequest`
+batches whose first fulfillment line was valid and whose second line ID did not
+exist. Shopify rejected the whole batch with `NOT_FOUND`, the message
+`Fulfillment Line Item was not found.`, and a root-specific path to the second
+`fulfillmentLineItemId`. No partial Return was returned.
+
+A bounded order hydrate cannot establish that error by itself. A requested line
+missing from the first fulfillment slice might exist elsewhere on a large order,
+belong to another order, or not exist globally. Treating all three cases as the
+captured not-found branch would turn incomplete relationship evidence into a
+false validation result.
+
+Practical rule:
+
+- keep query-only order prerequisites in observed/base state, never in the
+  staged mutation overlay
+- batch only the absent requested IDs through an exact `nodes(ids:)` probe; a
+  null node confirms the captured missing-line branch, while an existing node
+  without a proven order relationship remains unresolved
+- validate and plan the entire batch before allocating Return graph identities,
+  reading timestamps, staging records, or appending replay entries
+- discard partial observations on transport, GraphQL, or malformed-response
+  failures so a retry begins from the same mutation state

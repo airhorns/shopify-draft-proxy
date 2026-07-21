@@ -26,7 +26,7 @@
   },
   "runtimeTestFiles": ["tests/integration/shipping-settings-flow.test.ts"],
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable parity coverage for shipping settings: the runner seeds captured carrier services and delivery-profile locations, replays availability reads, replays controlled local-pickup enable/read/disable/unknown-location branches, and compares shipping-package RESOURCE_NOT_FOUND envelopes for both unknown ids and a formerly hardcoded sentinel id that Shopify rejects on the live store. The runtime integration test remains the no-upstream-passthrough/meta-log proof for successful local shipping-package staging because Admin GraphQL exposes no package read root for downstream comparison.",
+  "notes": "Executable parity coverage for shipping settings: availability reads come through the public request surface, isolated cold local-pickup enable/disable replay against exact captured location hydration queries, the stateful sequence checks pickup read-after-write, and unknown-location plus shipping-package RESOURCE_NOT_FOUND branches retain their captured errors. The runtime integration test remains the no-upstream-passthrough/meta-log proof for successful local shipping-package staging because Admin GraphQL exposes no package read root for downstream comparison.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -45,6 +45,28 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/shipping-fulfillments/shipping-local-pickup-enable.graphql",
           "variablesCapturePath": "$.captures.customPickupTimeEnable.variables"
+        }
+      },
+      {
+        "name": "local-pickup-cold-enable-payload",
+        "capturePath": "$.captures.enable.result.payload.data.locationLocalPickupEnable",
+        "proxyPath": "$.data.locationLocalPickupEnable",
+        "upstreamCapturePath": null,
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/shipping-local-pickup-enable.graphql",
+          "variablesCapturePath": "$.captures.enable.variables"
+        }
+      },
+      {
+        "name": "local-pickup-cold-disable-payload",
+        "capturePath": "$.captures.disable.result.payload.data.locationLocalPickupDisable",
+        "proxyPath": "$.data.locationLocalPickupDisable",
+        "upstreamCapturePath": null,
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/shipping-local-pickup-disable.graphql",
+          "variablesCapturePath": "$.captures.disable.variables"
         }
       },
       {
