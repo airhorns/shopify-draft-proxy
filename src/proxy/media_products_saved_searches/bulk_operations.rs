@@ -7,6 +7,9 @@ use base64::Engine as _;
 
 const BULK_OPERATION_CURSORS_FIELD: &str = "__shopifyDraftProxyBulkOperationCursors";
 const BULK_CATALOG_PAGE_SIZE: i64 = 250;
+// Keep every polling request bounded while allowing ordinary captured Shopify
+// jobs to move directly from CREATED to a terminal state on their first poll.
+const BULK_CATALOG_PAGES_PER_READ: usize = 16;
 const BULK_CATALOG_MAX_PAGES: usize = 10_000;
 
 pub(in crate::proxy) fn bulk_operation_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy>
@@ -880,7 +883,7 @@ impl DraftProxy {
     }
 
     fn advance_bulk_query_execution(&mut self, request: &Request, id: &str) {
-        let Some(execution) = self.store.staged.bulk_query_executions.get(id).cloned() else {
+        let Some(mut execution) = self.store.staged.bulk_query_executions.get(id).cloned() else {
             return;
         };
         self.state_revision = self.state_revision.saturating_add(1);
@@ -891,10 +894,6 @@ impl DraftProxy {
 
         if self.config.read_mode == ReadMode::Snapshot {
             self.complete_bulk_query_execution(id, &execution);
-            return;
-        }
-        if execution.page_count >= BULK_CATALOG_MAX_PAGES {
-            self.fail_bulk_query_execution(id);
             return;
         }
         let Some(document) = parsed_document(&execution.query, &BTreeMap::new()) else {
@@ -912,23 +911,35 @@ impl DraftProxy {
             headers: request.headers.clone(),
             body: String::new(),
         };
-        match self.hydrate_bulk_query_catalog_page(
-            &execution_request,
-            field,
-            execution.after.as_deref(),
-            &execution.seen_cursors,
-        ) {
-            BulkCatalogPageOutcome::More(cursor) => {
-                if let Some(execution) = self.store.staged.bulk_query_executions.get_mut(id) {
+        for _ in 0..BULK_CATALOG_PAGES_PER_READ {
+            if execution.page_count >= BULK_CATALOG_MAX_PAGES {
+                self.fail_bulk_query_execution(id);
+                return;
+            }
+            match self.hydrate_bulk_query_catalog_page(
+                &execution_request,
+                field,
+                execution.after.as_deref(),
+                &execution.seen_cursors,
+            ) {
+                BulkCatalogPageOutcome::More(cursor) => {
                     execution.after = Some(cursor.clone());
                     execution.seen_cursors.insert(cursor);
                     execution.page_count += 1;
+                    self.store
+                        .staged
+                        .bulk_query_executions
+                        .insert(id.to_string(), execution.clone());
+                }
+                BulkCatalogPageOutcome::Complete => {
+                    self.complete_bulk_query_execution(id, &execution);
+                    return;
+                }
+                BulkCatalogPageOutcome::Failed => {
+                    self.fail_bulk_query_execution(id);
+                    return;
                 }
             }
-            BulkCatalogPageOutcome::Complete => {
-                self.complete_bulk_query_execution(id, &execution);
-            }
-            BulkCatalogPageOutcome::Failed => self.fail_bulk_query_execution(id),
         }
     }
 
@@ -1826,7 +1837,7 @@ mod tests {
     }
 
     #[test]
-    fn bulk_query_submission_is_constant_and_execution_advances_one_page_per_poll() {
+    fn bulk_query_submission_is_constant_and_execution_has_a_fixed_page_budget_per_poll() {
         let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
         let captured_calls = Arc::clone(&upstream_calls);
         let mut proxy = DraftProxy::new(Config {
@@ -1840,14 +1851,20 @@ mod tests {
         .with_upstream_transport(move |request| {
             let body: Value = serde_json::from_str(&request.body).expect("upstream body is JSON");
             captured_calls.lock().unwrap().push(body.clone());
-            let (page, has_next_page, end_cursor) = match body.pointer("/variables/after") {
-                Some(Value::Null) => (0, true, "page-1"),
-                Some(Value::String(after)) if after == "page-1" => (1, false, "page-2"),
+            let page = match body.pointer("/variables/after") {
+                Some(Value::Null) => 0,
+                Some(Value::String(after)) => after
+                    .strip_prefix("page-")
+                    .and_then(|page| page.parse::<usize>().ok())
+                    .unwrap_or_else(|| panic!("unexpected catalog cursor: {after}")),
                 after => panic!("unexpected catalog cursor: {after:?}"),
             };
-            let nodes = (0..BULK_CATALOG_PAGE_SIZE)
+            let has_next_page = page < BULK_CATALOG_PAGES_PER_READ;
+            let end_cursor = format!("page-{}", page + 1);
+            let page_size = usize::try_from(BULK_CATALOG_PAGE_SIZE).unwrap();
+            let nodes = (0..page_size)
                 .map(|index| {
-                    let index = page * BULK_CATALOG_PAGE_SIZE + index;
+                    let index = page * page_size + index;
                     json!({
                         "id": format!("gid://shopify/Product/{index}"),
                         "title": format!("Catalog product {index}")
@@ -1910,7 +1927,11 @@ mod tests {
             running.body["data"]["bulkOperation"]["status"],
             json!("RUNNING")
         );
-        assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+        assert_eq!(
+            upstream_calls.lock().unwrap().len(),
+            BULK_CATALOG_PAGES_PER_READ,
+            "one poll must never exceed the fixed root-page execution budget"
+        );
         assert_ne!(
             running.headers["x-sdp-state-version"],
             created_state_version
@@ -1919,12 +1940,23 @@ mod tests {
         let completed = read_bulk_operation(&mut proxy, &operation_id);
         let completed = &completed.body["data"]["bulkOperation"];
         assert_eq!(completed["status"], json!("COMPLETED"));
-        assert_eq!(completed["objectCount"], json!("500"));
-        assert_eq!(completed["rootObjectCount"], json!("500"));
-        assert_eq!(upstream_calls.lock().unwrap().len(), 2);
+        let expected_count =
+            (BULK_CATALOG_PAGES_PER_READ + 1) * usize::try_from(BULK_CATALOG_PAGE_SIZE).unwrap();
+        assert_eq!(completed["objectCount"], json!(expected_count.to_string()));
+        assert_eq!(
+            completed["rootObjectCount"],
+            json!(expected_count.to_string())
+        );
+        assert_eq!(
+            upstream_calls.lock().unwrap().len(),
+            BULK_CATALOG_PAGES_PER_READ + 1
+        );
         let artifact = proxy.process_request(bulk_artifact_request(&operation_id));
         assert_eq!(artifact.status, 200);
-        assert_eq!(artifact.body.as_str().unwrap().lines().count(), 500);
+        assert_eq!(
+            artifact.body.as_str().unwrap().lines().count(),
+            expected_count
+        );
     }
 
     #[test]
@@ -3049,11 +3081,6 @@ mod tests {
             .as_str()
             .unwrap()
             .to_string();
-        let running = read_bulk_operation(&mut proxy, &operation_id);
-        assert_eq!(
-            running.body["data"]["bulkOperation"]["status"],
-            json!("RUNNING")
-        );
         let completed = read_bulk_operation(&mut proxy, &operation_id);
         assert_eq!(
             completed.body["data"]["bulkOperation"]["status"],
@@ -3409,11 +3436,6 @@ mod tests {
             .as_str()
             .unwrap()
             .to_string();
-        let running = read_bulk_operation(&mut proxy, &operation_id);
-        assert_eq!(
-            running.body["data"]["bulkOperation"]["status"],
-            json!("RUNNING")
-        );
         let completed = read_bulk_operation(&mut proxy, &operation_id);
         assert_eq!(
             completed.body["data"]["bulkOperation"]["status"],
