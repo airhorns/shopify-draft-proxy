@@ -460,7 +460,7 @@ pub(crate) fn default_registry_bindings() -> Vec<ExecutableRootRegistration> {
         entry!("customerPaymentMethodRemoteCreate", Mutation, Payments, DraftProxy::customer_payment_method_mutation_root, []),
         entry!("customerPaymentMethodRevoke", Mutation, Payments, DraftProxy::customer_payment_method_mutation_root, []),
         entry!("orderCapture", Mutation, Payments, DraftProxy::payment_transaction_mutation_root, []),
-        entry!("orderCreateMandatePayment", Mutation, Payments, DraftProxy::payment_transaction_mutation_root, []),
+        entry!("orderCreateMandatePayment", Mutation, Payments, DraftProxy::payment_transaction_mutation_root, ["tests/graphql_routes/orders.rs"]),
         entry!("paymentCustomizationActivation", Mutation, Payments, DraftProxy::payment_customization_mutation_root, []),
         entry!("paymentCustomizationCreate", Mutation, Payments, DraftProxy::payment_customization_mutation_root, []),
         entry!("paymentCustomizationDelete", Mutation, Payments, DraftProxy::payment_customization_mutation_root, []),

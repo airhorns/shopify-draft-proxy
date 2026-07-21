@@ -30,11 +30,13 @@ but remain owned by the order graph. `orderCapture`, `transactionVoid`,
 `orderCreateManualPayment`, and `orderCreateMandatePayment` remain intentionally
 owned by the order graph because their observable effects are order financial
 status, capturable balance, received/outstanding/net payment totals, payment
-gateway names, transactions, and mutation-log replay. The current executable
-evidence is local runtime coverage plus order/payment parity specs, including
-the mandate payment composite reference, idempotency, missing-`mandateId`, and
-`autoCapture: false` authorization branches; it is not real gateway or
-mandate-service execution.
+gateway names, transactions, and mutation-log replay. Mandate payments resolve
+the Order, its vaulted PaymentMandate relationship, and an optional
+PaymentSchedule before staging. The current captured mandate evidence covers
+the missing-`mandateId` schema branch; relationship, idempotency, amount, and
+`autoCapture: false` safety behavior is runtime-test-backed because the active
+recording shop lacks the mandate scopes, staff permission, and Shopify Plus
+capability required for real mandate-service execution.
 
 `paymentReminderSend` remains in the sensitive side-effect bucket: the proxy
 records local reminder intent for `PaymentSchedule` IDs and never sends customer

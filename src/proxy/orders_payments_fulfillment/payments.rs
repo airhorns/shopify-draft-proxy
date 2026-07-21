@@ -12,6 +12,72 @@ const PAYMENT_CUSTOMIZATION_HYDRATE_BY_ID_QUERY: &str = include_str!(
 const PAYMENT_CUSTOMIZATION_HYDRATE_CATALOG_QUERY: &str = include_str!(
     "../../../config/parity-requests/payments/payment-customization-hydrate-catalog.graphql"
 );
+const ORDER_MANDATE_PAYMENT_PREREQUISITES_QUERY: &str = r#"query OrderMandatePaymentPrerequisites($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    ... on Order {
+      id
+      name
+      email
+      note
+      tags
+      createdAt
+      updatedAt
+      closed
+      closedAt
+      cancelledAt
+      cancelReason
+      currencyCode
+      presentmentCurrencyCode
+      displayFinancialStatus
+      displayFulfillmentStatus
+      customer { id email displayName }
+      billingAddress { firstName lastName address1 address2 company city province provinceCode country countryCodeV2 zip phone }
+      shippingAddress { firstName lastName address1 address2 company city province provinceCode country countryCodeV2 zip phone }
+      lineItems(first: 10) {
+        nodes { id title name quantity currentQuantity sku variantTitle requiresShipping taxable customAttributes { key value } }
+      }
+      paymentGatewayNames
+      totalCapturable
+      totalCapturableSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+      totalOutstandingSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+      totalReceivedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+      netPaymentSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+      currentTotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+      totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+      transactions {
+        id
+        kind
+        status
+        gateway
+        processedAt
+        amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+      }
+      paymentCollectionDetails { vaultedPaymentMethods { id } }
+      paymentTerms {
+        id
+        paymentSchedules(first: 10) {
+          nodes {
+            id
+            completedAt
+            due
+            balanceDue { amount currencyCode }
+            totalBalance { amount currencyCode }
+          }
+        }
+      }
+    }
+    ... on PaymentMandate { id }
+    ... on PaymentSchedule {
+      id
+      completedAt
+      due
+      balanceDue { amount currencyCode }
+      totalBalance { amount currencyCode }
+      paymentTerms { id order { id } }
+    }
+  }
+}"#;
 const ORDER_PAYMENT_TRANSACTION_HYDRATE_BY_ORDER_QUERY: &str = include_str!(
     "../../../config/parity-requests/payments/order-payment-transaction-hydrate-by-order.graphql"
 );
@@ -20,6 +86,10 @@ const ORDER_PAYMENT_TRANSACTION_HYDRATE_BY_TRANSACTION_QUERY: &str = include_str
 );
 const FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE: &str =
     "Setting final capture is not supported for this transaction's payment gateway. Please remove the parameter or set it to null, then try again.";
+const ORDER_CREATE_MANDATE_PAYMENT_REQUIRED_ACCESS: &str =
+    "`write_payment_mandate` access scope. Also: The user must have `pay_orders_by_vaulted_card` permission. The API client must be installed on a Shopify Plus store to use the amount field.";
+const ORDER_CREATE_MANDATE_PAYMENT_ACCESS_DENIED_MESSAGE: &str =
+    "Access denied for orderCreateMandatePayment field. Required access: `write_payment_mandate` access scope. Also: The user must have `pay_orders_by_vaulted_card` permission. The API client must be installed on a Shopify Plus store to use the amount field.";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PaymentTransactionHydration {
@@ -1016,40 +1086,135 @@ struct MandatePaymentTransactionInput<'a> {
     gateway: &'a str,
 }
 
-fn mandate_payment_order_record(input: &MandatePaymentTransactionInput<'_>) -> Value {
-    let display_financial_status = if input.auto_capture {
-        "PAID"
-    } else {
-        "AUTHORIZED"
-    };
-    let total_capturable = if input.auto_capture {
-        "0.0"
-    } else {
-        input.amount
-    };
-    let outstanding_amount = if input.auto_capture {
-        "0.0"
-    } else {
-        input.amount
-    };
-    let received_amount = if input.auto_capture {
-        input.amount
-    } else {
-        "0.0"
-    };
-    let transaction = mandate_payment_transaction_record(input);
+struct MandatePaymentPrerequisites {
+    order: Option<Value>,
+    mandate: Option<Value>,
+    payment_schedule: Option<Value>,
+}
+
+fn mandate_payment_invalid_id_outcome(
+    id: &str,
+    root_location: SourceLocation,
+    response_key: &str,
+) -> ResolverOutcome<Value> {
+    graphql_error_outcome(
+        vec![json!({
+            "message": format!("Invalid id: {id}"),
+            "locations": [{ "line": root_location.line, "column": root_location.column }],
+            "extensions": { "code": "RESOURCE_NOT_FOUND" },
+            "path": [response_key]
+        })],
+        response_key,
+    )
+}
+
+fn mandate_payment_access_denied_outcome(
+    root_location: SourceLocation,
+    response_key: &str,
+) -> ResolverOutcome<Value> {
+    let error = top_level_access_denied_error_envelope(
+        ORDER_CREATE_MANDATE_PAYMENT_ACCESS_DENIED_MESSAGE.to_string(),
+        Some(root_location),
+        vec![json!(response_key)],
+        Some(ORDER_CREATE_MANDATE_PAYMENT_REQUIRED_ACCESS),
+    );
+    ResolverOutcome::value(Value::Null)
+        .with_errors(root_field_errors_from_json(&[error], response_key))
+}
+
+fn mandate_payment_payload(
+    job_id: Option<&str>,
+    payment_reference_id: Option<&str>,
+    order: Value,
+    user_errors: Vec<Value>,
+) -> Value {
+    let job = job_id
+        .map(|id| json!({ "id": id, "done": true }))
+        .unwrap_or(Value::Null);
     json!({
-        "id": input.order_id,
-        "displayFinancialStatus": display_financial_status,
-        "capturable": !input.auto_capture,
-        "totalCapturable": total_capturable,
-        "totalCapturableSet": money_set(total_capturable, input.currency_code),
-        "totalOutstandingSet": money_set(outstanding_amount, input.currency_code),
-        "totalReceivedSet": money_set(received_amount, input.currency_code),
-        "netPaymentSet": money_set(received_amount, input.currency_code),
-        "paymentGatewayNames": payment_gateway_names_from_transactions(std::slice::from_ref(&transaction)),
-        "transactions": [transaction]
+        "job": job,
+        "paymentReferenceId": payment_reference_id,
+        "order": order,
+        "userErrors": user_errors
     })
+}
+
+fn mandate_payment_user_error(field: Value, message: &str) -> Value {
+    user_error_omit_code(field, message, None)
+}
+
+fn mandate_payment_vaulted_mandate(order: &Value, mandate_id: &str) -> Option<Value> {
+    order
+        .pointer("/paymentCollectionDetails/vaultedPaymentMethods")
+        .and_then(Value::as_array)?
+        .iter()
+        .find(|mandate| mandate.get("id").and_then(Value::as_str) == Some(mandate_id))
+        .cloned()
+}
+
+fn mandate_payment_schedule(order: &Value, schedule_id: &str) -> Option<Value> {
+    order
+        .pointer("/paymentTerms/paymentSchedules/nodes")
+        .and_then(Value::as_array)?
+        .iter()
+        .find(|schedule| schedule.get("id").and_then(Value::as_str) == Some(schedule_id))
+        .cloned()
+}
+
+fn attach_mandate_payment_schedule(order: &mut Value, schedule: &Value) {
+    let Some(schedule_id) = schedule.get("id").and_then(Value::as_str) else {
+        return;
+    };
+    if mandate_payment_schedule(order, schedule_id).is_some() {
+        return;
+    }
+    if order.get("paymentTerms").is_none_or(Value::is_null) {
+        order["paymentTerms"] = json!({
+            "id": schedule.pointer("/paymentTerms/id").cloned().unwrap_or(Value::Null),
+            "paymentSchedules": { "nodes": [] }
+        });
+    }
+    if order
+        .pointer("/paymentTerms/paymentSchedules/nodes")
+        .is_none_or(|nodes| !nodes.is_array())
+    {
+        order["paymentTerms"]["paymentSchedules"] = json!({ "nodes": [] });
+    }
+    if let Some(nodes) = order
+        .pointer_mut("/paymentTerms/paymentSchedules/nodes")
+        .and_then(Value::as_array_mut)
+    {
+        nodes.push(schedule.clone());
+    }
+}
+
+fn mandate_payment_job_id(order: &Value, idempotency_key: &str) -> Option<String> {
+    order
+        .get("__draftProxyMandatePaymentJobs")
+        .and_then(|jobs| jobs.get(idempotency_key))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+fn mandate_payment_money_value(money: &Value) -> Option<(String, String)> {
+    Some((
+        money.get("amount")?.as_str()?.to_string(),
+        money.get("currencyCode")?.as_str()?.to_string(),
+    ))
+}
+
+fn mandate_payment_order_is_ineligible(order: &Value, outstanding_amount: f64) -> bool {
+    order
+        .get("closed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || order.get("closedAt").is_some_and(Value::is_string)
+        || order.get("cancelledAt").is_some_and(Value::is_string)
+        || matches!(
+            order.get("displayFinancialStatus").and_then(Value::as_str),
+            Some("PAID" | "REFUNDED" | "VOIDED")
+        )
+        || outstanding_amount <= 0.000_001
 }
 
 fn mandate_payment_transaction_record(input: &MandatePaymentTransactionInput<'_>) -> Value {
@@ -1529,6 +1694,14 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
+        if invocation.root_name == "orderCreateMandatePayment" {
+            return self.order_create_mandate_payment_outcome(
+                invocation.request,
+                invocation.root_location,
+                invocation.response_key,
+                &arguments,
+            );
+        }
         let hydration = match invocation.root_name {
             "orderCapture" => {
                 let input = resolved_object_field(&arguments, "input").unwrap_or_default();
@@ -1540,7 +1713,6 @@ impl DraftProxy {
                     resolved_string_field(&arguments, "parentTransactionId").unwrap_or_default();
                 self.hydrate_order_for_payment_transaction_id(invocation.request, &transaction_id)
             }
-            "orderCreateMandatePayment" => PaymentTransactionHydration::Ready,
             root => {
                 return ResolverOutcome::error(format!(
                     "Unknown payment-transaction mutation root `{root}`"
@@ -1568,7 +1740,6 @@ impl DraftProxy {
         let (value, staged_ids) = match invocation.root_name {
             "orderCapture" => self.order_capture_payload(&arguments),
             "transactionVoid" => self.transaction_void_payload(&arguments),
-            "orderCreateMandatePayment" => self.order_create_mandate_payment_payload(&arguments),
             _ => unreachable!("payment transaction root validated before hydration"),
         };
         let mut outcome = ResolverOutcome::value(value);
@@ -1634,162 +1805,369 @@ impl DraftProxy {
         )
     }
 
-    fn order_create_mandate_payment_payload(
+    fn resolve_mandate_payment_prerequisites(
         &mut self,
+        request: &Request,
+        order_id: &str,
+        mandate_id: &str,
+        payment_schedule_id: Option<&str>,
+    ) -> Result<MandatePaymentPrerequisites, ()> {
+        let mut order = self.store.observed_order_by_id(order_id).cloned();
+        let mut mandate = order
+            .as_ref()
+            .and_then(|order| mandate_payment_vaulted_mandate(order, mandate_id));
+        let mut schedule = payment_schedule_id.and_then(|schedule_id| {
+            order
+                .as_ref()
+                .and_then(|order| mandate_payment_schedule(order, schedule_id))
+        });
+        let prerequisites_complete = order.is_some()
+            && mandate.is_some()
+            && payment_schedule_id.is_none_or(|_| schedule.is_some());
+        if prerequisites_complete || self.config.read_mode == ReadMode::Snapshot {
+            return Ok(MandatePaymentPrerequisites {
+                order,
+                mandate,
+                payment_schedule: schedule,
+            });
+        }
+
+        let mut ids = vec![order_id.to_string(), mandate_id.to_string()];
+        if let Some(schedule_id) = payment_schedule_id {
+            ids.push(schedule_id.to_string());
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": ORDER_MANDATE_PAYMENT_PREREQUISITES_QUERY,
+                "operationName": "OrderMandatePaymentPrerequisites",
+                "variables": { "ids": ids }
+            }),
+        );
+        if response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_some_and(|errors| {
+                errors.iter().any(|error| {
+                    error.pointer("/extensions/code").and_then(Value::as_str)
+                        == Some("ACCESS_DENIED")
+                })
+            })
+        {
+            return Err(());
+        }
+        for node in response
+            .body
+            .pointer("/data/nodes")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            let Some(node_id) = node.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            match node.get("__typename").and_then(Value::as_str) {
+                Some("Order") if node_id == order_id => {
+                    let mut hydrated_order = node.clone();
+                    normalize_hydrated_order(&mut hydrated_order);
+                    if let Some(existing_order) = order.take() {
+                        let hydrated_payment_collection_details =
+                            hydrated_order.get("paymentCollectionDetails").cloned();
+                        let hydrated_payment_terms = hydrated_order.get("paymentTerms").cloned();
+                        let mut merged_order =
+                            shallow_merged_object(hydrated_order, existing_order);
+                        for (field, hydrated_value) in [
+                            (
+                                "paymentCollectionDetails",
+                                hydrated_payment_collection_details,
+                            ),
+                            ("paymentTerms", hydrated_payment_terms),
+                        ] {
+                            if merged_order.get(field).is_none_or(Value::is_null) {
+                                if let Some(hydrated_value) = hydrated_value {
+                                    merged_order[field] = hydrated_value;
+                                }
+                            }
+                        }
+                        order = Some(merged_order);
+                    } else {
+                        order = Some(hydrated_order);
+                    }
+                }
+                Some("PaymentMandate") if node_id == mandate_id => mandate = Some(node.clone()),
+                Some("PaymentSchedule") if Some(node_id) == payment_schedule_id => {
+                    schedule = Some(node.clone());
+                }
+                _ => {}
+            }
+        }
+        mandate = mandate.or_else(|| {
+            order
+                .as_ref()
+                .and_then(|order| mandate_payment_vaulted_mandate(order, mandate_id))
+        });
+        schedule = schedule.or_else(|| {
+            payment_schedule_id.and_then(|schedule_id| {
+                order
+                    .as_ref()
+                    .and_then(|order| mandate_payment_schedule(order, schedule_id))
+            })
+        });
+        if let (Some(order), Some(schedule)) = (order.as_mut(), schedule.as_ref()) {
+            if schedule
+                .pointer("/paymentTerms/order/id")
+                .and_then(Value::as_str)
+                == Some(order_id)
+            {
+                attach_mandate_payment_schedule(order, schedule);
+            }
+        }
+        Ok(MandatePaymentPrerequisites {
+            order,
+            mandate,
+            payment_schedule: schedule,
+        })
+    }
+
+    fn order_create_mandate_payment_outcome(
+        &mut self,
+        request: &Request,
+        root_location: SourceLocation,
+        response_key: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
-    ) -> (Value, Vec<String>) {
+    ) -> ResolverOutcome<Value> {
         let requested_order_id = resolved_string_field(arguments, "id");
         let existing_order = requested_order_id
             .as_deref()
-            .and_then(|id| self.store.staged.orders.get(id).cloned());
+            .and_then(|id| self.store.observed_order_by_id(id).cloned());
         let idempotency_key = resolved_string_field(arguments, "idempotencyKey");
         let Some(idempotency_key) = idempotency_key else {
-            return (
-                json!({
-                    "job": Value::Null,
-                    "paymentReferenceId": Value::Null,
-                    "order": existing_order.unwrap_or(Value::Null),
-                    "userErrors": [user_error_omit_code(
-                        ["idempotencyKey"],
-                        "Idempotency key is required",
-                        None
-                    )]
-                }),
-                Vec::new(),
-            );
+            return ResolverOutcome::value(mandate_payment_payload(
+                None,
+                None,
+                existing_order.unwrap_or(Value::Null),
+                vec![user_error_omit_code(
+                    ["idempotencyKey"],
+                    "Idempotency key is required",
+                    None,
+                )],
+            ));
         };
-        let order_id = requested_order_id.unwrap_or_else(|| shopify_gid("Order", 1));
-        let amount_input = resolved_object_field(arguments, "amount").unwrap_or_default();
-        let existing_order = self.store.staged.orders.get(&order_id).cloned();
-        let shop_currency_code = self.store.shop_currency_code();
-        let outstanding_set = existing_order.as_ref().map(|order| {
-            order_money_set_with_presentment_fallback(
-                &order["totalOutstandingSet"],
+        let order_id = requested_order_id.unwrap_or_default();
+        let mandate_id = resolved_string_field(arguments, "mandateId").unwrap_or_default();
+        let payment_schedule_id = resolved_string_field(arguments, "paymentScheduleId");
+        for (id, expected_type) in [(&order_id, "Order"), (&mandate_id, "PaymentMandate")] {
+            if !is_shopify_gid_of_type(id, expected_type) {
+                return mandate_payment_invalid_id_outcome(id, root_location, response_key);
+            }
+        }
+        if let Some(schedule_id) = payment_schedule_id.as_deref() {
+            if !is_shopify_gid_of_type(schedule_id, "PaymentSchedule") {
+                return mandate_payment_invalid_id_outcome(
+                    schedule_id,
+                    root_location,
+                    response_key,
+                );
+            }
+        }
+
+        let MandatePaymentPrerequisites {
+            order,
+            mandate,
+            payment_schedule,
+        } = match self.resolve_mandate_payment_prerequisites(
+            request,
+            &order_id,
+            &mandate_id,
+            payment_schedule_id.as_deref(),
+        ) {
+            Ok(prerequisites) => prerequisites,
+            Err(()) => return mandate_payment_access_denied_outcome(root_location, response_key),
+        };
+        let Some(mut order) = order else {
+            return mandate_payment_invalid_id_outcome(&order_id, root_location, response_key);
+        };
+        if mandate.is_none() || mandate_payment_vaulted_mandate(&order, &mandate_id).is_none() {
+            return mandate_payment_invalid_id_outcome(&mandate_id, root_location, response_key);
+        }
+        if let Some(schedule_id) = payment_schedule_id.as_deref() {
+            let Some(schedule) = payment_schedule.as_ref() else {
+                return mandate_payment_invalid_id_outcome(
+                    schedule_id,
+                    root_location,
+                    response_key,
+                );
+            };
+            let schedule_owner_id = schedule
+                .pointer("/paymentTerms/order/id")
+                .and_then(Value::as_str);
+            if schedule_owner_id.is_some_and(|owner_id| owner_id != order_id)
+                || (schedule_owner_id != Some(order_id.as_str())
+                    && mandate_payment_schedule(&order, schedule_id).is_none())
+            {
+                return mandate_payment_invalid_id_outcome(
+                    schedule_id,
+                    root_location,
+                    response_key,
+                );
+            }
+        }
+
+        let payment_reference_id = format!("{order_id}/{idempotency_key}");
+        if let Some(job_id) = mandate_payment_job_id(&order, &idempotency_key) {
+            return ResolverOutcome::value(mandate_payment_payload(
+                Some(&job_id),
+                Some(&payment_reference_id),
                 order,
-                &shop_currency_code,
-            )
+                Vec::new(),
+            ))
+            .with_log_draft(LogDraft::staged(
+                "orderCreateMandatePayment",
+                "payments",
+                vec![order_id],
+            ));
+        }
+
+        let shop_currency_code = self.store.shop_currency_code();
+        let outstanding_set = order_money_set_with_presentment_fallback(
+            &order["totalOutstandingSet"],
+            &order,
+            &shop_currency_code,
+        );
+        let outstanding_amount = order_money_amount_value(&outstanding_set);
+        if mandate_payment_order_is_ineligible(&order, outstanding_amount) {
+            return ResolverOutcome::value(mandate_payment_payload(
+                None,
+                None,
+                Value::Null,
+                vec![mandate_payment_user_error(
+                    json!(["id"]),
+                    "Order has no eligible outstanding balance",
+                )],
+            ));
+        }
+
+        let schedule_money = payment_schedule.as_ref().and_then(|schedule| {
+            schedule
+                .get("balanceDue")
+                .and_then(mandate_payment_money_value)
         });
+        if payment_schedule.as_ref().is_some_and(|schedule| {
+            schedule.get("completedAt").is_some_and(Value::is_string)
+                || schedule_money
+                    .as_ref()
+                    .and_then(|(amount, _)| amount.parse::<f64>().ok())
+                    .is_none_or(|amount| amount <= 0.000_001)
+        }) {
+            return ResolverOutcome::value(mandate_payment_payload(
+                None,
+                None,
+                Value::Null,
+                vec![mandate_payment_user_error(
+                    json!(["paymentScheduleId"]),
+                    "Payment schedule is not eligible for payment",
+                )],
+            ));
+        }
+
+        let available_amount = schedule_money
+            .as_ref()
+            .and_then(|(amount, _)| amount.parse::<f64>().ok())
+            .map(|amount| amount.min(outstanding_amount))
+            .unwrap_or(outstanding_amount);
+        let expected_currency = schedule_money
+            .as_ref()
+            .map(|(_, currency)| currency.clone())
+            .or_else(|| money_set_presentment_or_shop_currency(&outstanding_set))
+            .unwrap_or_else(|| shop_currency_code.clone());
+        let amount_input = resolved_object_field(arguments, "amount").unwrap_or_default();
         let amount = resolved_string_field(&amount_input, "amount")
             .map(|amount| normalized_order_payment_amount(Some(amount)))
-            .or_else(|| {
-                outstanding_set
-                    .as_ref()
-                    .and_then(money_set_presentment_or_shop_amount)
-            })
-            .unwrap_or_else(|| "0.0".to_string());
+            .unwrap_or_else(|| format_money_amount(available_amount));
+        let amount_value = amount.parse::<f64>().unwrap_or(0.0);
         let currency = resolved_string_field(&amount_input, "currencyCode")
-            .or_else(|| {
-                outstanding_set
-                    .as_ref()
-                    .and_then(money_set_presentment_or_shop_currency)
-            })
-            .unwrap_or_else(|| shop_currency_code.clone());
-        let auto_capture = resolved_bool_field(arguments, "autoCapture").unwrap_or(true);
-        let key = format!("{order_id}:{idempotency_key}");
-        let mut job_id = self.store.staged.orders.get(&order_id).and_then(|order| {
-            order
-                .get("__draftProxyMandatePaymentJobs")
-                .and_then(|jobs| jobs.get(&idempotency_key))
-                .and_then(Value::as_str)
-                .map(str::to_string)
-        });
-        if !self.store.staged.mandate_payment_keys.contains(&key)
-            || !self.store.staged.orders.contains_key(&order_id)
-        {
-            let transaction_id = self.next_order_transaction_id();
-            let allocated_job_id = job_id.unwrap_or_else(|| self.next_proxy_synthetic_gid("Job"));
-            let gateway = self
-                .store
-                .staged
-                .orders
-                .get(&order_id)
-                .map(order_payment_gateway)
-                .unwrap_or_else(|| "manual".to_string());
-            let mandate_input = MandatePaymentTransactionInput {
-                order_id: &order_id,
-                idempotency_key: &idempotency_key,
-                transaction_id: &transaction_id,
-                amount: &amount,
-                currency_code: &currency,
-                auto_capture,
-                gateway: &gateway,
-            };
-            let updated_order = if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
-                append_mandate_payment_to_order(order, &mandate_input, &shop_currency_code);
-                if order
-                    .get("__draftProxyMandatePaymentJobs")
-                    .is_none_or(|jobs| !jobs.is_object())
-                {
-                    order["__draftProxyMandatePaymentJobs"] = json!({});
-                }
-                if let Some(jobs) = order["__draftProxyMandatePaymentJobs"].as_object_mut() {
-                    jobs.insert(idempotency_key.clone(), json!(allocated_job_id.clone()));
-                }
-                Some(order.clone())
-            } else {
-                let mut order = mandate_payment_order_record(&mandate_input);
-                if let Some(order_object) = order.as_object_mut() {
-                    let mut jobs = serde_json::Map::new();
-                    jobs.insert(idempotency_key.clone(), json!(allocated_job_id.clone()));
-                    order_object.insert(
-                        "__draftProxyMandatePaymentJobs".to_string(),
-                        Value::Object(jobs),
-                    );
-                }
-                self.store.staged.orders.insert(order_id.clone(), order);
-                None
-            };
-            if let Some(order) = updated_order {
-                if let Some(customer_id) = order_customer_id(&order) {
-                    if let Some(customer_orders) =
-                        self.store.staged.customer_orders.get_mut(&customer_id)
-                    {
-                        for customer_order in customer_orders {
-                            if customer_order["id"].as_str() == Some(&order_id) {
-                                *customer_order = order.clone();
-                            }
-                        }
-                    }
-                }
-            }
-            self.store.staged.mandate_payment_keys.insert(key);
-            job_id = Some(allocated_job_id);
-        } else if job_id.is_none() {
-            let allocated_job_id = self.next_proxy_synthetic_gid("Job");
-            if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
-                if order
-                    .get("__draftProxyMandatePaymentJobs")
-                    .is_none_or(|jobs| !jobs.is_object())
-                {
-                    order["__draftProxyMandatePaymentJobs"] = json!({});
-                }
-                if let Some(jobs) = order["__draftProxyMandatePaymentJobs"].as_object_mut() {
-                    jobs.insert(idempotency_key.clone(), json!(allocated_job_id.clone()));
-                }
-            }
-            job_id = Some(allocated_job_id);
+            .unwrap_or_else(|| expected_currency.clone());
+        if amount_value <= 0.000_001 {
+            return ResolverOutcome::value(mandate_payment_payload(
+                None,
+                None,
+                Value::Null,
+                vec![mandate_payment_user_error(
+                    json!(["amount"]),
+                    "Amount must be greater than zero",
+                )],
+            ));
         }
-        let order = self
-            .store
+        if currency != expected_currency {
+            return ResolverOutcome::value(mandate_payment_payload(
+                None,
+                None,
+                Value::Null,
+                vec![mandate_payment_user_error(
+                    json!(["amount", "currencyCode"]),
+                    &format!("Currency must match order currency {expected_currency}"),
+                )],
+            ));
+        }
+        if amount_value > available_amount + 0.000_001 {
+            let message = if payment_schedule_id.is_some() {
+                "Amount exceeds payment schedule balance"
+            } else {
+                "Amount exceeds outstanding balance"
+            };
+            return ResolverOutcome::value(mandate_payment_payload(
+                None,
+                None,
+                Value::Null,
+                vec![mandate_payment_user_error(json!(["amount"]), message)],
+            ));
+        }
+
+        let auto_capture = resolved_bool_field(arguments, "autoCapture").unwrap_or(true);
+        let transaction_id = self.next_order_transaction_id();
+        let job_id = self.next_proxy_synthetic_gid("Job");
+        let gateway = order_payment_gateway(&order);
+        let mandate_input = MandatePaymentTransactionInput {
+            order_id: &order_id,
+            idempotency_key: &idempotency_key,
+            transaction_id: &transaction_id,
+            amount: &amount,
+            currency_code: &currency,
+            auto_capture,
+            gateway: &gateway,
+        };
+        append_mandate_payment_to_order(&mut order, &mandate_input, &shop_currency_code);
+        if order
+            .get("__draftProxyMandatePaymentJobs")
+            .is_none_or(|jobs| !jobs.is_object())
+        {
+            order["__draftProxyMandatePaymentJobs"] = json!({});
+        }
+        if let Some(jobs) = order["__draftProxyMandatePaymentJobs"].as_object_mut() {
+            jobs.insert(idempotency_key.clone(), json!(job_id.clone()));
+        }
+        self.store
             .staged
             .orders
-            .get(&order_id)
-            .cloned()
-            .unwrap_or(Value::Null);
-        let payment_reference_id = format!("{order_id}/{idempotency_key}");
-        let job_id = job_id.unwrap_or_else(|| self.next_proxy_synthetic_gid("Job"));
-        (
-            json!({
-                "job": {
-                    "id": job_id,
-                    "done": true
-                },
-                "paymentReferenceId": payment_reference_id,
-                "order": order,
-                "userErrors": []
-            }),
+            .insert(order_id.clone(), order.clone());
+        refresh_order_customer_indexes(&mut self.store.staged.customer_orders, &order_id, &order);
+        self.store
+            .staged
+            .mandate_payment_keys
+            .insert(format!("{order_id}:{idempotency_key}"));
+
+        ResolverOutcome::value(mandate_payment_payload(
+            Some(&job_id),
+            Some(&payment_reference_id),
+            order,
+            Vec::new(),
+        ))
+        .with_log_draft(LogDraft::staged(
+            "orderCreateMandatePayment",
+            "payments",
             vec![order_id],
-        )
+        ))
     }
 
     pub(in crate::proxy) fn order_payment_transaction_local_outcome(
