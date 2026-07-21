@@ -32,6 +32,7 @@ impl DraftProxy {
             .unwrap_or(request_record);
         let merged = merge_app_installation_json(&base, observed);
         let app_id = app_id_from_installation(&merged).unwrap_or(observed_app_id);
+        self.observe_app_subscriptions_from_installation(request, &app_id, observed);
         self.store.staged.installed_apps.insert(app_id, merged);
     }
 
@@ -96,9 +97,10 @@ impl DraftProxy {
         installation
             .as_ref()
             .map(|installation| {
+                let subscriptions = self.effective_app_subscriptions_for_app(&app_id);
                 current_app_installation_value(
                     installation,
-                    &self.store.staged.app_subscriptions,
+                    &subscriptions,
                     &self.store.staged.app_one_time_purchases,
                     &revoked_access_scopes,
                 )
@@ -106,22 +108,34 @@ impl DraftProxy {
             .unwrap_or(Value::Null)
     }
 
-    pub(in crate::proxy) fn find_staged_app_usage_record(&self, id: &str) -> Option<Value> {
-        self.store
-            .staged
-            .app_subscriptions
-            .values()
-            .find_map(|subscription| {
-                subscription["lineItems"].as_array().and_then(|line_items| {
-                    line_items.iter().find_map(|line_item| {
-                        line_item["usageRecords"]["nodes"]
-                            .as_array()
-                            .and_then(|records| {
-                                records.iter().find(|record| record["id"] == id).cloned()
-                            })
-                    })
+    pub(in crate::proxy) fn find_effective_app_usage_record(
+        &self,
+        id: &str,
+        request: Option<&Request>,
+    ) -> Option<Value> {
+        let subscriptions = request.map_or_else(
+            || {
+                effective_records(
+                    &self.store.base.app_subscriptions,
+                    &self.store.staged.app_subscriptions,
+                )
+            },
+            |request| {
+                let app_id = self.app_subscription_app_id_for_request(request);
+                self.effective_app_subscriptions_for_app(&app_id)
+            },
+        );
+        subscriptions.iter().find_map(|subscription| {
+            subscription["lineItems"].as_array().and_then(|line_items| {
+                line_items.iter().find_map(|line_item| {
+                    line_item["usageRecords"]["nodes"]
+                        .as_array()
+                        .and_then(|records| {
+                            records.iter().find(|record| record["id"] == id).cloned()
+                        })
                 })
             })
+        })
     }
 
     pub(crate) fn app_uninstall(
@@ -168,9 +182,16 @@ impl DraftProxy {
                     .staged
                     .uninstalled_app_ids
                     .insert(target_app_id.clone());
-                for subscription in self.store.staged.app_subscriptions.values_mut() {
-                    if let Value::Object(fields) = subscription {
+                for mut subscription in self.effective_app_subscriptions_for_app(&target_app_id) {
+                    if let Value::Object(fields) = &mut subscription {
                         fields.insert("status".to_string(), json!("CANCELLED"));
+                    }
+                    if let Some(subscription_id) = subscription
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                    {
+                        self.stage_effective_app_subscription(&subscription_id, subscription);
                     }
                 }
                 self.store

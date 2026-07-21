@@ -128,9 +128,12 @@ impl DraftProxy {
                     .or_else(|| result.data.get(invocation.root_name))
                     .cloned()
                 {
-                    self.observe_nodes_data(&json!({
-                        "data": { invocation.root_name: value }
-                    }));
+                    self.observe_nodes_data_for_request(
+                        &json!({
+                            "data": { invocation.root_name: value }
+                        }),
+                        invocation.request,
+                    );
                 }
                 result.outcome.value = self.node_value_with_upstream_fallback(
                     invocation.root_name,
@@ -407,9 +410,48 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn observe_nodes_data(&mut self, body: &Value) {
+        self.observe_nodes_data_with_request(body, None);
+    }
+
+    pub(in crate::proxy) fn observe_nodes_data_for_request(
+        &mut self,
+        body: &Value,
+        request: &Request,
+    ) {
+        self.observe_nodes_data_with_request(body, Some(request));
+    }
+
+    pub(in crate::proxy) fn observe_selected_node_data_for_request(
+        &mut self,
+        fields: &[RootFieldSelection],
+        body: &Value,
+        request: &Request,
+    ) {
+        let data = body.get("data").and_then(Value::as_object);
+        for field in fields {
+            let Some(value) = data.and_then(|data| data.get(&field.response_key)) else {
+                continue;
+            };
+            match field.name.as_str() {
+                "node" if value.is_object() => {
+                    self.observe_node_response_value(value, Some(request));
+                }
+                "nodes" => {
+                    for node in value.as_array().into_iter().flatten() {
+                        if node.is_object() {
+                            self.observe_node_response_value(node, Some(request));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn observe_nodes_data_with_request(&mut self, body: &Value, request: Option<&Request>) {
         let nodes = observed_node_values(body);
         for node in &nodes {
-            self.observe_node_response_value(node);
+            self.observe_node_response_value(node, request);
         }
         for node in nodes {
             let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
@@ -419,7 +461,7 @@ impl DraftProxy {
         }
     }
 
-    fn observe_node_response_value(&mut self, node: &Value) {
+    fn observe_node_response_value(&mut self, node: &Value, request: Option<&Request>) {
         let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
         if is_shopify_gid_of_type(id, "Product") {
             self.store.stage_observed_product_json(node);
@@ -468,6 +510,11 @@ impl DraftProxy {
             Some("ShopAddress" | "ShopPolicy")
         ) {
             self.observe_shop_property_node(node);
+        } else if shopify_gid_resource_type(id) == Some("AppSubscription") {
+            if let Some(request) = request {
+                let app_id = self.app_subscription_app_id_for_request(request);
+                self.observe_base_app_subscription(request, &app_id, node);
+            }
         }
     }
 
@@ -488,9 +535,10 @@ impl DraftProxy {
                     .get(app_id)
                     .cloned()
                     .unwrap_or_default();
+                let subscriptions = self.effective_app_subscriptions_for_app(app_id);
                 return Some(current_app_installation_node_value(
                     installation,
-                    &self.store.staged.app_subscriptions,
+                    &subscriptions,
                     &self.store.staged.app_one_time_purchases,
                     &revoked_access_scopes,
                 ));
@@ -513,9 +561,11 @@ impl DraftProxy {
                     .get(&app_id)
                     .cloned()
                     .unwrap_or_default();
+                let subscription_app_id = self.app_subscription_app_id_for_request(request);
+                let subscriptions = self.effective_app_subscriptions_for_app(&subscription_app_id);
                 return Some(current_app_installation_node_value(
                     &installation,
-                    &self.store.staged.app_subscriptions,
+                    &subscriptions,
                     &self.store.staged.app_one_time_purchases,
                     &revoked_access_scopes,
                 ));
@@ -524,19 +574,27 @@ impl DraftProxy {
                 return installation.get("app").cloned();
             }
         }
-        self.store
-            .staged
-            .app_subscriptions
-            .get(id)
-            .cloned()
+        if self.store.staged.app_subscriptions.is_tombstoned(id) {
+            return Some(Value::Null);
+        }
+        let subscription = match request {
+            Some(request) => self.effective_app_subscription_for_request(request, id),
+            None => effective_get(
+                &self.store.base.app_subscriptions,
+                &self.store.staged.app_subscriptions,
+                id,
+            )
+            .cloned(),
+        };
+        subscription
             .or_else(|| self.store.staged.app_one_time_purchases.get(id).cloned())
-            .or_else(|| self.find_staged_app_usage_record(id))
+            .or_else(|| self.find_effective_app_usage_record(id, request))
     }
 }
 
 fn current_app_installation_node_value(
     installation: &Value,
-    subscriptions: &BTreeMap<String, Value>,
+    subscriptions: &[Value],
     one_time_purchases: &BTreeMap<String, Value>,
     revoked_access_scopes: &BTreeSet<String>,
 ) -> Value {
@@ -545,18 +603,14 @@ fn current_app_installation_node_value(
     if let Some(id) = app_installation_id(installation) {
         value["id"] = json!(id);
     }
-    if !subscriptions.is_empty() {
-        let all = subscriptions.values().cloned().collect::<Vec<_>>();
-        value["activeSubscriptions"] = Value::Array(
-            all.iter()
-                .filter(|subscription| subscription["status"] == "ACTIVE")
-                .cloned()
-                .collect(),
-        );
-        value["allSubscriptions"] = connection_json(all);
-    } else if value.get("activeSubscriptions").is_none() {
-        value["activeSubscriptions"] = Value::Array(Vec::new());
-    }
+    let all = subscriptions.to_vec();
+    value["activeSubscriptions"] = Value::Array(
+        all.iter()
+            .filter(|subscription| subscription["status"] == "ACTIVE")
+            .cloned()
+            .collect(),
+    );
+    value["allSubscriptions"] = connection_json(all);
     if !one_time_purchases.is_empty() {
         value["oneTimePurchases"] = connection_json(one_time_purchases.values().cloned().collect());
     }

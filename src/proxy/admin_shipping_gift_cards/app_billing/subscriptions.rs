@@ -8,7 +8,6 @@ impl DraftProxy {
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
-        let id = self.next_proxy_synthetic_gid("AppSubscription");
         let name =
             resolved_string_field(&arguments, "name").unwrap_or_else(|| "Local plan".to_string());
         let mut user_errors = Vec::new();
@@ -56,6 +55,8 @@ impl DraftProxy {
                 "userErrors": user_errors,
             }));
         }
+        let id = self.next_proxy_synthetic_gid("AppSubscription");
+        let app_id = self.ensure_current_app_installation(invocation.request);
         let line_item_ids = line_items
             .iter()
             .map(|_| self.next_proxy_synthetic_gid("AppSubscriptionLineItem"))
@@ -64,6 +65,7 @@ impl DraftProxy {
         let confirmation_url = app_domain_confirmation_url_from_arguments(&arguments);
         let subscription = json!({
             "__typename": "AppSubscription",
+            APP_SUBSCRIPTION_OWNER_APP_ID_FIELD: app_id,
             "id": id,
             "name": name,
             "status": if test { "ACTIVE" } else { "PENDING" },
@@ -98,38 +100,40 @@ impl DraftProxy {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
 
-        let (subscription, user_errors) = match self.store.staged.app_subscriptions.get_mut(&id) {
-            Some(record) if record["status"] == "CANCELLED" => (
-                Value::Null,
-                vec![user_error_omit_code(
-                    ["id"],
-                    "Cannot transition status via :cancel from :cancelled",
-                    None,
-                )],
-            ),
-            Some(record) => {
-                if let Value::Object(fields) = record {
-                    fields.insert("status".to_string(), json!("CANCELLED"));
+        let (subscription, user_errors) =
+            match self.app_subscription_for_mutation(invocation.request, &id) {
+                Some(record) if record["status"] == "CANCELLED" => (
+                    Value::Null,
+                    vec![user_error_omit_code(
+                        ["id"],
+                        "Cannot transition status via :cancel from :cancelled",
+                        None,
+                    )],
+                ),
+                Some(mut record) => {
+                    if let Value::Object(fields) = &mut record {
+                        fields.insert("status".to_string(), json!("CANCELLED"));
+                    }
+                    let updated = record.clone();
+                    self.stage_effective_app_subscription(&id, record);
+                    self.record_mutation_log_entry(
+                        invocation.request,
+                        invocation.query,
+                        invocation.variables,
+                        "appSubscriptionCancel",
+                        vec![id],
+                    );
+                    (updated, vec![])
                 }
-                let updated = record.clone();
-                self.record_mutation_log_entry(
-                    invocation.request,
-                    invocation.query,
-                    invocation.variables,
-                    "appSubscriptionCancel",
-                    vec![id],
-                );
-                (updated, vec![])
-            }
-            None => (
-                Value::Null,
-                vec![user_error_omit_code(
-                    ["id"],
-                    "Couldn't find RecurringApplicationCharge",
-                    None,
-                )],
-            ),
-        };
+                None => (
+                    Value::Null,
+                    vec![user_error_omit_code(
+                        ["id"],
+                        "Couldn't find RecurringApplicationCharge",
+                        None,
+                    )],
+                ),
+            };
 
         ResolverOutcome::value(json!({
             "appSubscription": subscription,
@@ -160,7 +164,7 @@ impl DraftProxy {
                 )],
             )
         } else {
-            match self.store.staged.app_subscriptions.get_mut(&id) {
+            match self.app_subscription_for_mutation(invocation.request, &id) {
                 None => (
                     Value::Null,
                     vec![user_error(
@@ -177,7 +181,7 @@ impl DraftProxy {
                         Some("SUBSCRIPTION_NOT_ACTIVE"),
                     )],
                 ),
-                Some(record) if !app_subscription_trial_is_active(record) => (
+                Some(record) if !app_subscription_trial_is_active(&record) => (
                     Value::Null,
                     vec![user_error_omit_code(
                         ["id"],
@@ -185,10 +189,10 @@ impl DraftProxy {
                         None,
                     )],
                 ),
-                Some(record) => {
+                Some(mut record) => {
                     let current = record["trialDays"].as_i64().unwrap_or(0);
                     let updated_trial_days = current + days;
-                    if let Value::Object(fields) = record {
+                    if let Value::Object(fields) = &mut record {
                         fields.insert("trialDays".to_string(), json!(updated_trial_days));
                         fields.insert(
                             "currentPeriodEnd".to_string(),
@@ -196,6 +200,7 @@ impl DraftProxy {
                         );
                     }
                     let updated = record.clone();
+                    self.stage_effective_app_subscription(&id, record);
                     self.record_mutation_log_entry(
                         invocation.request,
                         invocation.query,
@@ -244,32 +249,18 @@ impl DraftProxy {
             _ => true,
         };
 
-        let mut matched_subscription_id = None;
-        let mut matched_line_item = None;
-        let mut matched_line_item_index = None;
-        for (subscription_id, subscription) in &self.store.staged.app_subscriptions {
-            if let Some(line_items) = subscription["lineItems"].as_array() {
-                if let Some((index, line_item)) = line_items
-                    .iter()
-                    .enumerate()
-                    .find(|(_, line_item)| line_item["id"] == id)
-                {
-                    matched_subscription_id = Some(subscription_id.clone());
-                    matched_line_item = Some(line_item.clone());
-                    matched_line_item_index = Some(index);
-                    break;
-                }
-            }
-        }
-
-        let (subscription, user_errors) = match (
-            matched_subscription_id,
-            matched_line_item,
-            matched_line_item_index,
-        ) {
-            (Some(subscription_id), Some(line_item), Some(line_item_index)) => {
+        let (subscription, user_errors) = match self
+            .effective_app_subscription_line_item(invocation.request, &id)
+        {
+            Some((subscription_id, line_item_index, mut effective_subscription)) => {
+                let line_item = effective_subscription["lineItems"][line_item_index].clone();
                 let pricing = &line_item["plan"]["pricingDetails"];
-                if pricing["__typename"] != "AppUsagePricing" {
+                if effective_subscription["status"] != "ACTIVE" {
+                    (
+                        Value::Null,
+                        vec![user_error_omit_code(["id"], "Invalid id", None)],
+                    )
+                } else if pricing["__typename"] != "AppUsagePricing" {
                     (
                         Value::Null,
                         vec![user_error_omit_code(
@@ -303,20 +294,9 @@ impl DraftProxy {
                         )
                     } else {
                         let subscription = if require_approval {
-                            self.store
-                                .staged
-                                .app_subscriptions
-                                .get(&subscription_id)
-                                .cloned()
-                                .unwrap_or(Value::Null)
+                            effective_subscription
                         } else {
-                            let subscription = self
-                                .store
-                                .staged
-                                .app_subscriptions
-                                .get_mut(&subscription_id)
-                                .expect("located subscription must still exist");
-                            if let Some(line_item) = subscription["lineItems"]
+                            if let Some(line_item) = effective_subscription["lineItems"]
                                 .as_array_mut()
                                 .and_then(|line_items| line_items.get_mut(line_item_index))
                             {
@@ -325,7 +305,11 @@ impl DraftProxy {
                                     "currencyCode": requested_currency
                                 });
                             }
-                            subscription.clone()
+                            self.stage_effective_app_subscription(
+                                &subscription_id,
+                                effective_subscription.clone(),
+                            );
+                            effective_subscription
                         };
                         self.record_mutation_log_entry(
                             invocation.request,
@@ -338,7 +322,7 @@ impl DraftProxy {
                     }
                 }
             }
-            _ => (
+            None => (
                 Value::Null,
                 vec![user_error_omit_code(["id"], "Invalid id", None)],
             ),
@@ -357,25 +341,6 @@ impl DraftProxy {
         }))
     }
 
-    pub(super) fn find_staged_app_subscription_line_item(
-        &self,
-        line_item_id: &str,
-    ) -> Option<(String, usize)> {
-        self.store
-            .staged
-            .app_subscriptions
-            .iter()
-            .find_map(|(subscription_id, subscription)| {
-                subscription["lineItems"]
-                    .as_array()
-                    .and_then(|items| {
-                        items
-                            .iter()
-                            .position(|line_item| line_item["id"] == line_item_id)
-                    })
-                    .map(|index| (subscription_id.clone(), index))
-            })
-    }
     pub(crate) fn app_usage_record_create(
         &mut self,
         invocation: RootInvocation<'_>,
@@ -419,20 +384,10 @@ impl DraftProxy {
             ));
         } else if shopify_gid_resource_type(&line_item_id) != Some("AppSubscriptionLineItem") {
             user_errors.push(user_error(["subscriptionLineItemId"], "Invalid id", None));
-        } else if let Some((subscription_id, line_item_index)) =
-            self.find_staged_app_subscription_line_item(&line_item_id)
+        } else if let Some((subscription_id, line_item_index, mut subscription)) =
+            self.effective_app_subscription_line_item(invocation.request, &line_item_id)
         {
-            let candidate_usage_record_id = self.next_proxy_synthetic_gid("AppUsageRecord");
-            let subscription = self
-                .store
-                .staged
-                .app_subscriptions
-                .get_mut(&subscription_id)
-                .expect("located subscription must still exist");
-            let line_item = subscription["lineItems"]
-                .as_array_mut()
-                .and_then(|items| items.get_mut(line_item_index))
-                .expect("located line item must still exist");
+            let line_item = &subscription["lineItems"][line_item_index];
             let pricing = &line_item["plan"]["pricingDetails"];
             let existing_currency = pricing["cappedAmount"]["currencyCode"]
                 .as_str()
@@ -459,7 +414,9 @@ impl DraftProxy {
                         })
                         .cloned()
                 });
-            if let Some(record) = existing {
+            if subscription["status"] != "ACTIVE" || pricing["__typename"] != "AppUsagePricing" {
+                user_errors.push(user_error(["subscriptionLineItemId"], "Invalid id", None));
+            } else if let Some(record) = existing {
                 usage_record = record;
             } else if currency != existing_currency
                 || current_balance + requested_amount > capped_amount
@@ -470,6 +427,11 @@ impl DraftProxy {
                     None,
                 ));
             } else {
+                let candidate_usage_record_id = self.next_proxy_synthetic_gid("AppUsageRecord");
+                let line_item = subscription["lineItems"]
+                    .as_array_mut()
+                    .and_then(|items| items.get_mut(line_item_index))
+                    .expect("located line item must still exist");
                 let new_balance = if current_balance == 0.0 {
                     amount.clone()
                 } else {
@@ -494,6 +456,7 @@ impl DraftProxy {
                 if let Some(records) = line_item["usageRecords"]["nodes"].as_array_mut() {
                     records.push(usage_record.clone());
                 }
+                self.stage_effective_app_subscription(&subscription_id, subscription);
                 created_usage_record_id = usage_record["id"].as_str().map(str::to_string);
                 should_record_success = true;
             }
