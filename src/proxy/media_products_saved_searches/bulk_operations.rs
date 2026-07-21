@@ -80,6 +80,12 @@ struct BulkOperationRunMutationResult {
     status: &'static str,
 }
 
+enum BulkCatalogPageOutcome {
+    More(String),
+    Complete,
+    Failed,
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn bulk_operation_result_jsonl(&self, artifact_id: &str) -> Response {
         let Some(result) = self.store.staged.bulk_operation_results.get(artifact_id) else {
@@ -147,174 +153,76 @@ impl DraftProxy {
         }
     }
 
-    fn hydrate_bulk_query_catalog(
+    fn hydrate_bulk_query_catalog_page(
         &mut self,
         request: &Request,
         field: &RootFieldSelection,
-    ) -> bool {
-        if self.config.read_mode == ReadMode::Snapshot {
-            return true;
-        }
+        after: Option<&str>,
+        seen_cursors: &BTreeSet<String>,
+    ) -> BulkCatalogPageOutcome {
         let (operation_name, root_name) = match field.name.as_str() {
             "products" => ("BulkProductsCatalogHydrate", "products"),
             "productVariants" => ("BulkProductVariantsCatalogHydrate", "productVariants"),
-            _ => return false,
+            _ => return BulkCatalogPageOutcome::Failed,
         };
         let plan = bulk_catalog_hydration_plan(operation_name, root_name, field);
-        let mut after = Value::Null;
-        let mut seen_cursors = BTreeSet::new();
-
-        for _ in 0..BULK_CATALOG_MAX_PAGES {
-            let response = self.upstream_post(
-                request,
-                json!({
-                    "query": plan.query,
-                    "operationName": operation_name,
-                    "variables": {
-                        "first": BULK_CATALOG_PAGE_SIZE,
-                        "after": after,
-                        "nestedFirst": BULK_CATALOG_PAGE_SIZE,
-                        "nestedAfter": null,
-                    }
-                }),
-            );
-            if !(200..300).contains(&response.status)
-                || response
-                    .body
-                    .get("errors")
-                    .and_then(Value::as_array)
-                    .is_some_and(|errors| !errors.is_empty())
-            {
-                return false;
-            }
-            let Some(connection) = response.body.pointer(&format!("/data/{root_name}")) else {
-                return false;
-            };
-            let Some(nodes) = connection.get("nodes").and_then(Value::as_array) else {
-                return false;
-            };
-            for node in nodes {
-                let mut node = node.clone();
-                if !self.hydrate_bulk_catalog_nested_connections(
-                    request,
-                    root_name,
-                    &mut node,
-                    &plan.nested_connections,
-                ) || !self.observe_bulk_catalog_node(root_name, &node)
-                {
-                    return false;
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": plan.query,
+                "operationName": operation_name,
+                "variables": {
+                    "first": BULK_CATALOG_PAGE_SIZE,
+                    "after": after,
+                    "nestedFirst": BULK_CATALOG_PAGE_SIZE,
+                    "nestedAfter": null,
                 }
-            }
-            match connection["pageInfo"]["hasNextPage"].as_bool() {
-                Some(false) => return true,
-                Some(true) => {}
-                None => return false,
-            }
-            let Some(end_cursor) = connection["pageInfo"]["endCursor"].as_str() else {
-                return false;
-            };
-            if !seen_cursors.insert(end_cursor.to_string()) {
-                return false;
-            }
-            after = json!(end_cursor);
+            }),
+        );
+        if !(200..300).contains(&response.status)
+            || response
+                .body
+                .get("errors")
+                .and_then(Value::as_array)
+                .is_some_and(|errors| !errors.is_empty())
+        {
+            return BulkCatalogPageOutcome::Failed;
         }
-        false
-    }
-
-    fn hydrate_bulk_catalog_nested_connections(
-        &mut self,
-        request: &Request,
-        root_name: &str,
-        node: &mut Value,
-        nested_connections: &[BulkCatalogNestedHydrationSpec],
-    ) -> bool {
-        let Some(node_id) = node.get("id").and_then(Value::as_str).map(str::to_string) else {
-            return false;
+        let Some(connection) = response.body.pointer(&format!("/data/{root_name}")) else {
+            return BulkCatalogPageOutcome::Failed;
         };
-        for connection in nested_connections {
-            let Some(mut hydrated) = node.get(&connection.response_key).cloned() else {
-                return false;
-            };
-            let Some(initial_nodes) = hydrated.get("nodes").and_then(Value::as_array) else {
-                return false;
-            };
-            let mut nodes = initial_nodes.clone();
-            let mut has_next_page = match hydrated["pageInfo"]["hasNextPage"].as_bool() {
-                Some(value) => value,
-                None => return false,
-            };
-            let mut after = hydrated["pageInfo"]["endCursor"].clone();
-            let mut seen_cursors = BTreeSet::new();
-
-            for _ in 0..BULK_CATALOG_MAX_PAGES {
-                if !has_next_page {
-                    break;
-                }
-                let Some(end_cursor) = after.as_str() else {
-                    return false;
-                };
-                if !seen_cursors.insert(end_cursor.to_string()) {
-                    return false;
-                }
-                let (operation_name, entity_root) = match root_name {
-                    "products" => ("BulkProductNestedCatalogHydrate", "product"),
-                    "productVariants" => {
-                        ("BulkProductVariantNestedCatalogHydrate", "productVariant")
-                    }
-                    _ => return false,
-                };
-                let response = self.upstream_post(
-                    request,
-                    json!({
-                        "query": connection.page_query(operation_name, entity_root),
-                        "operationName": operation_name,
-                        "variables": {
-                            "id": node_id,
-                            "first": BULK_CATALOG_PAGE_SIZE,
-                            "after": after,
-                        }
-                    }),
-                );
-                if !(200..300).contains(&response.status)
-                    || response
-                        .body
-                        .get("errors")
-                        .and_then(Value::as_array)
-                        .is_some_and(|errors| !errors.is_empty())
-                {
-                    return false;
-                }
-                let Some(page) = response
-                    .body
-                    .pointer(&format!("/data/{entity_root}/{}", connection.response_key))
-                else {
-                    return false;
-                };
-                let Some(page_nodes) = page.get("nodes").and_then(Value::as_array) else {
-                    return false;
-                };
-                merge_bulk_catalog_nodes(&mut nodes, page_nodes);
-                has_next_page = match page["pageInfo"]["hasNextPage"].as_bool() {
-                    Some(value) => value,
-                    None => return false,
-                };
-                after = page["pageInfo"]["endCursor"].clone();
+        let Some(nodes) = connection.get("nodes").and_then(Value::as_array) else {
+            return BulkCatalogPageOutcome::Failed;
+        };
+        let mut normalized_nodes = Vec::with_capacity(nodes.len());
+        for node in nodes {
+            let mut node = node.clone();
+            if !normalize_complete_bulk_catalog_nested_connections(
+                &mut node,
+                &plan.nested_connections,
+            ) {
+                return BulkCatalogPageOutcome::Failed;
             }
-            if has_next_page {
-                return false;
-            }
-            hydrated["nodes"] = Value::Array(nodes);
-            hydrated["pageInfo"] = json!({
-                "hasNextPage": false,
-                "endCursor": after,
-            });
-            let Some(node_object) = node.as_object_mut() else {
-                return false;
-            };
-            node_object.remove(&connection.response_key);
-            merge_bulk_catalog_connection(node_object, connection.name.as_str(), hydrated);
+            normalized_nodes.push(node);
         }
-        true
+        for node in &normalized_nodes {
+            if !self.observe_bulk_catalog_node(root_name, node) {
+                return BulkCatalogPageOutcome::Failed;
+            }
+        }
+        match connection["pageInfo"]["hasNextPage"].as_bool() {
+            Some(false) => BulkCatalogPageOutcome::Complete,
+            Some(true) => {
+                let Some(end_cursor) = connection["pageInfo"]["endCursor"].as_str() else {
+                    return BulkCatalogPageOutcome::Failed;
+                };
+                if seen_cursors.contains(end_cursor) {
+                    return BulkCatalogPageOutcome::Failed;
+                }
+                BulkCatalogPageOutcome::More(end_cursor.to_string())
+            }
+            None => BulkCatalogPageOutcome::Failed,
+        }
     }
 
     fn observe_bulk_catalog_node(&mut self, root_name: &str, node: &Value) -> bool {
@@ -646,6 +554,12 @@ impl DraftProxy {
             return graphql_error_outcome(errors, invocation.response_key);
         }
 
+        self.advance_bulk_query_execution_for_read(
+            invocation.request,
+            invocation.root_name,
+            arguments,
+        );
+
         let upstream_outcome =
             if self.bulk_operation_read_needs_upstream(invocation.root_name, arguments) {
                 let result = self.cached_or_forward_upstream_graphql_result(
@@ -931,6 +845,183 @@ impl DraftProxy {
         })
     }
 
+    fn advance_bulk_query_execution_for_read(
+        &mut self,
+        request: &Request,
+        root_name: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) {
+        if self.execution_session.bulk_query_execution_advanced {
+            return;
+        }
+        self.execution_session.bulk_query_execution_advanced = true;
+
+        let requested_id = (root_name == "bulkOperation")
+            .then(|| resolved_string_field(arguments, "id"))
+            .flatten();
+        let execution_id = if let Some(requested_id) = requested_id {
+            self.store
+                .staged
+                .bulk_query_executions
+                .contains_key(&requested_id)
+                .then_some(requested_id)
+        } else {
+            self.store
+                .staged
+                .bulk_query_executions
+                .keys()
+                .next()
+                .cloned()
+        };
+        let Some(execution_id) = execution_id else {
+            return;
+        };
+        self.advance_bulk_query_execution(request, &execution_id);
+    }
+
+    fn advance_bulk_query_execution(&mut self, request: &Request, id: &str) {
+        let Some(execution) = self.store.staged.bulk_query_executions.get(id).cloned() else {
+            return;
+        };
+        self.state_revision = self.state_revision.saturating_add(1);
+        if execution.cancel_requested {
+            self.cancel_pending_bulk_query_execution(id);
+            return;
+        }
+
+        if self.config.read_mode == ReadMode::Snapshot {
+            self.complete_bulk_query_execution(id, &execution);
+            return;
+        }
+        if execution.page_count >= BULK_CATALOG_MAX_PAGES {
+            self.fail_bulk_query_execution(id);
+            return;
+        }
+        let Some(document) = parsed_document(&execution.query, &BTreeMap::new()) else {
+            self.fail_bulk_query_execution(id);
+            return;
+        };
+        let Some(field) = document.root_fields.first() else {
+            self.fail_bulk_query_execution(id);
+            return;
+        };
+        self.mark_bulk_query_running(id);
+        let execution_request = Request {
+            method: "POST".to_string(),
+            path: execution.request_path.clone(),
+            headers: request.headers.clone(),
+            body: String::new(),
+        };
+        match self.hydrate_bulk_query_catalog_page(
+            &execution_request,
+            field,
+            execution.after.as_deref(),
+            &execution.seen_cursors,
+        ) {
+            BulkCatalogPageOutcome::More(cursor) => {
+                if let Some(execution) = self.store.staged.bulk_query_executions.get_mut(id) {
+                    execution.after = Some(cursor.clone());
+                    execution.seen_cursors.insert(cursor);
+                    execution.page_count += 1;
+                }
+            }
+            BulkCatalogPageOutcome::Complete => {
+                self.complete_bulk_query_execution(id, &execution);
+            }
+            BulkCatalogPageOutcome::Failed => self.fail_bulk_query_execution(id),
+        }
+    }
+
+    fn mark_bulk_query_running(&mut self, id: &str) {
+        let Some(mut operation) = self.bulk_operation_by_id(id).cloned() else {
+            return;
+        };
+        operation["status"] = json!("RUNNING");
+        self.store
+            .staged
+            .bulk_operations
+            .insert(id.to_string(), operation);
+    }
+
+    fn complete_bulk_query_execution(&mut self, id: &str, execution: &BulkQueryExecution) {
+        let api_version =
+            crate::admin_graphql::AdminApiVersion::from_route(&execution.request_path)
+                .unwrap_or(crate::admin_graphql::AdminApiVersion::DEFAULT);
+        let result = self.bulk_operation_run_query_result(&execution.query, api_version);
+        let (object_count, file_size) = bulk_operation_result_metadata(&result.jsonl);
+        let root_object_count = result.root_object_count.to_string();
+        let created_at = self
+            .bulk_operation_by_id(id)
+            .and_then(|operation| operation.get("createdAt"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let operation = self.bulk_operation_record(BulkOperationRecordSpec {
+            id,
+            status: "COMPLETED",
+            operation_type: "QUERY",
+            query: &execution.query,
+            count: &object_count,
+            root_count: &root_object_count,
+            created_at: &created_at,
+            file_size: &file_size,
+        });
+        self.stage_bulk_operation_result(id, result.jsonl);
+        self.store
+            .staged
+            .bulk_operations
+            .insert(id.to_string(), operation);
+        self.store.staged.bulk_query_executions.remove(id);
+    }
+
+    fn fail_bulk_query_execution(&mut self, id: &str) {
+        let Some(mut operation) = self.bulk_operation_by_id(id).cloned() else {
+            self.store.staged.bulk_query_executions.remove(id);
+            return;
+        };
+        operation["status"] = json!("FAILED");
+        operation["errorCode"] = json!("INTERNAL_SERVER_ERROR");
+        operation["completedAt"] = operation["createdAt"].clone();
+        operation["objectCount"] = json!("0");
+        operation["rootObjectCount"] = json!("0");
+        operation["fileSize"] = Value::Null;
+        operation["url"] = Value::Null;
+        operation["partialDataUrl"] = Value::Null;
+        self.store
+            .staged
+            .bulk_operations
+            .insert(id.to_string(), operation);
+        self.store.staged.bulk_query_executions.remove(id);
+        self.store
+            .staged
+            .bulk_operation_results
+            .remove(resource_id_path_tail(id));
+    }
+
+    fn cancel_pending_bulk_query_execution(&mut self, id: &str) {
+        let Some(mut operation) = self.bulk_operation_by_id(id).cloned() else {
+            self.store.staged.bulk_query_executions.remove(id);
+            return;
+        };
+        operation["status"] = json!("CANCELED");
+        operation["errorCode"] = Value::Null;
+        operation["completedAt"] = Value::Null;
+        operation["objectCount"] = json!("0");
+        operation["rootObjectCount"] = json!("0");
+        operation["fileSize"] = Value::Null;
+        operation["url"] = Value::Null;
+        operation["partialDataUrl"] = Value::Null;
+        self.store
+            .staged
+            .bulk_operations
+            .insert(id.to_string(), operation);
+        self.store.staged.bulk_query_executions.remove(id);
+        self.store
+            .staged
+            .bulk_operation_results
+            .remove(resource_id_path_tail(id));
+    }
+
     pub(in crate::proxy) fn bulk_operation_run_query_outcome(
         &mut self,
         request: &Request,
@@ -985,59 +1076,35 @@ impl DraftProxy {
             return ResolverOutcome::value(payload);
         }
 
-        let document = parsed_document(&query_text, &BTreeMap::new());
-        let catalog_hydrated = document
-            .as_ref()
-            .and_then(|document| document.root_fields.first())
-            .is_some_and(|field| self.hydrate_bulk_query_catalog(request, field));
-        if !catalog_hydrated {
-            let payload = json!({
-                "bulkOperation": null,
-                "userErrors": [user_error(
-                    ["query"],
-                    &format!(
-                        "Unable to hydrate a complete {} catalog for local bulk export.",
-                        bulk_catalog_resource_label(root_name.as_deref())
-                    ),
-                    Some("INVALID"),
-                )]
-            });
-            return ResolverOutcome::value(payload);
-        }
-
         let id = self.next_bulk_operation_gid();
         let created_at = self.next_product_timestamp();
-        let api_version = crate::admin_graphql::AdminApiVersion::from_route(&request.path)
-            .unwrap_or(crate::admin_graphql::AdminApiVersion::DEFAULT);
-        let result = self.bulk_operation_run_query_result(&query_text, api_version);
-        let (object_count, file_size) = bulk_operation_result_metadata(&result.jsonl);
-        let root_object_count = result.root_object_count.to_string();
-        let terminal_operation = self.bulk_operation_record(BulkOperationRecordSpec {
+        let created_operation = self.bulk_operation_record(BulkOperationRecordSpec {
             id: &id,
-            status: "COMPLETED",
+            status: "CREATED",
             operation_type: "QUERY",
             query: &query_text,
-            count: &object_count,
-            root_count: &root_object_count,
+            count: "0",
+            root_count: "0",
             created_at: &created_at,
-            file_size: &file_size,
+            file_size: "0",
         });
-        self.stage_bulk_operation_result(&id, result.jsonl);
         self.store
             .staged
             .bulk_operations
-            .insert(id.clone(), terminal_operation);
+            .insert(id.clone(), created_operation.clone());
+        self.store.staged.bulk_query_executions.insert(
+            id.clone(),
+            BulkQueryExecution {
+                query: query_text,
+                request_path: request.path.clone(),
+                after: None,
+                seen_cursors: BTreeSet::new(),
+                page_count: 0,
+                cancel_requested: false,
+            },
+        );
         let payload = json!({
-            "bulkOperation": self.bulk_operation_record(BulkOperationRecordSpec {
-                id: &id,
-                status: "CREATED",
-                operation_type: "QUERY",
-                query: &query_text,
-                count: "0",
-                root_count: "0",
-                created_at: &created_at,
-                file_size: "0",
-            }),
+            "bulkOperation": created_operation,
             "userErrors": []
         });
         ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
@@ -1323,6 +1390,9 @@ impl DraftProxy {
 
         let mut operation = existing_operation;
         operation["status"] = json!("CANCELING");
+        if let Some(execution) = self.store.staged.bulk_query_executions.get_mut(&id) {
+            execution.cancel_requested = true;
+        }
         self.store
             .staged
             .bulk_operations
@@ -1735,6 +1805,333 @@ mod tests {
         .with_upstream_transport(|_| panic!("bulk operation tests should not call upstream"))
     }
 
+    fn read_bulk_operation(proxy: &mut DraftProxy, id: &str) -> Response {
+        proxy.process_request(test_request(
+            r#"
+            query PollBulkOperation($id: ID!) {
+              bulkOperation(id: $id) {
+                id
+                status
+                errorCode
+                completedAt
+                objectCount
+                rootObjectCount
+                fileSize
+                url
+              }
+            }
+            "#,
+            json!({ "id": id }),
+        ))
+    }
+
+    #[test]
+    fn bulk_query_submission_is_constant_and_execution_advances_one_page_per_poll() {
+        let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let captured_calls = Arc::clone(&upstream_calls);
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body is JSON");
+            captured_calls.lock().unwrap().push(body.clone());
+            let (page, has_next_page, end_cursor) = match body.pointer("/variables/after") {
+                Some(Value::Null) => (0, true, "page-1"),
+                Some(Value::String(after)) if after == "page-1" => (1, false, "page-2"),
+                after => panic!("unexpected catalog cursor: {after:?}"),
+            };
+            let nodes = (0..BULK_CATALOG_PAGE_SIZE)
+                .map(|index| {
+                    let index = page * BULK_CATALOG_PAGE_SIZE + index;
+                    json!({
+                        "id": format!("gid://shopify/Product/{index}"),
+                        "title": format!("Catalog product {index}")
+                    })
+                })
+                .collect::<Vec<_>>();
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: json!({
+                    "data": {
+                        "products": {
+                            "nodes": nodes,
+                            "pageInfo": {
+                                "hasNextPage": has_next_page,
+                                "endCursor": end_cursor
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+        let run = proxy.process_request(test_request(
+            r#"
+            mutation SubmitPagedBulkQuery($query: String!) {
+              bulkOperationRunQuery(query: $query) {
+                bulkOperation { id status completedAt objectCount url }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "query": "{ products { edges { node { id title } } } }" }),
+        ));
+        assert_eq!(
+            run.body["data"]["bulkOperationRunQuery"]["userErrors"],
+            json!([])
+        );
+        let created = &run.body["data"]["bulkOperationRunQuery"]["bulkOperation"];
+        let created_state_version = run.headers["x-sdp-state-version"].clone();
+        assert_eq!(created["status"], json!("CREATED"));
+        assert_eq!(created["completedAt"], Value::Null);
+        assert_eq!(created["objectCount"], json!("0"));
+        assert_eq!(created["url"], Value::Null);
+        assert_eq!(
+            upstream_calls.lock().unwrap().len(),
+            0,
+            "admission must not hydrate any catalog page"
+        );
+        let operation_id = created["id"].as_str().unwrap().to_string();
+        assert_eq!(
+            proxy
+                .process_request(bulk_artifact_request(&operation_id))
+                .status,
+            404
+        );
+
+        let running = read_bulk_operation(&mut proxy, &operation_id);
+        assert_eq!(
+            running.body["data"]["bulkOperation"]["status"],
+            json!("RUNNING")
+        );
+        assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+        assert_ne!(
+            running.headers["x-sdp-state-version"],
+            created_state_version
+        );
+
+        let completed = read_bulk_operation(&mut proxy, &operation_id);
+        let completed = &completed.body["data"]["bulkOperation"];
+        assert_eq!(completed["status"], json!("COMPLETED"));
+        assert_eq!(completed["objectCount"], json!("500"));
+        assert_eq!(completed["rootObjectCount"], json!("500"));
+        assert_eq!(upstream_calls.lock().unwrap().len(), 2);
+        let artifact = proxy.process_request(bulk_artifact_request(&operation_id));
+        assert_eq!(artifact.status, 200);
+        assert_eq!(artifact.body.as_str().unwrap().lines().count(), 500);
+    }
+
+    #[test]
+    fn bulk_query_nested_overflow_fails_without_per_row_hydration() {
+        let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let captured_calls = Arc::clone(&upstream_calls);
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body is JSON");
+            captured_calls.lock().unwrap().push(body.clone());
+            assert_eq!(body["operationName"], json!("BulkProductsCatalogHydrate"));
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: json!({
+                    "data": {
+                        "products": {
+                            "nodes": [{
+                                "id": "gid://shopify/Product/nested",
+                                "title": "Nested overflow",
+                                "bulkNested0": {
+                                    "nodes": [{
+                                        "id": "gid://shopify/Metafield/first",
+                                        "namespace": "custom",
+                                        "key": "first",
+                                        "value": "one"
+                                    }],
+                                    "pageInfo": {
+                                        "hasNextPage": true,
+                                        "endCursor": "nested-page-1"
+                                    }
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "endCursor": "product-page-1"
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+        let run = proxy.process_request(test_request(
+            r#"
+            mutation SubmitNestedBulkQuery($query: String!) {
+              bulkOperationRunQuery(query: $query) {
+                bulkOperation { id status }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "query": r#"{
+                  products {
+                    edges {
+                      node {
+                        id
+                        title
+                        metafields(namespace: "custom") {
+                          edges { node { id namespace key value } }
+                        }
+                      }
+                    }
+                  }
+                }"#
+            }),
+        ));
+        assert_eq!(upstream_calls.lock().unwrap().len(), 0);
+        let operation_id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        let failed = read_bulk_operation(&mut proxy, &operation_id);
+        let failed = &failed.body["data"]["bulkOperation"];
+        assert_eq!(failed["status"], json!("FAILED"));
+        assert_eq!(failed["errorCode"], json!("INTERNAL_SERVER_ERROR"));
+        assert_eq!(failed["url"], Value::Null);
+        assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn pending_bulk_query_can_fail_cancel_and_discard_without_result_state() {
+        let mut failing_proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_upstream_transport(|_| Response {
+            status: 503,
+            headers: BTreeMap::new(),
+            body: json!({ "errors": [{ "message": "Shopify unavailable" }] }),
+        });
+        let run = failing_proxy.process_request(test_request(
+            "mutation Submit($query: String!) { bulkOperationRunQuery(query: $query) { bulkOperation { id status } userErrors { field message code } } }",
+            json!({ "query": "{ products { edges { node { id } } } }" }),
+        ));
+        let failing_id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let failed = read_bulk_operation(&mut failing_proxy, &failing_id);
+        assert_eq!(
+            failed.body["data"]["bulkOperation"]["status"],
+            json!("FAILED")
+        );
+        assert_eq!(failed.body["data"]["bulkOperation"]["url"], Value::Null);
+
+        let mut proxy = test_proxy();
+        let run = proxy.process_request(test_request(
+            "mutation Submit($query: String!) { bulkOperationRunQuery(query: $query) { bulkOperation { id status } userErrors { field message code } } }",
+            json!({ "query": "{ products { edges { node { id title } } } }" }),
+        ));
+        let operation_id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let cancel = proxy.process_request(test_request(
+            "mutation Cancel($id: ID!) { bulkOperationCancel(id: $id) { bulkOperation { id status } userErrors { field message } } }",
+            json!({ "id": operation_id }),
+        ));
+        assert_eq!(
+            cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
+            json!("CANCELING")
+        );
+        let canceled = read_bulk_operation(&mut proxy, &operation_id);
+        assert_eq!(
+            canceled.body["data"]["bulkOperation"]["status"],
+            json!("CANCELED")
+        );
+        assert_eq!(
+            proxy
+                .process_request(bulk_artifact_request(&operation_id))
+                .status,
+            404
+        );
+
+        let reset = proxy.process_request(meta_request("POST", "/__meta/reset", ""));
+        assert_eq!(reset.status, 200);
+        let discarded = read_bulk_operation(&mut proxy, &operation_id);
+        assert_eq!(discarded.body["data"]["bulkOperation"], Value::Null);
+        let state = proxy.process_request(meta_request("GET", "/__meta/state", ""));
+        assert!(state.body["stagedState"]["bulkOperations"]
+            .as_object()
+            .is_none_or(serde_json::Map::is_empty));
+        assert!(state.body["stagedState"]["bulkOperationResults"]
+            .as_object()
+            .is_none_or(serde_json::Map::is_empty));
+    }
+
+    #[test]
+    fn pending_bulk_query_execution_round_trips_dump_restore() {
+        let mut proxy = test_proxy();
+        let run = proxy.process_request(test_request(
+            "mutation Submit($query: String!) { bulkOperationRunQuery(query: $query) { bulkOperation { id status } userErrors { field message } } }",
+            json!({ "query": "{ products { edges { node { id title } } } }" }),
+        ));
+        let operation_id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let dump = proxy.process_request(meta_request("POST", "/__meta/dump", ""));
+        assert_eq!(
+            dump.body["state"]["stagedState"]["bulkQueryExecutions"][operation_id.as_str()]
+                ["after"],
+            Value::Null
+        );
+
+        let mut restored = DraftProxy::new(Config {
+            read_mode: ReadMode::Snapshot,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_upstream_transport(|_| panic!("restored Snapshot execution must stay local"));
+        let restore = restored.process_request(meta_request(
+            "POST",
+            "/__meta/restore",
+            &dump.body.to_string(),
+        ));
+        assert_eq!(restore.status, 200);
+        let completed = read_bulk_operation(&mut restored, &operation_id);
+        assert_eq!(
+            completed.body["data"]["bulkOperation"]["status"],
+            json!("COMPLETED")
+        );
+        assert_eq!(
+            restored
+                .process_request(bulk_artifact_request(&operation_id))
+                .status,
+            200
+        );
+    }
+
     #[test]
     fn product_bulk_query_stays_local_and_logs_original_mutation() {
         let upstream_calls = Arc::new(Mutex::new(Vec::new()));
@@ -1820,13 +2217,24 @@ mod tests {
         );
         assert_eq!(
             upstream_calls.lock().unwrap().len(),
-            1,
-            "the only upstream call must be the read-side catalog hydration"
+            0,
+            "submission must not hydrate the catalog"
         );
         let operation_id = response.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
             .as_str()
-            .unwrap();
-        let artifact = proxy.process_request(bulk_artifact_request(operation_id));
+            .unwrap()
+            .to_string();
+        let completed = read_bulk_operation(&mut proxy, &operation_id);
+        assert_eq!(
+            completed.body["data"]["bulkOperation"]["status"],
+            json!("COMPLETED")
+        );
+        assert_eq!(
+            upstream_calls.lock().unwrap().len(),
+            1,
+            "the first poll executes one catalog page"
+        );
+        let artifact = proxy.process_request(bulk_artifact_request(&operation_id));
         assert_eq!(artifact.status, 200);
         let rows = artifact
             .body
@@ -2524,6 +2932,11 @@ mod tests {
             .as_str()
             .unwrap()
             .to_string();
+        let completed = read_bulk_operation(&mut proxy, &operation_id);
+        assert_eq!(
+            completed.body["data"]["bulkOperation"]["status"],
+            json!("COMPLETED")
+        );
         let artifact = proxy.process_request(bulk_artifact_request(&operation_id));
         assert_eq!(artifact.status, 200);
         let rows = artifact
@@ -2634,8 +3047,19 @@ mod tests {
         );
         let operation_id = response.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
             .as_str()
-            .unwrap();
-        let artifact = proxy.process_request(bulk_artifact_request(operation_id));
+            .unwrap()
+            .to_string();
+        let running = read_bulk_operation(&mut proxy, &operation_id);
+        assert_eq!(
+            running.body["data"]["bulkOperation"]["status"],
+            json!("RUNNING")
+        );
+        let completed = read_bulk_operation(&mut proxy, &operation_id);
+        assert_eq!(
+            completed.body["data"]["bulkOperation"]["status"],
+            json!("COMPLETED")
+        );
+        let artifact = proxy.process_request(bulk_artifact_request(&operation_id));
         let rows = artifact
             .body
             .as_str()
@@ -2668,7 +3092,7 @@ mod tests {
     }
 
     #[test]
-    fn product_variant_bulk_query_hydrates_every_selected_nested_connection_page() {
+    fn product_variant_bulk_query_fails_nested_overflow_without_per_row_requests() {
         let variant_id = "gid://shopify/ProductVariant/909";
         let product_id = "gid://shopify/Product/808";
         let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
@@ -2794,39 +3218,20 @@ mod tests {
         );
         let operation_id = response.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
             .as_str()
-            .unwrap();
-        let artifact = proxy.process_request(bulk_artifact_request(operation_id));
-        let rows = artifact
-            .body
-            .as_str()
             .unwrap()
-            .lines()
-            .map(|line| serde_json::from_str::<Value>(line).unwrap())
-            .collect::<Vec<_>>();
-        assert_eq!(rows.len(), 3);
+            .to_string();
+        let failed = read_bulk_operation(&mut proxy, &operation_id);
         assert_eq!(
-            rows[0],
-            json!({ "id": variant_id, "sku": "NESTED-VARIANT" })
+            failed.body["data"]["bulkOperation"]["status"],
+            json!("FAILED")
         );
-        assert!(rows.iter().any(|row| {
-            row == &json!({
-                "id": "gid://shopify/Metafield/901",
-                "namespace": "custom",
-                "key": "first",
-                "value": "one",
-                "__parentId": variant_id
-            })
-        }));
-        assert!(rows.iter().any(|row| {
-            row == &json!({
-                "id": "gid://shopify/Metafield/902",
-                "namespace": "custom",
-                "key": "second",
-                "value": "two",
-                "__parentId": variant_id
-            })
-        }));
-        assert_eq!(upstream_calls.lock().unwrap().len(), 2);
+        assert_eq!(
+            proxy
+                .process_request(bulk_artifact_request(&operation_id))
+                .status,
+            404
+        );
+        assert_eq!(upstream_calls.lock().unwrap().len(), 1);
     }
 
     #[test]
@@ -3002,8 +3407,19 @@ mod tests {
         );
         let operation_id = response.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
             .as_str()
-            .unwrap();
-        let artifact = proxy.process_request(bulk_artifact_request(operation_id));
+            .unwrap()
+            .to_string();
+        let running = read_bulk_operation(&mut proxy, &operation_id);
+        assert_eq!(
+            running.body["data"]["bulkOperation"]["status"],
+            json!("RUNNING")
+        );
+        let completed = read_bulk_operation(&mut proxy, &operation_id);
+        assert_eq!(
+            completed.body["data"]["bulkOperation"]["status"],
+            json!("COMPLETED")
+        );
+        let artifact = proxy.process_request(bulk_artifact_request(&operation_id));
         let rows = artifact
             .body
             .as_str()
@@ -3034,7 +3450,7 @@ mod tests {
     }
 
     #[test]
-    fn product_bulk_query_hydrates_every_selected_nested_connection_page() {
+    fn product_bulk_query_fails_nested_overflow_without_per_row_requests() {
         let product_id = "gid://shopify/Product/707";
         let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
         let captured_calls = Arc::clone(&upstream_calls);
@@ -3155,39 +3571,20 @@ mod tests {
         );
         let operation_id = response.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
             .as_str()
-            .unwrap();
-        let artifact = proxy.process_request(bulk_artifact_request(operation_id));
-        let rows = artifact
-            .body
-            .as_str()
             .unwrap()
-            .lines()
-            .map(|line| serde_json::from_str::<Value>(line).unwrap())
-            .collect::<Vec<_>>();
-        assert_eq!(rows.len(), 3);
+            .to_string();
+        let failed = read_bulk_operation(&mut proxy, &operation_id);
         assert_eq!(
-            rows[0],
-            json!({ "id": product_id, "title": "Nested product" })
+            failed.body["data"]["bulkOperation"]["status"],
+            json!("FAILED")
         );
-        assert!(rows.iter().any(|row| {
-            row == &json!({
-                "id": "gid://shopify/Metafield/701",
-                "namespace": "custom",
-                "key": "first",
-                "value": "one",
-                "__parentId": product_id
-            })
-        }));
-        assert!(rows.iter().any(|row| {
-            row == &json!({
-                "id": "gid://shopify/Metafield/702",
-                "namespace": "custom",
-                "key": "second",
-                "value": "two",
-                "__parentId": product_id
-            })
-        }));
-        assert_eq!(upstream_calls.lock().unwrap().len(), 2);
+        assert_eq!(
+            proxy
+                .process_request(bulk_artifact_request(&operation_id))
+                .status,
+            404
+        );
+        assert_eq!(upstream_calls.lock().unwrap().len(), 1);
     }
 
     #[test]
@@ -3224,16 +3621,31 @@ mod tests {
 
         assert_eq!(response.status, 200);
         assert_eq!(
-            response.body["data"]["bulkOperationRunQuery"]["bulkOperation"],
-            Value::Null
+            response.body["data"]["bulkOperationRunQuery"]["userErrors"],
+            json!([])
+        );
+        let operation_id = response.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert_eq!(
+            response.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["status"],
+            json!("CREATED")
+        );
+        let failed = read_bulk_operation(&mut proxy, &operation_id);
+        assert_eq!(
+            failed.body["data"]["bulkOperation"]["status"],
+            json!("FAILED")
         );
         assert_eq!(
-            response.body["data"]["bulkOperationRunQuery"]["userErrors"],
-            json!([{
-                "field": ["query"],
-                "message": "Unable to hydrate a complete product catalog for local bulk export.",
-                "code": "INVALID"
-            }])
+            failed.body["data"]["bulkOperation"]["errorCode"],
+            json!("INTERNAL_SERVER_ERROR")
+        );
+        assert_eq!(
+            proxy
+                .process_request(bulk_artifact_request(&operation_id))
+                .status,
+            404
         );
     }
 
@@ -3380,6 +3792,11 @@ mod tests {
             .as_str()
             .unwrap()
             .to_string();
+        let completed = read_bulk_operation(&mut proxy, &operation_id);
+        assert_eq!(
+            completed.body["data"]["bulkOperation"]["status"],
+            json!("COMPLETED")
+        );
         let artifact = proxy.process_request(bulk_artifact_request(&operation_id));
         assert_eq!(artifact.status, 200);
         let rows = artifact
@@ -3620,6 +4037,11 @@ mod tests {
             .as_str()
             .unwrap()
             .to_string();
+        let completed = read_bulk_operation(&mut proxy, &operation_id);
+        assert_eq!(
+            completed.body["data"]["bulkOperation"]["status"],
+            json!("COMPLETED")
+        );
         let artifact = proxy.process_request(bulk_artifact_request(&operation_id));
         assert_eq!(artifact.status, 200);
         let rows = artifact
@@ -4180,13 +4602,6 @@ fn bulk_query_root_field_name(query_text: &str) -> Option<String> {
     document.root_fields.first().map(|field| field.name.clone())
 }
 
-fn bulk_catalog_resource_label(root_name: Option<&str>) -> &'static str {
-    match root_name {
-        Some("productVariants") => "product variant",
-        _ => "product",
-    }
-}
-
 #[derive(Default)]
 struct BulkProductSearchHydrationRequirements {
     product_fields: BTreeSet<&'static str>,
@@ -4215,13 +4630,6 @@ impl BulkCatalogNestedHydrationSpec {
             self.name,
             bulk_catalog_connection_arguments(&self.arguments, first_variable, after_variable,),
             self.node_selection,
-        )
-    }
-
-    fn page_query(&self, operation_name: &str, entity_root: &str) -> String {
-        format!(
-            "query {operation_name}($id: ID!, $first: Int!, $after: String) {{ {entity_root}(id: $id) {{ {} }} }}",
-            self.selection("$first", "$after"),
         )
     }
 }
@@ -4523,6 +4931,28 @@ fn merge_bulk_catalog_nodes(target: &mut Vec<Value>, incoming: &[Value]) {
             _ => target.push(incoming_node.clone()),
         }
     }
+}
+
+fn normalize_complete_bulk_catalog_nested_connections(
+    node: &mut Value,
+    nested_connections: &[BulkCatalogNestedHydrationSpec],
+) -> bool {
+    for connection in nested_connections {
+        let Some(hydrated) = node.get(&connection.response_key).cloned() else {
+            return false;
+        };
+        if hydrated.get("nodes").and_then(Value::as_array).is_none()
+            || hydrated["pageInfo"]["hasNextPage"].as_bool() != Some(false)
+        {
+            return false;
+        }
+        let Some(node_object) = node.as_object_mut() else {
+            return false;
+        };
+        node_object.remove(&connection.response_key);
+        merge_bulk_catalog_connection(node_object, connection.name.as_str(), hydrated);
+    }
+    true
 }
 
 fn merge_bulk_catalog_connection(

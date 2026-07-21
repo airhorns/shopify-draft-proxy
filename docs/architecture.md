@@ -126,6 +126,8 @@ replaced by local non-null execution errors.
 
 `DraftProxy` is instance-owned state, not a singleton. A proxy owns its normalized `Store`, mutation log, registry, synthetic ID counters, injectable runtime clock, and injectable upstream/commit transports. Runtime base/staged resource data belongs under the Store rather than as loose `DraftProxy` fields. Do not introduce global mutable proxy state.
 
+Long-running local jobs keep their execution plans in that same instance-owned Store. `bulkOperationRunQuery` admission stages one CREATED record and a replay-ready raw mutation without hydrating the catalog. Later BulkOperation reads advance at most one root catalog page per GraphQL request, so LiveHybrid execution cost is page-bounded while Snapshot execution remains transport-free. Completion replaces the CREATED/RUNNING record with terminal metadata and an instance-owned JSONL artifact; failure and cancellation remove pending execution without publishing a partial artifact. Dump/restore persists pending plans, and reset discards plans, jobs, and results together.
+
 ## Primary Rust modules
 
 ### `src/proxy.rs`
