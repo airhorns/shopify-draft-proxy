@@ -3293,9 +3293,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/metafields/metafield-definition-pin-limit-and-constraint-guard.json',
       'config/parity-requests/metafields/metafield-definition-pin-limit-and-constraint-guard.graphql',
       'config/parity-requests/metafields/metafield-definition-pin-limit-listing.graphql',
+      'config/parity-requests/metafields/metafield-definition-pin-limit-readback.graphql',
+      'config/parity-requests/metafields/metafield-definitions-hydrate-pinned-owner.graphql',
     ],
     cleanupBehavior:
-      'Temporarily unpins existing product definitions, creates disposable product-owned definitions, deletes them, then restores original pins.',
+      'Temporarily unpins existing product definitions, creates 49 disposable baseline pins plus three target definitions, deletes them, then restores original pins.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -3311,12 +3313,15 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/metafields/metafield-definition-create-with-pin-guards.json',
       'config/parity-requests/metafields/metafield-definition-create-with-pin-guards.graphql',
       'config/parity-requests/metafields/metafield-definition-create-with-pin-guards-read.graphql',
+      'config/parity-requests/metafields/metafield-definition-hydrate-by-identifier.graphql',
+      'config/parity-requests/metafields/metafield-definitions-hydrate-pinned-owner.graphql',
+      'config/parity-requests/metafields/metafield-definitions-hydrate-resource-scope.graphql',
     ],
     cleanupBehavior:
-      'Temporarily unpins existing product definitions, creates disposable product-owned definitions, deletes them, then restores original pins.',
+      'Temporarily unpins existing product definitions, creates 49 disposable baseline pins plus one successful create-with-pin target, deletes them, then restores original pins.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'The live standard-enable pin-cap branch currently creates an unpinned definition on the 2026-04 target, so this capture records the constrained standard-enable branch while runtime tests cover the ticket-required cap behavior.',
+      'The capture records the current 50-definition create-with-pin cap plus constrained create and constrained standard-enable precedence.',
   },
   {
     domain: 'metafields',
@@ -3465,9 +3470,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/metafield-definitions/update-pin.json',
       'config/parity-requests/metafield-definitions/update-pin.graphql',
       'config/parity-requests/metafield-definitions/update-pin-read.graphql',
+      'config/parity-requests/metafields/metafield-definition-hydrate-by-identifier.graphql',
+      'config/parity-requests/metafields/metafield-definitions-hydrate-pinned-owner.graphql',
+      'config/parity-requests/metafields/metafield-definitions-hydrate-resource-scope.graphql',
+      'config/parity-requests/metafields/metafield-definitions-hydrate-window.graphql',
     ],
     cleanupBehavior:
-      'Temporarily unpins existing product definitions, creates disposable product-owned definitions, deletes them, then restores original pins.',
+      'Temporarily unpins existing product definitions, creates 49 disposable baseline pins plus four update targets, deletes them, then restores original pins.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -4231,7 +4240,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose:
       'MetafieldDefinitionCreate PRODUCT ownerType resource limit behavior and second-namespace rejection at the live ownerType boundary.',
     requiredAuthScopes: ['read_products', 'write_products'],
-    fixtureOutputs: [`${CAPTURE_ROOT}metafield-definition-resource-type-limit.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-resource-type-limit.json`,
+      'config/parity-specs/metafields/metafield-definition-resource-type-limit.json',
+      'config/parity-requests/metafields/metafield-definition-resource-type-limit.graphql',
+      'config/parity-requests/metafields/metafield-definitions-hydrate-resource-scope.graphql',
+    ],
     cleanupBehavior:
       'Creates disposable PRODUCT metafield definitions until Shopify returns RESOURCE_TYPE_LIMIT_EXCEEDED, probes a second namespace at the boundary, then deletes every created definition.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -4281,14 +4295,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-metafield-definition-partial-catalog-overlay-conformance.mts',
     purpose:
-      'MetafieldDefinitionCreate duplicate validation against hydrated real PRODUCT catalog state plus merged detail/list/count/pageInfo reads and tombstoned read-after-delete over staged local overlays.',
+      'MetafieldDefinitionCreate duplicate validation through an exact identity probe plus argument-keyed merged detail/list/count/pageInfo reads and tombstoned read-after-delete over staged local overlays.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metafield-definition-partial-catalog-overlay.json`,
       'config/parity-specs/metafields/metafield-definition-partial-catalog-overlay.json',
       'config/parity-requests/metafields/metafield-definition-hydrate-by-id.graphql',
-      'config/parity-requests/metafields/metafield-definition-hydrate-by-namespace.graphql',
-      'config/parity-requests/metafields/metafield-definition-hydrate-owner-catalog.graphql',
+      'config/parity-requests/metafields/metafield-definition-hydrate-by-identifier.graphql',
+      'config/parity-requests/metafields/metafield-definitions-hydrate-window.graphql',
       'config/parity-requests/metafields/metafield-definition-partial-catalog-read.graphql',
       'config/parity-requests/metafields/metafield-definition-partial-catalog-read-after-delete.graphql',
     ],

@@ -2,10 +2,11 @@
   "scenarioId": "metafield-definition-create-with-pin-guards",
   "operationNames": ["metafieldDefinitionCreate", "standardMetafieldDefinitionEnable", "metafieldDefinition"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "validation-errors", "read-after-write"],
+  "assertionKinds": ["payload-shape", "validation-errors", "read-after-write", "bounded-upstream-hydration"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-create-with-pin-guards.json"
   ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafields/metafield-definition-create-with-pin-guards.graphql",
     "apiVersion": "2026-04",
@@ -17,9 +18,9 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "create-with-pin-reaches-position-20",
-        "capturePath": "$.primary.response.data.create20",
-        "proxyPath": "$.data.create20",
+        "name": "create-with-pin-reaches-position-50",
+        "capturePath": "$.primary.response.data.create50",
+        "proxyPath": "$.data.create50",
         "expectedDifferences": [
           {
             "path": "$.createdDefinition.id",
@@ -29,7 +30,7 @@
         ]
       },
       {
-        "name": "create-with-pin-limit-userErrors",
+        "name": "create-with-pin-limit-after-fifty",
         "capturePath": "$.primary.response.data.overCapCreate",
         "proxyPath": "$.data.overCapCreate"
       },
@@ -44,7 +45,7 @@
         "proxyPath": "$.data.standardConstrainedEnable"
       },
       {
-        "name": "failed-create-and-enable-readback-empty",
+        "name": "failed-create-targets-absent-and-standard-preserved",
         "capturePath": "$.readAfter.response.data",
         "proxyPath": "$.data",
         "proxyRequest": {
@@ -55,5 +56,5 @@
       }
     ]
   },
-  "notes": "Captured 2026-04 Shopify behavior for create-with-pin guard branches against the real product-owner pin cap of 20. The scenario temporarily unpins existing PRODUCT definitions, creates 20 disposable pinned PRODUCT definitions through `metafieldDefinitionCreate(pin: true)` reaching pinned position 20, observes `PINNED_LIMIT_REACHED` with `Limit of 20 pinned definitions.` on the next pinned create, observes `UNSUPPORTED_PINNING` for a constrained pinned create and a constrained standard template enable, verifies the failed definitions are absent on follow-up reads, deletes disposable definitions, and restores the baseline pins."
+  "notes": "Captured against Shopify Admin 2026-04 with 49 disposable baseline PRODUCT pins. Exact identifier, bounded resource, and 49-row pinned-owner calls back the production LiveHybrid path. A create with pin succeeds at position 50, the next pinned create returns PINNED_LIMIT_REACHED with Shopify's current 50-definition message, constrained create-with-pin and constrained standard enable return UNSUPPORTED_PINNING, and failed targets remain absent on readback."
 }

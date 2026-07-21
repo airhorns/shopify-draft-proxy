@@ -20,14 +20,18 @@ const requestPaths = {
   delete: 'config/parity-requests/metafields/metafield-definition-lifecycle-delete.graphql',
   read: 'config/parity-requests/metafields/metafield-definition-partial-catalog-read.graphql',
   readAfterDelete: 'config/parity-requests/metafields/metafield-definition-partial-catalog-read-after-delete.graphql',
-  hydrateOwnerCatalog: 'config/parity-requests/metafields/metafield-definition-hydrate-owner-catalog.graphql',
+  hydrateByIdentifier: 'config/parity-requests/metafields/metafield-definition-hydrate-by-identifier.graphql',
+  hydrateResourceScope: 'config/parity-requests/metafields/metafield-definitions-hydrate-resource-scope.graphql',
+  hydrateWindow: 'config/parity-requests/metafields/metafield-definitions-hydrate-window.graphql',
 };
 
 const createDocument = await readFile(requestPaths.create, 'utf8');
 const deleteDocument = await readFile(requestPaths.delete, 'utf8');
 const readDocument = await readFile(requestPaths.read, 'utf8');
 const readAfterDeleteDocument = await readFile(requestPaths.readAfterDelete, 'utf8');
-const hydrateOwnerCatalogDocument = await readFile(requestPaths.hydrateOwnerCatalog, 'utf8');
+const hydrateByIdentifierDocument = await readFile(requestPaths.hydrateByIdentifier, 'utf8');
+const hydrateResourceScopeDocument = await readFile(requestPaths.hydrateResourceScope, 'utf8');
+const hydrateWindowDocument = await readFile(requestPaths.hydrateWindow, 'utf8');
 
 const { runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
@@ -119,26 +123,87 @@ async function capture(label: string, query: string, variables: JsonRecord) {
   };
 }
 
-async function recordOwnerCatalogHydrate() {
+async function recordUpstreamCall(operationName: string, query: string, variables: JsonRecord) {
+  const result = await runGraphqlRaw(query, variables);
+  assertHttpOk(result, `${operationName} ${JSON.stringify(variables)}`);
+  return {
+    method: 'POST',
+    apiSurface: 'admin',
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    operationName,
+    variables,
+    query,
+    response: { status: result.status, body: result.payload },
+  };
+}
+
+async function recordIdentifierHydrate(namespace: string, key: string) {
+  return await recordUpstreamCall('MetafieldDefinitionHydrateByIdentifier', hydrateByIdentifierDocument, {
+    identifier: { ownerType: 'PRODUCT', namespace, key },
+  });
+}
+
+async function recordResourceScopeHydrate() {
   const calls = [];
   let after: string | null = null;
-  for (let page = 0; page < 20; page += 1) {
-    const variables = { ownerType: 'PRODUCT', first: 250, after };
-    const result = await runGraphqlRaw(hydrateOwnerCatalogDocument, variables);
-    assertHttpOk(result, `hydrate owner catalog page ${page + 1}`);
-    calls.push({
-      operationName: 'MetafieldDefinitionsHydrateOwnerCatalog',
+  let observedBucketDefinitions = 0;
+  for (let page = 0; page < 3; page += 1) {
+    const variables = { ownerType: 'PRODUCT', query: '-namespace:app--*', first: 250, after };
+    const call = await recordUpstreamCall(
+      'MetafieldDefinitionsHydrateResourceScope',
+      hydrateResourceScopeDocument,
       variables,
-      query: hydrateOwnerCatalogDocument,
-      response: { status: result.status, body: result.payload },
-    });
-    const pageInfo = readObject(readPath(result.payload, ['data', 'metafieldDefinitions', 'pageInfo']));
-    if (pageInfo?.['hasNextPage'] !== true) break;
+    );
+    calls.push(call);
+    const nodes = readPath(call.response.body, ['data', 'metafieldDefinitions', 'nodes']);
+    if (!Array.isArray(nodes)) {
+      throw new Error(`Resource-scope hydrate page ${page + 1} did not return nodes`);
+    }
+    observedBucketDefinitions += nodes.filter((node) => readObject(node)?.['namespace'] !== 'shopify').length;
+    const pageInfo = readObject(readPath(call.response.body, ['data', 'metafieldDefinitions', 'pageInfo']));
+    if (observedBucketDefinitions >= 256 || pageInfo?.['hasNextPage'] !== true) break;
     const endCursor = pageInfo?.['endCursor'];
     if (typeof endCursor !== 'string') {
-      throw new Error(`Owner catalog hydrate page ${page + 1} did not return endCursor`);
+      throw new Error(`Resource-scope hydrate page ${page + 1} did not return endCursor`);
     }
     after = endCursor;
+  }
+  return calls;
+}
+
+function windowVariables(namespace: string, key: string | null, first: number): JsonRecord {
+  return {
+    ownerType: 'PRODUCT',
+    key,
+    namespace,
+    pinnedStatus: 'ANY',
+    constraintSubtype: null,
+    constraintStatus: null,
+    first,
+    after: null,
+    last: null,
+    before: null,
+    reverse: false,
+    sortKey: 'ID',
+    query: null,
+  };
+}
+
+async function recordWindowHydrates(first: number) {
+  const scopes = [
+    { namespace, key: 'real' },
+    { namespace, key: 'local' },
+    { namespace: otherNamespace, key: null },
+  ];
+  const calls = [];
+  for (const scope of scopes) {
+    calls.push(
+      await recordUpstreamCall(
+        'MetafieldDefinitionsHydrateWindow',
+        hydrateWindowDocument,
+        windowVariables(scope.namespace, scope.key, first),
+      ),
+    );
   }
   return calls;
 }
@@ -181,7 +246,7 @@ try {
   assertNoUserErrors(otherCreate.response, 'metafieldDefinitionCreate', 'unrelated create');
   otherDefinitionId = createdDefinitionId(otherCreate.response);
 
-  const upstreamCalls = await recordOwnerCatalogHydrate();
+  const upstreamCalls = [await recordIdentifierHydrate(namespace, 'real'), ...(await recordResourceScopeHydrate())];
 
   const duplicateReal = await capture('duplicate real metafieldDefinitionCreate TAKEN', createDocument, {
     definition: {
@@ -193,6 +258,8 @@ try {
     },
   });
   assertTaken(duplicateReal.response);
+
+  upstreamCalls.push(await recordIdentifierHydrate(namespace, 'local'));
 
   const localCreate = await capture('local overlay metafieldDefinitionCreate', createDocument, {
     definition: {
@@ -206,6 +273,9 @@ try {
   assertNoUserErrors(localCreate.response, 'metafieldDefinitionCreate', 'local create');
   localDefinitionId = createdDefinitionId(localCreate.response);
 
+  upstreamCalls.push(await recordIdentifierHydrate(otherNamespace, 'other'));
+  upstreamCalls.push(...(await recordWindowHydrates(2)));
+
   const mergedRead = await capture('merged definition read', readDocument, { namespace, otherNamespace });
   assertMergedRead(mergedRead.response, true);
 
@@ -215,6 +285,8 @@ try {
   });
   assertNoUserErrors(deleteReal.response, 'metafieldDefinitionDelete', 'real delete');
   realDefinitionId = null;
+
+  upstreamCalls.push(...(await recordWindowHydrates(3)));
 
   const readAfterDelete = await capture('read after real definition delete', readAfterDeleteDocument, {
     namespace,

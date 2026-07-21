@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 // Source: fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-resource-type-limit.json
 const METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT: usize = 256;
 // Source: fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-pin-limit-and-constraint-guard.json
-const PINNED_DEFINITION_LIMIT: usize = 20;
+const PINNED_DEFINITION_LIMIT: usize = 50;
 // Source: fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-capability-eligibility.json
 const ADMIN_FILTERABLE_DEFINITION_LIMIT: usize = 50;
 const STANDARD_TEMPLATE_MARKER_FIELD: &str = "__shopifyDraftProxyStandardTemplateId";
@@ -15,12 +15,19 @@ const RESERVED_NAMESPACE_ORPHANED_METAFIELDS_MESSAGE: &str =
 const METAFIELD_DEFINITION_HYDRATE_BY_ID_QUERY: &str = include_str!(
     "../../config/parity-requests/metafields/metafield-definition-hydrate-by-id.graphql"
 );
-const METAFIELD_DEFINITION_HYDRATE_BY_NAMESPACE_QUERY: &str = include_str!(
-    "../../config/parity-requests/metafields/metafield-definition-hydrate-by-namespace.graphql"
+const METAFIELD_DEFINITION_HYDRATE_BY_IDENTIFIER_QUERY: &str = include_str!(
+    "../../config/parity-requests/metafields/metafield-definition-hydrate-by-identifier.graphql"
 );
-const METAFIELD_DEFINITION_HYDRATE_OWNER_CATALOG_QUERY: &str = include_str!(
-    "../../config/parity-requests/metafields/metafield-definition-hydrate-owner-catalog.graphql"
+const METAFIELD_DEFINITION_HYDRATE_RESOURCE_SCOPE_QUERY: &str = include_str!(
+    "../../config/parity-requests/metafields/metafield-definitions-hydrate-resource-scope.graphql"
 );
+const METAFIELD_DEFINITION_HYDRATE_PINNED_OWNER_QUERY: &str = include_str!(
+    "../../config/parity-requests/metafields/metafield-definitions-hydrate-pinned-owner.graphql"
+);
+const METAFIELD_DEFINITION_HYDRATE_WINDOW_QUERY: &str = include_str!(
+    "../../config/parity-requests/metafields/metafield-definitions-hydrate-window.graphql"
+);
+const METAFIELD_DEFINITION_RESOURCE_SCOPE_PAGE_LIMIT: usize = 3;
 
 pub(in crate::proxy) fn metafield_definition_field_resolver_registrations(
 ) -> Vec<FieldResolverRegistration> {
@@ -188,6 +195,15 @@ fn admin_filterable_definition_limit_message(owner_type: &str) -> String {
         "You can only use {ADMIN_FILTERABLE_DEFINITION_LIMIT} {} metafield definitions to filter the {} list. To add a new filter, disable filtering on an existing one.",
         owner_type.to_ascii_lowercase(),
         owner_type.to_ascii_lowercase()
+    )
+}
+
+fn metafield_definition_bounded_context_error(typename: &str, field: Value) -> Value {
+    metafield_definition_user_error_with_code_value(
+        typename,
+        field,
+        "Unable to validate metafield definition limits from bounded upstream evidence.",
+        Value::Null,
     )
 }
 
@@ -430,8 +446,19 @@ impl DraftProxy {
         }
         let owner_type =
             resolved_string_field(input, "ownerType").unwrap_or_else(|| "PRODUCT".to_string());
-        self.hydrate_metafield_definitions_for_owner_catalog(request, &owner_type);
+        if let Some(error) = metafield_definition_capability_input_error(
+            input,
+            "MetafieldDefinitionCreateUserError",
+            json!(["definition"]),
+            &owner_type,
+            resolved_string_field(input, "type")
+                .as_deref()
+                .unwrap_or_default(),
+        ) {
+            return metafield_definition_null_payload("createdDefinition", vec![error]);
+        }
         let map_key = metafield_definition_store_key(&owner_type, &namespace, &key);
+        self.hydrate_metafield_definition_by_identifier(request, &owner_type, &namespace, &key);
         if self
             .effective_metafield_definition_by_store_key(&map_key)
             .is_some()
@@ -439,6 +466,15 @@ impl DraftProxy {
             return metafield_definition_null_payload(
                 "createdDefinition",
                 vec![metafield_definition_taken_error(&owner_type, &namespace)],
+            );
+        }
+        if !self.hydrate_metafield_definition_resource_scope(request, &owner_type, &namespace) {
+            return metafield_definition_null_payload(
+                "createdDefinition",
+                vec![metafield_definition_bounded_context_error(
+                    "MetafieldDefinitionCreateUserError",
+                    json!(["definition"]),
+                )],
             );
         }
         if self.metafield_definition_resource_type_count(&owner_type, &namespace)
@@ -454,28 +490,38 @@ impl DraftProxy {
                 )],
             );
         }
-        if let Some(error) = metafield_definition_capability_input_error(
-            input,
-            "MetafieldDefinitionCreateUserError",
-            json!(["definition"]),
-            &owner_type,
-            resolved_string_field(input, "type")
-                .as_deref()
-                .unwrap_or_default(),
-        ) {
-            return metafield_definition_null_payload("createdDefinition", vec![error]);
-        }
-        if metafield_definition_capabilities_will_enable_admin_filterable(input, None)
-            && self.metafield_definition_admin_filterable_count(&owner_type)
+        if metafield_definition_capabilities_will_enable_admin_filterable(input, None) {
+            if !self.hydrate_metafield_definition_admin_filterable_context(request, &owner_type) {
+                return metafield_definition_null_payload(
+                    "createdDefinition",
+                    vec![metafield_definition_bounded_context_error(
+                        "MetafieldDefinitionCreateUserError",
+                        json!(["definition"]),
+                    )],
+                );
+            }
+            if self.metafield_definition_admin_filterable_count(request, &owner_type)
                 >= ADMIN_FILTERABLE_DEFINITION_LIMIT
+            {
+                return metafield_definition_null_payload(
+                    "createdDefinition",
+                    vec![metafield_definition_user_error(
+                        "MetafieldDefinitionCreateUserError",
+                        json!(["definition"]),
+                        &admin_filterable_definition_limit_message(&owner_type),
+                        "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS",
+                    )],
+                );
+            }
+        }
+        if resolved_bool_field(input, "pin") == Some(true)
+            && !self.hydrate_metafield_definition_pinned_owner_context(request, &owner_type)
         {
             return metafield_definition_null_payload(
                 "createdDefinition",
-                vec![metafield_definition_user_error(
+                vec![metafield_definition_bounded_context_error(
                     "MetafieldDefinitionCreateUserError",
                     json!(["definition"]),
-                    &admin_filterable_definition_limit_message(&owner_type),
-                    "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS",
                 )],
             );
         }
@@ -515,10 +561,12 @@ impl DraftProxy {
             resolved_string_field(input, "ownerType").unwrap_or_else(|| "PRODUCT".to_string());
         let namespace_for_hydration =
             self.metafield_definition_namespace_from_input(request, input, None);
-        self.hydrate_metafield_definitions_for_owner(
+        let key_for_hydration = resolved_string_field(input, "key").unwrap_or_default();
+        self.hydrate_metafield_definition_by_identifier(
             request,
             &owner_type,
             &namespace_for_hydration,
+            &key_for_hydration,
         );
         let Some(map_key) = self.metafield_definition_key_from_input(request, input, &owner_type)
         else {
@@ -582,20 +630,39 @@ impl DraftProxy {
             return metafield_definition_update_null_payload(vec![error]);
         }
         if metafield_definition_capabilities_will_enable_admin_filterable(input, Some(&definition))
-            || resolved_bool_field(input, "pin") == Some(true)
         {
-            self.hydrate_metafield_definitions_for_owner_catalog(request, &owner_type);
+            if !self.hydrate_metafield_definition_admin_filterable_context(request, &owner_type) {
+                return metafield_definition_update_null_payload(vec![
+                    metafield_definition_bounded_context_error(
+                        "MetafieldDefinitionUpdateUserError",
+                        json!(["definition"]),
+                    ),
+                ]);
+            }
+            if self.metafield_definition_admin_filterable_count_excluding(
+                request,
+                &owner_type,
+                &map_key,
+            ) >= ADMIN_FILTERABLE_DEFINITION_LIMIT
+            {
+                return metafield_definition_update_null_payload(vec![
+                    metafield_definition_user_error(
+                        "MetafieldDefinitionUpdateUserError",
+                        json!(["definition"]),
+                        &admin_filterable_definition_limit_message(&owner_type),
+                        "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS",
+                    ),
+                ]);
+            }
         }
-        if metafield_definition_capabilities_will_enable_admin_filterable(input, Some(&definition))
-            && self.metafield_definition_admin_filterable_count_excluding(&owner_type, &map_key)
-                >= ADMIN_FILTERABLE_DEFINITION_LIMIT
+        if resolved_bool_field(input, "pin") == Some(true)
+            && definition.get("pinnedPosition").is_none_or(Value::is_null)
+            && !self.hydrate_metafield_definition_pinned_owner_context(request, &owner_type)
         {
             return metafield_definition_update_null_payload(vec![
-                metafield_definition_user_error(
+                metafield_definition_bounded_context_error(
                     "MetafieldDefinitionUpdateUserError",
                     json!(["definition"]),
-                    &admin_filterable_definition_limit_message(&owner_type),
-                    "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS",
                 ),
             ]);
         }
@@ -693,7 +760,7 @@ impl DraftProxy {
                 request_app_namespace_api_client_id(request).as_deref(),
             );
             let key = resolved_string_field(&identifier, "key").unwrap_or_default();
-            self.hydrate_metafield_definitions_for_owner(request, &owner_type, &namespace);
+            self.hydrate_metafield_definition_by_identifier(request, &owner_type, &namespace, &key);
             Some(metafield_definition_store_key(
                 &owner_type,
                 &namespace,
@@ -767,6 +834,16 @@ impl DraftProxy {
             .unwrap_or_default()
             .to_string();
         let key = definition["key"].as_str().unwrap_or_default().to_string();
+        if !definition.get("pinnedPosition").is_none_or(Value::is_null)
+            && !self.hydrate_metafield_definition_pinned_owner_context(request, &owner_type)
+        {
+            return metafield_definition_delete_null_payload(vec![
+                metafield_definition_bounded_context_error(
+                    "MetafieldDefinitionDeleteUserError",
+                    json!(["id"]),
+                ),
+            ]);
+        }
         self.store.staged.metafield_definitions.remove(&map_key);
         self.store
             .staged
@@ -800,7 +877,7 @@ impl DraftProxy {
             &["definitionId"],
             &["definitionId"],
         );
-        self.hydrate_metafield_definitions_for_owner(request, &owner_type, &namespace);
+        self.hydrate_metafield_definition_by_identifier(request, &owner_type, &namespace, &key);
         let map_key = metafield_definition_store_key(&owner_type, &namespace, &key);
         let Some(mut definition) = self.effective_metafield_definition_by_store_key(&map_key)
         else {
@@ -819,7 +896,16 @@ impl DraftProxy {
             .and_then(Value::as_str)
             .unwrap_or("PRODUCT")
             .to_string();
-        self.hydrate_metafield_definitions_for_owner_catalog(request, &definition_owner_type);
+        if !self.hydrate_metafield_definition_pinned_owner_context(request, &definition_owner_type)
+        {
+            return metafield_definition_null_payload(
+                "pinnedDefinition",
+                vec![metafield_definition_bounded_context_error(
+                    "MetafieldDefinitionPinUserError",
+                    Value::Null,
+                )],
+            );
+        }
         if definition
             .get("pinnedPosition")
             .is_some_and(|position| !position.is_null())
@@ -874,7 +960,7 @@ impl DraftProxy {
             &[],
             &["definitionId", "id"],
         );
-        self.hydrate_metafield_definitions_for_owner(request, &owner_type, &namespace);
+        self.hydrate_metafield_definition_by_identifier(request, &owner_type, &namespace, &key);
         let map_key = metafield_definition_store_key(&owner_type, &namespace, &key);
         let Some(current) = self.effective_metafield_definition_by_store_key(&map_key) else {
             return metafield_definition_null_payload(
@@ -900,6 +986,15 @@ impl DraftProxy {
                     Value::Null,
                     &format!("Definition {numeric_id} isn't pinned."),
                     "NOT_PINNED",
+                )],
+            );
+        }
+        if !self.hydrate_metafield_definition_pinned_owner_context(request, &owner_type) {
+            return metafield_definition_null_payload(
+                "unpinnedDefinition",
+                vec![metafield_definition_bounded_context_error(
+                    "MetafieldDefinitionUnpinUserError",
+                    Value::Null,
                 )],
             );
         }
@@ -938,6 +1033,10 @@ impl DraftProxy {
         let mut namespace = resolved_string_field(&identifier, "namespace").unwrap_or_default();
         let mut key = resolved_string_field(&identifier, "key").unwrap_or_default();
         if !key.is_empty() {
+            namespace = canonical_app_metafield_namespace(
+                Some(&namespace),
+                request_app_namespace_api_client_id(request).as_deref(),
+            );
             return (owner_type, namespace, key);
         }
         let definition_id = argument_id_names
@@ -1134,6 +1233,20 @@ impl DraftProxy {
             .find(|(_, definition)| definition.get("id").and_then(Value::as_str) == Some(id))
     }
 
+    fn metafield_definition_tombstoned_by_id(&self, id: &str) -> bool {
+        self.store
+            .base
+            .metafield_definitions
+            .iter()
+            .any(|(key, definition)| {
+                self.store
+                    .staged
+                    .deleted_metafield_definitions
+                    .contains(key)
+                    && definition.get("id").and_then(Value::as_str) == Some(id)
+            })
+    }
+
     fn metafield_definition_pin_count(&self, owner_type: &str) -> usize {
         self.effective_metafield_definitions()
             .values()
@@ -1177,8 +1290,13 @@ impl DraftProxy {
         None
     }
 
-    fn metafield_definition_admin_filterable_count(&self, owner_type: &str) -> usize {
+    fn metafield_definition_admin_filterable_count(
+        &self,
+        request: &Request,
+        owner_type: &str,
+    ) -> usize {
         self.metafield_definition_admin_filterable_count_excluding(
+            request,
             owner_type,
             &metafield_definition_store_key("", "", ""),
         )
@@ -1186,14 +1304,30 @@ impl DraftProxy {
 
     fn metafield_definition_admin_filterable_count_excluding(
         &self,
+        request: &Request,
         owner_type: &str,
         excluded: &MetafieldDefinitionKey,
     ) -> usize {
+        let api_client_id = request_app_namespace_api_client_id(request);
         self.effective_metafield_definitions()
             .iter()
             .filter(|(key, definition)| {
                 *key != excluded
                     && definition.get("ownerType").and_then(Value::as_str) == Some(owner_type)
+                    && definition
+                        .get("namespace")
+                        .and_then(Value::as_str)
+                        .is_some_and(|namespace| {
+                            matches!(
+                                metafield_definition_resource_limit_bucket(namespace),
+                                MetafieldDefinitionResourceLimitBucket::Merchant
+                            ) || api_client_id.as_ref().is_some_and(|api_client_id| {
+                                metafield_definition_resource_limit_bucket(namespace)
+                                    == MetafieldDefinitionResourceLimitBucket::App(
+                                        api_client_id.clone(),
+                                    )
+                            })
+                        })
                     && definition["capabilities"]["adminFilterable"]["enabled"]
                         .as_bool()
                         .unwrap_or(false)
@@ -1207,110 +1341,128 @@ impl DraftProxy {
             .values()
             .filter(|definition| {
                 definition.get("ownerType").and_then(Value::as_str) == Some(owner_type)
-                    && !metafield_definition_is_standard_template(definition)
                     && definition
                         .get("namespace")
                         .and_then(Value::as_str)
                         .is_some_and(|definition_namespace| {
-                            metafield_definition_resource_limit_bucket(definition_namespace)
-                                == bucket
+                            definition_namespace != "shopify"
+                                && metafield_definition_resource_limit_bucket(definition_namespace)
+                                    == bucket
                         })
             })
             .count()
     }
 
-    fn hydrate_metafield_definitions_for_owner(
+    fn hydrate_metafield_definition_by_identifier(
         &mut self,
         request: &Request,
         owner_type: &str,
         namespace: &str,
+        key: &str,
     ) {
-        if self.config.read_mode == ReadMode::Snapshot || namespace.trim().is_empty() {
-            return;
-        }
-        if self
-            .store
-            .base
-            .metafield_definition_owner_catalogs
-            .contains(owner_type)
-            || self
-                .store
-                .base
-                .metafield_definition_namespaces
-                .contains(&(owner_type.to_string(), namespace.to_string()))
+        if self.config.read_mode == ReadMode::Snapshot
+            || namespace.trim().is_empty()
+            || key.trim().is_empty()
         {
             return;
         }
-        let mut variables = serde_json::Map::new();
-        variables.insert("ownerType".to_string(), json!(owner_type));
-        variables.insert("namespace".to_string(), json!(namespace));
-        if self.hydrate_metafield_definition_connection(
+        let map_key = metafield_definition_store_key(owner_type, namespace, key);
+        if self
+            .store
+            .staged
+            .metafield_definitions
+            .contains_key(&map_key)
+            || self
+                .store
+                .staged
+                .deleted_metafield_definitions
+                .contains(&map_key)
+            || self.store.base.metafield_definitions.contains_key(&map_key)
+            || self
+                .store
+                .base
+                .metafield_definition_observed_identities
+                .contains(&map_key)
+        {
+            return;
+        }
+        let response = self.upstream_post(
             request,
-            METAFIELD_DEFINITION_HYDRATE_BY_NAMESPACE_QUERY,
-            "MetafieldDefinitionsHydrateByNamespace",
-            variables,
-            owner_type,
-        ) {
+            json!({
+                "query": METAFIELD_DEFINITION_HYDRATE_BY_IDENTIFIER_QUERY,
+                "operationName": "MetafieldDefinitionHydrateByIdentifier",
+                "variables": {
+                    "identifier": {
+                        "ownerType": owner_type,
+                        "namespace": namespace,
+                        "key": key
+                    }
+                }
+            }),
+        );
+        if !(200..300).contains(&response.status)
+            || response
+                .body
+                .get("errors")
+                .and_then(Value::as_array)
+                .is_some_and(|errors| !errors.is_empty())
+        {
+            return;
+        }
+        if let Some(definition) = response.body.pointer("/data/metafieldDefinition") {
+            if definition.is_object() {
+                self.observe_metafield_definition_hydration_node(definition, owner_type);
+            }
             self.store
                 .base
-                .metafield_definition_namespaces
-                .insert((owner_type.to_string(), namespace.to_string()));
+                .metafield_definition_observed_identities
+                .insert(map_key);
         }
     }
 
-    fn hydrate_metafield_definitions_for_owner_catalog(
+    fn hydrate_metafield_definition_resource_scope(
         &mut self,
         request: &Request,
         owner_type: &str,
-    ) {
-        if self.config.read_mode == ReadMode::Snapshot
-            || owner_type.trim().is_empty()
-            || self
-                .store
-                .base
-                .metafield_definition_owner_catalogs
-                .contains(owner_type)
-        {
-            return;
-        }
-        let mut variables = serde_json::Map::new();
-        variables.insert("ownerType".to_string(), json!(owner_type));
-        if self.hydrate_metafield_definition_connection(
-            request,
-            METAFIELD_DEFINITION_HYDRATE_OWNER_CATALOG_QUERY,
-            "MetafieldDefinitionsHydrateOwnerCatalog",
-            variables,
-            owner_type,
-        ) {
-            self.store
-                .base
-                .metafield_definition_owner_catalogs
-                .insert(owner_type.to_string());
-        }
-    }
-
-    fn hydrate_metafield_definition_connection(
-        &mut self,
-        request: &Request,
-        query: &str,
-        operation_name: &str,
-        variables: serde_json::Map<String, Value>,
-        fallback_owner_type: &str,
+        namespace: &str,
     ) -> bool {
-        let mut after = Value::Null;
-        for _ in 0..20 {
-            let mut page_variables = variables.clone();
-            page_variables.insert("first".to_string(), json!(250));
-            page_variables.insert("after".to_string(), after.clone());
+        if self.config.read_mode == ReadMode::Snapshot {
+            return true;
+        }
+        let bucket = metafield_definition_resource_limit_bucket(namespace);
+        let scope_key = metafield_definition_resource_scope_key(owner_type, &bucket);
+        if self
+            .store
+            .base
+            .metafield_definition_resource_scopes
+            .contains(&scope_key)
+        {
+            return true;
+        }
+        let query = metafield_definition_resource_scope_query(&bucket);
+        let mut after = None::<String>;
+        let mut observed_bucket_definitions = 0usize;
+        for _ in 0..METAFIELD_DEFINITION_RESOURCE_SCOPE_PAGE_LIMIT {
             let response = self.upstream_post(
                 request,
                 json!({
-                    "query": query,
-                    "operationName": operation_name,
-                    "variables": Value::Object(page_variables)
+                    "query": METAFIELD_DEFINITION_HYDRATE_RESOURCE_SCOPE_QUERY,
+                    "operationName": "MetafieldDefinitionsHydrateResourceScope",
+                    "variables": {
+                        "ownerType": owner_type,
+                        "query": query,
+                        "first": 250,
+                        "after": after
+                    }
                 }),
             );
-            if response.status < 200 || response.status >= 300 {
+            if !(200..300).contains(&response.status)
+                || response
+                    .body
+                    .get("errors")
+                    .and_then(Value::as_array)
+                    .is_some_and(|errors| !errors.is_empty())
+            {
                 return false;
             }
             let Some(connection) = response
@@ -1323,16 +1475,288 @@ impl DraftProxy {
             let Some(nodes) = connection.get("nodes").and_then(Value::as_array) else {
                 return false;
             };
-            self.observe_metafield_definition_hydration_nodes(nodes, fallback_owner_type);
-            if connection["pageInfo"]["hasNextPage"].as_bool() != Some(true) {
+            self.observe_metafield_definition_hydration_nodes(nodes, owner_type);
+            observed_bucket_definitions += nodes
+                .iter()
+                .filter(|definition| {
+                    definition
+                        .get("namespace")
+                        .and_then(Value::as_str)
+                        .is_some_and(|definition_namespace| {
+                            definition_namespace != "shopify"
+                                && metafield_definition_resource_limit_bucket(definition_namespace)
+                                    == bucket
+                        })
+                })
+                .count();
+            let has_next_page = connection["pageInfo"]["hasNextPage"].as_bool() == Some(true);
+            if observed_bucket_definitions >= METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT
+                || !has_next_page
+            {
+                self.store
+                    .base
+                    .metafield_definition_resource_scopes
+                    .insert(scope_key);
                 return true;
             }
             let Some(end_cursor) = connection["pageInfo"]["endCursor"].as_str() else {
                 return false;
             };
-            after = json!(end_cursor);
+            after = Some(end_cursor.to_string());
         }
         false
+    }
+
+    fn hydrate_metafield_definition_admin_filterable_context(
+        &mut self,
+        request: &Request,
+        owner_type: &str,
+    ) -> bool {
+        if !self.hydrate_metafield_definition_resource_scope(request, owner_type, "merchant") {
+            return false;
+        }
+        let Some(api_client_id) = request_app_namespace_api_client_id(request) else {
+            return true;
+        };
+        self.hydrate_metafield_definition_resource_scope(
+            request,
+            owner_type,
+            &format!("app--{api_client_id}--definition"),
+        )
+    }
+
+    fn hydrate_metafield_definition_pinned_owner_context(
+        &mut self,
+        request: &Request,
+        owner_type: &str,
+    ) -> bool {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return true;
+        }
+        if self
+            .store
+            .base
+            .metafield_definition_pinned_owner_scopes
+            .contains(owner_type)
+        {
+            return true;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": METAFIELD_DEFINITION_HYDRATE_PINNED_OWNER_QUERY,
+                "operationName": "MetafieldDefinitionsHydratePinnedOwner",
+                "variables": { "ownerType": owner_type }
+            }),
+        );
+        if !(200..300).contains(&response.status)
+            || response
+                .body
+                .get("errors")
+                .and_then(Value::as_array)
+                .is_some_and(|errors| !errors.is_empty())
+        {
+            return false;
+        }
+        let Some(connection) = response.body.pointer("/data/metafieldDefinitions") else {
+            return false;
+        };
+        let Some(nodes) = connection.get("nodes").and_then(Value::as_array) else {
+            return false;
+        };
+        self.observe_metafield_definition_hydration_nodes(nodes, owner_type);
+        if nodes.len() >= PINNED_DEFINITION_LIMIT
+            || connection["pageInfo"]["hasNextPage"].as_bool() != Some(true)
+        {
+            self.store
+                .base
+                .metafield_definition_pinned_owner_scopes
+                .insert(owner_type.to_string());
+            return true;
+        }
+        false
+    }
+
+    fn hydrate_metafield_definition_window(
+        &mut self,
+        request: &Request,
+        owner_type: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let api_client_id = request_app_namespace_api_client_id(request);
+        let window_key =
+            metafield_definition_window_key(owner_type, arguments, api_client_id.as_deref());
+        let overlay_capacity = self.store.staged.metafield_definitions.len()
+            + self.store.staged.deleted_metafield_definitions.len();
+        if let Some(window) = self
+            .store
+            .base
+            .metafield_definition_windows
+            .get(&window_key)
+        {
+            if window
+                .get("__overlayCapacity")
+                .and_then(Value::as_u64)
+                .is_some_and(|capacity| capacity as usize >= overlay_capacity)
+            {
+                return Some(window.clone());
+            }
+        }
+
+        let mut variables = serde_json::Map::new();
+        variables.insert("ownerType".to_string(), json!(owner_type));
+        for name in [
+            "key",
+            "pinnedStatus",
+            "constraintSubtype",
+            "constraintStatus",
+            "after",
+            "before",
+            "reverse",
+            "sortKey",
+            "query",
+        ] {
+            variables.insert(
+                name.to_string(),
+                arguments
+                    .get(name)
+                    .map(resolved_value_json)
+                    .unwrap_or(Value::Null),
+            );
+        }
+        variables.insert(
+            "namespace".to_string(),
+            resolved_string_field(arguments, "namespace")
+                .map(|namespace| {
+                    json!(canonical_app_metafield_namespace(
+                        Some(&namespace),
+                        api_client_id.as_deref(),
+                    ))
+                })
+                .unwrap_or(Value::Null),
+        );
+        let requested_first = resolved_int_field(arguments, "first")
+            .filter(|value| *value >= 0)
+            .map(|value| value as usize);
+        let requested_last = resolved_int_field(arguments, "last")
+            .filter(|value| *value >= 0)
+            .map(|value| value as usize);
+        let requested_window = requested_first.or(requested_last).unwrap_or(50);
+        let required_upstream_rows = requested_window.saturating_add(overlay_capacity).min(500);
+        let first_page_size = required_upstream_rows.min(250);
+        let backwards = requested_last.is_some() && requested_first.is_none();
+        if backwards {
+            variables.insert("first".to_string(), Value::Null);
+            variables.insert("last".to_string(), json!(first_page_size));
+        } else {
+            variables.insert("first".to_string(), json!(first_page_size));
+            variables.insert("last".to_string(), Value::Null);
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": METAFIELD_DEFINITION_HYDRATE_WINDOW_QUERY,
+                "operationName": "MetafieldDefinitionsHydrateWindow",
+                "variables": Value::Object(variables.clone())
+            }),
+        );
+        let mut window = metafield_definition_hydration_connection(&response)?;
+        let remaining = required_upstream_rows.saturating_sub(first_page_size);
+        let has_more = if backwards {
+            window["pageInfo"]["hasPreviousPage"].as_bool() == Some(true)
+        } else {
+            window["pageInfo"]["hasNextPage"].as_bool() == Some(true)
+        };
+        if remaining > 0 && has_more {
+            let cursor_field = if backwards {
+                "startCursor"
+            } else {
+                "endCursor"
+            };
+            let cursor = window["pageInfo"][cursor_field].as_str()?.to_string();
+            if backwards {
+                variables.insert("last".to_string(), json!(remaining.min(250)));
+                variables.insert("before".to_string(), json!(cursor));
+            } else {
+                variables.insert("first".to_string(), json!(remaining.min(250)));
+                variables.insert("after".to_string(), json!(cursor));
+            }
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": METAFIELD_DEFINITION_HYDRATE_WINDOW_QUERY,
+                    "operationName": "MetafieldDefinitionsHydrateWindow",
+                    "variables": Value::Object(variables)
+                }),
+            );
+            let page = metafield_definition_hydration_connection(&response)?;
+            merge_metafield_definition_window_page(&mut window, page, backwards);
+        }
+        for row in observed_connection_rows(&window) {
+            self.observe_metafield_definition_hydration_node(&row.node, owner_type);
+        }
+        window["__overlayCapacity"] = json!(overlay_capacity);
+        self.store
+            .base
+            .metafield_definition_windows
+            .insert(window_key, window.clone());
+        Some(window)
+    }
+
+    fn metafield_definitions_for_window(
+        &self,
+        owner_type: &str,
+        window: Option<&Value>,
+    ) -> (Vec<Value>, BTreeMap<String, String>, Value) {
+        if window.is_none() {
+            return (
+                self.effective_metafield_definitions()
+                    .into_values()
+                    .collect(),
+                BTreeMap::new(),
+                empty_page_info(),
+            );
+        }
+        let window = window.expect("checked above");
+        let mut definitions = BTreeMap::<MetafieldDefinitionKey, Value>::new();
+        let mut cursors = BTreeMap::<String, String>::new();
+        for row in observed_connection_rows(window) {
+            let Some(map_key) = metafield_definition_store_key_from_value(&row.node, owner_type)
+            else {
+                continue;
+            };
+            let Some(definition) = self.effective_metafield_definition_by_store_key(&map_key)
+            else {
+                continue;
+            };
+            if let (Some(id), Some(cursor)) =
+                (definition.get("id").and_then(Value::as_str), row.cursor)
+            {
+                cursors.insert(id.to_string(), cursor);
+            }
+            definitions.insert(map_key, definition);
+        }
+        for (map_key, definition) in &self.store.staged.metafield_definitions {
+            if !self
+                .store
+                .staged
+                .deleted_metafield_definitions
+                .contains(map_key)
+            {
+                definitions.insert(map_key.clone(), definition.clone());
+            }
+        }
+        (
+            definitions.into_values().collect(),
+            cursors,
+            window
+                .get("pageInfo")
+                .cloned()
+                .unwrap_or_else(empty_page_info),
+        )
     }
 
     fn observe_metafield_definition_hydration_nodes(
@@ -1376,7 +1800,17 @@ impl DraftProxy {
     }
 
     fn hydrate_metafield_definition_by_id(&mut self, request: &Request, id: &str) {
-        if self.config.read_mode == ReadMode::Snapshot || id.trim().is_empty() {
+        if self.config.read_mode == ReadMode::Snapshot
+            || id.trim().is_empty()
+            || self
+                .store
+                .base
+                .metafield_definition_observed_ids
+                .contains(id)
+            || self.effective_metafield_definition_by_id(id).is_some()
+            || self.metafield_definition_tombstoned_by_id(id)
+            || is_synthetic_gid(id)
+        {
             return;
         }
         let body = json!({
@@ -1385,29 +1819,27 @@ impl DraftProxy {
             "variables": {"id": id}
         });
         let response = self.upstream_post(request, body);
-        if response.status < 200 || response.status >= 300 {
+        if !(200..300).contains(&response.status)
+            || response
+                .body
+                .get("errors")
+                .and_then(Value::as_array)
+                .is_some_and(|errors| !errors.is_empty())
+        {
             return;
         }
         let definition = response.body["data"]["metafieldDefinition"].clone();
-        if !definition.is_object() {
-            return;
+        if definition.is_object() {
+            let owner_type = definition
+                .get("ownerType")
+                .and_then(Value::as_str)
+                .unwrap_or("PRODUCT");
+            self.observe_metafield_definition_hydration_node(&definition, owner_type);
         }
-        let namespace = definition
-            .get("namespace")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        let key = definition
-            .get("key")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        let owner_type = definition
-            .get("ownerType")
-            .and_then(Value::as_str)
-            .unwrap_or("PRODUCT");
-        if namespace.is_empty() || key.is_empty() {
-            return;
-        }
-        self.observe_metafield_definition_hydration_node(&definition, owner_type);
+        self.store
+            .base
+            .metafield_definition_observed_ids
+            .insert(id.to_string());
     }
 
     fn metafield_definition_with_derived_fields(&self, definition: Value) -> Value {
@@ -1544,7 +1976,12 @@ impl DraftProxy {
                         api_client_id.as_deref(),
                     );
                     let key = resolved_string_field(&identifier, "key").unwrap_or_default();
-                    self.hydrate_metafield_definitions_for_owner(request, &owner_type, &namespace);
+                    self.hydrate_metafield_definition_by_identifier(
+                        request,
+                        &owner_type,
+                        &namespace,
+                        &key,
+                    );
                     self.effective_metafield_definition(&owner_type, &namespace, &key)
                 }
                 .map(|definition| self.metafield_definition_with_derived_fields(definition))
@@ -1558,14 +1995,12 @@ impl DraftProxy {
                 });
                 let key = resolved_string_field(arguments, "key");
                 let pinned_status = resolved_string_field(arguments, "pinnedStatus");
-                if let Some(namespace) = namespace.as_deref() {
-                    self.hydrate_metafield_definitions_for_owner(request, &owner_type, namespace);
-                } else {
-                    self.hydrate_metafield_definitions_for_owner_catalog(request, &owner_type);
-                }
-                let mut definitions = self
-                    .effective_metafield_definitions()
-                    .into_values()
+                let window =
+                    self.hydrate_metafield_definition_window(request, &owner_type, arguments);
+                let (window_definitions, cursors, upstream_page_info) =
+                    self.metafield_definitions_for_window(&owner_type, window.as_ref());
+                let mut definitions = window_definitions
+                    .into_iter()
                     .filter(|definition| {
                         definition.get("ownerType").and_then(Value::as_str)
                             == Some(owner_type.as_str())
@@ -1591,7 +2026,7 @@ impl DraftProxy {
                     .into_iter()
                     .map(|definition| self.metafield_definition_with_derived_fields(definition))
                     .collect::<Vec<_>>();
-                staged_connection_value_with_args(
+                let mut connection = staged_connection_value_with_args(
                     definitions,
                     arguments,
                     metafield_definition_search_decision,
@@ -1603,8 +2038,20 @@ impl DraftProxy {
                         )
                     },
                     Value::clone,
-                    value_id_cursor,
-                )
+                    |definition| {
+                        definition
+                            .get("id")
+                            .and_then(Value::as_str)
+                            .and_then(|id| cursors.get(id).cloned())
+                            .unwrap_or_else(|| value_id_cursor(definition))
+                    },
+                );
+                for field in ["hasNextPage", "hasPreviousPage"] {
+                    if upstream_page_info.get(field).and_then(Value::as_bool) == Some(true) {
+                        connection["pageInfo"][field] = json!(true);
+                    }
+                }
+                connection
             }
             _ => Value::Null,
         };
@@ -1622,11 +2069,13 @@ impl DraftProxy {
     pub(in crate::proxy) fn next_metafield_definition_pin_position(&self, owner_type: &str) -> i64 {
         self.effective_metafield_definitions()
             .values()
-            .filter(|definition| {
-                definition.get("ownerType").and_then(Value::as_str) == Some(owner_type)
-                    && !definition.get("pinnedPosition").is_none_or(Value::is_null)
+            .filter_map(|definition| {
+                (definition.get("ownerType").and_then(Value::as_str) == Some(owner_type))
+                    .then(|| definition.get("pinnedPosition").and_then(Value::as_i64))
+                    .flatten()
             })
-            .count() as i64
+            .max()
+            .unwrap_or(0)
             + 1
     }
 
@@ -1759,7 +2208,7 @@ impl DraftProxy {
         let namespace = template.namespace.to_string();
         let key = template.key.to_string();
         let map_key = metafield_definition_store_key(owner_type, &namespace, &key);
-        self.hydrate_metafield_definitions_for_owner(request, owner_type, &namespace);
+        self.hydrate_metafield_definition_by_identifier(request, owner_type, &namespace, &key);
         if let Some(mut existing_definition) =
             self.effective_metafield_definition_by_store_key(&map_key)
         {
@@ -1782,14 +2231,22 @@ impl DraftProxy {
             if metafield_definition_capabilities_will_enable_admin_filterable(
                 &args,
                 Some(&existing_definition),
-            ) {
-                self.hydrate_metafield_definitions_for_owner_catalog(request, owner_type);
+            ) && !self.hydrate_metafield_definition_admin_filterable_context(request, owner_type)
+            {
+                return json!({
+                    "createdDefinition": Value::Null,
+                    "userErrors": [metafield_definition_bounded_context_error(
+                        "StandardMetafieldDefinitionEnableUserError",
+                        Value::Null,
+                    )]
+                });
             }
             if metafield_definition_capabilities_will_enable_admin_filterable(
                 &args,
                 Some(&existing_definition),
-            ) && self.metafield_definition_admin_filterable_count_excluding(owner_type, &map_key)
-                >= ADMIN_FILTERABLE_DEFINITION_LIMIT
+            ) && self.metafield_definition_admin_filterable_count_excluding(
+                request, owner_type, &map_key,
+            ) >= ADMIN_FILTERABLE_DEFINITION_LIMIT
             {
                 return json!({
                     "createdDefinition": Value::Null,
@@ -1816,7 +2273,15 @@ impl DraftProxy {
                     .get("pinnedPosition")
                     .is_none_or(Value::is_null)
             {
-                self.hydrate_metafield_definitions_for_owner_catalog(request, owner_type);
+                if !self.hydrate_metafield_definition_pinned_owner_context(request, owner_type) {
+                    return json!({
+                        "createdDefinition": Value::Null,
+                        "userErrors": [metafield_definition_bounded_context_error(
+                            "StandardMetafieldDefinitionEnableUserError",
+                            Value::Null,
+                        )]
+                    });
+                }
                 if metafield_definition_has_constraints(&existing_definition) {
                     return json!({
                         "createdDefinition": Value::Null,
@@ -1896,24 +2361,39 @@ impl DraftProxy {
             });
         }
         if metafield_definition_capabilities_will_enable_admin_filterable(&args, None) {
-            self.hydrate_metafield_definitions_for_owner_catalog(request, owner_type);
-        }
-        if metafield_definition_capabilities_will_enable_admin_filterable(&args, None)
-            && self.metafield_definition_admin_filterable_count(owner_type)
+            if !self.hydrate_metafield_definition_admin_filterable_context(request, owner_type) {
+                return json!({
+                    "createdDefinition": Value::Null,
+                    "userErrors": [metafield_definition_bounded_context_error(
+                        "StandardMetafieldDefinitionEnableUserError",
+                        Value::Null,
+                    )]
+                });
+            }
+            if self.metafield_definition_admin_filterable_count(request, owner_type)
                 >= ADMIN_FILTERABLE_DEFINITION_LIMIT
-        {
-            return json!({
-                "createdDefinition": Value::Null,
-                "userErrors": [metafield_definition_user_error(
-                    "StandardMetafieldDefinitionEnableUserError",
-                    Value::Null,
-                    &admin_filterable_definition_limit_message(owner_type),
-                    "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS"
-                )]
-            });
+            {
+                return json!({
+                    "createdDefinition": Value::Null,
+                    "userErrors": [metafield_definition_user_error(
+                        "StandardMetafieldDefinitionEnableUserError",
+                        Value::Null,
+                        &admin_filterable_definition_limit_message(owner_type),
+                        "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS"
+                    )]
+                });
+            }
         }
         if resolved_bool_field(&args, "pin") == Some(true) {
-            self.hydrate_metafield_definitions_for_owner_catalog(request, owner_type);
+            if !self.hydrate_metafield_definition_pinned_owner_context(request, owner_type) {
+                return json!({
+                    "createdDefinition": Value::Null,
+                    "userErrors": [metafield_definition_bounded_context_error(
+                        "StandardMetafieldDefinitionEnableUserError",
+                        Value::Null,
+                    )]
+                });
+            }
             if let Some(user_errors) = self.metafield_definition_pin_guard_user_errors(
                 &definition,
                 owner_type,
@@ -2157,6 +2637,9 @@ fn metafield_definition_is_standard_template(definition: &Value) -> bool {
         .get(STANDARD_TEMPLATE_MARKER_FIELD)
         .and_then(Value::as_str)
         .is_some()
+        || definition
+            .get("standardTemplate")
+            .is_some_and(|template| template.is_object())
 }
 
 fn metafield_definition_standard_template_immutable_field_errors(
@@ -2306,6 +2789,118 @@ fn metafield_definition_payload_staged_id(payload: &Value) -> Option<String> {
 enum MetafieldDefinitionResourceLimitBucket {
     App(String),
     Merchant,
+}
+
+fn metafield_definition_resource_scope_key(
+    owner_type: &str,
+    bucket: &MetafieldDefinitionResourceLimitBucket,
+) -> String {
+    match bucket {
+        MetafieldDefinitionResourceLimitBucket::App(api_client_id) => {
+            format!("{owner_type}\u{1f}app\u{1f}{api_client_id}")
+        }
+        MetafieldDefinitionResourceLimitBucket::Merchant => {
+            format!("{owner_type}\u{1f}merchant")
+        }
+    }
+}
+
+fn metafield_definition_resource_scope_query(
+    bucket: &MetafieldDefinitionResourceLimitBucket,
+) -> String {
+    match bucket {
+        MetafieldDefinitionResourceLimitBucket::App(api_client_id) => {
+            format!("namespace:app--{api_client_id}--*")
+        }
+        MetafieldDefinitionResourceLimitBucket::Merchant => "-namespace:app--*".to_string(),
+    }
+}
+
+fn metafield_definition_hydration_connection(response: &Response) -> Option<Value> {
+    if !(200..300).contains(&response.status)
+        || response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .is_some_and(|errors| !errors.is_empty())
+    {
+        return None;
+    }
+    response
+        .body
+        .pointer("/data/metafieldDefinitions")
+        .filter(|connection| connection.is_object())
+        .cloned()
+}
+
+fn merge_metafield_definition_window_page(window: &mut Value, mut page: Value, backwards: bool) {
+    let mut first_edges = window["edges"].as_array().cloned().unwrap_or_default();
+    let mut second_edges = page["edges"].as_array().cloned().unwrap_or_default();
+    let first_page_info = window["pageInfo"].clone();
+    let second_page_info = page["pageInfo"].take();
+    if backwards {
+        second_edges.append(&mut first_edges);
+        window["edges"] = json!(second_edges);
+        window["pageInfo"] = json!({
+            "hasNextPage": first_page_info["hasNextPage"].clone(),
+            "hasPreviousPage": second_page_info["hasPreviousPage"].clone(),
+            "startCursor": window["edges"][0]["cursor"].clone(),
+            "endCursor": window["edges"]
+                .as_array()
+                .and_then(|edges| edges.last())
+                .and_then(|edge| edge.get("cursor"))
+                .cloned()
+                .unwrap_or(Value::Null)
+        });
+    } else {
+        first_edges.append(&mut second_edges);
+        window["edges"] = json!(first_edges);
+        window["pageInfo"] = json!({
+            "hasNextPage": second_page_info["hasNextPage"].clone(),
+            "hasPreviousPage": first_page_info["hasPreviousPage"].clone(),
+            "startCursor": window["edges"][0]["cursor"].clone(),
+            "endCursor": window["edges"]
+                .as_array()
+                .and_then(|edges| edges.last())
+                .and_then(|edge| edge.get("cursor"))
+                .cloned()
+                .unwrap_or(Value::Null)
+        });
+    }
+}
+
+fn metafield_definition_window_key(
+    owner_type: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    api_client_id: Option<&str>,
+) -> String {
+    let mut keyed_arguments = serde_json::Map::new();
+    for (name, value) in arguments {
+        keyed_arguments.insert(name.clone(), resolved_value_json(value));
+    }
+    if let Some(namespace) = resolved_string_field(arguments, "namespace") {
+        keyed_arguments.insert(
+            "namespace".to_string(),
+            json!(canonical_app_metafield_namespace(
+                Some(&namespace),
+                api_client_id,
+            )),
+        );
+    }
+    format!("{owner_type}\u{1f}{}", Value::Object(keyed_arguments))
+}
+
+fn metafield_definition_store_key_from_value(
+    definition: &Value,
+    fallback_owner_type: &str,
+) -> Option<MetafieldDefinitionKey> {
+    let owner_type = definition
+        .get("ownerType")
+        .and_then(Value::as_str)
+        .unwrap_or(fallback_owner_type);
+    let namespace = definition.get("namespace").and_then(Value::as_str)?;
+    let key = definition.get("key").and_then(Value::as_str)?;
+    Some(metafield_definition_store_key(owner_type, namespace, key))
 }
 
 fn metafield_definition_resource_limit_bucket(
@@ -3000,11 +3595,12 @@ fn apply_metafield_definition_constraints_update(
     else {
         return;
     };
-    let current_key = definition["constraints"]["key"].clone();
     let next_key = match constraints.get("key") {
-        Some(ResolvedValue::String(value)) => json!(value),
+        // Shopify's current constraintsUpdates projection retains the values
+        // and constrained-definition behavior while returning a null key.
+        Some(ResolvedValue::String(_)) => Value::Null,
         Some(ResolvedValue::Null) => Value::Null,
-        _ => current_key,
+        _ => definition["constraints"]["key"].clone(),
     };
     let mut values = definition["constraints"]["values"]["nodes"]
         .as_array()
@@ -3187,13 +3783,18 @@ fn metafield_definition_sort_key(
         "NAME" => vec![StagedSortValue::String(metafield_definition_string_field(
             definition, "name",
         ))],
-        "PINNED_POSITION" => vec![StagedSortValue::I64(
-            definition
-                .get("pinnedPosition")
-                .and_then(Value::as_i64)
-                .map(|position| -position)
-                .unwrap_or(i64::MAX),
-        )],
+        "PINNED_POSITION" => vec![
+            StagedSortValue::I64(
+                definition
+                    .get("pinnedPosition")
+                    .and_then(Value::as_i64)
+                    .map(|position| -position)
+                    .unwrap_or(i64::MAX),
+            ),
+            StagedSortValue::Descending(std::cmp::Reverse(Box::new(resource_id_tail_sort_value(
+                definition.get("id").and_then(Value::as_str),
+            )))),
+        ],
         "RELEVANCE" => vec![
             StagedSortValue::I64(metafield_definition_relevance(definition, query)),
             StagedSortValue::String(metafield_definition_string_field(definition, "name")),

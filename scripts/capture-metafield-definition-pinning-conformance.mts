@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -11,11 +11,23 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'metafields');
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+const hydrateByIdentifierDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definition-hydrate-by-identifier.graphql',
+  'utf8',
+);
+const hydratePinnedOwnerDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definitions-hydrate-pinned-owner.graphql',
+  'utf8',
+);
+const hydrateWindowDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definitions-hydrate-window.graphql',
+  'utf8',
+);
 
 const definitionSelection = `#graphql
   id
@@ -92,6 +104,17 @@ const deleteDefinitionMutation = `#graphql
         field
         message
         code
+      }
+    }
+  }
+`;
+
+const readPinnedDefinitionsQuery = `#graphql
+  query ExistingPinnedDefinitionsForPinningCapture {
+    metafieldDefinitions(ownerType: PRODUCT, first: 100, pinnedStatus: PINNED, sortKey: PINNED_POSITION) {
+      nodes {
+        id
+        pinnedPosition
       }
     }
   }
@@ -229,6 +252,58 @@ const unpinByIdMutation = `#graphql
 const createdDefinitionIds: string[] = [];
 const namespace = `metafield_definition_pin_${Date.now().toString(36)}`;
 const downstreamReadVariables = { namespace };
+const baselinePinned =
+  ((await runGraphql(readPinnedDefinitionsQuery)).data?.metafieldDefinitions?.nodes as
+    | { id: string; pinnedPosition?: number | null }[]
+    | undefined) ?? [];
+
+async function recordUpstreamCall(operationName: string, query: string, variables: Record<string, unknown>) {
+  const result = await runGraphqlRaw(query, variables);
+  if (result.status < 200 || result.status >= 300 || result.payload.errors) {
+    throw new Error(`${operationName} failed: ${JSON.stringify(result, null, 2)}`);
+  }
+  return {
+    method: 'POST',
+    apiSurface: 'admin',
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    operationName,
+    variables,
+    query,
+    response: { status: result.status, body: result.payload },
+  };
+}
+
+function windowVariables(pinnedStatus: 'PINNED' | 'UNPINNED' | null, first: number) {
+  return {
+    ownerType: 'PRODUCT',
+    key: null,
+    namespace,
+    pinnedStatus: pinnedStatus ?? 'ANY',
+    constraintSubtype: null,
+    constraintStatus: null,
+    first,
+    after: null,
+    last: null,
+    before: null,
+    reverse: false,
+    sortKey: 'PINNED_POSITION',
+    query: null,
+  };
+}
+
+async function recordWindowHydrates(first: number) {
+  const calls = [];
+  for (const pinnedStatus of [null, 'PINNED', 'UNPINNED'] as const) {
+    calls.push(
+      await recordUpstreamCall(
+        'MetafieldDefinitionsHydrateWindow',
+        hydrateWindowDocument,
+        windowVariables(pinnedStatus, first),
+      ),
+    );
+  }
+  return calls;
+}
 
 async function createDefinition(key: string): Promise<string> {
   const response = await runGraphql(createDefinitionMutation, {
@@ -254,17 +329,13 @@ async function createDefinition(key: string): Promise<string> {
 try {
   await mkdir(outputDir, { recursive: true });
 
+  for (const definition of baselinePinned) {
+    await runGraphql(unpinByIdMutation, { definitionId: definition.id });
+  }
+
   const definitionAId = await createDefinition('pin_a');
   const definitionBId = await createDefinition('pin_b');
   const baselineRead = await runGraphql(seedDefinitionsQuery, downstreamReadVariables);
-  const baselineData =
-    baselineRead.data && typeof baselineRead.data === 'object' ? (baselineRead.data as Record<string, unknown>) : {};
-  const hydrateByNamespaceCassetteBody = {
-    data: {
-      metafieldDefinitions: baselineData.seedCatalog ?? baselineData.metafieldDefinitions,
-    },
-    extensions: baselineRead.extensions,
-  };
 
   const pinByIdentifierVariables = {
     identifier: {
@@ -273,12 +344,24 @@ try {
       key: 'pin_a',
     },
   };
+  const upstreamCalls = [
+    await recordUpstreamCall(
+      'MetafieldDefinitionHydrateByIdentifier',
+      hydrateByIdentifierDocument,
+      pinByIdentifierVariables,
+    ),
+    await recordUpstreamCall('MetafieldDefinitionsHydratePinnedOwner', hydratePinnedOwnerDocument, {
+      ownerType: 'PRODUCT',
+    }),
+  ];
   const pinByIdentifierResponse = await runGraphql(pinByIdentifierMutation, pinByIdentifierVariables);
   const pinAlreadyPinnedResponse = await runGraphql(pinByIdentifierMutation, pinByIdentifierVariables);
+  upstreamCalls.push(...(await recordWindowHydrates(11)));
   const afterPinByIdentifierRead = await runGraphql(readDefinitionsQuery, downstreamReadVariables);
 
   const pinByIdVariables = { definitionId: definitionBId };
   const pinByIdResponse = await runGraphql(pinByIdMutation, pinByIdVariables);
+  upstreamCalls.push(...(await recordWindowHydrates(12)));
   const afterPinByIdRead = await runGraphql(readDefinitionsQuery, downstreamReadVariables);
 
   const unpinByIdentifierVariables = {
@@ -306,6 +389,7 @@ try {
         apiVersion,
         response: baselineRead,
         downstreamReadVariables,
+        baselinePinnedDefinitions: baselinePinned,
         createdDefinitionIds: {
           pinA: definitionAId,
           pinB: definitionBId,
@@ -338,19 +422,7 @@ try {
           response: unpinByIdResponse,
         },
         afterUnpinByIdRead,
-        upstreamCalls: [
-          {
-            operationName: 'MetafieldDefinitionsHydrateByNamespace',
-            variables: {
-              ownerType: 'PRODUCT',
-              namespace,
-            },
-            response: {
-              status: 200,
-              body: hydrateByNamespaceCassetteBody,
-            },
-          },
-        ],
+        upstreamCalls,
       },
       null,
       2,
@@ -384,6 +456,26 @@ try {
             ok: false,
             cleanup: 'metafieldDefinitionDelete',
             definitionId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          null,
+          2,
+        ),
+      );
+    }
+  }
+  for (const definition of [...baselinePinned].sort(
+    (left, right) => (left.pinnedPosition ?? 0) - (right.pinnedPosition ?? 0),
+  )) {
+    try {
+      await runGraphql(pinByIdMutation, { definitionId: definition.id });
+    } catch (error) {
+      console.warn(
+        JSON.stringify(
+          {
+            ok: false,
+            cleanup: 'restore metafieldDefinitionPin',
+            definitionId: definition.id,
             error: error instanceof Error ? error.message : String(error),
           },
           null,

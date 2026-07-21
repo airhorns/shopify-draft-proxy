@@ -18,6 +18,16 @@ type CapturedInteraction = {
   response: unknown;
 };
 
+type UpstreamCall = {
+  method: 'POST';
+  apiSurface: 'admin';
+  path: string;
+  operationName: string;
+  variables: Record<string, unknown>;
+  query: string;
+  response: { status: number; body: unknown };
+};
+
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const { runGraphqlRaw } = createAdminGraphqlClient({
@@ -33,6 +43,14 @@ const updateDocumentPath = path.join(requestDir, 'validation-affects-values-upda
 const setDocumentPath = path.join(requestDir, 'validation-affects-values-set.graphql');
 const readDocumentPath = path.join(requestDir, 'validation-affects-values-read.graphql');
 const fixturePath = path.join(fixtureDir, 'metafield-definition-validation-affects-values.json');
+const hydrateByIdentifierDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definition-hydrate-by-identifier.graphql',
+  'utf8',
+);
+const hydrateResourceScopeDocument = await readFile(
+  'config/parity-requests/metafields/metafield-definitions-hydrate-resource-scope.graphql',
+  'utf8',
+);
 
 const productCreateMutation = `#graphql
 mutation ValidationAffectsValuesProductCreate($product: ProductCreateInput!) {
@@ -60,6 +78,9 @@ mutation ValidationAffectsValuesDefinitionDelete($id: ID!) {
   }
 }
 `;
+
+const ownerMetafieldHydrateQuery =
+  'query OwnerMetafieldsHydrateNodes($ids: [ID!]!, $metafield0Namespace: String!, $metafield0Key: String!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType }  } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } } ... on Collection { id title handle metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } } ... on Customer { id displayName email metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } } ... on Order { id name metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } } ... on Company { id name metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } } ... on Shop { id metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key) { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } } } }';
 
 function assertHttpOk(result: ConformanceGraphqlResult, label: string): void {
   if (result.status < 200 || result.status >= 300 || result.payload.errors) {
@@ -118,12 +139,55 @@ function requireCapture(value: CapturedInteraction | null, label: string): Captu
   return value;
 }
 
+async function recordUpstreamCall(
+  operationName: string,
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<UpstreamCall> {
+  const result = await runGraphqlRaw(query, variables);
+  assertHttpOk(result, operationName);
+  return {
+    method: 'POST',
+    apiSurface: 'admin',
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    operationName,
+    variables,
+    query,
+    response: { status: result.status, body: result.payload },
+  };
+}
+
+async function recordResourceScope(): Promise<UpstreamCall[]> {
+  const calls: UpstreamCall[] = [];
+  let after: string | null = null;
+  let observed = 0;
+  for (let page = 0; page < 3; page += 1) {
+    const variables = { ownerType: 'PRODUCT', query: '-namespace:app--*', first: 250, after };
+    const call = await recordUpstreamCall(
+      'MetafieldDefinitionsHydrateResourceScope',
+      hydrateResourceScopeDocument,
+      variables,
+    );
+    calls.push(call);
+    const nodes = readPath(call.response.body, ['data', 'metafieldDefinitions', 'nodes']);
+    if (!Array.isArray(nodes)) throw new Error(`resource-scope page ${page + 1} omitted nodes`);
+    observed += nodes.filter((node) => readObject(node)?.['namespace'] !== 'shopify').length;
+    const pageInfo = readObject(readPath(call.response.body, ['data', 'metafieldDefinitions', 'pageInfo']));
+    if (observed >= 256 || pageInfo?.['hasNextPage'] !== true) break;
+    const endCursor = pageInfo?.['endCursor'];
+    if (typeof endCursor !== 'string') throw new Error(`resource-scope page ${page + 1} omitted endCursor`);
+    after = endCursor;
+  }
+  return calls;
+}
+
 const suffix = Date.now().toString(36);
 const namespace = `validation_affects_${suffix}`;
 const key = 'headline';
 let productId: string | null = null;
 let definitionId: string | null = null;
 const cleanup: CapturedInteraction[] = [];
+const upstreamCalls: UpstreamCall[] = [];
 let productCreate: CapturedInteraction | null = null;
 let create: CapturedInteraction | null = null;
 let setBeforeUpdate: CapturedInteraction | null = null;
@@ -137,6 +201,13 @@ try {
     product: { title: `validation affects values ${suffix}` },
   });
   productId = requireString(readPath(productCreate.response, ['data', 'productCreate', 'product', 'id']), 'product id');
+
+  upstreamCalls.push(
+    await recordUpstreamCall('MetafieldDefinitionHydrateByIdentifier', hydrateByIdentifierDocument, {
+      identifier: { ownerType: 'PRODUCT', namespace, key },
+    }),
+  );
+  upstreamCalls.push(...(await recordResourceScope()));
 
   create = await captureDocument('metafieldDefinitionCreate setup', createDocumentPath, {
     definition: {
@@ -197,6 +268,14 @@ try {
     ],
   });
 
+  upstreamCalls.push(
+    await recordUpstreamCall('OwnerMetafieldsHydrateNodes', ownerMetafieldHydrateQuery, {
+      ids: [productId],
+      metafield0Namespace: namespace,
+      metafield0Key: key,
+    }),
+  );
+
   readAfterShortSet = await captureDocument('product metafield read after short set', readDocumentPath, {
     id: productId,
     namespace,
@@ -245,7 +324,7 @@ await writeFile(
       setShortAfterUpdate: requireCapture(setShortAfterUpdate, 'setShortAfterUpdate'),
       readAfterShortSet: requireCapture(readAfterShortSet, 'readAfterShortSet'),
       cleanup,
-      upstreamCalls: [],
+      upstreamCalls,
     },
     null,
     2,

@@ -1115,5 +1115,160 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "path": "/admin/api/2026-04/graphql.json",
+      "operationName": "MetafieldDefinitionHydrateByIdentifier",
+      "variables": {
+        "identifier": {
+          "key": "visible",
+          "namespace": "sfc_20260715224130",
+          "ownerType": "SHOP"
+        }
+      },
+      "query": "query MetafieldDefinitionHydrateByIdentifier($identifier: MetafieldDefinitionIdentifierInput!) {\n  metafieldDefinition(identifier: $identifier) {\n    ...MetafieldDefinitionHydrationFields\n  }\n}\n\nfragment MetafieldDefinitionHydrationFields on MetafieldDefinition {\n  id\n  name\n  namespace\n  key\n  ownerType\n  type {\n    name\n    category\n  }\n  description\n  validations {\n    name\n    value\n  }\n  access {\n    admin\n    storefront\n    customerAccount\n  }\n  capabilities {\n    adminFilterable {\n      enabled\n      eligible\n      status\n    }\n    smartCollectionCondition {\n      enabled\n      eligible\n    }\n    uniqueValues {\n      enabled\n      eligible\n    }\n  }\n  constraints {\n    key\n    values(first: 50) {\n      nodes {\n        value\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  pinnedPosition\n  standardTemplate {\n    id\n  }\n  validationStatus\n  metafieldsCount\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metafieldDefinition": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "path": "/admin/api/2026-04/graphql.json",
+      "operationName": "MetafieldDefinitionsHydrateResourceScope",
+      "variables": {
+        "after": null,
+        "first": 250,
+        "ownerType": "SHOP",
+        "query": "-namespace:app--*"
+      },
+      "query": "query MetafieldDefinitionsHydrateResourceScope(\n  $ownerType: MetafieldOwnerType!\n  $query: String!\n  $first: Int!\n  $after: String\n) {\n  metafieldDefinitions(\n    ownerType: $ownerType\n    query: $query\n    first: $first\n    after: $after\n    sortKey: ID\n  ) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n        customerAccount\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 50) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      standardTemplate {\n        id\n      }\n      validationStatus\n      metafieldsCount\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metafieldDefinitions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/98376253746",
+                  "name": "Alpine sport types",
+                  "namespace": "test_data",
+                  "key": "alpine_sports",
+                  "ownerType": "SHOP",
+                  "type": {
+                    "name": "list.single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": "The set of alpine sports that this sport shop specializes in",
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": false,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": false
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": false
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 1,
+                  "standardTemplate": null,
+                  "validationStatus": "ALL_VALID",
+                  "metafieldsCount": 1
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "endCursor": "eyJsYXN0X2lkIjo5ODM3NjI1Mzc0NiwibGFzdF92YWx1ZSI6OTgzNzYyNTM3NDZ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 211,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "path": "/admin/api/2026-04/graphql.json",
+      "operationName": "MetafieldDefinitionHydrateByIdentifier",
+      "variables": {
+        "identifier": {
+          "key": "hidden",
+          "namespace": "sfc_20260715224130",
+          "ownerType": "SHOP"
+        }
+      },
+      "query": "query MetafieldDefinitionHydrateByIdentifier($identifier: MetafieldDefinitionIdentifierInput!) {\n  metafieldDefinition(identifier: $identifier) {\n    ...MetafieldDefinitionHydrationFields\n  }\n}\n\nfragment MetafieldDefinitionHydrationFields on MetafieldDefinition {\n  id\n  name\n  namespace\n  key\n  ownerType\n  type {\n    name\n    category\n  }\n  description\n  validations {\n    name\n    value\n  }\n  access {\n    admin\n    storefront\n    customerAccount\n  }\n  capabilities {\n    adminFilterable {\n      enabled\n      eligible\n      status\n    }\n    smartCollectionCondition {\n      enabled\n      eligible\n    }\n    uniqueValues {\n      enabled\n      eligible\n    }\n  }\n  constraints {\n    key\n    values(first: 50) {\n      nodes {\n        value\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  pinnedPosition\n  standardTemplate {\n    id\n  }\n  validationStatus\n  metafieldsCount\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metafieldDefinition": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -1,0 +1,28 @@
+{
+  "scenarioId": "metafield-definition-resource-type-limit",
+  "operationNames": ["metafieldDefinitionCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "bounded-upstream-hydration", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-resource-type-limit.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-resource-type-limit.graphql",
+    "variablesCapturePath": "$.limitAttempt.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "resource-type-limit-after-256-merchant-definitions",
+        "capturePath": "$.limitAttempt.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate"
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence reaches the PRODUCT merchant-definition boundary with disposable writes, records the exact identifier miss and bounded merchant resource-scope threshold reads used by the production handler, and proves RESOURCE_TYPE_LIMIT_EXCEEDED without enumerating the whole owner catalog."
+}

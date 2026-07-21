@@ -7,10 +7,11 @@
     "metafieldDefinitions"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "validation-errors", "read-after-write"],
+  "assertionKinds": ["payload-shape", "validation-errors", "read-after-write", "bounded-upstream-hydration"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-update-pin.json"
   ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafield-definitions/update-pin.graphql",
     "apiVersion": "2026-04",
@@ -67,5 +68,5 @@
       }
     ]
   },
-  "notes": "Captured 2026-04 Shopify behavior for `metafieldDefinitionUpdate(definition: { pin })`: `pin: true` pins an unpinned product definition, `pin: false` unpins a pinned definition, constrained update pin returns the same `UNSUPPORTED_PINNING` user error shape as pinning, and owner-type pin-cap rejection returns `PINNED_LIMIT_REACHED`. The capture temporarily unpins existing product definitions, creates disposable product-owned definitions in a temporary namespace, deletes them, and restores original pins."
+  "notes": "Captured against Shopify Admin 2026-04 with 49 disposable baseline PRODUCT pins and exact bounded identity/resource/pinned/window cassettes. `pin: false` unpins the temporary position-50 definition, `pin: true` then pins a second definition at position 50, constrained update pin returns `UNSUPPORTED_PINNING`, and updating another definition with pin at the 50-definition boundary returns `PINNED_LIMIT_REACHED`. Cleanup deletes all disposable definitions and restores the original pins."
 }
