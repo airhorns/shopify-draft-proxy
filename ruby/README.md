@@ -62,6 +62,31 @@ proxy = ShopifyDraftProxy.create(
 A transport is anything responding to `#call`. When omitted, the default
 `Net::HTTP` transport is installed.
 
+## Per-operation commit headers
+
+A staged operation preserves its request headers with its path and raw GraphQL body. Use placeholder values rather than concrete credentials when state will be dumped or inspected:
+
+```ruby
+proxy.process_graphql_request(
+  { query: mutation },
+  headers: { "Authorization" => "Bearer {{credential}}" },
+)
+```
+
+Passing a header hash to `commit` applies it to every replay. Passing a callable resolves headers separately for each staged operation:
+
+```ruby
+proxy.commit(
+  headers: lambda do |operation|
+    operation.fetch("headers").merge(
+      "Authorization" => "Bearer #{token_for(operation)}",
+    )
+  end,
+)
+```
+
+The callable must return the complete final header hash. It may replace the staged authentication scheme, allowing one commit to mix staff and service-app credentials without storing tokens in proxy state.
+
 ## Persisting state (dump / restore)
 
 The gem keeps proxy state in process memory. To persist it across processes — a

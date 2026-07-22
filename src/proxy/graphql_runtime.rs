@@ -1166,6 +1166,7 @@ impl DraftProxy {
                 variables,
                 &root_names,
             );
+            self.record_staged_operation_headers(log_start, &request.headers);
         }
 
         if let Some(response) = full_passthrough_response {
@@ -1263,6 +1264,22 @@ impl DraftProxy {
             status: resolver_http_status.unwrap_or(200),
             headers: BTreeMap::new(),
             body,
+        }
+    }
+
+    fn record_staged_operation_headers(
+        &mut self,
+        log_start: usize,
+        headers: &BTreeMap<String, String>,
+    ) {
+        if headers.is_empty() {
+            return;
+        }
+
+        for entry in self.log_entries.iter_mut().skip(log_start) {
+            if entry.get("status") == Some(&json!("staged")) {
+                entry["headers"] = json!(headers);
+            }
         }
     }
 

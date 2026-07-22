@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+};
 
 use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
@@ -2564,6 +2567,76 @@ fn commit_replays_staged_mutations_in_order_and_marks_entries_committed() {
         2,
         "already committed entries should not be replayed again"
     );
+}
+
+#[test]
+fn commit_can_resolve_headers_for_each_staged_operation() {
+    let replayed = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
+    let mut proxy = snapshot_proxy().with_commit_transport(move |request| {
+        replayed_for_transport.lock().unwrap().push(request);
+        ok_transport_response(json!({ "data": { "ok": true } }))
+    });
+
+    let queries = [
+        "mutation { savedSearchCreate(input: { name: \"One\", query: \"status:open\", resourceType: ORDER }) { savedSearch { id } } }",
+        "mutation { savedSearchCreate(input: { name: \"Two\", query: \"status:closed\", resourceType: ORDER }) { savedSearch { id } } }",
+    ];
+    let staged_headers = [
+        (
+            "authorization",
+            "Bearer {{credential}}",
+            "Bearer resolved-staff-token",
+        ),
+        (
+            "x-shopify-serviceapp-scope-restricted-token",
+            "{{credential}}",
+            "resolved-service-app-token",
+        ),
+    ];
+
+    for (query, (name, placeholder, _)) in queries.iter().zip(staged_headers) {
+        let mut request = graphql_request(&json!({ "query": query }).to_string());
+        request
+            .headers
+            .insert(name.to_string(), placeholder.to_string());
+        assert_eq!(proxy.process_request(request).status, 200);
+    }
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(
+        log["entries"][0]["headers"]["authorization"],
+        json!("Bearer {{credential}}"),
+        "{log:#}"
+    );
+    assert_eq!(
+        log["entries"][1]["headers"]["x-shopify-serviceapp-scope-restricted-token"],
+        json!("{{credential}}")
+    );
+
+    let commit = proxy.commit_with_header_resolver(|operation| {
+        let headers = operation["headers"]
+            .as_object()
+            .expect("staged operation should retain its headers");
+        if headers.contains_key("authorization") {
+            Ok(BTreeMap::from([(
+                "authorization".to_string(),
+                "Bearer resolved-staff-token".to_string(),
+            )]))
+        } else {
+            Ok(BTreeMap::from([(
+                "x-shopify-serviceapp-scope-restricted-token".to_string(),
+                "resolved-service-app-token".to_string(),
+            )]))
+        }
+    });
+
+    assert_eq!(commit.status, 200);
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 2);
+    for (request, (name, _, resolved)) in replayed.iter().zip(staged_headers) {
+        assert_eq!(request.headers.get(name), Some(&resolved.to_string()));
+    }
 }
 
 #[test]

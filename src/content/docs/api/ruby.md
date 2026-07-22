@@ -66,26 +66,41 @@ Common options:
 | `transport`                                             | Optional callable for upstream reads and commit replay.                  |
 | `bulk_operation_run_mutation_max_input_file_size_bytes` | Optional local staged-upload size guardrail.                             |
 
-Auth headers are not stored on the proxy. Pass Shopify Admin auth headers on the
-request that may reach Shopify, or on `commit` when intentionally replaying
-staged writes upstream:
+Headers are part of a staged operation and are preserved with its path and raw GraphQL body. Use placeholder values instead of concrete credentials when state will be dumped or inspected:
 
 ```ruby
-headers = {
-  "x-shopify-access-token" => ENV.fetch("SHOPIFY_ADMIN_ACCESS_TOKEN"),
-}
-
 proxy.process_graphql_request(
-  { query: "{ shop { name } }" },
-  headers: headers,
+  { query: mutation },
+  headers: {
+    "X-Shopify-ServiceApp-Scope-Restricted-Token" => "{{credential}}",
+    "X-Shopify-Service-Name" => "sidekick-server",
+  },
 )
-
-proxy.commit(headers: headers)
 ```
 
-Supported mutations are staged locally during normal runtime. `commit` is the
-explicit write-through boundary and replays the original staged mutation bodies
-in order.
+A header hash passed to `commit` applies to every replay, preserving the commit-wide API:
+
+```ruby
+proxy.commit(
+  headers: {
+    "Authorization" => "Bearer #{ENV.fetch("SHOPIFY_ADMIN_ACCESS_TOKEN")}",
+  },
+)
+```
+
+The Ruby binding also accepts a callable that receives each staged operation and returns its complete final header set. This supports mixed-credential commits without persisting tokens:
+
+```ruby
+proxy.commit(
+  headers: lambda do |operation|
+    operation.fetch("headers").merge(
+      "X-Shopify-ServiceApp-Scope-Restricted-Token" => token_for(operation),
+    )
+  end,
+)
+```
+
+Supported mutations are staged locally during normal runtime. `commit` is the explicit write-through boundary and replays the original staged operations in order.
 
 ## Quickstart
 
