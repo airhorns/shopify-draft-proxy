@@ -666,6 +666,7 @@ struct StagedState {
     inventory_shipments: BTreeMap<String, InventoryShipmentRecord>,
     metaobject_definitions: StagedRecords<Value>,
     metaobjects: StagedRecords<Value>,
+    deleted_metaobject_types: BTreeSet<String>,
     url_redirects: BTreeMap<String, Value>,
     url_redirect_order: Vec<String>,
     linked_product_option_metaobject_sets: Vec<BTreeSet<String>>,

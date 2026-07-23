@@ -1,4 +1,9 @@
-query MetaobjectBulkDeleteByTypeRead($type: String!, $firstId: ID!, $secondId: ID!) {
+query MetaobjectBulkDeleteByTypeRead(
+  $type: String!
+  $firstId: ID!
+  $lastId: ID!
+  $lastHandleQuery: String!
+) {
   first: metaobject(id: $firstId) {
     id
     handle
@@ -21,7 +26,7 @@ query MetaobjectBulkDeleteByTypeRead($type: String!, $firstId: ID!, $secondId: I
       }
     }
   }
-  second: metaobject(id: $secondId) {
+  last: metaobject(id: $lastId) {
     id
     handle
     type
@@ -43,7 +48,7 @@ query MetaobjectBulkDeleteByTypeRead($type: String!, $firstId: ID!, $secondId: I
       }
     }
   }
-  catalog: metaobjects(type: $type, first: 10) {
+  catalog: metaobjects(type: $type, first: 10, query: $lastHandleQuery) {
     edges {
       cursor
       node {

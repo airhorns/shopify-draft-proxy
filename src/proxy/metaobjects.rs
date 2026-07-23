@@ -283,29 +283,46 @@ fn metaobject_bulk_delete_selector_error(
         .and_then(|input| resolved_string_field(input, "type"))
         .is_some_and(|value| !value.is_empty());
 
-    if ids_present != type_present {
-        return None;
-    }
-
-    let mut locations = vec![json!({
-        "line": field.location.line,
-        "column": field.location.column
-    })];
-    if ids_present {
-        if let Some(location) = source_location_for_token_after(query, field.location, "ids") {
-            locations.push(json!({
-                "line": location.line,
-                "column": location.column
-            }));
+    if ids_present == type_present {
+        let mut locations = vec![json!({
+            "line": field.location.line,
+            "column": field.location.column
+        })];
+        if ids_present {
+            if let Some(location) = source_location_for_token_after(query, field.location, "ids") {
+                locations.push(json!({
+                    "line": location.line,
+                    "column": location.column
+                }));
+            }
         }
+
+        return Some(json!({
+            "message": "MetaobjectBulkDeleteWhereCondition requires exactly one of type, ids",
+            "locations": locations,
+            "extensions": {"code": "INVALID_FIELD_ARGUMENTS"},
+            "path": [field.response_key.clone()]
+        }));
     }
 
-    Some(json!({
-        "message": "MetaobjectBulkDeleteWhereCondition requires exactly one of type, ids",
-        "locations": locations,
-        "extensions": {"code": "INVALID_FIELD_ARGUMENTS"},
-        "path": [field.response_key.clone()]
-    }))
+    let ids_len = where_input
+        .as_ref()
+        .and_then(|input| input.get("ids"))
+        .or_else(|| field.arguments.get("ids"))
+        .and_then(resolved_value_list)
+        .map(|ids| ids.len())
+        .unwrap_or_default();
+    (ids_len > 250).then(|| {
+        max_input_size_exceeded_error(
+            [field.response_key.as_str(), "where", "ids"],
+            ids_len,
+            250,
+            Some(json!([{
+                "line": field.location.line,
+                "column": field.location.column
+            }])),
+        )
+    })
 }
 
 fn metaobject_create_duplicate_field_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
@@ -3169,6 +3186,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn has_local_metaobject_state(&self) -> bool {
         !self.store.staged.metaobject_definitions.is_empty()
             || !self.store.staged.metaobjects.is_empty()
+            || !self.store.staged.deleted_metaobject_types.is_empty()
     }
 
     /// Decides whether a metaobject mutation request should be staged locally or
@@ -3304,8 +3322,13 @@ impl DraftProxy {
                 if self.store.staged.metaobjects.is_tombstoned(&id) {
                     return Some(Value::Null);
                 }
-                self.metaobject_by_id(&id)
-                    .map(|record| self.metaobject_canonical_value(&record))
+                if let Some(record) = self.metaobject_by_id(&id) {
+                    return Some(self.metaobject_canonical_value(&record));
+                }
+                upstream_data
+                    .get(&field.response_key)
+                    .filter(|record| self.metaobject_record_has_deleted_type(record))
+                    .map(|_| Value::Null)
             }
             "metaobjectByHandle" => {
                 let Some(ResolvedValue::Object(handle)) = field.arguments.get("handle") else {
@@ -3315,6 +3338,9 @@ impl DraftProxy {
                 let meta_handle = resolved_string_field(handle, "handle").unwrap_or_default();
                 if let Some(record) = self.metaobject_by_type_and_handle(&meta_type, &meta_handle) {
                     return Some(self.metaobject_canonical_value(&record));
+                }
+                if self.metaobject_type_is_deleted(&meta_type) {
+                    return Some(Value::Null);
                 }
                 if upstream_response_id(upstream_data, &field.response_key)
                     .is_some_and(|id| self.store.staged.metaobjects.is_tombstoned(id))
@@ -3349,6 +3375,10 @@ impl DraftProxy {
                     return None;
                 }
                 let local = self.metaobject_connection(field);
+                let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
+                if self.metaobject_type_is_deleted(&meta_type) {
+                    return Some(local);
+                }
                 Some(self.merge_metaobject_connection_overlay(
                     upstream_data.get(&field.response_key),
                     local,
@@ -3637,6 +3667,20 @@ impl DraftProxy {
         self.store.staged.metaobjects.get(&key).cloned()
     }
 
+    fn metaobject_type_is_deleted(&self, meta_type: &str) -> bool {
+        self.store
+            .staged
+            .deleted_metaobject_types
+            .contains(meta_type)
+    }
+
+    fn metaobject_record_has_deleted_type(&self, record: &Value) -> bool {
+        record
+            .get("type")
+            .and_then(Value::as_str)
+            .is_some_and(|meta_type| self.metaobject_type_is_deleted(meta_type))
+    }
+
     /// Resolve a linked metaobject reference (the gid stored in a product option's
     /// `linkedMetafieldValue`) to its display name, projected against the current
     /// definition. Used to render product option values whose names mirror the linked
@@ -3661,7 +3705,7 @@ impl DraftProxy {
             }),
         );
         let record = response.body["data"]["metaobject"].clone();
-        if !record.is_object() {
+        if !record.is_object() || self.metaobject_record_has_deleted_type(&record) {
             return None;
         }
         self.store
@@ -3697,6 +3741,9 @@ impl DraftProxy {
             let Some(id) = record.get("id").and_then(Value::as_str) else {
                 continue;
             };
+            if self.metaobject_record_has_deleted_type(&record) {
+                continue;
+            }
             self.store.staged.metaobjects.insert(id.to_string(), record);
         }
     }
@@ -3710,6 +3757,7 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot
             || meta_type.is_empty()
             || meta_handle.is_empty()
+            || self.metaobject_type_is_deleted(meta_type)
         {
             return None;
         }
@@ -3756,7 +3804,10 @@ impl DraftProxy {
     }
 
     fn hydrate_metaobjects_by_type(&mut self, request: &Request, meta_type: &str) -> Vec<Value> {
-        if self.config.read_mode == ReadMode::Snapshot || meta_type.is_empty() {
+        if self.config.read_mode == ReadMode::Snapshot
+            || meta_type.is_empty()
+            || self.metaobject_type_is_deleted(meta_type)
+        {
             return Vec::new();
         }
         let query = "#graphql
@@ -4459,7 +4510,6 @@ impl DraftProxy {
                     values
                         .iter()
                         .filter_map(resolved_value_string)
-                        .take(250)
                         .collect::<Vec<_>>()
                 })
             });
@@ -4521,6 +4571,11 @@ impl DraftProxy {
                     )]
                 });
             }
+            let observed_count = self
+                .metaobject_definition_by_type(&meta_type)
+                .and_then(|definition| definition.get("metaobjectsCount").cloned())
+                .and_then(|count| count.as_i64())
+                .unwrap_or_default();
             let ids_to_delete = self
                 .store
                 .staged
@@ -4534,20 +4589,41 @@ impl DraftProxy {
                 })
                 .filter_map(|record| record.get("id").and_then(Value::as_str).map(str::to_string))
                 .collect::<Vec<_>>();
+            let deleted_count = i64::try_from(ids_to_delete.len()).unwrap_or(i64::MAX);
             for id in ids_to_delete {
                 self.store.staged.metaobjects.remove(&id);
                 self.store.staged.metaobjects.tombstone(id.clone());
                 touched_ids.push(id);
             }
-            self.increment_metaobject_definition_count(&meta_type, -(touched_ids.len() as i64));
+            self.store
+                .staged
+                .deleted_metaobject_types
+                .insert(meta_type.clone());
+            let settled_count =
+                if observed_count > 0 && deleted_count > 0 && observed_count < deleted_count {
+                    observed_count
+                } else {
+                    0
+                };
+            self.set_metaobject_definition_count(&meta_type, settled_count);
         }
 
         if touched_ids.is_empty() && user_errors.is_empty() {
             *log_successful_noop = true;
         }
         staged_ids.extend(touched_ids);
+        let job_id = self.next_proxy_synthetic_gid("Job");
+        self.store.staged.collection_jobs.insert(
+            job_id.clone(),
+            json!({
+                "__typename": "Job",
+                "id": job_id,
+                "done": true,
+                "query": {"__typename": "QueryRoot"}
+            }),
+        );
         json!({
-            "job": {"id": self.next_proxy_synthetic_gid("Job"), "done": false},
+            "job": {"id": job_id, "done": false},
             "userErrors": user_errors
         })
     }
@@ -5004,9 +5080,15 @@ impl DraftProxy {
 
     fn metaobject_definition_with_derived_fields(&self, definition: &Value) -> Value {
         let mut definition = definition.clone();
-        definition["metaobjectsCount"] = json!(self
-            .metaobject_definition_child_metaobjects(&definition)
-            .len());
+        let meta_type = definition
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if !self.metaobject_type_is_deleted(meta_type) {
+            definition["metaobjectsCount"] = json!(self
+                .metaobject_definition_child_metaobjects(&definition)
+                .len());
+        }
         definition
     }
 
@@ -5160,6 +5242,26 @@ impl DraftProxy {
             .and_then(Value::as_i64)
             .unwrap_or(0);
         definition["metaobjectsCount"] = json!((current + delta).max(0));
+        self.store
+            .staged
+            .metaobject_definitions
+            .insert(id, definition);
+    }
+
+    fn set_metaobject_definition_count(&mut self, meta_type: &str, count: i64) {
+        let Some((id, mut definition)) = self
+            .store
+            .staged
+            .metaobject_definitions
+            .iter()
+            .find(|(_, definition)| {
+                definition.get("type").and_then(Value::as_str) == Some(meta_type)
+            })
+            .map(|(id, definition)| (id.clone(), definition.clone()))
+        else {
+            return;
+        };
+        definition["metaobjectsCount"] = json!(count.max(0));
         self.store
             .staged
             .metaobject_definitions
