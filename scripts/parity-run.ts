@@ -397,11 +397,54 @@ function capturedSetupProductDomainNodes(capture: Record<string, unknown>): Map<
     const payload = normalizedCapturePayload((entry as Record<string, unknown>)['response'] ?? entry);
     collectProductDomainSetupNodes(payload, nodes);
   }
+  if (isPlainObject(setup)) {
+    const productId = setup['productId'];
+    if (typeof productId === 'string' && productDomainResourceType(productId) === 'Product') {
+      // Some registered legacy captures retain only the real product ID returned
+      // by their setup mutation. Replay that captured identity through the same
+      // public node hydration path; no private proxy state is seeded.
+      nodes.set(productId, { id: productId });
+    }
+  }
   const preconditionRead = capture['preconditionRead'];
   if (preconditionRead !== undefined) {
     collectProductDomainSetupNodes(normalizedCapturePayload(preconditionRead), nodes);
   }
+  collectCapturedProductCreateNodes(capture, nodes);
+  collectProductDomainSetupNodes(capture['owners'], nodes);
   return nodes;
+}
+
+function collectCapturedProductCreateNodes(value: unknown, nodes: Map<string, Record<string, unknown>>): void {
+  if (Array.isArray(value)) {
+    for (const entry of value) collectCapturedProductCreateNodes(entry, nodes);
+    return;
+  }
+  if (!isPlainObject(value)) return;
+  const productCreate = value['productCreate'];
+  if (isPlainObject(productCreate) && isPlainObject(productCreate['product'])) {
+    collectProductDomainSetupNodes(productCreate['product'], nodes);
+  }
+  for (const entry of Object.values(value)) collectCapturedProductCreateNodes(entry, nodes);
+}
+
+function capturedOwnerExistenceIds(capture: Record<string, unknown>): Set<string> {
+  const ids = new Set<string>();
+  const calls = Array.isArray(capture['upstreamCalls']) ? capture['upstreamCalls'] : [];
+  for (const call of calls) {
+    if (!isPlainObject(call)) continue;
+    const query = call['query'];
+    if (
+      call['operationName'] !== 'OwnerMetafieldsExistenceHydrate' &&
+      (typeof query !== 'string' || !/\bOwnerMetafieldsExistenceHydrate\b/u.test(query))
+    ) {
+      continue;
+    }
+    const variables = call['variables'];
+    if (!isPlainObject(variables) || !Array.isArray(variables['ids'])) continue;
+    for (const id of variables['ids']) if (typeof id === 'string') ids.add(id);
+  }
+  return ids;
 }
 
 function requestNeedsCapturedProductDomainHydration(request: LoadedProxyRequest): boolean {
@@ -409,10 +452,9 @@ function requestNeedsCapturedProductDomainHydration(request: LoadedProxyRequest)
   const metafields = request.variables['metafields'];
   if (!Array.isArray(metafields)) return false;
   return metafields.some((metafield) => {
-    if (typeof metafield !== 'object' || metafield === null) return false;
-    if (Object.hasOwn(metafield, 'compareDigest')) return true;
-    const type = (metafield as Record<string, unknown>)['type'];
-    return typeof type === 'string' && type.includes('reference') && collectProductDomainGids(metafield).size > 0;
+    if (!isPlainObject(metafield)) return false;
+    const ownerId = metafield['ownerId'];
+    return typeof ownerId === 'string' && productDomainResourceType(ownerId) !== null;
   });
 }
 
@@ -556,12 +598,16 @@ async function hydrateCapturedProductDomainNodes(
   cassette: CassetteServer,
   capture: Record<string, unknown>,
   request: LoadedProxyRequest,
+  hydratedOwnerIds: Set<string>,
 ): Promise<void> {
   if (!requestNeedsCapturedProductDomainHydration(request)) return;
   const setupNodes = capturedSetupProductDomainNodes(capture);
   if (setupNodes.size === 0) return;
+  const recordedExistenceIds = capturedOwnerExistenceIds(capture);
   const ids = [...collectProductDomainGids(request.variables)]
     .filter((id) => setupNodes.has(id))
+    .filter((id) => !recordedExistenceIds.has(id))
+    .filter((id) => !hydratedOwnerIds.has(id))
     .filter((id, index, all) => all.indexOf(id) === index)
     .sort();
   if (ids.length === 0) return;
@@ -584,7 +630,94 @@ async function hydrateCapturedProductDomainNodes(
     },
     hydrateRequest,
   );
-  await sendProxyRequest(proxy, hydrateRequest);
+  const response = await sendProxyRequest(proxy, hydrateRequest);
+  if (response.status >= 200 && response.status < 300) {
+    for (const id of ids) hydratedOwnerIds.add(id);
+  }
+}
+
+function metafieldsSetOwnerIds(request: LoadedProxyRequest): string[] {
+  if (!/\bmetafieldsSet\b/u.test(request.query)) return [];
+  const metafields = request.variables['metafields'];
+  if (!Array.isArray(metafields)) return [];
+  return metafields
+    .map((metafield) => (isPlainObject(metafield) ? metafield['ownerId'] : undefined))
+    .filter((id): id is string => typeof id === 'string');
+}
+
+async function hydrateCapturedOwnerNodes(
+  proxy: DraftProxy,
+  capture: Record<string, unknown>,
+  request: LoadedProxyRequest,
+  hydratedOwnerIds: Set<string>,
+): Promise<void> {
+  const neededIds = metafieldsSetOwnerIds(request).filter((id) => !hydratedOwnerIds.has(id));
+  if (neededIds.length === 0) return;
+  const calls = Array.isArray(capture['upstreamCalls']) ? (capture['upstreamCalls'] as RecordedUpstreamCall[]) : [];
+  const call = calls.find((candidate) => {
+    if (
+      candidate.operationName !== 'OwnerMetafieldsHydrateNodes' ||
+      typeof candidate.query !== 'string' ||
+      !isPlainObject(candidate.variables) ||
+      !Array.isArray(candidate.variables['ids'])
+    ) {
+      return false;
+    }
+    return candidate.variables['ids'].some((id) => typeof id === 'string' && neededIds.includes(id));
+  });
+  if (!call || typeof call.query !== 'string' || !isPlainObject(call.variables)) return;
+  const apiSurface = call.apiSurface ?? 'admin';
+  const hydrateRequest: LoadedProxyRequest = {
+    path: call.path ?? request.path,
+    apiSurface,
+    headers: request.headers,
+    query: call.query,
+    variables: call.variables,
+  };
+  if (call.operationName !== undefined) hydrateRequest.operationName = call.operationName;
+  const response = await sendProxyRequest(proxy, hydrateRequest);
+  if (response.status >= 200 && response.status < 300) {
+    for (const id of call.variables['ids'] as unknown[]) if (typeof id === 'string') hydratedOwnerIds.add(id);
+  }
+}
+
+async function hydrateCapturedShopOwner(
+  proxy: DraftProxy,
+  cassette: CassetteServer,
+  capture: Record<string, unknown>,
+  request: LoadedProxyRequest,
+  hydratedOwnerIds: Set<string>,
+): Promise<void> {
+  const shopOwnerIds = metafieldsSetOwnerIds(request).filter(
+    (id) => id.startsWith('gid://shopify/Shop/') && !hydratedOwnerIds.has(id),
+  );
+  if (shopOwnerIds.length === 0) return;
+  const exchange = [capture['adminShop'], capture['shop']].find(
+    (candidate) =>
+      isPlainObject(candidate) && isPlainObject(candidate['request']) && isPlainObject(candidate['response']),
+  );
+  if (!isPlainObject(exchange) || !isPlainObject(exchange['request'])) return;
+  const query = exchange['request']['query'];
+  if (typeof query !== 'string') return;
+  const variables = isPlainObject(exchange['request']['variables']) ? exchange['request']['variables'] : {};
+  const hydrateRequest: LoadedProxyRequest = {
+    path: request.path,
+    apiSurface: 'admin',
+    headers: request.headers,
+    query,
+    variables,
+  };
+  cassette.setFallbackResponse(
+    {
+      status: typeof exchange['status'] === 'number' ? exchange['status'] : 200,
+      body: exchange['response'],
+    },
+    hydrateRequest,
+  );
+  const response = await sendProxyRequest(proxy, hydrateRequest);
+  if (response.status >= 200 && response.status < 300) {
+    for (const id of shopOwnerIds) hydratedOwnerIds.add(id);
+  }
 }
 
 function proxyGraphqlPath(request: ProxyRequestSpec | undefined, defaultApiVersion = defaultAdminApiVersion): string {
@@ -1069,6 +1202,7 @@ async function runSpec(
   const defaultApiVersion = defaultApiVersionForCapture(capturePath, capture);
   const upstreamCalls = (capture['upstreamCalls'] ?? []) as RecordedUpstreamCall[];
   cassette.setCalls(upstreamCalls);
+  const hydratedOwnerIds = new Set<string>();
   proxy.restoreState(cleanState);
   await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
   const failures: string[] = [];
@@ -1090,7 +1224,9 @@ async function runSpec(
       const primaryFallbackResponse =
         captureResponseForRequest(capture, primaryRequest) ??
         (primaryFallbackTarget ? captureResponseForTarget(capture, primaryFallbackTarget) : null);
-      await hydrateCapturedProductDomainNodes(proxy, cassette, capture, primaryRequest);
+      await hydrateCapturedOwnerNodes(proxy, capture, primaryRequest, hydratedOwnerIds);
+      await hydrateCapturedShopOwner(proxy, cassette, capture, primaryRequest, hydratedOwnerIds);
+      await hydrateCapturedProductDomainNodes(proxy, cassette, capture, primaryRequest, hydratedOwnerIds);
       cassette.setFallbackResponse(primaryFallbackResponse, primaryRequest);
       await hydrateInventoryNodes(proxy, primaryRequest);
       primaryResponse = await sendProxyRequest(proxy, primaryRequest);
@@ -1111,6 +1247,7 @@ async function runSpec(
         primaryResponse = null;
         previousResponse = null;
         namedResponses.clear();
+        hydratedOwnerIds.clear();
       } else if (target.preserveProxyState !== true) {
         proxy.restoreState(mainState);
       }
@@ -1136,7 +1273,9 @@ async function runSpec(
           defaultApiVersion,
         );
         if (request === null) throw new Error(`${target.name}: target proxyRequest did not resolve to a request`);
-        await hydrateCapturedProductDomainNodes(proxy, cassette, capture, request);
+        await hydrateCapturedOwnerNodes(proxy, capture, request, hydratedOwnerIds);
+        await hydrateCapturedShopOwner(proxy, cassette, capture, request, hydratedOwnerIds);
+        await hydrateCapturedProductDomainNodes(proxy, cassette, capture, request, hydratedOwnerIds);
         cassette.setFallbackResponse(captureResponseForTarget(capture, target), request);
         await hydrateInventoryNodes(proxy, request);
         const targetResponse = await sendProxyRequest(proxy, request);

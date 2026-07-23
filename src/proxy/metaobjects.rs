@@ -5458,6 +5458,23 @@ mod tests {
             json!("canonical-entry")
         );
 
+        let owner = proxy.process_request(graphql_request(
+            r#"
+            mutation CreateCanonicalMetaobjectReferenceOwner($product: ProductCreateInput!) {
+              productCreate(product: $product) {
+                product { id }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({"product": {"title": "Canonical metaobject reference owner"}}),
+        ));
+        assert_eq!(owner.body["data"]["productCreate"]["userErrors"], json!([]));
+        let owner_id = owner.body["data"]["productCreate"]["product"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
         let metafields_set = proxy.process_request(graphql_request(
             r#"
             mutation SetCanonicalMetaobjectReference($metafields: [MetafieldsSetInput!]!) {
@@ -5468,7 +5485,7 @@ mod tests {
             }
             "#,
             json!({"metafields": [{
-                "ownerId": "gid://shopify/Product/10173064872245",
+                "ownerId": owner_id,
                 "namespace": "canonical_reference",
                 "key": "linked",
                 "type": "metaobject_reference",

@@ -92,6 +92,9 @@ const OWNER_METAFIELD_PAGE_INFO_FIELDS: &str =
 const OWNER_PRODUCT_BASE_FIELDS: &str =
     "id title handle status totalInventory tracksInventory createdAt updatedAt";
 const OWNER_PRODUCT_VARIANT_BASE_FIELDS: &str = "id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping }";
+const OWNER_METAFIELDS_EXISTENCE_HYDRATE_QUERY: &str = include_str!(
+    "../../../config/parity-requests/products/metafieldsSet-owner-existence-hydrate.graphql"
+);
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct OwnerMetafieldHydrationShape {
@@ -373,6 +376,17 @@ impl DraftProxy {
         let arguments = resolved_arguments_from_json(&invocation.arguments);
         let inputs = resolved_object_list_field(&arguments, "metafields");
         let api_client_id = request_app_namespace_api_client_id(request);
+        let owner_errors = if inputs.len() <= METAFIELDS_SET_INPUT_LIMIT {
+            self.metafields_set_owner_existence_errors(request, &inputs)
+        } else {
+            Vec::new()
+        };
+        if !owner_errors.is_empty() {
+            return ResolverOutcome::value(json!({
+                "metafields": [],
+                "userErrors": owner_errors,
+            }));
+        }
         let fallback_reference_ids = if inputs.len() <= METAFIELDS_SET_INPUT_LIMIT {
             self.hydrate_metafield_reference_ids(
                 request,
@@ -757,6 +771,156 @@ impl DraftProxy {
         self.hydrate_owner_metafield_ids(request, ids, shape);
     }
 
+    fn metafields_set_owner_existence_errors(
+        &mut self,
+        request: &Request,
+        inputs: &[BTreeMap<String, ResolvedValue>],
+    ) -> Vec<Value> {
+        let mut missing_ids = BTreeSet::new();
+        let mut unresolved_ids = inputs
+            .iter()
+            .filter_map(|input| resolved_string_field(input, "ownerId"))
+            .filter(|id| shopify_gid_resource_type(id).is_some())
+            .filter(
+                |id| match self.local_owner_metafield_existence(id, Some(request)) {
+                    Some(true) => false,
+                    Some(false) => {
+                        missing_ids.insert(id.clone());
+                        false
+                    }
+                    None if is_synthetic_gid(id) => {
+                        missing_ids.insert(id.clone());
+                        false
+                    }
+                    None => true,
+                },
+            )
+            .collect::<Vec<_>>();
+        unresolved_ids.sort();
+        unresolved_ids.dedup();
+
+        if self.config.read_mode == ReadMode::LiveHybrid && !unresolved_ids.is_empty() {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": OWNER_METAFIELDS_EXISTENCE_HYDRATE_QUERY,
+                    "operationName": "OwnerMetafieldsExistenceHydrate",
+                    "variables": { "ids": unresolved_ids },
+                }),
+            );
+            let nodes = (200..300)
+                .contains(&response.status)
+                .then(|| {
+                    response
+                        .body
+                        .pointer("/data/nodes")
+                        .and_then(Value::as_array)
+                })
+                .flatten();
+            for (index, id) in unresolved_ids.iter().enumerate() {
+                let exists = nodes
+                    .and_then(|nodes| nodes.get(index))
+                    .and_then(|node| node.get("id"))
+                    .and_then(Value::as_str)
+                    == Some(id.as_str());
+                if !exists {
+                    missing_ids.insert(id.clone());
+                }
+            }
+        } else {
+            missing_ids.extend(unresolved_ids);
+        }
+
+        inputs
+            .iter()
+            .enumerate()
+            .filter_map(|(index, input)| {
+                let owner_id = resolved_string_field(input, "ownerId")?;
+                missing_ids.contains(&owner_id).then(|| {
+                    user_error_with_element_index(
+                        vec!["metafields", &index.to_string(), "ownerId"],
+                        "Owner does not exist.",
+                        Some("INVALID_VALUE"),
+                        Value::Null,
+                    )
+                })
+            })
+            .collect()
+    }
+
+    fn local_owner_metafield_existence(
+        &self,
+        owner_id: &str,
+        request: Option<&Request>,
+    ) -> Option<bool> {
+        if self
+            .execution_session
+            .owner_metafield_missing_ids
+            .contains(owner_id)
+        {
+            return Some(false);
+        }
+        if self.store.staged.metafield_reference_ids.contains(owner_id) {
+            return Some(true);
+        }
+        match self.request_entity_load_state(ApiSurface::Admin, owner_id, request) {
+            crate::node_resolver_inventory::NodeLoadState::Found(_) => return Some(true),
+            crate::node_resolver_inventory::NodeLoadState::KnownMissing => return Some(false),
+            crate::node_resolver_inventory::NodeLoadState::NeedsHydration
+            | crate::node_resolver_inventory::NodeLoadState::UnsupportedType => {}
+        }
+
+        match shopify_gid_resource_type(owner_id) {
+            Some("Market") => {
+                if self.store.staged.deleted_market_ids.contains(owner_id) {
+                    Some(false)
+                } else {
+                    self.store
+                        .staged
+                        .markets
+                        .contains_key(owner_id)
+                        .then_some(true)
+                }
+            }
+            Some("PaymentCustomization") => {
+                if self
+                    .store
+                    .staged
+                    .deleted_payment_customization_ids
+                    .contains(owner_id)
+                {
+                    Some(false)
+                } else {
+                    self.store
+                        .staged
+                        .payment_customizations
+                        .contains_key(owner_id)
+                        .then_some(true)
+                }
+            }
+            Some("DraftOrder") => {
+                if self.store.staged.draft_orders.is_tombstoned(owner_id) {
+                    Some(false)
+                } else {
+                    self.store
+                        .observed_draft_order_by_id(owner_id)
+                        .is_some()
+                        .then_some(true)
+                }
+            }
+            Some("SellingPlan") => self
+                .store
+                .selling_plan_groups()
+                .iter()
+                .any(|group| group.selling_plans.iter().any(|plan| plan.id == owner_id))
+                .then_some(true),
+            Some("Shop") => (self.store.base.shop.get("id").and_then(Value::as_str)
+                == Some(owner_id))
+            .then_some(true),
+            _ => None,
+        }
+    }
+
     fn hydrate_owner_metafield_inputs(
         &mut self,
         request: &Request,
@@ -768,7 +932,21 @@ impl DraftProxy {
             .iter()
             .filter_map(|input| {
                 let owner_id = resolved_string_field(input, "ownerId")?;
-                shopify_gid_resource_type(&owner_id)?;
+                let owner_type = shopify_gid_resource_type(&owner_id)?;
+                if is_synthetic_gid(&owner_id)
+                    || !matches!(
+                        owner_type,
+                        "Product"
+                            | "ProductVariant"
+                            | "Collection"
+                            | "Customer"
+                            | "Order"
+                            | "Company"
+                            | "Shop"
+                    )
+                {
+                    return None;
+                }
                 let namespace = canonical_app_metafield_namespace(
                     resolved_string_field(input, "namespace").as_deref(),
                     api_client_id,

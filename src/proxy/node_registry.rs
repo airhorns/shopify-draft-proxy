@@ -75,11 +75,13 @@ impl DraftProxy {
                         .contains(invocation.response_key)
                 })
         {
+            let hydration_response = hydration.response.clone();
             let mut outcome = resolver_outcome_from_upstream_response(
-                hydration.response.clone(),
+                hydration_response.clone(),
                 invocation.response_key,
             );
             if outcome.errors.is_empty() {
+                self.observe_nodes_response(&hydration_response);
                 self.observe_delivery_promise_node_root_value(
                     invocation.root_name,
                     &arguments,
@@ -438,6 +440,12 @@ impl DraftProxy {
 
     fn observe_node_response_value(&mut self, node: &Value) {
         let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
+        if shopify_gid_resource_type(id).is_some() {
+            self.store
+                .staged
+                .metafield_reference_ids
+                .insert(id.to_string());
+        }
         if is_shopify_gid_of_type(id, "Product") {
             self.store.stage_observed_product_json(node);
             if let Some(product_id) = node.get("id").and_then(Value::as_str) {

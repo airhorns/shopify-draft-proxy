@@ -2977,6 +2977,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metafields',
+    captureId: 'product-metafields-set-owner-existence',
+    scriptPath: 'scripts/capture-metafields-set-owner-existence-conformance.ts',
+    purpose:
+      'Product-owner metafieldsSet rejection for one deleted owner plus atomic rollback for a mixed existing/deleted-owner batch.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafields-set-owner-existence-atomicity.json`,
+      'config/parity-specs/products/metafieldsSet-owner-existence-atomicity.json',
+      'config/parity-requests/products/metafieldsSet-owner-existence-hydrate.graphql',
+      'config/parity-requests/products/metafieldsSet-owner-existence-read.graphql',
+      'config/parity-requests/products/metafieldsSet-parity-plan.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable draft products, deletes one before the owner-existence probes, records single and mixed rejection plus valid-owner readback, then deletes the remaining product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'metafields-owner-connection-args',
     scriptPath: 'scripts/capture-product-owner-metafields-connection-args-conformance.mts',
