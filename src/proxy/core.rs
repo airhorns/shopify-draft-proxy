@@ -489,6 +489,13 @@ impl DraftProxy {
                 "discountCountBaselines": self.store.base.discount_count_baselines.clone(),
                 "segments": self.store.base.segments.records.clone(),
                 "segmentOrder": self.store.base.segments.order,
+                "segmentNameIds": self.store.base.segment_name_ids.clone(),
+                "segmentCompleteNameProbes": self.store.base.segment_complete_name_probes.iter().cloned().collect::<Vec<_>>(),
+                "segmentKnownMissingIds": self.store.base.segment_known_missing_ids.iter().cloned().collect::<Vec<_>>(),
+                "segmentCountBaseline": self.store.base.segment_count_baseline.clone().unwrap_or(Value::Null),
+                "segmentCatalogComplete": self.store.base.segment_catalog_complete,
+                "customerSegmentMemberQueries": self.store.base.customer_segment_member_queries.clone(),
+                "customerSegmentMemberQueryKnownMissingIds": self.store.base.customer_segment_member_query_known_missing_ids.iter().cloned().collect::<Vec<_>>(),
                 "bulkOperations": self.store.base.bulk_operations.records.clone(),
                 "bulkOperationOrder": self.store.base.bulk_operations.order.clone(),
                 "bulkOperationsObserved": self.store.base.bulk_operations_observed,
@@ -612,6 +619,7 @@ impl DraftProxy {
                 "segments": self.store.staged.segments.records.clone(),
                 "segmentOrder": self.store.staged.segments.order.clone(),
                 "deletedSegmentIds": self.store.staged.segments.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "customerSegmentMemberQueries": self.store.staged.customer_segment_member_queries.clone(),
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "createdPublicationIds": self.store.staged.created_publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publications": self.store.staged.publications.clone(),
@@ -1740,6 +1748,43 @@ impl DraftProxy {
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
+        self.store.base.segment_name_ids = state["baseState"]
+            .get("segmentNameIds")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
+        if self.store.base.segment_name_ids.is_empty() {
+            self.store.rebuild_segment_name_index();
+        }
+        self.store.base.segment_complete_name_probes = state["baseState"]
+            .get("segmentCompleteNameProbes")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.base.segment_known_missing_ids = state["baseState"]
+            .get("segmentKnownMissingIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.base.segment_count_baseline = state["baseState"]
+            .get("segmentCountBaseline")
+            .filter(|value| value.is_object())
+            .cloned();
+        self.store.base.segment_catalog_complete = state["baseState"]
+            .get("segmentCatalogComplete")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        self.store.base.customer_segment_member_queries =
+            value_map_from_json(state["baseState"].get("customerSegmentMemberQueries"));
+        self.store
+            .base
+            .customer_segment_member_query_known_missing_ids = state["baseState"]
+            .get("customerSegmentMemberQueryKnownMissingIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.base.gift_cards = value_map_from_json(state["baseState"].get("giftCards"));
         self.store.base.gift_card_configuration = state["baseState"]
             .get("giftCardConfiguration")
@@ -2524,6 +2569,8 @@ impl DraftProxy {
             Some("segmentOrder"),
             Some("deletedSegmentIds"),
         );
+        self.store.staged.customer_segment_member_queries =
+            value_map_from_json(state["stagedState"].get("customerSegmentMemberQueries"));
         self.store.staged.fulfillment_order_cursors = state["stagedState"]
             .get("fulfillmentOrderCursors")
             .and_then(|value| serde_json::from_value(value.clone()).ok())

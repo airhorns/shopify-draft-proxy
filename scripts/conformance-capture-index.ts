@@ -304,6 +304,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}b2b-company-create-lifecycle.json`,
       `${CAPTURE_ROOT}localization-locale-translation-fixture.json`,
       `${CAPTURE_ROOT}metaobject-create-cold-hydration.json`,
+      'config/parity-specs/segments/segment-delete-unknown-id-validation.json',
+      'config/parity-specs/segments/segment-update-unknown-id-validation.json',
       'config/parity-specs/b2b/b2b-company-mutation-validation.json',
       'config/parity-requests/b2b/b2b-company-mutation-validation.graphql',
       'config/parity-requests/b2b/b2b-company-roots-read.variables.json',
@@ -6979,6 +6981,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segment-authoritative-prerequisites',
+    scriptPath: 'scripts/capture-segment-authoritative-prerequisites-conformance.ts',
+    purpose:
+      'Bounded query-only Segment create prerequisites, cold valid/invalid segmentId member-query jobs, and cold persisted member-job polling.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-authoritative-prerequisites.json`,
+      'config/parity-specs/segments/segment-authoritative-prerequisites.json',
+      'config/parity-requests/segments/segment-authoritative-name-create.graphql',
+      'config/parity-requests/segments/customer-segment-members-query-authoritative-segment-id.graphql',
+      'config/parity-requests/segments/customer-segment-members-query-authoritative-poll.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable Segments, deletes both after capture, and leaves only Shopify async member-query job state for which no cleanup mutation exists.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
     captureId: 'segment-query-grammar',
     scriptPath: 'scripts/capture-segment-query-grammar-conformance.ts',
     purpose:
@@ -6988,6 +7008,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}segment-query-grammar-not-contains.json`,
       `${CAPTURE_ROOT}segment-create-update-query-grammar.json`,
       'config/parity-specs/segments/segment-create-update-query-grammar.json',
+      'config/parity-specs/segments/segment-query-grammar-not-contains.json',
       'config/parity-requests/segments/segment-create-update-query-grammar-create.graphql',
       'config/parity-requests/segments/segment-create-update-query-grammar-update.graphql',
     ],
@@ -7039,6 +7060,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}segment-name-suffix-and-limit.json`,
       'config/parity-specs/segments/segment-name-suffix-and-limit.json',
+      'config/parity-specs/segments/segment-authoritative-limit-prerequisite.json',
       'config/parity-requests/segments/segment-create-limit-setup-chunk.graphql',
       'config/parity-requests/segments/segment-create-limit-validation.graphql',
       'config/parity-requests/segments/segment-name-suffix-duplicate.graphql',
