@@ -304,6 +304,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}b2b-company-create-lifecycle.json`,
       `${CAPTURE_ROOT}localization-locale-translation-fixture.json`,
       `${CAPTURE_ROOT}metaobject-create-cold-hydration.json`,
+      'config/parity-specs/segments/segment-delete-unknown-id-validation.json',
+      'config/parity-specs/segments/segment-update-unknown-id-validation.json',
       'config/parity-specs/b2b/b2b-company-mutation-validation.json',
       'config/parity-requests/b2b/b2b-company-mutation-validation.graphql',
       'config/parity-requests/b2b/b2b-company-roots-read.variables.json',
@@ -3359,17 +3361,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'metafields',
     captureId: 'standard-metafield-definition-enable-material',
-    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-standard-metafield-definition-enable-material.mts',
-    purpose: 'standardMetafieldDefinitionEnable success payload for the PRODUCT shopify.material standard template.',
+    purpose:
+      'Material and color-pattern standard metafield enablement, linked MetaobjectDefinition identity, linked value creation, metafieldsSet, product options, and downstream readback.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}standard-metafield-definition-enable-material.json`,
       'config/parity-specs/metafields/standard-metafield-definition-enable-material.json',
       'config/parity-requests/metafields/standard-metafield-definition-enable-material.graphql',
+      'config/parity-requests/metafields/standard-metafield-definition-linked-product-create.graphql',
+      'config/parity-requests/metafields/standard-metafield-definition-linked-read.graphql',
+      'config/parity-requests/metafields/standard-metafield-definition-linked-values-create.graphql',
+      'config/parity-requests/metafields/standard-metafield-definition-linked-attach.graphql',
+      'config/parity-requests/metafields/standard-metafield-definition-linked-readback.graphql',
     ],
     cleanupBehavior:
-      'Re-enables the standard product material definition and records the idempotent success payload; the conformance shop may retain the standard definition because Shopify denied delete access for this protected standard definition.',
+      'Re-enables the protected material and color-pattern standard definitions, deletes the disposable linked metaobjects and product, and retains only Shopify-managed standard definitions.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -3553,6 +3561,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-online-store-preview-url-contract',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-product-online-store-preview-url-conformance.ts',
+    purpose:
+      'Product.onlineStorePreviewUrl availability, null, and malformed-id boundaries across extant DRAFT/ARCHIVED products, deletion, and two Admin API versions.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-online-store-preview-url-contract.json`,
+      'config/parity-specs/products/product-online-store-preview-url-contract.json',
+      'config/parity-requests/products/product-online-store-preview-url-contract.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable DRAFT product, archives it, records preview reads on Admin API 2025-01 and 2026-07, deletes it, and records post-delete reads; failures use best-effort product deletion.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-graph-mutations',
     scriptPath: 'scripts/capture-product-graph-mutation-conformance.mts',
     purpose: 'Product graph mutation branches that span product/options/variants/media.',
@@ -3651,6 +3676,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/products/product-helper-roots-read.json',
     ],
     cleanupBehavior: 'Read-only capture; no cleanup expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'saved-searches',
+    captureId: 'saved-search-partial-page-overlay',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-saved-search-partial-page-overlay-conformance.ts',
+    purpose:
+      'SavedSearch authoritative partial-page pagination plus bounded staged create, update, and delete overlays.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-partial-page-overlay.json`,
+      'config/parity-specs/saved-searches/saved-search-partial-page-overlay.json',
+      'config/parity-requests/saved-searches/saved-search-partial-page-read.graphql',
+      'config/parity-requests/saved-searches/saved-search-partial-page-update.graphql',
+      'config/parity-requests/saved-searches/saved-search-partial-page-delete.graphql',
+      'config/parity-requests/saved-searches/saved-search-partial-page-create.graphql',
+      'config/parity-requests/saved-searches/saved-search-partial-page-reverse.graphql',
+      'config/parity-requests/saved-searches/saved-search-partial-page-after.graphql',
+      'config/parity-requests/saved-searches/saved-search-partial-page-before.graphql',
+    ],
+    cleanupBehavior:
+      'Clears disposable product saved searches, creates three authoritative rows, mutates/deletes/creates lifecycle rows, then deletes survivors.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -4933,14 +4981,17 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'metaobject-bulk-delete',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-bulk-delete-conformance.ts',
-    purpose: 'Metaobject bulk delete by type plus downstream deleted-row and definition-count reads.',
+    purpose:
+      'Metaobject bulk delete across a 251-entry type with bounded hydration, settled job, and authoritative downstream reads.',
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metaobject-bulk-delete-type-lifecycle.json`,
       'config/parity-specs/metaobjects/metaobject-bulk-delete-type-lifecycle.json',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-job-read.graphql',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-type-read.graphql',
     ],
     cleanupBehavior:
-      'Creates a disposable definition and rows, bulk deletes rows by type, then deletes the definition.',
+      'Creates a disposable definition and 251 lightweight rows, bulk deletes the full type, polls the job, then deletes the definition.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -4986,7 +5037,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-bulk-delete-edge-cases-conformance.ts',
     purpose:
-      'Metaobject bulk delete empty ids, unknown type, known empty type, and exactly-one-of GraphQL validation edge cases.',
+      'Metaobject bulk delete empty ids, unknown/empty type, exactly-one-of validation, and atomic 251-ID rejection.',
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metaobject-bulk-delete-edge-cases.json`,
@@ -4994,10 +5045,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-both-type-and-ids.graphql',
       'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-empty-ids.graphql',
       'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-known-empty-type.graphql',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-over-limit.graphql',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-over-limit-read.graphql',
       'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-unknown-type.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable definition and row, deletes the row before the known-empty-type branch, then deletes the definition in cleanup.',
+      'Creates one disposable definition, deletes its first row before the known-empty branch, proves a second row survives 251-ID rejection, then cleans up.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -6951,6 +7004,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segment-authoritative-prerequisites',
+    scriptPath: 'scripts/capture-segment-authoritative-prerequisites-conformance.ts',
+    purpose:
+      'Bounded query-only Segment create prerequisites, cold valid/invalid segmentId member-query jobs, and cold persisted member-job polling.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-authoritative-prerequisites.json`,
+      'config/parity-specs/segments/segment-authoritative-prerequisites.json',
+      'config/parity-requests/segments/segment-authoritative-name-create.graphql',
+      'config/parity-requests/segments/customer-segment-members-query-authoritative-segment-id.graphql',
+      'config/parity-requests/segments/customer-segment-members-query-authoritative-poll.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable Segments, deletes both after capture, and leaves only Shopify async member-query job state for which no cleanup mutation exists.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
     captureId: 'segment-query-grammar',
     scriptPath: 'scripts/capture-segment-query-grammar-conformance.ts',
     purpose:
@@ -6960,6 +7031,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}segment-query-grammar-not-contains.json`,
       `${CAPTURE_ROOT}segment-create-update-query-grammar.json`,
       'config/parity-specs/segments/segment-create-update-query-grammar.json',
+      'config/parity-specs/segments/segment-query-grammar-not-contains.json',
       'config/parity-requests/segments/segment-create-update-query-grammar-create.graphql',
       'config/parity-requests/segments/segment-create-update-query-grammar-update.graphql',
     ],
@@ -7011,6 +7083,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}segment-name-suffix-and-limit.json`,
       'config/parity-specs/segments/segment-name-suffix-and-limit.json',
+      'config/parity-specs/segments/segment-authoritative-limit-prerequisite.json',
       'config/parity-requests/segments/segment-create-limit-setup-chunk.graphql',
       'config/parity-requests/segments/segment-create-limit-validation.graphql',
       'config/parity-requests/segments/segment-name-suffix-duplicate.graphql',
@@ -7335,12 +7408,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/storefront/storefront-discovery-publish-admin.graphql',
       'config/parity-requests/storefront/storefront-discovery-read.graphql',
       'config/parity-requests/storefront/storefront-discovery-setup-admin.graphql',
+      'config/parity-requests/storefront/storefront-node-overlay-read.graphql',
+      'config/parity-requests/storefront/storefront-node-unrelated-setup-admin.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable product, collection, blog, article, and two pages through Admin GraphQL; publishes catalog resources to Online Store; polls authenticated Storefront discovery until indexed; then deletes every created resource.',
+      'Creates two disposable products, two collections, one blog, one article, and three pages through Admin GraphQL; publishes catalog resources to Online Store; polls authenticated Storefront discovery and mixed Node reads until indexed; then deletes every created resource.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'The recorder captures exact publication hydration for proxy replay. Query suggestions use a stable broad prefix only as input; runtime behavior must derive suggestions and tracking parameters without response-keying on the captured term.',
+      'The recorder captures exact publication hydration plus a live Storefront mixed-Node cassette where a proxy-synthetic Product misses upstream while unrelated real Product, Collection, Page, and Menu IDs remain visible. Query suggestions use a stable broad prefix only as input; runtime behavior must derive suggestions and tracking parameters without response-keying on the captured term.',
   },
   {
     domain: 'storefront',

@@ -7,6 +7,9 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/admin-platform/connection-sort-key-coverage.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/segments/segments-sort-key-create.graphql",
     "variablesCapturePath": "$.operations.segments.alphaCreate.variables",

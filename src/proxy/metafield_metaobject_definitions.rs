@@ -1844,6 +1844,15 @@ impl DraftProxy {
             } else if resolved_bool_field(&args, "pin") == Some(false) {
                 existing_definition["pinnedPosition"] = Value::Null;
             }
+            if let Some(meta_type) = template.standard_metaobject_definition_type.as_deref() {
+                let Some(prepared) =
+                    self.prepare_linked_standard_metaobject_definition(request, meta_type)
+                else {
+                    return linked_standard_metafield_definition_not_found_payload();
+                };
+                let id = self.stage_linked_standard_metaobject_definition(prepared);
+                replace_metaobject_definition_id_validation(&mut existing_definition, &id);
+            }
             if let Some(id) = existing_definition["id"].as_str() {
                 staged_ids.push(id.to_string());
             }
@@ -1939,6 +1948,15 @@ impl DraftProxy {
             definition["pinnedPosition"] =
                 json!(self.next_metafield_definition_pin_position(owner_type));
         }
+        if let Some(meta_type) = template.standard_metaobject_definition_type.as_deref() {
+            let Some(prepared) =
+                self.prepare_linked_standard_metaobject_definition(request, meta_type)
+            else {
+                return linked_standard_metafield_definition_not_found_payload();
+            };
+            let id = self.stage_linked_standard_metaobject_definition(prepared);
+            replace_metaobject_definition_id_validation(&mut definition, &id);
+        }
         if let Some(id) = definition["id"].as_str() {
             staged_ids.push(id.to_string());
         }
@@ -2003,6 +2021,7 @@ struct StandardMetafieldDefinitionTemplate {
     #[serde(rename = "type")]
     metafield_type: String,
     validations: Vec<StandardMetafieldDefinitionValidation>,
+    standard_metaobject_definition_type: Option<String>,
     #[serde(default)]
     derived_validations: Vec<StandardMetafieldDefinitionValidation>,
     constraints: Option<StandardMetafieldDefinitionTemplateConstraints>,
@@ -2024,6 +2043,32 @@ struct StandardMetafieldDefinitionValidation {
 struct StandardMetafieldDefinitionTemplateConstraints {
     key: String,
     values: Vec<String>,
+}
+
+fn replace_metaobject_definition_id_validation(definition: &mut Value, id: &str) {
+    let Some(validations) = definition
+        .get_mut("validations")
+        .and_then(Value::as_array_mut)
+    else {
+        return;
+    };
+    for validation in validations {
+        if validation.get("name").and_then(Value::as_str) == Some("metaobject_definition_id") {
+            validation["value"] = json!(id);
+        }
+    }
+}
+
+fn linked_standard_metafield_definition_not_found_payload() -> Value {
+    json!({
+        "createdDefinition": Value::Null,
+        "userErrors": [metafield_definition_user_error(
+            "StandardMetafieldDefinitionEnableUserError",
+            Value::Null,
+            "A standard definition wasn't found for the specified owner type, namespace, and key.",
+            "TEMPLATE_NOT_FOUND"
+        )]
+    })
 }
 
 static STANDARD_METAFIELD_DEFINITION_CATALOG: OnceLock<StandardMetafieldDefinitionCatalog> =

@@ -1,0 +1,43 @@
+mutation StandardLinkedMetafieldValuesCreate(
+  $material: MetaobjectCreateInput!
+  $colorPattern: MetaobjectCreateInput!
+) {
+  material: metaobjectCreate(metaobject: $material) {
+    metaobject {
+      id
+      type
+      handle
+      displayName
+      definition {
+        id
+        type
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+  colorPattern: metaobjectCreate(metaobject: $colorPattern) {
+    metaobject {
+      id
+      type
+      handle
+      displayName
+      definition {
+        id
+        type
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

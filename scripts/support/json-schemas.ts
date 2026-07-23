@@ -153,6 +153,7 @@ export const parityProxyHttpRequestSpecSchema = z.strictObject({
 export type ProxyHttpRequestSpec = z.infer<typeof parityProxyHttpRequestSpecSchema>;
 
 export const matcherSchema = z.union([
+  z.literal('null'),
   z.literal('any-string'),
   z.literal('non-empty-string'),
   z.literal('jsonl-string'),

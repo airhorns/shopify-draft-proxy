@@ -1,0 +1,58 @@
+{
+  "scenarioId": "product-online-store-preview-url-contract",
+  "operationNames": ["product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "nullability-parity", "error-parity", "version-behavior"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-online-store-preview-url-contract.json"
+  ],
+  "runtimeTestFiles": ["tests/product_set_hydration.rs", "tests/graphql_routes/store_state.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-online-store-preview-url-contract.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.draftRead.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "extant-draft-product-authoritative-preview-url",
+        "capturePath": "$.draftRead.response.payload",
+        "proxyPath": "$"
+      },
+      {
+        "name": "extant-archived-product-authoritative-preview-url",
+        "capturePath": "$.archivedRead.response.payload",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-online-store-preview-url-contract.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.archivedRead.variables"
+        },
+        "proxyPath": "$"
+      },
+      {
+        "name": "deleted-product-null-boundary",
+        "capturePath": "$.deletedRead.response.payload",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-online-store-preview-url-contract.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.deletedRead.variables"
+        },
+        "proxyPath": "$"
+      },
+      {
+        "name": "malformed-product-id-error-boundary",
+        "capturePath": "$.malformedIdRead.response.payload.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-online-store-preview-url-contract.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.malformedIdRead.variables"
+        },
+        "proxyPath": "$.errors"
+      }
+    ]
+  },
+  "notes": "Strict live parity for Product.onlineStorePreviewUrl. The configured Online Store shop returns signed Shopify preview URLs for extant DRAFT and ARCHIVED products, product: null after deletion, and a GraphQL error for a malformed global id. The same extant/deleted observations are also recorded on Admin API 2026-07 to make the version context explicit."
+}

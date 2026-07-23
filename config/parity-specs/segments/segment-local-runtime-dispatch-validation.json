@@ -7,6 +7,9 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-local-runtime-dispatch-validation.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/segments/segment-local-runtime-dispatch-validation.graphql",
     "apiVersion": "2025-01",

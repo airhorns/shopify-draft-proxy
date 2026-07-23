@@ -78,6 +78,48 @@
         }
       },
       {
+        "name": "storefront-node-overlay-keeps-unrelated-real-resources-visible",
+        "capturePath": "$.storefrontNodeOverlayExpected.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-node-overlay-read.graphql",
+          "operationName": "StorefrontNodeOverlayRead",
+          "variables": {
+            "menuId": {
+              "fromCapturePath": "$.storefrontNodeMenuHydrate.response.body.data.menu.id"
+            },
+            "ids": [
+              { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+              {
+                "fromCapturePath": "$.adminUnrelatedNodeSetup.response.data.productCreate.product.id"
+              },
+              {
+                "fromCapturePath": "$.adminUnrelatedNodeSetup.response.data.collectionCreate.collection.id"
+              },
+              {
+                "fromCapturePath": "$.adminUnrelatedNodeSetup.response.data.pageCreate.page.id"
+              },
+              {
+                "fromCapturePath": "$.storefrontNodeMenuHydrate.response.body.data.menu.id"
+              },
+              "gid://shopify/Page/999999999999999999",
+              {
+                "fromCapturePath": "$.adminUnrelatedNodeSetup.response.data.pageCreate.page.id"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.mixed[0].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy overlays the staged synthetic Product while every unrelated ID comes from the live Storefront response."
+          }
+        ]
+      },
+      {
         "name": "storefront-discovery-whole-selected-abstract-payloads",
         "capturePath": "$.storefrontDiscovery.response.body.data",
         "proxyPath": "$.data",

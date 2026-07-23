@@ -7737,6 +7737,309 @@ fn storefront_node_and_nodes_dispatch_supported_visible_types_and_preserve_slots
 }
 
 #[test]
+fn storefront_node_hydrates_an_unrelated_id_after_local_product_discovery() {
+    let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let observed_for_proxy = Arc::clone(&observed_requests);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        observed_for_proxy.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "node": {
+                        "__typename": "Page",
+                        "id": "gid://shopify/Page/upstream-unrelated",
+                        "handle": "upstream-unrelated",
+                        "title": "Upstream unrelated page"
+                    }
+                }
+            }),
+        }
+    });
+
+    let staged = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageUnrelatedProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Local discovery product" } }),
+    ));
+    assert_eq!(staged.status, 200, "{}", staged.body);
+    assert_eq!(
+        staged.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let staged_content = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageOtherDiscoveryState(
+          $collection: CollectionInput!
+          $page: PageCreateInput!
+        ) {
+          collectionCreate(input: $collection) {
+            collection { id title }
+            userErrors { field message }
+          }
+          pageCreate(page: $page) {
+            page { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "collection": { "title": "Local discovery collection" },
+            "page": { "title": "Local discovery page", "isPublished": true }
+        }),
+    ));
+    assert_eq!(staged_content.status, 200, "{}", staged_content.body);
+    assert_eq!(
+        staged_content.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        staged_content.body["data"]["pageCreate"]["userErrors"],
+        json!([])
+    );
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query UnrelatedStorefrontNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            id
+            ... on Page { handle title }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Page/upstream-unrelated" }),
+    ));
+
+    assert_eq!(response.status, 200, "{}", response.body);
+    assert_eq!(response.body["errors"], Value::Null, "{}", response.body);
+    assert_eq!(
+        response.body["data"]["node"],
+        json!({
+            "__typename": "Page",
+            "id": "gid://shopify/Page/upstream-unrelated",
+            "handle": "upstream-unrelated",
+            "title": "Upstream unrelated page"
+        })
+    );
+    assert_eq!(observed_requests.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn storefront_nodes_merge_each_id_and_reuse_one_upstream_request() {
+    let publication_id = "gid://shopify/Publication/storefront-node-overlay";
+    let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let observed_for_proxy = Arc::clone(&observed_requests);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        observed_for_proxy.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "single": {
+                        "__typename": "Page",
+                        "id": "gid://shopify/Page/upstream-mixed",
+                        "handle": "upstream-mixed",
+                        "title": "Upstream mixed page"
+                    },
+                    "mixed": [
+                        null,
+                        {
+                            "__typename": "Page",
+                            "id": "gid://shopify/Page/upstream-mixed",
+                            "handle": "upstream-mixed",
+                            "title": "Upstream mixed page"
+                        },
+                        {
+                            "__typename": "Menu",
+                            "id": "gid://shopify/Menu/upstream-mixed",
+                            "handle": "upstream-mixed-menu",
+                            "title": "Upstream mixed menu"
+                        },
+                        null,
+                        {
+                            "__typename": "Collection",
+                            "id": "gid://shopify/Collection/upstream-mixed",
+                            "handle": "upstream-mixed-collection",
+                            "title": "Upstream mixed collection"
+                        },
+                        {
+                            "__typename": "Page",
+                            "id": "gid://shopify/Page/upstream-mixed",
+                            "handle": "upstream-mixed",
+                            "title": "Upstream mixed page"
+                        }
+                    ]
+                }
+            }),
+        }
+    });
+    restore_storefront_current_publication(&mut proxy, publication_id);
+
+    let staged = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageMixedNodeProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Local mixed-node product" } }),
+    ));
+    let product_id = staged.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    publish_to_current_storefront_channel(&mut proxy, &product_id);
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query MixedStorefrontNodes($pageId: ID!, $ids: [ID!]!) {
+          single: node(id: $pageId) {
+            __typename
+            id
+            ... on Page { handle title }
+          }
+          mixed: nodes(ids: $ids) {
+            __typename
+            id
+            ... on Product { title }
+            ... on Page { handle title }
+            ... on Menu { handle title }
+            ... on Collection { handle title }
+          }
+        }
+        "#,
+        json!({
+            "pageId": "gid://shopify/Page/upstream-mixed",
+            "ids": [
+                product_id,
+                "gid://shopify/Page/upstream-mixed",
+                "gid://shopify/Menu/upstream-mixed",
+                "gid://shopify/Page/upstream-missing",
+                "gid://shopify/Collection/upstream-mixed",
+                "gid://shopify/Page/upstream-mixed"
+            ]
+        }),
+    ));
+
+    assert_eq!(response.status, 200, "{}", response.body);
+    assert_eq!(response.body["errors"], Value::Null, "{}", response.body);
+    assert_eq!(
+        response.body["data"]["single"]["title"],
+        json!("Upstream mixed page")
+    );
+    let nodes = response.body["data"]["mixed"].as_array().unwrap();
+    assert_eq!(nodes.len(), 6);
+    assert_eq!(nodes[0]["title"], json!("Local mixed-node product"));
+    assert_eq!(nodes[1]["title"], json!("Upstream mixed page"));
+    assert_eq!(nodes[2]["title"], json!("Upstream mixed menu"));
+    assert_eq!(nodes[3], Value::Null);
+    assert_eq!(nodes[4]["title"], json!("Upstream mixed collection"));
+    assert_eq!(nodes[5], nodes[1]);
+    assert_eq!(observed_requests.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn storefront_nodes_overlay_tombstones_while_hydrating_other_ids() {
+    let deleted_product_id = "gid://shopify/Product/storefront-node-deleted";
+    let upstream_page_id = "gid://shopify/Page/storefront-node-upstream";
+    let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let observed_for_proxy = Arc::clone(&observed_requests);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_base_products(vec![storefront_product_fixture(
+        deleted_product_id,
+        "Deleted Node product",
+        "deleted-node-product",
+        None,
+    )])
+    .with_upstream_transport(move |request| {
+        observed_for_proxy.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "mixed": [
+                        {
+                            "__typename": "Product",
+                            "id": deleted_product_id,
+                            "title": "Upstream must not resurrect this product"
+                        },
+                        {
+                            "__typename": "Page",
+                            "id": upstream_page_id,
+                            "handle": "storefront-node-upstream",
+                            "title": "Hydrated upstream Page"
+                        }
+                    ]
+                }
+            }),
+        }
+    });
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteStorefrontNodeProduct($input: ProductDeleteInput!) {
+          productDelete(input: $input) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": deleted_product_id } }),
+    ));
+    assert_eq!(deleted.status, 200, "{}", deleted.body);
+    assert_eq!(
+        deleted.body["data"]["productDelete"]["userErrors"],
+        json!([])
+    );
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontNodeTombstoneOverlay($ids: [ID!]!) {
+          mixed: nodes(ids: $ids) {
+            __typename
+            id
+            ... on Product { title }
+            ... on Page { handle title }
+          }
+        }
+        "#,
+        json!({ "ids": [deleted_product_id, upstream_page_id] }),
+    ));
+
+    assert_eq!(response.status, 200, "{}", response.body);
+    assert_eq!(response.body["errors"], Value::Null, "{}", response.body);
+    assert_eq!(response.body["data"]["mixed"][0], Value::Null);
+    assert_eq!(
+        response.body["data"]["mixed"][1]["title"],
+        json!("Hydrated upstream Page")
+    );
+    assert_eq!(observed_requests.lock().unwrap().len(), 1);
+}
+
+#[test]
 fn storefront_discovery_rejects_malformed_global_ids_like_shopify() {
     let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
         .with_upstream_transport(|_| panic!("invalid snapshot node must not call upstream"));
@@ -7758,13 +8061,26 @@ fn storefront_discovery_rejects_malformed_global_ids_like_shopify() {
 }
 
 #[test]
-fn storefront_discovery_parity_document_with_operation_name_stays_local() {
+fn storefront_discovery_parity_document_hydrates_only_unresolved_nodes() {
     let publication_id = "gid://shopify/Publication/storefront-discovery-parity-document";
+    let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let observed_for_proxy = Arc::clone(&observed_requests);
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,
         Some(UnsupportedMutationMode::Passthrough),
     )
-    .with_upstream_transport(|_| panic!("staged Storefront discovery must stay local"));
+    .with_upstream_transport(move |request| {
+        observed_for_proxy.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "aliasedNodes": [null, null, null, null, null, null]
+                }
+            }),
+        }
+    });
     restore_state_with(&mut proxy, |state| {
         state["baseState"]["shop"] = json!({ "currencyCode": "USD" });
     });
@@ -7804,6 +8120,7 @@ fn storefront_discovery_parity_document_with_operation_name_stays_local() {
     assert_eq!(response.body["data"]["mixed"]["totalCount"], json!(1));
     assert_eq!(response.body["data"]["prefixLast"]["totalCount"], json!(3));
     assert_eq!(response.body["data"]["aliasedNodes"][1], Value::Null);
+    assert_eq!(observed_requests.lock().unwrap().len(), 1);
 }
 
 #[test]
@@ -7881,6 +8198,15 @@ fn storefront_search_and_predictive_search_use_effective_visible_state() {
         first.body["data"]["search"]["pageInfo"]["hasNextPage"],
         json!(true)
     );
+    assert_eq!(
+        first.body["data"]["search"]["productFilters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|filter| filter["id"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!("filter.v.availability"), json!("filter.v.price")]
+    );
     assert_eq!(first.body["data"]["explicitTypes"]["totalCount"], json!(1));
     assert_eq!(
         first.body["data"]["explicitTypes"]["nodes"][0]["__typename"],
@@ -7955,6 +8281,10 @@ fn storefront_search_and_predictive_search_use_effective_visible_state() {
     let hidden = proxy.process_request(storefront_graphql_request(query, json!({ "after": null })));
     assert_eq!(hidden.body["data"]["search"]["totalCount"], json!(0));
     assert_eq!(hidden.body["data"]["search"]["nodes"], json!([]));
+    assert_eq!(
+        hidden.body["data"]["search"]["productFilters"][0]["id"],
+        json!("filter.v.price")
+    );
     assert_eq!(hidden.body["data"]["predictive"]["products"], json!([]));
     assert_eq!(hidden.body["data"]["predictive"]["collections"], json!([]));
     assert_eq!(hidden.body["data"]["predictive"]["articles"], json!([]));

@@ -1,279 +1,252 @@
-mutation SegmentCreateLimitSetupChunk(
-  $name0: String!
-  $name1: String!
-  $name2: String!
-  $name3: String!
-  $name4: String!
-  $name5: String!
-  $name6: String!
-  $name7: String!
-  $name8: String!
-  $name9: String!
-  $name10: String!
-  $name11: String!
-  $name12: String!
-  $name13: String!
-  $name14: String!
-  $name15: String!
-  $name16: String!
-  $name17: String!
-  $name18: String!
-  $name19: String!
-  $name20: String!
-  $name21: String!
-  $name22: String!
-  $name23: String!
-  $name24: String!
-  $query: String!
-) {
-  c000: segmentCreate(name: $name0, query: $query) {
-    segment {
-      id
-      name
+mutation SegmentCreateLimitSetupChunk($name0: String!, $name1: String!, $name2: String!, $name3: String!, $name4: String!, $name5: String!, $name6: String!, $name7: String!, $name8: String!, $name9: String!, $name10: String!, $name11: String!, $name12: String!, $name13: String!, $name14: String!, $name15: String!, $name16: String!, $name17: String!, $name18: String!, $name19: String!, $name20: String!, $name21: String!, $name22: String!, $name23: String!, $name24: String!, $query: String!) {
+    c000: segmentCreate(name: $name0, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-    userErrors {
-      field
-      message
+    c001: segmentCreate(name: $name1, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-  }
-  c001: segmentCreate(name: $name1, query: $query) {
-    segment {
-      id
-      name
+    c002: segmentCreate(name: $name2, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-    userErrors {
-      field
-      message
+    c003: segmentCreate(name: $name3, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-  }
-  c002: segmentCreate(name: $name2, query: $query) {
-    segment {
-      id
-      name
+    c004: segmentCreate(name: $name4, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-    userErrors {
-      field
-      message
+    c005: segmentCreate(name: $name5, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-  }
-  c003: segmentCreate(name: $name3, query: $query) {
-    segment {
-      id
-      name
+    c006: segmentCreate(name: $name6, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-    userErrors {
-      field
-      message
+    c007: segmentCreate(name: $name7, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-  }
-  c004: segmentCreate(name: $name4, query: $query) {
-    segment {
-      id
-      name
+    c008: segmentCreate(name: $name8, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-    userErrors {
-      field
-      message
+    c009: segmentCreate(name: $name9, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-  }
-  c005: segmentCreate(name: $name5, query: $query) {
-    segment {
-      id
-      name
+    c010: segmentCreate(name: $name10, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-    userErrors {
-      field
-      message
+    c011: segmentCreate(name: $name11, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-  }
-  c006: segmentCreate(name: $name6, query: $query) {
-    segment {
-      id
-      name
+    c012: segmentCreate(name: $name12, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-    userErrors {
-      field
-      message
+    c013: segmentCreate(name: $name13, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-  }
-  c007: segmentCreate(name: $name7, query: $query) {
-    segment {
-      id
-      name
+    c014: segmentCreate(name: $name14, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-    userErrors {
-      field
-      message
+    c015: segmentCreate(name: $name15, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-  }
-  c008: segmentCreate(name: $name8, query: $query) {
-    segment {
-      id
-      name
+    c016: segmentCreate(name: $name16, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-    userErrors {
-      field
-      message
+    c017: segmentCreate(name: $name17, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-  }
-  c009: segmentCreate(name: $name9, query: $query) {
-    segment {
-      id
-      name
+    c018: segmentCreate(name: $name18, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-    userErrors {
-      field
-      message
+    c019: segmentCreate(name: $name19, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-  }
-  c010: segmentCreate(name: $name10, query: $query) {
-    segment {
-      id
-      name
+    c020: segmentCreate(name: $name20, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-    userErrors {
-      field
-      message
+    c021: segmentCreate(name: $name21, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-  }
-  c011: segmentCreate(name: $name11, query: $query) {
-    segment {
-      id
-      name
+    c022: segmentCreate(name: $name22, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-    userErrors {
-      field
-      message
+    c023: segmentCreate(name: $name23, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-  }
-  c012: segmentCreate(name: $name12, query: $query) {
-    segment {
-      id
-      name
+    c024: segmentCreate(name: $name24, query: $query) {
+      segment {
+        id
+        name
+      }
+      userErrors {
+        field
+        message
+      }
     }
-    userErrors {
-      field
-      message
-    }
-  }
-  c013: segmentCreate(name: $name13, query: $query) {
-    segment {
-      id
-      name
-    }
-    userErrors {
-      field
-      message
-    }
-  }
-  c014: segmentCreate(name: $name14, query: $query) {
-    segment {
-      id
-      name
-    }
-    userErrors {
-      field
-      message
-    }
-  }
-  c015: segmentCreate(name: $name15, query: $query) {
-    segment {
-      id
-      name
-    }
-    userErrors {
-      field
-      message
-    }
-  }
-  c016: segmentCreate(name: $name16, query: $query) {
-    segment {
-      id
-      name
-    }
-    userErrors {
-      field
-      message
-    }
-  }
-  c017: segmentCreate(name: $name17, query: $query) {
-    segment {
-      id
-      name
-    }
-    userErrors {
-      field
-      message
-    }
-  }
-  c018: segmentCreate(name: $name18, query: $query) {
-    segment {
-      id
-      name
-    }
-    userErrors {
-      field
-      message
-    }
-  }
-  c019: segmentCreate(name: $name19, query: $query) {
-    segment {
-      id
-      name
-    }
-    userErrors {
-      field
-      message
-    }
-  }
-  c020: segmentCreate(name: $name20, query: $query) {
-    segment {
-      id
-      name
-    }
-    userErrors {
-      field
-      message
-    }
-  }
-  c021: segmentCreate(name: $name21, query: $query) {
-    segment {
-      id
-      name
-    }
-    userErrors {
-      field
-      message
-    }
-  }
-  c022: segmentCreate(name: $name22, query: $query) {
-    segment {
-      id
-      name
-    }
-    userErrors {
-      field
-      message
-    }
-  }
-  c023: segmentCreate(name: $name23, query: $query) {
-    segment {
-      id
-      name
-    }
-    userErrors {
-      field
-      message
-    }
-  }
-  c024: segmentCreate(name: $name24, query: $query) {
-    segment {
-      id
-      name
-    }
-    userErrors {
-      field
-      message
-    }
-  }
 }

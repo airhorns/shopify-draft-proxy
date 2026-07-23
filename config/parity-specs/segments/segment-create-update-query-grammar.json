@@ -6,6 +6,9 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-create-update-query-grammar.json"
   ],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/segments/segment-create-update-query-grammar-create.graphql",
     "variablesCapturePath": "$.cases[0].request.variables"

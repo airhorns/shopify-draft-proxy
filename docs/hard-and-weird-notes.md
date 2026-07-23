@@ -81,6 +81,30 @@ the row without turning ordinary absence into a GraphQL error. The captured
 anchor is
 `config/parity-specs/segments/segment-mutation-first-hydration.json`.
 
+## Current: Segment prerequisites need scoped completeness, not catalog enumeration
+
+Live Admin GraphQL 2025-01 capture confirmed that a cold Segment name conflict
+can be resolved with `segments(first: 101, query: "name:\"…\"")`, while the
+6,000-Segment cap can be established with `segmentsCount(limit: 6000)`. At the
+cap Shopify returned `{ count: 6000, precision: AT_LEAST }`. Segment search is
+eventually indexed after create, so a temporarily empty name result is not
+evidence about a just-created row until the selected page is stable and
+`hasNextPage` is false.
+
+Cold identity reads also distinguish absence from failure. `segment(id:)` for a
+missing valid GID returned `data.segment: null` plus a top-level `NOT_FOUND`
+error, while transport, GraphQL, malformed-batch, and mismatched-node failures
+did not prove absence. `nodes(ids:)` returned persisted
+`CustomerSegmentMembersQuery` jobs with their current `currentCount`/`done`
+state.
+
+Practical rule: cache authoritative hits and confirmed misses only within the
+scope actually queried; keep unresolved failures retryable, apply staged
+create/delete deltas to the captured count threshold, and never page the whole
+Segment catalog to validate one mutation. The captured anchors are
+`config/parity-specs/segments/segment-authoritative-prerequisites.json` and
+`config/parity-specs/segments/segment-authoritative-limit-prerequisite.json`.
+
 ## Current: Shopify empty-data behavior is field-specific, not generic
 
 "Return empty data when missing" sounds simple, but in practice Shopify behavior depends on the field shape:
@@ -1756,6 +1780,10 @@ HAR-246 live probes against Admin GraphQL 2026-04 added validation details:
 - unknown, stale, or already-deleted IDs for `metaobjectUpdate`, `metaobjectDelete`, `metaobjectDefinitionUpdate`, and `metaobjectDefinitionDelete` return `RECORD_NOT_FOUND` rather than the earlier local `NOT_FOUND` placeholder.
 - `metaobjectUpdate` handle redirects use `redirectNewHandle` inside `MetaobjectUpdateInput`; Admin GraphQL 2026-04 rejects a top-level `redirectNewHandle` argument. Redirect creation requires an online-store-renderable definition and row-level `onlineStore` capability. Definition `onlineStore.data.urlHandle` is globally unique and becomes the `/pages/<urlHandle>/<handle>` path segment. `UrlRedirect` reads expose `id`, `path`, and `target`; captured 2026-04 schema rejected `createdAt` / `updatedAt` on `UrlRedirect`.
 - 2026-04 `metaobjectBulkDelete` requires `where: MetaobjectBulkDeleteWhereCondition!`; direct `ids` is rejected by the GraphQL layer even though the local harness keeps the legacy direct-ids branch for prior replay evidence.
+- The explicit-ID list limit is atomic. A live 251-ID request returned `MAX_INPUT_SIZE_EXCEEDED` at `metaobjectBulkDelete.where.ids`, did not enqueue a job, and left the selected row and definition count unchanged. Do not truncate oversized selectors locally.
+- Type deletion is not limited to one `metaobjects(first: 250)` page. A live disposable type with 251 entries settled its job and hid both the first and 251st rows plus the filtered connection. A persisted type tombstone is a bounded alternative to unbounded hydration, provided later local creates of that type remain visible.
+- The same 251-entry capture reported `metaobjectsCount: 1` before and after deletion even though all selected reads were empty. Treat that positive count as observed index lag when it is already below the known hydrated row count; do not force every large-type deletion to zero or use the stale count to keep rows visible.
+- The mutation payload initially returned `job.done: false`; the settled `job(id:)` read returned `done: true` and `query.__typename: QueryRoot`. Store the completed local job behind the pending mutation payload so later job reads agree with Shopify's settled shape.
 
 HAR-675 live parity work replaces the old local definition-delete associated-entry guardrail:
 
@@ -4737,3 +4765,77 @@ Practical rule:
   reading timestamps, staging records, or appending replay entries
 - discard partial observations on transport, GraphQL, or malformed-response
   failures so a retry begins from the same mutation state
+
+## 113. Product preview URLs are signed resource authority, not derivable links
+
+Live Admin GraphQL capture on an Online Store-enabled shop returned signed
+`shopifypreview.com/products_preview` URLs for the same extant product while it
+was DRAFT with `publishedAt: null` and after it became ARCHIVED. Admin API
+2025-01 and 2026-07 agreed on that availability boundary. After deletion, the
+same `product(id:)` query returned `product: null`; malformed global IDs failed
+at variable coercion.
+
+The URL contains opaque store/resource-specific preview and bypass material.
+It cannot be reconstructed from a product GID or safely reused for a different
+product. In particular, a staged `productDuplicate` must not inherit its
+hydrated source's URL, and a local-only `productSet` create has no Shopify URL
+to project.
+
+Practical rule:
+
+- preserve an exact observed URL only for the same effective product identity
+- keep locally created and duplicated product preview URLs `null`
+- let product tombstones resolve through the ordinary `product: null` boundary
+- never generate a preview hostname, copy a source product's signed URL, or
+  hardcode captured host, ID, preview key, or bypass material
+
+## 114. Standard linked metafield validation IDs are graph edges
+
+Admin GraphQL 2026-04 material and color-pattern lifecycle capture showed that
+the `metaobject_definition_id` returned by
+`standardMetafieldDefinitionEnable` is the shop-local definition identity, not
+an opaque validation hint. For each template, the same ID was returned by
+`metaobjectDefinition(id:)`, `metaobjectDefinitionByType(type:)`, generic
+`node(id:)`, created linked metaobjects, product metafield references, and the
+linked product-option workflow. The two templates had distinct definition IDs,
+and every downstream value retained its matching definition.
+
+This also makes an invented validation-only ID unsafe. A plausible GID that has
+no definition record breaks generic Node reads, field validation, and linked
+option semantics even when the initial metafield-definition payload looks
+correct.
+
+Practical rule:
+
+- in LiveHybrid, attempt to hydrate the shop-local standard definition by type
+  before staging; an explicit `null` proves absence, while a failed or
+  incomplete lookup may fall back only to the captured shop/version template
+- in snapshot mode, allocate an identity only when a captured standard template
+  can materialize the complete local definition record
+- run capability, pinning, and other enable validations before definition
+  lookup or staging so rejected writes preserve Shopify's error precedence
+- use that one effective definition for validation, direct/by-type/Node reads,
+  linked values, metafield references, and product options
+- return the captured `TEMPLATE_NOT_FOUND` null/error shape when no backed
+  definition is available; never emit a sentinel graph edge
+
+## 115. Storefront Node completeness is per ID, not per discovery domain
+
+Authenticated Admin plus Storefront GraphQL 2026-04 capture staged one Product
+locally while querying a different real Product, Collection, Page, and Menu
+through aliased `node` and mixed `nodes` roots. Shopify kept every unrelated
+resource visible, preserved duplicate IDs and null positions, and returned null
+only for the deliberately missing Page ID. The checked-in anchor is the
+`storefront-node-overlay-keeps-unrelated-real-resources-visible` target in
+`config/parity-specs/storefront/storefront-discovery.json`.
+
+Practical rule:
+
+- track generic Storefront Node knowledge by exact ID and resource type; the
+  existence of any Product, collection, content, metaobject, location, or menu
+  state does not prove another ID is absent
+- in live-hybrid mode, execute the complete caller query upstream at most once
+  for unresolved IDs, then overlay exact staged records and tombstones per ID
+- preserve `nodes(ids:)` order, duplicates, and null slots, and apply the same
+  effective lookup path to Menu and every other modeled Storefront Node type
+- keep snapshot misses local and null; snapshot mode must never hydrate
