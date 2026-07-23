@@ -40,7 +40,7 @@ mutation before commit. Supported handlers may still issue query-only hydration
 requests in LiveHybrid mode, but the caller's original write document is held
 for local staging and explicit commit replay.
 
-`POST /__meta/commit` is the explicit write-through boundary. It replays pending staged mutations upstream in original log order using the original raw GraphQL input and the commit request's auth headers. The response keeps the compatibility summary fields (`ok`, `committed`, and `failed`) and also includes per-attempt replay details plus `stopIndex` when replay stops on a transport or GraphQL error.
+`POST /__meta/commit` is the explicit write-through boundary. It replays pending staged mutations upstream in original log order using the original raw GraphQL input and path. Each staged operation retains its request headers as part of the replayable operation. A non-empty commit request header set overrides those stored headers for every replay, preserving the HTTP API's commit-wide credential behavior. In-process bindings may instead resolve a final header set for each operation before replay. The response keeps the compatibility summary fields (`ok`, `committed`, and `failed`) and also includes per-attempt replay details plus `stopIndex` when replay stops on a transport or GraphQL error.
 
 ## High-level request flow
 
@@ -174,8 +174,8 @@ replaced by local non-null execution errors.
 ### `src/proxy/commit.rs`
 
 - owns `POST /__meta/commit` replay behavior
-- replays staged mutations in original log order using each entry's preserved raw GraphQL body and path
-- forwards the commit request's auth headers through the commit transport
+- replays staged mutations in original log order using each entry's preserved raw GraphQL body, path, and headers
+- uses a non-empty commit request header set as a commit-wide override while allowing in-process bindings to resolve final headers immediately before each replay
 - maps synthetic Shopify GIDs only through operation-registry response paths, translating caller aliases while preserving declared input order; unrelated same-type IDs elsewhere in a payload are never candidates
 - reports missing or ambiguous authoritative IDs in each attempt's `unresolvedIds` instead of guessing a mapping, while preserving the committed/failed log status contract
 - stops on the first transport or GraphQL error, records the stopped index, and updates staged log statuses to committed/failed while leaving later staged entries untouched
@@ -280,7 +280,7 @@ Core state categories:
 
 - base state learned from snapshots, fixtures, or upstream reads
 - staged Store state for local inserts/updates/deletes and other local domain effects not yet committed
-- ordered mutation log entries containing original request path, raw query, variables, capability metadata, resource IDs, and status
+- ordered mutation log entries containing original request path, headers, raw query, variables, capability metadata, resource IDs, and status
 - synthetic identity counters scoped to a `DraftProxy` instance
 
 Effective reads merge base state and staged state through shared Store helpers, respecting staged deletes and Shopify-like null/empty behavior. Commit drains staged log entries only after successful upstream replay.
