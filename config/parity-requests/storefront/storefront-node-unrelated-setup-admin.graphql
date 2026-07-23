@@ -1,0 +1,42 @@
+mutation StorefrontNodeUnrelatedSetup(
+  $product: ProductCreateInput!
+  $collection: CollectionInput!
+  $page: PageCreateInput!
+) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      handle
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  collectionCreate(input: $collection) {
+    collection {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  pageCreate(page: $page) {
+    page {
+      id
+      title
+      handle
+      isPublished
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

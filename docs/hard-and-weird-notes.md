@@ -4794,3 +4794,24 @@ Practical rule:
   linked values, metafield references, and product options
 - return the captured `TEMPLATE_NOT_FOUND` null/error shape when no backed
   definition is available; never emit a sentinel graph edge
+
+## 115. Storefront Node completeness is per ID, not per discovery domain
+
+Authenticated Admin plus Storefront GraphQL 2026-04 capture staged one Product
+locally while querying a different real Product, Collection, Page, and Menu
+through aliased `node` and mixed `nodes` roots. Shopify kept every unrelated
+resource visible, preserved duplicate IDs and null positions, and returned null
+only for the deliberately missing Page ID. The checked-in anchor is the
+`storefront-node-overlay-keeps-unrelated-real-resources-visible` target in
+`config/parity-specs/storefront/storefront-discovery.json`.
+
+Practical rule:
+
+- track generic Storefront Node knowledge by exact ID and resource type; the
+  existence of any Product, collection, content, metaobject, location, or menu
+  state does not prove another ID is absent
+- in live-hybrid mode, execute the complete caller query upstream at most once
+  for unresolved IDs, then overlay exact staged records and tombstones per ID
+- preserve `nodes(ids:)` order, duplicates, and null slots, and apply the same
+  effective lookup path to Menu and every other modeled Storefront Node type
+- keep snapshot misses local and null; snapshot mode must never hydrate
