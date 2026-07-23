@@ -5,6 +5,33 @@ const DEFAULT_ORDER_UNFULFILLED_ID: &str =
     "gid://shopify/SavedSearch/default-order-unfulfilled?shopify-draft-proxy=synthetic";
 const DEFAULT_ORDER_UNPAID_ID: &str =
     "gid://shopify/SavedSearch/default-order-unpaid?shopify-draft-proxy=synthetic";
+const PRODUCT_OPERATION_READ_QUERY: &str = r#"
+    query ProductOperationRead($id: ID!) {
+      productOperation(id: $id) {
+        __typename
+        status
+        product { id title }
+        ... on ProductSetOperation {
+          id
+          userErrors { field message code }
+        }
+        ... on ProductDuplicateOperation {
+          id
+          newProduct { id title }
+          userErrors { field message }
+        }
+        ... on ProductDeleteOperation {
+          id
+          deletedProductId
+          userErrors { field message }
+        }
+        ... on ProductBundleOperation {
+          id
+          userErrors { field message code }
+        }
+      }
+    }
+"#;
 
 fn seed_product(id: &str) -> ProductRecord {
     ProductRecord {
@@ -130,6 +157,325 @@ fn mixed_product_helper_read_forwards_the_original_document_once() {
     let query = bodies[0]["query"].as_str().expect("query is preserved");
     assert!(query.contains("productByIdentifier"));
     assert!(query.contains("productVariantsCount"));
+}
+
+#[test]
+fn cold_product_operation_forwards_the_original_document_once() {
+    let operation_id = "gid://shopify/ProductSetOperation/7001";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "productOperation": {
+                            "__typename": "ProductSetOperation",
+                            "id": operation_id,
+                            "status": "ACTIVE",
+                            "product": null,
+                            "userErrors": []
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        PRODUCT_OPERATION_READ_QUERY,
+        json!({"id": operation_id}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productOperation"]["id"],
+        operation_id
+    );
+    assert_eq!(
+        response.body["data"]["productOperation"]["status"],
+        "ACTIVE"
+    );
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(bodies.len(), 1);
+    assert_eq!(
+        bodies[0]["query"].as_str(),
+        Some(PRODUCT_OPERATION_READ_QUERY),
+        "the caller's complete operation should be forwarded unchanged"
+    );
+    assert_eq!(bodies[0]["variables"], json!({"id": operation_id}));
+}
+
+#[test]
+fn missing_product_operation_is_cached_without_redundant_upstream_calls() {
+    let operation_id = "gid://shopify/ProductSetOperation/7002";
+    let upstream_calls = Arc::new(Mutex::new(0));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            *captured_calls.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"productOperation": null}}),
+            }
+        });
+
+    for _ in 0..2 {
+        let response = proxy.process_request(json_graphql_request(
+            PRODUCT_OPERATION_READ_QUERY,
+            json!({"id": operation_id}),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body["data"]["productOperation"], Value::Null);
+    }
+
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "Shopify's authoritative null should be cached"
+    );
+}
+
+#[test]
+fn product_operation_polling_refreshes_until_complete_then_stays_local() {
+    let operation_id = "gid://shopify/ProductSetOperation/7003";
+    let upstream_calls = Arc::new(Mutex::new(0));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            let mut calls = captured_calls.lock().unwrap();
+            *calls += 1;
+            let status = if *calls == 1 { "ACTIVE" } else { "COMPLETE" };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "productOperation": {
+                            "__typename": "ProductSetOperation",
+                            "id": operation_id,
+                            "status": status,
+                            "product": if status == "COMPLETE" {
+                                json!({"id": "gid://shopify/Product/7003", "title": "Finished product"})
+                            } else {
+                                Value::Null
+                            },
+                            "userErrors": []
+                        }
+                    }
+                }),
+            }
+        });
+
+    let first = proxy.process_request(json_graphql_request(
+        PRODUCT_OPERATION_READ_QUERY,
+        json!({"id": operation_id}),
+    ));
+    assert_eq!(first.body["data"]["productOperation"]["status"], "ACTIVE");
+
+    let second = proxy.process_request(json_graphql_request(
+        PRODUCT_OPERATION_READ_QUERY,
+        json!({"id": operation_id}),
+    ));
+    assert_eq!(
+        second.body["data"]["productOperation"]["status"],
+        "COMPLETE"
+    );
+    assert_eq!(
+        second.body["data"]["productOperation"]["product"],
+        json!({"id": "gid://shopify/Product/7003", "title": "Finished product"})
+    );
+
+    let third = proxy.process_request(json_graphql_request(
+        PRODUCT_OPERATION_READ_QUERY,
+        json!({"id": operation_id}),
+    ));
+    assert_eq!(
+        third.body["data"]["productOperation"],
+        second.body["data"]["productOperation"]
+    );
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        2,
+        "completed authoritative operations should resolve from base state"
+    );
+}
+
+#[test]
+fn completed_product_operation_refreshes_when_the_selection_expands() {
+    let operation_id = "gid://shopify/ProductSetOperation/7005";
+    let upstream_calls = Arc::new(Mutex::new(0));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let mut calls = captured_calls.lock().unwrap();
+            *calls += 1;
+            let request_body: Value = serde_json::from_str(&request.body).expect("request body");
+            let is_narrow = request_body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("NarrowCompletedProductOperation"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: if is_narrow {
+                    json!({
+                        "data": {
+                            "productOperation": {
+                                "__typename": "ProductSetOperation",
+                                "id": operation_id,
+                                "status": "COMPLETE"
+                            }
+                        }
+                    })
+                } else {
+                    json!({
+                        "data": {
+                            "productOperation": {
+                                "__typename": "ProductSetOperation",
+                                "id": operation_id,
+                                "status": "COMPLETE",
+                                "product": {
+                                    "id": "gid://shopify/Product/7005",
+                                    "title": "Expanded product"
+                                },
+                                "userErrors": []
+                            }
+                        }
+                    })
+                },
+            }
+        });
+
+    let narrow = proxy.process_request(json_graphql_request(
+        r#"
+        query NarrowCompletedProductOperation($id: ID!) {
+          productOperation(id: $id) {
+            __typename
+            status
+            ... on ProductSetOperation { id }
+          }
+        }
+        "#,
+        json!({"id": operation_id}),
+    ));
+    assert_eq!(
+        narrow.body["data"]["productOperation"]["status"],
+        "COMPLETE"
+    );
+
+    let broad = proxy.process_request(json_graphql_request(
+        PRODUCT_OPERATION_READ_QUERY,
+        json!({"id": operation_id}),
+    ));
+    assert_eq!(
+        broad.body["data"]["productOperation"]["product"],
+        json!({"id": "gid://shopify/Product/7005", "title": "Expanded product"})
+    );
+
+    let repeated = proxy.process_request(json_graphql_request(
+        PRODUCT_OPERATION_READ_QUERY,
+        json!({"id": operation_id}),
+    ));
+    assert_eq!(
+        repeated.body["data"]["productOperation"],
+        broad.body["data"]["productOperation"]
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 2);
+}
+
+#[test]
+fn local_product_operation_and_snapshot_miss_never_call_upstream() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport(|_| panic!("local product operations must stay local"));
+    let mutation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageAsyncProductSet($input: ProductSetInput!) {
+          productSet(input: $input, synchronous: false) {
+            productSetOperation { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Local async product"}}),
+    ));
+    assert_eq!(mutation.status, 200);
+    assert_eq!(mutation.body["data"]["productSet"]["userErrors"], json!([]));
+    let operation_id = mutation.body["data"]["productSet"]["productSetOperation"]["id"]
+        .as_str()
+        .expect("async productSet operation id")
+        .to_string();
+
+    let local = proxy.process_request(json_graphql_request(
+        PRODUCT_OPERATION_READ_QUERY,
+        json!({"id": operation_id}),
+    ));
+    assert_eq!(local.status, 200);
+    assert_eq!(local.body["data"]["productOperation"]["status"], "COMPLETE");
+    assert_eq!(
+        local.body["data"]["productOperation"]["product"]["title"],
+        "Local async product"
+    );
+
+    let mut snapshot = snapshot_proxy()
+        .with_upstream_transport(|_| panic!("snapshot product operation reads stay local"));
+    let missing = snapshot.process_request(json_graphql_request(
+        PRODUCT_OPERATION_READ_QUERY,
+        json!({"id": "gid://shopify/ProductSetOperation/7999"}),
+    ));
+    assert_eq!(missing.status, 200);
+    assert_eq!(missing.body["data"]["productOperation"], Value::Null);
+}
+
+#[test]
+fn hydrated_product_operation_base_state_round_trips_dump_restore() {
+    let operation_id = "gid://shopify/ProductDeleteOperation/7004";
+    let mut live =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "productOperation": {
+                        "__typename": "ProductDeleteOperation",
+                        "id": operation_id,
+                        "status": "COMPLETE",
+                        "product": null,
+                        "deletedProductId": "gid://shopify/Product/7004",
+                        "userErrors": []
+                    }
+                }
+            }),
+        });
+    let observed = live.process_request(json_graphql_request(
+        PRODUCT_OPERATION_READ_QUERY,
+        json!({"id": operation_id}),
+    ));
+    assert_eq!(observed.status, 200);
+
+    let dump = live.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = snapshot_proxy()
+        .with_upstream_transport(|_| panic!("restored product operation should stay local"));
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let read = restored.process_request(json_graphql_request(
+        PRODUCT_OPERATION_READ_QUERY,
+        json!({"id": operation_id}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["productOperation"],
+        observed.body["data"]["productOperation"]
+    );
 }
 
 fn location_of_empty_publication_id_object_literal(query: &str) -> Value {

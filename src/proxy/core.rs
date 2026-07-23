@@ -643,6 +643,29 @@ impl DraftProxy {
             base_metafield_definition_namespaces_value;
         snapshot["stagedState"]["deletedMetafieldDefinitions"] =
             deleted_metafield_definitions_value;
+        if !self.store.base.product_operations.is_empty()
+            || !self
+                .store
+                .base
+                .product_operation_observed_field_paths
+                .is_empty()
+            || !self.store.base.missing_product_operation_ids.is_empty()
+        {
+            snapshot["baseState"]["productOperations"] =
+                json!(self.store.base.product_operations.clone());
+            snapshot["baseState"]["productOperationObservedFieldPaths"] = json!(self
+                .store
+                .base
+                .product_operation_observed_field_paths
+                .clone());
+            snapshot["baseState"]["missingProductOperationIds"] = json!(self
+                .store
+                .base
+                .missing_product_operation_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.base.b2b_companies.records.is_empty()
             || !self.store.base.b2b_companies.order.is_empty()
             || !self.store.base.b2b_company_count_baselines.is_empty()
@@ -1528,6 +1551,18 @@ impl DraftProxy {
             value_map_from_json(state["baseState"].get("draftOrderCountBaselines"));
         self.store.base.discount_count_baselines =
             value_map_from_json(state["baseState"].get("discountCountBaselines"));
+        self.store.base.product_operations =
+            value_map_from_json(state["baseState"].get("productOperations"));
+        self.store.base.product_operation_observed_field_paths = state["baseState"]
+            .get("productOperationObservedFieldPaths")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
+        self.store.base.missing_product_operation_ids = state["baseState"]
+            .get("missingProductOperationIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.base.inventory_transfers.replace_with_order(
             state["baseState"]
                 .get("inventoryTransfers")
