@@ -1,0 +1,56 @@
+query LocalizationParentObservationCanonicalNodes($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    ... on Product {
+      id
+      title
+      handle
+      status
+      createdAt
+      updatedAt
+      descriptionHtml
+      vendor
+      productType
+      tags
+      templateSuffix
+      seo {
+        title
+        description
+      }
+      media(first: 10) {
+        nodes {
+          id
+          mediaContentType
+          status
+        }
+      }
+      collections(first: 10) {
+        nodes {
+          id
+          title
+          handle
+        }
+      }
+    }
+    ... on Collection {
+      id
+      title
+      handle
+      descriptionHtml
+      updatedAt
+      templateSuffix
+      sortOrder
+      seo {
+        title
+        description
+      }
+      products(first: 10) {
+        nodes {
+          id
+          title
+          handle
+        }
+      }
+    }
+  }
+}

@@ -967,6 +967,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "inventoryLevels": [],
                     "inventoryQuantityUpdatedAt": [],
                     "localizationProductIds": [],
+                    "localizationSourceResources": {},
                     "orderCountBaselines": {},
                     "orderOrder": [],
                     "orders": {},

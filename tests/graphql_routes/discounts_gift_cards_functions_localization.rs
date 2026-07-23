@@ -11031,6 +11031,463 @@ fn localization_digest_validation_skips_unobserved_source_content_without_prefix
 }
 
 #[test]
+fn localization_source_observations_do_not_replace_canonical_product_or_collection_state() {
+    let product_id = "gid://shopify/Product/81001";
+    let collection_id = "gid://shopify/Collection/81002";
+    let media_id = "gid://shopify/MediaImage/81003";
+    let upstream_operations = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_operations = Arc::clone(&upstream_operations);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let product_id = product_id.to_string();
+        let collection_id = collection_id.to_string();
+        let media_id = media_id.to_string();
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            let operation_name = body["operationName"]
+                .as_str()
+                .or_else(|| {
+                    [
+                        "ObserveLocalizationSources",
+                        "ObserveDisjointParentSiblings",
+                        "HydrateCanonicalParents",
+                    ]
+                    .into_iter()
+                    .find(|name| query.contains(name))
+                })
+                .unwrap_or_default();
+            captured_operations
+                .lock()
+                .unwrap()
+                .push(operation_name.to_string());
+            let data = match operation_name {
+                "ObserveLocalizationSources" => json!({
+                    "productSource": {
+                        "resourceId": product_id,
+                        "translatableContent": [
+                            {
+                                "key": "title",
+                                "value": "Rich source product",
+                                "digest": "product-title-digest",
+                                "locale": "en",
+                                "type": "SINGLE_LINE_TEXT_FIELD"
+                            },
+                            {
+                                "key": "body_html",
+                                "value": "<p>Rich product body</p>",
+                                "digest": "product-body-digest",
+                                "locale": "en",
+                                "type": "HTML"
+                            },
+                            {
+                                "key": "handle",
+                                "value": "rich-source-product",
+                                "digest": "product-handle-digest",
+                                "locale": "en",
+                                "type": "URI"
+                            }
+                        ]
+                    },
+                    "collectionSource": {
+                        "resourceId": collection_id,
+                        "translatableContent": [
+                            {
+                                "key": "title",
+                                "value": "Rich source collection",
+                                "digest": "collection-title-digest",
+                                "locale": "en",
+                                "type": "SINGLE_LINE_TEXT_FIELD"
+                            },
+                            {
+                                "key": "body_html",
+                                "value": "<p>Rich collection body</p>",
+                                "digest": "collection-body-digest",
+                                "locale": "en",
+                                "type": "HTML"
+                            }
+                        ]
+                    }
+                }),
+                "ObserveDisjointParentSiblings" => json!({
+                    "product": {
+                        "id": product_id,
+                        "status": "ARCHIVED",
+                        "createdAt": "2025-02-03T04:05:06Z",
+                        "updatedAt": "2025-03-04T05:06:07Z",
+                        "vendor": "Rich Vendor",
+                        "tags": ["alpha", "beta"]
+                    },
+                    "collection": {
+                        "id": collection_id,
+                        "updatedAt": "2025-04-05T06:07:08Z",
+                        "templateSuffix": "rich-collection",
+                        "sortOrder": "MANUAL"
+                    }
+                }),
+                "HydrateCanonicalParents" => json!({
+                    "nodes": [
+                        {
+                            "__typename": "Collection",
+                            "id": collection_id,
+                            "title": "Rich source collection",
+                            "handle": "rich-source-collection",
+                            "descriptionHtml": "<p>Rich collection body</p>",
+                            "updatedAt": "2025-04-05T06:07:08Z",
+                            "templateSuffix": "rich-collection",
+                            "sortOrder": "MANUAL",
+                            "seo": {
+                                "title": "Rich collection SEO",
+                                "description": "Rich collection SEO description"
+                            },
+                            "products": {
+                                "nodes": [{
+                                    "id": product_id,
+                                    "title": "Rich source product"
+                                }]
+                            }
+                        },
+                        {
+                            "__typename": "Product",
+                            "id": product_id,
+                            "title": "Rich source product",
+                            "handle": "rich-source-product",
+                            "status": "ARCHIVED",
+                            "createdAt": "2025-02-03T04:05:06Z",
+                            "updatedAt": "2025-03-04T05:06:07Z",
+                            "descriptionHtml": "<p>Rich product body</p>",
+                            "vendor": "Rich Vendor",
+                            "productType": "Rich Type",
+                            "tags": ["alpha", "beta"],
+                            "templateSuffix": "rich-product",
+                            "seo": {
+                                "title": "Rich product SEO",
+                                "description": "Rich product SEO description"
+                            },
+                            "media": {
+                                "nodes": [{
+                                    "__typename": "MediaImage",
+                                    "id": media_id,
+                                    "mediaContentType": "IMAGE"
+                                }]
+                            },
+                            "collections": {
+                                "nodes": [{
+                                    "id": collection_id,
+                                    "title": "Rich source collection"
+                                }]
+                            }
+                        }
+                    ]
+                }),
+                unexpected => panic!("unexpected upstream operation: {unexpected}"),
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        }
+    });
+
+    let localization = proxy.process_request(json_graphql_request(
+        r#"query ObserveLocalizationSources($productId: ID!, $collectionId: ID!) {
+          productSource: translatableResource(resourceId: $productId) {
+            resourceId
+            translatableContent { key value digest locale type }
+          }
+          collectionSource: translatableResource(resourceId: $collectionId) {
+            resourceId
+            translatableContent { key value digest locale type }
+          }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    assert_eq!(localization.status, 200);
+    assert_eq!(
+        localization.body["data"]["productSource"]["translatableContent"][0]["value"],
+        json!("Rich source product")
+    );
+    let observed_state = state_snapshot(&proxy);
+    assert!(observed_state["stagedState"]["products"]
+        .get(product_id)
+        .is_none());
+    assert!(observed_state["stagedState"]["collections"]
+        .get(collection_id)
+        .is_none());
+    assert_eq!(
+        observed_state["baseState"]["localizationSourceResources"][product_id]
+            ["translatableContent"][0]["key"],
+        json!("title")
+    );
+
+    let disjoint_observation = proxy.process_request(json_graphql_request(
+        r#"query ObserveDisjointParentSiblings($productId: ID!, $collectionId: ID!) {
+          product(id: $productId) { id status createdAt updatedAt vendor tags }
+          collection(id: $collectionId) { id updatedAt templateSuffix sortOrder }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    assert_eq!(
+        disjoint_observation.body["data"]["product"]["status"],
+        json!("ARCHIVED")
+    );
+    assert_eq!(
+        disjoint_observation.body["data"]["collection"]["sortOrder"],
+        json!("MANUAL")
+    );
+    let source_after_disjoint = proxy.process_request(json_graphql_request(
+        r#"query SourceAfterDisjointObservation($productId: ID!, $collectionId: ID!) {
+          productSource: translatableResource(resourceId: $productId) {
+            translatableContent { key value }
+          }
+          collectionSource: translatableResource(resourceId: $collectionId) {
+            translatableContent { key value }
+          }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    assert_eq!(
+        source_after_disjoint.body["data"]["productSource"]["translatableContent"][0],
+        json!({ "key": "title", "value": "Rich source product" })
+    );
+    assert_eq!(
+        source_after_disjoint.body["data"]["collectionSource"]["translatableContent"][0],
+        json!({ "key": "title", "value": "Rich source collection" })
+    );
+
+    let canonical_nodes = proxy.process_request(json_graphql_request(
+        r#"query HydrateCanonicalParents($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on Product {
+              id title handle status createdAt updatedAt descriptionHtml vendor productType tags
+              templateSuffix seo { title description }
+              media(first: 10) { nodes { id mediaContentType } }
+              collections(first: 10) { nodes { id title } }
+            }
+            ... on Collection {
+              id title handle descriptionHtml updatedAt templateSuffix sortOrder
+              seo { title description }
+              products(first: 10) { nodes { id title } }
+            }
+          }
+        }"#,
+        json!({ "ids": [collection_id, product_id] }),
+    ));
+    assert_eq!(canonical_nodes.status, 200);
+    assert_eq!(
+        canonical_nodes.body["data"]["nodes"][1]["status"],
+        json!("ARCHIVED")
+    );
+    assert_eq!(
+        canonical_nodes.body["data"]["nodes"][1]["vendor"],
+        json!("Rich Vendor")
+    );
+    assert_eq!(
+        canonical_nodes.body["data"]["nodes"][0]["updatedAt"],
+        json!("2025-04-05T06:07:08Z")
+    );
+
+    let disjoint_roots = proxy.process_request(json_graphql_request(
+        r#"query ReadCanonicalParents($productId: ID!, $collectionId: ID!) {
+          product(id: $productId) {
+            id status vendor tags createdAt updatedAt
+            media(first: 10) { nodes { id } }
+            collections(first: 10) { nodes { id } }
+          }
+          collection(id: $collectionId) {
+            id descriptionHtml updatedAt templateSuffix sortOrder
+            products(first: 10) { nodes { id } }
+          }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    assert_eq!(disjoint_roots.status, 200);
+    assert_eq!(
+        disjoint_roots.body["data"]["product"]["tags"],
+        json!(["alpha", "beta"])
+    );
+    assert_eq!(
+        disjoint_roots.body["data"]["collection"]["products"]["nodes"][0]["id"],
+        json!(product_id)
+    );
+
+    let product_update = proxy.process_request(json_graphql_request(
+        r#"mutation NarrowProductUpdate($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product {
+              id title status vendor tags createdAt
+              media(first: 10) { nodes { id } }
+              collections(first: 10) { nodes { id } }
+            }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "product": { "id": product_id, "title": "Narrow product title" } }),
+    ));
+    assert_eq!(
+        product_update.body["data"]["productUpdate"]["product"]["vendor"],
+        json!("Rich Vendor")
+    );
+    assert_eq!(
+        product_update.body["data"]["productUpdate"]["product"]["media"]["nodes"][0]["id"],
+        json!(media_id)
+    );
+
+    let collection_update = proxy.process_request(json_graphql_request(
+        r#"mutation NarrowCollectionUpdate($input: CollectionInput!) {
+          collectionUpdate(input: $input) {
+            collection {
+              id title descriptionHtml updatedAt templateSuffix sortOrder
+              products(first: 10) { nodes { id } }
+            }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "input": { "id": collection_id, "title": "Narrow collection title" } }),
+    ));
+    assert_eq!(
+        collection_update.body["data"]["collectionUpdate"]["collection"]["descriptionHtml"],
+        json!("<p>Rich collection body</p>")
+    );
+    assert_eq!(
+        collection_update.body["data"]["collectionUpdate"]["collection"]["products"]["nodes"][0]
+            ["id"],
+        json!(product_id)
+    );
+
+    let source_after_updates = proxy.process_request(json_graphql_request(
+        r#"query SourceAfterNarrowUpdates($productId: ID!, $collectionId: ID!) {
+          productSource: translatableResource(resourceId: $productId) {
+            translatableContent { key value }
+          }
+          collectionSource: translatableResource(resourceId: $collectionId) {
+            translatableContent { key value }
+          }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    let product_content = source_after_updates.body["data"]["productSource"]["translatableContent"]
+        .as_array()
+        .unwrap();
+    assert!(product_content
+        .iter()
+        .any(|entry| entry == &json!({ "key": "title", "value": "Narrow product title" })));
+    assert!(product_content
+        .iter()
+        .any(|entry| entry == &json!({ "key": "body_html", "value": "<p>Rich product body</p>" })));
+    let collection_content = source_after_updates.body["data"]["collectionSource"]
+        ["translatableContent"]
+        .as_array()
+        .unwrap();
+    assert!(collection_content
+        .iter()
+        .any(|entry| entry == &json!({ "key": "title", "value": "Narrow collection title" })));
+
+    let updated_state = state_snapshot(&proxy);
+    assert_eq!(
+        updated_state["baseState"]["localizationSourceResources"][product_id]
+            ["translatableContent"][0]["value"],
+        json!("Rich source product")
+    );
+    assert_eq!(
+        updated_state["stagedState"]["localizationSourceResources"][product_id]
+            ["translatableContent"][0]["value"],
+        json!("Narrow product title")
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    let mut restored = configured_proxy(ReadMode::LiveHybrid, None);
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let source_after_restore = restored.process_request(json_graphql_request(
+        r#"query SourceAfterRestore($productId: ID!, $collectionId: ID!) {
+          productSource: translatableResource(resourceId: $productId) {
+            translatableContent { key value }
+          }
+          collectionSource: translatableResource(resourceId: $collectionId) {
+            translatableContent { key value }
+          }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    assert!(
+        source_after_restore.body["data"]["productSource"]["translatableContent"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry == &json!({ "key": "title", "value": "Narrow product title" }))
+    );
+
+    let reset = restored.process_request(request_with_body("POST", "/__meta/reset", "{}"));
+    assert_eq!(reset.status, 200);
+    let source_after_reset = restored.process_request(json_graphql_request(
+        r#"query SourceAfterReset($productId: ID!, $collectionId: ID!) {
+          productSource: translatableResource(resourceId: $productId) {
+            translatableContent { key value }
+          }
+          collectionSource: translatableResource(resourceId: $collectionId) {
+            translatableContent { key value }
+          }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    assert_eq!(
+        source_after_reset.body["data"]["productSource"]["translatableContent"][0],
+        json!({ "key": "title", "value": "Rich source product" })
+    );
+    assert_eq!(
+        source_after_reset.body["data"]["collectionSource"]["translatableContent"][0],
+        json!({ "key": "title", "value": "Rich source collection" })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"mutation DeleteCanonicalParents(
+          $productInput: ProductDeleteInput!
+          $collectionInput: CollectionDeleteInput!
+        ) {
+          productDelete(input: $productInput) { deletedProductId userErrors { field message } }
+          collectionDelete(input: $collectionInput) { deletedCollectionId userErrors { field message } }
+        }"#,
+        json!({
+            "productInput": { "id": product_id },
+            "collectionInput": { "id": collection_id }
+        }),
+    ));
+    assert_eq!(
+        delete.body["data"]["productDelete"]["deletedProductId"],
+        json!(product_id)
+    );
+    assert_eq!(
+        delete.body["data"]["collectionDelete"]["deletedCollectionId"],
+        json!(collection_id)
+    );
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"query SourcesAfterDelete($productId: ID!, $collectionId: ID!) {
+          productSource: translatableResource(resourceId: $productId) { resourceId }
+          collectionSource: translatableResource(resourceId: $collectionId) { resourceId }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id }),
+    ));
+    assert_eq!(after_delete.body["data"]["productSource"], Value::Null);
+    assert_eq!(after_delete.body["data"]["collectionSource"], Value::Null);
+
+    assert_eq!(
+        upstream_operations.lock().unwrap().as_slice(),
+        [
+            "ObserveLocalizationSources",
+            "ObserveDisjointParentSiblings",
+            "HydrateCanonicalParents"
+        ]
+    );
+}
+
+#[test]
 fn localization_translations_register_stages_locally_and_keeps_raw_mutation_for_commit() {
     let upstream_hits = Arc::new(Mutex::new(0usize));
     let hit_counter = Arc::clone(&upstream_hits);

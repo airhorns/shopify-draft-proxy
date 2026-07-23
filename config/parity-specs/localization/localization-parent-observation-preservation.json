@@ -1,0 +1,128 @@
+{
+  "scenarioId": "localization-parent-observation-preservation",
+  "operationNames": ["translatableResource", "nodes", "product", "collection", "productUpdate", "collectionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "read-after-write-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-parent-observation-preservation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-parent-observation-source-read.graphql",
+    "variablesCapturePath": "$.sourceRead.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "localization-source-projection-product-and-collection",
+        "capturePath": "$.sourceRead.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": []
+      },
+      {
+        "name": "disjoint-product-and-collection-read-retains-localization-overlay",
+        "capturePath": "$.disjointRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-parent-observation-disjoint-read.graphql",
+          "variablesCapturePath": "$.disjointRead.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "source-content-overlay-survives-disjoint-parent-observation",
+        "capturePath": "$.sourceAfterDisjoint.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-parent-observation-source-read.graphql",
+          "variablesCapturePath": "$.sourceAfterDisjoint.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "canonical-node-hydration-retains-sibling-fields",
+        "capturePath": "$.canonicalNodes.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-parent-observation-canonical-nodes.graphql",
+          "variablesCapturePath": "$.canonicalNodes.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "narrow-product-update-preserves-status-vendor-tags-media-membership-and-created-at",
+        "capturePath": "$.productUpdate.response.data.productUpdate",
+        "proxyPath": "$.data.productUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-parent-observation-product-update.graphql",
+          "variablesCapturePath": "$.productUpdate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The staged Product update uses the proxy's deterministic clock while preserving the observed creation timestamp and every omitted canonical sibling."
+          }
+        ]
+      },
+      {
+        "name": "narrow-collection-update-preserves-description-seo-membership-template-and-sort-order",
+        "capturePath": "$.collectionUpdate.response.data.collectionUpdate",
+        "proxyPath": "$.data.collectionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-parent-observation-collection-update.graphql",
+          "variablesCapturePath": "$.collectionUpdate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.collection.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The staged Collection update uses the proxy's deterministic clock while retaining the captured omitted fields and membership."
+          }
+        ]
+      },
+      {
+        "name": "final-product-collection-node-and-source-content-read-after-write",
+        "capturePath": "$.finalRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-parent-observation-final-read.graphql",
+          "variablesCapturePath": "$.finalRead.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream Product read exposes the proxy's deterministic staged update timestamp."
+          },
+          {
+            "path": "$.collection.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream Collection read exposes the proxy's deterministic staged update timestamp."
+          },
+          {
+            "path": "$.nodes[0].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The generic Collection Node read exposes the same deterministic staged update timestamp."
+          },
+          {
+            "path": "$.nodes[1].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The generic Product Node read exposes the same deterministic staged update timestamp."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 evidence creates a rich Product with external-video media and a Collection containing it, reads only each TranslatableResource source projection, then proves canonical Product/Collection/Node hydration and narrow title updates preserve omitted status, vendor, tags, media, relationships, timestamps, descriptions, SEO, template suffixes, and sort order. The final strict target also proves updated source content remains available through the localization overlay."
+}

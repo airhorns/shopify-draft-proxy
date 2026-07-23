@@ -5456,6 +5456,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-parent-observation-preservation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-parent-observation-conformance.mts',
+    purpose:
+      'Product and Collection source-content observations followed by canonical Node hydration, disjoint reads, and narrow update preservation.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_translations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-parent-observation-preservation.json`,
+      'config/parity-specs/localization/localization-parent-observation-preservation.json',
+      'config/parity-requests/localization/localization-parent-observation-source-read.graphql',
+      'config/parity-requests/localization/localization-parent-observation-canonical-nodes.graphql',
+      'config/parity-requests/localization/localization-parent-observation-disjoint-read.graphql',
+      'config/parity-requests/localization/localization-parent-observation-product-update.graphql',
+      'config/parity-requests/localization/localization-parent-observation-collection-update.graphql',
+      'config/parity-requests/localization/localization-parent-observation-final-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one rich Product with media and one Collection containing that Product, captures localization/canonical/update reads, then deletes both resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-market-translations',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-market-translations-conformance.mts',

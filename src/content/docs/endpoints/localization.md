@@ -128,6 +128,18 @@ when a resource/key has not been hydrated with source content, the proxy does
 not reject a row by digest prefix or other synthetic sentinel. Modeled
 Collection resources use the same source-backed projection for title, handle,
 body HTML, and SEO fields that exist in local state.
+In LiveHybrid mode, upstream `TranslatableResource` source content is retained
+as a field-presence-aware localization projection rather than materialized as a
+canonical Product or Collection. A source-only observation therefore does not
+invent status, timestamps, vendor, tags, media, memberships, or other omitted
+domain fields, and it does not prevent a later `product`, `collection`, `node`,
+or `nodes` request from hydrating canonical state. Once canonical state is
+available, local narrow updates preserve its omitted fields while updated
+titles and other source fields continue to feed `translatableContent` and its
+digests. Mutation-derived source changes are staged separately from the observed
+base projection, so state dump/restore retains them and meta reset restores the
+observed source. Product and Collection tombstones take precedence over retained
+source projections, so localization reads cannot resurrect a locally deleted parent.
 Unknown or omitted singular `translatableResource` IDs return `null`, and
 empty `translatableResources` connections remain empty instead of fabricating a
 default resource ID. `translatableResources(first:/last:/after:/before:,

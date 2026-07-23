@@ -1,0 +1,90 @@
+query LocalizationParentObservationFinalRead($productId: ID!, $collectionId: ID!, $ids: [ID!]!) {
+  product(id: $productId) {
+    id
+    title
+    handle
+    status
+    createdAt
+    updatedAt
+    descriptionHtml
+    vendor
+    productType
+    tags
+    templateSuffix
+    seo {
+      title
+      description
+    }
+    media(first: 10) {
+      nodes {
+        id
+        mediaContentType
+        status
+      }
+    }
+    collections(first: 10) {
+      nodes {
+        id
+        title
+        handle
+      }
+    }
+  }
+  collection(id: $collectionId) {
+    id
+    title
+    handle
+    descriptionHtml
+    updatedAt
+    templateSuffix
+    sortOrder
+    seo {
+      title
+      description
+    }
+    products(first: 10) {
+      nodes {
+        id
+        title
+        handle
+      }
+    }
+  }
+  nodes(ids: $ids) {
+    __typename
+    ... on Product {
+      id
+      title
+      status
+      vendor
+      tags
+      updatedAt
+    }
+    ... on Collection {
+      id
+      title
+      descriptionHtml
+      updatedAt
+    }
+  }
+  productSource: translatableResource(resourceId: $productId) {
+    resourceId
+    translatableContent {
+      key
+      value
+      digest
+      locale
+      type
+    }
+  }
+  collectionSource: translatableResource(resourceId: $collectionId) {
+    resourceId
+    translatableContent {
+      key
+      value
+      digest
+      locale
+      type
+    }
+  }
+}

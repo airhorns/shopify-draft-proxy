@@ -2043,6 +2043,7 @@ impl DraftProxy {
             object.insert("updatedAt".to_string(), json!(next_updated_at));
         }
         self.store.stage_collection(updated.clone());
+        self.sync_localization_collection_source_after_update(&updated, &input);
         self.stage_owner_metafields_from_input(&id, &input);
         self.refresh_collection_summary_on_products(&id);
         let job = input.contains_key("ruleSet").then(|| {
